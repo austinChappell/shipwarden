@@ -4,7 +4,7 @@ import type { ProjectsState } from '@shared/projects';
 import type { RemoteAgent, RemoteProject, RemoteSnapshot } from '@shared/remote';
 import { REPO_COLORS, repoDisplayName, type AppSettings } from '@shared/settings';
 import type { TaskLink } from '@shared/tasks';
-import type { TerminalSession } from '@shared/terminal';
+import { runsAgent, type TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
 
 /** The pull request summaries of a repository stay for this time, because each load is a GitHub request. */
@@ -90,7 +90,7 @@ export class RemoteSnapshotBuilder {
             name: project.name,
             repos: project.repos.map(repo => repos.get(repo)).filter(repo => !!repo).map(repo => ({ ...repo, worktrees: [...repo.worktrees] }))
         }));
-        return { projects, agents: sessions.filter(session => session.isAgent).map(agentOf) };
+        return { projects, agents: sessions.filter(session => session.isAgent || runsAgent(session)).map(agentOf) };
     }
 
     /** Forgets the pull requests of a repository, for example after an approval. */

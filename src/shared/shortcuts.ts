@@ -39,3 +39,9 @@ export function appKeyAction(input: { type: string; meta: boolean; shift: boolea
     if (key === 'h') return 'hide';
     return undefined;
 }
+
+/** Returns true for ⌘K without other modifier keys. A focused terminal then clears its screen and scrollback. */
+export function isClearKey(input: { key: string; code?: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }): boolean {
+    const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
+    return key === 'k' && input.metaKey && !input.ctrlKey && !input.altKey && !input.shiftKey;
+}

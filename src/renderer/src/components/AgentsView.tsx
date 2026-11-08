@@ -6,7 +6,7 @@ import type { RepoColor } from '@shared/settings';
 import { RepoIcon } from './RepoIcon';
 import { useAgentSessions } from '../terminal/agent-state-store';
 import type { TaskLink } from '@shared/tasks';
-import type { TerminalSession } from '@shared/terminal';
+import { runsAgent, type TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
 
 const api = window.shipwarden;
@@ -51,7 +51,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
     const sessions = useAgentSessions(sessionList);
     const [now, setNow] = useState(Date.now());
 
-    const agents = useMemo(() => sessions.filter(session => session.isAgent && !session.exited), [sessions]);
+    const agents = useMemo(() => sessions.filter(runsAgent), [sessions]);
     const allRepos = useMemo(() => [...new Set((projects?.projects ?? []).flatMap(project => project.repos))], [projects]);
 
     // The worktrees of all repositories of all projects tell which project and branch each agent belongs to.

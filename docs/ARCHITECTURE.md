@@ -145,6 +145,10 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 - The worktree list shows the state of the agent that needs the user most. A macOS notification appears when an agent
   needs input or is done, unless the user looks at that agent.
 - Other agents (for example Codex) run without hooks and show no detailed state.
+- Each terminal gets the hook variables, also a shell tab. A zsh shell gets `ZDOTDIR=<app data>/shell-integration/zsh`.
+  That `.zshenv` sets `ZDOTDIR` back to the user's value and reads the user's startup files. Before the first prompt,
+  it adds a `claude` function that adds `--settings <hooks file>`. Thus `claude` typed in a shell tab reports its state.
+  The shell tab then shows in the Agents view until the agent sends SessionEnd (`runsAgent`).
 - Each state change carries a message and a time. PreToolUse gives a description of the tool call for people
   (`describeTool`, for example "Editing App.tsx" or "Running npm test"). UserPromptSubmit gives a one-line summary of
   the prompt, which the session keeps.

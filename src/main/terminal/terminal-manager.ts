@@ -33,7 +33,7 @@ export class TerminalManager {
 
     constructor(private readonly events: TerminalEvents) {}
 
-    /** Sets the address of the hook server. New agent sessions get it in their environment. */
+    /** Sets the address of the hook server. New sessions get it in their environment. */
     setHookEnvironment(environment: HookEnvironment): void {
         this.hookEnvironment = environment;
     }
@@ -45,7 +45,8 @@ export class TerminalManager {
     /** Sets the agent state of a session, for example from a hook event. A change without a prompt keeps the last prompt. */
     setAgentState(id: string, change: AgentStateChange): void {
         const entry = this.entries.get(id);
-        if (!entry || !entry.session.isAgent) {
+        // A shell session can report too: the user typed `claude` in it.
+        if (!entry || entry.session.exited) {
             return;
         }
         const { session } = entry;
@@ -71,7 +72,9 @@ export class TerminalManager {
         const id = randomUUID();
         const shell = env.SHELL || '/bin/zsh';
         // A command runs as the shell command, so the shell does not echo it. When the command exits, a normal shell starts.
-        const args = options.command ? ['-l', '-i', '-c', `${options.command}; exec ${shell} -l`] : ['-l'];
+        // The .zshenv of ShipWarden's zsh folder sets ZDOTDIR back to the user's value. The next shell gets the folder again.
+        const zdotdir = env.SHIPWARDEN_ZDOTDIR ? 'ZDOTDIR="$SHIPWARDEN_ZDOTDIR" ' : '';
+        const args = options.command ? ['-l', '-i', '-c', `${options.command}; ${zdotdir}exec ${shell} -l`] : ['-l'];
         const cols = Math.max(options.cols, 2);
         const rows = Math.max(options.rows, 1);
         const child = pty.spawn(shell, args, {
@@ -84,7 +87,8 @@ export class TerminalManager {
                 TERM: 'xterm-256color',
                 COLORTERM: 'truecolor',
                 TERM_PROGRAM: 'ShipWarden',
-                ...(options.isAgent && this.hookEnvironment ? {
+                // Each session gets the hook address, because the user can start an agent in a shell tab.
+                ...(this.hookEnvironment ? {
                     SHIPWARDEN_SESSION_ID: id,
                     SHIPWARDEN_HOOK_URL: this.hookEnvironment.url,
                     SHIPWARDEN_HOOK_TOKEN: this.hookEnvironment.token

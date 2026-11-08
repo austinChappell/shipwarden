@@ -29,7 +29,7 @@ import type { ProjectsState } from '@shared/projects';
 import type { RepoColor } from '@shared/settings';
 import { RepoIcon, repoColorStyle } from './RepoIcon';
 import type { TaskLink } from '@shared/tasks';
-import type { TerminalSession } from '@shared/terminal';
+import { runsAgent, type TerminalSession } from '@shared/terminal';
 import { sortWorktrees, WORKTREE_SORT_LABELS, type Worktree, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
 import { errorText } from '../util';
 import { Logo } from './Logo';
@@ -112,7 +112,7 @@ function readCollapsed(): Set<string> {
 
 /** The agent state of a set of worktrees: the state that needs the user most. */
 function agentStateOf(sessions: TerminalSession[], paths: Set<string>): AgentState | undefined {
-    return worktreeAgentState(sessions.filter(session => session.isAgent && session.worktreePath && paths.has(session.worktreePath)).map(session => session.agentState));
+    return worktreeAgentState(sessions.filter(session => (session.isAgent || runsAgent(session)) && session.worktreePath && paths.has(session.worktreePath)).map(session => session.agentState));
 }
 
 /** The place where a dragged item goes: before or after another item. */
@@ -353,7 +353,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, total, dragPr
     /** True when the repository is collapsed and contains the selected worktree. */
     const holdsSelection = collapsed && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.pipelinesActive && worktrees.some(worktree => worktree.path === selectedPath);
     const color = parent.repoColor(repo);
-    const runningInRepo = collapsed && sessions.some(session => session.isAgent && !session.exited && worktrees.some(worktree => worktree.path === session.worktreePath));
+    const runningInRepo = collapsed && sessions.some(session => runsAgent(session) && worktrees.some(worktree => worktree.path === session.worktreePath));
 
     return (
         <li className={`repo-group${color ? ' colored' : ''}`} style={repoColorStyle(color)}>
@@ -423,7 +423,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, total, dragPr
             {!collapsed && (
                 <ul className="worktree-list">
                     {worktrees.map(worktree => {
-                        const running = sessions.some(session => session.worktreePath === worktree.path && session.isAgent && !session.exited);
+                        const running = sessions.some(session => session.worktreePath === worktree.path && runsAgent(session));
                         const link = parent.links[worktree.path];
                         const agentState = agentStateOf(sessions, new Set([worktree.path]));
                         const dotClass = agentState ?? (running ? 'running' : '');
@@ -572,8 +572,8 @@ export function Sidebar(outerProps: Props) {
         return repoMatches || worktrees.length > 0 ? [{ repo, worktrees, total: all.length }] : [];
     }), [props.repos, props.worktreesByRepo, props.worktreeSort, props.worktreeNames, props.links, props.repoLabel, search]);
     /** The agents of all projects that still run, and the state that needs the user most. */
-    const runningAgents = props.sessions.filter(session => session.isAgent && !session.exited).length;
-    const agentsState = worktreeAgentState(props.sessions.filter(session => session.isAgent && !session.exited).map(session => session.agentState));
+    const runningAgents = props.sessions.filter(session => runsAgent(session)).length;
+    const agentsState = worktreeAgentState(props.sessions.filter(session => runsAgent(session)).map(session => session.agentState));
 
     const toggle = (repo: string) => setCollapsed(current => {
         const next = new Set(current);

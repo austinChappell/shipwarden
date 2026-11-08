@@ -8,6 +8,7 @@ import type { ConnectionChange, TaskLink } from '@shared/tasks';
 import * as os from 'os';
 import { removeAgentSessionVariables } from './agent-environment';
 import { claudeHookSettings, withAgentHooks } from '@shared/agents';
+import { shellIntegrationEnv, writeZshIntegration, type ShellIntegration } from './agents/shell-integration';
 import { writeFileSync } from 'fs';
 import { FileService } from './files/file-service';
 import { FileWatcher } from './files/file-watcher';
@@ -283,6 +284,9 @@ const knownWorktree = async (worktree: unknown): Promise<string> => {
 /** The hook settings file that agents get with --settings. It is the same for each session. */
 const hookSettingsPath = join(app.getPath('userData'), 'claude-hooks.json');
 
+/** The shell setup that adds the hook settings to a `claude` that the user types in a shell tab. */
+const shellIntegration: ShellIntegration = { hookSettingsPath };
+
 function createWindow(): void {
     mainWindow = new BrowserWindow({
         width: 1440,
@@ -497,7 +501,8 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.terminalsCreate, async (_event, options: CreateTerminalOptions) => {
         const command = options.isAgent && options.command ? withAgentHooks(options.command, hookSettingsPath) : options.command;
         // Only an agent that got the hooks reports its state.
-        const session = await terminals.create({ ...options, command, reportsAgentState: !!options.isAgent && command !== options.command }, process.env);
+        const env = { ...process.env, ...shellIntegrationEnv(process.env, shellIntegration) };
+        const session = await terminals.create({ ...options, command, reportsAgentState: !!options.isAgent && command !== options.command }, env);
         terminalSizes.set(session.id, { cols: options.cols, rows: options.rows });
         remote.agentsChanged();
         return session;
@@ -762,6 +767,12 @@ app.whenReady().then(async () => {
     } catch (error) {
         // Without the hook settings, agents still run. ShipWarden then shows no agent state.
         console.warn(`[agents] The hook settings were not written: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    try {
+        shellIntegration.zshFolder = writeZshIntegration(join(app.getPath('userData'), 'shell-integration', 'zsh'));
+    } catch (error) {
+        // Without the zsh folder, shells start as usual. A `claude` that the user types then shows no agent state.
+        console.warn(`[agents] The zsh integration was not written: ${error instanceof Error ? error.message : String(error)}`);
     }
     registerIpc();
     createWindow();
