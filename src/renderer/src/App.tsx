@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Columns2, FileDiff, GitCompareArrows, ListTodo, PanelRight, ScrollText, SquareArrowOutUpRight, SquareTerminal, X } from 'lucide-react';
+import { Columns2, FileDiff, GitCompareArrows, ListTodo, PanelLeft, PanelRight, ScrollText, SquareArrowOutUpRight, SquareTerminal, X } from 'lucide-react';
 import { baseName } from '@shared/files';
 import type { BranchSummary, CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
@@ -50,6 +50,7 @@ import type { ChangeSide, FileChange } from '@shared/git';
 
 /** The command that starts an agent. A setting will replace this value. */
 const EXPLORER_STORAGE_KEY = 'shipwarden.explorerOpen';
+const SIDEBAR_COLLAPSED_KEY = 'shipwarden.sidebarCollapsed';
 
 const api = window.shipwarden;
 
@@ -184,6 +185,21 @@ export function App() {
     const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
     const [reveal, setReveal] = useState<Reveal>();
     const [explorerOpen, setExplorerOpen] = useState(readExplorerOpen);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+        try {
+            return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+        } catch {
+            return false;
+        }
+    });
+    const toggleSidebar = () => setSidebarCollapsed(value => {
+        try {
+            localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(!value));
+        } catch {
+            // The state stays for this session only.
+        }
+        return !value;
+    });
     /** The diff and log tabs of each worktree. */
     const [extraTabs, setExtraTabs] = useState<Record<string, ExtraTab[]>>({});
     /** The center area shows the selected worktree or the task list of the repository. */
@@ -647,7 +663,16 @@ export function App() {
      * one pane. ⌘D and ⇧⌘D: a new shell pane at the right of, or below, the focused pane. ⌘[ and ⌘]: move the focus.
      */
     const shortcut = async (action: ShortcutAction) => {
-        if (mainView !== 'worktree' || !selected || dialogOpen()) return;
+        if (dialogOpen()) return;
+        if (action === 'toggleSidebar') {
+            toggleSidebar();
+            return;
+        }
+        if (action === 'toggleRightPanel') {
+            toggleExplorer();
+            return;
+        }
+        if (mainView !== 'worktree' || !selected) return;
         if (action === 'newTab') {
             await startTerminal(selected, 'shell');
             return;
@@ -1315,8 +1340,22 @@ export function App() {
 
     return (
         <div className="app-shell">
-            <div className="app" style={{ '--sidebar-width': `${sidebarWidth.width}px`, '--explorer-width': `${explorerWidth.width}px` } as CSSProperties}>
-                <Sidebar
+            {/* The sidebar button sits in the title bar after the window buttons, also when the sidebar is collapsed. */}
+            <div className="titlebar-controls">
+                <button
+                    className={`icon-button sidebar-toggle${sidebarCollapsed ? '' : ' on'}`}
+                    title={sidebarCollapsed ? 'Show the sidebar (⌘B)' : 'Hide the sidebar (⌘B)'}
+                    aria-pressed={!sidebarCollapsed}
+                    onClick={toggleSidebar}
+                >
+                    <PanelLeft size={16} strokeWidth={1.5} />
+                </button>
+            </div>
+            <div
+                className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+                style={{ '--sidebar-width': `${sidebarWidth.width}px`, '--explorer-width': `${explorerWidth.width}px` } as CSSProperties}
+            >
+                {!sidebarCollapsed && <Sidebar
                     projects={projects}
                     repos={repos}
                     worktreesByRepo={worktreesByRepo}
@@ -1357,13 +1396,15 @@ export function App() {
                     onRemove={(repo, worktree) => removeWorktree(repo, worktree)}
                     onWorktreeMenu={worktreeMenu}
                     onOpenTask={openLinkedTask}
-                />
-                <ResizeHandle
-                    panel={sidebarWidth}
-                    edge="right"
-                    label="Resize the worktree list"
-                    maxAvailable={() => window.innerWidth - renderedWidth('.explorer') - MIN_WORKSPACE_WIDTH}
-                />
+                />}
+                {!sidebarCollapsed && (
+                    <ResizeHandle
+                        panel={sidebarWidth}
+                        edge="right"
+                        label="Resize the worktree list"
+                        maxAvailable={() => window.innerWidth - renderedWidth('.explorer') - MIN_WORKSPACE_WIDTH}
+                    />
+                )}
                 {mainView === 'tasks' && activeProject && (
                     <main className="workspace">
                         <TasksView
@@ -1503,7 +1544,7 @@ export function App() {
                             )}
                             <button
                                 className={`icon-button panel-toggle${explorerOpen ? ' on' : ''}`}
-                                title={explorerOpen ? 'Hide files' : 'Show files'}
+                                title={explorerOpen ? 'Hide the right panel (⌥⌘B)' : 'Show the right panel (⌥⌘B)'}
                                 onClick={toggleExplorer}
                             >
                                 <PanelRight size={16} strokeWidth={1.5} />

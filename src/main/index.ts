@@ -646,7 +646,23 @@ function buildMenu(): void {
             ]
         },
         { role: 'editMenu' },
-        { role: 'viewMenu' },
+        {
+            label: 'View',
+            submenu: [
+                { label: 'Toggle Sidebar', accelerator: 'Command+B', click: () => sendShortcut('toggleSidebar') },
+                { label: 'Toggle Right Panel', accelerator: 'Alt+Command+B', click: () => sendShortcut('toggleRightPanel') },
+                { type: 'separator' },
+                { role: 'reload' },
+                { role: 'forceReload' },
+                { role: 'toggleDevTools' },
+                { type: 'separator' },
+                { role: 'resetZoom' },
+                { role: 'zoomIn' },
+                { role: 'zoomOut' },
+                { type: 'separator' },
+                { role: 'togglefullscreen' }
+            ]
+        },
         { role: 'windowMenu' }
     ]));
 }

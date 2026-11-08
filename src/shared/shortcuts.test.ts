@@ -26,6 +26,19 @@ describe('shortcutAction', () => {
     });
 });
 
+describe('toggleSidebar', () => {
+    it('is ⌘B', () => {
+        expect(shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: false, key: 'b', code: 'KeyB' })).toBe('toggleSidebar');
+        expect(shortcutAction({ type: 'keyDown', meta: true, shift: true, control: false, alt: false, key: 'b', code: 'KeyB' })).toBeUndefined();
+    });
+
+    it('is ⌥⌘B for the right panel, and other ⌥⌘ keys are not shortcuts', () => {
+        // With Option, macOS sends another character in "key" (for example "∫"). The code stays "KeyB".
+        expect(shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: true, key: '∫', code: 'KeyB' })).toBe('toggleRightPanel');
+        expect(shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: true, key: '†', code: 'KeyT' })).toBeUndefined();
+    });
+});
+
 describe('appKeyAction', () => {
     const key = (code: string, mods: Partial<{ meta: boolean; shift: boolean; alt: boolean; control: boolean }> = {}) =>
         ({ type: 'keyDown', meta: true, shift: false, alt: false, control: false, key: code.replace('Key', '').toLowerCase(), code, ...mods });

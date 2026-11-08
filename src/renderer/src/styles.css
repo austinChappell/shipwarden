@@ -6798,3 +6798,39 @@ body.resizing-column * {
     color: var(--muted);
     font-weight: 400;
 }
+
+/* The sidebar button in the title bar, after the macOS window buttons. It stays in the same place when the sidebar
+   is collapsed. Then the top bar of each view starts after it. */
+.app-shell {
+    position: relative;
+    --titlebar-inset: 118px;
+}
+
+.titlebar-controls {
+    position: absolute;
+    top: 0;
+    left: 80px;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    height: var(--titlebar-height);
+    -webkit-app-region: no-drag;
+}
+
+.sidebar-toggle {
+    color: var(--muted);
+}
+
+.sidebar-toggle:hover {
+    color: var(--text-strong);
+}
+
+.app.sidebar-collapsed .workspace-header,
+.app.sidebar-collapsed .tasks-header,
+.app.sidebar-collapsed .agents-header {
+    padding-left: var(--titlebar-inset);
+}
+
+.app.sidebar-collapsed .settings-header {
+    padding-left: calc(var(--titlebar-inset) + 12px);
+}
