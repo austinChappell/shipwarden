@@ -122,7 +122,6 @@ function ScriptField({ value, placeholder, onSave }: { value: string | undefined
     return (
         <textarea
             className="settings-input mono script-field"
-            rows={Math.max(4, Math.min(14, text.split('\n').length + 1))}
             value={text}
             spellCheck={false}
             placeholder={placeholder}

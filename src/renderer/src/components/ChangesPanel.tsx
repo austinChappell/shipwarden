@@ -230,7 +230,6 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
             <div className="changes-commit">
                 <textarea
                     className="settings-input changes-message"
-                    rows={Math.min(8, Math.max(2, message.split('\n').length))}
                     value={message}
                     placeholder={amend ? 'The message of the amended commit' : 'Commit message (⌘↩ to commit)'}
                     spellCheck

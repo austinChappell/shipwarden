@@ -85,7 +85,6 @@ export function PatternsField({ patterns, placeholder = DEFAULT_COPY_PATTERNS, o
     return (
         <textarea
             className="settings-input mono patterns-field"
-            rows={Math.max(3, Math.min(10, text.split('\n').length + 1))}
             value={text}
             spellCheck={false}
             placeholder={placeholder.join('\n')}

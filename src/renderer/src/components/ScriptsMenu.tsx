@@ -57,7 +57,6 @@ function ScriptDialog({ repoName, script, onClose, onSubmit }: {
                         <span className="setting-label">Command</span>
                         <textarea
                             className="settings-input mono script-field"
-                            rows={Math.max(4, Math.min(12, command.split('\n').length + 1))}
                             value={command}
                             placeholder={'npm test\n# More lines are fine.'}
                             spellCheck={false}
