@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyStartStatus, boardColumns, branchNameForTask, collapsedByDefault, findStartStatus, groupTasksByStatus, linkMatchesTask, normalizeTaskConfig, pickCollection, sortCollections, statusForColumn, taskPrompt, type StatusCategory, type Task, type TaskStatus } from './tasks';
+import { applyStartStatus, boardColumns, branchNameForTask, collapsedByDefault, findStartStatus, groupTasksByStatus, linkMatchesTask, normalizeTaskConfig, pickCollection, sortCollections, statusForColumn, taskMatches, taskPrompt, type StatusCategory, type Task, type TaskStatus } from './tasks';
 
 const task = (key: string | undefined, title: string, category: Task['status']['category'] = 'todo'): Task =>
     ({ id: 'abc', key, title, status: { id: category, name: category, category } });
@@ -199,5 +199,23 @@ describe('linkMatchesTask', () => {
         expect(linkMatchesTask({ pluginId: 'gh', taskId: '3', title: 'x', url: task.url }, 'gh', task)).toBe(true);
         expect(linkMatchesTask({ pluginId: 'gh', taskId: '3', title: 'x' }, 'gh', task)).toBe(false);
         expect(linkMatchesTask({ connectionId: 'other', pluginId: 'github-issues', taskId: 'acme/api#3', title: 'x' }, 'gh', task)).toBe(false);
+    });
+});
+
+describe('taskMatches', () => {
+    const item: Task = { ...task('ENG-42', 'Fix the login page'), labels: [{ name: 'Bug' }], assignees: [{ name: 'Sam Lee' }] };
+
+    it.each([
+        ['', true],
+        ['  ', true],
+        ['eng-42', true],
+        ['LOGIN', true],
+        ['fix page', true],
+        ['bug', true],
+        ['sam', true],
+        ['logout', false],
+        ['login logout', false]
+    ])('matches the search text %j', (query, expected) => {
+        expect(taskMatches(item, query)).toBe(expected);
     });
 });

@@ -387,3 +387,14 @@ export function linkMatchesTask(link: TaskLink, connectionId: string | undefined
     if ((link.connectionId ?? link.pluginId) !== connectionId) return false;
     return link.taskId === task.id || (!!link.url && link.url === task.url);
 }
+
+/** True when each word of the search text is in the task's key, title, labels or assignee names. The search is not case sensitive. */
+export function taskMatches(task: Task, query: string): boolean {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return true;
+    const text = [task.key, task.title, ...(task.labels ?? []).map(label => label.name), ...(task.assignees ?? []).map(person => person.name)]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+    return words.every(word => text.includes(word));
+}

@@ -9,6 +9,7 @@ import {
     sortCollections,
     statusForColumn,
     statusKey,
+    taskMatches,
     type TaskCollection,
     type StatusGroup,
     type StatusOrder,
@@ -294,7 +295,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
             const all: Task[] = [];
             let cursor: string | undefined;
             for (let page = 0; page < MAX_PAGES; page++) {
-                const result = await request<{ tasks: Task[]; nextCursor?: string }>('tasks/list', { collection, filter, query: query.trim() || undefined, cursor });
+                const result = await request<{ tasks: Task[]; nextCursor?: string }>('tasks/list', { collection, filter, cursor });
                 all.push(...result.tasks);
                 cursor = result.nextCursor;
                 if (!cursor) {
@@ -315,13 +316,12 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         } finally {
             setLoading(false);
         }
-    }, [source, collection, connectionId, filter, query, request]);
+    }, [source, collection, connectionId, filter, request]);
 
-    // Load the list after a short pause in typing, and again on a timer and on change notifications.
+    // Load the list now, and again on a timer and on change notifications. The search filters the loaded tasks in the renderer.
     useEffect(() => {
-        const timer = setTimeout(loadTasks, query ? 300 : 0);
-        return () => clearTimeout(timer);
-    }, [loadTasks, query]);
+        loadTasks();
+    }, [loadTasks]);
     useEffect(() => {
         const timer = setInterval(loadTasks, POLL_MS);
         const off = api.onChanged((changedConnection, changedProject) => changedConnection === connectionId && changedProject === projectId && loadTasks());
@@ -432,7 +432,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         await loadDetail(detail.id);
     });
 
-    const shown = tasks ?? [];
+    const shown = useMemo(() => (tasks ?? []).filter(task => taskMatches(task, query)), [tasks, query]);
     const statusGroups = useMemo(() => groupTasksByStatus(shown, statusOrder?.statuses), [shown, statusOrder]);
     /** The board has a column for each status of the collection's workflow, also without tasks, so a card can move to it. */
     const columns = useMemo(() => boardColumns(shown, statusOrder?.statuses), [shown, statusOrder]);
@@ -833,6 +833,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                         {listError && <div className="form-error task-list-error">{listError}</div>}
                         {tasks === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
                         {tasks?.length === 0 && <div className="panel-message">No tasks in this collection.</div>}
+                        {!!tasks?.length && shown.length === 0 && <div className="panel-message">No tasks match “{query.trim()}”.</div>}
                         {renderStatusGroups(statusGroups)}
                     </div>
                     <ResizeHandle
