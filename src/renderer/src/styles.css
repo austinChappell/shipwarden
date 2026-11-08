@@ -1353,9 +1353,13 @@ code {
     border-color: var(--accent);
 }
 
-.pr-body-input {
-    min-height: 220px;
+/* The selector is specific so that the review page rule for .review-body cannot change the height. */
+.pr-description-editor textarea.pr-body-input {
+    flex: none;
+    height: 520px;
+    min-height: 520px;
     font-family: 'JetBrains Mono', Menlo, monospace;
+    resize: none;
 }
 
 .pr-meta-section {
