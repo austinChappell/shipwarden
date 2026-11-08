@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Check, Pencil, Search, Settings2, Users, X } from 'lucide-react';
-import { targetKey, type GitHubLabel, type PullRequest, type PullRequestCandidates, type PullRequestChange, type RepoTarget } from '@shared/github';
+import { targetKey, type GitHubLabel, type PullRequest, type PullRequestCandidates, type RepoTarget } from '@shared/github';
 import { errorText } from '../util';
+import { applyMetaChanges, metaChangeKey, type MetaChange } from './pr-meta-changes';
 
 /** The candidates of each repository, by target key. The list loads one time for each repository and session. */
 const candidateCache = new Map<string, Promise<PullRequestCandidates>>();
@@ -182,20 +183,95 @@ function reviewedBy(pr: PullRequest): Map<string, string> {
     return states;
 }
 
+/** A change that the sidebar shows before GitHub confirms it. `sent` is true when the request is done. */
+interface PendingChange {
+    id: number;
+    change: MetaChange;
+    sent: boolean;
+}
+
+/**
+ * Sends the changes to the reviewers, the assignees and the labels, and shows them before GitHub confirms them.
+ * The user can make the next change at once. Changes to the same item go to GitHub in order.
+ * When no request is open, the pull request refreshes one time. The refresh then replaces the changes that it confirms.
+ * A change that fails goes away, and `error` shows why.
+ */
+function usePendingMetaChanges(target: RepoTarget, pr: PullRequest, onRefresh: () => Promise<void>) {
+    const pending = useRef<PendingChange[]>([]);
+    const queues = useRef(new Map<string, Promise<void>>());
+    const open = useRef(0);
+    const nextId = useRef(0);
+    const [, render] = useReducer((count: number) => count + 1, 0);
+    const [error, setError] = useState<string>();
+    const scope = `${targetKey(target)}#${pr.number}`;
+    const scopeRef = useRef(scope);
+
+    const update = (change: (list: PendingChange[]) => PendingChange[]) => {
+        pending.current = change(pending.current);
+        render();
+    };
+
+    // The changes of a different pull request do not apply.
+    useEffect(() => {
+        scopeRef.current = scope;
+        pending.current = [];
+        queues.current.clear();
+        open.current = 0;
+        setError(undefined);
+        render();
+    }, [scope]);
+
+    const send = (change: MetaChange) => {
+        const id = nextId.current++;
+        const key = metaChangeKey(change);
+        const sentScope = scope;
+        setError(undefined);
+        update(list => [...list, { id, change, sent: false }]);
+        open.current++;
+        const request = (queues.current.get(key) ?? Promise.resolve())
+            .then(() => window.shipwarden.github.changePullRequest(target, pr.number, change));
+        queues.current.set(key, request.catch(() => undefined));
+        request
+            .then(
+                () => update(list => list.map(item => (item.id === id ? { ...item, sent: true } : item))),
+                err => {
+                    update(list => list.filter(item => item.id !== id));
+                    setError(errorText(err));
+                }
+            )
+            .finally(async () => {
+                if (scopeRef.current !== sentScope) return;
+                open.current--;
+                if (open.current > 0) return;
+                const confirmed = new Set(pending.current.filter(item => item.sent).map(item => item.id));
+                try {
+                    await onRefresh();
+                } catch {
+                    // The changes stay on the screen. The next refresh confirms them.
+                    return;
+                }
+                if (scopeRef.current === sentScope) update(list => list.filter(item => !confirmed.has(item.id)));
+            });
+    };
+
+    return { changes: pending.current.map(item => item.change), send, error };
+}
+
 /**
  * The reviewers, the assignees and the labels of a pull request, as on the GitHub sidebar.
- * A user with triage access or more can change them.
+ * A user with triage access or more can change them. The sidebar shows each change at once, before GitHub confirms it.
  */
-export function PullRequestMeta({ target, pr, busy, onChange }: {
+export function PullRequestMeta({ target, pr, onRefresh }: {
     target: RepoTarget;
     pr: PullRequest;
-    busy: boolean;
-    onChange(change: PullRequestChange): void;
+    onRefresh(): Promise<void>;
 }) {
     const [candidates, setCandidates] = useState<PullRequestCandidates>();
     const [loadError, setLoadError] = useState<string>();
+    const { changes, send: onChange, error } = usePendingMetaChanges(target, pr, onRefresh);
+    const shown = applyMetaChanges(pr, changes, candidates?.labels);
     // GitHub accepts assignees and labels also on a closed pull request. Reviewers need an open pull request.
-    const manage = pr.viewerCanManage && !busy;
+    const manage = pr.viewerCanManage;
 
     const load = () => {
         setLoadError(undefined);
@@ -208,9 +284,9 @@ export function PullRequestMeta({ target, pr, busy, onChange }: {
     }, [targetKey(target)]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const reviewed = reviewedBy(pr);
-    const requestedUsers = new Set(pr.reviewRequests.filter(item => item.kind === 'user').map(item => item.login));
-    const assigned = new Set(pr.assignees.map(user => user.login));
-    const labelled = new Set(pr.labels.map(label => label.name));
+    const requestedUsers = new Set(shown.reviewRequests.filter(item => item.kind === 'user').map(item => item.login));
+    const assigned = new Set(shown.assignees.map(user => user.login));
+    const labelled = new Set(shown.labels.map(label => label.name));
 
     const userOptions = (exclude?: string): PickerOption[] => {
         return (candidates?.users ?? []).filter(user => user.login !== exclude).map(user => ({ value: user.login, label: user.login }));
@@ -222,10 +298,11 @@ export function PullRequestMeta({ target, pr, busy, onChange }: {
     };
     const labelOptions = (labels: GitHubLabel[]): PickerOption[] =>
         withCurrent(labels.map(label => ({ value: label.name, label: label.name, color: label.color })), labelled)
-            .map(option => ({ ...option, color: option.color ?? pr.labels.find(label => label.name === option.value)?.color }));
+            .map(option => ({ ...option, color: option.color ?? shown.labels.find(label => label.name === option.value)?.color }));
 
     return (
         <section className="pr-section pr-meta-section">
+            {error && <div className="form-error">{error}</div>}
             <MetaRow
                 title="Reviewers"
                 empty="No reviewers"
@@ -242,7 +319,7 @@ export function PullRequestMeta({ target, pr, busy, onChange }: {
                 )}
             >
                 {[
-                    ...pr.reviewRequests.map(reviewer => (
+                    ...shown.reviewRequests.map(reviewer => (
                         <Chip
                             key={`${reviewer.kind}:${reviewer.login}`}
                             title={reviewer.kind === 'team' ? `Team ${reviewer.name ?? reviewer.login}. The review is pending.` : 'The review is pending.'}
@@ -279,7 +356,7 @@ export function PullRequestMeta({ target, pr, busy, onChange }: {
                     />
                 )}
             >
-                {pr.assignees.map(user => (
+                {shown.assignees.map(user => (
                     <Chip key={user.login} onRemove={manage ? () => onChange({ kind: 'assignee', login: user.login, add: false }) : undefined}>
                         {user.login}
                     </Chip>
@@ -301,7 +378,7 @@ export function PullRequestMeta({ target, pr, busy, onChange }: {
                     />
                 )}
             >
-                {pr.labels.map(label => (
+                {shown.labels.map(label => (
                     <Chip
                         key={label.name}
                         color={label.color}

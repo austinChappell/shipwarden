@@ -329,7 +329,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     </section>
                 )}
 
-                <PullRequestMeta target={target} pr={pr} busy={busy} onChange={change} />
+                <PullRequestMeta target={target} pr={pr} onRefresh={onRefresh} />
                 {/* Without a footer, an error of a change shows here. */}
                 {actionError && !editing && !hasFooter && <div className="form-error pr-section-error">{actionError}</div>}
 
