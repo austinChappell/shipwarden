@@ -1342,23 +1342,6 @@ export function App() {
     return (
         <SidebarContext.Provider value={{ collapsed: sidebarCollapsed, toggle: toggleSidebar }}>
         <div className="app-shell">
-            {/* The two panel buttons have fixed places in the title bar, so they never move when they are clicked: the
-                left one after the macOS window buttons, the right one in the top-right corner. */}
-            <div className="titlebar-controls left">
-                <SidebarToggle />
-            </div>
-            {mainView === 'worktree' && selectedPath && (
-                <div className="titlebar-controls right">
-                    <button
-                        className="icon-button panel-toggle"
-                        title={explorerOpen ? 'Hide the right panel (⌥⌘B)' : 'Show the right panel (⌥⌘B)'}
-                        aria-pressed={explorerOpen}
-                        onClick={toggleExplorer}
-                    >
-                        <PanelRight size={16} strokeWidth={1.5} />
-                    </button>
-                </div>
-            )}
             <div
                 className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${mainView === 'worktree' && selectedPath ? ' has-right-toggle' : ''}${rightPanelShown ? ' right-panel-shown' : ''}`}
                 style={{ '--sidebar-width': `${sidebarWidth.width}px`, '--explorer-width': `${explorerWidth.width}px` } as CSSProperties}
@@ -1600,6 +1583,25 @@ export function App() {
                     />
                 )}
             </div>
+            {/* The two panel buttons have fixed places in the title bar, so they never move when they are clicked: the
+                left one after the macOS window buttons, the right one in the top-right corner. They come after the
+                top bars in the page: Electron applies the window drag areas in page order, so a later "no-drag" area
+                is needed over the drag area of a top bar, or the click moves the window. */}
+            <div className="titlebar-controls left">
+                <SidebarToggle />
+            </div>
+            {mainView === 'worktree' && selectedPath && (
+                <div className="titlebar-controls right">
+                    <button
+                        className="icon-button panel-toggle"
+                        title={explorerOpen ? 'Hide the right panel (⌥⌘B)' : 'Show the right panel (⌥⌘B)'}
+                        aria-pressed={explorerOpen}
+                        onClick={toggleExplorer}
+                    >
+                        <PanelRight size={16} strokeWidth={1.5} />
+                    </button>
+                </div>
+            )}
             <StatusBar />
         </div>
         </SidebarContext.Provider>

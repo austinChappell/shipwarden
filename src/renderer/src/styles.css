@@ -875,7 +875,7 @@ button {
     flex-shrink: 0;
     display: flex;
     align-items: stretch;
-    gap: 2px;
+    gap: 0;
     padding: 0 8px;
     border-bottom: 1px solid var(--border);
     -webkit-app-region: drag;
@@ -883,7 +883,7 @@ button {
 
 .panel-tab {
     position: relative;
-    width: 40px;
+    width: 30px;
     display: grid;
     place-items: center;
     border: 0;
@@ -903,17 +903,16 @@ button {
 }
 
 .panel-badge {
+    /* A dot at the top-right of the icon. The tooltip of the tab has the count. */
     position: absolute;
-    top: 6px;
-    right: 3px;
-    min-width: 15px;
-    padding: 0 4px;
-    border-radius: 8px;
+    top: 9px;
+    right: 4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
     background: var(--accent);
-    color: var(--bg);
-    font-size: 10px;
-    font-weight: 600;
-    line-height: 15px;
+    /* A ring in the color of the bar keeps the dot apart from the icon under it. */
+    box-shadow: 0 0 0 2px var(--panel);
 }
 
 .panel-body {
@@ -6803,7 +6802,7 @@ body.resizing-column * {
    in the top-right corner. They never move when they are clicked. The bars under them leave room for them. */
 .app-shell {
     position: relative;
-    --titlebar-inset: 118px;
+    --titlebar-inset: 122px;
 }
 
 .titlebar-controls {
@@ -6817,11 +6816,11 @@ body.resizing-column * {
 }
 
 .titlebar-controls.left {
-    left: 80px;
+    left: 84px;
 }
 
 .titlebar-controls.right {
-    right: 8px;
+    right: 12px;
 }
 
 .sidebar-toggle,
@@ -6846,11 +6845,11 @@ body.resizing-column * {
 
 /* The right button is over the tab strip of the right panel, or over the end of the worktree top bar. */
 .app.has-right-toggle.right-panel-shown .explorer .panel-tabs {
-    padding-right: 44px;
+    padding-right: 48px;
 }
 
 .app.has-right-toggle:not(.right-panel-shown) .workspace-header {
-    padding-right: 44px;
+    padding-right: 48px;
 }
 
 /* The Pipelines tab of the right panel: the runs of the repository of the worktree */
@@ -7049,6 +7048,7 @@ body.resizing-column * {
 }
 
 .titlebar-controls .icon-button {
+    -webkit-app-region: no-drag;
     display: grid;
     place-items: center;
     width: 28px;

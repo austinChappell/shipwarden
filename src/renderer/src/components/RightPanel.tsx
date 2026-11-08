@@ -70,12 +70,15 @@ export function RightPanel(props: Props) {
                     'changes',
                     [changed ? `Changes (${changed} files)` : 'Changes', behind ? `${behind} commits to pull` : ''].filter(Boolean).join(' · '),
                     <GitCommitVertical size={17} strokeWidth={1.5} />,
-                    changed > 0 || behind > 0
-                        ? <span className={`panel-badge${changed === 0 ? ' pull' : ''}`}>{changed > 0 ? changed : `↓${behind}`}</span>
-                        : undefined
+                    // A dot, without a number: local changes (accent), or only commits to pull (blue). The tooltip has the counts.
+                    changed > 0 || behind > 0 ? <span className={`panel-badge${changed === 0 ? ' pull' : ''}`} aria-hidden="true" /> : undefined
                 )}
-                {tabButton('pr', pr ? `Pull request #${pr.number}` : 'Pull request', <GitPullRequest size={17} strokeWidth={1.5} />,
-                    unresolved > 0 ? <span className="panel-badge">{unresolved}</span> : undefined)}
+                {tabButton(
+                    'pr',
+                    [pr ? `Pull request #${pr.number}` : 'Pull request', unresolved ? `${unresolved} unresolved ${unresolved === 1 ? 'thread' : 'threads'}` : ''].filter(Boolean).join(' · '),
+                    <GitPullRequest size={17} strokeWidth={1.5} />,
+                    unresolved > 0 ? <span className="panel-badge" aria-hidden="true" /> : undefined
+                )}
                 {tabButton('checks', 'Checks', <CircleCheck size={17} strokeWidth={1.5} />)}
                 {tabButton('pipelines', 'Pipelines of this repository', <Workflow size={17} strokeWidth={1.5} />)}
                 {tabButton('processes', 'Processes and ports', <Plug size={17} strokeWidth={1.5} />)}
