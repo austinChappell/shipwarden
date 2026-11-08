@@ -28,6 +28,24 @@ describe('GitWorktreeService', () => {
         await fs.rm(tmp, { recursive: true, force: true });
     });
 
+    it('lists the local and remote branches and the default start point', async () => {
+        const origin = path.join(tmp, 'origin.git');
+        git(tmp, 'clone', '-q', '--bare', repo, origin);
+        git(repo, 'remote', 'add', 'origin', origin);
+        git(repo, 'branch', 'feature/a');
+        const branches = await service.branches(repo);
+        expect(branches.defaultBase).toBe('origin/main');
+        expect(branches.local.sort()).toEqual(['feature/a', 'main']);
+        expect(branches.remote).toEqual(['origin/main']);
+    });
+
+    it('starts a new branch from a chosen base', async () => {
+        git(repo, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-q', '--allow-empty', '-m', 'second');
+        git(repo, 'branch', 'older', 'HEAD~1');
+        const worktree = await service.create({ repoPath: repo, branch: 'from-older', baseRef: 'older' });
+        expect(git(worktree.path, 'log', '--format=%s').trim().split('\n')).toEqual(['init']);
+    });
+
     it('lists the main worktree', async () => {
         const worktrees = await service.list(repo);
         expect(worktrees).toHaveLength(1);

@@ -2,7 +2,7 @@ import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { CreateWorktreeOptions, Worktree } from '@shared/worktrees';
+import type { BranchList, CreateWorktreeOptions, Worktree } from '@shared/worktrees';
 import { ignoredUnits, selectCopyEntries, type CopyIgnoredSettings } from '@shared/worktree-settings';
 import { branchToFolderName, parseWorktreePorcelain } from './porcelain';
 
@@ -58,6 +58,26 @@ export class GitWorktreeService {
             throw new Error(`Git added the worktree, but ShipWarden cannot find it at "${target}".`);
         }
         return created;
+    }
+
+    /**
+     * The branches that a new worktree can start from, the newest commit first, and the default start point. The
+     * default start point needs a fetch of "origin", so this can take some seconds.
+     */
+    async branches(repoPath: string): Promise<BranchList> {
+        const main = (await this.list(repoPath)).find(worktree => worktree.isMain);
+        const root = main?.path ?? repoPath;
+        const defaultBase = await this.remoteDefaultBranch(root);
+        const output = await this.git(root, ['for-each-ref', '--sort=-committerdate', '--format=%(refname)%00%(refname:short)', 'refs/heads', 'refs/remotes']);
+        const local: string[] = [];
+        const remote: string[] = [];
+        for (const line of output.split('\n')) {
+            const [full, short] = line.split('\0');
+            if (!full || !short || full.endsWith('/HEAD')) continue;
+            if (full.startsWith('refs/heads/')) local.push(short);
+            else remote.push(short);
+        }
+        return { local, remote, ...(defaultBase ? { defaultBase } : {}) };
     }
 
     /** Removes a worktree. This function does not remove the main worktree. */

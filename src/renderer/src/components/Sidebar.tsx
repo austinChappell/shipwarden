@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
     Check,
     ChevronDown,
@@ -29,6 +29,8 @@ import type { Worktree } from '@shared/worktrees';
 import { errorText } from '../util';
 import { Logo } from './Logo';
 import { confirmDialog } from './ConfirmDialog';
+import { NewWorktreeDialog, type NewWorktreeRequest } from './NewWorktreeDialog';
+import { worktreeLabel } from '@shared/worktrees';
 
 interface Props {
     projects: ProjectsState | undefined;
@@ -69,7 +71,10 @@ interface Props {
     onRenameProject(id: string, name: string): Promise<void>;
     onDeleteProject(id: string): Promise<void>;
     onSelect(worktree: Worktree): void;
-    onCreate(repo: string, branch: string): Promise<void>;
+    /** Creates a worktree from the New worktree dialog. */
+    onCreate(repo: string, request: NewWorktreeRequest): Promise<void>;
+    /** The display names of worktrees, by path. */
+    worktreeNames?: Record<string, string>;
     onRemove(repo: string, worktree: Worktree): void;
     /** The right-click menu of a worktree: open its task, remove it, or remove it and delete its branch. */
     onWorktreeMenu(repo: string, worktree: Worktree): void;
@@ -258,44 +263,10 @@ function RepoGroup({ repo, collapsed, onToggle, parent }: RepoGroupProps) {
     const worktrees = parent.worktreesByRepo[repo] ?? [];
     const summaries = parent.summaries[repo] ?? {};
     const [creating, setCreating] = useState(false);
-    const [branch, setBranch] = useState('');
-    const [error, setError] = useState<string>();
-    const [busy, setBusy] = useState(false);
     const repoState = collapsed ? agentStateOf(sessions, new Set(worktrees.map(worktree => worktree.path))) : undefined;
     /** True when the repository is collapsed and contains the selected worktree. */
     const holdsSelection = collapsed && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.pipelinesActive && worktrees.some(worktree => worktree.path === selectedPath);
     const runningInRepo = collapsed && sessions.some(session => session.isAgent && !session.exited && worktrees.some(worktree => worktree.path === session.worktreePath));
-
-    const submit = async (event: FormEvent) => {
-        event.preventDefault();
-        const name = branch.trim();
-        if (!name || busy) {
-            return;
-        }
-        if (/\s/.test(name)) {
-            setError('A branch name cannot contain spaces.');
-            return;
-        }
-        setBusy(true);
-        setError(undefined);
-        try {
-            await parent.onCreate(repo, name);
-            setBranch('');
-            setCreating(false);
-        } catch (err) {
-            setError(errorText(err));
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === 'Escape') {
-            setCreating(false);
-            setBranch('');
-            setError(undefined);
-        }
-    };
 
     return (
         <li className="repo-group">
@@ -349,18 +320,16 @@ function RepoGroup({ repo, collapsed, onToggle, parent }: RepoGroupProps) {
                 </button>
             </div>
 
-            {creating && !collapsed && (
-                <form className="new-worktree" onSubmit={submit}>
-                    <input
-                        autoFocus
-                        value={branch}
-                        placeholder="branch-name"
-                        disabled={busy}
-                        onChange={event => setBranch(event.target.value)}
-                        onKeyDown={onKeyDown}
-                    />
-                    {error && <div className="form-error">{error}</div>}
-                </form>
+            {creating && (
+                <NewWorktreeDialog
+                    repoName={parent.repoLabel(repo)}
+                    repoPath={repo}
+                    onClose={() => setCreating(false)}
+                    onCreate={async request => {
+                        await parent.onCreate(repo, request);
+                        setCreating(false);
+                    }}
+                />
             )}
 
             {!collapsed && (
@@ -372,7 +341,8 @@ function RepoGroup({ repo, collapsed, onToggle, parent }: RepoGroupProps) {
                         const dotClass = agentState ?? (running ? 'running' : '');
                         const dotTitle = agentState ? AGENT_STATE_LABELS[agentState] : running ? 'Agent is running' : 'No agent';
                         const pr = worktree.branch ? summaries[worktree.branch] : undefined;
-                        const name = worktree.branch ?? `detached ${worktree.head.slice(0, 7)}`;
+                        const name = worktreeLabel(worktree, parent.worktreeNames);
+                        const named = !!parent.worktreeNames?.[worktree.path];
                         return (
                             <li
                                 key={worktree.path}
@@ -402,7 +372,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent }: RepoGroupProps) {
                                             >
                                                 {link.key ? `${link.key} · ` : ''}{link.title}
                                             </button>
-                                        ) : worktree.isMain ? 'main worktree' : basename(worktree.path)}
+                                        ) : named ? (worktree.branch ?? basename(worktree.path)) : worktree.isMain ? 'main worktree' : basename(worktree.path)}
                                     </div>
                                 </div>
                                 {pr && (

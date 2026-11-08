@@ -276,6 +276,7 @@ function registerIpc(): void {
     });
 
     ipcMain.handle(IpcChannels.worktreesList, (_event, repoPath: string) => worktrees.list(repoPath));
+    ipcMain.handle(IpcChannels.worktreesBranches, (_event, repoPath: string) => worktrees.branches(String(repoPath)));
     ipcMain.handle(IpcChannels.worktreesCreate, async (_event, options: CreateWorktreeOptions): Promise<CreatedWorktree> => {
         const config = await worktreeSettingsFor(options.repoPath);
         const worktree = await worktrees.create(options, config.parentFolder);

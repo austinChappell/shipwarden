@@ -1,5 +1,5 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { CircleAlert, Info, TriangleAlert } from 'lucide-react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { CircleAlert, Info, Pencil, TriangleAlert } from 'lucide-react';
 
 export interface ConfirmOptions {
     /** The question, in one short sentence. */
@@ -20,6 +20,8 @@ interface Request extends ConfirmOptions {
     id: number;
     /** True for a message with only one button. */
     notice?: boolean;
+    /** A text field. Its value is the answer of `promptDialog`. */
+    input?: { value: string; placeholder?: string };
     resolve(value: boolean): void;
 }
 
@@ -49,6 +51,16 @@ export async function alertDialog(title: string, message?: string): Promise<void
     await push({ title, message, confirmLabel: 'OK', notice: true });
 }
 
+/**
+ * Asks the user for a text in a dialog of the app, for example a new name. Resolves the trimmed text, or undefined
+ * when the user cancels. An empty text is a valid answer (for example "no name").
+ */
+export async function promptDialog(options: ConfirmOptions & { value?: string; placeholder?: string }): Promise<string | undefined> {
+    const input = { value: options.value ?? '', placeholder: options.placeholder };
+    const ok = await push({ ...options, input });
+    return ok ? input.value.trim() : undefined;
+}
+
 /** True while a dialog shows. The shortcuts of the app do nothing then. */
 export function dialogOpen(): boolean {
     return queue.length > 0;
@@ -71,12 +83,20 @@ function subscribe(listener: () => void) {
 export function DialogHost() {
     const current = useSyncExternalStore(subscribe, () => queue[0]);
     const confirmButton = useRef<HTMLButtonElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const previousFocus = useRef<Element | null>(null);
+    const [text, setText] = useState('');
 
     useEffect(() => {
         if (!current) return;
         previousFocus.current = document.activeElement;
-        confirmButton.current?.focus();
+        if (current.input) {
+            setText(current.input.value);
+            // The field gets the focus, with its text selected, so the user can type a new text at once.
+            requestAnimationFrame(() => inputRef.current?.select());
+        } else {
+            confirmButton.current?.focus();
+        }
         return () => {
             // The focus goes back, for example to the terminal.
             if (previousFocus.current instanceof HTMLElement) previousFocus.current.focus();
@@ -84,7 +104,11 @@ export function DialogHost() {
     }, [current?.id]);
 
     if (!current) return null;
-    const Icon = current.notice ? Info : current.danger ? TriangleAlert : CircleAlert;
+    const Icon = current.input ? Pencil : current.notice ? Info : current.danger ? TriangleAlert : CircleAlert;
+    const confirm = () => {
+        if (current.input) current.input.value = text;
+        answer(current, true);
+    };
     const paragraphs = current.message?.split(/\n\s*\n/).map(text => text.trim()).filter(Boolean) ?? [];
 
     return (
@@ -109,6 +133,21 @@ export function DialogHost() {
                         <h2 id="confirm-title">{current.title}</h2>
                         {paragraphs.map((text, index) => <p key={index}>{text}</p>)}
                         {current.detail && <pre className="confirm-detail">{current.detail}</pre>}
+                        {current.input && (
+                            <input
+                                ref={inputRef}
+                                className="settings-input confirm-input"
+                                value={text}
+                                placeholder={current.input.placeholder}
+                                onChange={event => setText(event.target.value)}
+                                onKeyDown={event => {
+                                    if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        confirm();
+                                    }
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
                 <footer className="modal-footer confirm-footer">
@@ -118,7 +157,7 @@ export function DialogHost() {
                     <button
                         ref={confirmButton}
                         className={`button ${current.danger ? 'danger' : 'primary'}`}
-                        onClick={() => answer(current, true)}
+                        onClick={confirm}
                     >
                         {current.confirmLabel ?? 'OK'}
                     </button>

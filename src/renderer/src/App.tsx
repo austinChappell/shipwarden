@@ -9,7 +9,8 @@ import { EditorView } from './components/EditorView';
 import { DiffView } from './components/DiffView';
 import { LogView } from './components/LogView';
 import { RightPanel } from './components/RightPanel';
-import { confirmDialog, dialogOpen } from './components/ConfirmDialog';
+import { confirmDialog, dialogOpen, promptDialog } from './components/ConfirmDialog';
+import type { NewWorktreeRequest } from './components/NewWorktreeDialog';
 import { TasksView } from './components/TasksView';
 import { Sidebar } from './components/Sidebar';
 import { TerminalView } from './components/TerminalView';
@@ -987,12 +988,38 @@ export function App() {
         }
     };
 
-    const createWorktree = async (repoPath: string, branch: string) => {
-        const worktree = await api.worktrees.create({ repoPath, branch });
+    /** Sets or removes (with an empty name) the display name of a worktree. */
+    const setWorktreeName = async (path: string, name: string | undefined) => {
+        const names = { ...(appSettings.worktreeNames ?? {}) };
+        if (name) names[path] = name;
+        else delete names[path];
+        setAppSettings(await api.settings.update({ worktreeNames: names }));
+    };
+
+    /** Creates a worktree from the New worktree dialog: its branch, start point, display name and agent. */
+    const createWorktree = async (repoPath: string, request: NewWorktreeRequest) => {
+        const worktree = await api.worktrees.create({ repoPath, branch: request.branch, ...(request.baseRef ? { baseRef: request.baseRef } : {}) });
+        if (request.name) await setWorktreeName(worktree.path, request.name);
         await refreshWorktrees(repoPath);
         setSelectedPath(worktree.path);
         await prepareWorktree(repoPath, worktree);
-        await startTerminal(worktree, 'agent');
+        if (request.startAgent) await startTerminal(worktree, 'agent');
+    };
+
+    const renameWorktree = async (worktree: Worktree) => {
+        const name = await promptDialog({
+            title: 'Rename the worktree',
+            message: `The sidebar shows this name. The branch "${worktree.branch ?? worktree.head.slice(0, 7)}" does not change. An empty name shows the branch again.`,
+            value: appSettings.worktreeNames?.[worktree.path] ?? '',
+            placeholder: worktree.branch ?? 'Name',
+            confirmLabel: 'Rename'
+        });
+        if (name === undefined) return;
+        try {
+            await setWorktreeName(worktree.path, name);
+        } catch (err) {
+            setError(errorText(err));
+        }
     };
 
     /**
@@ -1000,7 +1027,7 @@ export function App() {
      * commits that are not merged, so ShipWarden asks before it forces the delete. The remote branch stays.
      */
     const removeWorktree = async (repoPath: string, worktree: Worktree, options: { deleteBranch?: boolean } = {}) => {
-        const name = worktree.branch ?? worktree.path;
+        const name = appSettings.worktreeNames?.[worktree.path] ?? worktree.branch ?? worktree.path;
         const branch = options.deleteBranch ? worktree.branch : undefined;
         const teardown = appSettings.repos[repoPath]?.worktrees?.teardownScript ? ' The teardown script of the repository runs first.' : '';
         const branchText = branch ? `Git then deletes the local branch "${branch}". The remote branch stays.` : 'Git keeps the branch.';
@@ -1050,6 +1077,7 @@ export function App() {
                 delete next[worktree.path];
                 return next;
             });
+            if (appSettings.worktreeNames?.[worktree.path]) await setWorktreeName(worktree.path, undefined);
             const list = await refreshWorktrees(repoPath);
             if (selectedPath === worktree.path) {
                 setSelectedPath(list[0]?.path ?? worktrees.find(item => item.path !== worktree.path)?.path);
@@ -1109,10 +1137,13 @@ export function App() {
         const link = links[worktree.path];
         const choice = await api.app.contextMenu([
             ...(link ? [{ id: 'task', label: `Open Task${link.key ? ` ${link.key}` : ''}` }, { type: 'separator' as const }] : []),
+            { id: 'rename', label: 'Rename…' },
+            { type: 'separator' as const },
             { id: 'remove', label: 'Remove Worktree…', enabled: !worktree.isMain },
             { id: 'removeBranch', label: worktree.branch ? `Remove Worktree and Delete Branch "${worktree.branch}"…` : 'Remove Worktree and Delete Branch…', enabled: !worktree.isMain && !!worktree.branch }
         ]);
         if (choice === 'task') openLinkedTask(worktree.path);
+        if (choice === 'rename') await renameWorktree(worktree);
         if (choice === 'remove') await removeWorktree(repoPath, worktree);
         if (choice === 'removeBranch') await removeWorktree(repoPath, worktree, { deleteBranch: true });
     };
@@ -1322,6 +1353,7 @@ export function App() {
                         setMainView('worktree');
                     }}
                     onCreate={createWorktree}
+                    worktreeNames={appSettings.worktreeNames}
                     onRemove={(repo, worktree) => removeWorktree(repo, worktree)}
                     onWorktreeMenu={worktreeMenu}
                     onOpenTask={openLinkedTask}

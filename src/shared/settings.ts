@@ -89,6 +89,17 @@ export interface AppSettings {
     worktrees: WorktreeSettings;
     /** The macOS notifications: on or off, and a switch and a sound for each event. */
     notifications: NotificationSettings;
+    /** The display names of worktrees, by the worktree path. A worktree without a name shows its branch. */
+    worktreeNames?: Record<string, string>;
+}
+
+/** Keeps the names that are text, trimmed and at most 80 characters. */
+function normalizeWorktreeNames(raw: unknown): Record<string, string> | undefined {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const entries = Object.entries(raw as Record<string, unknown>)
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0 && entry[0].startsWith('/'))
+        .map(([path, name]) => [path, name.trim().slice(0, 80)]);
+    return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
 export interface NetworkSettings {
@@ -228,6 +239,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         network: normalizeNetwork(raw.network),
         worktrees: normalizeWorktreeSettings(raw.worktrees),
         notifications: normalizeNotificationSettings(raw.notifications),
+        ...(normalizeWorktreeNames(raw.worktreeNames) ? { worktreeNames: normalizeWorktreeNames(raw.worktreeNames) } : {}),
         ...(raw.reviewOwners === 'all'
             ? { reviewOwners: 'all' as const }
             : Array.isArray(raw.reviewOwners)

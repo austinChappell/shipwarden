@@ -64,6 +64,7 @@ const api: ShipWardenApi = {
     worktrees: {
         list: repoPath => ipcRenderer.invoke(IpcChannels.worktreesList, repoPath),
         create: options => ipcRenderer.invoke(IpcChannels.worktreesCreate, options),
+        branches: repoPath => ipcRenderer.invoke(IpcChannels.worktreesBranches, repoPath),
         remove: (repoPath, worktreePath, options) => ipcRenderer.invoke(IpcChannels.worktreesRemove, repoPath, worktreePath, options),
         previewCopy: (repoPath, copy) => ipcRenderer.invoke(IpcChannels.worktreesPreviewCopy, repoPath, copy),
         defaultFolder: () => ipcRenderer.invoke(IpcChannels.worktreesDefaultFolder),

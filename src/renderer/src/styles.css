@@ -6761,3 +6761,40 @@ body.resizing-column * {
 .panel-badge.pull {
     background: var(--info);
 }
+
+.confirm-input {
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* The New worktree dialog */
+.new-worktree-dialog .combobox,
+.new-worktree-base {
+    max-width: none;
+}
+
+.new-worktree-dialog .run-field .panel-note {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.new-worktree-agent {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.new-worktree-dialog .settings-input {
+    width: 100%;
+    max-width: none;
+}
+
+.new-worktree-optional {
+    color: var(--muted);
+    font-weight: 400;
+}

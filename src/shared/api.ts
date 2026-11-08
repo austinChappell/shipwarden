@@ -14,7 +14,7 @@ import type { UpdateState } from './updates';
 import type { ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
-import type { CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult, Worktree } from './worktrees';
+import type { BranchList, CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings } from './worktree-settings';
 
 /** Where a click on a notification goes. */
@@ -133,6 +133,8 @@ export interface ShipWardenApi {
         list(repoPath: string): Promise<Worktree[]>;
         /** Creates a worktree in the folder of the worktree settings and copies the matching git-ignored files into it. */
         create(options: CreateWorktreeOptions): Promise<CreatedWorktree>;
+        /** The branches that a new worktree can start from, and the default start point (after a fetch of origin). */
+        branches(repoPath: string): Promise<BranchList>;
         /** Runs the teardown script of the repository (unless `skipTeardown`), then removes the worktree. */
         remove(repoPath: string, worktreePath: string, options?: { skipTeardown?: boolean }): Promise<RemoveWorktreeResult>;
         /** The git-ignored files and folders of the main worktree that the copy settings copy now. */
@@ -326,6 +328,7 @@ export const IpcChannels = {
     projectsRemoveRepo: 'projects:removeRepo',
     worktreesList: 'worktrees:list',
     worktreesCreate: 'worktrees:create',
+    worktreesBranches: 'worktrees:branches',
     worktreesRemove: 'worktrees:remove',
     worktreesPreviewCopy: 'worktrees:previewCopy',
     worktreesDefaultFolder: 'worktrees:defaultFolder',
