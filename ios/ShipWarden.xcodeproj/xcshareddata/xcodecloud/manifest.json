@@ -1,0 +1,9 @@
+{
+  "id" : "dc2b4ccd-2cf9-4ddb-97e2-36ee89c61ea7",
+  "targets" : [
+    {
+      "id" : "b683b174-7da3-421a-8266-dd1a0037333b",
+      "name" : "ShipWarden"
+    }
+  ]
+}

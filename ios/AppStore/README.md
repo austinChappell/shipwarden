@@ -13,9 +13,9 @@ The text for App Store Connect, the review notes and the steps. The screenshots 
 | Primary category | Developer Tools |
 | Age rating | 4+ (no objectionable content) |
 | Price | Free |
-| Privacy policy URL | https://github.com/austinChappell/shipwarden/blob/main/docs/PRIVACY.md |
+| Privacy policy URL | https://shipwarden.tech/privacy |
 | Support URL | https://github.com/austinChappell/shipwarden/issues |
-| Marketing URL | https://github.com/austinChappell/shipwarden |
+| Marketing URL | https://shipwarden.tech |
 | Copyright | 2026 Austin Chappell |
 
 ## Description
