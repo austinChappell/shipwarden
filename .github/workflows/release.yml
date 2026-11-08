@@ -72,6 +72,7 @@ jobs:
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/release-notes.mjs "${{ steps.version.outputs.version }}" release-notes.md
 
       - name: Build the app
+        shell: bash
         env:
           CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
@@ -84,18 +85,28 @@ jobs:
             BUILDER_ARGS+=(-c.mac.identity=null)
           fi
           # electron-builder downloads its tools (7zip, dmgbuild) from GitHub Releases, which sometimes answers with 504.
-          # Try again with a longer wait each time. Attempts 3 and 4 use a mirror. electron-builder checks each tool
-          # against a SHA-256 in its code, so a mirror cannot change the files.
+          # Retry only the observed HTTP 504 download failure. Attempts 3 and 4 use a mirror.
+          # All other failures, including checksum mismatches, stop the release immediately.
+          # electron-builder checks each tool against a SHA-256 in its code.
           for ATTEMPT in 1 2 3 4; do
             if [ "$ATTEMPT" -ge 3 ]; then
               export ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/
               echo "::warning::electron-builder uses the mirror $ELECTRON_BUILDER_BINARIES_MIRROR."
             fi
-            if npx electron-builder "${BUILDER_ARGS[@]}"; then
+            BUILD_LOG="$RUNNER_TEMP/electron-builder-attempt-${ATTEMPT}.log"
+            if npx electron-builder "${BUILDER_ARGS[@]}" 2>&1 | tee "$BUILD_LOG"; then
               break
             fi
+            if grep -Eiq 'checksum mismatch|integrity check failed' "$BUILD_LOG"; then
+              echo "::error::electron-builder reported an integrity failure. Refusing to retry."
+              exit 1
+            fi
+            if ! grep -Fq 'Response code 504 (Gateway Time-out)' "$BUILD_LOG"; then
+              echo "::error::electron-builder failed without an HTTP 504. Refusing to retry."
+              exit 1
+            fi
             if [ "$ATTEMPT" -eq 4 ]; then
-              echo "::error::electron-builder failed 4 times."
+              echo "::error::electron-builder failed with HTTP 504 four times."
               exit 1
             fi
             WAIT=$((10 * 2 ** (ATTEMPT - 1)))
