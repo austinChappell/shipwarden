@@ -100,7 +100,7 @@
           ]
         }
       ],
-      "icon": "build/icon.png",
+      "icon": "build/icon.icns",
       "darkModeSupport": true,
       "hardenedRuntime": false,
       "identity": "Austin Chappell (RS2D575SJ5)"
@@ -110,6 +110,7 @@
     },
     "electronLanguages": [
       "en"
-    ]
+    ],
+    "electronDist": "node_modules/electron/dist"
   }
 }
