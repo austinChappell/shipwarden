@@ -30,19 +30,23 @@ struct ShipWardenApp: App {
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var agentsPath = NavigationPath()
+    @State private var tab = "agents"
 
     var body: some View {
         Group {
-            if model.pairing == nil || model.pendingLink != nil {
+            if (model.pairing == nil && model.demo == nil) || model.pendingLink != nil {
                 PairView()
             } else {
-                TabView {
+                TabView(selection: $tab) {
                     NavigationStack(path: $agentsPath) { AgentsView() }
                         .tabItem { Label("Agents", systemImage: "sparkles") }
+                        .tag("agents")
                     NavigationStack { WorktreesView() }
                         .tabItem { Label("Worktrees", systemImage: "arrow.triangle.branch") }
+                        .tag("worktrees")
                     NavigationStack { MacView() }
                         .tabItem { Label("Mac", systemImage: "laptopcomputer") }
+                        .tag("mac")
                 }
             }
         }
@@ -53,10 +57,15 @@ struct RootView: View {
     }
 
     #if DEBUG
-    /// For checks from the command line: `SIMCTL_CHILD_SHIPWARDEN_PAIR_LINK` pairs the app, and
-    /// `SIMCTL_CHILD_SHIPWARDEN_OPEN_AGENT` opens an agent. Release builds do not have this code.
+    /// For checks and screenshots from the command line. See ios/README.md. Release builds do not have this code.
     private func runDebugAutomation() async {
         let environment = ProcessInfo.processInfo.environment
+        if environment["SHIPWARDEN_DEMO"] == "1" {
+            model.startDemo()
+        }
+        if let selected = environment["SHIPWARDEN_TAB"] {
+            tab = selected
+        }
         if let text = environment["SHIPWARDEN_PAIR_LINK"], let link = PairingLink(text) {
             try? await model.pair(with: link, deviceName: "Simulator")
         }
@@ -80,6 +89,17 @@ struct ConnectionBanner: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        if model.demo != nil {
+            Label("Demo: sample agents. Pair with a Mac on the Mac tab to see your own agents.", systemImage: "play.rectangle")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        } else {
+            status
+        }
+    }
+
+    @ViewBuilder
+    private var status: some View {
         switch model.connection {
         case .connected, .disconnected:
             EmptyView()

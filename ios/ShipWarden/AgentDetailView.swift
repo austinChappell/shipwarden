@@ -46,6 +46,11 @@ final class ScreenModel {
         if let snapshot { text = TerminalStyle.attributed(snapshot, fontSize: size) }
     }
 
+    /// Shows a screen that did not come from a stream, for example in the demo.
+    func show(_ next: ScreenSnapshot) {
+        update(next)
+    }
+
     private func update(_ next: ScreenSnapshot) {
         snapshot = next
         text = TerminalStyle.attributed(next, fontSize: fontSize)
@@ -92,11 +97,20 @@ struct AgentDetailView: View {
                 }
             }
         }
-        .onAppear { screen.start(client: model.client, agentId: agentId) }
+        .onAppear {
+            if let demoScreen = model.demo?.screen(for: agentId) {
+                screen.show(demoScreen)
+            } else {
+                screen.start(client: model.client, agentId: agentId)
+            }
+        }
+        .onChange(of: model.demo?.screen(for: agentId)) { _, next in
+            if let next { screen.show(next) }
+        }
         .onDisappear { screen.stop() }
         .onChange(of: model.connection) { _, state in
             // A new connection has a new client.
-            if state == .connected { screen.start(client: model.client, agentId: agentId) }
+            if state == .connected, model.demo == nil { screen.start(client: model.client, agentId: agentId) }
         }
     }
 
@@ -135,7 +149,7 @@ struct AgentDetailView: View {
                     .fixedSize(horizontal: true, vertical: true)
                     .textSelection(.enabled)
                     .padding(6)
-                    .frame(minWidth: geometry.size.width, alignment: .leading)
+                    .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
             }
             .defaultScrollAnchor(.bottomLeading)
             .background(TerminalStyle.background)

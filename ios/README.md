@@ -7,6 +7,10 @@ The iPhone app shows the agents that run in ShipWarden on your Mac. It connects 
 - **Worktrees.** The worktrees of each repository with their task, their pull request and the CI state. You can
   approve a pull request.
 - **Mac.** The paired Mac and the connection. You can forget the Mac here.
+- **Demo.** "Try the demo" on the pairing screen shows sample agents that answer the buttons and replies. It uses no
+  network. App Review uses it, because a reviewer has no Mac with ShipWarden.
+
+The app is for iPhone only. To submit it to the App Store, see [AppStore/README.md](AppStore/README.md).
 
 ## Pair the phone
 
@@ -41,6 +45,8 @@ Release builds do not have this code.
 
 | Variable | Effect |
 |---|---|
+| `SIMCTL_CHILD_SHIPWARDEN_DEMO=1` | Starts the demo. |
+| `SIMCTL_CHILD_SHIPWARDEN_TAB` | Opens a tab: `agents`, `worktrees` or `mac`. |
 | `SIMCTL_CHILD_SHIPWARDEN_PAIR_LINK` | Pairs the app with this `shipwarden://pair?…` link at start. |
 | `SIMCTL_CHILD_SHIPWARDEN_OPEN_AGENT` | Opens the agent with this session ID. |
 | `SIMCTL_CHILD_SHIPWARDEN_SEND_TEXT` | Sends this text to the opened agent. |
@@ -54,5 +60,6 @@ For example: `SIMCTL_CHILD_SHIPWARDEN_PAIR_LINK="$(pbpaste)" xcrun simctl launch
 | `Models.swift` | The API types. They are the same as `src/shared/remote.ts`. Change both together. |
 | `APIClient.swift` | HTTPS with the pinned certificate, the event streams and the keychain |
 | `AppModel.swift` | The pairing, the connection and the agent list |
+| `Demo.swift` | The sample agents of the demo |
 | `TerminalStyle.swift` | The screen of an agent as styled text |
 | `*View.swift` | The screens |

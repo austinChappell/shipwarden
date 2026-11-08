@@ -13,6 +13,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>ShipWarden connects to the ShipWarden app on your Mac to show your agents.</string>
 	<key>NSAppTransportSecurity</key>

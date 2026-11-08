@@ -226,7 +226,15 @@ struct MacView: View {
     var body: some View {
         List {
             ConnectionBanner()
-            if let pairing = model.pairing {
+            if model.demo != nil {
+                Section {
+                    Button("Exit the demo") { model.stopDemo() }
+                } header: {
+                    Text("Demo")
+                } footer: {
+                    Text("The demo shows sample agents. To see your own agents, install ShipWarden on your Mac, open Settings › Mobile and pair this phone.")
+                }
+            } else if let pairing = model.pairing {
                 Section("Mac") {
                     LabeledContent("Name", value: pairing.macName)
                     if let version = model.snapshot?.mac.version {

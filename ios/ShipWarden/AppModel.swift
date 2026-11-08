@@ -46,6 +46,8 @@ final class AppModel {
 
     private(set) var client: APIClient?
     private var loop: Task<Void, Never>?
+    /// The sample agents. While the demo runs, the app uses no network.
+    private(set) var demo: DemoState?
 
     init() {
         if let data = UserDefaults.standard.data(forKey: Self.pairingKey),
@@ -75,6 +77,7 @@ final class AppModel {
         let next = Pairing(macName: response.mac.name, hosts: link.hosts, port: link.port, fingerprint: link.fingerprint, deviceId: response.deviceId, lastHost: host)
         save(next)
         pendingLink = nil
+        demo = nil
         stop()
         start()
     }
@@ -97,11 +100,35 @@ final class AppModel {
         }
     }
 
+    // MARK: Demo
+
+    func startDemo() {
+        stop()
+        let demo = DemoState()
+        demo.onChange = { [weak self, weak demo] in
+            guard let self, let demo else { return }
+            self.agents = demo.agents
+        }
+        self.demo = demo
+        pendingLink = nil
+        snapshot = demo.snapshot
+        agents = demo.agents
+        connection = .connected
+    }
+
+    func stopDemo() {
+        demo = nil
+        snapshot = nil
+        agents = []
+        connection = .disconnected
+        start()
+    }
+
     // MARK: Connection
 
     /// Connects and keeps the connection. After a failure, it tries again after a short wait.
     func start() {
-        guard pairing != nil, loop == nil else { return }
+        guard pairing != nil, demo == nil, loop == nil else { return }
         loop = Task { [weak self] in
             var delay: UInt64 = 1
             while !Task.isCancelled {
@@ -122,7 +149,7 @@ final class AppModel {
 
     /// Loads the state again, for example on pull to refresh.
     func refresh() async {
-        guard let client else { return }
+        guard demo == nil, let client else { return }
         do {
             apply(try await client.state())
         } catch {
@@ -216,11 +243,21 @@ final class AppModel {
     // MARK: Actions
 
     func send(_ input: RemoteInput, to agent: RemoteAgent) async throws {
+        if let demo {
+            demo.handle(input, agentId: agent.id)
+            agents = demo.agents
+            return
+        }
         guard let client else { throw APIError.noHost }
         try await client.input(agentId: agent.id, input)
     }
 
     func approve(_ pullRequest: RemotePullRequest, in worktree: RemoteWorktree, body: String) async throws {
+        if let demo {
+            demo.approve(worktreePath: worktree.path)
+            snapshot = demo.snapshot
+            return
+        }
         guard let client else { throw APIError.noHost }
         guard let headSha = pullRequest.headSha else {
             throw APIError.server(400, "The Mac did not send the head commit of this pull request. Update ShipWarden on the Mac.")

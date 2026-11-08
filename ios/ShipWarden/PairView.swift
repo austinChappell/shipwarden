@@ -67,6 +67,20 @@ struct PairView: View {
                     }
                 }
 
+                if model.pendingLink == nil {
+                    Section {
+                        Button {
+                            model.startDemo()
+                        } label: {
+                            Label("Try the demo", systemImage: "play.rectangle")
+                        }
+                    } header: {
+                        Text("No Mac nearby?")
+                    } footer: {
+                        Text("The demo shows sample agents. It does not connect to a Mac.")
+                    }
+                }
+
                 if let error {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
