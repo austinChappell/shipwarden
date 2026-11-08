@@ -46,6 +46,7 @@ export interface TerminalSettings {
     source?: string;
 }
 
+import type { AgentProgram } from './agent-programs';
 import type { AgentState } from './agents';
 
 /** A terminal process in the main process. */
@@ -72,17 +73,25 @@ export interface TerminalSession {
     agentPrompt?: string;
     /** The time of the last state change, in milliseconds. */
     agentStateAt?: number;
+    /** The agent program that runs in a shell tab, for example `claude` that the user typed. The app finds it in the process table. */
+    agentProgram?: AgentProgram;
+    /**
+     * True when the session runs in a PTY host of an older build. Such a host keeps its sessions, but it does not get
+     * new sessions. Features of newer builds can be missing in it, for example the hooks of an agent in a shell tab.
+     */
+    hostOutdated?: boolean;
 }
 
 /**
- * Returns true when the session runs an agent: an agent tab, or a shell tab in which an agent reports its state
- * through the hooks (for example `claude` that the user typed).
+ * Returns true when the session runs an agent: an agent tab, or a shell tab in which an agent runs
+ * (for example `claude` or `codex` that the user typed). The app finds such an agent in the process table,
+ * or the agent reports its state through the hooks.
  */
-export function runsAgent(session: Pick<TerminalSession, 'isAgent' | 'exited' | 'agentState'>): boolean {
+export function runsAgent(session: Pick<TerminalSession, 'isAgent' | 'exited' | 'agentState' | 'agentProgram'>): boolean {
     if (session.exited) {
         return false;
     }
-    return session.isAgent || (!!session.agentState && session.agentState !== 'exited');
+    return session.isAgent || !!session.agentProgram || (!!session.agentState && session.agentState !== 'exited');
 }
 
 export interface CreateTerminalOptions {

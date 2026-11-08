@@ -467,6 +467,45 @@ button {
     inset: 0;
 }
 
+/* The bar above a terminal of an outdated PTY host. The terminal starts below it. */
+.host-notice {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 34px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+    color: var(--text);
+    font-size: 12px;
+}
+
+.host-notice-icon {
+    flex: none;
+    color: var(--accent);
+}
+
+.host-notice-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.host-notice .button {
+    flex: none;
+}
+
+.terminal.below-notice {
+    top: 34px;
+}
+
 .terminal-host {
     position: absolute;
     inset: 8px 0 0 10px;

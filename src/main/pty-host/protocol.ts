@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import type { AgentUpdate } from '@shared/agents';
 import type { CreateTerminalOptions } from '@shared/terminal';
@@ -9,14 +11,44 @@ import type { CreateTerminalOptions } from '@shared/terminal';
  */
 export const PTY_HOST_PROTOCOL = 1;
 
-/** Returns the socket path of the PTY host in a folder. */
+/** Returns the socket path of the PTY host in a folder. Hosts before the per-build sockets use this path. */
 export function ptyHostSocketPath(folder: string): string {
     return join(folder, `pty-host-v${PTY_HOST_PROTOCOL}.sock`);
 }
 
+/** The prefix of the file name of a per-build socket. */
+export const BUILD_SOCKET_PREFIX = `pty-host-v${PTY_HOST_PROTOCOL}-`;
+
+/** macOS accepts a socket path of at most 104 bytes. A longer path gets a folder in the temporary folder. */
+const MAX_SOCKET_PATH_BYTES = 100;
+
+/**
+ * Returns the folder of the per-build sockets of an app data folder.
+ * When a socket path in the app data folder is too long, the folder is in the temporary folder, with a hash of the app data folder.
+ */
+export function ptyHostSocketFolder(folder: string): string {
+    const longest = join(folder, `${BUILD_SOCKET_PREFIX}${'0'.repeat(16)}.sock`);
+    if (Buffer.byteLength(longest) <= MAX_SOCKET_PATH_BYTES) {
+        return folder;
+    }
+    // A short name, so that the socket path in the temporary folder of macOS (about 50 bytes) stays below the limit.
+    return join(tmpdir(), `sw-${createHash('sha256').update(folder).digest('hex').slice(0, 8)}`);
+}
+
+/**
+ * Returns the socket path of the PTY host of one build. Each build has its own socket, so a new build can start
+ * its host while a host of an older build still runs its sessions.
+ */
+export function buildSocketPath(socketFolder: string, buildId: string): string {
+    return join(socketFolder, `${BUILD_SOCKET_PREFIX}${buildId}.sock`);
+}
+
 export interface PtyHostHello {
     protocol: number;
-    /** Identifies the code of the host. The app replaces a host from another build when the host has no running sessions. */
+    /**
+     * Identifies the code of the host. A host of another build is outdated: it keeps its running sessions, but it gets
+     * no new sessions. When it has no running sessions, the app stops it.
+     */
     buildId: string;
     pid: number;
     /** The number of sessions with a running process. */

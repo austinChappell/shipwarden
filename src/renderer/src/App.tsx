@@ -315,6 +315,8 @@ export function App() {
                 notifyRef.current(id, update.state, update.message);
             }
         });
+        // An agent that the user started in a shell tab, for example with `claude` or `codex`.
+        const offAgentProgram = api.terminals.onAgentProgram((id, program) => agentStateStore.setProgram(id, program));
         const offDirty = documents.onDirtyChange((root, path, dirty) => {
             setDirtyFiles(set => {
                 const next = new Set(set);
@@ -337,6 +339,7 @@ export function App() {
             offOpenSettings();
             offExit();
             offAgentState();
+            offAgentProgram();
             offDirty();
         };
     }, [showProject]);

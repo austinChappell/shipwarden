@@ -38,7 +38,7 @@ function input(change: Partial<ScanInput> = {}): ScanInput {
         ports: parseListeningPorts(LISTEN),
         cwds: parseCwds(CWD),
         sessions: [{ id: 's1', title: 'Shell', isAgent: false, worktreePath: '/wt/a', pid: 300, exited: false }],
-        hostPid: 200,
+        hostPids: [200],
         excludedPids: [100],
         worktreePaths: ['/wt/a', '/wt/b'],
         ...change
