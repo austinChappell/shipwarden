@@ -245,6 +245,16 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         }
     };
 
+    const setAutoMerge = async (on: boolean) => {
+        if (on && !method) return;
+        const title = on
+            ? `Turn on auto-merge for pull request #${pr.number}? GitHub merges it into ${pr.baseRefName} with "${MERGE_LABELS[method!]}" when all the requirements pass.`
+            : `Turn off auto-merge for pull request #${pr.number}?`;
+        if (await confirmDialog({ title, confirmLabel: on ? 'Enable auto-merge' : 'Disable auto-merge' })) {
+            change({ kind: 'autoMerge', pullRequestId: pr.id, method: on ? method! : null, headSha: pr.headRefOid });
+        }
+    };
+
     const saveDescription = (title: string, text: string) => run(async () => {
         await window.shipwarden.github.changePullRequest(target, pr.number, {
             kind: 'details',
@@ -412,17 +422,36 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                             </>
                         )}
                     </div>
-                    {pr.viewerCanMerge && (
+                    {pr.autoMerge ? (
+                        <div className="auto-merge-row">
+                            <div className="panel-note">
+                                Auto-merge is on{pr.autoMerge.enabledBy ? ` (${pr.autoMerge.enabledBy})` : ''}.
+                                GitHub merges the pull request with "{MERGE_LABELS[pr.autoMerge.method]}" when all the requirements pass.
+                            </div>
+                            {pr.viewerCanDisableAutoMerge && (
+                                <button className="button" disabled={busy} onClick={() => setAutoMerge(false)}>Disable auto-merge</button>
+                            )}
+                        </div>
+                    ) : (pr.viewerCanMerge || pr.viewerCanEnableAutoMerge) && (
+                    <>
                     <div className="merge-row">
                         <select value={method} onChange={event => setMergeMethod(event.target.value as MergeMethod)} disabled={busy}>
                             {pr.allowedMergeMethods.map(item => <option key={item} value={item}>{MERGE_LABELS[item]}</option>)}
                         </select>
-                        <button className="button merge" disabled={busy || !!blocker || !method} title={blocker} onClick={merge}>
-                            <GitMerge size={14} strokeWidth={1.8} />Merge
-                        </button>
+                        {pr.viewerCanEnableAutoMerge && (
+                            <button className="button" disabled={busy || !method} onClick={() => setAutoMerge(true)}>
+                                <GitMerge size={14} strokeWidth={1.8} />Enable auto-merge
+                            </button>
+                        )}
+                        {pr.viewerCanMerge && (
+                            <button className="button merge" disabled={busy || !!blocker || !method} title={blocker} onClick={merge}>
+                                <GitMerge size={14} strokeWidth={1.8} />Merge
+                            </button>
+                        )}
                     </div>
-                    )}
                     {pr.viewerCanMerge && blocker && <div className="panel-note">{blocker}</div>}
+                    </>
+                    )}
                     {pr.viewerCanUpdate && (
                         <div className="row-buttons">
                             {pr.isDraft ? (

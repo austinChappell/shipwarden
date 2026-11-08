@@ -151,12 +151,15 @@ query($owner: String!, $name: String!, $number: Int!) {
     mergeCommitAllowed
     squashMergeAllowed
     rebaseMergeAllowed
+    autoMergeAllowed
     viewerDefaultMergeMethod
     viewerPermission
     pullRequest(number: $number) {
       id number title body bodyHTML url state isDraft mergeable mergeStateStatus reviewDecision
       author { login avatarUrl }
       baseRefName headRefName baseRefOid headRefOid additions deletions changedFiles createdAt viewerDidAuthor viewerCanUpdate
+      viewerCanEnableAutoMerge viewerCanDisableAutoMerge
+      autoMergeRequest { mergeMethod enabledBy { login } }
       assignees(first: 20) { nodes { login avatarUrl } }
       labels(first: 50) { nodes { name color description } }
       reviewRequests(first: 30) {
@@ -184,10 +187,12 @@ interface GraphQlPullRequest {
         mergeCommitAllowed: boolean;
         squashMergeAllowed: boolean;
         rebaseMergeAllowed: boolean;
+        autoMergeAllowed: boolean;
         viewerDefaultMergeMethod: 'MERGE' | 'SQUASH' | 'REBASE';
         viewerPermission: string | null;
         pullRequest: Omit<PullRequest, 'reviews' | 'issueComments' | 'threads' | 'allowedMergeMethods' | 'defaultMergeMethod' | 'commits' | 'commitCount' | 'checkCount'
-            | 'assignees' | 'labels' | 'reviewRequests' | 'viewerCanManage' | 'viewerCanMerge'> & {
+            | 'assignees' | 'labels' | 'reviewRequests' | 'viewerCanManage' | 'viewerCanMerge' | 'autoMerge'> & {
+            autoMergeRequest: { mergeMethod: 'MERGE' | 'SQUASH' | 'REBASE'; enabledBy: { login: string } | null } | null;
             bodyHTML: string;
             assignees: { nodes: GitHubUser[] };
             labels: { nodes: GitHubLabel[] };
@@ -333,7 +338,7 @@ export class GitHubService {
         if (data.repository.mergeCommitAllowed) allowed.push('merge');
         if (data.repository.squashMergeAllowed) allowed.push('squash');
         if (data.repository.rebaseMergeAllowed) allowed.push('rebase');
-        const { commits, headCommit, bodyHTML, comments: issueComments, assignees, labels, reviewRequests, ...rest } = pr;
+        const { commits, headCommit, bodyHTML, comments: issueComments, assignees, labels, reviewRequests, autoMergeRequest, ...rest } = pr;
         // Images of private repositories need the signed URLs from the HTML that GitHub rendered.
         const images = signedImageUrls([
             bodyHTML,
@@ -362,7 +367,12 @@ export class GitHubService {
                 return [];
             }),
             viewerCanManage: canManagePullRequests(data.repository.viewerPermission),
-            viewerCanMerge: canMergePullRequests(data.repository.viewerPermission)
+            viewerCanMerge: canMergePullRequests(data.repository.viewerPermission),
+            autoMerge: autoMergeRequest
+                ? { method: autoMergeRequest.mergeMethod.toLowerCase() as MergeMethod, enabledBy: autoMergeRequest.enabledBy?.login ?? null }
+                : null,
+            viewerCanEnableAutoMerge: data.repository.autoMergeAllowed && pr.viewerCanEnableAutoMerge,
+            viewerCanDisableAutoMerge: pr.viewerCanDisableAutoMerge
         };
     }
 
@@ -394,6 +404,19 @@ export class GitHubService {
                 await this.client.graphql(mutation, { id: change.pullRequestId });
                 return;
             }
+            case 'autoMerge':
+                if (change.method) {
+                    await this.client.graphql(
+                        'mutation($id: ID!, $method: PullRequestMergeMethod!, $head: GitObjectID!) { enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $method, expectedHeadOid: $head }) { pullRequest { id } } }',
+                        { id: change.pullRequestId, method: change.method.toUpperCase(), head: change.headSha }
+                    );
+                } else {
+                    await this.client.graphql(
+                        'mutation($id: ID!) { disablePullRequestAutoMerge(input: { pullRequestId: $id }) { pullRequest { id } } }',
+                        { id: change.pullRequestId }
+                    );
+                }
+                return;
             case 'assignee':
                 await this.client.rest(change.add ? 'POST' : 'DELETE', `${base}/issues/${number}/assignees`, { assignees: [change.login] });
                 return;

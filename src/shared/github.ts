@@ -166,8 +166,21 @@ export interface PullRequest {
     viewerCanUpdate: boolean;
     /** True when the user can change the assignees, the reviewers and the labels. This needs triage access or more. */
     viewerCanManage: boolean;
+    /** The auto-merge that is on for the pull request. Null when auto-merge is off. */
+    autoMerge: AutoMerge | null;
+    /** True when the user can turn on auto-merge. False when the repository does not allow auto-merge. */
+    viewerCanEnableAutoMerge: boolean;
+    /** True when the user can turn off auto-merge. */
+    viewerCanDisableAutoMerge: boolean;
     /** True when the user can merge the pull request. This needs write access or more. Branch rules can still block the merge. */
     viewerCanMerge: boolean;
+}
+
+/** An auto-merge on a pull request. GitHub merges the pull request with `method` when all the requirements pass. */
+export interface AutoMerge {
+    method: MergeMethod;
+    /** The login of the user that turned on auto-merge. */
+    enabledBy: string | null;
 }
 
 /** A label of a pull request. `color` is a hex color without "#". */
@@ -196,6 +209,8 @@ export type PullRequestChange =
     | { kind: 'details'; title?: string; body?: string; state?: 'open' | 'closed' }
     /** `pullRequestId` is the node ID. True makes the pull request a draft. False marks it as ready for review. */
     | { kind: 'draft'; pullRequestId: string; draft: boolean }
+    /** `pullRequestId` is the node ID. A method turns on auto-merge. Null turns it off. `headSha` stops the merge if the branch changes. */
+    | { kind: 'autoMerge'; pullRequestId: string; method: MergeMethod | null; headSha: string }
     | { kind: 'assignee'; login: string; add: boolean }
     | { kind: 'reviewer'; reviewer: RequestedReviewer; add: boolean }
     | { kind: 'label'; name: string; add: boolean };
