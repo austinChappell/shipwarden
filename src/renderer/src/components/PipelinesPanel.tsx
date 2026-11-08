@@ -8,12 +8,9 @@ import { confirmDialog } from './ConfirmDialog';
 import { RunDialog, RunIcon } from './PipelinesView';
 
 const github = window.shipwarden.github;
-const FILTER_KEY = 'shipwarden.pipelinesPanelFilter';
 /** The time between two reads of the runs while a run waits or runs, and while all runs are done. */
 const POLL_ACTIVE_MS = 10_000;
 const POLL_IDLE_MS = 60_000;
-
-type Filter = 'branch' | 'all';
 
 interface Props {
     /** The worktree. Its repository gives the workflows and runs. */
@@ -24,16 +21,15 @@ interface Props {
     onOpenLog(job: CheckRun): void;
 }
 
-function readFilter(): Filter {
-    try {
-        return localStorage.getItem(FILTER_KEY) === 'all' ? 'all' : 'branch';
-    } catch {
-        return 'branch';
-    }
-}
-
 /** One run: a row that opens its jobs, with Cancel or Run again, and a link to GitHub. */
-function RunRow({ root, run, onOpenLog, onChanged }: { root: string; run: WorkflowRun; onOpenLog(job: CheckRun): void; onChanged(): void }) {
+function RunRow({ root, run, ownBranch, onOpenLog, onChanged }: {
+    root: string;
+    run: WorkflowRun;
+    /** True when the run is of the branch of the worktree. Its branch name shows as a tag. */
+    ownBranch: boolean;
+    onOpenLog(job: CheckRun): void;
+    onChanged(): void;
+}) {
     const [open, setOpen] = useState(false);
     const [jobs, setJobs] = useState<CheckRun[]>();
     const [error, setError] = useState<string>();
@@ -72,7 +68,9 @@ function RunRow({ root, run, onOpenLog, onChanged }: { root: string; run: Workfl
                     <span className="pp-run-title">{run.title}</span>
                     <span className="pp-run-meta">
                         {run.workflowName} #{run.runNumber}
-                        {run.branch ? ` · ${run.branch}` : ''}
+                        {run.branch && (ownBranch
+                            ? <> · <span className="pp-own-branch" title="The branch of this worktree">{run.branch}</span></>
+                            : ` · ${run.branch}`)}
                         {` · ${timeAgo(run.createdAt)}`}
                         {run.startedAt ? ` · ${formatDuration(run.startedAt, active ? null : run.updatedAt)}` : ''}
                     </span>
@@ -103,11 +101,11 @@ function RunRow({ root, run, onOpenLog, onChanged }: { root: string; run: Workfl
 }
 
 /**
- * The Pipelines tab of the right panel: the GitHub Actions of the repository of the worktree. The runs of the branch
- * of the worktree (or of all branches), their jobs, and the workflows that the user can start by hand.
+ * The Pipelines tab of the right panel: the GitHub Actions of the repository of the worktree. The newest runs of all
+ * branches (the runs of the branch of the worktree have a tag), their jobs, and the workflows that the user can start
+ * by hand.
  */
 export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
-    const [filter, setFilter] = useState<Filter>(readFilter);
     const [runs, setRuns] = useState<WorkflowRun[]>();
     const [workflows, setWorkflows] = useState<Workflow[]>();
     const [error, setError] = useState<string>();
@@ -168,24 +166,11 @@ export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
 
     const startRun = (workflow: Workflow) => setRunning(workflow);
 
-    const changeFilter = (value: Filter) => {
-        setFilter(value);
-        try {
-            localStorage.setItem(FILTER_KEY, value);
-        } catch {
-            // The choice stays for this session only.
-        }
-    };
-
-    const shown = (runs ?? []).filter(run => filter === 'all' || (branch !== undefined && run.branch === branch));
 
     return (
         <div className="pipelines-panel">
             <div className="pp-header">
-                <div className="segmented compact" role="radiogroup" aria-label="Runs">
-                    <button className={filter === 'branch' ? 'selected' : ''} title={branch ? `The runs of this branch (${branch})` : 'The worktree has no branch'} onClick={() => changeFilter('branch')}>Branch</button>
-                    <button className={filter === 'all' ? 'selected' : ''} title="The runs of all branches" onClick={() => changeFilter('all')}>All</button>
-                </div>
+                <span className="pp-title">Newest runs</span>
                 <span className="header-spacer" />
                 <button className={`button pp-run-button${showWorkflows ? ' on' : ''}`} title="Run a workflow" onClick={() => setShowWorkflows(value => !value)}>
                     <Play size={13} strokeWidth={1.8} /><span className="pp-run-label">Run</span>
@@ -217,12 +202,10 @@ export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
             {error && <div className="form-error pp-error">{error}</div>}
             <div className="pp-runs">
                 {!runs && !error && <div className="panel-message"><LoaderCircle size={14} className="spin" /> Loading the runs…</div>}
-                {runs && shown.length === 0 && (
-                    <div className="panel-note pp-note">
-                        {filter === 'branch' ? `No runs of ${branch ?? 'this worktree'} in the newest runs of the repository.` : 'The repository has no workflow runs.'}
-                    </div>
-                )}
-                {shown.map(run => <RunRow key={run.id} root={root} run={run} onOpenLog={onOpenLog} onChanged={() => void load()} />)}
+                {runs?.length === 0 && <div className="panel-note pp-note">The repository has no workflow runs.</div>}
+                {runs?.map(run => (
+                    <RunRow key={run.id} root={root} run={run} ownBranch={!!branch && run.branch === branch} onOpenLog={onOpenLog} onChanged={() => void load()} />
+                ))}
             </div>
 
             {running && (

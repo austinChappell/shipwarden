@@ -7076,3 +7076,20 @@ body.resizing-column * {
     width: 28px;
     height: 28px;
 }
+
+.pp-title {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* The branch of the worktree in the meta line of a run */
+.pp-own-branch {
+    padding: 0 5px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
+    font-weight: 500;
+}
