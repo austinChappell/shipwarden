@@ -86,7 +86,7 @@ const REVIEW_TEXT: Record<string, string> = { APPROVED: 'Approved', CHANGES_REQU
 /**
  * The Review view: the pull requests of one GitHub repository, from the organizations in Settings > Code review.
  * The user can read the diff, comment, approve or request changes, mark files as viewed, read the CI logs,
- * and merge a pull request of their own.
+ * and merge a pull request when they have write access to the repository.
  */
 export function ReviewView({ owners, onOpenSettings, open }: Props) {
     const [repos, setRepos] = useState<GitHubRepoInfo[]>();

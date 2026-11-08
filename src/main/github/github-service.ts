@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import {
     canManagePullRequests,
+    canMergePullRequests,
     cleanActionsLog,
     latestChecks,
     parseActionsRunId,
@@ -186,7 +187,7 @@ interface GraphQlPullRequest {
         viewerDefaultMergeMethod: 'MERGE' | 'SQUASH' | 'REBASE';
         viewerPermission: string | null;
         pullRequest: Omit<PullRequest, 'reviews' | 'issueComments' | 'threads' | 'allowedMergeMethods' | 'defaultMergeMethod' | 'commits' | 'commitCount' | 'checkCount'
-            | 'assignees' | 'labels' | 'reviewRequests' | 'viewerCanManage'> & {
+            | 'assignees' | 'labels' | 'reviewRequests' | 'viewerCanManage' | 'viewerCanMerge'> & {
             bodyHTML: string;
             assignees: { nodes: GitHubUser[] };
             labels: { nodes: GitHubLabel[] };
@@ -360,7 +361,8 @@ export class GitHubService {
                 if (reviewer?.login) return [{ kind: 'user', login: reviewer.login }];
                 return [];
             }),
-            viewerCanManage: canManagePullRequests(data.repository.viewerPermission)
+            viewerCanManage: canManagePullRequests(data.repository.viewerPermission),
+            viewerCanMerge: canMergePullRequests(data.repository.viewerPermission)
         };
     }
 
@@ -384,6 +386,14 @@ export class GitHubService {
             case 'details':
                 await this.client.rest('PATCH', `${base}/pulls/${number}`, { title: change.title, body: change.body, state: change.state });
                 return;
+            case 'draft': {
+                // Only GraphQL can change the draft state.
+                const mutation = change.draft
+                    ? 'mutation($id: ID!) { convertPullRequestToDraft(input: { pullRequestId: $id }) { pullRequest { id } } }'
+                    : 'mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { id } } }';
+                await this.client.graphql(mutation, { id: change.pullRequestId });
+                return;
+            }
             case 'assignee':
                 await this.client.rest(change.add ? 'POST' : 'DELETE', `${base}/issues/${number}/assignees`, { assignees: [change.login] });
                 return;

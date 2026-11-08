@@ -162,10 +162,12 @@ export interface PullRequest {
     /** The users and teams that GitHub asks for a review and that did not review yet. */
     reviewRequests: RequestedReviewer[];
     labels: GitHubLabel[];
-    /** True when the user can change the title and the description, and can close or reopen the pull request. */
+    /** True when the user can change the title and the description, can close or reopen the pull request, and can make it a draft or ready for review. */
     viewerCanUpdate: boolean;
     /** True when the user can change the assignees, the reviewers and the labels. This needs triage access or more. */
     viewerCanManage: boolean;
+    /** True when the user can merge the pull request. This needs write access or more. Branch rules can still block the merge. */
+    viewerCanMerge: boolean;
 }
 
 /** A label of a pull request. `color` is a hex color without "#". */
@@ -192,6 +194,8 @@ export interface PullRequestCandidates {
 /** One change to a pull request. */
 export type PullRequestChange =
     | { kind: 'details'; title?: string; body?: string; state?: 'open' | 'closed' }
+    /** `pullRequestId` is the node ID. True makes the pull request a draft. False marks it as ready for review. */
+    | { kind: 'draft'; pullRequestId: string; draft: boolean }
     | { kind: 'assignee'; login: string; add: boolean }
     | { kind: 'reviewer'; reviewer: RequestedReviewer; add: boolean }
     | { kind: 'label'; name: string; add: boolean };
@@ -199,6 +203,11 @@ export type PullRequestChange =
 /** The permissions of a repository that let a user change the assignees, the reviewers and the labels. */
 export function canManagePullRequests(permission: string | null | undefined): boolean {
     return ['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE'].includes(permission ?? '');
+}
+
+/** The permissions of a repository that let a user merge a pull request. */
+export function canMergePullRequests(permission: string | null | undefined): boolean {
+    return ['ADMIN', 'MAINTAIN', 'WRITE'].includes(permission ?? '');
 }
 
 export interface PullRequestCommit {

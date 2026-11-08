@@ -153,7 +153,6 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                             error={error}
                             onRefresh={onRefresh}
                             onOpenDiff={(_pr, target, line) => openFile(target, line)}
-                            canMerge={pr.viewerDidAuthor}
                         />
                     </div>
                 )}

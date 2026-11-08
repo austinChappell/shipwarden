@@ -21,8 +21,6 @@ interface Props {
     onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number): void;
     /** Sends a review comment to the agent of the worktree. Without it (in the Review view), the button does not show. */
     onSendToAgent?(prompt: string): void;
-    /** False hides the merge controls, for example in the Review view for a pull request of someone else. */
-    canMerge?: boolean;
     /**
      * "panel" is the full panel of a worktree. "overview" is the Overview tab of the Review view:
      * no header and no file list (the view shows them), and the description is open.
@@ -140,7 +138,7 @@ function conversationOf(pr: PullRequest): ConversationItem[] {
     ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export function PullRequestPanel({ target, status, loading, error, onRefresh, onOpenDiff, onSendToAgent, canMerge = true, variant = 'panel' }: Props) {
+export function PullRequestPanel({ target, status, loading, error, onRefresh, onOpenDiff, onSendToAgent, variant = 'panel' }: Props) {
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
     const review = useReviewState(target, pr?.number);
@@ -237,6 +235,13 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         const title = state === 'closed' ? `Close pull request #${pr.number} without a merge?` : `Reopen pull request #${pr.number}?`;
         if (await confirmDialog({ title, confirmLabel: state === 'closed' ? 'Close pull request' : 'Reopen' })) {
             change({ kind: 'details', state });
+        }
+    };
+
+    const setDraft = async (draft: boolean) => {
+        const title = draft ? `Convert pull request #${pr.number} to a draft?` : `Mark pull request #${pr.number} as ready for review?`;
+        if (await confirmDialog({ title, confirmLabel: draft ? 'Convert to draft' : 'Ready for review' })) {
+            change({ kind: 'draft', pullRequestId: pr.id, draft });
         }
     };
 
@@ -407,7 +412,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                             </>
                         )}
                     </div>
-                    {canMerge && (
+                    {pr.viewerCanMerge && (
                     <div className="merge-row">
                         <select value={method} onChange={event => setMergeMethod(event.target.value as MergeMethod)} disabled={busy}>
                             {pr.allowedMergeMethods.map(item => <option key={item} value={item}>{MERGE_LABELS[item]}</option>)}
@@ -417,9 +422,18 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                         </button>
                     </div>
                     )}
-                    {canMerge && blocker && <div className="panel-note">{blocker}</div>}
+                    {pr.viewerCanMerge && blocker && <div className="panel-note">{blocker}</div>}
                     {pr.viewerCanUpdate && (
                         <div className="row-buttons">
+                            {pr.isDraft ? (
+                                <button className="button" disabled={busy} onClick={() => setDraft(false)}>
+                                    <GitPullRequest size={14} strokeWidth={1.8} />Ready for review
+                                </button>
+                            ) : (
+                                <button className="button" disabled={busy} onClick={() => setDraft(true)}>
+                                    <GitPullRequestDraft size={14} strokeWidth={1.8} />Convert to draft
+                                </button>
+                            )}
                             <button className="button danger" disabled={busy} onClick={() => setState('closed')}>
                                 <GitPullRequestClosed size={14} strokeWidth={1.8} />Close pull request
                             </button>

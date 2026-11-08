@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canManagePullRequests, type PullRequestChange } from '@shared/github';
+import { canManagePullRequests, canMergePullRequests, type PullRequestChange } from '@shared/github';
 import type { GitHubClient } from './github-client';
 import { GitHubService } from './github-service';
 
@@ -35,5 +35,14 @@ describe('canManagePullRequests', () => {
         expect(['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE'].map(canManagePullRequests)).toEqual([true, true, true, true]);
         expect(canManagePullRequests('READ')).toBe(false);
         expect(canManagePullRequests(null)).toBe(false);
+    });
+});
+
+describe('canMergePullRequests', () => {
+    it('lets write access and more merge a pull request', () => {
+        expect(['ADMIN', 'MAINTAIN', 'WRITE'].map(canMergePullRequests)).toEqual([true, true, true]);
+        expect(canMergePullRequests('TRIAGE')).toBe(false);
+        expect(canMergePullRequests('READ')).toBe(false);
+        expect(canMergePullRequests(null)).toBe(false);
     });
 });
