@@ -35,15 +35,15 @@ jobs:
           node-version: 24
           cache: npm
 
-      # The Electron and electron-builder downloads come from GitHub Releases, which sometimes answers with 504.
-      # With the cache, most runs do not download them. A failed run also saves the cache (see the last step),
-      # so the files that it got are not downloaded again.
-      - name: Restore the Electron downloads
+      # The Electron download comes from GitHub Releases, which sometimes answers with 504. With the cache, most runs
+      # do not download it. A failed run also saves the cache (see the last step).
+      # Only the Electron cache is kept: @electron/get checks the SHA-256 of a cached file each time that it uses it.
+      # electron-builder reuses an extracted tool folder from its cache without a hash check, so its tools
+      # (7zip, dmgbuild) are downloaded and checked again in each run.
+      - name: Restore the Electron download
         uses: actions/cache/restore@v4
         with:
-          path: |
-            ~/Library/Caches/electron
-            ~/Library/Caches/electron-builder
+          path: ~/Library/Caches/electron
           # Each run saves under its own key. The restore takes the newest cache, first for the same package-lock.json.
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
           restore-keys: |
@@ -132,11 +132,9 @@ jobs:
             dist/*-"$VERSION"-arm64-mac.zip \
             dist/shipwarden-update.json
 
-      - name: Save the Electron downloads
+      - name: Save the Electron download
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: |
-            ~/Library/Caches/electron
-            ~/Library/Caches/electron-builder
+          path: ~/Library/Caches/electron
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
