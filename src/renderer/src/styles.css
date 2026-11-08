@@ -6864,10 +6864,32 @@ body.resizing-column * {
 .pp-header {
     display: flex;
     flex: none;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     padding: 8px 10px;
     border-bottom: 1px solid var(--border);
+}
+
+/* In a narrow panel, the header wraps. Its parts keep their size, so no part goes out of view. */
+.pp-header > * {
+    flex-shrink: 0;
+}
+
+.pp-header > .header-spacer {
+    flex: 1 0 0;
+    min-width: 0;
+}
+
+.pipelines-panel {
+    container-type: inline-size;
+}
+
+/* A very narrow panel shows only the icon of the Run button, so the header fits on one row. */
+@container (max-width: 250px) {
+    .pp-run-label {
+        display: none;
+    }
 }
 
 .pp-run-button {

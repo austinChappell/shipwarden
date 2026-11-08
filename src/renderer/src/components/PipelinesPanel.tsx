@@ -183,12 +183,12 @@ export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
         <div className="pipelines-panel">
             <div className="pp-header">
                 <div className="segmented compact" role="radiogroup" aria-label="Runs">
-                    <button className={filter === 'branch' ? 'selected' : ''} title={branch ? `The runs of ${branch}` : 'The worktree has no branch'} onClick={() => changeFilter('branch')}>This branch</button>
-                    <button className={filter === 'all' ? 'selected' : ''} onClick={() => changeFilter('all')}>All branches</button>
+                    <button className={filter === 'branch' ? 'selected' : ''} title={branch ? `The runs of this branch (${branch})` : 'The worktree has no branch'} onClick={() => changeFilter('branch')}>Branch</button>
+                    <button className={filter === 'all' ? 'selected' : ''} title="The runs of all branches" onClick={() => changeFilter('all')}>All</button>
                 </div>
                 <span className="header-spacer" />
-                <button className={`button pp-run-button${showWorkflows ? ' on' : ''}`} onClick={() => setShowWorkflows(value => !value)}>
-                    <Play size={13} strokeWidth={1.8} /> Run
+                <button className={`button pp-run-button${showWorkflows ? ' on' : ''}`} title="Run a workflow" onClick={() => setShowWorkflows(value => !value)}>
+                    <Play size={13} strokeWidth={1.8} /><span className="pp-run-label">Run</span>
                 </button>
                 <button className="icon-button" title="Refresh" onClick={() => void load()}>
                     <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
