@@ -26,7 +26,8 @@ import {
 import { AGENT_STATE_LABELS, worktreeAgentState, type AgentState } from '@shared/agents';
 import type { BranchSummary } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
-import { REPO_COLORS, type RepoColor } from '@shared/settings';
+import type { RepoColor } from '@shared/settings';
+import { RepoIcon, repoColorStyle } from './RepoIcon';
 import type { TaskLink } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
 import { sortWorktrees, WORKTREE_SORT_LABELS, type Worktree, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
@@ -350,10 +351,11 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, total, dragPr
     const repoState = collapsed ? agentStateOf(sessions, new Set(worktrees.map(worktree => worktree.path))) : undefined;
     /** True when the repository is collapsed and contains the selected worktree. */
     const holdsSelection = collapsed && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.pipelinesActive && worktrees.some(worktree => worktree.path === selectedPath);
+    const color = parent.repoColor(repo);
     const runningInRepo = collapsed && sessions.some(session => session.isAgent && !session.exited && worktrees.some(worktree => worktree.path === session.worktreePath));
 
     return (
-        <li className="repo-group">
+        <li className={`repo-group${color ? ' colored' : ''}`} style={repoColorStyle(color)}>
             <div
                 className={`repo-header${holdsSelection ? ' holds-selection' : ''}${dropClass}`}
                 {...dragProps}
@@ -361,7 +363,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, total, dragPr
                 onClick={onToggle}
             >
                 {collapsed ? <ChevronRight size={13} strokeWidth={2} /> : <ChevronDown size={13} strokeWidth={2} />}
-                {parent.repoColor(repo) && <span className="repo-color" style={{ background: REPO_COLORS[parent.repoColor(repo)!] }} />}
+                {color && <RepoIcon color={color} size={13} />}
                 <span className="repo-header-name">{parent.repoLabel(repo)}</span>
                 {collapsed && (repoState || runningInRepo) && (
                     <span

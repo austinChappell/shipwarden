@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bot, ChevronRight } from 'lucide-react';
 import { AGENT_STATE_LABELS, type AgentState } from '@shared/agents';
 import type { ProjectsState } from '@shared/projects';
-import { REPO_COLORS, type RepoColor } from '@shared/settings';
+import type { RepoColor } from '@shared/settings';
+import { RepoIcon } from './RepoIcon';
 import type { TaskLink } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
@@ -141,7 +142,7 @@ export function AgentsView({ sessions, projects, links, repoLabel, repoColor, on
                                         <span className="agent-side">
                                             <span className={`agent-state ${state ?? 'running'}`}>{label}{time ? ` · ${time}` : ''}</span>
                                             <span className="agent-where">
-                                                {place && repoColor(place.repo) && <span className="repo-color" style={{ background: REPO_COLORS[repoColor(place.repo)!] }} />}
+                                                {place && repoColor(place.repo) && <RepoIcon color={repoColor(place.repo)} size={12} />}
                                                 {place ? `${repoLabel(place.repo)} · ${branch}` : session.cwd.split('/').pop()}
                                             </span>
                                         </span>

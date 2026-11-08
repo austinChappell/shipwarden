@@ -2678,6 +2678,24 @@ body.resizing * {
     margin-top: 4px;
 }
 
+/* A line on the left of a repository and its worktrees, in the repository color. It marks the group. */
+.repo-group.colored {
+    position: relative;
+}
+
+.repo-group.colored::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 10px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--repo-color);
+    opacity: 0.7;
+    pointer-events: none;
+}
+
 .repo-header {
     display: flex;
     align-items: center;
@@ -4001,11 +4019,9 @@ button:focus-visible {
 
 /* The color of a repository, from its repository settings */
 
-.repo-color {
+/* The repository icon in the repository color. It is an icon, not a dot, so that it does not look like a status. */
+.repo-icon {
     flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: 3px;
 }
 
 /* Settings: the agent list */
@@ -4124,12 +4140,6 @@ button:focus-visible {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.repo-color.nav {
-    width: 10px;
-    height: 10px;
-    margin: 0 2px 0 3px;
 }
 
 /* The "+" menu of the tab bar */
