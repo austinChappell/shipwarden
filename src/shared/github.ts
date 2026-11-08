@@ -158,6 +158,47 @@ export interface PullRequest {
     commitCount: number;
     /** The number of checks and statuses on the head commit. */
     checkCount: number;
+    assignees: GitHubUser[];
+    /** The users and teams that GitHub asks for a review and that did not review yet. */
+    reviewRequests: RequestedReviewer[];
+    labels: GitHubLabel[];
+    /** True when the user can change the title and the description, and can close or reopen the pull request. */
+    viewerCanUpdate: boolean;
+    /** True when the user can change the assignees, the reviewers and the labels. This needs triage access or more. */
+    viewerCanManage: boolean;
+}
+
+/** A label of a pull request. `color` is a hex color without "#". */
+export interface GitHubLabel {
+    name: string;
+    color: string;
+    description?: string | null;
+}
+
+/** A user or a team that GitHub asks for a review. A team has the slug of the team in `login`. */
+export interface RequestedReviewer {
+    kind: 'user' | 'team';
+    login: string;
+    /** The name of a team, for example "Platform". */
+    name?: string;
+}
+
+/** The users and the labels that the user can add to the pull requests of a repository. */
+export interface PullRequestCandidates {
+    users: GitHubUser[];
+    labels: GitHubLabel[];
+}
+
+/** One change to a pull request. */
+export type PullRequestChange =
+    | { kind: 'details'; title?: string; body?: string; state?: 'open' | 'closed' }
+    | { kind: 'assignee'; login: string; add: boolean }
+    | { kind: 'reviewer'; reviewer: RequestedReviewer; add: boolean }
+    | { kind: 'label'; name: string; add: boolean };
+
+/** The permissions of a repository that let a user change the assignees, the reviewers and the labels. */
+export function canManagePullRequests(permission: string | null | undefined): boolean {
+    return ['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE'].includes(permission ?? '');
 }
 
 export interface PullRequestCommit {

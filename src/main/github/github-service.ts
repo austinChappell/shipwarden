@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
+    canManagePullRequests,
     cleanActionsLog,
     latestChecks,
     parseActionsRunId,
@@ -16,16 +17,21 @@ import {
     type CheckRun,
     type CheckStatus,
     type FileVersions,
+    type GitHubLabel,
     type GitHubOwner,
+    type GitHubUser,
     type GitHubRepoInfo,
     type MergeMethod,
     type PendingComment,
+    type PullRequestCandidates,
+    type PullRequestChange,
     type PullRequestCommit,
     type PullRequest,
     type PullRequestFile,
     type PullRequestFilter,
     type PullRequestSummary,
     type RepoRef,
+    type RequestedReviewer,
     type ReviewEvent,
     type Workflow,
     type JobProgress
@@ -145,10 +151,16 @@ query($owner: String!, $name: String!, $number: Int!) {
     squashMergeAllowed
     rebaseMergeAllowed
     viewerDefaultMergeMethod
+    viewerPermission
     pullRequest(number: $number) {
       id number title body bodyHTML url state isDraft mergeable mergeStateStatus reviewDecision
       author { login avatarUrl }
-      baseRefName headRefName baseRefOid headRefOid additions deletions changedFiles createdAt viewerDidAuthor
+      baseRefName headRefName baseRefOid headRefOid additions deletions changedFiles createdAt viewerDidAuthor viewerCanUpdate
+      assignees(first: 20) { nodes { login avatarUrl } }
+      labels(first: 50) { nodes { name color description } }
+      reviewRequests(first: 30) {
+        nodes { requestedReviewer { __typename ... on User { login } ... on Team { slug name } ... on Bot { login } ... on Mannequin { login } } }
+      }
       reviews(last: 30) { nodes { id author { login avatarUrl } state body bodyHTML submittedAt url } }
       comments(last: 50) { nodes { id author { login avatarUrl } body bodyHTML createdAt url } }
       reviewThreads(first: 100) {
@@ -172,8 +184,13 @@ interface GraphQlPullRequest {
         squashMergeAllowed: boolean;
         rebaseMergeAllowed: boolean;
         viewerDefaultMergeMethod: 'MERGE' | 'SQUASH' | 'REBASE';
-        pullRequest: Omit<PullRequest, 'reviews' | 'issueComments' | 'threads' | 'allowedMergeMethods' | 'defaultMergeMethod' | 'commits' | 'commitCount' | 'checkCount'> & {
+        viewerPermission: string | null;
+        pullRequest: Omit<PullRequest, 'reviews' | 'issueComments' | 'threads' | 'allowedMergeMethods' | 'defaultMergeMethod' | 'commits' | 'commitCount' | 'checkCount'
+            | 'assignees' | 'labels' | 'reviewRequests' | 'viewerCanManage'> & {
             bodyHTML: string;
+            assignees: { nodes: GitHubUser[] };
+            labels: { nodes: GitHubLabel[] };
+            reviewRequests: { nodes: { requestedReviewer: { __typename: string; login?: string; slug?: string; name?: string } | null }[] };
             commits: {
                 totalCount: number;
                 nodes: { commit: Omit<PullRequestCommit, 'author'> & { author: { name: string | null; user: { login: string } | null } | null } }[];
@@ -315,7 +332,7 @@ export class GitHubService {
         if (data.repository.mergeCommitAllowed) allowed.push('merge');
         if (data.repository.squashMergeAllowed) allowed.push('squash');
         if (data.repository.rebaseMergeAllowed) allowed.push('rebase');
-        const { commits, headCommit, bodyHTML, comments: issueComments, ...rest } = pr;
+        const { commits, headCommit, bodyHTML, comments: issueComments, assignees, labels, reviewRequests, ...rest } = pr;
         // Images of private repositories need the signed URLs from the HTML that GitHub rendered.
         const images = signedImageUrls([
             bodyHTML,
@@ -335,8 +352,54 @@ export class GitHubService {
             issueComments: issueComments.nodes.map(sign),
             threads: pr.reviewThreads.nodes.map(({ diffSide, comments, ...thread }) => ({ ...thread, side: diffSide, comments: comments.nodes.map(sign) })),
             allowedMergeMethods: allowed,
-            defaultMergeMethod: data.repository.viewerDefaultMergeMethod.toLowerCase() as MergeMethod
+            defaultMergeMethod: data.repository.viewerDefaultMergeMethod.toLowerCase() as MergeMethod,
+            assignees: assignees.nodes,
+            labels: labels.nodes,
+            reviewRequests: reviewRequests.nodes.flatMap(({ requestedReviewer: reviewer }): RequestedReviewer[] => {
+                if (reviewer?.__typename === 'Team' && reviewer.slug) return [{ kind: 'team', login: reviewer.slug, name: reviewer.name }];
+                if (reviewer?.login) return [{ kind: 'user', login: reviewer.login }];
+                return [];
+            }),
+            viewerCanManage: canManagePullRequests(data.repository.viewerPermission)
         };
+    }
+
+    /** Returns the users that the user can assign or ask for a review, and the labels of the repository. */
+    async pullRequestCandidates(repo: RepoRef): Promise<PullRequestCandidates> {
+        const query = `query($owner: String!, $name: String!) {
+          repository(owner: $owner, name: $name) {
+            assignableUsers(first: 100) { nodes { login avatarUrl } }
+            labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color description } }
+          }
+        }`;
+        const data = await this.client.graphql<{ repository: { assignableUsers: { nodes: GitHubUser[] }; labels: { nodes: GitHubLabel[] } } }>(
+            query, { owner: repo.owner, name: repo.name });
+        return { users: data.repository.assignableUsers.nodes, labels: data.repository.labels.nodes };
+    }
+
+    /** Makes one change to a pull request: the details, an assignee, a reviewer or a label. */
+    async changePullRequest(repo: RepoRef, number: number, change: PullRequestChange): Promise<void> {
+        const base = `/repos/${repo.owner}/${repo.name}`;
+        switch (change.kind) {
+            case 'details':
+                await this.client.rest('PATCH', `${base}/pulls/${number}`, { title: change.title, body: change.body, state: change.state });
+                return;
+            case 'assignee':
+                await this.client.rest(change.add ? 'POST' : 'DELETE', `${base}/issues/${number}/assignees`, { assignees: [change.login] });
+                return;
+            case 'reviewer': {
+                const field = change.reviewer.kind === 'team' ? 'team_reviewers' : 'reviewers';
+                await this.client.rest(change.add ? 'POST' : 'DELETE', `${base}/pulls/${number}/requested_reviewers`, { [field]: [change.reviewer.login] });
+                return;
+            }
+            case 'label':
+                if (change.add) {
+                    await this.client.rest('POST', `${base}/issues/${number}/labels`, { labels: [change.name] });
+                } else {
+                    await this.client.rest('DELETE', `${base}/issues/${number}/labels/${encodeURIComponent(change.name)}`);
+                }
+                return;
+        }
     }
 
     async pullRequestFiles(repo: RepoRef, number: number): Promise<PullRequestFile[]> {

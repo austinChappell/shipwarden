@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bot, Check, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, RefreshCw } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
-import type { BranchStatus, MergeMethod, PullRequest, PullRequestFile, RepoTarget, ReviewEvent, ReviewThread } from '@shared/github';
+import type { BranchStatus, MergeMethod, PullRequest, PullRequestChange, PullRequestFile, RepoTarget, ReviewEvent, ReviewThread } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
@@ -9,6 +9,7 @@ import { seenStore } from '../seen-store';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
 import { confirmDialog } from './ConfirmDialog';
+import { DescriptionEditor, EditDescriptionButton, PullRequestMeta } from './PullRequestDetails';
 
 interface Props {
     /** The worktree of the branch, or the repository in the Review view. */
@@ -151,6 +152,10 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
     const [replyText, setReplyText] = useState('');
     const [showResolved, setShowResolved] = useState(false);
     const [descriptionOpen, setDescriptionOpen] = useState(false);
+    const [editing, setEditing] = useState(false);
+
+    // A different pull request closes the editor.
+    useEffect(() => setEditing(false), [pr?.number, pr?.url]);
 
     useEffect(() => {
         if (pr) {
@@ -225,6 +230,25 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         }
     };
 
+    const hasFooter = pr.state === 'OPEN' || (pr.state === 'CLOSED' && pr.viewerCanUpdate);
+    const change = (value: PullRequestChange) => run(() => window.shipwarden.github.changePullRequest(target, pr.number, value));
+
+    const setState = async (state: 'open' | 'closed') => {
+        const title = state === 'closed' ? `Close pull request #${pr.number} without a merge?` : `Reopen pull request #${pr.number}?`;
+        if (await confirmDialog({ title, confirmLabel: state === 'closed' ? 'Close pull request' : 'Reopen' })) {
+            change({ kind: 'details', state });
+        }
+    };
+
+    const saveDescription = (title: string, text: string) => run(async () => {
+        await window.shipwarden.github.changePullRequest(target, pr.number, {
+            kind: 'details',
+            title: title === pr.title ? undefined : title,
+            body: text === pr.body ? undefined : text
+        });
+        setEditing(false);
+    });
+
     const sendReply = (thread: ReviewThread) => {
         const last = thread.comments[thread.comments.length - 1];
         if (!last || !replyText.trim()) {
@@ -268,15 +292,31 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     </div>
                 </div>}
 
-                {pr.body.trim() && (
+                {editing ? (
                     <section className="pr-section">
-                        {overview
-                            ? <div className="section-title">Description</div>
-                            : <button className="section-toggle" onClick={() => setDescriptionOpen(open => !open)}>Description</button>}
-                        <Markdown className={`pr-description${descriptionOpen || overview ? ' open' : ''}`} text={pr.body} />
+                        <div className="section-title">Edit the title and the description</div>
+                        {actionError && <div className="form-error pr-section-error">{actionError}</div>}
+                        <DescriptionEditor pr={pr} busy={busy} onSave={saveDescription} onCancel={() => setEditing(false)} />
+                    </section>
+                ) : (pr.body.trim() || overview || pr.viewerCanUpdate) && (
+                    <section className="pr-section">
+                        {overview || !pr.body.trim()
+                            ? <div className="section-title">Description{pr.viewerCanUpdate && <EditDescriptionButton onClick={() => setEditing(true)} />}</div>
+                            : (
+                                <div className="section-title-row">
+                                    <button className="section-toggle" onClick={() => setDescriptionOpen(open => !open)}>Description</button>
+                                    {pr.viewerCanUpdate && <EditDescriptionButton onClick={() => setEditing(true)} />}
+                                </div>
+                            )}
+                        {pr.body.trim()
+                            ? <Markdown className={`pr-description${descriptionOpen || overview ? ' open' : ''}`} text={pr.body} />
+                            : <div className="panel-note">No description.</div>}
                     </section>
                 )}
-                {overview && !pr.body.trim() && <section className="pr-section"><div className="panel-note">No description.</div></section>}
+
+                <PullRequestMeta target={target} pr={pr} busy={busy} onChange={change} />
+                {/* Without a footer, an error of a change shows here. */}
+                {actionError && !editing && !hasFooter && <div className="form-error pr-section-error">{actionError}</div>}
 
                 {conversation.length > 0 && (
                     <section className="pr-section">
@@ -378,6 +418,23 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     </div>
                     )}
                     {canMerge && blocker && <div className="panel-note">{blocker}</div>}
+                    {pr.viewerCanUpdate && (
+                        <div className="row-buttons">
+                            <button className="button danger" disabled={busy} onClick={() => setState('closed')}>
+                                <GitPullRequestClosed size={14} strokeWidth={1.8} />Close pull request
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+            {pr.state === 'CLOSED' && pr.viewerCanUpdate && (
+                <div className="pr-footer">
+                    {actionError && <div className="form-error">{actionError}</div>}
+                    <div className="row-buttons">
+                        <button className="button" disabled={busy} onClick={() => setState('open')}>
+                            <GitPullRequest size={14} strokeWidth={1.8} />Reopen pull request
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

@@ -1304,6 +1304,162 @@ code {
     font: inherit;
 }
 
+/* The description editor, and the reviewers, the assignees and the labels of a pull request. */
+.section-title-row {
+    display: flex;
+    align-items: center;
+    padding-right: 10px;
+}
+
+.section-title .pr-meta-edit {
+    margin-left: auto;
+}
+
+.pr-meta-edit {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    color: var(--muted);
+}
+
+.pr-meta-edit:hover,
+.pr-meta-edit.on {
+    background: var(--raised);
+    color: var(--text-strong);
+}
+
+.pr-section-error {
+    margin: 0 14px 6px;
+}
+
+.pr-description-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 14px;
+}
+
+.pr-title-input {
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    background: var(--panel);
+    color: var(--text-strong);
+    font: 600 13px -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.pr-title-input:focus {
+    border-color: var(--accent);
+}
+
+.pr-body-input {
+    min-height: 220px;
+    font-family: 'JetBrains Mono', Menlo, monospace;
+}
+
+.pr-meta-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 14px;
+}
+
+.pr-meta-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 22px;
+    margin-bottom: 4px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.pr-meta-values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.pr-meta-values > .panel-note {
+    padding: 0;
+}
+
+.pr-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--raised);
+    color: var(--text);
+    font-size: 11.5px;
+}
+
+.pr-chip.label {
+    border-color: color-mix(in srgb, var(--label-color) 55%, transparent);
+    background: color-mix(in srgb, var(--label-color) 18%, transparent);
+    color: color-mix(in srgb, var(--label-color) 60%, var(--text-strong));
+}
+
+.pr-chip button {
+    display: grid;
+    place-items: center;
+    margin-right: -4px;
+    padding: 1px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+}
+
+.pr-chip button:hover {
+    opacity: 1;
+}
+
+.pr-chip-state {
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.pr-chip-state.review-approved {
+    color: var(--ok);
+}
+
+.pr-chip-state.review-changes_requested {
+    color: var(--danger);
+}
+
+.pr-picker-option {
+    padding-left: 6px;
+}
+
+.pr-picker-check {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 14px;
+}
+
+.pr-label-dot {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.pr-picker-detail {
+    color: var(--muted);
+    font-size: 11px;
+}
+
 /* Review zones in the diff editor */
 
 .review-zone {

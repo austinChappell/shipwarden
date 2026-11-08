@@ -3,7 +3,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from 'e
 import { IpcChannels, type ConfirmRequest, type ContextMenuItem, type NotificationRequest } from '@shared/api';
 import type { CreateTerminalOptions } from '@shared/terminal';
 import type { CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult } from '@shared/worktrees';
-import type { MergeMethod, PendingComment, PullRequestFile, PullRequestFilter, RepoRef, RepoTarget, ReviewEvent } from '@shared/github';
+import type { MergeMethod, PendingComment, PullRequestChange, PullRequestFile, PullRequestFilter, RepoRef, RepoTarget, ReviewEvent } from '@shared/github';
 import type { ConnectionChange, TaskLink } from '@shared/tasks';
 import * as os from 'os';
 import { removeAgentSessionVariables } from './agent-environment';
@@ -447,6 +447,9 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.githubBranches, async (_event, target: RepoTarget) => github.branches(await repoOf(target)));
     ipcMain.handle(IpcChannels.githubPullRequest, async (_event, target: RepoTarget, number: number) => github.pullRequest(await repoOf(target), number));
     ipcMain.handle(IpcChannels.githubSetFileViewed, (_event, pullRequestId: string, path: string, viewed: boolean) => github.setFileViewed(pullRequestId, path, viewed));
+    ipcMain.handle(IpcChannels.githubPullRequestCandidates, async (_event, target: RepoTarget) => github.pullRequestCandidates(await repoOf(target)));
+    ipcMain.handle(IpcChannels.githubChangePullRequest, async (_event, target: RepoTarget, number: number, change: PullRequestChange) =>
+        github.changePullRequest(await repoOf(target), number, change));
     ipcMain.handle(IpcChannels.githubOwners, () => github.owners());
     ipcMain.handle(IpcChannels.githubRepositories, (_event, owners?: string[]) => github.repositories(owners));
     ipcMain.handle(IpcChannels.githubDashboardPullRequests, (_event, owners: string[] | 'all' | undefined) => github.dashboardPullRequests(owners));

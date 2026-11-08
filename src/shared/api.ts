@@ -4,7 +4,7 @@ import type { NoteInfo } from './notes';
 import type { AppKeyAction, ShortcutAction } from './shortcuts';
 import type { WorkflowRun } from './pipelines';
 import type { ContentSearchResult, FileEntry, FilesChangedEvent } from './files';
-import type { BranchStatus, BranchSummary, CheckRun, FileVersions, GitHubOwner, JobProgress, GitHubRepoInfo, MergeMethod, PendingComment, PullRequest, PullRequestFile, PullRequestFilter, PullRequestSummary, RepoRef, RepoTarget, ReviewEvent, Workflow } from './github';
+import type { BranchStatus, BranchSummary, CheckRun, FileVersions, GitHubOwner, JobProgress, GitHubRepoInfo, MergeMethod, PendingComment, PullRequest, PullRequestCandidates, PullRequestChange, PullRequestFile, PullRequestFilter, PullRequestSummary, RepoRef, RepoTarget, ReviewEvent, Workflow } from './github';
 import type { LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentUpdate } from './agents';
@@ -197,6 +197,10 @@ export interface ShipWardenApi {
         pullRequest(target: RepoTarget, number: number): Promise<PullRequest>;
         /** Marks a file of a pull request as viewed or not viewed. `pullRequestId` is the node ID of the pull request. */
         setFileViewed(pullRequestId: string, path: string, viewed: boolean): Promise<void>;
+        /** The users that the user can assign or ask for a review, and the labels of the repository. */
+        pullRequestCandidates(target: RepoTarget): Promise<PullRequestCandidates>;
+        /** Changes the details, an assignee, a reviewer or a label of a pull request. */
+        changePullRequest(target: RepoTarget, number: number, change: PullRequestChange): Promise<void>;
         /** The user and the organizations of the GitHub token. */
         owners(): Promise<GitHubOwner[]>;
         /** The repositories of the owners that the user can access. All owners when `owners` is undefined. */
@@ -380,6 +384,8 @@ export const IpcChannels = {
     githubOpenInBrowser: 'github:openInBrowser',
     githubPullRequest: 'github:pullRequest',
     githubSetFileViewed: 'github:setFileViewed',
+    githubPullRequestCandidates: 'github:pullRequestCandidates',
+    githubChangePullRequest: 'github:changePullRequest',
     githubOwners: 'github:owners',
     githubRepositories: 'github:repositories',
     githubPullRequests: 'github:pullRequests',
