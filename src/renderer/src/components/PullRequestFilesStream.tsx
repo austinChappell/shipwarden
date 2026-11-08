@@ -126,8 +126,17 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, d
         overflow: 'wrap',
         lineDiffType: 'word',
         enableGutterUtility: canComment,
-        onGutterUtilityClick: range => onComposer({ line: range.end, side: fromSide(range.endSide ?? range.side) })
-    }), [diffStyle, mode, canComment, onComposer]);
+        onGutterUtilityClick: range => onComposer({ line: range.end, side: fromSide(range.endSide ?? range.side) }),
+        // The patch has only the lines near the changes. To show the hidden lines, the diff loads the two full files.
+        loadDiffFiles: async () => {
+            const result = await reviewStore.fileVersions(target, file, pr.baseRefOid, pr.headRefOid);
+            if (result.unavailable) throw new Error(`The full versions of ${file.path} are not available.`);
+            return {
+                oldFile: { name: file.previousPath ?? file.path, contents: result.base },
+                newFile: { name: file.path, contents: result.head }
+            };
+        }
+    }), [diffStyle, mode, canComment, onComposer, target, file, pr.baseRefOid, pr.headRefOid]);
 
     const renderAnnotation = (annotation: DiffLineAnnotation<Note>): ReactNode => {
         const note = annotation.metadata;
