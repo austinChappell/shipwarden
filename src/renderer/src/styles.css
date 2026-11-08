@@ -6726,3 +6726,8 @@ body.resizing-column * {
     min-height: 0;
     overflow: auto;
 }
+
+.changes-group-action {
+    display: flex;
+    gap: 10px;
+}

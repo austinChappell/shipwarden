@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MultiFileDiff } from '@pierre/diffs/react';
-import { FileText, LoaderCircle, Minus, Plus, RefreshCw } from 'lucide-react';
+import { FileText, LoaderCircle, Minus, Plus, RefreshCw, Undo2 } from 'lucide-react';
 import type { ChangeContents, ChangeSide, FileChange } from '@shared/git';
 import { gitChanged, onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
+import { confirmDiscard } from './ChangesPanel';
 import { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './PullRequestFilesStream';
 
 interface Props {
@@ -66,6 +67,16 @@ export function ChangeDiffView({ worktree, change, side, onOpenFile }: Props) {
         }
     };
 
+    const discard = async () => {
+        try {
+            await confirmDiscard(worktree, [change]);
+        } catch (err) {
+            setError(errorText(err));
+        } finally {
+            gitChanged();
+        }
+    };
+
     const options = useMemo(() => ({
         diffStyle,
         themeType: mode,
@@ -91,6 +102,11 @@ export function ChangeDiffView({ worktree, change, side, onOpenFile }: Props) {
                     {side === 'staged' ? <Minus size={13} strokeWidth={2} /> : <Plus size={13} strokeWidth={2} />}
                     {side === 'staged' ? 'Unstage' : 'Stage'}
                 </button>
+                {side === 'unstaged' && change.kind !== 'conflicted' && (
+                    <button className="button change-stage" disabled={busy} title="Discard the changes in this file" onClick={() => void discard()}>
+                        <Undo2 size={13} strokeWidth={1.8} /> Discard
+                    </button>
+                )}
                 {change.kind !== 'deleted' && (
                     <button className="icon-button" title="Open the file" onClick={() => onOpenFile(change.path)}><FileText size={14} strokeWidth={1.6} /></button>
                 )}

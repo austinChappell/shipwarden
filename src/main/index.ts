@@ -136,7 +136,7 @@ const updates = new UpdateService({
 });
 
 /** The local git changes of the worktrees: status, stage, commit and push. */
-const gitChanges = new GitChangesService();
+const gitChanges = new GitChangesService(file => shell.trashItem(file));
 
 /** The processes and ports of the worktrees. */
 const processes = new ProcessService({ sessions: () => terminals.list(), hostPid: () => terminals.hostPid() });
@@ -513,6 +513,8 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.gitCommit, async (_event, worktree: string, message: string, amend: boolean) =>
         gitChanges.commit(await knownWorktree(worktree), String(message), amend === true));
     ipcMain.handle(IpcChannels.gitLastMessage, async (_event, worktree: string) => gitChanges.lastMessage(await knownWorktree(worktree)));
+    ipcMain.handle(IpcChannels.gitDiscard, async (_event, worktree: string, paths: unknown) => gitChanges.discard(await knownWorktree(worktree), pathList(paths)));
+    ipcMain.handle(IpcChannels.gitPull, async (_event, worktree: string) => gitChanges.pull(await knownWorktree(worktree)));
     ipcMain.handle(IpcChannels.gitPush, async (_event, worktree: string) => gitChanges.push(await knownWorktree(worktree)));
     ipcMain.handle(IpcChannels.updatesState, () => updates.getState());
     ipcMain.handle(IpcChannels.updatesCheck, () => updates.check());

@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronRight, FileText, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronRight, Download, FileText, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Undo2, Upload } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
 import { changeLetter, type ChangeSide, type FileChange, type GitChanges } from '@shared/git';
 import { gitChanged } from '../git/git-store';
+import { confirmDialog } from './ConfirmDialog';
 import { errorText } from '../util';
 
 interface Props {
@@ -16,6 +17,30 @@ interface Props {
 }
 
 const api = window.shipwarden.git;
+
+/**
+ * Asks before a discard and then discards. Untracked files go to the Trash. Changed files get the version of the
+ * index, and a copy of the working version goes to the Trash. Resolves true when the files were discarded.
+ */
+export async function confirmDiscard(worktree: string, files: FileChange[]): Promise<boolean> {
+    const untracked = files.filter(change => change.kind === 'untracked').length;
+    const changed = files.length - untracked;
+    const name = files.length === 1 ? `"${baseName(files[0].path)}"` : `${files.length} files`;
+    const single = files.length === 1;
+    const parts = [
+        changed ? `${single ? 'The file gets its' : `${changed} changed ${changed === 1 ? 'file gets its' : 'files get their'}`} staged or committed version again. A copy of your version goes to the Trash.` : '',
+        untracked ? `${single ? 'The new file goes' : `${untracked} new ${untracked === 1 ? 'file goes' : 'files go'}`} to the Trash.` : ''
+    ].filter(Boolean);
+    const ok = await confirmDialog({
+        title: `Discard the changes in ${name}?`,
+        message: `${parts.join(' ')} Staged changes stay.`,
+        confirmLabel: 'Discard',
+        danger: true
+    });
+    if (!ok) return false;
+    await api.discard(worktree, files.map(change => change.path));
+    return true;
+}
 
 /** A group of changed files: a header with a count and an action for all, and a row for each file. */
 function Group({ title, files, open, onToggle, action, children }: {
@@ -73,6 +98,21 @@ export function ChangesPanel({ worktree, changes, error, onReload, onOpenChange,
         setNotice(`Committed ${result.hash}: ${result.summary}`);
         setTimeout(() => setNotice(undefined), 6000);
     });
+    const discard = async (files: FileChange[]) => {
+        let done = false;
+        await act('discard', async () => {
+            done = await confirmDiscard(worktree, files);
+        });
+        if (done) {
+            setNotice(`Discarded the changes in ${files.length === 1 ? baseName(files[0].path) : `${files.length} files`}. You can get them back from the Trash.`);
+            setTimeout(() => setNotice(undefined), 6000);
+        }
+    };
+    const pull = () => act('pull', async () => {
+        await api.pull(worktree);
+        setNotice('Pulled the upstream branch.');
+        setTimeout(() => setNotice(undefined), 6000);
+    });
     const push = () => act('push', async () => {
         await api.push(worktree);
         setNotice('Pushed the branch.');
@@ -120,6 +160,9 @@ export function ChangesPanel({ worktree, changes, error, onReload, onOpenChange,
                     {change.kind !== 'deleted' && (
                         <button className="icon-button" title="Open the file" onClick={() => onOpenFile(change.path)}><FileText size={13} strokeWidth={1.7} /></button>
                     )}
+                    {side === 'unstaged' && (
+                        <button className="icon-button" title="Discard the changes" disabled={!!busy} onClick={() => void discard([change])}><Undo2 size={13} strokeWidth={1.8} /></button>
+                    )}
                     {inIndex
                         ? <button className="icon-button" title="Unstage" disabled={!!busy} onClick={() => void unstage([change.path])}><Minus size={14} strokeWidth={2} /></button>
                         : (
@@ -142,6 +185,16 @@ export function ChangesPanel({ worktree, changes, error, onReload, onOpenChange,
                 {changes.ahead > 0 && <span className="changes-ab" title={`${changes.ahead} commits to push`}><ArrowUp size={12} strokeWidth={2} />{changes.ahead}</span>}
                 {changes.behind > 0 && <span className="changes-ab" title={`${changes.behind} commits to pull`}><ArrowDown size={12} strokeWidth={2} />{changes.behind}</span>}
                 <span className="header-spacer" />
+                {changes.upstream && (
+                    <button
+                        className="button changes-push"
+                        disabled={!!busy}
+                        title={`Pull from ${changes.upstream} with a fast-forward only${changes.behind ? `: ${changes.behind} new commits` : ''}`}
+                        onClick={() => void pull()}
+                    >
+                        {busy === 'pull' ? <LoaderCircle size={13} className="spin" /> : <Download size={13} strokeWidth={1.8} />} Pull
+                    </button>
+                )}
                 {canPush && (
                     <button className="button changes-push" disabled={!!busy} title={changes.upstream ? `Push to ${changes.upstream}` : 'Push, and track origin'} onClick={() => void push()}>
                         {busy === 'push' ? <LoaderCircle size={13} className="spin" /> : <Upload size={13} strokeWidth={1.8} />} Push
@@ -206,7 +259,12 @@ export function ChangesPanel({ worktree, changes, error, onReload, onOpenChange,
                         files={changes.unstaged}
                         open={!closed.has('unstaged')}
                         onToggle={() => toggleGroup('unstaged')}
-                        action={<button className="link-button" disabled={!!busy} onClick={() => void stage(changes.unstaged.map(change => change.path))}>Stage all</button>}
+                        action={(
+                            <>
+                                <button className="link-button" disabled={!!busy} onClick={() => void discard(changes.unstaged)}>Discard all</button>
+                                <button className="link-button" disabled={!!busy} onClick={() => void stage(changes.unstaged.map(change => change.path))}>Stage all</button>
+                            </>
+                        )}
                     >
                         {changes.unstaged.map(change => row(change, 'unstaged'))}
                     </Group>

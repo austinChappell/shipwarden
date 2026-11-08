@@ -83,6 +83,13 @@ export interface ShipWardenApi {
         lastMessage(worktree: string): Promise<string>;
         /** Pushes the branch. A branch without an upstream gets "origin" as its upstream. */
         push(worktree: string): Promise<void>;
+        /**
+         * Discards the unstaged changes of files. An untracked file goes to the Trash. A changed file gets the version of
+         * the index, and a copy of the working version goes to the Trash.
+         */
+        discard(worktree: string, paths: string[]): Promise<void>;
+        /** Pulls the upstream branch with a fast-forward only. */
+        pull(worktree: string): Promise<void>;
     };
     updates: {
         /** The state of the updater: the running version, and a newer release when there is one. */
@@ -434,6 +441,8 @@ export const IpcChannels = {
     gitCommit: 'git:commit',
     gitLastMessage: 'git:lastMessage',
     gitPush: 'git:push',
+    gitDiscard: 'git:discard',
+    gitPull: 'git:pull',
     updatesCheck: 'updates:check',
     updatesInstall: 'updates:install',
     updatesChanged: 'updates:changed',

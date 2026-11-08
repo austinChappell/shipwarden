@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
 import * as path from 'path';
 import { changePathError, parseStatus, type ChangeContents, type ChangeSide, type CommitResult, type GitChanges } from '@shared/git';
 
@@ -64,6 +65,9 @@ const isBinary = (text: string) => text.slice(0, 8000).includes('\0');
  * Each method runs git in the worktree folder.
  */
 export class GitChangesService {
+    /** `trash` moves a file or a folder to the Trash. The tests replace it. */
+    constructor(private readonly trash: (file: string) => Promise<void>) {}
+
     async status(worktree: string): Promise<GitChanges> {
         const output = await run(worktree, ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all']);
         return parseStatus(output ?? '');
@@ -131,6 +135,59 @@ export class GitChangesService {
     /** The message of the last commit, for "Amend". */
     async lastMessage(worktree: string): Promise<string> {
         return ((await run(worktree, ['log', '-1', '--format=%B'], { allowFailure: true })) ?? '').trimEnd();
+    }
+
+    /**
+     * Discards the unstaged changes of files, so they get the version of the index again. An untracked file goes to
+     * the Trash. For a changed file, a copy of the working version goes to the Trash first, so the user can get it
+     * back. A file with a merge conflict is refused.
+     */
+    async discard(worktree: string, paths: string[]): Promise<void> {
+        const list = checkPaths(paths);
+        if (!list.length) return;
+        const status = await this.status(worktree);
+        const conflicted = list.filter(item => status.conflicted.some(change => change.path === item));
+        if (conflicted.length) throw new Error(`Resolve the merge conflict first: ${conflicted.join(', ')}.`);
+        const untracked = list.filter(item => status.unstaged.some(change => change.path === item && change.kind === 'untracked'));
+        const tracked = list.filter(item => status.unstaged.some(change => change.path === item && change.kind !== 'untracked'));
+
+        for (const item of untracked) {
+            await this.trash(path.join(worktree, item));
+        }
+        if (!tracked.length) return;
+        // Keep a copy of each working version that the restore replaces.
+        const backup = await fs.mkdtemp(path.join(tmpdir(), 'shipwarden-discarded-'));
+        try {
+            for (const item of tracked) {
+                const source = path.join(worktree, item);
+                const stat = await fs.stat(source).catch(() => undefined);
+                if (!stat?.isFile()) continue;
+                const copy = path.join(backup, `${path.basename(item, path.extname(item))} (discarded ${new Date().toISOString().slice(0, 19).replace(/:/g, '-')})${path.extname(item)}`);
+                await fs.copyFile(source, copy);
+                await this.trash(copy);
+            }
+            await run(worktree, ['restore', '--worktree', '--', ...tracked]);
+        } finally {
+            await fs.rm(backup, { recursive: true, force: true });
+        }
+    }
+
+    /**
+     * Pulls the upstream branch with a fast-forward only. It makes no merge commit. When the branch and the upstream
+     * both have new commits, git refuses, and the error says so.
+     */
+    async pull(worktree: string): Promise<void> {
+        const changes = await this.status(worktree);
+        if (!changes.upstream) throw new Error('The branch has no upstream branch. Push it first.');
+        try {
+            await run(worktree, ['pull', '--ff-only'], { timeout: 180_000 });
+        } catch (error) {
+            const text = error instanceof Error ? error.message : String(error);
+            if (/Not possible to fast-forward|diverging|divergent/i.test(text)) {
+                throw new Error('Your branch and the upstream branch both have new commits. Merge or rebase in a terminal.');
+            }
+            throw error;
+        }
     }
 
     /** Pushes the branch. A branch without an upstream gets "origin" as its upstream. */

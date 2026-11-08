@@ -94,6 +94,10 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 - Stage is `git add -A`, unstage is `git restore --staged` (`git rm --cached` before the first commit). Commit reads
   the message on stdin (`git commit -F -`), so the hooks of the repository run. Push sets "origin" as the upstream
   when the branch has none.
+- Discard is for unstaged changes only, after a confirmation. An untracked file goes to the Trash. A changed file gets
+  the version of the index (`git restore --worktree`), and a copy of the working version goes to the Trash first.
+  A file with a merge conflict is refused.
+- Pull is `git pull --ff-only`. It makes no merge commit. When both sides have new commits, it stops with a message.
 - A click on a file opens a diff tab (`ChangeDiffView`, with `@pierre/diffs`): HEAD and the index for a staged
   change, the index and the working file for an unstaged change.
 - The main process runs git only in a worktree of a project, and checks that each path stays in the worktree.

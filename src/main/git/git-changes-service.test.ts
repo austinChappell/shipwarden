@@ -1,16 +1,21 @@
 import { execFileSync } from 'child_process';
-import { mkdtempSync, realpathSync, rmSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { basename, join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GitChangesService } from './git-changes-service';
 
 describe('GitChangesService', () => {
     let repo: string;
-    const git = new GitChangesService();
+    let trashed: string[] = [];
+    const git = new GitChangesService(async file => {
+        trashed.push(file);
+        rmSync(file, { recursive: true, force: true });
+    });
     const sh = (...args: string[]) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' }).toString();
 
     beforeEach(() => {
+        trashed = [];
         repo = realpathSync(mkdtempSync(join(tmpdir(), 'shipwarden-git-')));
         sh('init', '-q', '-b', 'main');
         sh('config', 'user.name', 'Test');
@@ -66,5 +71,57 @@ describe('GitChangesService', () => {
         await expect(git.stage(repo, ['../outside'])).rejects.toThrow(/not a path/);
         await expect(git.contents(repo, '/etc/hosts', 'unstaged')).rejects.toThrow(/not a path/);
         await expect(git.commit(repo, '   ')).rejects.toThrow(/Type a commit message/);
+    });
+
+    it('discards changes: untracked files and a copy of each changed file go to the Trash', async () => {
+        writeFileSync(join(repo, 'a.txt'), 'one\n');
+        await git.stage(repo, ['a.txt']);
+        await git.commit(repo, 'Start');
+        writeFileSync(join(repo, 'a.txt'), 'changed\n');
+        writeFileSync(join(repo, 'new.txt'), 'new\n');
+
+        await git.discard(repo, ['a.txt', 'new.txt']);
+        expect(readFileSync(join(repo, 'a.txt'), 'utf8')).toBe('one\n');
+        expect(existsSync(join(repo, 'new.txt'))).toBe(false);
+        expect(trashed.map(file => basename(file))).toEqual(['new.txt', expect.stringMatching(/^a \(discarded .*\)\.txt$/)]);
+        expect((await git.status(repo)).unstaged).toEqual([]);
+    });
+
+    it('pulls with a fast-forward only, and explains a refused pull', async () => {
+        const remote = realpathSync(mkdtempSync(join(tmpdir(), 'shipwarden-remote-')));
+        const other = realpathSync(mkdtempSync(join(tmpdir(), 'shipwarden-other-')));
+        try {
+            execFileSync('git', ['init', '-q', '--bare', '-b', 'main', remote]);
+            writeFileSync(join(repo, 'a.txt'), 'one\n');
+            await git.stage(repo, ['a.txt']);
+            await git.commit(repo, 'Start');
+            sh('remote', 'add', 'origin', remote);
+            await git.push(repo);
+            expect((await git.status(repo)).upstream).toBe('origin/main');
+
+            // Another clone pushes a commit.
+            execFileSync('git', ['clone', '-q', remote, other]);
+            const inOther = (...args: string[]) => execFileSync('git', ['-c', 'user.name=O', '-c', 'user.email=o@example.com', ...args], { cwd: other, stdio: 'pipe' });
+            writeFileSync(join(other, 'b.txt'), 'bee\n');
+            inOther('add', 'b.txt');
+            inOther('commit', '-q', '-m', 'Add b');
+            inOther('push', '-q');
+
+            await git.pull(repo);
+            expect(readFileSync(join(repo, 'b.txt'), 'utf8')).toBe('bee\n');
+
+            // Both sides get a new commit: a fast-forward is not possible.
+            writeFileSync(join(other, 'c.txt'), 'c\n');
+            inOther('add', 'c.txt');
+            inOther('commit', '-q', '-m', 'Add c');
+            inOther('push', '-q');
+            writeFileSync(join(repo, 'd.txt'), 'd\n');
+            await git.stage(repo, ['d.txt']);
+            await git.commit(repo, 'Add d');
+            await expect(git.pull(repo)).rejects.toThrow(/both have new commits/);
+        } finally {
+            rmSync(remote, { recursive: true, force: true });
+            rmSync(other, { recursive: true, force: true });
+        }
     });
 });
