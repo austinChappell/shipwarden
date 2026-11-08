@@ -7,10 +7,19 @@ const root = new URL('..', import.meta.url).pathname;
 
 // 1. Electron 45 downloads its binary on first use. electron-vite needs the binary before that.
 // GitHub Releases sometimes answers with an error such as 504. Try again with a longer wait each time.
+// The last attempts use a mirror. The electron package checks the download against its checksums.json,
+// so a mirror cannot change the file. A mirror that the user sets in ELECTRON_MIRROR stays.
 const ATTEMPTS = 4;
+const MIRROR_FROM_ATTEMPT = 3;
+const MIRROR = 'https://npmmirror.com/mirrors/electron/';
 for (let attempt = 1; ; attempt++) {
+    const useMirror = attempt >= MIRROR_FROM_ATTEMPT && !process.env.ELECTRON_MIRROR;
     try {
-        execFileSync(process.execPath, [join(root, 'node_modules/electron/install.js')], { stdio: 'inherit' });
+        if (useMirror) console.warn(`The Electron download uses the mirror ${MIRROR}.`);
+        execFileSync(process.execPath, [join(root, 'node_modules/electron/install.js')], {
+            stdio: 'inherit',
+            env: useMirror ? { ...process.env, ELECTRON_MIRROR: MIRROR } : process.env
+        });
         break;
     } catch (error) {
         if (attempt >= ATTEMPTS) throw error;

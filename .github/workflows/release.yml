@@ -36,15 +36,19 @@ jobs:
           cache: npm
 
       # The Electron and electron-builder downloads come from GitHub Releases, which sometimes answers with 504.
-      # With the cache, most runs do not download them.
-      - name: Cache the Electron downloads
-        uses: actions/cache@v4
+      # With the cache, most runs do not download them. A failed run also saves the cache (see the last step),
+      # so the files that it got are not downloaded again.
+      - name: Restore the Electron downloads
+        uses: actions/cache/restore@v4
         with:
           path: |
             ~/Library/Caches/electron
             ~/Library/Caches/electron-builder
-          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: electron-${{ runner.os }}-${{ runner.arch }}-
+          # Each run saves under its own key. The restore takes the newest cache, first for the same package-lock.json.
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
+          restore-keys: |
+            electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-
+            electron-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install dependencies
         run: npm ci
@@ -79,9 +83,14 @@ jobs:
             unset CSC_LINK CSC_KEY_PASSWORD
             BUILDER_ARGS+=(-c.mac.identity=null)
           fi
-          # electron-builder downloads files from GitHub Releases, which sometimes answers with 504.
-          # Try again with a longer wait each time.
+          # electron-builder downloads its tools (7zip, dmgbuild) from GitHub Releases, which sometimes answers with 504.
+          # Try again with a longer wait each time. Attempts 3 and 4 use a mirror. electron-builder checks each tool
+          # against a SHA-256 in its code, so a mirror cannot change the files.
           for ATTEMPT in 1 2 3 4; do
+            if [ "$ATTEMPT" -ge 3 ]; then
+              export ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/
+              echo "::warning::electron-builder uses the mirror $ELECTRON_BUILDER_BINARIES_MIRROR."
+            fi
             if npx electron-builder "${BUILDER_ARGS[@]}"; then
               break
             fi
@@ -122,3 +131,12 @@ jobs:
             dist/*-"$VERSION"-arm64.dmg \
             dist/*-"$VERSION"-arm64-mac.zip \
             dist/shipwarden-update.json
+
+      - name: Save the Electron downloads
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
