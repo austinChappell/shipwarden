@@ -4,6 +4,7 @@ import { AGENT_STATE_LABELS, type AgentState } from '@shared/agents';
 import type { ProjectsState } from '@shared/projects';
 import type { RepoColor } from '@shared/settings';
 import { RepoIcon } from './RepoIcon';
+import { useAgentSessions } from '../terminal/agent-state-store';
 import type { TaskLink } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
@@ -45,8 +46,9 @@ function since(at: number | undefined, now: number): string | undefined {
  * The agents of all projects that still run, grouped by project. Each row shows the state, a name for the work
  * (the linked task, the last prompt or the branch), what the agent does now, and where it runs.
  */
-export function AgentsView({ sessions, projects, links, repoLabel, repoColor, onOpen }: Props) {
+export function AgentsView({ sessions: sessionList, projects, links, repoLabel, repoColor, onOpen }: Props) {
     const [places, setPlaces] = useState<Record<string, Place>>({});
+    const sessions = useAgentSessions(sessionList);
     const [now, setNow] = useState(Date.now());
 
     const agents = useMemo(() => sessions.filter(session => session.isAgent && !session.exited), [sessions]);

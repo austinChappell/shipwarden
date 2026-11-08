@@ -36,6 +36,7 @@ import { Logo } from './Logo';
 import { confirmDialog } from './ConfirmDialog';
 import { NewWorktreeDialog, type NewWorktreeRequest } from './NewWorktreeDialog';
 import { worktreeLabel } from '@shared/worktrees';
+import { useAgentSessions } from '../terminal/agent-state-store';
 
 interface Props {
     projects: ProjectsState | undefined;
@@ -553,7 +554,10 @@ function WorktreeSortMenu({ sort, onChange }: { sort: WorktreeSort; onChange(sor
 }
 
 /** The left sidebar: the project, the Tasks view, the repositories of the project with their worktrees, and Settings. */
-export function Sidebar(props: Props) {
+export function Sidebar(outerProps: Props) {
+    // The newest agent states come from their own store, so an agent report renders the sidebar again and not the full app.
+    const sessions = useAgentSessions(outerProps.sessions);
+    const props: Props = { ...outerProps, sessions };
     const [collapsed, setCollapsed] = useState(readCollapsed);
     const [query, setQuery] = useState('');
     const search = query.trim().toLowerCase();

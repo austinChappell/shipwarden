@@ -46,6 +46,7 @@ import { shortcutAction, type ShortcutAction } from '@shared/shortcuts';
 import { lspBridge } from './lsp/bridge';
 import type { LspMissingServer } from '@shared/lsp';
 import { terminalPool } from './terminal/terminal-pool';
+import { agentStateStore } from './terminal/agent-state-store';
 import { ChangeDiffView } from './components/ChangeDiffView';
 import type { ChangeSide, FileChange } from '@shared/git';
 import { SidebarContext, SidebarToggle } from './components/SidebarToggle';
@@ -306,10 +307,10 @@ export function App() {
             await showProject(state, existing.map(session => session.id));
         })();
         const offExit = api.terminals.onExit(id => sessionExitedRef.current(id));
+        // The agent state goes to its own store, not to `sessions`: an agent reports it at each tool call, and a
+        // render of the full app for each report makes the typing in a terminal slow.
         const offAgentState = api.terminals.onAgentState((id, update) => {
-            setSessions(list => list.map(session => session.id === id
-                ? { ...session, agentState: update.state, agentMessage: update.message, agentPrompt: update.prompt, agentStateAt: update.at }
-                : session));
+            agentStateStore.set(id, update);
             if (update.state === 'waiting' || update.state === 'done') {
                 notifyRef.current(id, update.state, update.message);
             }
@@ -734,6 +735,7 @@ export function App() {
             commitGroup(activeTab, closePane(layout, leaf.id));
         }
         terminalPool.dispose(id);
+        agentStateStore.delete(id);
         setSessions(list => list.filter(item => item.id !== id));
         // The host keeps an ended session for its output. The tab is gone, so the host can forget it.
         void api.terminals.kill(id).catch(() => undefined);
@@ -869,6 +871,7 @@ export function App() {
     const closeSession = async (session: TerminalSession) => {
         await api.terminals.kill(session.id);
         terminalPool.dispose(session.id);
+        agentStateStore.delete(session.id);
         setSessions(list => list.filter(item => item.id !== session.id));
     };
 
@@ -1083,7 +1086,10 @@ export function App() {
                 }
                 await api.worktrees.remove(repoPath, worktree.path, { skipTeardown: true });
             }
-            sessions.filter(session => session.worktreePath === worktree.path).forEach(session => terminalPool.dispose(session.id));
+            sessions.filter(session => session.worktreePath === worktree.path).forEach(session => {
+                terminalPool.dispose(session.id);
+                agentStateStore.delete(session.id);
+            });
             setSessions(list => list.filter(session => session.worktreePath !== worktree.path));
             (openFiles[worktree.path] ?? []).forEach(path => documents.close(worktree.path, path));
             setExtraTabs(map => {
