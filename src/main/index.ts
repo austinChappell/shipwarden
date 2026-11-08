@@ -488,6 +488,7 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.tasksSetLink, (_event, worktreePath: string, link: TaskLink | null) => tasks.setLink(worktreePath, link));
 
     ipcMain.handle(IpcChannels.lspEnsure, (_event, root: string, languageId: string) => lsp.ensure(root, languageId));
+    ipcMain.handle(IpcChannels.lspMissing, (_event, root: string, languageId: string) => lsp.missing(root, languageId));
     ipcMain.handle(IpcChannels.lspRequest, (_event, key: string, method: string, params: unknown) => lsp.request(key, method, params));
     ipcMain.on(IpcChannels.lspNotify, (_event, key: string, method: string, params: unknown) => lsp.notify(key, method, params));
 

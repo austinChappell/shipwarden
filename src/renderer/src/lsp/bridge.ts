@@ -23,6 +23,7 @@ import {
     toMarkers,
     type ShipWardenCompletionItem
 } from './convert';
+import { missingServers } from './missing-servers';
 
 /** The Monaco languages that get LSP providers. */
 const MONACO_LANGUAGES = ['typescript', 'javascript', 'rust', 'python', 'go'];
@@ -32,6 +33,10 @@ const DIAGNOSTICS_DEBOUNCE_MS = 300;
 /** Peek views need a model for each file in the results. ShipWarden loads at most this number of files. */
 const MAX_PRELOADED_MODELS = 50;
 const TRIGGER_CHARACTERS = ['.', ':', '"', '\'', '/', '@', '<', '#', '`'];
+/** After an install command starts, ShipWarden looks for the server at this interval. */
+const INSTALL_POLL_MS = 3000;
+/** ShipWarden stops to look for the server after this time. Then the banner shows the Install button again. */
+const INSTALL_TIMEOUT_MS = 15 * 60 * 1000;
 
 /** One Monaco model that a language server knows about. */
 interface SyncedDocument {
@@ -60,6 +65,8 @@ export class LspBridge {
     private readonly pendingDiagnostics = new Map<string, Diagnostic[]>();
     private opener: FileOpener | undefined;
     private readonly api = window.shipwarden;
+    /** The worktrees and languages for which a "missing server" check is in progress. */
+    private readonly checking = new Set<string>();
 
     constructor() {
         // Language servers supply these features now. The built-in TypeScript worker sees only one file at a time.
@@ -98,6 +105,54 @@ export class LspBridge {
         this.opener = opener;
     }
 
+    /**
+     * Looks for the server at an interval after an install command starts.
+     * When the server starts, the open files of all worktrees connect to it.
+     */
+    async watchInstall(serverId: string): Promise<void> {
+        if (missingServers.isInstalling(serverId)) {
+            return;
+        }
+        missingServers.setInstalling(serverId, true);
+        const deadline = Date.now() + INSTALL_TIMEOUT_MS;
+        try {
+            while (Date.now() < deadline) {
+                await new Promise(resolve => setTimeout(resolve, INSTALL_POLL_MS));
+                const entry = missingServers.anyEntryOf(serverId);
+                if (!entry) {
+                    return;
+                }
+                const server = await this.api.lsp.ensure(entry.root, entry.languageId).catch(() => undefined);
+                if (server) {
+                    missingServers.deleteServer(serverId);
+                    monaco.editor.getModels().forEach(model => this.track(model));
+                    return;
+                }
+            }
+        } finally {
+            missingServers.setInstalling(serverId, false);
+        }
+    }
+
+    /** Asks the main process if the worktree needs a server that is not installed. */
+    private async checkMissing(root: string, languageId: string): Promise<void> {
+        const key = `${root}\0${languageId}`;
+        if (missingServers.has(root, languageId) || this.checking.has(key)) {
+            return;
+        }
+        this.checking.add(key);
+        try {
+            const missing = await this.api.lsp.missing(root, languageId);
+            if (missing) {
+                missingServers.set(root, languageId, missing);
+            }
+        } catch (error) {
+            console.warn('ShipWarden could not check the language server:', error);
+        } finally {
+            this.checking.delete(key);
+        }
+    }
+
     private async track(model: monaco.editor.ITextModel): Promise<void> {
         const uri = model.uri.toString();
         if (this.synced.has(uri) || model.uri.scheme !== 'file' || model.isDisposed()) {
@@ -110,12 +165,21 @@ export class LspBridge {
             return;
         }
         let server: LspServerInfo | undefined;
+        let failed = false;
         try {
             server = await this.api.lsp.ensure(root, languageId);
         } catch (error) {
+            failed = true;
             console.warn('ShipWarden could not start the language server:', error);
         }
-        if (!server || model.isDisposed() || this.synced.has(uri)) {
+        if (!server) {
+            if (!failed) {
+                void this.checkMissing(root, languageId);
+            }
+            return;
+        }
+        missingServers.delete(root, languageId);
+        if (model.isDisposed() || this.synced.has(uri)) {
             return;
         }
 

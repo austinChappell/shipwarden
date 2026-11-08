@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { Download } from 'lucide-react';
+import type { LspMissingServer } from '@shared/lsp';
 import { documents } from '../editor/documents';
 import { monaco } from '../editor/monaco';
+import { missingServers, useMissingServer } from '../lsp/missing-servers';
 
 interface Props {
     root: string;
@@ -11,14 +14,17 @@ interface Props {
     revealColumn?: number;
     revealNonce?: number;
     onError(message: string): void;
+    /** Runs the install command of a missing language server. */
+    onInstallServer(server: LspMissingServer): void;
 }
 
 /** Shows one file in Monaco. Cmd+S saves the file. */
-export function EditorView({ root, path, revealLine, revealColumn, revealNonce, onError }: Props) {
+export function EditorView({ root, path, revealLine, revealColumn, revealNonce, onError, onInstallServer }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | undefined>(undefined);
     const [ready, setReady] = useState(false);
     const [failure, setFailure] = useState<string>();
+    const missing = useMissingServer(root, path);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -87,7 +93,36 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
     return (
         <div className="editor">
             {failure && <div className="editor-failure">{failure}</div>}
+            {missing && <MissingServerBanner {...missing} onInstall={() => onInstallServer(missing.server)} />}
             <div className="editor-monaco" ref={containerRef} />
+        </div>
+    );
+}
+
+interface BannerProps {
+    server: LspMissingServer;
+    installing: boolean;
+    onInstall(): void;
+}
+
+/** Tells the user that the file needs a language server that is not installed. */
+function MissingServerBanner({ server, installing, onInstall }: BannerProps) {
+    let text;
+    if (installing) {
+        text = <>ShipWarden waits for the install of <strong>{server.name}</strong> to complete. Then it starts the server.</>;
+    } else if (server.installCommand) {
+        text = <>Install <strong>{server.name}</strong> to get go to definition, hover and errors in this file.</>;
+    } else {
+        text = <>Install <strong>{server.name}</strong> to get go to definition, hover and errors. ShipWarden did not find {server.tools.join(', ')} in the PATH.</>;
+    }
+    return (
+        <div className="editor-server-banner" role="status">
+            <Download size={14} strokeWidth={1.8} />
+            <span className="editor-server-text">{text}</span>
+            {!installing && server.installCommand && (
+                <button className="button primary" title={server.installCommand} onClick={onInstall}>Install</button>
+            )}
+            <button className="button" onClick={() => missingServers.dismiss(server.serverId)}>Not now</button>
         </div>
     );
 }

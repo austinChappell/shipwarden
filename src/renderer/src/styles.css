@@ -520,6 +520,38 @@ button {
     color: var(--muted);
 }
 
+/* The bar at the top of the editor when the file needs a language server that is not installed. */
+.editor-server-banner {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    font-size: 12px;
+}
+
+.editor-server-banner > svg {
+    flex: none;
+    color: var(--info);
+}
+
+.editor-server-text {
+    flex: 1;
+    min-width: 0;
+    color: var(--muted);
+}
+
+.editor-server-text strong {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.editor-server-banner .button {
+    flex: none;
+}
+
 /* File explorer */
 
 .explorer {

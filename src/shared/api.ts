@@ -5,7 +5,7 @@ import type { AppKeyAction, ShortcutAction } from './shortcuts';
 import type { WorkflowRun } from './pipelines';
 import type { ContentSearchResult, FileEntry, FilesChangedEvent } from './files';
 import type { BranchStatus, BranchSummary, CheckRun, FileVersions, GitHubOwner, JobProgress, GitHubRepoInfo, MergeMethod, PendingComment, PullRequest, PullRequestCandidates, PullRequestChange, PullRequestFile, PullRequestFilter, PullRequestSummary, RepoRef, RepoTarget, ReviewEvent, Workflow } from './github';
-import type { LspServerInfo, LspServerMessage } from './lsp';
+import type { LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentUpdate } from './agents';
 import type { AppSettings, CommandCheck } from './settings';
@@ -308,6 +308,8 @@ export interface ShipWardenApi {
     lsp: {
         /** Starts the language server for the language in the worktree. Returns undefined when no server is available. */
         ensure(root: string, languageId: string): Promise<LspServerInfo | undefined>;
+        /** Returns the server that the language needs in the worktree, when the server is not installed. */
+        missing(root: string, languageId: string): Promise<LspMissingServer | undefined>;
         request(key: string, method: string, params: unknown): Promise<unknown>;
         notify(key: string, method: string, params: unknown): void;
         onMessage(listener: (message: LspServerMessage) => void): () => void;
@@ -442,6 +444,7 @@ export const IpcChannels = {
     tasksSelectedConnection: 'tasks:selectedConnection',
     tasksSetSelectedConnection: 'tasks:setSelectedConnection',
     lspEnsure: 'lsp:ensure',
+    lspMissing: 'lsp:missing',
     lspRequest: 'lsp:request',
     lspNotify: 'lsp:notify',
     lspMessage: 'lsp:message',

@@ -3,8 +3,8 @@ import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter, type MessageConnection } from 'vscode-jsonrpc/node';
 import type { ClientCapabilities, InitializeResult } from 'vscode-languageserver-protocol';
-import type { LspServerInfo, LspServerMessage } from '@shared/lsp';
-import { serverForLanguage } from './servers';
+import type { LspMissingServer, LspServerInfo, LspServerMessage } from '@shared/lsp';
+import { installCommand, serverForLanguage } from './servers';
 
 interface RunningServer {
     info: LspServerInfo;
@@ -76,6 +76,27 @@ export class LspManager {
         return (await promise)?.info;
     }
 
+    /**
+     * Returns the server that the language needs in the worktree, when the server is not installed.
+     * Returns undefined when the server is available, or when no server supports the language.
+     */
+    async missing(root: string, languageId: string): Promise<LspMissingServer | undefined> {
+        const definition = serverForLanguage(languageId);
+        if (!definition || definition.install.length === 0) {
+            return undefined;
+        }
+        await this.ready;
+        if (await definition.resolve(root)) {
+            return undefined;
+        }
+        return {
+            serverId: definition.id,
+            name: definition.name,
+            installCommand: await installCommand(definition),
+            tools: definition.install.map(option => option.tool)
+        };
+    }
+
     request(key: string, method: string, params: unknown): Promise<unknown> {
         return this.get(key).connection.sendRequest(method, params);
     }
@@ -102,7 +123,7 @@ export class LspManager {
         if (!command) {
             return undefined;
         }
-        const child = spawn(command.command, command.args, { cwd: root, env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
+        const child = spawn(command.command, command.args, { cwd: root, env: { ...process.env, ...command.env }, stdio: ['pipe', 'pipe', 'pipe'] });
         child.stderr?.on('data', data => console.warn(`[lsp ${serverId}] ${String(data).trimEnd()}`));
         const connection = createMessageConnection(new StreamMessageReader(child.stdout!), new StreamMessageWriter(child.stdin!));
 
@@ -138,7 +159,8 @@ export class LspManager {
                 rootUri,
                 rootPath: root,
                 workspaceFolders: folders,
-                capabilities: CLIENT_CAPABILITIES
+                capabilities: CLIENT_CAPABILITIES,
+                initializationOptions: command.initializationOptions
             });
             connection.sendNotification('initialized', {});
             server.info.capabilities = result.capabilities;

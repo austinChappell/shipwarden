@@ -9,6 +9,17 @@ export interface LspServerInfo {
     capabilities: ServerCapabilities;
 }
 
+/** A language server that a worktree needs, but that is not installed. */
+export interface LspMissingServer {
+    serverId: string;
+    /** The name that the UI shows, for example "rust-analyzer". */
+    name: string;
+    /** The shell command that installs the server. Undefined when no install tool is in the PATH. */
+    installCommand?: string;
+    /** The install tools that ShipWarden knows, for the case that `installCommand` is undefined. */
+    tools: string[];
+}
+
 /** A notification or request from a language server that the UI must handle. */
 export interface LspServerMessage {
     key: string;
