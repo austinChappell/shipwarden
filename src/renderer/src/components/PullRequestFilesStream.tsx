@@ -7,15 +7,15 @@ import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText } from '../util';
 import { ComposerZone, PendingZone, ThreadZone } from './DiffView';
 
-const STYLE_KEY = 'shipwarden.diffStyle';
+export const STYLE_KEY = 'shipwarden.diffStyle';
 
-type DiffStyle = 'unified' | 'split';
+export type DiffStyle = 'unified' | 'split';
 
 /**
  * Colors of the app theme for the diff. The diff is in a shadow root, but the app variables go into it.
  * The highlight theme sets its background on the element, so these rules need "!important".
  */
-const THEME_CSS = `
+export const THEME_CSS = `
 :host {
     --diffs-dark-bg: var(--bg) !important;
     --diffs-light-bg: var(--bg) !important;
@@ -45,7 +45,7 @@ interface Props {
     onError(message: string): void;
 }
 
-function readStyle(): DiffStyle {
+export function readStyle(): DiffStyle {
     try {
         return localStorage.getItem(STYLE_KEY) === 'split' ? 'split' : 'unified';
     } catch {
@@ -54,7 +54,7 @@ function readStyle(): DiffStyle {
 }
 
 /** The color mode of the app ("light" or "dark"), from the root element. */
-function useColorMode(): 'light' | 'dark' {
+export function useColorMode(): 'light' | 'dark' {
     const read = (): 'light' | 'dark' => (document.documentElement.dataset.mode === 'light' ? 'light' : 'dark');
     const [mode, setMode] = useState(read);
     useEffect(() => {

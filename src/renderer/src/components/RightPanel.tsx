@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { CircleCheck, Files, GitPullRequest, Plug } from 'lucide-react';
+import { CircleCheck, Files, GitCommitVertical, GitPullRequest, Plug } from 'lucide-react';
 import type { CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import type { BranchStatusState } from '../github/use-branch-status';
 import { ChecksPanel } from './ChecksPanel';
 import { FileExplorer } from './FileExplorer';
 import { ProcessesPanel } from './ProcessesPanel';
+import { ChangesPanel } from './ChangesPanel';
+import { changeCount, type ChangeSide, type FileChange } from '@shared/git';
+import { useGitChanges } from '../git/git-store';
 import { PullRequestPanel } from './PullRequestPanel';
 
-type PanelTab = 'files' | 'pr' | 'checks' | 'processes';
+type PanelTab = 'files' | 'changes' | 'pr' | 'checks' | 'processes';
 const TAB_STORAGE_KEY = 'shipwarden.rightPanelTab';
 
 interface Props {
@@ -20,12 +23,13 @@ interface Props {
     onSendToAgent(prompt: string): void;
     onSendLogToAgent(check: CheckRun): void;
     onShowTerminal(sessionId: string): void;
+    onOpenChange(change: FileChange, side: ChangeSide): void;
 }
 
 function readTab(): PanelTab {
     try {
         const value = localStorage.getItem(TAB_STORAGE_KEY);
-        return value === 'pr' || value === 'checks' || value === 'processes' ? value : 'files';
+        return value === 'changes' || value === 'pr' || value === 'checks' || value === 'processes' ? value : 'files';
     } catch {
         return 'files';
     }
@@ -36,6 +40,9 @@ export function RightPanel(props: Props) {
     const [tab, setTab] = useState<PanelTab>(readTab);
     const pr = props.github.status?.pullRequest;
     const unresolved = pr?.threads.filter(thread => !thread.isResolved).length ?? 0;
+    // The changes load while the panel shows, also on other tabs, for the count on the Changes tab.
+    const git = useGitChanges(props.root);
+    const changed = git.changes ? changeCount(git.changes) : 0;
 
     const select = (next: PanelTab) => {
         setTab(next);
@@ -57,6 +64,8 @@ export function RightPanel(props: Props) {
         <aside className="explorer">
             <div className="panel-tabs">
                 {tabButton('files', 'Files', <Files size={17} strokeWidth={1.5} />)}
+                {tabButton('changes', changed ? `Changes (${changed} files)` : 'Changes', <GitCommitVertical size={17} strokeWidth={1.5} />,
+                    changed > 0 ? <span className="panel-badge">{changed}</span> : undefined)}
                 {tabButton('pr', pr ? `Pull request #${pr.number}` : 'Pull request', <GitPullRequest size={17} strokeWidth={1.5} />,
                     unresolved > 0 ? <span className="panel-badge">{unresolved}</span> : undefined)}
                 {tabButton('checks', 'Checks', <CircleCheck size={17} strokeWidth={1.5} />)}
@@ -74,6 +83,17 @@ export function RightPanel(props: Props) {
                     onRefresh={props.github.refresh}
                     onOpenDiff={props.onOpenDiff}
                     onSendToAgent={props.onSendToAgent}
+                />
+            )}
+            {tab === 'changes' && (
+                <ChangesPanel
+                    key={props.root}
+                    worktree={props.root}
+                    changes={git.changes}
+                    error={git.error}
+                    onReload={git.reload}
+                    onOpenChange={props.onOpenChange}
+                    onOpenFile={path => props.onOpenFile(path)}
                 />
             )}
             {tab === 'processes' && <ProcessesPanel key={props.root} worktreePath={props.root} onShowTerminal={props.onShowTerminal} />}

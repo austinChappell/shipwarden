@@ -11,6 +11,7 @@ import type { AppSettings, CommandCheck } from './settings';
 import type { ProjectsState } from './projects';
 import type { ProviderUsage } from './usage';
 import type { UpdateState } from './updates';
+import type { ChangeContents, ChangeSide, CommitResult, GitChanges } from './git';
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
 import type { CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult, Worktree } from './worktrees';
@@ -69,6 +70,19 @@ export interface ShipWardenApi {
         answerConfirm(id: number, confirmed: boolean): void;
         /** Runs an app key (⌘Q, ⇧⌥⌘Q, ⌘, or ⌘H) that the page got. The main process normally reads these keys first. */
         runKey(action: AppKeyAction): void;
+    };
+    git: {
+        /** The local changes of a worktree: staged, unstaged and conflicted files, and the branch state. */
+        changes(worktree: string): Promise<GitChanges>;
+        stage(worktree: string, paths: string[]): Promise<void>;
+        unstage(worktree: string, paths: string[]): Promise<void>;
+        /** The two versions of a changed file: HEAD and the index (staged), or the index and the working file (unstaged). */
+        contents(worktree: string, path: string, side: ChangeSide, oldPath?: string): Promise<ChangeContents>;
+        /** Commits the staged changes. The hooks of the repository run. */
+        commit(worktree: string, message: string, amend: boolean): Promise<CommitResult>;
+        lastMessage(worktree: string): Promise<string>;
+        /** Pushes the branch. A branch without an upstream gets "origin" as its upstream. */
+        push(worktree: string): Promise<void>;
     };
     updates: {
         /** The state of the updater: the running version, and a newer release when there is one. */
@@ -413,6 +427,13 @@ export const IpcChannels = {
     usageRefresh: 'usage:refresh',
     usageChanged: 'usage:changed',
     updatesState: 'updates:state',
+    gitChanges: 'git:changes',
+    gitStage: 'git:stage',
+    gitUnstage: 'git:unstage',
+    gitContents: 'git:contents',
+    gitCommit: 'git:commit',
+    gitLastMessage: 'git:lastMessage',
+    gitPush: 'git:push',
     updatesCheck: 'updates:check',
     updatesInstall: 'updates:install',
     updatesChanged: 'updates:changed',

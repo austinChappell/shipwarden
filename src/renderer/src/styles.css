@@ -6455,3 +6455,274 @@ body.resizing-column * {
 .step-icon.skipped {
     color: var(--muted);
 }
+
+/* The Changes tab of the right panel: the git changes of the worktree */
+.changes-panel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    font-size: 13px;
+}
+
+.changes-branch {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px 8px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+}
+
+.changes-branch-name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-strong);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.changes-ab {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 1px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.changes-push {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    font-size: 12px;
+}
+
+.changes-commit {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.changes-message {
+    width: 100%;
+    min-height: 44px;
+    resize: vertical;
+    font: inherit;
+    line-height: 1.45;
+}
+
+.changes-commit-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.changes-commit-row .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.changes-amend {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.changes-error {
+    margin: 8px 10px 0;
+}
+
+.changes-notice {
+    margin: 8px 10px 0;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--ok) 14%, transparent);
+    color: var(--ok);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.changes-list {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 6px 0 16px;
+}
+
+.changes-clean {
+    padding: 8px 14px;
+}
+
+.changes-group + .changes-group {
+    margin-top: 6px;
+}
+
+.changes-group-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    padding: 0 10px 0 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+}
+
+.changes-group-count {
+    font-weight: 500;
+}
+
+.changes-group-action {
+    margin-left: auto;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.changes-group-action .link-button {
+    font-size: 12px;
+}
+
+.change-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 26px;
+    margin: 0 6px;
+    padding: 0 6px 0 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.change-row:hover {
+    background: var(--hover);
+}
+
+.change-letter {
+    flex: none;
+    width: 12px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.change-letter.modified,
+.change-letter.typechange {
+    color: var(--accent);
+}
+
+.change-letter.added,
+.change-letter.untracked {
+    color: var(--ok);
+}
+
+.change-letter.deleted,
+.change-letter.conflicted {
+    color: var(--danger);
+}
+
+.change-letter.renamed,
+.change-letter.copied {
+    color: var(--info);
+}
+
+.change-name {
+    flex: none;
+    max-width: 60%;
+    overflow: hidden;
+    color: var(--text-strong);
+    text-overflow: ellipsis;
+}
+
+.change-name.deleted {
+    text-decoration: line-through;
+}
+
+.change-dir {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+}
+
+.change-actions {
+    display: none;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+}
+
+.change-row:hover .change-actions,
+.change-row:focus-within .change-actions {
+    display: flex;
+}
+
+.change-actions .icon-button {
+    padding: 2px;
+}
+
+/* The diff of a local change in a tab of the main area */
+.change-diff {
+    display: flex;
+    flex-direction: column;
+}
+
+.change-diff .diff-header {
+    gap: 10px;
+}
+
+.change-side {
+    flex: none;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.change-side.staged {
+    background: color-mix(in srgb, var(--ok) 16%, transparent);
+    color: var(--ok);
+}
+
+.change-side.unstaged {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+}
+
+.change-stage {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    font-size: 12px;
+}
+
+.change-diff-body {
+    --diffs-font-family: 'JetBrains Mono', ui-monospace, monospace;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}

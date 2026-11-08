@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Columns2, FileDiff, ListTodo, PanelRight, ScrollText, SquareArrowOutUpRight, SquareTerminal, X } from 'lucide-react';
+import { Columns2, FileDiff, GitCompareArrows, ListTodo, PanelRight, ScrollText, SquareArrowOutUpRight, SquareTerminal, X } from 'lucide-react';
 import { baseName } from '@shared/files';
 import type { BranchSummary, CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
@@ -44,6 +44,8 @@ import { SplitDivider } from './components/SplitDivider';
 import { shortcutAction, type ShortcutAction } from '@shared/shortcuts';
 import { lspBridge } from './lsp/bridge';
 import { terminalPool } from './terminal/terminal-pool';
+import { ChangeDiffView } from './components/ChangeDiffView';
+import type { ChangeSide, FileChange } from '@shared/git';
 
 /** The command that starts an agent. A setting will replace this value. */
 const EXPLORER_STORAGE_KEY = 'shipwarden.explorerOpen';
@@ -59,7 +61,8 @@ type TabKey = string;
 /** A diff tab or a log tab. */
 type ExtraTab =
     | { key: TabKey; kind: 'diff'; pr: PullRequest; file: PullRequestFile; line?: number; nonce?: number }
-    | { key: TabKey; kind: 'log'; check: CheckRun };
+    | { key: TabKey; kind: 'log'; check: CheckRun }
+    | { key: TabKey; kind: 'change'; change: FileChange; side: ChangeSide };
 
 /** The time that an agent can take to start before ShipWarden sends it a prompt. */
 const AGENT_START_TIMEOUT_MS = 15_000;
@@ -544,6 +547,13 @@ export function App() {
     const openDiff = (pr: PullRequest, file: PullRequestFile, line?: number) => {
         if (selectedPath) {
             openExtra(selectedPath, { key: `d:${file.path}`, kind: 'diff', pr, file, line, nonce: Date.now() });
+        }
+    };
+
+    /** Opens the diff of a local change: staged (HEAD and the index) or unstaged (the index and the working file). */
+    const openChange = (change: FileChange, side: ChangeSide) => {
+        if (selectedPath) {
+            openExtra(selectedPath, { key: `c:${side}:${change.path}`, kind: 'change', change, side });
         }
     };
 
@@ -1111,6 +1121,17 @@ export function App() {
     const renderTab = (tab: TabKey, focused: boolean): ReactNode => {
         if (!selectedPath) return null;
         const extra = worktreeExtras.find(item => item.key === tab);
+        if (extra?.kind === 'change') {
+            return (
+                <ChangeDiffView
+                    key={`${selectedPath}\0${extra.key}`}
+                    worktree={selectedPath}
+                    change={extra.change}
+                    side={extra.side}
+                    onOpenFile={path => openFile(path)}
+                />
+            );
+        }
         if (extra) {
             return extra.kind === 'diff' ? (
                 <DiffView
@@ -1234,6 +1255,13 @@ export function App() {
             return { icon: <Icon className="tab-icon" size={14} strokeWidth={1.5} />, title: baseName(path), tooltip: path, dirty: !!selectedPath && dirtyFiles.has(fileKey(selectedPath, path)) };
         }
         const extra = worktreeExtras.find(item => item.key === key);
+        if (extra?.kind === 'change') {
+            return {
+                icon: <GitCompareArrows className="tab-icon" size={14} strokeWidth={1.5} />,
+                title: baseName(extra.change.path),
+                tooltip: `${extra.side === 'staged' ? 'Staged changes' : 'Changes'} in ${extra.change.path}`
+            };
+        }
         return extra?.kind === 'diff'
             ? { icon: <FileDiff className="tab-icon" size={14} strokeWidth={1.5} />, title: baseName(extra.file.path), tooltip: `Changes in ${extra.file.path}` }
             : { icon: <ScrollText className="tab-icon" size={14} strokeWidth={1.5} />, title: extra?.check.name ?? 'log', tooltip: extra ? `Log of ${extra.check.name}` : undefined };
@@ -1494,6 +1522,7 @@ export function App() {
                         onSendToAgent={sendToAgent}
                         onSendLogToAgent={sendLogToAgent}
                         onShowTerminal={id => activate(selectedPath, `t:${id}`)}
+                        onOpenChange={openChange}
                     />
                 )}
             </div>

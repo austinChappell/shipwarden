@@ -84,6 +84,20 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
   When the build ID is not the app's build ID, the app replaces the host only if the host has no running sessions.
   Otherwise the app uses the old host, so an update does not stop running agents.
 
+### Git changes
+
+- The Changes tab of the right panel shows `git status` of the worktree (`GitChangesService`, main): the staged
+  changes, the other changes with the untracked files, and the merge conflicts. `shared/git.ts` reads the
+  `--porcelain=v2 -z` output.
+- The page reads the status again every 4 seconds while it shows, when a file changes, on focus, and after an action
+  (`git-store.ts`). The count shows on the tab.
+- Stage is `git add -A`, unstage is `git restore --staged` (`git rm --cached` before the first commit). Commit reads
+  the message on stdin (`git commit -F -`), so the hooks of the repository run. Push sets "origin" as the upstream
+  when the branch has none.
+- A click on a file opens a diff tab (`ChangeDiffView`, with `@pierre/diffs`): HEAD and the index for a staged
+  change, the index and the working file for an unstaged change.
+- The main process runs git only in a worktree of a project, and checks that each path stays in the worktree.
+
 ### Worktree processes and ports
 
 - `ProcessService` (main) reads `ps` (PID, parent, CPU, memory, time, command), `lsof -iTCP -sTCP:LISTEN` (ports)

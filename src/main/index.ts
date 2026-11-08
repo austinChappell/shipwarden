@@ -29,6 +29,7 @@ import { ptyHostSocketPath } from './pty-host/protocol';
 import { PtyHostClient } from './pty-host/pty-host-client';
 import { ProcessService } from './processes/process-service';
 import { bundlePathOf, UpdateService } from './updates/update-service';
+import { GitChangesService } from './git/git-changes-service';
 import { GitWorktreeService, worktreesRoot } from './worktrees/git-worktree-service';
 import { runScript } from './worktrees/run-script';
 import { normalizeWorktreeSettings, resolveWorktreeSettings, scriptEnvironment } from '@shared/worktree-settings';
@@ -133,6 +134,9 @@ const updates = new UpdateService({
     onState: state => mainWindow?.webContents.send(IpcChannels.updatesChanged, state),
     quit: () => app.quit()
 });
+
+/** The local git changes of the worktrees: status, stage, commit and push. */
+const gitChanges = new GitChangesService();
 
 /** The processes and ports of the worktrees. */
 const processes = new ProcessService({ sessions: () => terminals.list(), hostPid: () => terminals.hostPid() });
@@ -487,6 +491,29 @@ function registerIpc(): void {
         }
     });
     ipcMain.handle(IpcChannels.terminalsReplay, (_event, id: string) => terminals.replay(id));
+    // The renderer can name only a worktree of the projects, so git does not run in other folders.
+    // The known worktree paths are kept, and read again only for a path that is not in the list.
+    const knownWorktrees = new Set<string>();
+    const knownWorktree = async (worktree: unknown): Promise<string> => {
+        const value = String(worktree);
+        if (knownWorktrees.has(value)) return value;
+        const repos = (await projects.get()).projects.flatMap(project => project.repos);
+        for (const repo of repos) {
+            (await worktrees.list(repo).catch(() => [])).forEach(item => knownWorktrees.add(item.path));
+        }
+        if (knownWorktrees.has(value)) return value;
+        throw new Error(`"${value}" is not a worktree of a project.`);
+    };
+    const pathList = (paths: unknown) => (Array.isArray(paths) ? paths.map(String) : []);
+    ipcMain.handle(IpcChannels.gitChanges, async (_event, worktree: string) => gitChanges.status(await knownWorktree(worktree)));
+    ipcMain.handle(IpcChannels.gitStage, async (_event, worktree: string, paths: unknown) => gitChanges.stage(await knownWorktree(worktree), pathList(paths)));
+    ipcMain.handle(IpcChannels.gitUnstage, async (_event, worktree: string, paths: unknown) => gitChanges.unstage(await knownWorktree(worktree), pathList(paths)));
+    ipcMain.handle(IpcChannels.gitContents, async (_event, worktree: string, path: string, side: string, oldPath?: string) =>
+        gitChanges.contents(await knownWorktree(worktree), String(path), side === 'staged' ? 'staged' : 'unstaged', typeof oldPath === 'string' ? oldPath : undefined));
+    ipcMain.handle(IpcChannels.gitCommit, async (_event, worktree: string, message: string, amend: boolean) =>
+        gitChanges.commit(await knownWorktree(worktree), String(message), amend === true));
+    ipcMain.handle(IpcChannels.gitLastMessage, async (_event, worktree: string) => gitChanges.lastMessage(await knownWorktree(worktree)));
+    ipcMain.handle(IpcChannels.gitPush, async (_event, worktree: string) => gitChanges.push(await knownWorktree(worktree)));
     ipcMain.handle(IpcChannels.updatesState, () => updates.getState());
     ipcMain.handle(IpcChannels.updatesCheck, () => updates.check());
     ipcMain.handle(IpcChannels.updatesInstall, () => updates.install());
