@@ -44,6 +44,11 @@
     "vitest": "^5.1.0",
     "vscode-languageserver-protocol": "^3.18.5"
   },
+  "overrides": {
+    "monaco-editor": {
+      "dompurify": "$dompurify"
+    }
+  },
   "dependencies": {
     "@pierre/diffs": "^1.6.4",
     "js-yaml": "^4.3.2",
