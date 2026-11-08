@@ -1,5 +1,6 @@
 import { FitAddon, Terminal } from 'ghostty-web';
 import { findKeybind } from '@shared/keybinds';
+import { isClearKey } from '@shared/shortcuts';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { prepareTerminal } from './ghostty';
 
@@ -222,10 +223,18 @@ export class TerminalPool {
         const entry: Entry = { session, terminal, fit, host, shownSeq: -1, pending: [], bindings: [], settingsKey };
         this.entries.set(session.id, entry);
 
+        // ⌘K clears the screen and the scrollback, as in Ghostty and Terminal.app.
         // Keybinds from the Ghostty config that send text, for example shift+enter.
         terminal.attachCustomKeyEventHandler(event => {
             if (event.type !== 'keydown') {
                 return false;
+            }
+            if (isClearKey(event)) {
+                event.preventDefault();
+                entry.terminal.write(CLEAR_ALL);
+                // Form feed (Ctrl+L) tells the shell or the agent to draw its prompt again.
+                this.api.write(session.id, '\x0c');
+                return true;
             }
             const keybind = findKeybind(settings.keybinds, event);
             if (keybind) {

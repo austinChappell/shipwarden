@@ -74,6 +74,17 @@ export interface TerminalSession {
     agentStateAt?: number;
 }
 
+/**
+ * Returns true when the session runs an agent: an agent tab, or a shell tab in which an agent reports its state
+ * through the hooks (for example `claude` that the user typed).
+ */
+export function runsAgent(session: Pick<TerminalSession, 'isAgent' | 'exited' | 'agentState'>): boolean {
+    if (session.exited) {
+        return false;
+    }
+    return session.isAgent || (!!session.agentState && session.agentState !== 'exited');
+}
+
 export interface CreateTerminalOptions {
     cwd: string;
     title: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appKeyAction, shortcutAction } from './shortcuts';
+import { appKeyAction, isClearKey, shortcutAction } from './shortcuts';
 
 const key = (change: Partial<Parameters<typeof shortcutAction>[0]>) =>
     shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: false, key: 'd', code: 'KeyD', ...change });
@@ -57,5 +57,23 @@ describe('appKeyAction', () => {
         expect(appKeyAction(key('KeyQ', { meta: false }))).toBeUndefined();
         expect(appKeyAction(key('KeyQ', { control: true }))).toBeUndefined();
         expect(appKeyAction(key('KeyT'))).toBeUndefined();
+    });
+});
+
+describe('isClearKey', () => {
+    const press = { key: 'k', code: 'KeyK', metaKey: true, ctrlKey: false, altKey: false, shiftKey: false };
+
+    it('finds ⌘K', () => {
+        expect(isClearKey(press)).toBe(true);
+        // A keyboard layout that is not QWERTY: the code tells the key.
+        expect(isClearKey({ ...press, key: 'x' })).toBe(true);
+    });
+
+    it('ignores other keys and other modifiers', () => {
+        expect(isClearKey({ ...press, key: 'j', code: 'KeyJ' })).toBe(false);
+        expect(isClearKey({ ...press, metaKey: false })).toBe(false);
+        expect(isClearKey({ ...press, ctrlKey: true })).toBe(false);
+        expect(isClearKey({ ...press, altKey: true })).toBe(false);
+        expect(isClearKey({ ...press, shiftKey: true })).toBe(false);
     });
 });

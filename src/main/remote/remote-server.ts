@@ -13,7 +13,7 @@ import {
     type RemoteSnapshot,
     type RemoteStatus
 } from '@shared/remote';
-import type { TerminalReplay, TerminalSession } from '@shared/terminal';
+import { runsAgent, type TerminalReplay, type TerminalSession } from '@shared/terminal';
 import type { RemoteDevices } from './remote-devices';
 import { agentOf } from './remote-snapshot';
 import { ScreenMirror } from './screen-mirror';
@@ -341,7 +341,7 @@ export class RemoteServer {
     }
 
     private async agents(): Promise<RemoteAgent[]> {
-        return (await this.options.backend.sessions()).filter(session => session.isAgent).map(agentOf);
+        return (await this.options.backend.sessions()).filter(session => session.isAgent || runsAgent(session)).map(agentOf);
     }
 
     private async sendAgents(): Promise<void> {
@@ -365,7 +365,7 @@ export class RemoteServer {
 
     private async agentSession(id: string): Promise<TerminalSession> {
         const session = (await this.options.backend.sessions()).find(item => item.id === id);
-        if (!session || !session.isAgent) {
+        if (!session || !(session.isAgent || runsAgent(session))) {
             throw new HttpError(404, 'This agent does not exist. It possibly closed.');
         }
         return session;
