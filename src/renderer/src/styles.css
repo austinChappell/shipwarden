@@ -1108,6 +1108,50 @@ code {
     color: var(--danger);
 }
 
+.pr-badge.conflict {
+    background: color-mix(in srgb, var(--danger) 18%, transparent);
+    color: var(--danger);
+    font-weight: 600;
+}
+
+/* The banner at the top of a pull request with merge conflicts. */
+.pr-conflict-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0 2px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    color: var(--text-strong);
+}
+
+.pr-conflict-banner > svg {
+    flex: none;
+    color: var(--danger);
+}
+
+.pr-conflict-text {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+}
+
+.pr-conflict-text strong {
+    color: var(--danger);
+}
+
+.pr-conflict-banner .button {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
 .pr-section {
     padding: 10px 0;
     border-bottom: 1px solid var(--border);

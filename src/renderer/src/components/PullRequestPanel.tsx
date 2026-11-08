@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bot, Check, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, RefreshCw } from 'lucide-react';
+import { Bot, Check, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, RefreshCw, TriangleAlert } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
 import type { BranchStatus, MergeMethod, PullRequest, PullRequestChange, PullRequestFile, RepoTarget, ReviewEvent, ReviewThread } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
@@ -36,6 +36,21 @@ export function StateBadge({ pr }: { pr: PullRequest }) {
     if (pr.state === 'CLOSED') return <span className="pr-badge closed"><GitPullRequestClosed {...ICON} />Closed</span>;
     if (pr.isDraft) return <span className="pr-badge draft"><GitPullRequestDraft {...ICON} />Draft</span>;
     return <span className="pr-badge open"><GitPullRequest {...ICON} />Open</span>;
+}
+
+/** True when the pull request is open and GitHub reports conflicts with the base branch. */
+export function hasConflicts(pr: PullRequest): boolean {
+    return pr.state === 'OPEN' && pr.mergeable === 'CONFLICTING';
+}
+
+/** A red badge next to the state badge when the pull request has merge conflicts. */
+export function ConflictBadge({ pr }: { pr: PullRequest }) {
+    if (!hasConflicts(pr)) return null;
+    return (
+        <span className="pr-badge conflict" title={`The branch ${pr.headRefName} has conflicts with ${pr.baseRefName}. GitHub cannot merge it.`}>
+            <TriangleAlert {...ICON} />Merge conflicts
+        </span>
+    );
 }
 
 export function reviewText(pr: PullRequest): string {
@@ -289,6 +304,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                 {!overview && <div className="pr-header">
                     <div className="pr-title-row">
                         <StateBadge pr={pr} />
+                        <ConflictBadge pr={pr} />
                         <button className="link-button" title="Open on GitHub" onClick={() => window.shipwarden.github.openInBrowser(pr.url)}>
                             #{pr.number} <ExternalLink size={12} strokeWidth={1.6} />
                         </button>
@@ -306,6 +322,24 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                         <span className="dot-separator">·</span>{timeAgo(pr.createdAt)}
                     </div>
                 </div>}
+
+                {hasConflicts(pr) && (
+                    <div className="pr-conflict-banner" role="alert">
+                        <TriangleAlert size={16} strokeWidth={1.8} />
+                        <div className="pr-conflict-text">
+                            <strong>This branch has merge conflicts.</strong>
+                            <span>Resolve the conflicts with <code>{pr.baseRefName}</code> before you merge.</span>
+                        </div>
+                        {onSendToAgent && (
+                            <button
+                                className="button"
+                                onClick={() => onSendToAgent(`Pull request #${pr.number} (${pr.url}) has merge conflicts with ${pr.baseRefName}. Fetch origin, merge origin/${pr.baseRefName} into ${pr.headRefName}, resolve the conflicts, run the tests, and commit the merge.`)}
+                            >
+                                <Bot size={13} strokeWidth={1.6} /> Send to agent
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 {editing ? (
                     <section className="pr-section">

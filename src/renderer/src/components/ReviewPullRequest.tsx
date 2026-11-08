@@ -6,7 +6,7 @@ import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
 import { LogView } from './LogView';
 import { PullRequestFilesStream } from './PullRequestFilesStream';
-import { PullRequestFileList, PullRequestPanel, reviewText, StateBadge } from './PullRequestPanel';
+import { ConflictBadge, PullRequestFileList, PullRequestPanel, reviewText, StateBadge } from './PullRequestPanel';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
@@ -117,6 +117,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                 </div>
                 <div className="review-pr-meta">
                     <StateBadge pr={pr} />
+                    <ConflictBadge pr={pr} />
                     <span className="review-pr-summary">
                         <strong>{pr.author?.login ?? 'unknown'}</strong> {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'}
                         {' '}{pr.commitCount} commit{pr.commitCount === 1 ? '' : 's'} into <code>{pr.baseRefName}</code> from <code>{pr.headRefName}</code>
