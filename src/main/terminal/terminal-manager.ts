@@ -72,10 +72,12 @@ export class TerminalManager {
         const shell = env.SHELL || '/bin/zsh';
         // A command runs as the shell command, so the shell does not echo it. When the command exits, a normal shell starts.
         const args = options.command ? ['-l', '-i', '-c', `${options.command}; exec ${shell} -l`] : ['-l'];
+        const cols = Math.max(options.cols, 2);
+        const rows = Math.max(options.rows, 1);
         const child = pty.spawn(shell, args, {
             name: 'xterm-256color',
-            cols: Math.max(options.cols, 2),
-            rows: Math.max(options.rows, 1),
+            cols,
+            rows,
             cwd: options.cwd,
             env: {
                 ...env,
@@ -96,6 +98,8 @@ export class TerminalManager {
             worktreePath: options.worktreePath,
             isAgent: options.isAgent ?? false,
             pid: child.pid,
+            cols,
+            rows,
             exited: false,
             agentState: options.isAgent && options.reportsAgentState && this.hookEnvironment ? 'starting' : undefined,
             agentStateAt: options.isAgent ? Date.now() : undefined
@@ -140,6 +144,8 @@ export class TerminalManager {
         const entry = this.entries.get(id);
         if (entry && !entry.session.exited && cols > 0 && rows > 0) {
             entry.process.resize(cols, rows);
+            entry.session.cols = cols;
+            entry.session.rows = rows;
         }
     }
 

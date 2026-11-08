@@ -272,7 +272,7 @@ export class GitHubService {
         }
         const data = await this.client.graphql<{
             repository: { pullRequests: { nodes: {
-                number: number; url: string; isDraft: boolean; headRefName: string; reviewDecision: BranchSummary['reviewDecision'];
+                number: number; title: string; url: string; isDraft: boolean; headRefName: string; headRefOid: string; reviewDecision: BranchSummary['reviewDecision'];
                 isCrossRepository: boolean;
                 commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
             }[] } };
@@ -280,7 +280,7 @@ export class GitHubService {
   repository(owner: $owner, name: $name) {
     pullRequests(states: OPEN, first: 100, orderBy: { field: UPDATED_AT, direction: DESC }) {
       nodes {
-        number url isDraft headRefName reviewDecision isCrossRepository
+        number title url isDraft headRefName headRefOid reviewDecision isCrossRepository
         commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
       }
     }
@@ -294,7 +294,9 @@ export class GitHubService {
             }
             summaries[pr.headRefName] = {
                 number: pr.number,
+                title: pr.title,
                 url: pr.url,
+                headSha: pr.headRefOid,
                 isDraft: pr.isDraft,
                 reviewDecision: pr.reviewDecision,
                 checks: pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null

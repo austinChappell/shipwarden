@@ -1,3 +1,4 @@
+import type { PairingOffer, RemoteStatus } from './remote';
 import type { DashboardPullRequests, PullRequestCommentItem } from './dashboard';
 import type { NoteInfo } from './notes';
 import type { AppKeyAction, ShortcutAction } from './shortcuts';
@@ -249,6 +250,17 @@ export interface ShipWardenApi {
         /** Opens a file dialog for a CA certificates file. Returns the path, or undefined when the user cancels. */
         chooseCaFile(): Promise<string | undefined>;
     };
+    remote: {
+        /** The state of the phone connection: the server, the addresses and the paired phones. */
+        status(): Promise<RemoteStatus>;
+        /** Makes a new pairing code for a QR code. The old code stops. */
+        startPairing(): Promise<PairingOffer>;
+        cancelPairing(): Promise<void>;
+        /** Removes a paired phone. Its token stops at once. */
+        removeDevice(id: string): Promise<void>;
+        /** Called when a phone pairs, connects or disconnects. */
+        onChanged(listener: () => void): () => void;
+    };
     seen: {
         /** The keys of the comments that the user saw in ShipWarden. */
         keys(): Promise<string[]>;
@@ -393,6 +405,11 @@ export const IpcChannels = {
     networkStatus: 'network:status',
     networkTest: 'network:test',
     networkChooseCaFile: 'network:chooseCaFile',
+    remoteStatus: 'remote:status',
+    remoteStartPairing: 'remote:startPairing',
+    remoteCancelPairing: 'remote:cancelPairing',
+    remoteRemoveDevice: 'remote:removeDevice',
+    remoteChanged: 'remote:changed',
     seenKeys: 'seen:keys',
     seenMark: 'seen:mark',
     tasksPlugins: 'tasks:plugins',

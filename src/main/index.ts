@@ -39,6 +39,11 @@ import { UsageService } from './usage/usage-service';
 import { which } from './lsp/servers';
 import { commandProgram, type AppSettings, type CommandCheck } from '@shared/settings';
 import { activePalette, DEFAULT_APPEARANCE, type Appearance } from '@shared/themes';
+import { execFile } from 'child_process';
+import { RemoteDevices } from './remote/remote-devices';
+import { localHosts, RemoteServer } from './remote/remote-server';
+import { RemoteSnapshotBuilder } from './remote/remote-snapshot';
+import { ensureTlsIdentity } from './remote/tls-identity';
 
 // Do this first. Terminals must not inherit the session of an agent that started ShipWarden.
 removeAgentSessionVariables(process.env);
@@ -119,9 +124,18 @@ const terminals = new PtyHostClient({
     hostScript: join(__dirname, 'pty-host.js'),
     logPath: join(app.getPath('userData'), 'pty-host.log'),
     events: {
-        data: (id, data, seq) => mainWindow?.webContents.send(IpcChannels.terminalsData, id, data, seq),
-        exit: (id, exitCode) => mainWindow?.webContents.send(IpcChannels.terminalsExit, id, exitCode),
-        agentState: (id, update) => mainWindow?.webContents.send(IpcChannels.terminalsAgentState, id, update)
+        data: (id, data, seq) => {
+            mainWindow?.webContents.send(IpcChannels.terminalsData, id, data, seq);
+            remote.terminalData(id, data, seq);
+        },
+        exit: (id, exitCode) => {
+            mainWindow?.webContents.send(IpcChannels.terminalsExit, id, exitCode);
+            remote.terminalExited(id);
+        },
+        agentState: (id, update) => {
+            mainWindow?.webContents.send(IpcChannels.terminalsAgentState, id, update);
+            remote.agentsChanged();
+        }
     }
 });
 
@@ -149,6 +163,7 @@ async function killTerminal(id: string): Promise<void> {
     const session = (await terminals.list().catch(() => [])).find(item => item.id === id);
     const pids = session?.pid && !session.exited ? await processes.descendantsOf(session.pid).catch(() => []) : [];
     await terminals.kill(id);
+    remote.agentsChanged();
     processes.terminate(pids).catch(error => console.error('[processes] Cannot stop the processes of a terminal:', error));
 }
 
@@ -168,6 +183,54 @@ const notifications = new NotificationService(target => {
 /** The notes are in the home folder, not the app data folder, so the user and agents can find and open them. */
 const notes = new NotesService(join(os.homedir(), '.shipwarden', 'notes'), file => shell.trashItem(file));
 const ptyHostLog = join(app.getPath('userData'), 'pty-host.log');
+
+/**
+ * The terminal sizes that the page sent. A session of an older PTY host has no size, and the phone's screen copy
+ * needs the size of the terminal.
+ */
+const terminalSizes = new Map<string, { cols: number; rows: number }>();
+
+/** The name of the Mac for the phone, for example "Austin's MacBook Pro". `scutil` reads it at the start. */
+let computerName = os.hostname().replace(/\.local$/, '');
+execFile('/usr/sbin/scutil', ['--get', 'ComputerName'], (error, stdout) => {
+    if (!error && stdout.trim()) computerName = stdout.trim();
+});
+/** The Bonjour name of the Mac, for example "MacBook-Pro-5". The phone finds the Mac as "<name>.local". */
+let localHostName: string | undefined;
+execFile('/usr/sbin/scutil', ['--get', 'LocalHostName'], (error, stdout) => {
+    if (!error && stdout.trim()) localHostName = stdout.trim();
+});
+
+const remoteSnapshot = new RemoteSnapshotBuilder({
+    projects: () => projects.get(),
+    worktrees: repo => worktrees.list(repo),
+    settings: () => settings.get(),
+    taskLinks: () => tasks.allLinks(),
+    pullRequests: repo => github.branchSummaries(repo),
+    sessions: () => terminals.list()
+});
+
+/** The HTTPS server for the phone app. It runs only while Settings › Mobile has it on. */
+const remote = new RemoteServer({
+    devices: new RemoteDevices(join(app.getPath('userData'), 'remote-devices.json')),
+    identity: () => ensureTlsIdentity(app.getPath('userData')),
+    hosts: () => localHosts(localHostName),
+    backend: {
+        macName: () => computerName,
+        version: app.getVersion(),
+        snapshot: () => remoteSnapshot.build(),
+        // The size from the page is newer than the size of an older PTY host, which has none.
+        sessions: async () => (await terminals.list()).map(session => ({ ...session, ...terminalSizes.get(session.id) })),
+        replay: id => terminals.replay(id),
+        write: (id, data) => terminals.write(id, data),
+        approvePullRequest: async (worktreePath, number, headSha, body) => {
+            const worktree = await knownWorktree(worktreePath);
+            await github.submitReview(await repoOf(worktree), number, headSha, 'APPROVE', body, []);
+            remoteSnapshot.invalidate();
+        },
+        onStatusChanged: () => mainWindow?.webContents.send(IpcChannels.remoteChanged)
+    }
+});
 
 /** The background of a new window: the background of the active theme, so the window does not flash another color. */
 let windowBackground = activePalette(DEFAULT_APPEARANCE, true).palette.bg;
@@ -202,6 +265,20 @@ function openSettings(): void {
     mainWindow?.show();
     mainWindow?.webContents.send(IpcChannels.appOpenSettings);
 }
+
+// The renderer can name only a worktree of the projects, so git does not run in other folders.
+// The known worktree paths are kept, and read again only for a path that is not in the list.
+const knownWorktrees = new Set<string>();
+const knownWorktree = async (worktree: unknown): Promise<string> => {
+    const value = String(worktree);
+    if (knownWorktrees.has(value)) return value;
+    const repos = (await projects.get()).projects.flatMap(project => project.repos);
+    for (const repo of repos) {
+        (await worktrees.list(repo).catch(() => [])).forEach(item => knownWorktrees.add(item.path));
+    }
+    if (knownWorktrees.has(value)) return value;
+    throw new Error(`"${value}" is not a worktree of a project.`);
+};
 
 /** The hook settings file that agents get with --settings. It is the same for each session. */
 const hookSettingsPath = join(app.getPath('userData'), 'claude-hooks.json');
@@ -411,10 +488,13 @@ function registerIpc(): void {
 
     ipcMain.handle(IpcChannels.terminalsSettings, () => loadGhosttySettings());
     ipcMain.handle(IpcChannels.terminalsList, () => terminals.list());
-    ipcMain.handle(IpcChannels.terminalsCreate, (_event, options: CreateTerminalOptions) => {
+    ipcMain.handle(IpcChannels.terminalsCreate, async (_event, options: CreateTerminalOptions) => {
         const command = options.isAgent && options.command ? withAgentHooks(options.command, hookSettingsPath) : options.command;
         // Only an agent that got the hooks reports its state.
-        return terminals.create({ ...options, command, reportsAgentState: !!options.isAgent && command !== options.command }, process.env);
+        const session = await terminals.create({ ...options, command, reportsAgentState: !!options.isAgent && command !== options.command }, process.env);
+        terminalSizes.set(session.id, { cols: options.cols, rows: options.rows });
+        remote.agentsChanged();
+        return session;
     });
     ipcMain.handle(IpcChannels.appInfo, () => ({ version: app.getVersion(), dataFolder: app.getPath('userData'), ptyHostLog }));
     ipcMain.handle(IpcChannels.usageGet, () => usage.get());
@@ -428,6 +508,9 @@ function registerIpc(): void {
             await certificates.apply(next.network, loginShellCaFile());
             // The plugins read NODE_EXTRA_CA_CERTS when they start. They start again at the next request.
             await tasks.stopAll();
+        }
+        if (JSON.stringify(before.remote) !== JSON.stringify(next.remote)) {
+            await remote.apply(next.remote);
         }
         return next;
     });
@@ -483,6 +566,10 @@ function registerIpc(): void {
         const result = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
         return result.canceled ? undefined : result.filePaths[0];
     });
+    ipcMain.handle(IpcChannels.remoteStatus, () => remote.status());
+    ipcMain.handle(IpcChannels.remoteStartPairing, () => remote.startPairing());
+    ipcMain.handle(IpcChannels.remoteCancelPairing, () => remote.cancelPairing());
+    ipcMain.handle(IpcChannels.remoteRemoveDevice, (_event, id: string) => remote.removeDevice(String(id)));
     ipcMain.handle(IpcChannels.settingsCheckCommand, (_event, command: string) => checkCommand(String(command)));
     ipcMain.on(IpcChannels.appFocus, () => {
         if (mainWindow) {
@@ -492,19 +579,6 @@ function registerIpc(): void {
         }
     });
     ipcMain.handle(IpcChannels.terminalsReplay, (_event, id: string) => terminals.replay(id));
-    // The renderer can name only a worktree of the projects, so git does not run in other folders.
-    // The known worktree paths are kept, and read again only for a path that is not in the list.
-    const knownWorktrees = new Set<string>();
-    const knownWorktree = async (worktree: unknown): Promise<string> => {
-        const value = String(worktree);
-        if (knownWorktrees.has(value)) return value;
-        const repos = (await projects.get()).projects.flatMap(project => project.repos);
-        for (const repo of repos) {
-            (await worktrees.list(repo).catch(() => [])).forEach(item => knownWorktrees.add(item.path));
-        }
-        if (knownWorktrees.has(value)) return value;
-        throw new Error(`"${value}" is not a worktree of a project.`);
-    };
     const pathList = (paths: unknown) => (Array.isArray(paths) ? paths.map(String) : []);
     ipcMain.handle(IpcChannels.gitChanges, async (_event, worktree: string) => gitChanges.status(await knownWorktree(worktree)));
     ipcMain.handle(IpcChannels.gitStage, async (_event, worktree: string, paths: unknown) => gitChanges.stage(await knownWorktree(worktree), pathList(paths)));
@@ -532,7 +606,13 @@ function registerIpc(): void {
         processes.scan(Array.isArray(worktreePaths) ? worktreePaths.filter((item): item is string => typeof item === 'string') : []));
     ipcMain.handle(IpcChannels.processesStop, (_event, worktreePath: string, pid: number) => processes.stop(String(worktreePath), Number(pid)));
     ipcMain.on(IpcChannels.terminalsWrite, (_event, id: string, data: string) => terminals.write(id, data));
-    ipcMain.on(IpcChannels.terminalsResize, (_event, id: string, cols: number, rows: number) => terminals.resize(id, cols, rows));
+    ipcMain.on(IpcChannels.terminalsResize, (_event, id: string, cols: number, rows: number) => {
+        terminals.resize(id, cols, rows);
+        if (cols > 0 && rows > 0) {
+            terminalSizes.set(id, { cols, rows });
+            remote.terminalResized(id, cols, rows);
+        }
+    });
 }
 
 let confirmCounter = 0;
@@ -679,6 +759,7 @@ app.whenReady().then(async () => {
     }
     registerIpc();
     createWindow();
+    void settings.get().then(all => remote.apply(all.remote)).catch(error => console.error('[remote] The phone server did not start:', error));
     // The usage requests need the extra certificates on a network that inspects TLS traffic.
     void networkReady.then(() => usage.start());
     // The packaged app looks for updates. In development, the user can still check in Settings › About.
@@ -701,6 +782,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
     // The terminal sessions stay in the PTY host. Only the connection closes.
     terminals.dispose();
+    void remote.stop();
     usage.stop();
     updates.stop();
     notes.close();

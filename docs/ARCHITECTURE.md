@@ -10,6 +10,8 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-07 | Remove Theia. Use Electron, React and our own UI. | Theia looks and works like VS Code. The user wants a UI like Orca, with IDE navigation only in the file explorer and the editor. |
 | 2026-11-07 | Use our own LSP bridge, not `monaco.lsp`. | `monaco.lsp` in Monaco 0.57 always sends `rootUri: null`, has no dispose, and selects documents only by language. With two worktrees, both servers would answer for each file. |
 | 2026-11-07 | Use `tsc --lsp --stdio` from TypeScript 7 for TypeScript and JavaScript. | TypeScript 7 is native (Go) and has a built-in language server. It needs no Node process and no typescript-language-server. |
+| 2026-11-07 | The phone connects to the main process over HTTPS on the local network, with a pinned self-signed certificate. | No server or account is necessary. A pinned certificate protects the token on a shared network, and it does not need a public CA. |
+| 2026-11-07 | The Mac sends the terminal screen to the phone as styled text, not the raw output. | A headless xterm.js makes the screen from the same output. The phone needs no terminal emulator, and a dependency (SwiftTerm) is not necessary. |
 | 2026-11-07 | Use ghostty-web for terminals and import the user's Ghostty config. | This is Orca's approach (Orca imports the Ghostty config into xterm.js), with Ghostty's own VT parser in place of xterm.js. Supacode embeds the native libghostty, but that needs a Swift app. |
 
 ## The old name (Yardmaster)
@@ -501,6 +503,44 @@ Next:
 - PR and CI state in the worktree list.
 - Suggested changes in review comments.
 
-### Mobile (goal 5, later)
+### Mobile (goal 5)
 
-The phone app connects to the main process through a small authenticated API. It shows agent, task, PR and CI state. It lets the user reply to agents and approve PRs.
+The iPhone app is in `ios/` (SwiftUI, iOS 17). It connects to the main process of the desktop app. The API types
+are in `src/shared/remote.ts` and again in `ios/ShipWarden/Models.swift`. Change both together.
+
+- **Server.** `RemoteServer` (`src/main/remote/`) is an HTTPS server on all interfaces, port 7429 by default. It runs
+  only while Settings › Mobile has it on (`settings.remote`). It is in the main process, so ShipWarden must be open.
+  The window can be closed.
+- **Certificate.** At the first start, `ensureTlsIdentity` makes a P-256 key and a self-signed certificate with
+  `/usr/bin/openssl` (`remote-key.pem`, `remote-cert.pem` in the app data folder). The phone accepts only the
+  certificate with the SHA-256 fingerprint from the pairing code. A new certificate needs a new pairing.
+- **Pairing.** "Pair a phone" makes a random code for 10 minutes. The QR code contains
+  `shipwarden://pair?name=…&h=<hosts>&p=<port>&fp=<fingerprint>&c=<code>`. The hosts are the `.local` name and the IPv4
+  addresses, so a VPN such as Tailscale also works. The phone sends the code to `POST /v1/pair` and gets a random
+  token. The code works one time and stops after 5 wrong codes. `remote-devices.json` keeps only the SHA-256 hash of
+  each token. "Remove" stops the token at once and closes the streams of that phone.
+- **API.** All requests except the pairing need `Authorization: Bearer <token>`.
+  - `GET /v1/state`: the projects, repositories, worktrees (with task links and pull requests) and agents.
+    The pull requests of a repository stay for 60 seconds (`RemoteSnapshotBuilder`).
+  - `GET /v1/events`: server-sent events. `agents` sends the agent list after each change (200 ms debounce).
+  - `GET /v1/sessions/<id>/screen`: server-sent events. `screen` sends the screen, `exit` the end of the agent.
+  - `POST /v1/sessions/<id>/input`: `{ text, key, submit }`. Only agent sessions accept input. A phone cannot type
+    in a shell.
+  - `POST /v1/pull-requests/approve`: `{ worktreePath, number, headSha, body }`. The worktree must be in a project.
+    The head SHA makes GitHub refuse the approval when the branch has newer commits.
+  - Each stream gets a comment every 15 seconds, so the phone finds a dead connection.
+- **Screen.** `ScreenMirror` runs the output of a session through a headless xterm.js (`@xterm/headless`): first the
+  replay, then the live chunks with a larger sequence number. A snapshot has 150 lines of scrollback and the screen,
+  as runs of text with colors and styles. It goes out at most every 150 ms, and only when it changed. A mirror
+  exists only while a phone shows the agent, and 30 seconds after.
+- **Size.** The mirror needs the size of the terminal. The PTY host keeps `cols` and `rows` in each session. For a
+  session of an older host, the main process uses the last size from the page.
+- **Input.** The text and Enter go in separate writes, 120 ms apart. Claude Code takes text and Enter in one chunk
+  as a paste, and Enter in a paste adds a new line. Text with a new line goes in a bracketed paste when the program
+  turned it on. The arrow keys follow the application cursor mode.
+- **Phone.** The app tries all hosts at the same time and uses the first that answers with the pinned certificate.
+  It connects again after a failure (1 s, then up to 15 s) and when it comes to the foreground. The token is in the
+  keychain (`AfterFirstUnlockThisDeviceOnly`). The system Camera opens pairing links through the `shipwarden` URL
+  scheme.
+- **Limits.** There are no push notifications, because iOS stops the connections of an app in the background, and
+  push needs a server. The phone cannot start agents yet, because the page owns the tabs.

@@ -139,6 +139,13 @@ const api: ShipWardenApi = {
         test: () => ipcRenderer.invoke(IpcChannels.networkTest),
         chooseCaFile: () => ipcRenderer.invoke(IpcChannels.networkChooseCaFile)
     },
+    remote: {
+        status: () => ipcRenderer.invoke(IpcChannels.remoteStatus),
+        startPairing: () => ipcRenderer.invoke(IpcChannels.remoteStartPairing),
+        cancelPairing: () => ipcRenderer.invoke(IpcChannels.remoteCancelPairing),
+        removeDevice: id => ipcRenderer.invoke(IpcChannels.remoteRemoveDevice, id),
+        onChanged: listener => subscribe<[]>(IpcChannels.remoteChanged, listener)
+    },
     seen: {
         keys: () => ipcRenderer.invoke(IpcChannels.seenKeys),
         mark: keys => ipcRenderer.invoke(IpcChannels.seenMark, keys)

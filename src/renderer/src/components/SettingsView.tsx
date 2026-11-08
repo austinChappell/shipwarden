@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, Bot, FolderGit2, FolderTree, GitPullRequest, Info, LayoutDashboard, ListTodo, Network, Palette, SquareTerminal, X, type LucideIcon } from 'lucide-react';
+import { Bell, Bot, FolderGit2, FolderTree, GitPullRequest, Info, LayoutDashboard, ListTodo, Network, Palette, Smartphone, SquareTerminal, X, type LucideIcon } from 'lucide-react';
 import type { AppInfo } from '@shared/api';
 import { REPO_COLORS, repoDisplayName, type AppSettings } from '@shared/settings';
 import type { TerminalSettings } from '@shared/terminal';
@@ -9,6 +9,7 @@ import { AgentsSettings } from './AgentsSettings';
 import { CodeReviewSettings } from './CodeReviewSettings';
 import { DashboardSettings } from './DashboardSettings';
 import { NetworkSettings } from './NetworkSettings';
+import { MobileSettings } from './MobileSettings';
 import { NotificationSettings } from './NotificationSettings';
 import { WorktreeSettings } from './WorktreeSettings';
 import { AppearanceSettings } from './AppearanceSettings';
@@ -17,7 +18,7 @@ import { TaskManagersSettings } from './TaskManagersSettings';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { UpdateSettings } from './UpdateNotice';
 
-type FixedSection = 'appearance' | 'notifications' | 'dashboard' | 'tasks' | 'review' | 'worktrees' | 'agents' | 'terminal' | 'network' | 'about';
+type FixedSection = 'appearance' | 'notifications' | 'dashboard' | 'tasks' | 'review' | 'worktrees' | 'agents' | 'terminal' | 'network' | 'mobile' | 'about';
 /** A fixed section, or "repo:<path>" for the settings of one repository. */
 type SectionId = FixedSection | `repo:${string}`;
 
@@ -32,6 +33,7 @@ const SECTIONS: { id: FixedSection; label: string; icon: LucideIcon }[] = [
     { id: 'agents', label: 'Agents', icon: Bot },
     { id: 'terminal', label: 'Terminal', icon: SquareTerminal },
     { id: 'network', label: 'Network', icon: Network },
+    { id: 'mobile', label: 'Mobile', icon: Smartphone },
     { id: 'about', label: 'About', icon: Info }
 ];
 
@@ -196,6 +198,7 @@ export function SettingsView({ settings, mode, terminal, repos, initialSection, 
                         {current.id === 'worktrees' && <WorktreeSettings settings={settings} repos={repos} onSave={onSave} />}
                         {current.id === 'notifications' && <NotificationSettings settings={settings} onSave={onSave} />}
                         {current.id === 'network' && <NetworkSettings settings={settings} onSave={onSave} />}
+                        {current.id === 'mobile' && <MobileSettings settings={settings} onSave={onSave} />}
                         {current.id === 'dashboard' && <DashboardSettings settings={settings} onSave={onSave} prefill={rulePrefill} />}
                         {current.id === 'agents' && <AgentsSettings settings={settings} onSave={onSave} />}
                         {repoSection && current.id === section && <RepoSettingsPage repo={repoSection} settings={settings} onSave={onSave} />}

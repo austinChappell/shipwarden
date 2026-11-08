@@ -59,6 +59,9 @@ export interface TerminalSession {
     isAgent: boolean;
     /** The PID of the shell. Sessions of an older PTY host do not have it. */
     pid?: number;
+    /** The size of the terminal in characters. Sessions of an older PTY host do not have it. */
+    cols?: number;
+    rows?: number;
     exited: boolean;
     exitCode?: number;
     /** The state that the agent reports through hooks. It is undefined for a shell or an agent without hooks. */

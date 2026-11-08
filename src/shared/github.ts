@@ -294,7 +294,10 @@ export function latestChecks(checks: readonly CheckRun[]): CheckRun[] {
 /** The pull request and CI state of a branch, for the worktree list. */
 export interface BranchSummary {
     number: number;
+    title?: string;
     url: string;
+    /** The head commit of the PR. */
+    headSha?: string;
     isDraft: boolean;
     reviewDecision: ReviewDecision;
     /** The combined state of the checks of the PR head: SUCCESS, FAILURE, ERROR, PENDING or EXPECTED. Null without checks. */

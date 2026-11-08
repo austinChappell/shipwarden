@@ -20,7 +20,7 @@ safely on its course. This app does the same job for coding agents.
    comments, request changes and approve a PR in the app.
 4. **GitHub Actions.** You can see check runs, read logs, run workflows
    again and send a failed job back to an agent.
-5. **Mobile app (later).** A phone app shows agent status and lets you
+5. **Mobile app.** An iPhone app shows agent status and lets you
    approve or reply to an agent.
 
 ## Status
@@ -41,6 +41,11 @@ The Tasks view shows the tasks of a task tracker. Task trackers are plugins: Git
 ClickUp are built in, and anyone can write a plugin with the
 [ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch
 for a task and gives the task to a new agent.
+
+The iPhone app (`ios/`) connects to ShipWarden on your Mac over your network. It shows the
+agents and their terminal screens, the worktrees with their pull requests and CI state. You
+can reply to an agent, answer its questions and approve a pull request. Turn it on in
+Settings › Mobile and pair the phone with the QR code. See [ios/README.md](ios/README.md).
 
 ## Development
 
@@ -84,6 +89,8 @@ Environment variables:
 | `src/preload/` | The bridge that gives `window.shipwarden` to the UI |
 | `src/renderer/` | The React UI |
 | `src/shared/` | Types and functions that the main process and the UI both use |
+| `src/main/remote/` | The HTTPS server for the iPhone app |
+| `ios/` | The iPhone app (SwiftUI) |
 | `docs/ARCHITECTURE.md` | Decisions and the plan |
 
 ### Native install scripts

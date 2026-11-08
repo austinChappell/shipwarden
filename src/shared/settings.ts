@@ -1,6 +1,7 @@
 import { DEFAULT_NOTIFICATION_SETTINGS, normalizeNotificationSettings, type NotificationSettings } from './notifications';
 import { DEFAULT_WORKTREE_SETTINGS, normalizeRepoWorktreeSettings, normalizeWorktreeSettings, type RepoWorktreeSettings, type WorktreeSettings } from './worktree-settings';
 import { DEFAULT_APPEARANCE, normalizeAppearance, type Appearance } from './themes';
+import { DEFAULT_REMOTE_SETTINGS, normalizeRemoteSettings, type RemoteSettings } from './remote';
 
 /**
  * An agent that the Agent button can start, for example Claude Code. The command runs in an interactive login shell,
@@ -91,6 +92,8 @@ export interface AppSettings {
     notifications: NotificationSettings;
     /** The display names of worktrees, by the worktree path. A worktree without a name shows its branch. */
     worktreeNames?: Record<string, string>;
+    /** The connection of the phone app. */
+    remote: RemoteSettings;
 }
 
 /** Keeps the names that are text, trimmed and at most 80 characters. */
@@ -161,7 +164,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     repos: {},
     network: { useSystemCertificates: false },
     worktrees: DEFAULT_WORKTREE_SETTINGS,
-    notifications: DEFAULT_NOTIFICATION_SETTINGS
+    notifications: DEFAULT_NOTIFICATION_SETTINGS,
+    remote: DEFAULT_REMOTE_SETTINGS
 };
 
 /** The maximum length of an agent command. A longer value is not a command that a person types. */
@@ -239,6 +243,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         network: normalizeNetwork(raw.network),
         worktrees: normalizeWorktreeSettings(raw.worktrees),
         notifications: normalizeNotificationSettings(raw.notifications),
+        remote: normalizeRemoteSettings(raw.remote),
         ...(normalizeWorktreeNames(raw.worktreeNames) ? { worktreeNames: normalizeWorktreeNames(raw.worktreeNames) } : {}),
         ...(raw.reviewOwners === 'all'
             ? { reviewOwners: 'all' as const }
