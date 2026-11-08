@@ -90,7 +90,7 @@ struct ConnectionBanner: View {
 
     var body: some View {
         if model.demo != nil {
-            Label("Demo: sample agents. Pair with a Mac on the Mac tab to see your own agents.", systemImage: "play.rectangle")
+            Label("Demo: sample agents. To see your own agents, open the Mac tab and pair with your Mac.", systemImage: "play.rectangle")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else {

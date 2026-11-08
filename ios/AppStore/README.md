@@ -1,7 +1,8 @@
 # App Store submission
 
-The text for App Store Connect, the review notes and the steps. The screenshots are in `screenshots/`
-(6.9" iPhone, 1320 × 2868). They come from the demo. To make them again, see "Screenshots" below.
+The text for App Store Connect, the review notes and the steps. The screenshots are in `screenshots/`:
+`6.9-inch/` (1320 × 2868, iPhone 17 Pro Max) and `6.3-inch/` (1206 × 2622, iPhone 17 Pro). App Store Connect requires
+both sizes. They come from the demo. To make them again, see "Screenshots" below.
 
 ## App information
 
@@ -84,7 +85,7 @@ To review the app without a Mac:
 4. Tap "1" to allow the command. After some seconds, the agent is done.
 5. Type a reply in the text field and tap the send button. The agent answers.
 6. On the Worktrees tab, open "fix-login-loop" and tap Approve. The pull request shows as approved.
-7. On the Mac tab, tap "Exit the demo" to go back to the pairing screen.
+7. On the Mac tab, tap "Exit the demo and pair with a Mac" to go back to the pairing screen.
 
 The demo uses no network. With a real Mac, the same screens show the real agents.
 
@@ -119,7 +120,7 @@ Permissions:
 ## Screenshots
 
 In a Debug build, environment variables start the demo and open screens (see `ios/README.md`). With the iPhone 17
-Pro Max simulator booted:
+Pro Max simulator (6.9") or the iPhone 17 Pro simulator (6.3") booted:
 
 ```sh
 xcrun simctl status_bar booted override --time 9:41 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4

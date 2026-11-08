@@ -228,7 +228,7 @@ struct MacView: View {
             ConnectionBanner()
             if model.demo != nil {
                 Section {
-                    Button("Exit the demo") { model.stopDemo() }
+                    Button("Exit the demo and pair with a Mac") { model.stopDemo() }
                 } header: {
                     Text("Demo")
                 } footer: {
