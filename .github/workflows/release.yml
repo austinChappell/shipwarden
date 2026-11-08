@@ -35,6 +35,17 @@ jobs:
           node-version: 24
           cache: npm
 
+      # The Electron and electron-builder downloads come from GitHub Releases, which sometimes answers with 504.
+      # With the cache, most runs do not download them.
+      - name: Cache the Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Install dependencies
         run: npm ci
 
@@ -62,13 +73,26 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
         run: |
           npx electron-vite build
-          if [ -n "$CSC_LINK" ]; then
-            npx electron-builder --mac --publish never
-          else
+          BUILDER_ARGS=(--mac --publish never)
+          if [ -z "$CSC_LINK" ]; then
             echo "::warning::No signing certificate. The build has an ad-hoc signature."
             unset CSC_LINK CSC_KEY_PASSWORD
-            npx electron-builder --mac --publish never -c.mac.identity=null
+            BUILDER_ARGS+=(-c.mac.identity=null)
           fi
+          # electron-builder downloads files from GitHub Releases, which sometimes answers with 504.
+          # Try again with a longer wait each time.
+          for ATTEMPT in 1 2 3 4; do
+            if npx electron-builder "${BUILDER_ARGS[@]}"; then
+              break
+            fi
+            if [ "$ATTEMPT" -eq 4 ]; then
+              echo "::error::electron-builder failed 4 times."
+              exit 1
+            fi
+            WAIT=$((10 * 2 ** (ATTEMPT - 1)))
+            echo "::warning::electron-builder failed (attempt $ATTEMPT of 4). The next attempt starts in $WAIT seconds."
+            sleep "$WAIT"
+          done
 
       - name: Write the update manifest
         run: |
