@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { CircleCheck, Files, GitCommitVertical, GitPullRequest, Plug } from 'lucide-react';
+import { CircleCheck, Files, GitCommitVertical, GitPullRequest, Plug, Workflow } from 'lucide-react';
 import type { CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import type { BranchStatusState } from '../github/use-branch-status';
 import { ChecksPanel } from './ChecksPanel';
 import { FileExplorer } from './FileExplorer';
 import { ProcessesPanel } from './ProcessesPanel';
 import { ChangesPanel } from './ChangesPanel';
+import { PipelinesPanel } from './PipelinesPanel';
 import { changeCount, type ChangeSide, type FileChange } from '@shared/git';
 import { useGitChanges } from '../git/git-store';
 import { PullRequestPanel } from './PullRequestPanel';
 
-type PanelTab = 'files' | 'changes' | 'pr' | 'checks' | 'processes';
+type PanelTab = 'files' | 'changes' | 'pr' | 'checks' | 'pipelines' | 'processes';
 const TAB_STORAGE_KEY = 'shipwarden.rightPanelTab';
 
 interface Props {
@@ -29,7 +30,7 @@ interface Props {
 function readTab(): PanelTab {
     try {
         const value = localStorage.getItem(TAB_STORAGE_KEY);
-        return value === 'changes' || value === 'pr' || value === 'checks' || value === 'processes' ? value : 'files';
+        return value === 'changes' || value === 'pr' || value === 'checks' || value === 'pipelines' || value === 'processes' ? value : 'files';
     } catch {
         return 'files';
     }
@@ -76,6 +77,7 @@ export function RightPanel(props: Props) {
                 {tabButton('pr', pr ? `Pull request #${pr.number}` : 'Pull request', <GitPullRequest size={17} strokeWidth={1.5} />,
                     unresolved > 0 ? <span className="panel-badge">{unresolved}</span> : undefined)}
                 {tabButton('checks', 'Checks', <CircleCheck size={17} strokeWidth={1.5} />)}
+                {tabButton('pipelines', 'Pipelines of this repository', <Workflow size={17} strokeWidth={1.5} />)}
                 {tabButton('processes', 'Processes and ports', <Plug size={17} strokeWidth={1.5} />)}
             </div>
             {tab === 'files' && (
@@ -103,6 +105,9 @@ export function RightPanel(props: Props) {
                     onOpenChange={props.onOpenChange}
                     onOpenFile={path => props.onOpenFile(path)}
                 />
+            )}
+            {tab === 'pipelines' && (
+                <PipelinesPanel key={props.root} root={props.root} branch={git.changes?.branch} onOpenLog={props.onOpenLog} />
             )}
             {tab === 'processes' && <ProcessesPanel key={props.root} worktreePath={props.root} onShowTerminal={props.onShowTerminal} />}
             {tab === 'checks' && (

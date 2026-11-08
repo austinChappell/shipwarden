@@ -88,3 +88,24 @@ export function releaseNotes(version: string, commits: ReleaseCommit[], previous
     }
     return `${lines.join('\n')}\n`;
 }
+
+export type VersionBump = 'patch' | 'minor' | 'major';
+
+/**
+ * The version of the next release: the highest of the release tags and the version in package.json, with one part
+ * higher. The tags are the source of truth, because the release commit is not on the main branch.
+ */
+export function nextVersion(tags: string[], packageVersion: string, bump: VersionBump): string {
+    const candidates = [...tags, packageVersion].filter(value => parseVersion(value));
+    const base = candidates.sort(compareVersions).pop() ?? '0.0.0';
+    const [major, minor, patch] = parseVersion(base)!.parts;
+    if (bump === 'major') return `${major + 1}.0.0`;
+    if (bump === 'minor') return `${major}.${minor + 1}.0`;
+    return `${major}.${minor}.${patch + 1}`;
+}
+
+/** The newest release tag that is older than `version`: the start of the release notes. */
+export function previousTag(tags: string[], version: string): string | undefined {
+    return tags.filter(tag => parseVersion(tag) && compareVersions(tag, version) < 0).sort(compareVersions).pop();
+}
+

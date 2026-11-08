@@ -48,8 +48,8 @@ jobs:
         env:
           BUMP: ${{ inputs.bump }}
         run: |
-          npm version "$BUMP" --no-git-tag-version
-          VERSION=$(node -p "require('./package.json').version")
+          # The base is the newest release tag (or package.json, when it is higher).
+          VERSION=$(node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/next-version.mjs "$BUMP")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "New version: $VERSION"
 
@@ -76,14 +76,16 @@ jobs:
           ZIP=$(ls dist/*-"$VERSION"-arm64-mac.zip)
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/update-manifest.mjs "$VERSION" "$ZIP" dist/shipwarden-update.json
 
-      - name: Commit and tag the version
+      # The release commit has the new version in package.json. Only its tag goes to GitHub. The workflow does not push
+      # to the branch, so a push to the branch during the build cannot stop the release.
+      - name: Tag the version
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "Release v$VERSION"
           git tag "v$VERSION"
-          git push origin HEAD:${{ github.ref_name }} "v$VERSION"
+          git push origin "v$VERSION"
 
       - name: Publish the release
         env:

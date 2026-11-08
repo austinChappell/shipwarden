@@ -11,11 +11,14 @@ gh workflow run release.yml -f bump=patch   # or minor, or major
 The workflow does these steps:
 
 1. It installs the dependencies, and runs the typecheck and the tests.
-2. It increases the version in `package.json` (patch, minor or major).
+2. It finds the next version: the newest `v*` tag (or `package.json`, when it is higher), with the patch, minor or major
+   part increased (`scripts/next-version.mjs`).
 3. It writes the release notes from the commit subjects since the last `v*` tag (`scripts/release-notes.mjs`).
 4. It builds the app: a DMG and a zip for Apple silicon (arm64).
 5. It writes `shipwarden-update.json` with the version, size and SHA-256 of the zip (`scripts/update-manifest.mjs`).
-6. It commits "Release vX.Y.Z", tags it, and pushes the commit and the tag to `main`.
+6. It commits "Release vX.Y.Z" in the build only, tags that commit, and pushes only the tag. The workflow does not push
+   to `main`, so a push to `main` during the build does not stop the release. `package.json` on `main` keeps an older
+   version; the tags have the released versions.
 7. It publishes the GitHub release with the notes, the DMG, the zip and the manifest.
 
 ## How the app updates

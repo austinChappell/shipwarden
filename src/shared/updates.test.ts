@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareVersions, parseManifest, parseVersion, releaseNotes } from './updates';
+import { compareVersions, nextVersion, parseManifest, parseVersion, previousTag, releaseNotes } from './updates';
 
 describe('versions', () => {
     it('parses versions with or without "v"', () => {
@@ -43,5 +43,20 @@ describe('releaseNotes', () => {
 
     it('says so when there are no changes', () => {
         expect(releaseNotes('0.2.0', [])).toContain('- No changes in the code.');
+    });
+});
+
+describe('nextVersion and previousTag', () => {
+    it('bumps the highest of the tags and package.json', () => {
+        expect(nextVersion(['v0.1.5', 'v0.1.6', 'v0.1.10'], '0.1.5', 'patch')).toBe('0.1.11');
+        expect(nextVersion(['v0.1.5'], '0.3.0', 'patch')).toBe('0.3.1');
+        expect(nextVersion([], '0.1.0', 'minor')).toBe('0.2.0');
+        expect(nextVersion(['v1.2.3', 'not-a-version'], '0.0.1', 'major')).toBe('2.0.0');
+    });
+
+    it('finds the newest tag before a version', () => {
+        expect(previousTag(['v0.1.5', 'v0.1.10', 'v0.1.6'], '0.1.11')).toBe('v0.1.10');
+        expect(previousTag(['v0.1.5'], '0.1.5')).toBeUndefined();
+        expect(previousTag([], '0.1.0')).toBeUndefined();
     });
 });

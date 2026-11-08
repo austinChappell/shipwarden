@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ExternalLink, LoaderCircle, Play, RefreshCw, RotateCw, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
-import type { CheckConclusion, CheckRun, CheckStatus, GitHubRepoInfo, RepoRef, Workflow } from '@shared/github';
+import type { CheckConclusion, CheckRun, CheckStatus, GitHubRepoInfo, RepoRef, RepoTarget, Workflow } from '@shared/github';
 import { dispatchInputs, runIsActive, type WorkflowInput, type WorkflowRun } from '@shared/pipelines';
 import { errorText, formatDuration, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
@@ -37,7 +37,7 @@ function writeRepo(value: string): void {
     }
 }
 
-function RunIcon({ run }: { run: WorkflowRun }) {
+export function RunIcon({ run }: { run: WorkflowRun }) {
     const status = (run.status === 'completed' ? 'completed' : run.status === 'in_progress' ? 'in_progress' : 'queued') as CheckStatus;
     return <CheckIcon check={{ status, conclusion: run.conclusion as CheckConclusion }} />;
 }
@@ -72,7 +72,8 @@ function InputField({ input, value, onChange }: { input: WorkflowInput; value: s
 }
 
 interface RunDialogProps {
-    repo: RepoRef;
+    /** The repository: a worktree path, or the owner and name. */
+    repo: RepoTarget;
     workflow: Workflow;
     branches: string[] | undefined;
     onClose(): void;
@@ -83,7 +84,7 @@ interface RunDialogProps {
  * The dialog that starts a workflow: the branch and the inputs of its `workflow_dispatch` trigger.
  * Each branch can have another version of the workflow file, so the inputs load again for another branch.
  */
-function RunDialog({ repo, workflow, branches, onClose, onStarted }: RunDialogProps) {
+export function RunDialog({ repo, workflow, branches, onClose, onStarted }: RunDialogProps) {
     const [branch, setBranch] = useState(branches?.[0] ?? '');
     const [inputs, setInputs] = useState<WorkflowInput[] | undefined>(workflow.inputs);
     const [values, setValues] = useState<Record<string, string>>({});

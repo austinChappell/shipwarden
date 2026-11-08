@@ -6799,8 +6799,8 @@ body.resizing-column * {
     font-weight: 400;
 }
 
-/* The sidebar button in the title bar, after the macOS window buttons. It stays in the same place when the sidebar
-   is collapsed. Then the top bar of each view starts after it. */
+/* The two panel buttons have fixed places in the title bar: the left one after the macOS window buttons, the right one
+   in the top-right corner. They never move when they are clicked. The bars under them leave room for them. */
 .app-shell {
     position: relative;
     --titlebar-inset: 118px;
@@ -6809,7 +6809,6 @@ body.resizing-column * {
 .titlebar-controls {
     position: absolute;
     top: 0;
-    left: 80px;
     z-index: 20;
     display: flex;
     align-items: center;
@@ -6817,11 +6816,21 @@ body.resizing-column * {
     -webkit-app-region: no-drag;
 }
 
-.sidebar-toggle {
+.titlebar-controls.left {
+    left: 80px;
+}
+
+.titlebar-controls.right {
+    right: 8px;
+}
+
+.sidebar-toggle,
+.titlebar-controls .panel-toggle {
     color: var(--muted);
 }
 
-.sidebar-toggle:hover {
+.sidebar-toggle:hover,
+.titlebar-controls .panel-toggle:hover {
     color: var(--text-strong);
 }
 
@@ -6833,4 +6842,215 @@ body.resizing-column * {
 
 .app.sidebar-collapsed .settings-header {
     padding-left: calc(var(--titlebar-inset) + 12px);
+}
+
+/* The right button is over the tab strip of the right panel, or over the end of the worktree top bar. */
+.app.has-right-toggle.right-panel-shown .explorer .panel-tabs {
+    padding-right: 44px;
+}
+
+.app.has-right-toggle:not(.right-panel-shown) .workspace-header {
+    padding-right: 44px;
+}
+
+/* The Pipelines tab of the right panel: the runs of the repository of the worktree */
+.pipelines-panel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    font-size: 13px;
+}
+
+.pp-header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.pp-run-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    font-size: 12px;
+}
+
+.pp-run-button.on {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    background: color-mix(in srgb, var(--accent) 18%, var(--raised));
+}
+
+.pp-workflows {
+    flex: none;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+.pp-workflow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 28px;
+    padding: 0 14px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pp-workflow:hover {
+    background: var(--hover);
+}
+
+.pp-workflow svg {
+    flex: none;
+    color: var(--accent);
+}
+
+.pp-workflow-name {
+    flex: none;
+    color: var(--text-strong);
+}
+
+.pp-workflow-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pp-note {
+    padding: 4px 14px;
+}
+
+.pp-error {
+    margin: 8px 10px 0;
+}
+
+.pp-runs {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 4px 0 16px;
+}
+
+.pp-run + .pp-run {
+    border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.pp-run-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 8px 6px 8px;
+    cursor: pointer;
+}
+
+.pp-run-head:hover {
+    background: var(--hover);
+}
+
+.pp-run-head .group-chevron {
+    flex: none;
+    color: var(--muted);
+}
+
+.pp-run-head .check-icon {
+    flex: none;
+}
+
+.pp-run-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.pp-run-title {
+    overflow: hidden;
+    color: var(--text-strong);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pp-run-meta {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pp-run-actions {
+    display: none;
+    flex: none;
+    gap: 2px;
+}
+
+.pp-run-head:hover .pp-run-actions,
+.pp-run-head:focus-within .pp-run-actions {
+    display: flex;
+}
+
+.pp-run-actions .icon-button {
+    padding: 2px;
+}
+
+.pp-jobs {
+    padding: 0 0 6px 34px;
+}
+
+.pp-job {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 26px;
+    padding: 0 10px 0 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pp-job:hover {
+    background: var(--hover);
+}
+
+.pp-job-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pp-job-time {
+    flex: none;
+    color: var(--muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.titlebar-controls .icon-button {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
 }

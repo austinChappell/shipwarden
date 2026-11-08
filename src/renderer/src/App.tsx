@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Columns2, FileDiff, GitCompareArrows, ListTodo, PanelLeft, PanelRight, ScrollText, SquareArrowOutUpRight, SquareTerminal, X } from 'lucide-react';
+import { Columns2, FileDiff, GitCompareArrows, ListTodo, PanelRight, ScrollText, SquareArrowOutUpRight, SquareTerminal, X } from 'lucide-react';
 import { baseName } from '@shared/files';
 import type { BranchSummary, CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
@@ -47,6 +47,7 @@ import { lspBridge } from './lsp/bridge';
 import { terminalPool } from './terminal/terminal-pool';
 import { ChangeDiffView } from './components/ChangeDiffView';
 import type { ChangeSide, FileChange } from '@shared/git';
+import { SidebarContext, SidebarToggle } from './components/SidebarToggle';
 
 /** The command that starts an agent. A setting will replace this value. */
 const EXPLORER_STORAGE_KEY = 'shipwarden.explorerOpen';
@@ -1339,20 +1340,27 @@ export function App() {
     }
 
     return (
+        <SidebarContext.Provider value={{ collapsed: sidebarCollapsed, toggle: toggleSidebar }}>
         <div className="app-shell">
-            {/* The sidebar button sits in the title bar after the window buttons, also when the sidebar is collapsed. */}
-            <div className="titlebar-controls">
-                <button
-                    className={`icon-button sidebar-toggle${sidebarCollapsed ? '' : ' on'}`}
-                    title={sidebarCollapsed ? 'Show the sidebar (⌘B)' : 'Hide the sidebar (⌘B)'}
-                    aria-pressed={!sidebarCollapsed}
-                    onClick={toggleSidebar}
-                >
-                    <PanelLeft size={16} strokeWidth={1.5} />
-                </button>
+            {/* The two panel buttons have fixed places in the title bar, so they never move when they are clicked: the
+                left one after the macOS window buttons, the right one in the top-right corner. */}
+            <div className="titlebar-controls left">
+                <SidebarToggle />
             </div>
+            {mainView === 'worktree' && selectedPath && (
+                <div className="titlebar-controls right">
+                    <button
+                        className="icon-button panel-toggle"
+                        title={explorerOpen ? 'Hide the right panel (⌥⌘B)' : 'Show the right panel (⌥⌘B)'}
+                        aria-pressed={explorerOpen}
+                        onClick={toggleExplorer}
+                    >
+                        <PanelRight size={16} strokeWidth={1.5} />
+                    </button>
+                </div>
+            )}
             <div
-                className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+                className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${mainView === 'worktree' && selectedPath ? ' has-right-toggle' : ''}${rightPanelShown ? ' right-panel-shown' : ''}`}
                 style={{ '--sidebar-width': `${sidebarWidth.width}px`, '--explorer-width': `${explorerWidth.width}px` } as CSSProperties}
             >
                 {!sidebarCollapsed && <Sidebar
@@ -1542,13 +1550,6 @@ export function App() {
                                     onSave={scripts => saveScripts(selectedRepo, scripts)}
                                 />
                             )}
-                            <button
-                                className={`icon-button panel-toggle${explorerOpen ? ' on' : ''}`}
-                                title={explorerOpen ? 'Hide the right panel (⌥⌘B)' : 'Show the right panel (⌥⌘B)'}
-                                onClick={toggleExplorer}
-                            >
-                                <PanelRight size={16} strokeWidth={1.5} />
-                            </button>
                         </div>
                     </header>
 
@@ -1601,5 +1602,6 @@ export function App() {
             </div>
             <StatusBar />
         </div>
+        </SidebarContext.Provider>
     );
 }
