@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addRepo, cleanProjectName, createProject, deleteProject, normalizeProjects, removeRepo, renameProject, repoName, setActiveProject, type ProjectsState } from './projects';
+import { addRepo, cleanProjectName, createProject, deleteProject, moveProject, moveRepo, normalizeProjects, removeRepo, renameProject, repoName, setActiveProject, type ProjectsState } from './projects';
 
 const ids = () => {
     let next = 0;
@@ -68,5 +68,25 @@ describe('project changes', () => {
 
     it('names a repo after its folder', () => {
         expect(repoName('/Users/me/dev/shipwarden/')).toBe('shipwarden');
+    });
+});
+
+describe('order changes', () => {
+    it('moves a project to a new position', () => {
+        expect(moveProject(state, 'b', 0).projects.map(project => project.id)).toEqual(['b', 'a']);
+        expect(moveProject(state, 'a', 99).projects.map(project => project.id)).toEqual(['b', 'a']);
+        expect(moveProject(state, 'a', 0).activeId).toBe('a');
+    });
+
+    it('moves a repository in a project', () => {
+        const three = addRepo(state, 'a', '/r/docs');
+        expect(moveRepo(three, 'a', '/r/docs', 0).projects[0].repos).toEqual(['/r/docs', '/r/api', '/r/web']);
+        expect(moveRepo(three, 'a', '/r/api', 1).projects[0].repos).toEqual(['/r/web', '/r/api', '/r/docs']);
+        expect(moveRepo(three, 'a', '/r/api', -5).projects[0].repos).toEqual(['/r/api', '/r/web', '/r/docs']);
+    });
+
+    it('rejects a repository or project that does not exist', () => {
+        expect(() => moveRepo(state, 'a', '/r/game', 0)).toThrow(/not in the project/);
+        expect(() => moveProject(state, 'x', 0)).toThrow(/does not exist/);
     });
 });

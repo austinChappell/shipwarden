@@ -11,6 +11,13 @@ export interface Worktree {
     isBare: boolean;
     locked: boolean;
     prunable: boolean;
+    /** The time in milliseconds when git made the worktree. The main worktree uses the time of its .git folder. */
+    createdAt?: number;
+    /**
+     * The time in milliseconds of the last change in the worktree: a commit, a checkout or a change to the index.
+     * Git changes the index when files change and git reads the status.
+     */
+    updatedAt?: number;
 }
 
 /** A new worktree, with the git-ignored files that ShipWarden copied into it. */
@@ -67,3 +74,50 @@ export function worktreeLabel(worktree: Worktree, names: Record<string, string> 
     return names?.[worktree.path] || worktree.branch || `detached ${worktree.head.slice(0, 7)}`;
 }
 
+
+/** The ways to sort the worktrees of a repository in the sidebar. */
+export type WorktreeSortKey = 'name' | 'created' | 'updated';
+
+export interface WorktreeSort {
+    by: WorktreeSortKey;
+    direction: 'asc' | 'desc';
+}
+
+export const DEFAULT_WORKTREE_SORT: WorktreeSort = { by: 'created', direction: 'asc' };
+
+export const WORKTREE_SORT_LABELS: Record<WorktreeSortKey, string> = {
+    name: 'Name',
+    created: 'Date created',
+    updated: 'Last updated'
+};
+
+/** Converts a stored value to a valid sort. A wrong value gets the default. */
+export function normalizeWorktreeSort(value: unknown): WorktreeSort {
+    const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const by = raw.by === 'name' || raw.by === 'created' || raw.by === 'updated' ? raw.by : DEFAULT_WORKTREE_SORT.by;
+    const direction = raw.direction === 'desc' ? 'desc' : raw.direction === 'asc' ? 'asc' : DEFAULT_WORKTREE_SORT.direction;
+    return { by, direction };
+}
+
+/**
+ * Returns the worktrees in the sort order. The main worktree is always first.
+ * Worktrees with the same value, or without a date, keep the order of git. A worktree without a date goes last.
+ */
+export function sortWorktrees(worktrees: readonly Worktree[], sort: WorktreeSort, names?: Record<string, string>): Worktree[] {
+    const sign = sort.direction === 'asc' ? 1 : -1;
+    const compare = (a: Worktree, b: Worktree): number => {
+        if (sort.by === 'name') {
+            return sign * worktreeLabel(a, names).localeCompare(worktreeLabel(b, names), undefined, { numeric: true, sensitivity: 'base' });
+        }
+        const key = sort.by === 'created' ? 'createdAt' : 'updatedAt';
+        const left = a[key];
+        const right = b[key];
+        if (left === undefined || right === undefined) {
+            return (left === undefined ? 1 : 0) - (right === undefined ? 1 : 0);
+        }
+        return sign * (left - right);
+    };
+    const main = worktrees.filter(worktree => worktree.isMain);
+    const linked = worktrees.filter(worktree => !worktree.isMain).sort(compare);
+    return [...main, ...linked];
+}

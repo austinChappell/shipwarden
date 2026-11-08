@@ -59,7 +59,9 @@ const api: ShipWardenApi = {
         delete: id => ipcRenderer.invoke(IpcChannels.projectsDelete, id),
         setActive: id => ipcRenderer.invoke(IpcChannels.projectsSetActive, id),
         chooseRepo: id => ipcRenderer.invoke(IpcChannels.projectsChooseRepo, id),
-        removeRepo: (id, repo) => ipcRenderer.invoke(IpcChannels.projectsRemoveRepo, id, repo)
+        removeRepo: (id, repo) => ipcRenderer.invoke(IpcChannels.projectsRemoveRepo, id, repo),
+        move: (id, toIndex) => ipcRenderer.invoke(IpcChannels.projectsMove, id, toIndex),
+        moveRepo: (id, repo, toIndex) => ipcRenderer.invoke(IpcChannels.projectsMoveRepo, id, repo, toIndex)
     },
     worktrees: {
         list: repoPath => ipcRenderer.invoke(IpcChannels.worktreesList, repoPath),

@@ -343,6 +343,8 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.projectsDelete, (_event, id: string) => projects.delete(id));
     ipcMain.handle(IpcChannels.projectsSetActive, (_event, id: string) => projects.setActive(id));
     ipcMain.handle(IpcChannels.projectsRemoveRepo, (_event, id: string, repo: string) => projects.removeRepo(id, repo));
+    ipcMain.handle(IpcChannels.projectsMove, (_event, id: string, toIndex: number) => projects.move(id, Number(toIndex)));
+    ipcMain.handle(IpcChannels.projectsMoveRepo, (_event, id: string, repo: string, toIndex: number) => projects.moveRepo(id, repo, Number(toIndex)));
     ipcMain.handle(IpcChannels.projectsChooseRepo, async (_event, id: string) => {
         const options: Electron.OpenDialogOptions = { title: 'Add Repository', buttonLabel: 'Add', properties: ['openDirectory'] };
         const result = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
@@ -352,7 +354,7 @@ function registerIpc(): void {
         return projects.addRepo(id, result.filePaths[0]);
     });
 
-    ipcMain.handle(IpcChannels.worktreesList, (_event, repoPath: string) => worktrees.list(repoPath));
+    ipcMain.handle(IpcChannels.worktreesList, async (_event, repoPath: string) => worktrees.withDates(await worktrees.list(repoPath)));
     ipcMain.handle(IpcChannels.worktreesBranches, (_event, repoPath: string) => worktrees.branches(String(repoPath)));
     ipcMain.handle(IpcChannels.worktreesCreate, async (_event, options: CreateWorktreeOptions): Promise<CreatedWorktree> => {
         const config = await worktreeSettingsFor(options.repoPath);

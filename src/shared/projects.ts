@@ -100,6 +100,31 @@ export function removeRepo(state: ProjectsState, id: string, repo: string): Proj
     return replaceProject(state, { ...project, repos: project.repos.filter(item => item !== repo) });
 }
 
+/** Returns a copy of the list with the item at `from` moved to `to`. An index outside the list goes to the nearest end. */
+function moveItem<T>(items: readonly T[], from: number, to: number): T[] {
+    const result = [...items];
+    const [item] = result.splice(from, 1);
+    result.splice(Math.max(0, Math.min(to, result.length)), 0, item);
+    return result;
+}
+
+/** Moves a project to a new position in the project list. */
+export function moveProject(state: ProjectsState, id: string, toIndex: number): ProjectsState {
+    findProject(state, id);
+    const from = state.projects.findIndex(project => project.id === id);
+    return { ...state, projects: moveItem(state.projects, from, toIndex) };
+}
+
+/** Moves a repository to a new position in a project. Throws an error when the repository is not in the project. */
+export function moveRepo(state: ProjectsState, id: string, repo: string, toIndex: number): ProjectsState {
+    const project = findProject(state, id);
+    const from = project.repos.indexOf(repo);
+    if (from === -1) {
+        throw new Error('The repository is not in the project. It was possibly removed.');
+    }
+    return replaceProject(state, { ...project, repos: moveItem(project.repos, from, toIndex) });
+}
+
 /** Returns the name of a repository: the name of its folder. */
 export function repoName(repo: string): string {
     return repo.split('/').filter(Boolean).pop() ?? repo;

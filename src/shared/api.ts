@@ -129,6 +129,10 @@ export interface ShipWardenApi {
         chooseRepo(id: string): Promise<ProjectsState>;
         /** Removes a repository from the project. The repository and its worktrees stay on disk. */
         removeRepo(id: string, repo: string): Promise<ProjectsState>;
+        /** Moves a project to a new position in the project list. */
+        move(id: string, toIndex: number): Promise<ProjectsState>;
+        /** Moves a repository to a new position in the project. */
+        moveRepo(id: string, repo: string, toIndex: number): Promise<ProjectsState>;
     };
     worktrees: {
         list(repoPath: string): Promise<Worktree[]>;
@@ -342,6 +346,8 @@ export const IpcChannels = {
     projectsSetActive: 'projects:setActive',
     projectsChooseRepo: 'projects:chooseRepo',
     projectsRemoveRepo: 'projects:removeRepo',
+    projectsMove: 'projects:move',
+    projectsMoveRepo: 'projects:moveRepo',
     worktreesList: 'worktrees:list',
     worktreesCreate: 'worktrees:create',
     worktreesBranches: 'worktrees:branches',

@@ -1387,6 +1387,19 @@ export function App() {
                     onRemove={(repo, worktree) => removeWorktree(repo, worktree)}
                     onWorktreeMenu={worktreeMenu}
                     onOpenTask={openLinkedTask}
+                    worktreeSort={appSettings.worktreeSort}
+                    onChangeWorktreeSort={sort => {
+                        setAppSettings(current => ({ ...current, worktreeSort: sort }));
+                        api.settings.update({ worktreeSort: sort }).then(setAppSettings, err => setError(errorText(err)));
+                    }}
+                    onMoveProject={(id, toIndex) => {
+                        api.projects.move(id, toIndex).then(setProjects, err => setError(errorText(err)));
+                    }}
+                    onMoveRepo={(repo, toIndex) => {
+                        if (activeProject) {
+                            api.projects.moveRepo(activeProject.id, repo, toIndex).then(setProjects, err => setError(errorText(err)));
+                        }
+                    }}
                 />}
                 {!sidebarCollapsed && (
                     <ResizeHandle

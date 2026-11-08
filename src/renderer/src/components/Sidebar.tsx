@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import {
+    ArrowDownUp,
     Check,
     ChevronDown,
     ChevronRight,
@@ -8,6 +9,7 @@ import {
     CircleX,
     FolderMinus,
     FolderPlus,
+    GripVertical,
     GitPullRequest,
     GitPullRequestDraft,
     LayoutDashboard,
@@ -17,7 +19,9 @@ import {
     Bot,
     Settings2,
     Plus,
-    Settings
+    Search,
+    Settings,
+    X
 } from 'lucide-react';
 import { AGENT_STATE_LABELS, worktreeAgentState, type AgentState } from '@shared/agents';
 import type { BranchSummary } from '@shared/github';
@@ -25,7 +29,7 @@ import type { ProjectsState } from '@shared/projects';
 import { REPO_COLORS, type RepoColor } from '@shared/settings';
 import type { TaskLink } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
-import type { Worktree } from '@shared/worktrees';
+import { sortWorktrees, WORKTREE_SORT_LABELS, type Worktree, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
 import { errorText } from '../util';
 import { Logo } from './Logo';
 import { confirmDialog } from './ConfirmDialog';
@@ -80,6 +84,13 @@ interface Props {
     onWorktreeMenu(repo: string, worktree: Worktree): void;
     /** Opens the task of a worktree in the Tasks view. */
     onOpenTask(worktreePath: string): void;
+    /** The order of the worktrees in each repository. */
+    worktreeSort: WorktreeSort;
+    onChangeWorktreeSort(sort: WorktreeSort): void;
+    /** Moves a project to a new position in the project list. */
+    onMoveProject(id: string, toIndex: number): void;
+    /** Moves a repository of the active project to a new position. */
+    onMoveRepo(repo: string, toIndex: number): void;
 }
 
 const COLLAPSED_STORAGE_KEY = 'shipwarden.collapsedRepos';
@@ -102,6 +113,68 @@ function agentStateOf(sessions: TerminalSession[], paths: Set<string>): AgentSta
     return worktreeAgentState(sessions.filter(session => session.isAgent && session.worktreePath && paths.has(session.worktreePath)).map(session => session.agentState));
 }
 
+/** The place where a dragged item goes: before or after another item. */
+interface DropTarget {
+    key: string;
+    after: boolean;
+}
+
+/**
+ * Drag and drop to change the order of a list. `onMove` gets the key of the dragged item and its new index.
+ * The returned `itemProps` go on each item. `dropClass` gives the class that shows the drop line.
+ */
+function useReorder(keys: readonly string[], onMove: (key: string, toIndex: number) => void, enabled = true) {
+    const [dragged, setDragged] = useState<string>();
+    const [target, setTarget] = useState<DropTarget>();
+
+    const end = () => {
+        setDragged(undefined);
+        setTarget(undefined);
+    };
+
+    const itemProps = (key: string) => enabled ? {
+        draggable: true,
+        onDragStart: (event: DragEvent) => {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', key);
+            setDragged(key);
+        },
+        onDragOver: (event: DragEvent<HTMLElement>) => {
+            if (dragged === undefined) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            const box = event.currentTarget.getBoundingClientRect();
+            const after = event.clientY > box.top + box.height / 2;
+            if (target?.key !== key || target.after !== after) setTarget({ key, after });
+        },
+        onDrop: (event: DragEvent) => {
+            event.preventDefault();
+            if (dragged !== undefined && target) {
+                const from = keys.indexOf(dragged);
+                let to = keys.indexOf(target.key) + (target.after ? 1 : 0);
+                if (from < to) to -= 1;
+                if (from !== -1 && from !== to) onMove(dragged, to);
+            }
+            end();
+        },
+        onDragEnd: end
+    } : {};
+
+    const dropClass = (key: string) => {
+        if (dragged === undefined) return '';
+        if (dragged === key) return ' dragging';
+        return target?.key === key ? (target.after ? ' drop-after' : ' drop-before') : '';
+    };
+
+    return { itemProps, dropClass };
+}
+
+/** The text of a worktree that the sidebar search looks at. */
+function worktreeSearchText(worktree: Worktree, props: Props): string {
+    const link = props.links[worktree.path];
+    return [worktreeLabel(worktree, props.worktreeNames), worktree.branch, basename(worktree.path), link?.key, link?.title].filter(Boolean).join('\n').toLowerCase();
+}
+
 /** The project name at the top of the sidebar. Its menu switches, creates, renames and deletes projects. */
 function ProjectSwitcher(props: Props) {
     const { projects } = props;
@@ -113,6 +186,8 @@ function ProjectSwitcher(props: Props) {
     const [busy, setBusy] = useState(false);
     const root = useRef<HTMLDivElement>(null);
     const active = projects?.projects.find(project => project.id === projects.activeId);
+    const projectIds = useMemo(() => projects?.projects.map(project => project.id) ?? [], [projects]);
+    const reorder = useReorder(projectIds, props.onMoveProject, projectIds.length > 1 && !busy);
 
     const close = () => {
         setOpen(false);
@@ -192,7 +267,9 @@ function ProjectSwitcher(props: Props) {
                         <button
                             key={project.id}
                             role="menuitem"
-                            className="project-menu-item"
+                            className={`project-menu-item${reorder.dropClass(project.id)}`}
+                            title={projects.projects.length > 1 ? 'Drag to change the order' : undefined}
+                            {...reorder.itemProps(project.id)}
                             onClick={() => {
                                 close();
                                 if (project.id !== projects.activeId) {
@@ -203,6 +280,7 @@ function ProjectSwitcher(props: Props) {
                             <span className="project-menu-check">{project.id === projects.activeId && <Check size={13} strokeWidth={2} />}</span>
                             <span className="project-menu-name">{project.name}</span>
                             <span className="project-menu-count">{project.repos.length}</span>
+                            {projects.projects.length > 1 && <GripVertical className="drag-grip" size={12} strokeWidth={1.75} />}
                         </button>
                     ))}
                     <div className="project-menu-separator" />
@@ -255,12 +333,18 @@ interface RepoGroupProps {
     collapsed: boolean;
     onToggle(): void;
     parent: Props;
+    /** The worktrees to show, in sidebar order. A search can show fewer than all. */
+    worktrees: Worktree[];
+    /** The number of all worktrees of the repository. */
+    total: number;
+    /** The drag and drop handlers of the header, and the class that shows the drop line. */
+    dragProps: object;
+    dropClass: string;
 }
 
 /** One repository: a header that collapses, and its worktrees. */
-function RepoGroup({ repo, collapsed, onToggle, parent }: RepoGroupProps) {
+function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, total, dragProps, dropClass }: RepoGroupProps) {
     const { sessions, selectedPath } = parent;
-    const worktrees = parent.worktreesByRepo[repo] ?? [];
     const summaries = parent.summaries[repo] ?? {};
     const [creating, setCreating] = useState(false);
     const repoState = collapsed ? agentStateOf(sessions, new Set(worktrees.map(worktree => worktree.path))) : undefined;
@@ -271,7 +355,8 @@ function RepoGroup({ repo, collapsed, onToggle, parent }: RepoGroupProps) {
     return (
         <li className="repo-group">
             <div
-                className={`repo-header${holdsSelection ? ' holds-selection' : ''}`}
+                className={`repo-header${holdsSelection ? ' holds-selection' : ''}${dropClass}`}
+                {...dragProps}
                 title={holdsSelection ? `${repo}\nThe selected worktree is in this repository.` : repo}
                 onClick={onToggle}
             >
@@ -284,7 +369,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent }: RepoGroupProps) {
                         title={repoState ? `An agent in this repository: ${AGENT_STATE_LABELS[repoState]}` : 'An agent runs in this repository'}
                     />
                 )}
-                {collapsed && <span className="repo-header-count">{worktrees.length}</span>}
+                {(collapsed || worktrees.length < total) && <span className="repo-header-count">{worktrees.length < total ? `${worktrees.length}/${total}` : total}</span>}
                 <button
                     className="icon-button repo-action"
                     title="New worktree"
@@ -405,9 +490,81 @@ function RepoGroup({ repo, collapsed, onToggle, parent }: RepoGroupProps) {
     );
 }
 
+const SORT_KEYS: WorktreeSortKey[] = ['name', 'created', 'updated'];
+
+/** The button and menu that set the order of the worktrees in each repository. */
+function WorktreeSortMenu({ sort, onChange }: { sort: WorktreeSort; onChange(sort: WorktreeSort): void }) {
+    const [open, setOpen] = useState(false);
+    const root = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const onPointer = (event: PointerEvent) => {
+            if (!root.current?.contains(event.target as Node)) setOpen(false);
+        };
+        const onKey = (event: globalThis.KeyboardEvent) => {
+            if (event.key === 'Escape') setOpen(false);
+        };
+        window.addEventListener('pointerdown', onPointer);
+        window.addEventListener('keydown', onKey);
+        return () => {
+            window.removeEventListener('pointerdown', onPointer);
+            window.removeEventListener('keydown', onKey);
+        };
+    }, [open]);
+
+    const directionLabel = (by: WorktreeSortKey, direction: 'asc' | 'desc') => by === 'name'
+        ? (direction === 'asc' ? 'A to Z' : 'Z to A')
+        : (direction === 'asc' ? 'Oldest first' : 'Newest first');
+
+    return (
+        <div className="sort-menu-root" ref={root}>
+            <button
+                className={`icon-button${open ? ' active' : ''}`}
+                title={`Sort worktrees: ${WORKTREE_SORT_LABELS[sort.by]}, ${directionLabel(sort.by, sort.direction).toLowerCase()}`}
+                onClick={() => setOpen(value => !value)}
+            >
+                <ArrowDownUp size={14} strokeWidth={1.6} />
+            </button>
+            {open && (
+                <div className="project-menu sort-menu" role="menu">
+                    <div className="project-menu-label">Sort worktrees by</div>
+                    {SORT_KEYS.map(by => (
+                        <button key={by} role="menuitemradio" aria-checked={sort.by === by} className="project-menu-item" onClick={() => onChange({ ...sort, by })}>
+                            <span className="project-menu-check">{sort.by === by && <Check size={13} strokeWidth={2} />}</span>
+                            <span className="project-menu-name">{WORKTREE_SORT_LABELS[by]}</span>
+                        </button>
+                    ))}
+                    <div className="project-menu-separator" />
+                    {(['asc', 'desc'] as const).map(direction => (
+                        <button key={direction} role="menuitemradio" aria-checked={sort.direction === direction} className="project-menu-item" onClick={() => onChange({ ...sort, direction })}>
+                            <span className="project-menu-check">{sort.direction === direction && <Check size={13} strokeWidth={2} />}</span>
+                            <span className="project-menu-name">{direction === 'asc' ? 'Ascending' : 'Descending'}</span>
+                            <span className="project-menu-count">{directionLabel(sort.by, direction)}</span>
+                        </button>
+                    ))}
+                    <div className="sort-menu-note">The main worktree stays first.</div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 /** The left sidebar: the project, the Tasks view, the repositories of the project with their worktrees, and Settings. */
 export function Sidebar(props: Props) {
     const [collapsed, setCollapsed] = useState(readCollapsed);
+    const [query, setQuery] = useState('');
+    const search = query.trim().toLowerCase();
+    const reorder = useReorder(props.repos, props.onMoveRepo, !search && props.repos.length > 1);
+
+    /** The repositories to show, each with its sorted worktrees. A search keeps a repository when its name or one of its worktrees matches. */
+    const groups = useMemo(() => props.repos.flatMap(repo => {
+        const all = sortWorktrees(props.worktreesByRepo[repo] ?? [], props.worktreeSort, props.worktreeNames);
+        if (!search) return [{ repo, worktrees: all, total: all.length }];
+        const repoMatches = `${props.repoLabel(repo)}\n${basename(repo)}`.toLowerCase().includes(search);
+        const worktrees = repoMatches ? all : all.filter(worktree => worktreeSearchText(worktree, props).includes(search));
+        return repoMatches || worktrees.length > 0 ? [{ repo, worktrees, total: all.length }] : [];
+    }), [props.repos, props.worktreesByRepo, props.worktreeSort, props.worktreeNames, props.links, props.repoLabel, search]);
     /** The agents of all projects that still run, and the state that needs the user most. */
     const runningAgents = props.sessions.filter(session => session.isAgent && !session.exited).length;
     const agentsState = worktreeAgentState(props.sessions.filter(session => session.isAgent && !session.exited).map(session => session.agentState));
@@ -469,15 +626,51 @@ export function Sidebar(props: Props) {
             {/* Only the repositories change with the project, so the project switcher is their header. */}
             <div className="project-header">
                 <ProjectSwitcher {...props} />
+                <WorktreeSortMenu sort={props.worktreeSort} onChange={props.onChangeWorktreeSort} />
                 <button className="icon-button" title="Add a repository to this project" onClick={props.onAddRepo}>
                     <FolderPlus size={14} strokeWidth={1.6} />
                 </button>
             </div>
 
+            {props.repos.length > 0 && (
+                <div className="sidebar-search">
+                    <Search size={13} strokeWidth={1.75} />
+                    <input
+                        value={query}
+                        placeholder="Search repositories and worktrees"
+                        spellCheck={false}
+                        onChange={event => setQuery(event.target.value)}
+                        onKeyDown={event => {
+                            if (event.key === 'Escape') {
+                                setQuery('');
+                                event.currentTarget.blur();
+                            }
+                        }}
+                    />
+                    {query && (
+                        <button className="icon-button" title="Clear the search" onClick={() => setQuery('')}>
+                            <X size={12} strokeWidth={2} />
+                        </button>
+                    )}
+                </div>
+            )}
+
             <ul className="repo-list">
-                {props.repos.map(repo => (
-                    <RepoGroup key={repo} repo={repo} collapsed={collapsed.has(repo)} onToggle={() => toggle(repo)} parent={props} />
+                {groups.map(({ repo, worktrees, total }) => (
+                    <RepoGroup
+                        key={repo}
+                        repo={repo}
+                        // A search shows the matches, also in a collapsed repository.
+                        collapsed={!search && collapsed.has(repo)}
+                        onToggle={() => toggle(repo)}
+                        parent={props}
+                        worktrees={worktrees}
+                        total={total}
+                        dragProps={reorder.itemProps(repo)}
+                        dropClass={reorder.dropClass(repo)}
+                    />
                 ))}
+                {search && groups.length === 0 && <li className="repo-empty repo-no-match">No repositories or worktrees match “{query.trim()}”.</li>}
                 {props.projects && props.repos.length === 0 && (
                     <li className="repo-empty">
                         <button className="button" onClick={props.onAddRepo}>Add a repository</button>

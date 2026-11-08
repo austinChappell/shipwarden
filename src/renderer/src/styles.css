@@ -3620,6 +3620,95 @@ button:focus-visible {
     white-space: nowrap;
 }
 
+.sort-menu-root {
+    position: relative;
+}
+
+.sort-menu-root .icon-button.active {
+    background: var(--hover);
+    color: var(--text-strong);
+}
+
+.project-header .project-menu.sort-menu {
+    left: auto;
+    right: 0;
+    width: 220px;
+}
+
+.sort-menu-note {
+    padding: 4px 8px 6px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+/* Sidebar search */
+
+.sidebar-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 8px 6px;
+    padding: 0 4px 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--muted);
+}
+
+.sidebar-search:focus-within {
+    border-color: var(--accent);
+}
+
+.sidebar-search input {
+    flex: 1;
+    min-width: 0;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--text-strong);
+    font-size: 12px;
+}
+
+.sidebar-search .icon-button {
+    width: 18px;
+    height: 18px;
+}
+
+.repo-no-match {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* Drag and drop to change the order of projects and repositories */
+
+.repo-header.dragging,
+.project-menu-item.dragging {
+    opacity: 0.4;
+}
+
+.repo-header.drop-before,
+.project-menu-item.drop-before {
+    box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.repo-header.drop-after,
+.project-menu-item.drop-after {
+    box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.project-menu-item .drag-grip {
+    flex: none;
+    color: var(--muted);
+    opacity: 0;
+    cursor: grab;
+}
+
+.project-menu-item:hover .drag-grip {
+    opacity: 1;
+}
+
 .project-header .project-menu {
     top: calc(100% + 4px);
     left: 0;

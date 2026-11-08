@@ -6,6 +6,8 @@ import {
     addRepo,
     createProject,
     deleteProject,
+    moveProject,
+    moveRepo,
     normalizeProjects,
     removeRepo,
     renameProject,
@@ -80,6 +82,14 @@ export class ProjectStore {
 
     async removeRepo(id: string, repo: string): Promise<ProjectsState> {
         return this.save(removeRepo(await this.get(), id, repo));
+    }
+
+    async move(id: string, toIndex: number): Promise<ProjectsState> {
+        return this.save(moveProject(await this.get(), id, toIndex));
+    }
+
+    async moveRepo(id: string, repo: string, toIndex: number): Promise<ProjectsState> {
+        return this.save(moveRepo(await this.get(), id, repo, toIndex));
     }
 
     private async save(state: ProjectsState): Promise<ProjectsState> {

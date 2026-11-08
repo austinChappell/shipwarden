@@ -17,6 +17,24 @@ export function worktreesRoot(): string {
     return process.env.SHIPWARDEN_WORKTREES_DIR || process.env.YARDMASTER_WORKTREES_DIR || path.join(os.homedir(), '.shipwarden', 'worktrees');
 }
 
+async function birthtime(file: string): Promise<number | undefined> {
+    try {
+        const stat = await fs.stat(file);
+        // Some file systems do not keep the birth time. Then the value is 0, and the change time is the best guess.
+        return stat.birthtimeMs > 0 ? stat.birthtimeMs : stat.ctimeMs;
+    } catch {
+        return undefined;
+    }
+}
+
+async function mtime(file: string): Promise<number | undefined> {
+    try {
+        return (await fs.stat(file)).mtimeMs;
+    } catch {
+        return undefined;
+    }
+}
+
 /** Lists, creates and removes git worktrees with the git command line. */
 export class GitWorktreeService {
 
@@ -24,6 +42,37 @@ export class GitWorktreeService {
     async list(repoPath: string): Promise<Worktree[]> {
         const output = await this.git(repoPath, ['worktree', 'list', '--porcelain']);
         return parseWorktreePorcelain(output);
+    }
+
+    /**
+     * Adds the creation time and the time of the last change to each worktree. A time that cannot be read stays
+     * undefined. The function reads only file dates, so it is fast.
+     */
+    async withDates(worktrees: Worktree[]): Promise<Worktree[]> {
+        return Promise.all(worktrees.map(async worktree => {
+            const gitDir = await this.gitDir(worktree.path);
+            const created = await birthtime(gitDir ?? worktree.path);
+            const changes = gitDir ? (await Promise.all([mtime(path.join(gitDir, 'logs', 'HEAD')), mtime(path.join(gitDir, 'index'))])).filter((time): time is number => time !== undefined) : [];
+            const updated = changes.length > 0 ? Math.max(...changes) : created;
+            return { ...worktree, ...(created !== undefined ? { createdAt: created } : {}), ...(updated !== undefined ? { updatedAt: updated } : {}) };
+        }));
+    }
+
+    /**
+     * Returns the git folder of a worktree: the .git folder of the main worktree, or the folder that the .git file of a
+     * linked worktree points to. Returns undefined when it cannot be read.
+     */
+    protected async gitDir(worktreePath: string): Promise<string | undefined> {
+        const dotGit = path.join(worktreePath, '.git');
+        try {
+            if ((await fs.stat(dotGit)).isDirectory()) {
+                return dotGit;
+            }
+            const match = /^gitdir:\s*(.+)$/m.exec(await fs.readFile(dotGit, 'utf8'));
+            return match ? path.resolve(worktreePath, match[1].trim()) : undefined;
+        } catch {
+            return undefined;
+        }
     }
 
     /**
