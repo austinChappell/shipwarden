@@ -1,0 +1,98 @@
+# Builds ShipWarden for macOS and publishes a GitHub release with release notes.
+# Run it from GitHub › Actions › Release, or: gh workflow run release.yml -f bump=patch
+#
+# Code signing (optional): add the secrets MAC_CERTIFICATE_P12 (the certificate and its private key, as base64)
+# and MAC_CERTIFICATE_PASSWORD. Without them, the build has an ad-hoc signature. See docs/RELEASING.md.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to increase
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck and test
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Set the new version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          npm version "$BUMP" --no-git-tag-version
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "New version: $VERSION"
+
+      - name: Write the release notes
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/release-notes.mjs "${{ steps.version.outputs.version }}" release-notes.md
+
+      - name: Build the app
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+        run: |
+          npx electron-vite build
+          if [ -n "$CSC_LINK" ]; then
+            npx electron-builder --mac --publish never
+          else
+            echo "::warning::No signing certificate. The build has an ad-hoc signature."
+            unset CSC_LINK CSC_KEY_PASSWORD
+            npx electron-builder --mac --publish never -c.mac.identity=null
+          fi
+
+      - name: Write the update manifest
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP=$(ls dist/*-"$VERSION"-arm64-mac.zip)
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/update-manifest.mjs "$VERSION" "$ZIP" dist/shipwarden-update.json
+
+      - name: Commit and tag the version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release v$VERSION"
+          git tag "v$VERSION"
+          git push origin HEAD:${{ github.ref_name }} "v$VERSION"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release create "v$VERSION" \
+            --title "ShipWarden $VERSION" \
+            --notes-file release-notes.md \
+            dist/*-"$VERSION"-arm64.dmg \
+            dist/*-"$VERSION"-arm64-mac.zip \
+            dist/shipwarden-update.json

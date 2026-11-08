@@ -1,0 +1,179 @@
+import { useEffect, useState } from 'react';
+import { CircleAlert, CircleCheck, Plus, Trash2 } from 'lucide-react';
+import { cleanCommand, commandProgram, type AgentDefinition, type AppSettings, type CommandCheck } from '@shared/settings';
+import { errorText } from '../util';
+import { SettingsGroup } from './settings-ui';
+
+const api = window.shipwarden;
+
+/** The time after the last key press before the page checks a command. */
+const CHECK_DELAY_MS = 300;
+
+/** Checks the program of a command in the login shell PATH, after the user stops typing. */
+function useCommandCheck(command: string): CommandCheck | undefined {
+    const [check, setCheck] = useState<CommandCheck>();
+    useEffect(() => {
+        let current = true;
+        const timer = setTimeout(() => {
+            api.settings.checkCommand(command).then(result => current && setCheck(result), () => current && setCheck(undefined));
+        }, CHECK_DELAY_MS);
+        return () => {
+            current = false;
+            clearTimeout(timer);
+        };
+    }, [command]);
+    return command.trim() ? check : undefined;
+}
+
+function CommandCheckLine({ command }: { command: string }) {
+    const check = useCommandCheck(command);
+    if (!check) return null;
+    const program = commandProgram(command);
+    const name = program.slice(program.lastIndexOf('/') + 1);
+    const hooks = name === 'claude' ? ' ShipWarden shows its state from Claude Code hooks.' : ' ShipWarden shows only that it runs.';
+    return check.path ? (
+        <span className="settings-check ok"><CircleCheck size={13} strokeWidth={2} /> {check.path}.{hooks}</span>
+    ) : (
+        <span className="settings-check warn">
+            <CircleAlert size={13} strokeWidth={2} /> "{check.program}" is not in the PATH of your login shell. It can still work if it is a shell alias or function.
+        </span>
+    );
+}
+
+interface RowProps {
+    agent: AgentDefinition;
+    isDefault: boolean;
+    canRemove: boolean;
+    onChange(agent: AgentDefinition): void;
+    onMakeDefault(): void;
+    onRemove(): void;
+}
+
+/** One agent: the default choice, the name and the command. A change saves when the field loses focus. */
+function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemove }: RowProps) {
+    const [name, setName] = useState(agent.name);
+    const [command, setCommand] = useState(agent.command);
+    useEffect(() => setName(agent.name), [agent.name]);
+    useEffect(() => setCommand(agent.command), [agent.command]);
+
+    const commit = () => {
+        const cleaned = cleanCommand(command);
+        if (!cleaned) {
+            setCommand(agent.command);
+            return;
+        }
+        const nextName = name.trim() || agent.name;
+        if (nextName !== agent.name || cleaned !== agent.command) {
+            onChange({ ...agent, name: nextName, command: cleaned });
+        }
+    };
+
+    return (
+        <div className="settings-row agent-setting">
+            <div className="agent-setting-main">
+                <label className="agent-default" title={isDefault ? 'The default agent' : 'Make this the default agent'}>
+                    <input type="radio" name="default-agent" checked={isDefault} onChange={onMakeDefault} />
+                    {isDefault && <span className="agent-default-label">Default</span>}
+                </label>
+                <input
+                    className="agent-name-input"
+                    aria-label="Agent name"
+                    value={name}
+                    onChange={event => setName(event.target.value)}
+                    onBlur={commit}
+                    onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+                />
+                <input
+                    className="agent-command-input mono"
+                    aria-label="Agent command"
+                    value={command}
+                    spellCheck={false}
+                    autoComplete="off"
+                    onChange={event => setCommand(event.target.value)}
+                    onBlur={commit}
+                    onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+                />
+                <button className="icon-button" title={canRemove ? 'Remove this agent' : 'ShipWarden needs at least one agent'} disabled={!canRemove} onClick={onRemove}>
+                    <Trash2 size={14} strokeWidth={1.6} />
+                </button>
+            </div>
+            <CommandCheckLine command={command} />
+        </div>
+    );
+}
+
+/** The agents that the Agent button can start, and the default agent. A repository can select another agent in its settings. */
+export function AgentsSettings({ settings, onSave }: { settings: AppSettings; onSave(change: Partial<AppSettings>): Promise<void> }) {
+    const [newName, setNewName] = useState('');
+    const [newCommand, setNewCommand] = useState('');
+    const [error, setError] = useState<string>();
+
+    const save = async (change: Partial<AppSettings>) => {
+        setError(undefined);
+        try {
+            await onSave(change);
+        } catch (err) {
+            setError(errorText(err));
+        }
+    };
+
+    const replace = (agent: AgentDefinition) => save({ agents: settings.agents.map(item => (item.id === agent.id ? agent : item)) });
+
+    const remove = (agent: AgentDefinition) => {
+        const agents = settings.agents.filter(item => item.id !== agent.id);
+        save({ agents, defaultAgentId: settings.defaultAgentId === agent.id ? agents[0].id : settings.defaultAgentId });
+    };
+
+    const add = () => {
+        const command = cleanCommand(newCommand);
+        if (!command) {
+            setError('Type the command that starts the agent, for example "aider" or "claude --model opus".');
+            return;
+        }
+        const id = `agent-${Date.now().toString(36)}`;
+        save({ agents: [...settings.agents, { id, name: newName.trim() || commandProgram(command), command }] });
+        setNewName('');
+        setNewCommand('');
+    };
+
+    return (
+        <SettingsGroup
+            title="Agents"
+            description="The agents that the Agent button can start. Each one runs in your login shell, so your PATH applies. A repository can use another agent than the default in its repository settings."
+            card
+        >
+            {settings.agents.map(agent => (
+                <AgentRow
+                    key={agent.id}
+                    agent={agent}
+                    isDefault={agent.id === settings.defaultAgentId}
+                    canRemove={settings.agents.length > 1}
+                    onChange={replace}
+                    onMakeDefault={() => save({ defaultAgentId: agent.id })}
+                    onRemove={() => remove(agent)}
+                />
+            ))}
+            <form
+                className="settings-row agent-add"
+                onSubmit={event => {
+                    event.preventDefault();
+                    add();
+                }}
+            >
+                <span className="agent-add-label">Add</span>
+                <input className="agent-name-input" placeholder="Name" aria-label="New agent name" value={newName} onChange={event => setNewName(event.target.value)} />
+                <input
+                    className="agent-command-input mono"
+                    placeholder="Command, for example aider"
+                    aria-label="New agent command"
+                    spellCheck={false}
+                    autoComplete="off"
+                    value={newCommand}
+                    onChange={event => setNewCommand(event.target.value)}
+                />
+                <button type="submit" className="button" disabled={!newCommand.trim()}><Plus size={13} strokeWidth={1.8} />Add</button>
+            </form>
+            {error && <div className="settings-row"><div className="form-error">{error}</div></div>}
+        </SettingsGroup>
+    );
+}

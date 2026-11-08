@@ -1,0 +1,20 @@
+{
+  "id": "github-issues",
+  "name": "GitHub Issues",
+  "version": "0.1.0",
+  "protocolVersion": 3,
+  "description": "GitHub issues. Each repository is a collection. Restrict the connection to some organizations in the settings.",
+  "command": "node",
+  "args": [
+    "index.js"
+  ],
+  "settings": [
+    {
+      "key": "token",
+      "label": "Personal access token",
+      "type": "secret",
+      "description": "Optional. Without it, the plugin uses the GitHub CLI login (gh auth login) or GITHUB_TOKEN. Use a token for a second GitHub account."
+    }
+  ],
+  "scopeLabel": "organization"
+}

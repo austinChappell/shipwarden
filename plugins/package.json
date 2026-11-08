@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "The built-in task plugins of ShipWarden. Each folder is one plugin, except sdk."
+}

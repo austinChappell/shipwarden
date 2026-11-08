@@ -1,0 +1,63 @@
+/** One entry of a folder in the file explorer. */
+export interface FileEntry {
+    name: string;
+    /** The path relative to the worktree root, with "/" as the separator. */
+    path: string;
+    isDirectory: boolean;
+    /** True when git ignores the entry, for example `node_modules`. */
+    ignored: boolean;
+}
+
+/** One line that matches a content search. */
+export interface ContentMatch {
+    /** The path relative to the worktree root. */
+    path: string;
+    /** The line number. The first line is 1. */
+    line: number;
+    text: string;
+}
+
+export interface ContentSearchResult {
+    matches: ContentMatch[];
+    /** True when the search found more matches than the limit. */
+    truncated: boolean;
+}
+
+/** An event that tells the UI that files changed in a worktree. */
+export interface FilesChangedEvent {
+    root: string;
+    /** The folders that changed, relative to the root. An empty string is the root. */
+    directories: string[];
+}
+
+/** Sorts entries like Orca: folders first, then by name. The comparison ignores case. Dot files sort first. */
+export function compareEntries(a: FileEntry, b: FileEntry): number {
+    if (a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 : 1;
+    }
+    const nameA = a.name.toLowerCase();
+    const nameB = b.name.toLowerCase();
+    return nameA < nameB ? -1 : nameA > nameB ? 1 : a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+}
+
+/** Returns the folder part of a relative path. Returns an empty string for a file at the root. */
+export function parentPath(path: string): string {
+    const slash = path.lastIndexOf('/');
+    return slash === -1 ? '' : path.slice(0, slash);
+}
+
+/** Returns the last part of a path. */
+export function baseName(path: string): string {
+    return path.slice(path.lastIndexOf('/') + 1);
+}
+
+/** The characters of a line that show before the first match. A longer start is cut, so the match stays in view. */
+const CONTEXT_BEFORE = 16;
+
+/** Trims a line of a content match, and cuts a long start so that the first match shows. */
+export function matchLine(text: string, query: string): string {
+    const line = text.trim();
+    const index = query ? line.toLowerCase().indexOf(query.toLowerCase()) : -1;
+    if (index <= CONTEXT_BEFORE + 8) return line;
+    return `…${line.slice(index - CONTEXT_BEFORE).trimStart()}`;
+}

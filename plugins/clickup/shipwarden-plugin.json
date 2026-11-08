@@ -1,0 +1,21 @@
+{
+  "id": "clickup",
+  "name": "ClickUp",
+  "version": "0.1.0",
+  "protocolVersion": 3,
+  "description": "ClickUp tasks. Each ClickUp list is a collection. Restrict the connection to some workspaces in the settings.",
+  "command": "node",
+  "args": [
+    "index.js"
+  ],
+  "settings": [
+    {
+      "key": "apiToken",
+      "label": "API token",
+      "type": "secret",
+      "required": true,
+      "description": "A personal API token. In ClickUp, open Settings > Apps and copy the token that starts with pk_."
+    }
+  ],
+  "scopeLabel": "workspace"
+}
