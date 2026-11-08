@@ -4,6 +4,7 @@ import { IpcChannels, type ConfirmRequest, type NotificationTarget, type ShipWar
 import type { FilesChangedEvent } from '@shared/files';
 import type { LspServerMessage } from '@shared/lsp';
 import type { AgentUpdate } from '@shared/agents';
+import type { AgentProgram } from '@shared/agent-programs';
 import type { UpdateState } from '@shared/updates';
 import type { ProviderUsage } from '@shared/usage';
 
@@ -192,9 +193,11 @@ const api: ShipWardenApi = {
         write: (id, data) => ipcRenderer.send(IpcChannels.terminalsWrite, id, data),
         resize: (id, cols, rows) => ipcRenderer.send(IpcChannels.terminalsResize, id, cols, rows),
         kill: id => ipcRenderer.invoke(IpcChannels.terminalsKill, id),
+        stopOutdatedHosts: () => ipcRenderer.invoke(IpcChannels.terminalsStopOutdated),
         onData: listener => subscribe<[string, string, number]>(IpcChannels.terminalsData, listener),
         onExit: listener => subscribe<[string, number]>(IpcChannels.terminalsExit, listener),
-        onAgentState: listener => subscribe<[string, AgentUpdate]>(IpcChannels.terminalsAgentState, listener)
+        onAgentState: listener => subscribe<[string, AgentUpdate]>(IpcChannels.terminalsAgentState, listener),
+        onAgentProgram: listener => subscribe<[string, AgentProgram | null]>(IpcChannels.terminalsAgentProgram, listener)
     }
 };
 

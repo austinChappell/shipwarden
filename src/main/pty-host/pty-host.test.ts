@@ -1,10 +1,11 @@
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdtempSync, rmSync, symlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { TerminalEvents } from '../terminal/terminal-manager';
 import { PtyHostClient } from './pty-host-client';
 import { PtyHostServer } from './pty-host-server';
+import { buildSocketPath, ptyHostSocketFolder } from './protocol';
 
 const SHELL_ENV = { SHELL: '/bin/sh', PATH: '/usr/bin:/bin', HOME: tmpdir() };
 
@@ -38,7 +39,8 @@ describe('PTY host', () => {
     /** Makes a client whose "spawn" starts an in-process server. */
     function setup(buildId: string, idle: { count: number } = { count: 0 }) {
         folder = mkdtempSync(join(tmpdir(), 'ym-'));
-        const socketPath = join(folder, 'host.sock');
+        // The socket of a host from before the per-build sockets.
+        const olderSocketPath = join(folder, 'pty-host-v1.sock');
         const output: Record<string, string> = {};
         const exits: string[] = [];
         const events: TerminalEvents = {
@@ -64,11 +66,12 @@ describe('PTY host', () => {
             server.start();
         };
         const makeClient = (clientBuildId = buildId) => {
-            const client = new PtyHostClient({ socketPath, hostScript: '', logPath: join(folder, 'log'), events, spawnHost, buildId: clientBuildId });
+            const socketPath = buildSocketPath(folder, clientBuildId);
+            const client = new PtyHostClient({ socketPath, olderSocketPaths: [olderSocketPath], hostScript: '', logPath: join(folder, 'log'), events, spawnHost, buildId: clientBuildId });
             clients.push(client);
             return client;
         };
-        return { socketPath, output, exits, spawned, spawnHost, makeClient, idle };
+        return { olderSocketPath, output, exits, spawned, spawnHost, makeClient, idle };
     }
 
     it('keeps a session when the app disconnects, and a new app gets its output', async () => {
@@ -127,22 +130,87 @@ describe('PTY host', () => {
         expect(spawned).toEqual([]);
     });
 
-    it('replaces a host of another build when it has no running session', async () => {
-        const { spawned, makeClient } = setup('old');
+    it('stops a host of another build when it has no running session', async () => {
+        const idle = { count: 0 };
+        const { spawned, makeClient } = setup('old', idle);
         await makeClient('old').list();
         clients[0].dispose();
 
         await makeClient('new').list();
         expect(spawned).toEqual(['old', 'new']);
+        await until(() => idle.count === 1);
     });
 
-    it('keeps a host of another build while it has running sessions', async () => {
-        const { spawned, makeClient } = setup('old');
+    it('keeps the sessions of an outdated host, and starts new sessions in the host of its own build', async () => {
+        const idle = { count: 0 };
+        const { spawned, makeClient } = setup('old', idle);
         const old = makeClient('old');
-        await old.create({ cwd: tmpdir(), title: 'shell', cols: 80, rows: 24 }, SHELL_ENV);
+        const oldSession = await old.create({ cwd: tmpdir(), title: 'old shell', cols: 80, rows: 24 }, SHELL_ENV);
         old.dispose();
 
-        expect(await makeClient('new').list()).toHaveLength(1);
-        expect(spawned).toEqual(['old']);
+        const client = makeClient('new');
+        const listed = await client.list();
+        expect(listed.map(item => [item.id, item.hostOutdated])).toEqual([[oldSession.id, true]]);
+
+        const newSession = await client.create({ cwd: tmpdir(), title: 'new shell', cols: 80, rows: 24 }, SHELL_ENV);
+        expect(spawned).toEqual(['old', 'new']);
+        const all = await client.list();
+        expect(all.map(item => [item.title, !!item.hostOutdated]).sort()).toEqual([['new shell', false], ['old shell', true]]);
+        expect(await client.hostPids()).toHaveLength(2);
+
+        // The last session of the outdated host ends. The app disconnects, and the outdated host stops.
+        await client.kill(oldSession.id);
+        await until(() => idle.count === 1);
+        expect((await client.list()).map(item => item.id)).toEqual([newSession.id]);
+    });
+
+    it('finds an outdated host on an older socket', async () => {
+        const { olderSocketPath, spawnHost } = setup('new');
+        spawnHost(olderSocketPath, 'older');
+        const old = new PtyHostClient({ socketPath: olderSocketPath, hostScript: '', logPath: join(folder, 'log'), events: { data: () => undefined, exit: () => undefined, agentState: () => undefined }, buildId: 'older' });
+        clients.push(old);
+        await old.create({ cwd: tmpdir(), title: 'older shell', cols: 80, rows: 24 }, SHELL_ENV);
+        old.dispose();
+
+        // A second path to the same host, as "Yardmaster" and "yardmaster" on a file system that ignores case.
+        const alias = join(folder, 'alias.sock');
+        symlinkSync(olderSocketPath, alias);
+        const client = new PtyHostClient({
+            socketPath: buildSocketPath(folder, 'new'),
+            olderSocketPaths: [olderSocketPath, alias],
+            hostScript: '',
+            logPath: join(folder, 'log'),
+            events: { data: () => undefined, exit: () => undefined, agentState: () => undefined },
+            spawnHost,
+            buildId: 'new'
+        });
+        clients.push(client);
+        const listed = await client.list();
+        expect(listed.map(item => [item.title, item.hostOutdated])).toEqual([['older shell', true]]);
+        // The older host and the new host. The alias does not add the older host a second time.
+        expect(await client.hostPids()).toHaveLength(2);
+    });
+
+    it('keeps each socket path below the limit of macOS', () => {
+        const longFolder = join('/Users/someone', 'a'.repeat(120), 'ShipWarden');
+        const path = buildSocketPath(ptyHostSocketFolder(longFolder), 'debe63ac8a194271');
+        expect(Buffer.byteLength(path)).toBeLessThanOrEqual(103);
+        expect(ptyHostSocketFolder('/Users/me/Library/Application Support/ShipWarden')).toBe('/Users/me/Library/Application Support/ShipWarden');
+    });
+
+    it('stops only the outdated hosts when the app asks', async () => {
+        const idle = { count: 0 };
+        const { exits, makeClient } = setup('old', idle);
+        const old = makeClient('old');
+        const oldSession = await old.create({ cwd: tmpdir(), title: 'old shell', cols: 80, rows: 24 }, SHELL_ENV);
+        old.dispose();
+
+        const client = makeClient('new');
+        const newSession = await client.create({ cwd: tmpdir(), title: 'new shell', cols: 80, rows: 24 }, SHELL_ENV);
+        expect(await client.shutdownOutdatedHosts()).toBe(1);
+        expect(exits).toContain(oldSession.id);
+        await until(() => idle.count === 1);
+        const listed = await client.list();
+        expect(listed.map(item => [item.id, item.exited])).toEqual([[newSession.id, false]]);
     });
 });

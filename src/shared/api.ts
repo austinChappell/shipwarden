@@ -8,6 +8,7 @@ import type { BranchStatus, BranchSummary, CheckRun, FileVersions, GitHubOwner, 
 import type { LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentUpdate } from './agents';
+import type { AgentProgram } from './agent-programs';
 import type { AppSettings, CommandCheck } from './settings';
 import type { ProjectsState } from './projects';
 import type { ProviderUsage } from './usage';
@@ -329,6 +330,8 @@ export interface ShipWardenApi {
         write(id: string, data: string): void;
         resize(id: string, cols: number, rows: number): void;
         kill(id: string): Promise<void>;
+        /** Stops the PTY hosts of older builds and their sessions. Returns the number of sessions that stopped. */
+        stopOutdatedHosts(): Promise<number>;
         /**
          * Calls the listener for each output chunk. Returns a function that removes the listener.
          * The sequence number increases by one for each chunk of a session.
@@ -336,6 +339,8 @@ export interface ShipWardenApi {
         onData(listener: (id: string, data: string, seq: number) => void): () => void;
         onExit(listener: (id: string, exitCode: number) => void): () => void;
         onAgentState(listener: (id: string, update: AgentUpdate) => void): () => void;
+        /** Calls the listener when an agent starts or stops in a shell tab. The program is null when the agent stopped. */
+        onAgentProgram(listener: (id: string, program: AgentProgram | null) => void): () => void;
     };
 }
 
@@ -455,11 +460,13 @@ export const IpcChannels = {
     terminalsWrite: 'terminals:write',
     terminalsResize: 'terminals:resize',
     terminalsKill: 'terminals:kill',
+    terminalsStopOutdated: 'terminals:stopOutdated',
     processesList: 'processes:list',
     processesStop: 'processes:stop',
     terminalsData: 'terminals:data',
     terminalsExit: 'terminals:exit',
     terminalsAgentState: 'terminals:agentState',
+    terminalsAgentProgram: 'terminals:agentProgram',
     appFocus: 'app:focus',
     appInfo: 'app:info',
     appOpenSettings: 'app:openSettings',

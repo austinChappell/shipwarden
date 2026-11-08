@@ -20,8 +20,8 @@ const POLL_MS = 150;
 export interface ProcessServiceDeps {
     /** The terminal sessions of the PTY host. */
     sessions(): Promise<ScanSession[]>;
-    /** The PID of the PTY host, if it runs. */
-    hostPid(): Promise<number | undefined>;
+    /** The PIDs of the PTY hosts that run. */
+    hostPids(): Promise<number[]>;
 }
 
 /** Runs a command and returns its output. lsof gives exit code 1 when it finds nothing. That is not an error. */
@@ -64,19 +64,19 @@ export class ProcessService {
     async scan(worktreePaths: string[]): Promise<WorktreeProcesses[]> {
         const paths = [...new Set(worktreePaths.filter(path => typeof path === 'string' && path.startsWith('/')))];
         if (!paths.length) return [];
-        const [rows, listen, cwd, sessions, hostPid] = await Promise.all([
+        const [rows, listen, cwd, sessions, hostPids] = await Promise.all([
             this.table(),
             run('/usr/sbin/lsof', ['-nP', '-iTCP', '-sTCP:LISTEN', '-F', 'pn']),
             run('/usr/sbin/lsof', ['-nP', '-a', '-u', userInfo().username, '-d', 'cwd', '-F', 'pn']),
             this.deps.sessions().catch(() => []),
-            this.deps.hostPid().catch(() => undefined)
+            this.deps.hostPids().catch(() => [])
         ]);
         return groupProcesses({
             rows,
             ports: parseListeningPorts(listen),
             cwds: parseCwds(cwd),
             sessions,
-            hostPid,
+            hostPids,
             excludedPids: [process.pid],
             worktreePaths: paths
         });

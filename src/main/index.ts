@@ -9,6 +9,7 @@ import * as os from 'os';
 import { removeAgentSessionVariables } from './agent-environment';
 import { claudeHookSettings, withAgentHooks } from '@shared/agents';
 import { shellIntegrationEnv, writeZshIntegration, type ShellIntegration } from './agents/shell-integration';
+import { ShellAgents } from './agents/shell-agents';
 import { writeFileSync } from 'fs';
 import { FileService } from './files/file-service';
 import { FileWatcher } from './files/file-watcher';
@@ -26,8 +27,8 @@ import { NotificationService } from './notifications';
 import { appKeyAction, shortcutAction, type AppKeyAction, type ShortcutAction } from '@shared/shortcuts';
 import { networkErrorDetail } from '@shared/network';
 import { loadGhosttySettings } from './terminal/ghostty-loader';
-import { ptyHostSocketPath } from './pty-host/protocol';
-import { PtyHostClient } from './pty-host/pty-host-client';
+import { buildSocketPath, ptyHostSocketFolder, ptyHostSocketPath } from './pty-host/protocol';
+import { hostBuildId, PtyHostClient } from './pty-host/pty-host-client';
 import { ProcessService } from './processes/process-service';
 import { bundlePathOf, UpdateService } from './updates/update-service';
 import { GitChangesService } from './git/git-changes-service';
@@ -119,10 +120,15 @@ const tasks = new TaskHost({
  * The terminal sessions run in the PTY host, a separate process. When the app quits, the host and its agents
  * continue to run. The next app run connects to the same host and shows the sessions again.
  */
+const ptyHostScript = join(__dirname, 'pty-host.js');
 const terminals = new PtyHostClient({
-    socketPath: ptyHostSocketPath(app.getPath('userData')),
-    legacySocketPaths: LEGACY_NAMES.map(name => ptyHostSocketPath(join(app.getPath('appData'), name))),
-    hostScript: join(__dirname, 'pty-host.js'),
+    // Each build has its own host. A host of an older build keeps its sessions, and new sessions use this build.
+    socketPath: buildSocketPath(ptyHostSocketFolder(app.getPath('userData')), hostBuildId(ptyHostScript)),
+    olderSocketPaths: [
+        ptyHostSocketPath(app.getPath('userData')),
+        ...LEGACY_NAMES.map(name => ptyHostSocketPath(join(app.getPath('appData'), name)))
+    ],
+    hostScript: ptyHostScript,
     logPath: join(app.getPath('userData'), 'pty-host.log'),
     events: {
         data: (id, data, seq) => {
@@ -130,6 +136,7 @@ const terminals = new PtyHostClient({
             remote.terminalData(id, data, seq);
         },
         exit: (id, exitCode) => {
+            shellAgents.forget(id);
             mainWindow?.webContents.send(IpcChannels.terminalsExit, id, exitCode);
             remote.terminalExited(id);
         },
@@ -154,7 +161,25 @@ const updates = new UpdateService({
 const gitChanges = new GitChangesService(file => shell.trashItem(file));
 
 /** The processes and ports of the worktrees. */
-const processes = new ProcessService({ sessions: () => terminals.list(), hostPid: () => terminals.hostPid() });
+const processes = new ProcessService({ sessions: () => terminals.list(), hostPids: () => terminals.hostPids() });
+
+/** Finds the agents that the user starts in a shell tab, for example with `claude` or `codex`. */
+const shellAgents = new ShellAgents({
+    sessions: () => terminals.isConnected() ? terminals.list() : Promise.resolve([]),
+    hostPids: () => terminals.hostPids(),
+    processTable: () => processes.table(),
+    onState: (id, update) => {
+        mainWindow?.webContents.send(IpcChannels.terminalsAgentState, id, update);
+        remote.agentsChanged();
+    },
+    onProgram: (id, program) => {
+        mainWindow?.webContents.send(IpcChannels.terminalsAgentProgram, id, program ?? null);
+        remote.agentsChanged();
+    }
+});
+
+/** The sessions of the PTY host, with the agents that the app found in shell tabs. */
+const terminalSessions = async () => shellAgents.annotate(await terminals.list());
 
 /**
  * Stops a terminal session and the processes that its shell started. Some processes (for example a server that
@@ -164,6 +189,7 @@ async function killTerminal(id: string): Promise<void> {
     const session = (await terminals.list().catch(() => [])).find(item => item.id === id);
     const pids = session?.pid && !session.exited ? await processes.descendantsOf(session.pid).catch(() => []) : [];
     await terminals.kill(id);
+    shellAgents.forget(id);
     remote.agentsChanged();
     processes.terminate(pids).catch(error => console.error('[processes] Cannot stop the processes of a terminal:', error));
 }
@@ -208,7 +234,7 @@ const remoteSnapshot = new RemoteSnapshotBuilder({
     settings: () => settings.get(),
     taskLinks: () => tasks.allLinks(),
     pullRequests: repo => github.branchSummaries(repo),
-    sessions: () => terminals.list()
+    sessions: terminalSessions
 });
 
 /** The HTTPS server for the phone app. It runs only while Settings › Mobile has it on. */
@@ -221,7 +247,7 @@ const remote = new RemoteServer({
         version: app.getVersion(),
         snapshot: () => remoteSnapshot.build(),
         // The size from the page is newer than the size of an older PTY host, which has none.
-        sessions: async () => (await terminals.list()).map(session => ({ ...session, ...terminalSizes.get(session.id) })),
+        sessions: async () => (await terminalSessions()).map(session => ({ ...session, ...terminalSizes.get(session.id) })),
         replay: id => terminals.replay(id),
         write: (id, data) => terminals.write(id, data),
         approvePullRequest: async (worktreePath, number, headSha, body) => {
@@ -497,12 +523,13 @@ function registerIpc(): void {
     ipcMain.on(IpcChannels.lspNotify, (_event, key: string, method: string, params: unknown) => lsp.notify(key, method, params));
 
     ipcMain.handle(IpcChannels.terminalsSettings, () => loadGhosttySettings());
-    ipcMain.handle(IpcChannels.terminalsList, () => terminals.list());
+    ipcMain.handle(IpcChannels.terminalsList, terminalSessions);
     ipcMain.handle(IpcChannels.terminalsCreate, async (_event, options: CreateTerminalOptions) => {
         const command = options.isAgent && options.command ? withAgentHooks(options.command, hookSettingsPath) : options.command;
         // Only an agent that got the hooks reports its state.
         const env = { ...process.env, ...shellIntegrationEnv(process.env, shellIntegration) };
         const session = await terminals.create({ ...options, command, reportsAgentState: !!options.isAgent && command !== options.command }, env);
+        void shellAgents.poll();
         terminalSizes.set(session.id, { cols: options.cols, rows: options.rows });
         remote.agentsChanged();
         return session;
@@ -613,6 +640,11 @@ function registerIpc(): void {
     });
     ipcMain.on(IpcChannels.appConfirmAnswer, (_event, id: number, confirmed: boolean) => confirmAnswers.get(Number(id))?.(confirmed === true));
     ipcMain.handle(IpcChannels.terminalsKill, (_event, id: string) => killTerminal(String(id)));
+    ipcMain.handle(IpcChannels.terminalsStopOutdated, async () => {
+        const stopped = await terminals.shutdownOutdatedHosts();
+        remote.agentsChanged();
+        return stopped;
+    });
     ipcMain.handle(IpcChannels.processesList, (_event, worktreePaths: unknown) =>
         processes.scan(Array.isArray(worktreePaths) ? worktreePaths.filter((item): item is string => typeof item === 'string') : []));
     ipcMain.handle(IpcChannels.processesStop, (_event, worktreePath: string, pid: number) => processes.stop(String(worktreePath), Number(pid)));
@@ -774,6 +806,7 @@ app.whenReady().then(async () => {
         // Without the zsh folder, shells start as usual. A `claude` that the user types then shows no agent state.
         console.warn(`[agents] The zsh integration was not written: ${error instanceof Error ? error.message : String(error)}`);
     }
+    shellAgents.start();
     registerIpc();
     createWindow();
     void settings.get().then(all => remote.apply(all.remote)).catch(error => console.error('[remote] The phone server did not start:', error));

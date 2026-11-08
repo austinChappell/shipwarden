@@ -75,8 +75,8 @@ export interface ScanInput {
     /** The working folder of each process. */
     cwds: Map<number, string>;
     sessions: ScanSession[];
-    /** The PID of the PTY host. Its child processes are the terminal shells. */
-    hostPid?: number;
+    /** The PIDs of the PTY hosts. Their child processes are the terminal shells. */
+    hostPids?: number[];
     /** Processes that are never shown or stopped, with their descendants: ShipWarden itself. */
     excludedPids: number[];
     worktreePaths: string[];
@@ -248,9 +248,9 @@ export function groupProcesses(input: ScanInput): WorktreeProcesses[] {
     const owned = new Set<number>();
     const sessionByPid = new Map(input.sessions.filter(session => session.pid && !session.exited).map(session => [session.pid!, session]));
     const shellPids = new Set<number>(sessionByPid.keys());
-    if (input.hostPid) {
-        excluded.add(input.hostPid);
-        (children.get(input.hostPid) ?? []).forEach(pid => shellPids.add(pid));
+    for (const hostPid of input.hostPids ?? []) {
+        excluded.add(hostPid);
+        (children.get(hostPid) ?? []).forEach(pid => shellPids.add(pid));
     }
     for (const shellPid of shellPids) {
         const shell = byPid.get(shellPid);

@@ -25,7 +25,7 @@ first start:
 
 Other compatibility:
 
-- A PTY host of the old name still runs after the update. The app connects to its socket, so its terminals stay. A new host uses the new folder.
+- A PTY host of the old name still runs after the update. The app connects to its socket, so its terminals stay. New terminals use a host of the current build in the new folder.
 - The agent hooks read `SHIPWARDEN_*` or `YARDMASTER_*` variables, and send both token headers.
 - Setup, teardown and saved scripts get the `SHIPWARDEN_*` and the old `YARDMASTER_*` variables.
 - A plugin can have `shipwarden-plugin.json` or the old `yardmaster-plugin.json`.
@@ -59,7 +59,7 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 ┌──────────────────┴──────── Main process ─────────────────────────┐
 │ ProjectStore       projects and their repos (projects.json)      │
 │ GitWorktreeService git worktree list/add/remove                  │
-│ PtyHostClient      connects to the PTY host (Unix socket)        │
+│ PtyHostClient      connects to the PTY hosts (Unix sockets)      │
 │ Ghostty loader     `ghostty +show-config` or the config files    │
 │ FileService        folders, git ls-files, git grep, read/write   │
 │ FileWatcher        recursive fs.watch (FSEvents) per worktree    │
@@ -68,7 +68,7 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 │ TaskHost           task plugin processes (JSON-RPC on stdio)     │
 │ ProcessService     processes and ports per worktree, stop        │
 └──────────────────┬───────────────────────────────────────────────┘
-                   │ JSON-RPC on <app data>/pty-host-v1.sock
+                   │ JSON-RPC on <app data>/pty-host-v1-<build ID>.sock
 ┌──────────────────┴──────── PTY host (detached process) ──────────┐
 │ TerminalManager    node-pty sessions + output buffers            │
 │ HookServer         agent state from Claude Code hooks (HTTP)     │
@@ -82,9 +82,17 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
   The next app run connects to the same host and shows the sessions again.
 - The host stops when no app is connected and no session has a running process (after 10 seconds).
   A new host waits 30 seconds for its first app.
-- Each protocol version has its own socket (`pty-host-v<N>.sock`). The host sends a build ID (a hash of its script).
-  When the build ID is not the app's build ID, the app replaces the host only if the host has no running sessions.
-  Otherwise the app uses the old host, so an update does not stop running agents.
+- Each build has its own host and socket (`pty-host-v<N>-<build ID>.sock`). The build ID is a hash of the host script.
+  When a socket path in the app data folder is too long for macOS, the sockets go to a folder in the temporary folder.
+- New sessions always go to the host of the app's build. The app starts it when it does not run.
+- A host of another build is outdated. The app finds it in the socket folder, on the socket from before the per-build
+  sockets (`pty-host-v<N>.sock`) and on the Yardmaster sockets.
+  - When it has no running sessions, the app stops it.
+  - When it has running sessions, it keeps them, and the app shows them with `hostOutdated`. Thus an update does
+    not stop running agents. The host gets no new sessions.
+  - When its last session ends, the app disconnects. With no app connected, the host stops.
+- A terminal of an outdated host shows a bar: some features of the current build do not work in it. Its button stops
+  the outdated hosts and their sessions (`shutdownOutdatedHosts`).
 
 ### Git changes
 
@@ -148,7 +156,11 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 - Each terminal gets the hook variables, also a shell tab. A zsh shell gets `ZDOTDIR=<app data>/shell-integration/zsh`.
   That `.zshenv` sets `ZDOTDIR` back to the user's value and reads the user's startup files. Before the first prompt,
   it adds a `claude` function that adds `--settings <hooks file>`. Thus `claude` typed in a shell tab reports its state.
-  The shell tab then shows in the Agents view until the agent sends SessionEnd (`runsAgent`).
+  The shell tab then shows in the Agents view while the agent runs (`runsAgent`).
+- The main process finds agents in shell tabs itself (`ShellAgents`). Each 2 seconds it reads the process table and
+  finds `claude` and `codex` processes below the shell of each tab. The session then gets `agentProgram`. Thus Codex,
+  which has no hooks, shows too, and the tab leaves the Agents view when the agent process stops. A session of a
+  Yardmaster host has no shell PID, so it gets no agent program.
 - Each state change carries a message and a time. PreToolUse gives a description of the tool call for people
   (`describeTool`, for example "Editing App.tsx" or "Running npm test"). UserPromptSubmit gives a one-line summary of
   the prompt, which the session keeps.
