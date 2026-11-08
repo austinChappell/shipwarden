@@ -107,6 +107,12 @@ describe('GitChangesService', () => {
             inOther('commit', '-q', '-m', 'Add b');
             inOther('push', '-q');
 
+            // A background fetch finds the new commit. A second fetch within the time does nothing.
+            const first = await git.fetch(repo, 60_000);
+            expect(first.error).toBeUndefined();
+            expect((await git.status(repo)).behind).toBe(1);
+            expect((await git.fetch(repo, 60_000)).at).toBe(first.at);
+
             await git.pull(repo);
             expect(readFileSync(join(repo, 'b.txt'), 'utf8')).toBe('bee\n');
 

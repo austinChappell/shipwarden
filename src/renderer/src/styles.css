@@ -6731,3 +6731,33 @@ body.resizing-column * {
     display: flex;
     gap: 10px;
 }
+
+/* New commits on the upstream branch, from the background fetch */
+.changes-behind {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 10px 0;
+    padding: 6px 6px 6px 10px;
+    border: 1px solid color-mix(in srgb, var(--info) 45%, var(--border));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--info) 12%, transparent);
+    color: var(--text-strong);
+    font-size: 12px;
+}
+
+.changes-behind svg {
+    flex: none;
+    color: var(--info);
+}
+
+.changes-fetch-error {
+    margin: 8px 10px 0;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.panel-badge.pull {
+    background: var(--info);
+}

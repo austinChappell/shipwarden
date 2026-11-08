@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
-import { changePathError, parseStatus, type ChangeContents, type ChangeSide, type CommitResult, type GitChanges } from '@shared/git';
+import { changePathError, parseStatus, type ChangeContents, type ChangeSide, type CommitResult, type FetchResult, type GitChanges } from '@shared/git';
 
 /** Files larger than this do not show in a diff. */
 const MAX_DIFF_BYTES = 2 * 1024 * 1024;
@@ -65,8 +65,34 @@ const isBinary = (text: string) => text.slice(0, 8000).includes('\0');
  * Each method runs git in the worktree folder.
  */
 export class GitChangesService {
+    /** The last fetch of each repository, by its common git folder. The worktrees of a repository share it. */
+    private readonly fetches = new Map<string, FetchResult & { running?: Promise<FetchResult> }>();
+
     /** `trash` moves a file or a folder to the Trash. The tests replace it. */
     constructor(private readonly trash: (file: string) => Promise<void>) {}
+
+    /**
+     * Fetches the remote of the upstream branch, so the status knows the commits to pull. It does nothing when the
+     * last fetch of the repository is newer than `maxAgeMs`, or when the branch has no upstream. Git does not ask
+     * for a password: a fetch that needs one fails, and the result has the error.
+     */
+    async fetch(worktree: string, maxAgeMs: number): Promise<FetchResult> {
+        const status = await this.status(worktree);
+        if (!status.upstream) return {};
+        const remote = status.upstream.split('/')[0];
+        const commonDir = path.resolve(worktree, ((await run(worktree, ['rev-parse', '--git-common-dir'])) ?? '.git').trim());
+        const last = this.fetches.get(commonDir);
+        if (last?.running) return last.running;
+        if (last?.at && Date.now() - last.at < maxAgeMs) return { at: last.at, error: last.error };
+        const running = run(worktree, ['fetch', '--quiet', '--prune', remote], { timeout: 60_000 }).then(
+            (): FetchResult => ({ at: Date.now() }),
+            (error): FetchResult => ({ at: Date.now(), error: error instanceof Error ? error.message : String(error) })
+        );
+        this.fetches.set(commonDir, { ...last, running });
+        const result = await running;
+        this.fetches.set(commonDir, result);
+        return result;
+    }
 
     async status(worktree: string): Promise<GitChanges> {
         const output = await run(worktree, ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all']);

@@ -98,6 +98,10 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
   the version of the index (`git restore --worktree`), and a copy of the working version goes to the Trash first.
   A file with a merge conflict is refused.
 - Pull is `git pull --ff-only`. It makes no merge commit. When both sides have new commits, it stops with a message.
+- While a worktree shows, the page asks for a background fetch every minute and on focus. The main process fetches
+  the remote of the upstream (`git fetch --prune`) at most every 5 minutes for each repository (the worktrees of a
+  repository share one fetch). Refresh fetches at once. Git cannot ask for a password, so a fetch that needs one fails
+  quietly with a note. New commits show as "↓n" on the Changes tab and as a banner with Pull.
 - A click on a file opens a diff tab (`ChangeDiffView`, with `@pierre/diffs`): HEAD and the index for a staged
   change, the index and the working file for an unstaged change.
 - The main process runs git only in a worktree of a project, and checks that each path stays in the worktree.

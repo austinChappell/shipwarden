@@ -11,7 +11,7 @@ import type { AppSettings, CommandCheck } from './settings';
 import type { ProjectsState } from './projects';
 import type { ProviderUsage } from './usage';
 import type { UpdateState } from './updates';
-import type { ChangeContents, ChangeSide, CommitResult, GitChanges } from './git';
+import type { ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
 import type { CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult, Worktree } from './worktrees';
@@ -90,6 +90,8 @@ export interface ShipWardenApi {
         discard(worktree: string, paths: string[]): Promise<void>;
         /** Pulls the upstream branch with a fast-forward only. */
         pull(worktree: string): Promise<void>;
+        /** Fetches the upstream remote when the last fetch of the repository is older than 5 minutes, or now with `force`. */
+        fetch(worktree: string, force?: boolean): Promise<FetchResult>;
     };
     updates: {
         /** The state of the updater: the running version, and a newer release when there is one. */
@@ -443,6 +445,7 @@ export const IpcChannels = {
     gitPush: 'git:push',
     gitDiscard: 'git:discard',
     gitPull: 'git:pull',
+    gitFetch: 'git:fetch',
     updatesCheck: 'updates:check',
     updatesInstall: 'updates:install',
     updatesChanged: 'updates:changed',

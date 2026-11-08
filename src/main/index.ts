@@ -514,6 +514,9 @@ function registerIpc(): void {
         gitChanges.commit(await knownWorktree(worktree), String(message), amend === true));
     ipcMain.handle(IpcChannels.gitLastMessage, async (_event, worktree: string) => gitChanges.lastMessage(await knownWorktree(worktree)));
     ipcMain.handle(IpcChannels.gitDiscard, async (_event, worktree: string, paths: unknown) => gitChanges.discard(await knownWorktree(worktree), pathList(paths)));
+    // A background fetch at most every 5 minutes for each repository. "force" (the Refresh button) fetches at once.
+    ipcMain.handle(IpcChannels.gitFetch, async (_event, worktree: string, force?: boolean) =>
+        gitChanges.fetch(await knownWorktree(worktree), force === true ? 0 : 5 * 60 * 1000));
     ipcMain.handle(IpcChannels.gitPull, async (_event, worktree: string) => gitChanges.pull(await knownWorktree(worktree)));
     ipcMain.handle(IpcChannels.gitPush, async (_event, worktree: string) => gitChanges.push(await knownWorktree(worktree)));
     ipcMain.handle(IpcChannels.updatesState, () => updates.getState());

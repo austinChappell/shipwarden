@@ -43,6 +43,7 @@ export function RightPanel(props: Props) {
     // The changes load while the panel shows, also on other tabs, for the count on the Changes tab.
     const git = useGitChanges(props.root);
     const changed = git.changes ? changeCount(git.changes) : 0;
+    const behind = git.changes?.behind ?? 0;
 
     const select = (next: PanelTab) => {
         setTab(next);
@@ -64,8 +65,14 @@ export function RightPanel(props: Props) {
         <aside className="explorer">
             <div className="panel-tabs">
                 {tabButton('files', 'Files', <Files size={17} strokeWidth={1.5} />)}
-                {tabButton('changes', changed ? `Changes (${changed} files)` : 'Changes', <GitCommitVertical size={17} strokeWidth={1.5} />,
-                    changed > 0 ? <span className="panel-badge">{changed}</span> : undefined)}
+                {tabButton(
+                    'changes',
+                    [changed ? `Changes (${changed} files)` : 'Changes', behind ? `${behind} commits to pull` : ''].filter(Boolean).join(' · '),
+                    <GitCommitVertical size={17} strokeWidth={1.5} />,
+                    changed > 0 || behind > 0
+                        ? <span className={`panel-badge${changed === 0 ? ' pull' : ''}`}>{changed > 0 ? changed : `↓${behind}`}</span>
+                        : undefined
+                )}
                 {tabButton('pr', pr ? `Pull request #${pr.number}` : 'Pull request', <GitPullRequest size={17} strokeWidth={1.5} />,
                     unresolved > 0 ? <span className="panel-badge">{unresolved}</span> : undefined)}
                 {tabButton('checks', 'Checks', <CircleCheck size={17} strokeWidth={1.5} />)}
@@ -91,7 +98,8 @@ export function RightPanel(props: Props) {
                     worktree={props.root}
                     changes={git.changes}
                     error={git.error}
-                    onReload={git.reload}
+                    fetched={git.fetched}
+                    onReload={() => git.reload(true)}
                     onOpenChange={props.onOpenChange}
                     onOpenFile={path => props.onOpenFile(path)}
                 />

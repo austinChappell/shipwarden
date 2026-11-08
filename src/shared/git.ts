@@ -40,6 +40,14 @@ export interface ChangeContents {
     binary: boolean;
 }
 
+/** The result of a background fetch of the upstream remote. */
+export interface FetchResult {
+    /** The time of the last fetch of the repository, in milliseconds. Undefined before the first fetch. */
+    at?: number;
+    /** The error of the last fetch, for example when the network or the credentials are missing. */
+    error?: string;
+}
+
 export interface CommitResult {
     /** The short hash of the new commit. */
     hash: string;

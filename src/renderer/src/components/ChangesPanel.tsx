@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Check, ChevronRight, Download, FileText, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Undo2, Upload } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
-import { changeLetter, type ChangeSide, type FileChange, type GitChanges } from '@shared/git';
+import { changeLetter, type ChangeSide, type FetchResult, type FileChange, type GitChanges } from '@shared/git';
 import { gitChanged } from '../git/git-store';
 import { confirmDialog } from './ConfirmDialog';
 import { errorText } from '../util';
@@ -10,6 +10,9 @@ interface Props {
     worktree: string;
     changes: GitChanges | undefined;
     error: string | undefined;
+    /** The last background fetch of the upstream remote. */
+    fetched: FetchResult | undefined;
+    /** Reads the changes again, and fetches the remote now. */
     onReload(): void;
     /** Opens the diff of a file in a tab. */
     onOpenChange(change: FileChange, side: ChangeSide): void;
@@ -68,7 +71,7 @@ function Group({ title, files, open, onToggle, action, children }: {
  * The Changes tab of the right panel: the git changes of the worktree. The user stages and unstages files, opens
  * the diff of a file, writes a commit message and commits, and pushes the branch.
  */
-export function ChangesPanel({ worktree, changes, error, onReload, onOpenChange, onOpenFile }: Props) {
+export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOpenChange, onOpenFile }: Props) {
     const [message, setMessage] = useState('');
     const [amend, setAmend] = useState(false);
     const [busy, setBusy] = useState<string>();
@@ -185,7 +188,7 @@ export function ChangesPanel({ worktree, changes, error, onReload, onOpenChange,
                 {changes.ahead > 0 && <span className="changes-ab" title={`${changes.ahead} commits to push`}><ArrowUp size={12} strokeWidth={2} />{changes.ahead}</span>}
                 {changes.behind > 0 && <span className="changes-ab" title={`${changes.behind} commits to pull`}><ArrowDown size={12} strokeWidth={2} />{changes.behind}</span>}
                 <span className="header-spacer" />
-                {changes.upstream && (
+                {changes.upstream && changes.behind === 0 && (
                     <button
                         className="button changes-push"
                         disabled={!!busy}
@@ -200,8 +203,29 @@ export function ChangesPanel({ worktree, changes, error, onReload, onOpenChange,
                         {busy === 'push' ? <LoaderCircle size={13} className="spin" /> : <Upload size={13} strokeWidth={1.8} />} Push
                     </button>
                 )}
-                <button className="icon-button" title="Refresh" onClick={onReload}><RefreshCw size={14} strokeWidth={1.6} /></button>
+                <button
+                    className="icon-button"
+                    title={`Refresh, and check the remote for new commits${fetched?.at ? `. Last check: ${new Date(fetched.at).toLocaleTimeString()}` : ''}`}
+                    onClick={onReload}
+                >
+                    <RefreshCw size={14} strokeWidth={1.6} />
+                </button>
             </div>
+            {changes.behind > 0 && changes.upstream && (
+                <div className="changes-behind">
+                    <ArrowDown size={14} strokeWidth={2} />
+                    <span>{changes.behind} new {changes.behind === 1 ? 'commit' : 'commits'} on {changes.upstream}</span>
+                    <span className="header-spacer" />
+                    <button className="button primary changes-push" disabled={!!busy} onClick={() => void pull()}>
+                        {busy === 'pull' ? <LoaderCircle size={13} className="spin" /> : <Download size={13} strokeWidth={1.8} />} Pull
+                    </button>
+                </div>
+            )}
+            {fetched?.error && (
+                <div className="changes-fetch-error" title={fetched.error}>
+                    ShipWarden cannot check {changes.upstream ?? 'the remote'} for new commits. Pull and push can still work in a terminal.
+                </div>
+            )}
 
             <div className="changes-commit">
                 <textarea
