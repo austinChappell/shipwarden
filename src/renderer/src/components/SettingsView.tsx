@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Bell, Bot, FolderGit2, FolderTree, GitPullRequest, Info, LayoutDashboard, ListTodo, Network, Palette, Smartphone, SquareTerminal, X, type LucideIcon } from 'lucide-react';
+import { Bell, Bot, FolderTree, GitPullRequest, Info, LayoutDashboard, ListTodo, Network, Palette, Smartphone, SquareTerminal, X, type LucideIcon } from 'lucide-react';
 import type { AppInfo } from '@shared/api';
-import { REPO_COLORS, repoDisplayName, type AppSettings } from '@shared/settings';
+import { repoDisplayName, type AppSettings } from '@shared/settings';
+import { RepoIcon } from './RepoIcon';
 import type { TerminalSettings } from '@shared/terminal';
 import { errorText } from '../util';
 import type { Mode } from '@shared/themes';
@@ -178,7 +179,7 @@ export function SettingsView({ settings, mode, terminal, repos, initialSection, 
                                 title={repo}
                                 onClick={() => selectSection(id)}
                             >
-                                {color ? <span className="repo-color nav" style={{ background: REPO_COLORS[color] }} /> : <FolderGit2 size={15} strokeWidth={1.6} />}
+                                <RepoIcon color={color} size={15} strokeWidth={1.6} />
                                 <span className="settings-nav-text">{repoDisplayName(settings, repo)}</span>
                             </button>
                         );

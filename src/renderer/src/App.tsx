@@ -44,6 +44,7 @@ import { closePane, cycleFocus, findLeaf, focusedTab, groupOf, insertNode, leafO
 import { SplitDivider } from './components/SplitDivider';
 import { shortcutAction, type ShortcutAction } from '@shared/shortcuts';
 import { lspBridge } from './lsp/bridge';
+import type { LspMissingServer } from '@shared/lsp';
 import { terminalPool } from './terminal/terminal-pool';
 import { ChangeDiffView } from './components/ChangeDiffView';
 import type { ChangeSide, FileChange } from '@shared/git';
@@ -1140,6 +1141,27 @@ export function App() {
             setError(`The script "${script.name}" did not start: ${errorText(err)}`);
         }
     };
+    /**
+     * Runs the install command of a missing language server in a new terminal tab of the worktree.
+     * ShipWarden then looks for the server, and starts it when the install completes.
+     */
+    const installServer = async (worktreePath: string, server: LspMissingServer) => {
+        if (!server.installCommand) return;
+        try {
+            const session = await api.terminals.create({
+                cwd: worktreePath,
+                worktreePath,
+                title: `Install ${server.name}`,
+                command: server.installCommand,
+                cols: 120,
+                rows: 32
+            });
+            showSession(session);
+            void lspBridge.watchInstall(server.serverId);
+        } catch (err) {
+            setError(`The install of ${server.name} did not start: ${errorText(err)}`);
+        }
+    };
     /** Saves the scripts of a repository. An empty list removes the scripts from its settings. */
     const saveScripts = async (repoPath: string, scripts: RepoScript[]) => {
         const { scripts: _old, ...rest } = appSettings.repos[repoPath] ?? {};
@@ -1217,6 +1239,7 @@ export function App() {
                     revealColumn={revealHere ? reveal.column : undefined}
                     revealNonce={reveal?.nonce}
                     onError={setError}
+                    onInstallServer={server => void installServer(selectedPath, server)}
                 />
             );
         }

@@ -49,6 +49,7 @@
     "js-yaml": "^4.3.2",
     "node-pty": "^1.1.0",
     "typescript": "^7.0.2",
+    "typescript-language-server": "^6.0.3",
     "vscode-jsonrpc": "^10.0.0"
   },
   "allowScripts": {
@@ -70,7 +71,8 @@
     ],
     "asarUnpack": [
       "node_modules/node-pty/**",
-      "node_modules/@typescript/**"
+      "node_modules/@typescript/**",
+      "node_modules/typescript-language-server/**"
     ],
     "extraResources": [
       {

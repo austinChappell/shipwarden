@@ -520,6 +520,38 @@ button {
     color: var(--muted);
 }
 
+/* The bar at the top of the editor when the file needs a language server that is not installed. */
+.editor-server-banner {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    font-size: 12px;
+}
+
+.editor-server-banner > svg {
+    flex: none;
+    color: var(--info);
+}
+
+.editor-server-text {
+    flex: 1;
+    min-width: 0;
+    color: var(--muted);
+}
+
+.editor-server-text strong {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.editor-server-banner .button {
+    flex: none;
+}
+
 /* File explorer */
 
 .explorer {
@@ -2646,6 +2678,24 @@ body.resizing * {
     margin-top: 4px;
 }
 
+/* A line on the left of a repository and its worktrees, in the repository color. It marks the group. */
+.repo-group.colored {
+    position: relative;
+}
+
+.repo-group.colored::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 10px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--repo-color);
+    opacity: 0.7;
+    pointer-events: none;
+}
+
 .repo-header {
     display: flex;
     align-items: center;
@@ -3969,11 +4019,9 @@ button:focus-visible {
 
 /* The color of a repository, from its repository settings */
 
-.repo-color {
+/* The repository icon in the repository color. It is an icon, not a dot, so that it does not look like a status. */
+.repo-icon {
     flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: 3px;
 }
 
 /* Settings: the agent list */
@@ -4092,12 +4140,6 @@ button:focus-visible {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.repo-color.nav {
-    width: 10px;
-    height: 10px;
-    margin: 0 2px 0 3px;
 }
 
 /* The "+" menu of the tab bar */
