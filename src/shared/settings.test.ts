@@ -146,3 +146,19 @@ describe('missingDefaultAgents', () => {
         expect(missingDefaultAgents([...agents, { id: 'g', name: 'Gemini', command: 'gemini --yolo' }, { id: 'o', name: 'OC', command: '~/.opencode/bin/opencode' }])).toEqual([]);
     });
 });
+
+describe('worktree sort and hidden worktrees', () => {
+    it('moves the sort of older versions into the worktree settings', () => {
+        expect(normalizeSettings({ worktreeSort: { by: 'name', direction: 'desc' } }).worktrees.sort).toEqual({ by: 'name', direction: 'desc' });
+        expect(normalizeSettings({ worktreeSort: { by: 'name', direction: 'desc' }, worktrees: { sort: { by: 'updated', direction: 'asc' } } }).worktrees.sort)
+            .toEqual({ by: 'updated', direction: 'asc' });
+        expect(normalizeSettings({}).worktrees.sort).toEqual({ by: 'created', direction: 'asc' });
+        expect('worktreeSort' in normalizeSettings({ worktreeSort: { by: 'name', direction: 'asc' } })).toBe(false);
+    });
+
+    it('keeps the hidden worktrees with an absolute path', () => {
+        expect(normalizeSettings({ hiddenWorktrees: { '/w/a': {}, '/w/b': { until: 5 }, 'rel': {}, '/w/c': 'x', '/w/d': { until: 'soon' } } }).hiddenWorktrees)
+            .toEqual({ '/w/a': {}, '/w/b': { until: 5 }, '/w/d': {} });
+        expect(normalizeSettings({ hiddenWorktrees: {} }).hiddenWorktrees).toBeUndefined();
+    });
+});

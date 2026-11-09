@@ -4,7 +4,7 @@ import { baseName } from '@shared/files';
 import type { BranchSummary, CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
-import type { Worktree } from '@shared/worktrees';
+import { isHiddenAt, pruneHiddenWorktrees, snoozeEnd, SNOOZE_LABELS, type SnoozeOption, type Worktree } from '@shared/worktrees';
 import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
 import { LogView } from './components/LogView';
@@ -1115,6 +1115,17 @@ export function App() {
         setAppSettings(await api.settings.update({ worktreeNames: names }));
     };
 
+    /**
+     * Hides a worktree in the sidebar, or shows it again with `undefined`. With `until`, the worktree is snoozed and
+     * shows again at that time. The worktree stays on disk. The update also removes the snoozes that ended.
+     */
+    const setWorktreeHidden = async (path: string, hidden: { until?: number } | undefined) => {
+        const next = { ...(pruneHiddenWorktrees(appSettings.hiddenWorktrees, Date.now()) ?? {}) };
+        if (hidden) next[path] = hidden;
+        else delete next[path];
+        setAppSettings(await api.settings.update({ hiddenWorktrees: next }));
+    };
+
     /** Creates a worktree from the New worktree dialog: its branch, start point, display name and agent. */
     const createWorktree = async (repoPath: string, request: NewWorktreeRequest) => {
         const worktree = await api.worktrees.create({
@@ -1205,6 +1216,7 @@ export function App() {
                 return next;
             });
             if (appSettings.worktreeNames?.[worktree.path]) await setWorktreeName(worktree.path, undefined);
+            if (appSettings.hiddenWorktrees?.[worktree.path]) await setWorktreeHidden(worktree.path, undefined);
             const list = await refreshWorktrees(repoPath);
             if (selectedPath === worktree.path) {
                 setSelectedPath(list[0]?.path ?? worktrees.find(item => item.path !== worktree.path)?.path);
@@ -1283,15 +1295,32 @@ export function App() {
     /** The context menu of a worktree in the sidebar. */
     const worktreeMenu = async (repoPath: string, worktree: Worktree) => {
         const link = links[worktree.path];
+        const hidden = appSettings.hiddenWorktrees?.[worktree.path];
+        const snoozeOptions = Object.keys(SNOOZE_LABELS) as SnoozeOption[];
         const choice = await api.app.contextMenu([
             ...(link ? [{ id: 'task', label: `Open Task${link.key ? ` ${link.key}` : ''}` }, { type: 'separator' as const }] : []),
             { id: 'rename', label: 'Rename…' },
+            { type: 'separator' as const },
+            ...(isHiddenAt(hidden, Date.now())
+                ? [{ id: 'show', label: hidden?.until ? 'Stop Snooze' : 'Show in Sidebar' }]
+                : [
+                    { id: 'hide', label: 'Hide from Sidebar' },
+                    { label: 'Snooze', submenu: snoozeOptions.map(option => ({ id: `snooze:${option}`, label: SNOOZE_LABELS[option] })) }
+                ]),
             { type: 'separator' as const },
             { id: 'remove', label: 'Remove Worktree…', enabled: !worktree.isMain },
             { id: 'removeBranch', label: worktree.branch ? `Remove Worktree and Delete Branch "${worktree.branch}"…` : 'Remove Worktree and Delete Branch…', enabled: !worktree.isMain && !!worktree.branch }
         ]);
         if (choice === 'task') openLinkedTask(worktree.path);
         if (choice === 'rename') await renameWorktree(worktree);
+        try {
+            if (choice === 'show') await setWorktreeHidden(worktree.path, undefined);
+            if (choice === 'hide') await setWorktreeHidden(worktree.path, {});
+            const option = choice?.startsWith('snooze:') ? choice.slice('snooze:'.length) as SnoozeOption : undefined;
+            if (option && option in SNOOZE_LABELS) await setWorktreeHidden(worktree.path, { until: snoozeEnd(option, new Date()) });
+        } catch (err) {
+            setError(errorText(err));
+        }
         if (choice === 'remove') await removeWorktree(repoPath, worktree);
         if (choice === 'removeBranch') await removeWorktree(repoPath, worktree, { deleteBranch: true });
     };
@@ -1529,11 +1558,8 @@ export function App() {
                     onRemove={(repo, worktree) => removeWorktree(repo, worktree)}
                     onWorktreeMenu={worktreeMenu}
                     onOpenTask={openLinkedTask}
-                    worktreeSort={appSettings.worktreeSort}
-                    onChangeWorktreeSort={sort => {
-                        setAppSettings(current => ({ ...current, worktreeSort: sort }));
-                        api.settings.update({ worktreeSort: sort }).then(setAppSettings, err => setError(errorText(err)));
-                    }}
+                    worktreeSort={appSettings.worktrees.sort}
+                    hiddenWorktrees={appSettings.hiddenWorktrees}
                     onMoveProject={(id, toIndex) => {
                         api.projects.move(id, toIndex).then(setProjects, err => setError(errorText(err)));
                     }}

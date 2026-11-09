@@ -32,7 +32,7 @@ describe('worktree settings', () => {
     it('gives defaults and keeps valid values', () => {
         expect(normalizeWorktreeSettings(undefined).copyIgnored).toMatchObject({ enabled: true, mode: 'matching', patterns: ['.env', '.env.*'] });
         expect(normalizeWorktreeSettings({ directory: ' ~/wt ', copyIgnored: { enabled: false, mode: 'allExcept', patterns: [' a ', 'a', '', 4], exclude: [] } }))
-            .toEqual({ directory: '~/wt', copyIgnored: { enabled: false, mode: 'allExcept', patterns: ['a'], exclude: [] } });
+            .toEqual({ directory: '~/wt', copyIgnored: { enabled: false, mode: 'allExcept', patterns: ['a'], exclude: [] }, sort: { by: 'created', direction: 'asc' } });
         // Settings from before the mode keep their patterns and get the default exclusions.
         expect(normalizeWorktreeSettings({ copyIgnored: { enabled: true, patterns: ['.env'] } }).copyIgnored.exclude).toContain('node_modules/');
         expect(normalizeRepoWorktreeSettings({ setupScript: 'npm ci\n\n', teardownScript: '  ' })).toEqual({ setupScript: 'npm ci' });

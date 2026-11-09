@@ -48,7 +48,11 @@ export interface ConfirmRequest {
     danger?: boolean;
 }
 
-export type ContextMenuItem = { id: string; label: string; enabled?: boolean } | { type: 'separator' };
+/** An item of a native context menu. An item with `submenu` opens a menu with more items. */
+export type ContextMenuItem =
+    | { id: string; label: string; enabled?: boolean }
+    | { label: string; submenu: ContextMenuItem[]; enabled?: boolean }
+    | { type: 'separator' };
 
 /** The state of the trusted extra certificates, for Settings › Network. */
 export interface NetworkStatus {

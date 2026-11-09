@@ -138,3 +138,76 @@ export function sortWorktrees(worktrees: readonly Worktree[], sort: WorktreeSort
     const linked = worktrees.filter(worktree => !worktree.isMain).sort(compare);
     return [...main, ...linked];
 }
+
+/**
+ * A worktree that the sidebar does not show. The worktree stays on disk.
+ * Without `until`, the worktree stays hidden until the user shows it again. With `until`, it is snoozed: it shows
+ * again at that time in milliseconds.
+ */
+export interface HiddenWorktree {
+    until?: number;
+}
+
+/** Keeps the entries with an absolute path. A wrong `until` makes the entry hidden without an end. */
+export function normalizeHiddenWorktrees(value: unknown): Record<string, HiddenWorktree> | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const entries = Object.entries(value as Record<string, unknown>)
+        .filter(([path, entry]) => path.startsWith('/') && !!entry && typeof entry === 'object')
+        .map(([path, entry]): [string, HiddenWorktree] => {
+            const until = (entry as Record<string, unknown>).until;
+            return [path, typeof until === 'number' && Number.isFinite(until) && until > 0 ? { until } : {}];
+        });
+    return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+/** True when the entry hides its worktree at the time `now`. A snooze that ended does not hide. */
+export function isHiddenAt(entry: HiddenWorktree | undefined, now: number): boolean {
+    return !!entry && (entry.until === undefined || entry.until > now);
+}
+
+/** Removes the snoozes that ended before `now`. Returns undefined when no entry stays. */
+export function pruneHiddenWorktrees(hidden: Record<string, HiddenWorktree> | undefined, now: number): Record<string, HiddenWorktree> | undefined {
+    const entries = Object.entries(hidden ?? {}).filter(([, entry]) => isHiddenAt(entry, now));
+    return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+/** Returns the time of the next snooze end after `now`, or undefined when no snooze is active. */
+export function nextSnoozeEnd(hidden: Record<string, HiddenWorktree> | undefined, now: number): number | undefined {
+    const ends = Object.values(hidden ?? {}).map(entry => entry.until).filter((until): until is number => until !== undefined && until > now);
+    return ends.length ? Math.min(...ends) : undefined;
+}
+
+/** The snooze durations of the worktree menu. */
+export type SnoozeOption = 'hour' | 'fourHours' | 'tomorrow' | 'nextWeek';
+
+export const SNOOZE_LABELS: Record<SnoozeOption, string> = {
+    hour: 'For 1 Hour',
+    fourHours: 'For 4 Hours',
+    tomorrow: 'Until Tomorrow',
+    nextWeek: 'Until Next Week'
+};
+
+/** The hour of the local day when "tomorrow" and "next week" end. */
+const SNOOZE_MORNING_HOUR = 9;
+
+/** Returns the end of a snooze that starts at `now`, in local time. "Next week" ends on the next Monday. */
+export function snoozeEnd(option: SnoozeOption, now: Date): number {
+    if (option === 'hour') return now.getTime() + 60 * 60 * 1000;
+    if (option === 'fourHours') return now.getTime() + 4 * 60 * 60 * 1000;
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), SNOOZE_MORNING_HOUR);
+    // getDay() is 0 on Sunday and 1 on Monday. The next Monday is 1 to 7 days later.
+    const days = option === 'tomorrow' ? 1 : ((8 - now.getDay()) % 7 || 7);
+    end.setDate(end.getDate() + days);
+    return end.getTime();
+}
+
+/** The text that tells when a snooze ends, for example "until 3:00 PM" or "until Mon 9:00 AM". */
+export function snoozeText(until: number, now: number): string {
+    const end = new Date(until);
+    const time = end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const sameDay = new Date(now).toDateString() === end.toDateString();
+    const soon = until - now < 6 * 24 * 60 * 60 * 1000;
+    if (sameDay) return `until ${time}`;
+    if (soon) return `until ${end.toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
+    return `until ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`;
+}

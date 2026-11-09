@@ -501,9 +501,13 @@ function registerIpc(): void {
         worktrees.deleteBranch(String(repoPath), String(branch), force === true));
     ipcMain.handle(IpcChannels.appContextMenu, (event, items: ContextMenuItem[]) => new Promise<string | undefined>(resolve => {
         let chosen: string | undefined;
-        const template = (Array.isArray(items) ? items : []).map((item): Electron.MenuItemConstructorOptions => ('type' in item
-            ? { type: 'separator' }
-            : { label: String(item.label), enabled: item.enabled !== false, click: () => { chosen = String(item.id); } }));
+        // A submenu holds more items. The depth limit stops a menu without an end.
+        const build = (list: unknown, depth: number): Electron.MenuItemConstructorOptions[] => (Array.isArray(list) ? list as ContextMenuItem[] : []).map(item => {
+            if ('type' in item) return { type: 'separator' };
+            if ('submenu' in item) return { label: String(item.label), enabled: item.enabled !== false, submenu: depth < 3 ? build(item.submenu, depth + 1) : [] };
+            return { label: String(item.label), enabled: item.enabled !== false, click: () => { chosen = String(item.id); } };
+        });
+        const template = build(items, 0);
         const window = BrowserWindow.fromWebContents(event.sender) ?? undefined;
         // The click comes before the close callback, so the callback returns the chosen item.
         Menu.buildFromTemplate(template).popup({ window, callback: () => resolve(chosen) });

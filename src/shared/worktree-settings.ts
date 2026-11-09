@@ -1,3 +1,5 @@
+import { DEFAULT_WORKTREE_SORT, normalizeWorktreeSort, type WorktreeSort } from './worktrees';
+
 /** The ignored files that a new worktree gets from the main worktree, when the user did not choose other patterns. */
 export const DEFAULT_COPY_PATTERNS = ['.env', '.env.*'];
 
@@ -28,6 +30,8 @@ export interface WorktreeSettings {
     /** The folder for new worktrees: <directory>/<repository name>/<branch>. Empty: ~/.shipwarden/worktrees. */
     directory?: string;
     copyIgnored: CopyIgnoredSettings;
+    /** The order of the worktrees of each repository in the sidebar. */
+    sort: WorktreeSort;
 }
 
 /** The worktree settings of one repository. A missing value uses the global setting. */
@@ -52,7 +56,7 @@ export interface ResolvedWorktreeSettings {
 
 export const DEFAULT_COPY_SETTINGS: CopyIgnoredSettings = { enabled: true, mode: 'matching', patterns: DEFAULT_COPY_PATTERNS, exclude: DEFAULT_COPY_EXCLUDE };
 
-export const DEFAULT_WORKTREE_SETTINGS: WorktreeSettings = { copyIgnored: DEFAULT_COPY_SETTINGS };
+export const DEFAULT_WORKTREE_SETTINGS: WorktreeSettings = { copyIgnored: DEFAULT_COPY_SETTINGS, sort: DEFAULT_WORKTREE_SORT };
 
 function cleanPatterns(value: unknown): string[] {
     if (!Array.isArray(value)) return [];
@@ -80,10 +84,18 @@ function cleanScript(value: unknown): string | undefined {
     return typeof value === 'string' && value.trim() ? value.replace(/\s+$/, '') : undefined;
 }
 
-export function normalizeWorktreeSettings(value: unknown): WorktreeSettings {
+/**
+ * Converts stored worktree settings to valid settings. `legacySort` is the sort of older versions, which kept it
+ * outside the worktree settings. It applies when the worktree settings have no sort.
+ */
+export function normalizeWorktreeSettings(value: unknown, legacySort?: unknown): WorktreeSettings {
     const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
     const directory = cleanText(raw.directory);
-    return { ...(directory ? { directory } : {}), copyIgnored: normalizeCopy(raw.copyIgnored) ?? DEFAULT_WORKTREE_SETTINGS.copyIgnored };
+    return {
+        ...(directory ? { directory } : {}),
+        copyIgnored: normalizeCopy(raw.copyIgnored) ?? DEFAULT_WORKTREE_SETTINGS.copyIgnored,
+        sort: normalizeWorktreeSort(raw.sort ?? legacySort)
+    };
 }
 
 /** Returns the valid worktree settings of a repository, or undefined when nothing differs from the global settings. */

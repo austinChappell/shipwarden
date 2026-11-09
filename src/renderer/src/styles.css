@@ -296,6 +296,39 @@ button {
     visibility: hidden;
 }
 
+/* Hidden and snoozed worktrees: the "N hidden" row of a repository, and the dimmed rows under it. */
+.worktree-hidden-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.worktree-hidden-toggle:hover {
+    background: var(--hover);
+    color: var(--text);
+}
+
+.worktree-row.hidden-worktree {
+    opacity: 0.6;
+}
+
+.worktree-row.hidden-worktree:hover,
+.worktree-row.hidden-worktree.selected {
+    opacity: 1;
+}
+
+.worktree-hidden-mark {
+    display: inline-flex;
+    margin-right: 5px;
+    color: var(--muted);
+    vertical-align: -1px;
+}
+
 .worktree-row:hover .row-action {
     visibility: visible;
 }
@@ -4056,27 +4089,6 @@ button:focus-visible {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.sort-menu-root {
-    position: relative;
-}
-
-.sort-menu-root .icon-button.active {
-    background: var(--hover);
-    color: var(--text-strong);
-}
-
-.project-header .project-menu.sort-menu {
-    left: auto;
-    right: 0;
-    width: 220px;
-}
-
-.sort-menu-note {
-    padding: 4px 8px 6px;
-    color: var(--muted);
-    font-size: 11px;
 }
 
 /* Sidebar search */
@@ -8866,4 +8878,10 @@ button.gg-ref:hover {
 .merge-card .merge-row {
     flex-wrap: wrap;
     justify-content: flex-end;
+}
+
+.worktree-sort-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }

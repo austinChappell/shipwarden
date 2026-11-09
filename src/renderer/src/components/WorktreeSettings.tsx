@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { repoDisplayName, type AppSettings } from '@shared/settings';
 import { DEFAULT_COPY_EXCLUDE, DEFAULT_COPY_PATTERNS, type CopyIgnoredSettings, type CopyMode, type WorktreeSettings as WorktreeSettingsValue } from '@shared/worktree-settings';
+import { WORKTREE_SORT_LABELS, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 
@@ -136,6 +137,31 @@ export function CopyEditor({ copy, repo, onSave }: { copy: CopyIgnoredSettings; 
     );
 }
 
+const SORT_KEYS: WorktreeSortKey[] = ['name', 'created', 'updated'];
+
+function directionLabel(by: WorktreeSortKey, direction: WorktreeSort['direction']): string {
+    if (by === 'name') return direction === 'asc' ? 'A to Z' : 'Z to A';
+    return direction === 'asc' ? 'Oldest first' : 'Newest first';
+}
+
+/** The sort key and the direction of the worktrees in the sidebar. */
+function SortControl({ sort, onSave }: { sort: WorktreeSort; onSave(sort: WorktreeSort): void }) {
+    return (
+        <div className="worktree-sort-control">
+            <select className="tasks-select" aria-label="Sort worktrees by" value={sort.by} onChange={event => onSave({ ...sort, by: event.target.value as WorktreeSortKey })}>
+                {SORT_KEYS.map(by => <option key={by} value={by}>{WORKTREE_SORT_LABELS[by]}</option>)}
+            </select>
+            <div className="segmented compact" role="radiogroup" aria-label="Sort direction">
+                {(['asc', 'desc'] as const).map(direction => (
+                    <button key={direction} className={sort.direction === direction ? 'selected' : ''} onClick={() => onSave({ ...sort, direction })}>
+                        {directionLabel(sort.by, direction)}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 interface Props {
     settings: AppSettings;
     /** The repositories of the active project, for the preview. */
@@ -143,7 +169,7 @@ interface Props {
     onSave(change: Partial<AppSettings>): Promise<void>;
 }
 
-/** The worktree settings of all repositories: the folder of new worktrees and the git-ignored files to copy. */
+/** The worktree settings of all repositories: the sidebar sort, the folder of new worktrees and the git-ignored files to copy. */
 export function WorktreeSettings({ settings, repos, onSave }: Props) {
     const value = settings.worktrees;
     const [defaultFolder, setDefaultFolder] = useState('~/.shipwarden/worktrees');
@@ -172,6 +198,11 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                 description="These settings apply to all repositories. A repository can have its own values in its settings, with a setup and a teardown script."
                 card
             >
+                <SettingsRow
+                    label="Sort order"
+                    description="The order of the worktrees of each repository in the sidebar. The main worktree stays first."
+                    control={<SortControl sort={value.sort} onSave={sort => void save({ sort })} />}
+                />
                 <SettingsRow
                     label="Folder"
                     description={<>New worktrees go to <code>{value.directory ?? defaultFolder}/&lt;repository&gt;/&lt;branch&gt;</code>. Empty: the default folder.</>}

@@ -1,7 +1,7 @@
 import { DEFAULT_NOTIFICATION_SETTINGS, normalizeNotificationSettings, type NotificationSettings } from './notifications';
 import { DEFAULT_WORKTREE_SETTINGS, normalizeRepoWorktreeSettings, normalizeWorktreeSettings, type RepoWorktreeSettings, type WorktreeSettings } from './worktree-settings';
 import { DEFAULT_APPEARANCE, normalizeAppearance, type Appearance } from './themes';
-import { DEFAULT_WORKTREE_SORT, normalizeWorktreeSort, type WorktreeSort } from './worktrees';
+import { normalizeHiddenWorktrees, type HiddenWorktree } from './worktrees';
 import { DEFAULT_REMOTE_SETTINGS, normalizeRemoteSettings, type RemoteSettings } from './remote';
 
 /**
@@ -93,8 +93,8 @@ export interface AppSettings {
     notifications: NotificationSettings;
     /** The display names of worktrees, by the worktree path. A worktree without a name shows its branch. */
     worktreeNames?: Record<string, string>;
-    /** The order of the worktrees of each repository in the sidebar. */
-    worktreeSort: WorktreeSort;
+    /** The worktrees that the sidebar does not show, by the worktree path. A snoozed worktree shows again at its end time. */
+    hiddenWorktrees?: Record<string, HiddenWorktree>;
     /** The connection of the phone app. */
     remote: RemoteSettings;
 }
@@ -170,8 +170,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     network: { useSystemCertificates: false },
     worktrees: DEFAULT_WORKTREE_SETTINGS,
     notifications: DEFAULT_NOTIFICATION_SETTINGS,
-    remote: DEFAULT_REMOTE_SETTINGS,
-    worktreeSort: DEFAULT_WORKTREE_SORT
+    remote: DEFAULT_REMOTE_SETTINGS
 };
 
 /** The maximum length of an agent command. A longer value is not a command that a person types. */
@@ -247,11 +246,12 @@ export function normalizeSettings(value: unknown): AppSettings {
         defaultAgentId,
         repos: normalizeRepos(raw.repos, agents),
         network: normalizeNetwork(raw.network),
-        worktrees: normalizeWorktreeSettings(raw.worktrees),
+        // Older versions kept the sort in "worktreeSort".
+        worktrees: normalizeWorktreeSettings(raw.worktrees, raw.worktreeSort),
         notifications: normalizeNotificationSettings(raw.notifications),
         remote: normalizeRemoteSettings(raw.remote),
-        worktreeSort: normalizeWorktreeSort(raw.worktreeSort),
         ...(normalizeWorktreeNames(raw.worktreeNames) ? { worktreeNames: normalizeWorktreeNames(raw.worktreeNames) } : {}),
+        ...(normalizeHiddenWorktrees(raw.hiddenWorktrees) ? { hiddenWorktrees: normalizeHiddenWorktrees(raw.hiddenWorktrees) } : {}),
         ...(raw.reviewOwners === 'all'
             ? { reviewOwners: 'all' as const }
             : Array.isArray(raw.reviewOwners)
