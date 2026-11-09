@@ -55,4 +55,14 @@ describe('TrustedCertificates', () => {
         expect((await trust.apply({ caCertsFile: '/empty.pem', useSystemCertificates: false })).file?.error).toMatch(/no PEM certificates/);
         expect(calls.at(-1)).toEqual(['DEFAULT']);
     });
+
+    it('keeps the extra certificates without the defaults for the in-app browser', async () => {
+        const { deps } = fake({ '/ca.pem': `${CERT_A}\n${CERT_A}\n${CERT_B}` });
+        const trust = new TrustedCertificates('/b.pem', deps);
+        expect(trust.extraCertificates()).toEqual([]);
+        await trust.apply({ caCertsFile: '/ca.pem', useSystemCertificates: true });
+        expect(trust.extraCertificates()).toEqual([CERT_A, CERT_B, SYSTEM]);
+        await trust.apply({ useSystemCertificates: false });
+        expect(trust.extraCertificates()).toEqual([]);
+    });
 });

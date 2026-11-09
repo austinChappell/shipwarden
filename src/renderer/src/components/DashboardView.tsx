@@ -20,6 +20,8 @@ import type { RepoRef } from '@shared/github';
 import { dashboardStore, useDashboard } from '../dashboard-store';
 import { seenStore, useSeenVersion } from '../seen-store';
 import { timeAgo } from '../util';
+import { openLink } from '../links';
+import type { ClickModifiers } from '@shared/browser';
 import { Markdown } from './Markdown';
 import { Masonry } from './Masonry';
 import { confirmDialog } from './ConfirmDialog';
@@ -37,7 +39,7 @@ interface Props {
     onOpenSettings(): void;
 }
 
-const openUrl = (url: string | undefined) => url && window.shipwarden.github.openInBrowser(url);
+const openUrl = (url: string | undefined, click?: ClickModifiers) => url && openLink(url, click);
 
 function Section({ icon, title, count, actions, children }: { icon: ReactNode; title: string; count: number; actions?: ReactNode; children: ReactNode }) {
     return (
@@ -96,7 +98,7 @@ function CommentRow({ seenKey, author, createdAt, label, preview, body, onOpen, 
     label?: string;
     preview: string;
     body: ReactNode;
-    onOpen(): void;
+    onOpen(click?: ClickModifiers): void;
     openTitle: string;
     onHideAuthor(author: string): void;
     onCreateRule(author: string, text: string): void;
@@ -141,7 +143,7 @@ function CommentRow({ seenKey, author, createdAt, label, preview, body, onOpen, 
                     >
                         <EyeOff size={13} strokeWidth={1.7} />
                     </button>
-                    <button className="icon-button" title={openTitle} onClick={event => { event.stopPropagation(); seenStore.mark([seenKey]); onOpen(); }}>
+                    <button className="icon-button" title={openTitle} onClick={event => { event.stopPropagation(); seenStore.mark([seenKey]); onOpen(event); }}>
                         <ExternalLink size={13} strokeWidth={1.7} />
                     </button>
                     {!seen && (
@@ -347,7 +349,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                             const task: TaskCommentItem = items[0].comment;
                             return (
                                 <div key={key} className="dash-group">
-                                    <button className="dash-row dash-group-head" onClick={() => openUrl(task.taskUrl)} title="Open the task in the browser">
+                                    <button className="dash-row dash-group-head" onClick={event => openUrl(task.taskUrl, event)} title="Open the task in the browser">
                                         <span className={`dash-ticket${task.taskKey ? '' : ' none'}`}>{task.taskKey ?? ''}</span>
                                         <span className="dash-title">{task.taskTitle}</span>
                                         <span className="dash-meta"><span className="dash-repo">{items[0].source.name}</span></span>
@@ -360,7 +362,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                             createdAt={comment.createdAt}
                                             preview={comment.body}
                                             body={<Markdown className="comment-body" text={comment.body} />}
-                                            onOpen={() => openUrl(comment.taskId && task.taskUrl)}
+                                            onOpen={click => openUrl(comment.taskId && task.taskUrl, click)}
                                             openTitle="Open the task in the browser"
                                             onHideAuthor={onHideAuthor}
                                             onCreateRule={onCreateRule}

@@ -27,6 +27,7 @@ import { Combobox, sortedGroups } from './Combobox';
 import { Markdown } from './Markdown';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { alertDialog, confirmDialog } from './ConfirmDialog';
+import { openLink } from '../links';
 
 /** The smallest width of the task details when the user drags the border of the task list. */
 const MIN_DETAIL_WIDTH = 320;
@@ -616,7 +617,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                     <div className="task-detail-top">
                         {detail.key && <span className="task-key">{detail.key}</span>}
                         {detail.url && (
-                            <button className="link-button" onClick={() => window.shipwarden.github.openInBrowser(detail.url!)}>
+                            <button className="link-button" onClick={event => openLink(detail.url!, event)}>
                                 Open <ExternalLink size={12} strokeWidth={1.6} />
                             </button>
                         )}
@@ -733,7 +734,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                                 onChange={selectCollection}
                             />
                             {current?.url && (
-                                <button className="icon-button collection-open" title="Open the collection in the browser" onClick={() => window.shipwarden.github.openInBrowser(current.url!)}>
+                                <button className="icon-button collection-open" title="Open the collection in the browser" onClick={event => openLink(current.url!, event)}>
                                     <ExternalLink size={14} strokeWidth={1.6} />
                                 </button>
                             )}

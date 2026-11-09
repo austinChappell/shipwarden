@@ -19,6 +19,7 @@ import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSe
 import type { GraphLog, GraphScope } from './git-graph';
 import type { BranchList, CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings } from './worktree-settings';
+import type { BrowserBounds, BrowserState } from './browser';
 
 /** Where a click on a notification goes. */
 export type NotificationTarget =
@@ -324,6 +325,31 @@ export interface ShipWardenApi {
         /** Stops a process of a worktree and its child processes: SIGTERM, then SIGKILL after 3 seconds. */
         stop(worktreePath: string, pid: number): Promise<void>;
     };
+    /** The in-app browser. Each browser tab has a view in the main process. */
+    browser: {
+        /** Makes the view of a browser tab and loads the address. */
+        create(id: string, url: string): void;
+        /** Shows the view at a place in the window (CSS pixels), or hides it with null. */
+        setBounds(id: string, bounds: BrowserBounds | null): void;
+        /** Loads an address. The main process refuses all schemes except http and https. */
+        load(id: string, url: string): void;
+        back(id: string): void;
+        forward(id: string): void;
+        reload(id: string): void;
+        stop(id: string): void;
+        /** Gives the keyboard focus to the page. */
+        focus(id: string): void;
+        /** Closes the view and its page. */
+        destroy(id: string): void;
+        state(id: string): Promise<BrowserState | undefined>;
+        onState(listener: (state: BrowserState) => void): () => void;
+        /** A page asked for a new window. The page of the app opens a new browser tab for it. */
+        onOpenTab(listener: (url: string, openerId: string) => void): () => void;
+        /** A browser view got the keyboard focus. */
+        onFocus(listener: (id: string) => void): () => void;
+        /** The user pressed ⌘L in a browser view. */
+        onFocusAddress(listener: (id: string) => void): () => void;
+    };
     terminals: {
         settings(): Promise<TerminalSettings>;
         list(): Promise<TerminalSession[]>;
@@ -477,6 +503,20 @@ export const IpcChannels = {
     appConfirmRequest: 'app:confirmRequest',
     appConfirmAnswer: 'app:confirmAnswer',
     appRunKey: 'app:runKey',
+    browserCreate: 'browser:create',
+    browserSetBounds: 'browser:setBounds',
+    browserLoad: 'browser:load',
+    browserBack: 'browser:back',
+    browserForward: 'browser:forward',
+    browserReload: 'browser:reload',
+    browserStop: 'browser:stop',
+    browserFocus: 'browser:focus',
+    browserDestroy: 'browser:destroy',
+    browserState: 'browser:state',
+    browserStateChanged: 'browser:stateChanged',
+    browserOpenTab: 'browser:openTab',
+    browserFocused: 'browser:focused',
+    browserFocusAddress: 'browser:focusAddress',
     usageGet: 'usage:get',
     usageRefresh: 'usage:refresh',
     usageChanged: 'usage:changed',

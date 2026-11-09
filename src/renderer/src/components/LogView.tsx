@@ -4,6 +4,7 @@ import type { CheckRun, JobProgress, JobStep, RepoTarget } from '@shared/github'
 import { monaco } from '../editor/monaco';
 import { errorText, formatDuration } from '../util';
 import { confirmDialog } from './ConfirmDialog';
+import { openLink } from '../links';
 
 interface Props {
     target: RepoTarget;
@@ -204,7 +205,7 @@ export function LogView({ target, check, onSendToAgent }: Props) {
                 <button className="icon-button" title="Load the log again" onClick={load}><RefreshCw size={14} strokeWidth={1.6} /></button>
                 {check.status === 'completed' && <button className="icon-button" title="Run this job again" disabled={busy} onClick={rerun}><RotateCw size={14} strokeWidth={1.6} /></button>}
                 {onSendToAgent && <button className="icon-button" title="Send the log to the agent" onClick={() => onSendToAgent(check)}><Bot size={14} strokeWidth={1.6} /></button>}
-                {check.url && <button className="icon-button" title="Open on GitHub" onClick={() => window.shipwarden.github.openInBrowser(check.url!)}><ExternalLink size={14} strokeWidth={1.6} /></button>}
+                {check.url && <button className="icon-button" title="Open on GitHub" onClick={event => openLink(check.url!, event)}><ExternalLink size={14} strokeWidth={1.6} /></button>}
             </div>
             {message && <div className="editor-failure">{message}</div>}
             {logMissing && !logReady && <JobSteps progress={progress} error={progressError} />}

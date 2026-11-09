@@ -4,6 +4,7 @@ import type { UpdateState } from '@shared/updates';
 import { errorText, timeAgo } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { Markdown } from './Markdown';
+import { openLink } from '../links';
 
 const DISMISS_KEY = 'shipwarden.updateDismissed';
 
@@ -49,7 +50,7 @@ function NotesDialog({ state, onClose }: { state: UpdateState; onClose(): void }
                     <Markdown text={update.notes || 'This release has no notes.'} className="update-notes-body" />
                 </div>
                 <footer className="modal-footer">
-                    <button className="link-button" onClick={() => window.shipwarden.github.openInBrowser(update.url)}>
+                    <button className="link-button" onClick={event => openLink(update.url, event)}>
                         Open on GitHub <ExternalLink size={12} />
                     </button>
                     <span className="header-spacer" />

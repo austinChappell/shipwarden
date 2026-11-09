@@ -328,7 +328,7 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 - For a network that inspects TLS traffic (for example a company VPN), Settings › Network has a CA certificates file
   (PEM) and a switch for the macOS keychain. An empty file setting uses `NODE_EXTRA_CA_CERTS` of the login shell
   (`loginShellCaFile`, read with `PATH`). The idea comes from the CA setting of the ClickUp plugin for Orca.
-- Chromium (the renderer) uses the macOS keychain already. The settings are for the Node parts.
+- Chromium (the renderer) uses the macOS keychain already. The settings are for the Node parts and for the in-app browser.
 - Main process: `TrustedCertificates.apply` reads the certificates and calls `tls.setDefaultCACertificates` with the
   default certificates plus the extra ones. It runs before the first request (`networkReady`: the GitHub client and the
   usage bar wait for it) and again when the setting changes. New connections use the new certificates.
@@ -338,6 +338,25 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 - A failed fetch shows its cause (`networkErrorDetail`, and `networkDetail` in the plugin SDK). A certificate error
   such as `SELF_SIGNED_CERT_IN_CHAIN` also tells the user to go to Settings › Network. "Test" connects to GitHub and ClickUp.
 
+### In-app browser
+- A browser tab is a tab of the worktree ("b:<view ID>"), next to the terminal, file, diff and log tabs. It can go
+  into a split. The "+" menu of the tab strip has "Browser". Browser tabs do not stay after a restart.
+- `BrowserViews` (main) makes one `WebContentsView` for each browser tab and adds it to the main window. The page
+  (`BrowserView`) shows the toolbar and sends the place of its content element in each frame. The view hides when the
+  tab does not show, while a dialog or a menu of the page is above it, and while the user drags a tab.
+- The views have no preload script, no Node integration, context isolation and the sandbox. They use their own
+  session (`persist:shipwarden-browser`), so they do not share cookies or storage with the app. Only http, https
+  and `about:blank` load. All permission requests are refused, except the clipboard write.
+- A page that opens a new window gets a new browser tab. A "mailto:" link opens the mail app.
+- Links: `openLink` (renderer, `links.ts`) opens all links of the app. ⇧⌘-click opens the in-app browser. ⌘-click,
+  and a plain click outside the terminal, open the default browser. In the terminal, a plain click does nothing.
+  ghostty-web 0.4 does not give the modifier keys to `window.open`, so `TerminalPool` wraps the link providers of
+  the terminal.
+- Keys in a page: the workspace keys and the app keys work. ⌘R loads the page again, ⌘L selects the address bar and
+  ⌥⌘I opens the developer tools of the page.
+- Certificates: Chromium uses the macOS keychain. When Chromium refuses a chain with `ERR_CERT_AUTHORITY_INVALID`,
+  `setCertificateVerifyProc` checks the chain again with the extra CA certificates of Settings › Network
+  (`verifyWithExtraCas`: the host name, the dates, each signature, and a CA of the setting at the top).
 ### Ghostty config import
 
 - If Ghostty is installed, ShipWarden runs `ghostty +show-config`. Ghostty then resolves themes and included files.

@@ -6,6 +6,7 @@ import { unifiedPatch } from '@shared/patch';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText } from '../util';
 import { ComposerZone, PendingZone, ThreadZone } from './DiffView';
+import { openLink } from '../links';
 
 export const STYLE_KEY = 'shipwarden.diffStyle';
 
@@ -188,7 +189,7 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, d
         return (
             <div className="stream-file-note">
                 ShipWarden cannot show this file. It is possibly binary or too large.
-                <button className="link-button" onClick={() => window.shipwarden.github.openInBrowser(`${pr.url}/files`)}>Open on GitHub <ExternalLink size={12} /></button>
+                <button className="link-button" onClick={event => openLink(`${pr.url}/files`, event)}>Open on GitHub <ExternalLink size={12} /></button>
             </div>
         );
     }

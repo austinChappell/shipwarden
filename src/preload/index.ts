@@ -7,6 +7,7 @@ import type { AgentUpdate } from '@shared/agents';
 import type { AgentProgram } from '@shared/agent-programs';
 import type { UpdateState } from '@shared/updates';
 import type { ProviderUsage } from '@shared/usage';
+import type { BrowserState } from '@shared/browser';
 
 function subscribe<Args extends unknown[]>(channel: string, listener: (...args: Args) => void): () => void {
     const handler = (_event: IpcRendererEvent, ...args: unknown[]) => listener(...(args as Args));
@@ -185,6 +186,22 @@ const api: ShipWardenApi = {
     processes: {
         list: worktreePaths => ipcRenderer.invoke(IpcChannels.processesList, worktreePaths),
         stop: (worktreePath, pid) => ipcRenderer.invoke(IpcChannels.processesStop, worktreePath, pid)
+    },
+    browser: {
+        create: (id, url) => ipcRenderer.send(IpcChannels.browserCreate, id, url),
+        setBounds: (id, bounds) => ipcRenderer.send(IpcChannels.browserSetBounds, id, bounds),
+        load: (id, url) => ipcRenderer.send(IpcChannels.browserLoad, id, url),
+        back: id => ipcRenderer.send(IpcChannels.browserBack, id),
+        forward: id => ipcRenderer.send(IpcChannels.browserForward, id),
+        reload: id => ipcRenderer.send(IpcChannels.browserReload, id),
+        stop: id => ipcRenderer.send(IpcChannels.browserStop, id),
+        focus: id => ipcRenderer.send(IpcChannels.browserFocus, id),
+        destroy: id => ipcRenderer.send(IpcChannels.browserDestroy, id),
+        state: id => ipcRenderer.invoke(IpcChannels.browserState, id),
+        onState: listener => subscribe<[BrowserState]>(IpcChannels.browserStateChanged, listener),
+        onOpenTab: listener => subscribe<[string, string]>(IpcChannels.browserOpenTab, listener),
+        onFocus: listener => subscribe<[string]>(IpcChannels.browserFocused, listener),
+        onFocusAddress: listener => subscribe<[string]>(IpcChannels.browserFocusAddress, listener)
     },
     terminals: {
         settings: () => ipcRenderer.invoke(IpcChannels.terminalsSettings),

@@ -10,6 +10,7 @@ import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
 import { confirmDialog } from './ConfirmDialog';
 import { DescriptionEditor, EditDescriptionButton, PullRequestMeta } from './PullRequestDetails';
+import { openLink } from '../links';
 
 interface Props {
     /** The worktree of the branch, or the repository in the Review view. */
@@ -208,7 +209,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         return (
             <div className="panel-message">
                 <p>No pull request for <code>{status.branch}</code>.</p>
-                <button className="button" onClick={() => window.shipwarden.github.openInBrowser(compareUrl)}>
+                <button className="button" onClick={event => openLink(compareUrl, event)}>
                     Create on GitHub <ExternalLink {...ICON} />
                 </button>
             </div>
@@ -305,7 +306,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     <div className="pr-title-row">
                         <StateBadge pr={pr} />
                         <ConflictBadge pr={pr} />
-                        <button className="link-button" title="Open on GitHub" onClick={() => window.shipwarden.github.openInBrowser(pr.url)}>
+                        <button className="link-button" title="Open on GitHub" onClick={event => openLink(pr.url, event)}>
                             #{pr.number} <ExternalLink size={12} strokeWidth={1.6} />
                         </button>
                         <button className="icon-button pr-refresh" title="Refresh" onClick={() => onRefresh()}>

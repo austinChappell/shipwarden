@@ -8,6 +8,7 @@ import { LogView } from './LogView';
 import { PullRequestFilesStream } from './PullRequestFilesStream';
 import { ConflictBadge, PullRequestFileList, PullRequestPanel, reviewText, StateBadge } from './PullRequestPanel';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
+import { openLink } from '../links';
 
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
 
@@ -108,7 +109,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
             <header className="review-pr-header">
                 <div className="review-pr-title">
                     <h2>{pr.title} <span className="review-pr-number">#{pr.number}</span></h2>
-                    <button className="icon-button" title="Open on GitHub" onClick={() => window.shipwarden.github.openInBrowser(pr.url)}>
+                    <button className="icon-button" title="Open on GitHub" onClick={event => openLink(pr.url, event)}>
                         <ExternalLink size={14} strokeWidth={1.6} />
                     </button>
                     <button className="icon-button" title="Refresh" onClick={() => onRefresh()}>
@@ -171,7 +172,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                                     <div className="pr-commit-title">{commit.messageHeadline}</div>
                                     <div className="pr-commit-meta">{commit.author ?? 'unknown'} committed {timeAgo(commit.committedDate)}</div>
                                 </div>
-                                <button className="link-button pr-commit-sha" title="Open the commit on GitHub" onClick={() => window.shipwarden.github.openInBrowser(commit.url)}>
+                                <button className="link-button pr-commit-sha" title="Open the commit on GitHub" onClick={event => openLink(commit.url, event)}>
                                     {commit.abbreviatedOid}
                                 </button>
                             </div>
