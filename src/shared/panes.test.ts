@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
     activateTab,
     closePane,
-    cycleFocus,
     focusedTab,
+    focusSide,
     groupOf,
     insertNode,
     leaves,
@@ -78,12 +78,38 @@ describe('panes', () => {
         expect(pruneLayout(two, [])).toBeUndefined();
     });
 
-    it('resizes within limits and cycles the focus', () => {
+    it('resizes within limits', () => {
         const one = singlePane('t:a');
         const two = splitPane(one, one.focused, 't:b', 'right');
         expect(resizeSplit(two, two.root.id, 0.02).root).toMatchObject({ ratio: 0.1 });
-        expect(focusedTab(cycleFocus(two, 1))).toBe('t:a');
-        expect(focusedTab(cycleFocus(cycleFocus(two, 1), -1))).toBe('t:b');
+    });
+
+    it('moves the focus to the pane at a side', () => {
+        // a | b, with c below b.
+        const one = singlePane('t:a');
+        const two = splitPane(one, one.focused, 't:b', 'right');
+        const three = splitPane(two, two.focused, 't:c', 'down');
+        expect(focusedTab(three)).toBe('t:c');
+        expect(focusedTab(focusSide(three, 'up'))).toBe('t:b');
+        expect(focusedTab(focusSide(three, 'left'))).toBe('t:a');
+        // No pane is at the right or below, so the focus stays.
+        expect(focusSide(three, 'right')).toBe(three);
+        expect(focusSide(three, 'down')).toBe(three);
+        // From a, the pane at the right nearer to the middle of a gets the focus. Both are equally near, so the first wins.
+        const fromA = focusSide(three, 'left');
+        expect(focusedTab(focusSide(fromA, 'right'))).toBe('t:b');
+        expect(focusedTab(focusSide(fromA, 'up'))).toBe('t:a');
+    });
+
+    it('moves the focus to the pane at the middle of the focused pane', () => {
+        // a above b, and c at the right of both. The middle of c is beside a, because a takes 80% of the height.
+        const leaf = (tab: string) => ({ kind: 'leaf' as const, id: tab, tab });
+        const column = (ratio: number): PaneLayout => ({
+            root: { kind: 'split', id: 'row', direction: 'row', ratio: 0.5, first: { kind: 'split', id: 'col', direction: 'column', ratio, first: leaf('t:a'), second: leaf('t:b') }, second: leaf('t:c') },
+            focused: 't:c'
+        });
+        expect(focusedTab(focusSide(column(0.8), 'left'))).toBe('t:a');
+        expect(focusedTab(focusSide(column(0.2), 'left'))).toBe('t:b');
     });
 
     it('reads a stored layout and refuses a bad one', () => {

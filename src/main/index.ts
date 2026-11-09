@@ -953,8 +953,10 @@ function buildMenu(): void {
                 { label: 'Split Right', accelerator: 'Command+D', click: () => sendShortcut('right') },
                 { label: 'Split Down', accelerator: 'Shift+Command+D', click: () => sendShortcut('down') },
                 { type: 'separator' },
-                { label: 'Select Previous Split', accelerator: 'Command+[', click: () => sendShortcut('previous') },
-                { label: 'Select Next Split', accelerator: 'Command+]', click: () => sendShortcut('next') },
+                { label: 'Select Split Left', accelerator: 'Alt+Command+Left', click: () => sendShortcut('focusLeft') },
+                { label: 'Select Split Right', accelerator: 'Alt+Command+Right', click: () => sendShortcut('focusRight') },
+                { label: 'Select Split Above', accelerator: 'Alt+Command+Up', click: () => sendShortcut('focusUp') },
+                { label: 'Select Split Below', accelerator: 'Alt+Command+Down', click: () => sendShortcut('focusDown') },
                 { type: 'separator' },
                 { label: 'Close Pane', accelerator: 'Command+W', click: () => sendShortcut('close') },
                 { role: 'close', label: 'Close Window', accelerator: 'Shift+Command+W' }
@@ -977,6 +979,13 @@ function buildMenu(): void {
                 { role: 'zoomOut' },
                 { type: 'separator' },
                 { role: 'togglefullscreen' }
+            ]
+        },
+        {
+            label: 'Go',
+            submenu: [
+                { label: 'Back', accelerator: 'Command+[', click: () => sendShortcut('back') },
+                { label: 'Forward', accelerator: 'Command+]', click: () => sendShortcut('forward') }
             ]
         },
         { role: 'windowMenu' }

@@ -260,12 +260,16 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 - `activeTabs` stays the active view of each worktree. In a split tab, it is the focused pane. App computes the
   layout of the active tab from both, without the panes of closed views (`pruneGroups`).
 - Keys, as in Ghostty (`shortcutAction`): ⌘T a new shell tab, ⌘W close the focused pane (the tab when it has one
-  pane; a running agent asks first), ⌘D and ⇧⌘D a new shell pane at the right of or below the focused pane, ⌘[ and ⌘]
-  move the focus. ⇧⌘W closes the window. ⌘N opens the New worktree dialog for the repository on the screen: the
+  pane; a running agent asks first), ⌘D and ⇧⌘D a new shell pane at the right of or below the focused pane, ⌥⌘ and an
+  arrow key move the focus to the pane at that side. ⇧⌘W closes the window. ⌘N opens the New worktree dialog for the repository on the screen: the
   commit graph, else the selected worktree, else the first repository. ⇧⌘E moves the focus to the file explorer. It
   shows the right panel and the Files tab when necessary. A focused terminal takes all keys, so a menu shortcut alone does not work.
   The keys go through two ways: `before-input-event` in the main process (before the page and the menu), and a keydown
   listener of the page in the capture phase. Both send the same action. The File menu lists the keys.
+- Back and forward (`shared/nav-history.ts`): ⌘[ goes back and ⌘] goes forward, as in a web browser. App adds an
+  entry for each change of the view, the worktree or the active tab. A focus change in a split also adds an entry,
+  because the tab of the focused pane is the active tab. So ⌘[ also goes back to the last pane. The settings page has
+  no entry. A step skips each entry whose worktree or tab closed. The Go menu lists the keys.
 - When a terminal process ends (for example after `exit`), its pane closes, and the tab when it was its only pane.
   The app also tells the host to forget the session. An agent tab starts a shell when the agent ends, so it closes
   only when that shell ends.

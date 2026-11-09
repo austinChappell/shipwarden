@@ -118,12 +118,55 @@ export function resizeSplit(layout: PaneLayout, splitId: string, ratio: number):
     return { ...layout, root: mapNode(layout.root, node => (node.kind === 'split' && node.id === splitId ? { ...node, ratio: clamped } : undefined)) };
 }
 
-/** Moves the focus to the next or previous pane, in the order of `leaves`. */
-export function cycleFocus(layout: PaneLayout, step: 1 | -1): PaneLayout {
-    const list = leaves(layout.root);
-    const index = list.findIndex(leaf => leaf.id === layout.focused);
-    const next = list[(index + step + list.length) % list.length];
-    return next ? { ...layout, focused: next.id } : layout;
+interface PaneRect {
+    id: string;
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+}
+
+/** Returns the area of each leaf, as parts of the full area (0 to 1). */
+function paneRects(node: PaneNode, left = 0, top = 0, right = 1, bottom = 1): PaneRect[] {
+    if (node.kind === 'leaf') return [{ id: node.id, left, top, right, bottom }];
+    if (node.direction === 'row') {
+        const middle = left + (right - left) * node.ratio;
+        return [...paneRects(node.first, left, top, middle, bottom), ...paneRects(node.second, middle, top, right, bottom)];
+    }
+    const middle = top + (bottom - top) * node.ratio;
+    return [...paneRects(node.first, left, top, right, middle), ...paneRects(node.second, left, middle, right, bottom)];
+}
+
+const EDGE_TOLERANCE = 1e-6;
+
+/**
+ * Moves the focus to the nearest pane at `side` of the focused pane, as ⌥⌘ and the arrow keys in Ghostty.
+ * A pane must be next to the focused pane and share part of its edge. When two panes do this, the pane nearer to
+ * the middle of the focused pane gets the focus. When no pane is at that side, the layout does not change.
+ */
+export function focusSide(layout: PaneLayout, side: SplitSide): PaneLayout {
+    const rects = paneRects(layout.root);
+    const current = rects.find(rect => rect.id === layout.focused);
+    if (!current) return layout;
+    const horizontal = side === 'left' || side === 'right';
+    const middle = horizontal ? (current.top + current.bottom) / 2 : (current.left + current.right) / 2;
+    let best: { id: string; distance: number; offset: number } | undefined;
+    for (const rect of rects) {
+        if (rect.id === current.id) continue;
+        const distance = side === 'left' ? current.left - rect.right
+            : side === 'right' ? rect.left - current.right
+                : side === 'up' ? current.top - rect.bottom
+                    : rect.top - current.bottom;
+        if (distance < -EDGE_TOLERANCE) continue;
+        const [start, end] = horizontal ? [rect.top, rect.bottom] : [rect.left, rect.right];
+        const [currentStart, currentEnd] = horizontal ? [current.top, current.bottom] : [current.left, current.right];
+        if (Math.min(end, currentEnd) - Math.max(start, currentStart) <= EDGE_TOLERANCE) continue;
+        const offset = middle < start ? start - middle : middle > end ? middle - end : 0;
+        if (!best || distance < best.distance - EDGE_TOLERANCE || (Math.abs(distance - best.distance) <= EDGE_TOLERANCE && offset < best.offset)) {
+            best = { id: rect.id, distance, offset };
+        }
+    }
+    return best ? { ...layout, focused: best.id } : layout;
 }
 
 /**
