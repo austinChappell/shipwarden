@@ -54,6 +54,14 @@ class ReviewStore {
         this.update(target, number, state => ({ ...state, pending: state.pending.map(item => (item === comment ? { ...item, body } : item)) }));
     }
 
+    /** Accepts a comment from an agent review. The comment then goes out with the review. */
+    acceptPending(target: RepoTarget, number: number, comment: PendingComment): void {
+        this.update(target, number, state => ({
+            ...state,
+            pending: state.pending.map(item => (item === comment ? { ...item, needsDecision: undefined } : item))
+        }));
+    }
+
     setBody(target: RepoTarget, number: number, body: string): void {
         this.update(target, number, state => ({ ...state, body }));
     }
@@ -61,6 +69,7 @@ class ReviewStore {
     /**
      * Asks the agent of the repository to review the pull request. The agent posts nothing.
      * Its line comments become pending comments of the user, and its summary goes into the review text.
+     * The user must accept or remove each line comment before the review can go out.
      */
     async runAgentReview(repo: RepoRef, pr: PullRequest): Promise<void> {
         if (this.get(repo, pr.number).agentReview?.status === 'running') return;

@@ -138,7 +138,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                     {pr.state === 'OPEN' && (
                         <button
                             className="button agent-review-button"
-                            title="An agent reviews the changes. Its comments become your pending comments. Nothing goes to GitHub until you submit the review."
+                            title="An agent reviews the changes. You accept or remove each of its comments. Nothing goes to GitHub until you submit the review."
                             disabled={agentReview?.status === 'running'}
                             onClick={() => void reviewStore.runAgentReview(repo, pr)}
                         >
@@ -171,7 +171,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                                 <span>
                                     {agentReview.agent} added {agentReview.comments} pending comment{agentReview.comments === 1 ? '' : 's'}
                                     {' '}and a summary to your review{agentReview.notes ? ` (with ${agentReview.notes} note${agentReview.notes === 1 ? '' : 's'} that are not on a changed line)` : ''}.
-                                    {' '}Edit them, then submit the review as yourself.
+                                    {' '}Accept or remove each comment, then submit the review as yourself.
                                 </span>
                                 <button className="link-button" onClick={() => selectTab('files')}>Show comments</button>
                                 <button className="link-button" onClick={() => selectTab('overview')}>Show summary</button>

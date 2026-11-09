@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Bot, Check, ChevronRight, Ellipsis, ExternalLink, GitCommitHorizontal, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, RefreshCw, TriangleAlert } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
-import { hostLabel, type BranchStatus, type MergeMethod, type PullRequest, type PullRequestChange, type PullRequestFile, type RepoTarget, type ReviewEvent, type ReviewThread } from '@shared/github';
+import { hostLabel, undecidedCount, type BranchStatus, type MergeMethod, type PullRequest, type PullRequestChange, type PullRequestFile, type RepoTarget, type ReviewEvent, type ReviewThread } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
@@ -311,7 +311,12 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         ? mergeMethod
         : pr.allowedMergeMethods.includes(pr.defaultMergeMethod) ? pr.defaultMergeMethod : pr.allowedMergeMethods[0];
 
+    const undecided = undecidedCount(review.pending);
+    const firstUndecided = review.pending.find(comment => comment.needsDecision);
+    const firstUndecidedFile = firstUndecided && files?.find(file => file.path === firstUndecided.path);
+
     const submit = async (event: ReviewEvent) => {
+        if (undecided > 0) return;
         const pending = review.pending.length ? ` with ${review.pending.length} inline comment(s)` : '';
         if (!(await confirmDialog({ title: `Submit a review to ${hostLabel(pr.host)}: ${REVIEW_EVENT_TEXT[event].confirm} pull request #${pr.number}${pending}?`, confirmLabel: 'Submit review' }))) {
             return;
@@ -567,15 +572,25 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                             placeholder="Write a summary of your review (optional)"
                             onChange={event => setBody(event.target.value)}
                         />
+                        {undecided > 0 && (
+                            <div className="panel-note review-undecided">
+                                Accept or remove the {undecided} agent comment{undecided === 1 ? '' : 's'} that you did not check yet. Then you can submit your review.
+                                {firstUndecided && firstUndecidedFile && (
+                                    <>
+                                        {' '}<button className="link-button" onClick={() => onOpenDiff(pr, firstUndecidedFile, firstUndecided.line)}>Show the first one</button>
+                                    </>
+                                )}
+                            </div>
+                        )}
                         <div className="review-actions">
                             {(pr.reviewEvents ?? GITHUB_REVIEW_EVENTS)
                                 .filter(event => event === 'COMMENT' || !pr.viewerDidAuthor)
                                 .map(event => event === 'COMMENT' ? (
-                                    <button key={event} className="button" disabled={busy || (!body.trim() && review.pending.length === 0)} onClick={() => submit(event)}>Comment</button>
+                                    <button key={event} className="button" disabled={busy || undecided > 0 || (!body.trim() && review.pending.length === 0)} onClick={() => submit(event)}>Comment</button>
                                 ) : event === 'APPROVE' ? (
-                                    <button key={event} className="button approve" disabled={busy} onClick={() => submit(event)}><Check size={14} strokeWidth={2} />Approve</button>
+                                    <button key={event} className="button approve" disabled={busy || undecided > 0} onClick={() => submit(event)}><Check size={14} strokeWidth={2} />Approve</button>
                                 ) : (
-                                    <button key={event} className="button" disabled={busy} onClick={() => submit(event)}>{REVIEW_EVENT_TEXT[event].button}</button>
+                                    <button key={event} className="button" disabled={busy || undecided > 0} onClick={() => submit(event)}>{REVIEW_EVENT_TEXT[event].button}</button>
                                 ))}
                         </div>
                     </section>
