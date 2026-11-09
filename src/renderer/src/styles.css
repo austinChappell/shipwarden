@@ -7156,6 +7156,10 @@ body.resizing-column * {
 }
 
 /* The New worktree dialog */
+.new-worktree-mode {
+    margin-bottom: 14px;
+}
+
 .new-worktree-dialog .combobox,
 .new-worktree-base {
     max-width: none;
