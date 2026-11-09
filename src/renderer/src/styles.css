@@ -1267,7 +1267,23 @@ code {
 }
 
 .section-toggle {
+    justify-content: flex-start;
+    gap: 4px;
     cursor: pointer;
+}
+
+.section-toggle:hover {
+    color: var(--text-strong);
+}
+
+.section-chevron {
+    flex: none;
+    margin-left: -4px;
+    transition: transform 0.12s ease;
+}
+
+.section-chevron.open {
+    transform: rotate(90deg);
 }
 
 .pr-section > .panel-note {
@@ -1287,6 +1303,29 @@ code {
 .pr-description.open {
     max-height: none;
     -webkit-mask-image: none;
+}
+
+/* Only a description that is longer than the closed height fades at the bottom. */
+.pr-description:not(.clipped) {
+    -webkit-mask-image: none;
+}
+
+.pr-description-more {
+    margin: 6px 14px 0;
+}
+
+/* The commit list in the narrow panel: no outer border, and the rows wrap to the panel width. */
+.pr-panel-commits {
+    padding: 0 14px;
+}
+
+.pr-panel-commits .pr-commit-list {
+    border-radius: 6px;
+}
+
+.pr-panel-commits .pr-commit {
+    gap: 8px;
+    padding: 7px 10px;
 }
 
 .pr-file .tree-detail {

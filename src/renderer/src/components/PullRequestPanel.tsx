@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Bot, Check, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, RefreshCw, TriangleAlert } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Bot, Check, ChevronRight, ExternalLink, GitCommitHorizontal, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, RefreshCw, TriangleAlert } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
 import { hostLabel, type BranchStatus, type MergeMethod, type PullRequest, type PullRequestChange, type PullRequestFile, type RepoTarget, type ReviewEvent, type ReviewThread } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
@@ -78,6 +78,86 @@ function threadPrompt(pr: PullRequest, thread: ReviewThread): string {
     const comments = thread.comments.map(comment => `${comment.author?.login ?? 'someone'}: ${comment.body}`).join('\n\n');
     const line = thread.line ?? thread.originalLine;
     return `A reviewer left this comment on ${thread.path}${line ? ` line ${line}` : ''} in pull request #${pr.number} (${pr.url}):\n\n${comments}\n\nMake the change that the reviewer asks for.`;
+}
+
+/** The commits of a pull request, the newest first, with a link to each commit on the host. */
+export function PullRequestCommitList({ pr }: { pr: PullRequest }) {
+    return (
+        <>
+            {pr.commitCount > pr.commits.length && (
+                <div className="panel-note">The list shows the newest {pr.commits.length} of {pr.commitCount} commits, the newest first.</div>
+            )}
+            <div className="pr-commit-list">
+                {[...pr.commits].reverse().map(commit => (
+                    <div key={commit.oid} className="pr-commit">
+                        <GitCommitHorizontal size={15} strokeWidth={1.6} className="pr-commit-icon" />
+                        <div className="pr-commit-main">
+                            <div className="pr-commit-title" title={commit.messageHeadline}>{commit.messageHeadline}</div>
+                            <div className="pr-commit-meta">{commit.author ?? 'unknown'} committed {timeAgo(commit.committedDate)}</div>
+                        </div>
+                        <button className="link-button pr-commit-sha" title={`Open the commit on ${hostLabel(pr.host)}`} onClick={event => openLink(commit.url, event)}>
+                            {commit.abbreviatedOid}
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </>
+    );
+}
+
+/**
+ * The description of a pull request. In the panel, a long description shows only its start.
+ * The title and the "Show more" button open the full text.
+ */
+function PullRequestDescription({ pr, overview, onEdit }: { pr: PullRequest; overview: boolean; onEdit(): void }) {
+    const [open, setOpen] = useState(false);
+    const [overflows, setOverflows] = useState(false);
+    const box = useRef<HTMLDivElement>(null);
+    const body = pr.body.trim();
+
+    // Measure the closed text. The button shows only when the text is longer than the closed height.
+    useLayoutEffect(() => {
+        const element = box.current;
+        if (!element || open || overview) return;
+        const measure = () => setOverflows(element.scrollHeight > element.clientHeight + 1);
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, [pr.body, open, overview]);
+
+    const editButton = pr.viewerCanUpdate && <EditDescriptionButton onClick={onEdit} />;
+    if (overview || !body) {
+        return (
+            <section className="pr-section">
+                <div className="section-title">Description{editButton}</div>
+                {body ? <Markdown className="pr-description open" text={pr.body} /> : <div className="panel-note">No description.</div>}
+            </section>
+        );
+    }
+    const toggleable = open || overflows;
+    return (
+        <section className="pr-section">
+            <div className="section-title-row">
+                {toggleable
+                    ? (
+                        <button className="section-toggle" aria-expanded={open} title={open ? 'Show less' : 'Show the full description'} onClick={() => setOpen(value => !value)}>
+                            <ChevronRight size={13} strokeWidth={1.8} className={`section-chevron${open ? ' open' : ''}`} />Description
+                        </button>
+                    )
+                    : <div className="section-title">Description</div>}
+                {editButton}
+            </div>
+            <div ref={box} className={`pr-description${open ? ' open' : ''}${!open && overflows ? ' clipped' : ''}`}>
+                <Markdown text={pr.body} />
+            </div>
+            {toggleable && (
+                <button className="link-button pr-description-more" onClick={() => setOpen(value => !value)}>
+                    {open ? 'Show less' : 'Show more'}
+                </button>
+            )}
+        </section>
+    );
 }
 
 interface FileListProps {
@@ -186,7 +266,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
     const [replyTo, setReplyTo] = useState<string>();
     const [replyText, setReplyText] = useState('');
     const [showResolved, setShowResolved] = useState(false);
-    const [descriptionOpen, setDescriptionOpen] = useState(false);
+    const [commitsOpen, setCommitsOpen] = useState(false);
     const [editing, setEditing] = useState(false);
 
     // A different pull request closes the editor.
@@ -361,19 +441,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                         <DescriptionEditor pr={pr} busy={busy} onSave={saveDescription} onCancel={() => setEditing(false)} />
                     </section>
                 ) : (pr.body.trim() || overview || pr.viewerCanUpdate) && (
-                    <section className="pr-section">
-                        {overview || !pr.body.trim()
-                            ? <div className="section-title">Description{pr.viewerCanUpdate && <EditDescriptionButton onClick={() => setEditing(true)} />}</div>
-                            : (
-                                <div className="section-title-row">
-                                    <button className="section-toggle" onClick={() => setDescriptionOpen(open => !open)}>Description</button>
-                                    {pr.viewerCanUpdate && <EditDescriptionButton onClick={() => setEditing(true)} />}
-                                </div>
-                            )}
-                        {pr.body.trim()
-                            ? <Markdown className={`pr-description${descriptionOpen || overview ? ' open' : ''}`} text={pr.body} />
-                            : <div className="panel-note">No description.</div>}
-                    </section>
+                    <PullRequestDescription pr={pr} overview={overview} onEdit={() => setEditing(true)} />
                 )}
 
                 <PullRequestMeta target={target} pr={pr} onRefresh={onRefresh} />
@@ -393,6 +461,15 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                                 {item.body.trim() && <Markdown className="comment-body" text={item.body} />}
                             </div>
                         ))}
+                    </section>
+                )}
+
+                {!overview && pr.commits.length > 0 && (
+                    <section className="pr-section">
+                        <button className="section-toggle" aria-expanded={commitsOpen} onClick={() => setCommitsOpen(value => !value)}>
+                            <ChevronRight size={13} strokeWidth={1.8} className={`section-chevron${commitsOpen ? ' open' : ''}`} />Commits ({pr.commitCount})
+                        </button>
+                        {commitsOpen && <div className="pr-panel-commits"><PullRequestCommitList pr={pr} /></div>}
                     </section>
                 )}
 
