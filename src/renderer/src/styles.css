@@ -2420,6 +2420,221 @@ button.task-linked {
     font-size: 12px;
 }
 
+/* File viewers: images, PDF, audio, video, Markdown preview and binary files */
+
+.viewer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+}
+
+.viewer-bar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    min-height: 34px;
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    font-size: 12px;
+}
+
+.viewer-details {
+    display: flex;
+    flex: 1;
+    gap: 12px;
+    min-width: 0;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.viewer-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+}
+
+.viewer-actions .button.compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+.viewer-actions .button.compact.selected {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    color: var(--text-strong);
+}
+
+.viewer-actions .segmented.compact button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.viewer-zoom {
+    min-width: 44px;
+    color: var(--text);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.viewer-separator {
+    width: 1px;
+    height: 16px;
+    margin: 0 4px;
+    background: var(--border);
+}
+
+.viewer-stage {
+    flex: 1;
+    min-height: 0;
+}
+
+.viewer-message {
+    margin: auto;
+    padding: 16px;
+    color: var(--muted);
+    text-align: center;
+}
+
+/* The image is in the center when it is small. The stage scrolls when the image is larger than the stage. */
+.image-stage {
+    display: flex;
+    overflow: auto;
+    padding: 16px;
+}
+
+.image-view {
+    flex: none;
+    margin: auto;
+    box-shadow: 0 0 0 1px var(--border);
+}
+
+/* A checkerboard shows the transparent parts of an image. */
+.checkerboard {
+    --check: color-mix(in srgb, var(--text) 14%, transparent);
+    background-color: color-mix(in srgb, var(--text) 4%, var(--bg));
+    background-image:
+        linear-gradient(45deg, var(--check) 25%, transparent 25%),
+        linear-gradient(-45deg, var(--check) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, var(--check) 75%),
+        linear-gradient(-45deg, transparent 75%, var(--check) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.pdf-frame {
+    width: 100%;
+    border: 0;
+    background: var(--bg);
+}
+
+.media-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.media-stage video {
+    max-width: 100%;
+    max-height: 100%;
+    background: #000;
+}
+
+.media-stage audio {
+    width: min(560px, 100%);
+}
+
+.unsupported-file {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.unsupported-name {
+    color: var(--text-strong);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.unsupported-size {
+    font-size: 12px;
+}
+
+.unsupported-file .button {
+    margin-top: 8px;
+}
+
+.markdown-file-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.markdown-file-source {
+    position: relative;
+    flex: 1 1 50%;
+    min-width: 0;
+}
+
+.markdown-file-body.split .markdown-file-source {
+    border-right: 1px solid var(--border);
+}
+
+.markdown-file-preview {
+    flex: 1 1 50%;
+    min-width: 0;
+    overflow: auto;
+    padding: 24px 32px 48px;
+}
+
+/* A Markdown file reads like a document: a limited line length and larger headings than in a comment. */
+.markdown-document {
+    max-width: 860px;
+    margin: 0 auto;
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.markdown-document h1,
+.markdown-document h2 {
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--border);
+}
+
+.markdown-document h1 {
+    font-size: 1.8em;
+}
+
+.markdown-document h2 {
+    font-size: 1.4em;
+}
+
+.markdown-document h3 {
+    font-size: 1.15em;
+}
+
+.markdown-document h1,
+.markdown-document h2,
+.markdown-document h3,
+.markdown-document h4 {
+    margin-top: 1.4em;
+    scroll-margin-top: 12px;
+}
+
 /* Resize handles between panels */
 
 .resize-handle {

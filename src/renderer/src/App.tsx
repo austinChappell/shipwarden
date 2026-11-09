@@ -5,7 +5,7 @@ import type { BranchSummary, CheckRun, PullRequest, PullRequestFile } from '@sha
 import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
-import { EditorView } from './components/EditorView';
+import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
 import { LogView } from './components/LogView';
 import { RightPanel } from './components/RightPanel';
@@ -268,7 +268,8 @@ export function App() {
         const saved = pruneLayout(stored, list.map(worktree => worktree.path), sessionIds);
         const openFiles: Record<string, string[]> = {};
         await Promise.all(Object.entries(saved.openFiles).map(async ([root, files]) => {
-            const exists = await Promise.all(files.map(file => api.files.read(root, file).then(() => true, () => false)));
+            // info and not read: an image or a PDF is not text, but its tab must stay.
+            const exists = await Promise.all(files.map(file => api.files.info(root, file).then(() => true, () => false)));
             const kept = files.filter((_file, index) => exists[index]);
             if (kept.length > 0) {
                 openFiles[root] = kept;
@@ -1320,7 +1321,7 @@ export function App() {
             const path = tab.slice(2);
             const revealHere = reveal && reveal.root === selectedPath && reveal.path === path;
             return (
-                <EditorView
+                <FileView
                     key={`${selectedPath}\0${path}`}
                     root={selectedPath}
                     path={path}
@@ -1329,6 +1330,7 @@ export function App() {
                     revealNonce={reveal?.nonce}
                     onError={setError}
                     onInstallServer={server => void installServer(selectedPath, server)}
+                    onOpenFile={file => openFile(file)}
                 />
             );
         }
