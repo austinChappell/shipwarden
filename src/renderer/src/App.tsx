@@ -50,6 +50,7 @@ import type { LspMissingServer } from '@shared/lsp';
 import { terminalPool } from './terminal/terminal-pool';
 import { agentStateStore } from './terminal/agent-state-store';
 import { ChangeDiffView } from './components/ChangeDiffView';
+import { WorktreeChangesView } from './components/WorktreeChangesView';
 import type { ChangeSide, FileChange } from '@shared/git';
 import { SidebarContext, SidebarToggle } from './components/SidebarToggle';
 import { BrowserView } from './components/BrowserView';
@@ -74,6 +75,7 @@ type ExtraTab =
     | { key: TabKey; kind: 'diff'; pr: PullRequest; file: PullRequestFile; line?: number; nonce?: number }
     | { key: TabKey; kind: 'log'; check: CheckRun }
     | { key: TabKey; kind: 'change'; change: FileChange; side: ChangeSide }
+    | { key: TabKey; kind: 'changes' }
     | { key: TabKey; kind: 'browser'; id: string };
 
 /** The time that an agent can take to start before ShipWarden sends it a prompt. */
@@ -596,6 +598,13 @@ export function App() {
     const openChange = (change: FileChange, side: ChangeSide) => {
         if (selectedPath) {
             openExtra(selectedPath, { key: `c:${side}:${change.path}`, kind: 'change', change, side });
+        }
+    };
+
+    /** Opens one tab with the diffs of all local changes of the selected worktree. */
+    const openAllChanges = () => {
+        if (selectedPath) {
+            openExtra(selectedPath, { key: 'c:all', kind: 'changes' });
         }
     };
 
@@ -1294,6 +1303,9 @@ export function App() {
         if (extra?.kind === 'browser') {
             return <BrowserView key={extra.id} id={extra.id} hidden={!!draggingTab} focused={focused} onClose={() => closeFromView(extra.key)} />;
         }
+        if (extra?.kind === 'changes') {
+            return <WorktreeChangesView key={selectedPath} worktree={selectedPath} focused={focused} onOpenFile={path => openFile(path)} />;
+        }
         if (extra?.kind === 'change') {
             return (
                 <ChangeDiffView
@@ -1433,6 +1445,9 @@ export function App() {
         if (extra?.kind === 'browser') {
             const state = browserStates.get(extra.id);
             return { icon: <Globe className="tab-icon" size={14} strokeWidth={1.5} />, title: browserTabTitle(state), tooltip: state?.url && state.url !== BLANK_PAGE ? state.url : undefined };
+        }
+        if (extra?.kind === 'changes') {
+            return { icon: <GitCompareArrows className="tab-icon" size={14} strokeWidth={1.5} />, title: 'Changes', tooltip: 'All local changes of the worktree' };
         }
         if (extra?.kind === 'change') {
             return {
@@ -1734,6 +1749,7 @@ export function App() {
                         onSendLogToAgent={sendLogToAgent}
                         onShowTerminal={id => activate(selectedPath, `t:${id}`)}
                         onOpenChange={openChange}
+                        onOpenAllChanges={openAllChanges}
                     />
                 )}
                 {graphWorktree && (
