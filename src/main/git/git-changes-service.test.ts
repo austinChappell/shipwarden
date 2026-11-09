@@ -25,6 +25,27 @@ describe('GitChangesService', () => {
 
     afterEach(() => rmSync(repo, { recursive: true, force: true }));
 
+    it('reads the history for the graph, with refs, and with only HEAD on request', async () => {
+        expect(await git.log(repo, 'all', 10)).toEqual({ commits: [], more: false });
+        sh('commit', '-q', '--allow-empty', '-m', 'one');
+        sh('commit', '-q', '--allow-empty', '-m', 'two');
+        sh('branch', 'side', 'HEAD~1');
+        sh('checkout', '-q', 'side');
+        sh('commit', '-q', '--allow-empty', '-m', 'side work');
+        sh('checkout', '-q', 'main');
+        sh('tag', 'v1');
+
+        const all = await git.log(repo, 'all', 10);
+        expect(all.more).toBe(false);
+        expect(all.commits.map(commit => commit.subject).sort()).toEqual(['one', 'side work', 'two']);
+        const two = all.commits.find(commit => commit.subject === 'two');
+        expect(two?.refs).toEqual([{ name: 'main', kind: 'local', current: true }, { name: 'v1', kind: 'tag' }]);
+        expect(two?.parents).toHaveLength(1);
+
+        expect((await git.log(repo, 'head', 10)).commits.map(commit => commit.subject)).toEqual(['two', 'one']);
+        expect(await git.log(repo, 'head', 1)).toMatchObject({ more: true, commits: [{ subject: 'two' }] });
+    });
+
     it('stages and unstages before the first commit, and makes the first commit', async () => {
         writeFileSync(join(repo, 'a.txt'), 'one\n');
         let status = await git.status(repo);

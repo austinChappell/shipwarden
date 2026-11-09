@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
+import { GRAPH_LOG_FORMAT, parseGraphLog, type GraphLog, type GraphScope } from '@shared/git-graph';
 import { changePathError, parseStatus, type ChangeContents, type ChangeSide, type CommitResult, type FetchResult, type GitChanges } from '@shared/git';
 
 /** Files larger than this do not show in a diff. */
@@ -159,6 +160,25 @@ export class GitChangesService {
     }
 
     /** The message of the last commit, for "Amend". */
+    /**
+     * Returns the newest commits for the graph, children before parents. Scope "all" shows the local branches, the
+     * remote branches, the tags and HEAD. Scope "head" shows only the history of HEAD. A repository without commits
+     * gives an empty list.
+     */
+    async log(worktree: string, scope: GraphScope, limit: number): Promise<GraphLog> {
+        const count = Math.max(1, Math.min(Math.floor(limit), 5000));
+        const refs = scope === 'all' ? ['--branches', '--remotes', '--tags', 'HEAD'] : ['HEAD'];
+        // One more commit than the limit tells if there are more.
+        const output = await run(worktree, ['log', '--topo-order', '--decorate=full', `--format=${GRAPH_LOG_FORMAT}`, `--max-count=${count + 1}`, ...refs, '--'], { allowFailure: true });
+        if (output === undefined) {
+            const head = await run(worktree, ['rev-parse', '--verify', '--quiet', 'HEAD'], { allowFailure: true });
+            if (head === undefined) return { commits: [], more: false };
+            throw new Error('git log failed for the graph.');
+        }
+        const commits = parseGraphLog(output);
+        return { commits: commits.slice(0, count), more: commits.length > count };
+    }
+
     async lastMessage(worktree: string): Promise<string> {
         return ((await run(worktree, ['log', '-1', '--format=%B'], { allowFailure: true })) ?? '').trimEnd();
     }

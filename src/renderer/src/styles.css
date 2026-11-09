@@ -7245,6 +7245,129 @@ body.resizing-column * {
     padding-right: 48px;
 }
 
+/* The Graph tab of the right panel: the commits with their branch lines */
+.git-graph-panel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    font-size: 12px;
+}
+
+.gg-scope {
+    flex: 0 1 220px;
+}
+
+.gg-rows {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 8px;
+}
+
+.gg-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-right: 6px;
+}
+
+.gg-row:hover {
+    background: var(--hover);
+}
+
+.gg-lanes {
+    flex: none;
+    margin-left: 4px;
+}
+
+.gg-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.gg-subject {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-strong);
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.gg-subject-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gg-meta {
+    color: var(--muted);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gg-ref {
+    flex: none;
+    max-width: 140px;
+    padding: 0 5px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--raised);
+    color: var(--text);
+    font: inherit;
+    font-size: 10.5px;
+    line-height: 16px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gg-ref.local {
+    border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+}
+
+.gg-ref.current,
+.gg-ref.head {
+    border-color: var(--accent);
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.gg-ref.remote {
+    border-color: color-mix(in srgb, var(--info) 45%, var(--border));
+    color: var(--info);
+    cursor: pointer;
+}
+
+.gg-ref.remote:hover {
+    background: color-mix(in srgb, var(--info) 15%, var(--raised));
+}
+
+.gg-ref.tag {
+    border-color: color-mix(in srgb, var(--purple) 45%, var(--border));
+    color: var(--purple);
+}
+
+/* The New worktree button shows when the pointer is on the row, or when the button has the keyboard focus. */
+.gg-action {
+    flex: none;
+    opacity: 0;
+}
+
+.gg-row:hover .gg-action,
+.gg-action:focus-visible {
+    opacity: 1;
+}
+
+.gg-more {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px auto 0;
+    font-size: 12px;
+}
+
 /* The Pipelines tab of the right panel: the runs of the repository of the worktree */
 .pipelines-panel {
     display: flex;

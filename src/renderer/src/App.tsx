@@ -10,7 +10,8 @@ import { DiffView } from './components/DiffView';
 import { LogView } from './components/LogView';
 import { RightPanel } from './components/RightPanel';
 import { confirmDialog, dialogOpen, promptDialog } from './components/ConfirmDialog';
-import type { NewWorktreeRequest } from './components/NewWorktreeDialog';
+import { NewWorktreeDialog, type NewWorktreeRequest } from './components/NewWorktreeDialog';
+import type { GraphWorktreeStart } from './components/GitGraphPanel';
 import { TasksView } from './components/TasksView';
 import { Sidebar } from './components/Sidebar';
 import { TerminalView } from './components/TerminalView';
@@ -514,6 +515,8 @@ export function App() {
 
     const selected = worktrees.find(worktree => worktree.path === selectedPath);
     /** The repository of the selected worktree. */
+    /** The New worktree dialog that the commit graph opened, with its repository and start point. */
+    const [graphWorktree, setGraphWorktree] = useState<{ repo: string; start: GraphWorktreeStart }>();
     const selectedRepo = repos.find(repo => worktreesByRepo[repo]?.some(worktree => worktree.path === selectedPath));
     const rightPanelShown = explorerOpen && !!selectedPath && mainView === 'worktree';
     const worktreeSessions = useMemo(
@@ -1630,6 +1633,21 @@ export function App() {
                         onSendLogToAgent={sendLogToAgent}
                         onShowTerminal={id => activate(selectedPath, `t:${id}`)}
                         onOpenChange={openChange}
+                        onNewWorktree={start => selectedRepo && setGraphWorktree({ repo: selectedRepo, start })}
+                    />
+                )}
+                {graphWorktree && (
+                    <NewWorktreeDialog
+                        repoName={repoLabel(graphWorktree.repo)}
+                        repoPath={graphWorktree.repo}
+                        {...('remote' in graphWorktree.start
+                            ? { initialRemote: graphWorktree.start.remote }
+                            : { initialBase: { ref: graphWorktree.start.commit, label: graphWorktree.start.label } })}
+                        onClose={() => setGraphWorktree(undefined)}
+                        onCreate={async request => {
+                            await createWorktree(graphWorktree.repo, request);
+                            setGraphWorktree(undefined);
+                        }}
                     />
                 )}
             </div>

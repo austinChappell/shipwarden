@@ -16,6 +16,7 @@ import type { UpdateState } from './updates';
 import type { ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
+import type { GraphLog, GraphScope } from './git-graph';
 import type { BranchList, CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings } from './worktree-settings';
 
@@ -94,6 +95,8 @@ export interface ShipWardenApi {
         pull(worktree: string): Promise<void>;
         /** Fetches the upstream remote when the last fetch of the repository is older than 5 minutes, or now with `force`. */
         fetch(worktree: string, force?: boolean): Promise<FetchResult>;
+        /** The newest commits for the graph, children before parents, at most `limit`. */
+        log(worktree: string, scope: GraphScope, limit: number): Promise<GraphLog>;
     };
     updates: {
         /** The state of the updater: the running version, and a newer release when there is one. */
@@ -488,6 +491,7 @@ export const IpcChannels = {
     gitDiscard: 'git:discard',
     gitPull: 'git:pull',
     gitFetch: 'git:fetch',
+    gitLog: 'git:log',
     updatesCheck: 'updates:check',
     updatesInstall: 'updates:install',
     updatesChanged: 'updates:changed',
