@@ -5,6 +5,7 @@ import '@fontsource/jetbrains-mono/700.css';
 import './styles.css';
 import { App } from './App';
 import { confirmDialog, DialogHost } from './components/ConfirmDialog';
+import { ContextMenuHost } from './components/ContextMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { applyLastPalette } from './theme/appearance';
 import { appKeyAction } from '@shared/shortcuts';
@@ -47,5 +48,6 @@ createRoot(document.getElementById('root')!).render(
         <App />
         <UpdateNotice />
         <DialogHost />
+        <ContextMenuHost />
     </StrictMode>
 );

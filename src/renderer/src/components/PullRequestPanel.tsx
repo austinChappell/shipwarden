@@ -13,6 +13,7 @@ import { DescriptionEditor, EditDescriptionButton, PullRequestMeta } from './Pul
 import { MERGE_LABELS, MergeButton } from './MergeButton';
 import { PullRequestTimeline, REVIEW_STATE_TEXT } from './PullRequestTimeline';
 import { openLink } from '../links';
+import { showContextMenu } from './ContextMenu';
 
 interface Props {
     /** The worktree of the branch, or the repository in the Review view. */
@@ -336,9 +337,9 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
 
     /** The actions that the user seldom needs: convert to draft and close. They are in a menu, away from the merge button. */
     const moreActions = async () => {
-        const choice = await window.shipwarden.app.contextMenu([
+        const choice = await showContextMenu([
             ...(pr.isDraft ? [] : [{ id: 'draft', label: 'Convert to Draft' }, { type: 'separator' as const }]),
-            { id: 'close', label: 'Close Pull Request' }
+            { id: 'close', label: 'Close Pull Request', danger: true }
         ]);
         if (choice === 'draft') await setDraft(true);
         if (choice === 'close') await setState('closed');

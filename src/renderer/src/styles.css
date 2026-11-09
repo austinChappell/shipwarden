@@ -8918,3 +8918,72 @@ button.gg-ref:hover {
     align-items: center;
     gap: 8px;
 }
+
+/* Context menus. They use the colors of the app, not the native menu of macOS. */
+
+.context-menu-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+}
+
+.context-menu {
+    position: fixed;
+    min-width: 180px;
+    max-width: 420px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--raised);
+    box-shadow: 0 10px 30px var(--shadow);
+    color: var(--text);
+    font-size: 12.5px;
+    outline: none;
+    animation: context-menu-in 80ms ease-out;
+}
+
+@keyframes context-menu-in {
+    from { opacity: 0; }
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 5px;
+    cursor: default;
+    white-space: nowrap;
+}
+
+.context-menu-item.active {
+    background: var(--selected);
+    color: var(--text-strong);
+}
+
+.context-menu-item.danger {
+    color: var(--danger);
+}
+
+.context-menu-item.disabled {
+    color: var(--muted);
+    opacity: 0.6;
+}
+
+.context-menu-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.context-menu-chevron {
+    flex: none;
+    margin-right: -3px;
+    color: var(--muted);
+}
+
+.context-menu-separator {
+    height: 1px;
+    margin: 4px 2px;
+    background: var(--border);
+}

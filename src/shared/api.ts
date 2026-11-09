@@ -48,12 +48,6 @@ export interface ConfirmRequest {
     danger?: boolean;
 }
 
-/** An item of a native context menu. An item with `submenu` opens a menu with more items. */
-export type ContextMenuItem =
-    | { id: string; label: string; enabled?: boolean }
-    | { label: string; submenu: ContextMenuItem[]; enabled?: boolean }
-    | { type: 'separator' };
-
 /** The state of the trusted extra certificates, for Settings › Network. */
 export interface NetworkStatus {
     file?: { path: string; source: 'setting' | 'shell'; count?: number; error?: string };
@@ -72,8 +66,6 @@ export interface ShipWardenApi {
         info(): Promise<AppInfo>;
         /** Listens for the "Settings…" menu item (⌘,). */
         onOpenSettings(listener: () => void): () => void;
-        /** Shows a native context menu at the pointer. Returns the ID of the chosen item, or undefined. */
-        contextMenu(items: ContextMenuItem[]): Promise<string | undefined>;
         /** The workspace shortcuts: ⌘T, ⌘W, ⌘D, ⇧⌘D, ⌘[ and ⌘]. See `shortcutAction`. */
         onShortcut(listener: (action: ShortcutAction) => void): () => void;
         /** Questions from the main process. The page shows them in its own dialog and sends the answer with `answerConfirm`. */
@@ -441,7 +433,6 @@ export const IpcChannels = {
     worktreesPreviewCopy: 'worktrees:previewCopy',
     worktreesDefaultFolder: 'worktrees:defaultFolder',
     worktreesDeleteBranch: 'worktrees:deleteBranch',
-    appContextMenu: 'app:contextMenu',
     worktreesChooseFolder: 'worktrees:chooseFolder',
     filesListDirectory: 'files:listDirectory',
     filesListFiles: 'files:listFiles',
