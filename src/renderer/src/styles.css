@@ -4956,7 +4956,7 @@ button:focus-visible {
 
 .review-pr-header {
     flex: none;
-    padding: 14px 20px 10px;
+    padding: 14px 20px 18px;
 }
 
 .review-pr-title {
@@ -4968,9 +4968,9 @@ button:focus-visible {
 .review-pr-title h2 {
     flex: 1;
     min-width: 0;
-    margin: 0;
+    margin: 4px 0 0;
     color: var(--text-strong);
-    font-size: 18px;
+    font-size: 21px;
     font-weight: 600;
     line-height: 1.35;
     user-select: text;
@@ -5008,7 +5008,8 @@ button:focus-visible {
     display: flex;
     align-items: stretch;
     gap: 4px;
-    padding: 0 14px;
+    margin: 0 20px;
+    padding: 0;
     border-bottom: 1px solid var(--border);
     overflow-x: auto;
     scrollbar-width: none;
@@ -5022,13 +5023,13 @@ button:focus-visible {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 10px 10px 11px;
+    gap: 8px;
+    padding: 11px 18px 12px;
     border: 0;
     background: transparent;
     color: var(--muted);
     font: inherit;
-    font-size: 13px;
+    font-size: 14px;
     white-space: nowrap;
     cursor: pointer;
 }
@@ -5045,12 +5046,12 @@ button:focus-visible {
 .pr-tab.selected::after {
     content: '';
     position: absolute;
-    right: 6px;
+    right: 0;
     bottom: -1px;
-    left: 6px;
+    left: 0;
     height: 2px;
     border-radius: 2px;
-    background: var(--accent);
+    background: var(--info);
 }
 
 .pr-tab-count {
@@ -5066,12 +5067,6 @@ button:focus-visible {
     flex: 1;
 }
 
-.pr-tabs-diffstat {
-    align-self: center;
-    padding: 0 6px;
-    font-size: 12px;
-    white-space: nowrap;
-}
 
 .pr-finish {
     align-self: center;
@@ -5101,7 +5096,7 @@ button:focus-visible {
 
 .pr-overview > .pr-panel {
     width: 100%;
-    max-width: 1180px;
+    max-width: 1440px;
     container-type: inline-size;
 }
 
@@ -5110,7 +5105,7 @@ button:focus-visible {
  * It uses larger text and more space between the parts.
  */
 .pr-overview .pr-scroll {
-    padding: 8px 12px 24px;
+    padding: 8px 12px 24px 12px;
 }
 
 .pr-overview .pr-section {
@@ -5171,38 +5166,11 @@ button:focus-visible {
     font-size: 12.5px;
 }
 
-.pr-overview .pr-footer {
-    padding: 14px 20px 16px;
-    gap: 12px;
-}
-
-/* The Overview tab is wide: the review card and the merge card stand side by side. */
-@container (min-width: 760px) {
-    .pr-overview .pr-footer {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-        align-items: start;
-    }
-
-    .pr-overview .pr-footer-error {
-        grid-column: 1 / -1;
-    }
-}
-
-.pr-overview textarea.review-body {
-    font-size: 13.5px;
-}
-
-.pr-overview .pr-footer .button {
-    padding: 5px 12px;
-    font-size: 13px;
-}
-
 /* The main column and the side column with the reviewers, the assignees and the labels, as on GitHub. */
 .pr-overview-columns {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 250px;
-    gap: 28px;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    gap: 40px;
     align-items: start;
 }
 
@@ -5210,10 +5178,11 @@ button:focus-visible {
     min-width: 0;
 }
 
-.pr-overview-aside .pr-meta-section {
+.pr-overview-aside {
+    display: flex;
+    flex-direction: column;
     gap: 16px;
-    padding: 16px 0;
-    border-bottom: 0;
+    padding: 16px 8px 0 0;
 }
 
 /* A narrow Overview has one column. The side column goes first. */
@@ -5224,12 +5193,7 @@ button:focus-visible {
     }
 
     .pr-overview-aside {
-        order: -1;
-    }
-
-    .pr-overview-aside .pr-meta-section {
-        padding: 16px 8px;
-        border-bottom: 1px solid var(--border);
+        padding: 16px 8px 0;
     }
 }
 
@@ -8584,15 +8548,6 @@ button.gg-ref:hover {
     opacity: 1;
 }
 
-.agent-review-button {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 5px;
-    margin-left: 6px;
-    padding: 3px 10px;
-    font-size: 12px;
-}
 
 .agent-review-status {
     display: flex;
@@ -8986,4 +8941,342 @@ button.gg-ref:hover {
     height: 1px;
     margin: 4px 2px;
     background: var(--border);
+}
+
+/* The header of a pull request in the Review view: the buttons on the right of the title. */
+.review-pr-actions {
+    display: flex;
+    flex: none;
+    gap: 8px;
+    margin-left: 12px;
+}
+
+.review-pr-actions .icon-button {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--raised);
+}
+
+.review-pr-actions .icon-button:hover {
+    border-color: var(--muted);
+}
+
+/* The strip below the title: review, checks, size and merge. */
+.pr-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 18px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--raised);
+    overflow: hidden;
+}
+
+.pr-summary-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding: 14px 20px;
+    border: 0;
+    border-left: 1px solid var(--border);
+    background: transparent;
+    text-align: left;
+}
+
+.pr-summary-cell:first-child {
+    border-left: 0;
+}
+
+button.pr-summary-cell {
+    cursor: pointer;
+}
+
+button.pr-summary-cell:hover {
+    background: var(--hover);
+}
+
+.pr-summary-label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.pr-summary-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.pr-summary-detail {
+    margin-left: -4px;
+    color: var(--muted);
+    font-weight: 400;
+}
+
+.pr-summary-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.tone-ok { color: var(--ok); }
+.tone-fail { color: var(--danger); }
+.tone-wait,
+.tone-mine { color: var(--accent); }
+.tone-muted { color: var(--muted); }
+.tone-merged { color: var(--purple); }
+
+@container (max-width: 760px) {
+    .pr-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .pr-summary-cell:nth-child(3) {
+        border-left: 0;
+    }
+
+    .pr-summary-cell:nth-child(n + 3) {
+        border-top: 1px solid var(--border);
+    }
+}
+
+.review-pr {
+    container-type: inline-size;
+}
+
+/* The count of the Checks tab shows the result of the checks. */
+.pr-tab-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.pr-tab-count.success {
+    background: color-mix(in srgb, var(--ok) 18%, transparent);
+    color: var(--ok);
+}
+
+.pr-tab-count.failure {
+    background: color-mix(in srgb, var(--danger) 18%, transparent);
+    color: var(--danger);
+}
+
+.pr-tab-count.pending {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
+}
+
+/* The cards in the side column of the Overview tab: the review, the merge, and the people and labels. */
+.side-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    padding: 18px 20px 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--raised);
+}
+
+.side-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 22px;
+}
+
+.side-card-title {
+    color: var(--text-strong);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.review-requested {
+    color: var(--accent);
+    font-size: 12.5px;
+}
+
+.side-card-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.pr-overview .side-card textarea.review-body {
+    height: 104px;
+    min-height: 64px;
+    max-height: 360px;
+    resize: vertical;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--bg);
+    font-size: 13.5px;
+}
+
+.review-decisions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.review-decisions.count-1 {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.review-decisions.count-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pr-overview .review-decisions .button,
+.pr-overview .merge-card .merge-row .button {
+    justify-content: center;
+    min-height: 40px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.review-decisions .button.approve {
+    border-color: var(--ok);
+    background: color-mix(in srgb, var(--ok) 70%, var(--bg));
+    color: var(--bg);
+}
+
+.review-decisions .button.approve:hover:not(:disabled) {
+    background: var(--ok);
+    color: var(--bg);
+}
+
+.review-card-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: -2px;
+    font-size: 12.5px;
+}
+
+.review-card-foot .link-button {
+    gap: 6px;
+    color: var(--info);
+    font-size: 12.5px;
+}
+
+.review-shortcut {
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.side-card .review-undecided {
+    padding: 0;
+}
+
+.merge-conditions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.merge-condition {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-strong);
+    font-size: 14px;
+}
+
+.merge-condition svg {
+    flex: none;
+}
+
+.merge-condition.ok svg { color: var(--ok); }
+.merge-condition.fail svg { color: var(--danger); }
+.merge-condition.wait { color: var(--accent); }
+
+.side-card.merge-card .merge-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 10px;
+}
+
+.side-card.merge-card .auto-merge-button {
+    flex: 1;
+    min-width: 0;
+}
+
+.side-card.merge-card .merge-row:not(:has(.auto-merge-button)) .merge-split {
+    flex: 1;
+}
+
+.side-card.merge-card .merge-row:not(:has(.auto-merge-button)) .merge-split-main {
+    flex: 1;
+}
+
+/* In the side column, the merge card is near the top. The menu of the merge methods opens down. */
+.side-card .merge-menu {
+    top: calc(100% + 6px);
+    right: 0;
+    bottom: auto;
+    left: auto;
+}
+
+.pr-meta-card {
+    gap: 0;
+    padding: 4px 20px;
+}
+
+.pr-meta-row.card-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 52px;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+}
+
+.pr-meta-row.card-row:first-of-type {
+    border-top: 0;
+}
+
+.pr-meta-card-title {
+    flex: none;
+    color: var(--muted);
+    font-size: 13.5px;
+}
+
+.pr-meta-card .pr-meta-values {
+    justify-content: flex-end;
+    align-items: center;
+    min-width: 0;
+}
+
+.pr-meta-author {
+    color: var(--text-strong);
+    font-size: 13.5px;
+}
+
+.pr-meta-add.link-button {
+    gap: 3px;
+    color: var(--info);
+    font-size: 13.5px;
 }

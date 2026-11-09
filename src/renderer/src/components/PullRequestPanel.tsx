@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Bot, Check, ChevronRight, Ellipsis, ExternalLink, GitCommitHorizontal, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, RefreshCw, TriangleAlert } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { Bot, Check, ChevronRight, Circle, CircleCheck, CircleX, Ellipsis, ExternalLink, GitCommitHorizontal, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, LoaderCircle, RefreshCw, TriangleAlert } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
 import { hostLabel, undecidedCount, type BranchStatus, type MergeMethod, type PullRequest, type PullRequestChange, type PullRequestFile, type RepoTarget, type ReviewEvent, type ReviewThread } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
@@ -13,6 +13,8 @@ import { DescriptionEditor, EditDescriptionButton, PullRequestMeta } from './Pul
 import { MERGE_LABELS, MergeButton } from './MergeButton';
 import { PullRequestTimeline, REVIEW_STATE_TEXT } from './PullRequestTimeline';
 import { openLink } from '../links';
+import type { CheckCounts } from '../github/use-check-counts';
+import { mergeConditions } from './PullRequestSummary';
 import { showContextMenu } from './ContextMenu';
 
 interface Props {
@@ -30,7 +32,16 @@ interface Props {
      * no header and no file list (the view shows them), and the description is open.
      */
     variant?: 'panel' | 'overview';
+    /** The counts of the checks of the head commit, for the merge checklist of the Overview tab. */
+    checks?: CheckCounts;
+    /** Starts an agent review. Without it, the review card has no link for an agent review. */
+    agentReview?: { running: boolean; run(): void };
 }
+
+/** The short text of the merge button in the narrow side column of the Overview tab. */
+const SHORT_MERGE_LABELS: Record<MergeMethod, string> = { merge: 'Merge', squash: 'Squash', rebase: 'Rebase' };
+
+const CONDITION_ICON = { size: 16, strokeWidth: 1.8 };
 
 const ICON = { size: 15, strokeWidth: 1.6 };
 
@@ -247,7 +258,7 @@ function conversationOf(pr: PullRequest): ConversationItem[] {
     ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export function PullRequestPanel({ target, status, loading, error, onRefresh, onOpenDiff, onSendToAgent, variant = 'panel' }: Props) {
+export function PullRequestPanel({ target, status, loading, error, onRefresh, onOpenDiff, onSendToAgent, variant = 'panel', checks, agentReview }: Props) {
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
     const review = useReviewState(target, pr?.number);
@@ -400,6 +411,181 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         }
     };
 
+    const events = (pr.reviewEvents ?? GITHUB_REVIEW_EVENTS).filter(event => event === 'COMMENT' || !pr.viewerDidAuthor);
+    const canComment = events.includes('COMMENT') && !busy && undecided === 0 && (!!body.trim() || review.pending.length > 0);
+    // ⌘↵ in the review text submits a comment without a decision.
+    const onReviewKey = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key === 'Enter' && event.metaKey && canComment) {
+            event.preventDefault();
+            void submit('COMMENT');
+        }
+    };
+    const eventButton = (event: ReviewEvent) => event === 'COMMENT' ? (
+        <button key={event} className="button" disabled={!canComment} onClick={() => submit(event)}>Comment</button>
+    ) : event === 'APPROVE' ? (
+        <button key={event} className="button approve" disabled={busy || undecided > 0} onClick={() => submit(event)}><Check size={14} strokeWidth={2} />Approve</button>
+    ) : (
+        <button key={event} className="button" disabled={busy || undecided > 0} onClick={() => submit(event)}>{REVIEW_EVENT_TEXT[event].button}</button>
+    );
+    // The Overview tab shows the decisions as large buttons. A comment needs only ⌘↵, unless it is the only choice.
+    const decisions = overview && events.some(event => event !== 'COMMENT') ? events.filter(event => event !== 'COMMENT') : events;
+    const pendingPill = review.pending.length > 0 && (
+        <span className="pending-pill" title="These comments go out with this review.">
+            <MessageSquare size={12} strokeWidth={1.8} />
+            {review.pending.length} pending comment{review.pending.length === 1 ? '' : 's'}
+        </span>
+    );
+    const undecidedNote = undecided > 0 && (
+        <div className="panel-note review-undecided">
+            Accept or remove the {undecided} agent comment{undecided === 1 ? '' : 's'} that you did not check yet. Then you can submit your review.
+            {firstUndecided && firstUndecidedFile && (
+                <>
+                    {' '}<button className="link-button" onClick={() => onOpenDiff(pr, firstUndecidedFile, firstUndecided.line)}>Show the first one</button>
+                </>
+            )}
+        </div>
+    );
+
+    const reviewCard = overview ? (
+        <section className="side-card review-card" aria-label="Your review">
+            <header className="side-card-header">
+                <span className="side-card-title">Your review</span>
+                <span className="header-spacer" />
+                {pr.viewerIsRequested && <span className="review-requested">Requested from you</span>}
+            </header>
+            {pendingPill && <div>{pendingPill}</div>}
+            <label className="side-card-field">
+                <span>Summary (optional)</span>
+                <textarea
+                    className="review-body"
+                    value={body}
+                    placeholder={pr.author?.login ? `Leave a note for ${pr.author.login}…` : 'Leave a note…'}
+                    onChange={event => setBody(event.target.value)}
+                    onKeyDown={onReviewKey}
+                />
+            </label>
+            {undecidedNote}
+            <div className={`review-decisions count-${decisions.length}`}>{decisions.map(eventButton)}</div>
+            {(agentReview || decisions.length < events.length) && (
+                <div className="review-card-foot">
+                    {agentReview && (
+                        <button
+                            className="link-button"
+                            title="An agent reviews the changes. You accept or remove each of its comments. Nothing goes to GitHub until you submit the review."
+                            disabled={agentReview.running}
+                            onClick={agentReview.run}
+                        >
+                            {agentReview.running ? <LoaderCircle size={13} className="spin" /> : <Bot size={13} strokeWidth={1.6} />}
+                            {agentReview.running ? 'The agent reviews the changes…' : 'Run agent review first'}
+                        </button>
+                    )}
+                    <span className="header-spacer" />
+                    {decisions.length < events.length && (
+                        <span className="review-shortcut" title="Press ⌘↵ in the summary to submit a comment without a decision.">Comment only: ⌘↵</span>
+                    )}
+                </div>
+            )}
+        </section>
+    ) : (
+        <section className="footer-card review-card" aria-label="Your review">
+            <header className="footer-card-header">
+                <span className="footer-card-title">Your review</span>
+                {pendingPill}
+            </header>
+            <textarea
+                className="review-body"
+                value={body}
+                placeholder="Write a summary of your review (optional)"
+                onChange={event => setBody(event.target.value)}
+                onKeyDown={onReviewKey}
+            />
+            {undecidedNote}
+            <div className="review-actions">{events.map(eventButton)}</div>
+        </section>
+    );
+
+    const canAct = !!(pr.autoMerge || pr.viewerCanMerge || pr.viewerCanEnableAutoMerge || pr.viewerCanUpdate);
+    const moreButton = pr.viewerCanUpdate && (
+        <button className="icon-button" title="More actions" aria-label="More actions" disabled={busy} onClick={() => void moreActions()}>
+            <Ellipsis size={15} strokeWidth={1.8} />
+        </button>
+    );
+    const conditions = overview ? mergeConditions(pr, checks) : [];
+    const onlyReviewBlocks = conditions.every(item => item.state === 'ok' || item.text === 'Approving review required');
+    const mergeActions = pr.autoMerge ? (
+        <>
+            <div className="panel-note">
+                Auto-merge is on{pr.autoMerge.enabledBy ? ` (${pr.autoMerge.enabledBy})` : ''}.
+                GitHub merges the pull request with "{MERGE_LABELS[pr.autoMerge.method]}" when all the requirements pass.
+            </div>
+            {pr.viewerCanDisableAutoMerge && (
+                <div className="merge-row">
+                    <button className="button" disabled={busy} onClick={() => setAutoMerge(false)}>Disable auto-merge</button>
+                </div>
+            )}
+        </>
+    ) : (pr.viewerCanMerge || pr.viewerCanEnableAutoMerge) && (
+        <>
+            {!overview && pr.viewerCanMerge && blocker && <div className="panel-note">{blocker}</div>}
+            {method && (
+                <div className="merge-row">
+                    {pr.viewerCanMerge && pr.viewerCanEnableAutoMerge && (
+                        <button className="button auto-merge-button" disabled={busy} onClick={() => setAutoMerge(true)}>
+                            {!overview && <GitMerge size={14} strokeWidth={1.8} />}
+                            {overview && onlyReviewBlocks && pr.reviewDecision === 'REVIEW_REQUIRED' ? 'Auto-merge on approval' : 'Enable auto-merge'}
+                        </button>
+                    )}
+                    <MergeButton
+                        methods={pr.allowedMergeMethods}
+                        method={method}
+                        label={pr.viewerCanMerge ? (overview ? SHORT_MERGE_LABELS[method] : undefined) : 'Enable auto-merge'}
+                        disabled={busy || (pr.viewerCanMerge && !!blocker)}
+                        title={pr.viewerCanMerge ? blocker : undefined}
+                        onSelect={setMergeMethod}
+                        onRun={pr.viewerCanMerge ? merge : () => setAutoMerge(true)}
+                    />
+                </div>
+            )}
+        </>
+    );
+    const readyButton = pr.viewerCanUpdate && pr.isDraft && (
+        <div className="merge-row">
+            <button className="button" disabled={busy} onClick={() => setDraft(false)}>
+                <GitPullRequest size={14} strokeWidth={1.8} />Ready for review
+            </button>
+        </div>
+    );
+
+    const mergeCard = overview ? (
+        <section className="side-card merge-card" aria-label="Merge">
+            <header className="side-card-header">
+                <span className="side-card-title">{conditions.every(item => item.state === 'ok') ? 'Ready to merge' : 'Ready to merge?'}</span>
+                <span className="header-spacer" />
+                {moreButton}
+            </header>
+            <ul className="merge-conditions">
+                {conditions.map(item => (
+                    <li key={item.text} className={`merge-condition ${item.state}`}>
+                        {item.state === 'ok' ? <CircleCheck {...CONDITION_ICON} /> : item.state === 'fail' ? <CircleX {...CONDITION_ICON} /> : <Circle {...CONDITION_ICON} />}
+                        {item.text}
+                    </li>
+                ))}
+            </ul>
+            {mergeActions}
+            {readyButton}
+        </section>
+    ) : canAct && (
+        <section className="footer-card merge-card" aria-label="Merge">
+            <header className="footer-card-header">
+                <span className="footer-card-title">Merge</span>
+                <span className="header-spacer" />
+                {moreButton}
+            </header>
+            {mergeActions}
+            {readyButton}
+        </section>
+    );
+
     const descriptionPart = editing ? (
         <section className="pr-section">
             <div className="section-title">Edit the title and the description</div>
@@ -512,7 +698,16 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                             <PullRequestTimeline pr={pr} />
                             {threadsPart}
                         </div>
-                        <aside className="pr-overview-aside">{metaPart}</aside>
+                        <aside className="pr-overview-aside">
+                            {pr.state === 'OPEN' && (
+                                <>
+                                    {actionError && <div className="form-error">{actionError}</div>}
+                                    {reviewCard}
+                                    {mergeCard}
+                                </>
+                            )}
+                            <PullRequestMeta target={target} pr={pr} onRefresh={onRefresh} card />
+                        </aside>
                     </div>
                 ) : <>
                 {descriptionPart}
@@ -554,102 +749,11 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                 </>}
             </div>
 
-            {pr.state === 'OPEN' && (
+            {pr.state === 'OPEN' && !overview && (
                 <div className="pr-footer">
                     {actionError && <div className="form-error pr-footer-error">{actionError}</div>}
-                    <section className="footer-card review-card" aria-label="Your review">
-                        <header className="footer-card-header">
-                            <span className="footer-card-title">Your review</span>
-                            {review.pending.length > 0 && (
-                                <span className="pending-pill" title="These comments go out with this review.">
-                                    <MessageSquare size={12} strokeWidth={1.8} />
-                                    {review.pending.length} pending comment{review.pending.length === 1 ? '' : 's'}
-                                </span>
-                            )}
-                        </header>
-                        <textarea
-                            className="review-body"
-                            value={body}
-                            placeholder="Write a summary of your review (optional)"
-                            onChange={event => setBody(event.target.value)}
-                        />
-                        {undecided > 0 && (
-                            <div className="panel-note review-undecided">
-                                Accept or remove the {undecided} agent comment{undecided === 1 ? '' : 's'} that you did not check yet. Then you can submit your review.
-                                {firstUndecided && firstUndecidedFile && (
-                                    <>
-                                        {' '}<button className="link-button" onClick={() => onOpenDiff(pr, firstUndecidedFile, firstUndecided.line)}>Show the first one</button>
-                                    </>
-                                )}
-                            </div>
-                        )}
-                        <div className="review-actions">
-                            {(pr.reviewEvents ?? GITHUB_REVIEW_EVENTS)
-                                .filter(event => event === 'COMMENT' || !pr.viewerDidAuthor)
-                                .map(event => event === 'COMMENT' ? (
-                                    <button key={event} className="button" disabled={busy || undecided > 0 || (!body.trim() && review.pending.length === 0)} onClick={() => submit(event)}>Comment</button>
-                                ) : event === 'APPROVE' ? (
-                                    <button key={event} className="button approve" disabled={busy || undecided > 0} onClick={() => submit(event)}><Check size={14} strokeWidth={2} />Approve</button>
-                                ) : (
-                                    <button key={event} className="button" disabled={busy || undecided > 0} onClick={() => submit(event)}>{REVIEW_EVENT_TEXT[event].button}</button>
-                                ))}
-                        </div>
-                    </section>
-                    {(pr.autoMerge || pr.viewerCanMerge || pr.viewerCanEnableAutoMerge || pr.viewerCanUpdate) && (
-                        <section className="footer-card merge-card" aria-label="Merge">
-                            <header className="footer-card-header">
-                                <span className="footer-card-title">Merge</span>
-                                <span className="header-spacer" />
-                                {pr.viewerCanUpdate && (
-                                    <button className="icon-button" title="More actions" aria-label="More actions" disabled={busy} onClick={() => void moreActions()}>
-                                        <Ellipsis size={15} strokeWidth={1.8} />
-                                    </button>
-                                )}
-                            </header>
-                            {pr.autoMerge ? (
-                                <>
-                                    <div className="panel-note">
-                                        Auto-merge is on{pr.autoMerge.enabledBy ? ` (${pr.autoMerge.enabledBy})` : ''}.
-                                        GitHub merges the pull request with "{MERGE_LABELS[pr.autoMerge.method]}" when all the requirements pass.
-                                    </div>
-                                    {pr.viewerCanDisableAutoMerge && (
-                                        <div className="merge-row">
-                                            <button className="button" disabled={busy} onClick={() => setAutoMerge(false)}>Disable auto-merge</button>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (pr.viewerCanMerge || pr.viewerCanEnableAutoMerge) && (
-                                <>
-                                    {pr.viewerCanMerge && blocker && <div className="panel-note">{blocker}</div>}
-                                    {method && (
-                                        <div className="merge-row">
-                                            {pr.viewerCanMerge && pr.viewerCanEnableAutoMerge && (
-                                                <button className="button" disabled={busy} onClick={() => setAutoMerge(true)}>
-                                                    <GitMerge size={14} strokeWidth={1.8} />Enable auto-merge
-                                                </button>
-                                            )}
-                                            <MergeButton
-                                                methods={pr.allowedMergeMethods}
-                                                method={method}
-                                                label={pr.viewerCanMerge ? undefined : 'Enable auto-merge'}
-                                                disabled={busy || (pr.viewerCanMerge && !!blocker)}
-                                                title={pr.viewerCanMerge ? blocker : undefined}
-                                                onSelect={setMergeMethod}
-                                                onRun={pr.viewerCanMerge ? merge : () => setAutoMerge(true)}
-                                            />
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                            {pr.viewerCanUpdate && pr.isDraft && (
-                                <div className="merge-row">
-                                    <button className="button" disabled={busy} onClick={() => setDraft(false)}>
-                                        <GitPullRequest size={14} strokeWidth={1.8} />Ready for review
-                                    </button>
-                                </div>
-                            )}
-                        </section>
-                    )}
+                    {reviewCard}
+                    {mergeCard}
                 </div>
             )}
             {pr.state === 'CLOSED' && pr.viewerCanUpdate && (
