@@ -3,6 +3,7 @@ import { Bot, CircleCheck, CircleDot, CircleMinus, CircleX, ExternalLink, Loader
 import { summarizeChecks, type BranchStatus, type CheckRun, type RepoTarget, type Workflow } from '@shared/github';
 import { errorText, formatDuration } from '../util';
 import { confirmDialog } from './ConfirmDialog';
+import { openLink } from '../links';
 
 interface Props {
     target: RepoTarget;
@@ -179,7 +180,7 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                                     </button>
                                 )}
                                 {check.url && (
-                                    <button className="icon-button" title="Open on GitHub" onClick={event => { event.stopPropagation(); window.shipwarden.github.openInBrowser(check.url!); }}>
+                                    <button className="icon-button" title="Open on GitHub" onClick={event => { event.stopPropagation(); openLink(check.url!, event); }}>
                                         <ExternalLink size={14} strokeWidth={1.6} />
                                     </button>
                                 )}

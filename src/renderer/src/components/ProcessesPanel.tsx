@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Bot, ChevronRight, CircleStop, ExternalLink, LoaderCircle, RefreshCw, SquareTerminal } from 'lucide-react';
 import type { ListeningPort, ProcessInfo, ProcessTree, WorktreeProcesses } from '@shared/processes';
 import { errorText } from '../util';
+import { openLink } from '../links';
 
 const POLL_MS = 3000;
 
@@ -50,10 +51,10 @@ function PortChips({ ports }: { ports: ListeningPort[] }) {
                 <button
                     key={port.port}
                     className="port-chip"
-                    title={`Open ${portUrl(port)} in the browser. The process listens on ${port.address}:${port.port}.`}
+                    title={`Open ${portUrl(port)} in the browser (⇧⌘-click: in ShipWarden). The process listens on ${port.address}:${port.port}.`}
                     onClick={event => {
                         event.stopPropagation();
-                        window.open(portUrl(port));
+                        openLink(portUrl(port), event);
                     }}
                 >
                     :{port.port}
@@ -179,7 +180,7 @@ export function ProcessesPanel({ worktreePath, onShowTerminal }: Props) {
                     <div className="section-title">Ports</div>
                     {ports.map(({ port, tree }) => (
                         <div key={port.port} className="port-row">
-                            <button className="port-link" title={`Open ${portUrl(port)} in the browser`} onClick={() => window.open(portUrl(port))}>
+                            <button className="port-link" title={`Open ${portUrl(port)} in the browser (⇧⌘-click: in ShipWarden)`} onClick={event => openLink(portUrl(port), event)}>
                                 localhost:{port.port}
                                 <ExternalLink size={11} strokeWidth={1.8} />
                             </button>

@@ -8,6 +8,7 @@ import { Combobox, sortedGroups } from './Combobox';
 import { LogView } from './LogView';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
+import { openLink } from '../links';
 
 const github = window.shipwarden.github;
 const REPO_KEY = 'shipwarden.pipelinesRepo';
@@ -335,7 +336,7 @@ export function PipelinesView({ owners, onOpenSettings }: Props) {
                 <div className="tasks-header-group how">
                     <span className="header-spacer" />
                     {repoRef && (
-                        <button className="icon-button" title="Open the Actions of the repository on GitHub" onClick={() => github.openInBrowser(`https://github.com/${repoRef.owner}/${repoRef.name}/actions`)}>
+                        <button className="icon-button" title="Open the Actions of the repository on GitHub" onClick={event => openLink(`https://github.com/${repoRef.owner}/${repoRef.name}/actions`, event)}>
                             <ExternalLink size={15} strokeWidth={1.6} />
                         </button>
                     )}
@@ -431,7 +432,7 @@ export function PipelinesView({ owners, onOpenSettings }: Props) {
                                             <RotateCw size={12} strokeWidth={2} /> Re-run all jobs
                                         </button>
                                     )}
-                                    <button className="button" onClick={() => github.openInBrowser(selectedRun.url)}><ExternalLink size={12} strokeWidth={2} /> GitHub</button>
+                                    <button className="button" onClick={event => openLink(selectedRun.url, event)}><ExternalLink size={12} strokeWidth={2} /> GitHub</button>
                                 </div>
                                 {actionError && <div className="form-error">{actionError}</div>}
                             </div>

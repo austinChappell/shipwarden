@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Columns2, FileDiff, GitCompareArrows, ListTodo, PanelRight, ScrollText, SquareArrowOutUpRight, SquareTerminal, X } from 'lucide-react';
+import { Columns2, FileDiff, GitCompareArrows, Globe, ListTodo, PanelRight, ScrollText, SquareArrowOutUpRight, SquareTerminal, X } from 'lucide-react';
 import { baseName } from '@shared/files';
 import type { BranchSummary, CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
@@ -51,6 +51,10 @@ import { agentStateStore } from './terminal/agent-state-store';
 import { ChangeDiffView } from './components/ChangeDiffView';
 import type { ChangeSide, FileChange } from '@shared/git';
 import { SidebarContext, SidebarToggle } from './components/SidebarToggle';
+import { BrowserView } from './components/BrowserView';
+import { browserStore, useBrowserStates } from './browser/browser-store';
+import { openLink, setAppBrowserOpener } from './links';
+import { BLANK_PAGE, browserTabKey, browserTabTitle } from '@shared/browser';
 
 /** The command that starts an agent. A setting will replace this value. */
 const EXPLORER_STORAGE_KEY = 'shipwarden.explorerOpen';
@@ -60,15 +64,16 @@ const api = window.shipwarden;
 
 /**
  * A tab is a terminal session ("t:<id>"), a file ("f:<relative path>"),
- * a pull request diff ("d:<relative path>") or a CI job log ("l:<job id>").
+ * a pull request diff ("d:<relative path>"), a CI job log ("l:<job id>") or an in-app browser tab ("b:<view id>").
  */
 type TabKey = string;
 
-/** A diff tab or a log tab. */
+/** A diff tab, a log tab or a browser tab. */
 type ExtraTab =
     | { key: TabKey; kind: 'diff'; pr: PullRequest; file: PullRequestFile; line?: number; nonce?: number }
     | { key: TabKey; kind: 'log'; check: CheckRun }
-    | { key: TabKey; kind: 'change'; change: FileChange; side: ChangeSide };
+    | { key: TabKey; kind: 'change'; change: FileChange; side: ChangeSide }
+    | { key: TabKey; kind: 'browser'; id: string };
 
 /** The time that an agent can take to start before ShipWarden sends it a prompt. */
 const AGENT_START_TIMEOUT_MS = 15_000;
@@ -484,7 +489,7 @@ export function App() {
     /** Opens a pull request in the Review view. Without organizations for the Review view, GitHub opens in the browser. */
     const openPullRequest = (repo: RepoRef, number: number, tab: ReviewTabRequest) => {
         if (!appSettings.reviewOwners) {
-            api.github.openInBrowser(`https://github.com/${repo.owner}/${repo.name}/pull/${number}`);
+            openLink(`https://github.com/${repo.owner}/${repo.name}/pull/${number}`);
             return;
         }
         setReviewOpen({ repo: `${repo.owner}/${repo.name}`, number, tab, nonce: Date.now() });
@@ -556,7 +561,9 @@ export function App() {
     const activeFile = activeTab?.startsWith('f:') ? activeTab.slice(2) : undefined;
 
     // The GitHub state of the selected worktree. Diff tabs show the newest review threads from it.
-    const github = useBranchStatus(selectedPath, explorerOpen || worktreeExtras.length > 0);
+    const github = useBranchStatus(selectedPath, explorerOpen || worktreeExtras.some(tab => tab.kind !== 'browser'));
+    /** The address and the title of each browser tab, for the tab strip. */
+    const browserStates = useBrowserStates();
     const latestPullRequest = (pr: PullRequest) =>
         github.status?.pullRequest?.number === pr.number ? github.status.pullRequest : pr;
 
@@ -593,6 +600,50 @@ export function App() {
         }
     };
 
+    /**
+     * Opens an address in a new browser tab of a worktree: `root`, else the selected worktree, else the first worktree
+     * of the project. The worktree view then shows. Returns false when the project has no worktree.
+     */
+    const openBrowser = (url: string, root?: string): boolean => {
+        const target = root ?? selectedPath ?? worktrees[0]?.path;
+        if (!target) return false;
+        const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        browserStore.set({ id, url, title: '', canGoBack: false, canGoForward: false, loading: url !== BLANK_PAGE });
+        api.browser.create(id, url);
+        openExtra(target, { key: browserTabKey(id), kind: 'browser', id });
+        if (target !== selectedPath) setSelectedPath(target);
+        setMainView('worktree');
+        return true;
+    };
+    const openBrowserRef = useRef(openBrowser);
+    openBrowserRef.current = openBrowser;
+    const extraTabsRef = useRef(extraTabs);
+    extraTabsRef.current = extraTabs;
+    useEffect(() => {
+        const removeOpener = setAppBrowserOpener(url => openBrowserRef.current(url));
+        // A page asked for a new window: a new browser tab in the worktree of the page.
+        const removeOpenTab = api.browser.onOpenTab((url, openerId) => {
+            const root = Object.entries(extraTabsRef.current).find(([, tabs]) => tabs.some(tab => tab.kind === 'browser' && tab.id === openerId))?.[0];
+            openBrowserRef.current(url, root);
+        });
+        return () => {
+            removeOpener();
+            removeOpenTab();
+        };
+    }, []);
+    // The main process keeps a view for each browser tab. Close the views of the tabs that closed.
+    const shownBrowsers = useRef(new Set<string>());
+    useEffect(() => {
+        const ids = new Set(Object.values(extraTabs).flat().flatMap(tab => (tab.kind === 'browser' ? [tab.id] : [])));
+        for (const id of shownBrowsers.current) {
+            if (!ids.has(id)) {
+                api.browser.destroy(id);
+                browserStore.remove(id);
+            }
+        }
+        shownBrowsers.current = ids;
+    }, [extraTabs]);
+
     const activate = (worktreePath: string, tab: TabKey) => setActiveTabs(map => ({ ...map, [worktreePath]: tab }));
 
     /**
@@ -617,6 +668,14 @@ export function App() {
     const focusPane = (leafId: string) => {
         if (layout && split && layout.focused !== leafId && activeTab) commitGroup(activeTab, { ...layout, focused: leafId });
     };
+    // A click in a browser page does not reach the pane, because the page is a native view. Its focus event moves the focus.
+    const focusBrowserPane = (id: string) => {
+        const leaf = layout && leafOfTab(layout, browserTabKey(id));
+        if (leaf) focusPane(leaf.id);
+    };
+    const focusBrowserPaneRef = useRef(focusBrowserPane);
+    focusBrowserPaneRef.current = focusBrowserPane;
+    useEffect(() => api.browser.onFocus(id => focusBrowserPaneRef.current(id)), []);
 
     /**
      * Drops a dragged tab at a side of a pane of the active tab. The dragged tab, with all its panes when it is a split,
@@ -656,6 +715,12 @@ export function App() {
         if (!layout || !leaf || !selectedPath) return;
         commitGroup(leaf.tab, closePane(layout, leafId));
         activate(selectedPath, leaf.tab);
+    };
+    /** Closes a tab from a button in its view: its pane when it is in a split, else the tab. */
+    const closeFromView = (tab: TabKey) => {
+        const leaf = layout && split ? leafOfTab(layout, tab) : undefined;
+        if (leaf) closePaneView(leaf.id);
+        else closeTabView(tab);
     };
     /** Closes a split tab with all its panes. */
     const closeGroup = (group: PaneLayout) => {
@@ -1221,6 +1286,9 @@ export function App() {
     const renderTab = (tab: TabKey, focused: boolean): ReactNode => {
         if (!selectedPath) return null;
         const extra = worktreeExtras.find(item => item.key === tab);
+        if (extra?.kind === 'browser') {
+            return <BrowserView key={extra.id} id={extra.id} hidden={!!draggingTab} focused={focused} onClose={() => closeFromView(extra.key)} />;
+        }
         if (extra?.kind === 'change') {
             return (
                 <ChangeDiffView
@@ -1356,6 +1424,10 @@ export function App() {
             return { icon: <Icon className="tab-icon" size={14} strokeWidth={1.5} />, title: baseName(path), tooltip: path, dirty: !!selectedPath && dirtyFiles.has(fileKey(selectedPath, path)) };
         }
         const extra = worktreeExtras.find(item => item.key === key);
+        if (extra?.kind === 'browser') {
+            const state = browserStates.get(extra.id);
+            return { icon: <Globe className="tab-icon" size={14} strokeWidth={1.5} />, title: browserTabTitle(state), tooltip: state?.url && state.url !== BLANK_PAGE ? state.url : undefined };
+        }
         if (extra?.kind === 'change') {
             return {
                 icon: <GitCompareArrows className="tab-icon" size={14} strokeWidth={1.5} />,
@@ -1589,7 +1661,7 @@ export function App() {
                                 <NewTabMenu
                                     agents={appSettings.agents}
                                     defaultAgentId={agentForRepo(appSettings, selectedRepo).id}
-                                    onStart={target => startTerminal(selected, target)}
+                                    onStart={target => (target === 'browser' ? void openBrowser(BLANK_PAGE, selected.path) : startTerminal(selected, target))}
                                 />
                             </div>
                         )}

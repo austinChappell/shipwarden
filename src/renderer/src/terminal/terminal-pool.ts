@@ -1,9 +1,10 @@
-import { FitAddon, Terminal } from 'ghostty-web';
+import { FitAddon, Terminal, type ILink, type ILinkProvider } from 'ghostty-web';
 import { findKeybind } from '@shared/keybinds';
 import { CTRL_V, isClearKey, isCtrlV, isImageOnlyPaste } from '@shared/shortcuts';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { loadGhostty, prepareFonts } from './ghostty';
 import { pauseRendering, resumeRendering } from './render-loop';
+import { openLink } from '../links';
 
 /** Clears the screen and the scrollback (⌘K). */
 const CLEAR_ALL = '\x1b[H\x1b[2J\x1b[3J';
@@ -210,6 +211,7 @@ export class TerminalPool {
         terminal.loadAddon(fit);
         terminal.open(host);
         fit.fit();
+        routeLinkClicks(terminal);
 
         const entry: Entry = { session, terminal, fit, host, shownSeq: -1, pending: [], bindings: [] };
         this.entries.set(session.id, entry);
@@ -281,6 +283,29 @@ export class TerminalPool {
             entry.terminal.write(data);
         }
     }
+}
+
+/**
+ * Sends the link clicks of a terminal to `openLink`: ⌘-click opens the default browser, ⇧⌘-click the in-app browser.
+ * ghostty-web 0.4 calls window.open for a link and does not give the modifier keys to it. The link detector of the
+ * terminal is not public, so this function wraps its providers. When the detector has a different form (for example
+ * in a newer ghostty-web), the terminal keeps its own behavior: ⌘-click opens the default browser.
+ */
+function routeLinkClicks(terminal: Terminal): void {
+    const detector = (terminal as unknown as { linkDetector?: { providers?: unknown } }).linkDetector;
+    if (!detector || !Array.isArray(detector.providers)) {
+        console.warn('[terminal] The link detector of ghostty-web is not available. Links use the default behavior.');
+        return;
+    }
+    detector.providers = (detector.providers as ILinkProvider[]).map((provider): ILinkProvider => ({
+        provideLinks: (row, callback) => provider.provideLinks(row, links => callback(links?.map((link): ILink => ({
+            ...link,
+            activate: event => {
+                openLink(link.text, event, { needsModifier: true });
+            }
+        })))),
+        dispose: () => provider.dispose?.()
+    }));
 }
 
 export const terminalPool = new TerminalPool();

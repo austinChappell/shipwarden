@@ -6,6 +6,7 @@ import { errorText, formatDuration, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { confirmDialog } from './ConfirmDialog';
 import { RunDialog, RunIcon } from './PipelinesView';
+import { openLink } from '../links';
 
 const github = window.shipwarden.github;
 /** The time between two reads of the runs while a run waits or runs, and while all runs are done. */
@@ -79,7 +80,7 @@ function RunRow({ root, run, ownBranch, onOpenLog, onChanged }: {
                     {active
                         ? <button className="icon-button" title="Cancel the run" onClick={() => void act(`Cancel the run "${run.title}"?`, 'Cancel run', () => github.cancelRun(root, run.id))}><Square size={12} strokeWidth={2} /></button>
                         : <button className="icon-button" title="Run all jobs again" onClick={() => void act(`Run "${run.title}" again?`, 'Run again', () => github.rerunRun(root, run.id))}><RotateCw size={13} strokeWidth={1.8} /></button>}
-                    <button className="icon-button" title="Open on GitHub" onClick={() => github.openInBrowser(run.url)}><ExternalLink size={13} strokeWidth={1.7} /></button>
+                    <button className="icon-button" title="Open on GitHub" onClick={event => openLink(run.url, event)}><ExternalLink size={13} strokeWidth={1.7} /></button>
                 </span>
             </div>
             {open && (

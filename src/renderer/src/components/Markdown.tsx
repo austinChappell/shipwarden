@@ -1,6 +1,7 @@
 import { useMemo, type MouseEvent } from 'react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import { openLink } from '../links';
 
 interface Props {
     text: string;
@@ -22,7 +23,7 @@ export function sanitizeHtml(html: string): string {
     return DOMPurify.sanitize(html, { FORBID_TAGS: ['style', 'form', 'input', 'button', 'iframe'], FORBID_ATTR: ['style'] });
 }
 
-/** Shows Markdown from a task tracker or GitHub. Links open in the default browser, not in the app. */
+/** Shows Markdown from a task tracker or GitHub. Links open in the default browser, and with ⇧⌘-click in the in-app browser. */
 export function Markdown({ text, className, html: rendered }: Props) {
     const html = useMemo(() => (rendered !== undefined ? sanitizeHtml(rendered) : renderMarkdown(text)), [text, rendered]);
 
@@ -34,7 +35,7 @@ export function Markdown({ text, className, html: rendered }: Props) {
         event.preventDefault();
         const href = link.getAttribute('href') ?? '';
         if (/^https?:\/\//.test(href)) {
-            window.shipwarden.github.openInBrowser(href);
+            openLink(href, event);
         }
     };
 
