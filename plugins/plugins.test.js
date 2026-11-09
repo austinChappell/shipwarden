@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createMessageParser, encodeMessage, runPlugin } from './sdk/index.js';
 import * as github from './github-issues/map.js';
 import * as clickup from './clickup/map.js';
+import * as azure from './azure-devops/map.js';
 
 describe('SDK message framing', () => {
     it('parses messages that arrive in parts and together', () => {
@@ -149,5 +150,135 @@ describe('ClickUp mapping', () => {
         expect(clickup.matchesQuery(task, 'abc-16')).toBe(true);
         expect(clickup.matchesQuery(task, 'login')).toBe(true);
         expect(clickup.matchesQuery(task, 'billing')).toBe(false);
+    });
+});
+
+describe('Azure DevOps mapping', () => {
+    const states = [
+        { name: 'New', color: 'b2b2b2', category: 'Proposed' },
+        { name: 'Active', color: '007acc', category: 'InProgress' },
+        { name: 'Resolved', color: 'ff9d00', category: 'Resolved' },
+        { name: 'Closed', color: '339933', category: 'Completed' },
+        { name: 'Removed', color: 'ffffff', category: 'Removed' }
+    ];
+    const item = {
+        id: 299,
+        rev: 4,
+        fields: {
+            'System.Id': 299,
+            'System.Title': 'Fix the login page',
+            'System.State': 'Active',
+            'System.WorkItemType': 'Bug',
+            'System.TeamProject': 'Fabrikam Fiber',
+            'System.AreaPath': 'Fabrikam Fiber\\Web',
+            'System.IterationPath': 'Fabrikam Fiber\\Sprint 12',
+            'System.AssignedTo': { displayName: 'Jamal Hartnett', uniqueName: 'jamal@example.com', id: 'u1', imageUrl: 'https://example.com/a.png' },
+            'System.Tags': 'frontend; urgent',
+            'System.ChangedDate': '2026-11-07T10:00:00.12Z',
+            'Microsoft.VSTS.Common.Priority': 2,
+            'System.Description': '<div><b>Steps</b></div><ol><li>Open the page</li><li>Sign in</li></ol>',
+            'Microsoft.VSTS.TCM.ReproSteps': '<p>It fails &amp; shows an error.</p>'
+        }
+    };
+
+    it('reads the organization setting as a name or a URL', () => {
+        expect(azure.parseOrganization('contoso')).toEqual({ baseUrl: 'https://dev.azure.com/contoso', name: 'contoso' });
+        expect(azure.parseOrganization('https://dev.azure.com/contoso/Web/')).toEqual({ baseUrl: 'https://dev.azure.com/contoso', name: 'contoso' });
+        expect(azure.parseOrganization('dev.azure.com/contoso')).toEqual({ baseUrl: 'https://dev.azure.com/contoso', name: 'contoso' });
+        expect(azure.parseOrganization('https://contoso.visualstudio.com')).toEqual({ baseUrl: 'https://contoso.visualstudio.com', name: 'contoso' });
+        expect(azure.parseOrganization('https://tfs.example.com/tfs/DefaultCollection')).toEqual({ baseUrl: 'https://tfs.example.com/tfs/DefaultCollection', name: 'DefaultCollection' });
+        expect(() => azure.parseOrganization(' ')).toThrow('needs an organization');
+        expect(() => azure.parseOrganization('https://dev.azure.com/')).toThrow('no organization name');
+    });
+
+    it('finds the project of an Azure Repos remote', () => {
+        expect(azure.projectOfRemote('https://contoso@dev.azure.com/contoso/Fabrikam%20Fiber/_git/web')).toBe('Fabrikam Fiber');
+        expect(azure.projectOfRemote('git@ssh.dev.azure.com:v3/contoso/Fabrikam/web')).toBe('Fabrikam');
+        expect(azure.projectOfRemote('https://contoso.visualstudio.com/Fabrikam/_git/web')).toBe('Fabrikam');
+        expect(azure.projectOfRemote('git@github.com:o/r.git')).toBeUndefined();
+    });
+
+    it('maps a work item to a task', () => {
+        const task = azure.toTask(item, { baseUrl: 'https://dev.azure.com/contoso', states, withDescription: true });
+        expect(task).toEqual({
+            id: '299',
+            key: 'AB#299',
+            title: 'Fix the login page',
+            url: 'https://dev.azure.com/contoso/Fabrikam%20Fiber/_workitems/edit/299',
+            status: { id: 'Active', name: 'Active', color: '#007acc', category: 'in_progress' },
+            assignees: [{ name: 'Jamal Hartnett' }],
+            labels: [{ name: 'frontend' }, { name: 'urgent' }],
+            priority: { name: 'High', level: 2 },
+            updatedAt: '2026-11-07T10:00:00.12Z',
+            description: '**Steps**\n\n1. Open the page\n2. Sign in\n\n## Repro steps\n\nIt fails & shows an error.',
+            fields: { type: 'Bug', area: 'Fabrikam Fiber\\Web', iteration: 'Fabrikam Fiber\\Sprint 12' }
+        });
+    });
+
+    it('guesses the status category without the type states', () => {
+        const task = azure.toTask({ id: 1, fields: { 'System.State': 'Closed', 'System.Title': 'T' } });
+        expect(task.status).toEqual({ id: 'Closed', name: 'Closed', color: undefined, category: 'done' });
+        expect(task.description).toBeUndefined();
+        expect(task.url).toBeUndefined();
+        expect(task.assignees).toEqual([]);
+    });
+
+    it('keeps a Markdown description as it is', () => {
+        const markdown = { id: 1, fields: { 'System.Description': '# Title\n\n- a' }, multilineFieldsFormat: { 'System.Description': 'Markdown' } };
+        expect(azure.description(markdown)).toBe('# Title\n\n- a');
+    });
+
+    it('maps the state categories', () => {
+        expect(['Proposed', 'InProgress', 'Resolved', 'Completed', 'Removed', 'Other'].map(azure.statusCategory))
+            .toEqual(['todo', 'in_progress', 'in_progress', 'done', 'canceled', 'in_progress']);
+    });
+
+    it('merges the states of the work item types in workflow order', () => {
+        const task = [{ name: 'To Do', category: 'Proposed' }, { name: 'Doing', category: 'InProgress' }, { name: 'Done', category: 'Completed' }];
+        const bug = [{ name: 'New', category: 'Proposed' }, { name: 'Done', category: 'Completed' }, { name: 'Removed', category: 'Removed' }, { name: 'Committed', category: 'InProgress' }];
+        expect(azure.mergeStates([task, bug]).map(status => status.name)).toEqual(['To Do', 'New', 'Doing', 'Committed', 'Done', 'Removed']);
+        expect(azure.closedStateNames([task, bug])).toEqual(['Done', 'Removed']);
+    });
+
+    it('leaves out the hidden and disabled work item types', () => {
+        const types = [{ name: 'Bug' }, { name: 'Code Review Request' }, { name: 'Old', isDisabled: true }];
+        const categories = [{ referenceName: 'Microsoft.HiddenCategory', workItemTypes: [{ name: 'Code Review Request' }] }];
+        expect(azure.visibleTypes(types, categories)).toEqual(['Bug']);
+    });
+
+    it('makes WIQL queries with escaped text', () => {
+        expect(azure.listQuery({ filter: 'assigned', query: "it's", closedStates: ['Closed'], areaPath: 'Web\\UI', types: ['Bug'] })).toBe(
+            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.WorkItemType] IN ('Bug') AND [System.AssignedTo] = @Me"
+            + " AND [System.State] NOT IN ('Closed') AND [System.AreaPath] UNDER 'Web\\UI' AND [System.Title] CONTAINS 'it''s' ORDER BY [System.ChangedDate] DESC");
+        expect(azure.listQuery({ filter: 'all', query: 'AB#42', closedStates: ['Closed'] })).toBe(
+            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND ([System.Id] = 42 OR [System.Title] CONTAINS '42') ORDER BY [System.ChangedDate] DESC");
+        expect(azure.activityQuery('2026-11-07T00:00:00Z', ['A'])).toBe(
+            "SELECT [System.Id] FROM WorkItems WHERE [System.AssignedTo] = @Me AND [System.ChangedDate] > '2026-11-07T00:00:00.000Z' AND [System.TeamProject] IN ('A') ORDER BY [System.ChangedDate] DESC");
+    });
+
+    it('maps HTML and Markdown comments', () => {
+        expect(azure.toComment({ id: 50, text: '<div>See <a href="https://example.com">the log</a>.<br>Thanks</div>', createdBy: { displayName: 'Jamal' }, createdDate: '2026-11-07T00:00:00Z' }))
+            .toEqual({ id: '50', author: { name: 'Jamal' }, body: 'See [the log](https://example.com).\nThanks', createdAt: '2026-11-07T00:00:00Z' });
+        expect(azure.toComment({ id: 51, format: 'markdown', text: '**ok**' }).body).toBe('**ok**');
+    });
+
+    it('selects the new comments from other people after the last comment of the user', () => {
+        const comment = (id, user, date) => ({ id, createdBy: { id: user }, createdDate: date });
+        const comments = [
+            comment(1, 'other', '2026-11-07T01:00:00Z'),
+            comment(2, 'me', '2026-11-07T02:00:00Z'),
+            comment(3, 'other', '2026-11-07T03:00:00Z'),
+            { ...comment(4, 'other', '2026-11-07T04:00:00Z'), isDeleted: true }
+        ];
+        expect(azure.newComments(comments, 'me', '2026-11-07T00:00:00Z').map(entry => entry.id)).toEqual([3]);
+        expect(azure.sortComments([comment(2, 'a', '2026-11-08T00:00:00Z'), comment(1, 'a', '2026-11-07T00:00:00Z')]).map(entry => entry.id)).toEqual([1, 2]);
+    });
+
+    it('converts rich text HTML to Markdown', () => {
+        expect(azure.htmlToMarkdown('<h2>Plan</h2><ul><li>One<ul><li>Two</li></ul></li><li>Three</li></ul><pre><code>a &lt; b\n  c</code></pre>'))
+            .toBe('## Plan\n\n- One\n   - Two\n- Three\n\n```\na < b\n  c\n```');
+        expect(azure.htmlToMarkdown('<p><i>Note</i> <img src="https://x/y.png" alt="shot"> <a href="#" data-vss-mention="version:2.0,1">@Ann</a></p>'))
+            .toBe('*Note* ![shot](https://x/y.png) @Ann');
+        expect(azure.htmlToMarkdown('Plain text')).toBe('Plain text');
     });
 });
