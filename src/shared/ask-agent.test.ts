@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { afterMarker, askPrompt, lineLabel, parseSavedAnswer, printCommand, sliceLines, stripTerminalCodes } from './ask-agent';
+import { afterMarker, askPrompt, codeAskPrompt, isWorktreeAsk, lineLabel, locateCode, parseSavedAnswer, parseSavedCodeAnswer, printCommand, sliceLines, stripTerminalCodes } from './ask-agent';
 
 describe('printCommand', () => {
     it('runs each known agent in print mode', () => {
@@ -22,6 +22,28 @@ describe('askPrompt', () => {
         expect(prompt).toContain('lines 2–4 of the new version');
         expect(prompt).toContain('````\n```js\nx\n```\n````');
         expect(prompt.endsWith('Question: Why?')).toBe(true);
+    });
+});
+
+describe('codeAskPrompt', () => {
+    it('names the file and the lines, and fences the code', () => {
+        const prompt = codeAskPrompt({ path: 'src/a.ts', startLine: 3, endLine: 5, code: 'a ``` b', question: 'What does it do?' });
+        expect(prompt).toContain('src/a.ts, lines 3–5');
+        expect(prompt).toContain('````\na ``` b\n````');
+        expect(prompt.endsWith('Question: What does it do?')).toBe(true);
+    });
+
+    it('cuts very long code', () => {
+        const prompt = codeAskPrompt({ path: 'a', startLine: 1, endLine: 1, code: 'x'.repeat(70_000), question: 'q' });
+        expect(prompt).toContain('(the lines continue)');
+        expect(prompt.length).toBeLessThan(61_000);
+    });
+});
+
+describe('isWorktreeAsk', () => {
+    it('finds the request kind', () => {
+        expect(isWorktreeAsk({ id: '1', worktree: '/w', prompt: 'p' })).toBe(true);
+        expect(isWorktreeAsk({ id: '1', repo: { owner: 'o', name: 'r' }, headRefOid: 'abc', prompt: 'p' })).toBe(false);
     });
 });
 
@@ -64,5 +86,41 @@ describe('parseSavedAnswer', () => {
         expect(parseSavedAnswer({ ...valid, answer: '' })).toBeUndefined();
         expect(parseSavedAnswer({ ...valid, number: 1.5 })).toBeUndefined();
         expect(parseSavedAnswer({ ...valid, repo: undefined })).toBeUndefined();
+    });
+});
+
+describe('locateCode', () => {
+    const lines = ['a', 'b', 'c', 'a', 'b', 'd'];
+
+    it('keeps the old place when the lines did not change', () => {
+        expect(locateCode(lines, { startLine: 4, line: 5, code: 'a\nb' })).toEqual({ startLine: 4, line: 5 });
+    });
+
+    it('finds the nearest place when the lines moved', () => {
+        expect(locateCode(lines, { startLine: 2, line: 3, code: 'a\nb' })).toEqual({ startLine: 1, line: 2 });
+        expect(locateCode(lines, { startLine: 6, line: 7, code: 'a\nb' })).toEqual({ startLine: 4, line: 5 });
+    });
+
+    it('returns undefined when the lines changed', () => {
+        expect(locateCode(lines, { startLine: 1, line: 2, code: 'a\nx' })).toBeUndefined();
+        expect(locateCode(['a'], { startLine: 1, line: 2, code: 'a\nb' })).toBeUndefined();
+    });
+
+    it('finds an empty line', () => {
+        expect(locateCode(['x', ''], { startLine: 2, line: 2, code: '' })).toEqual({ startLine: 2, line: 2 });
+    });
+});
+
+describe('parseSavedCodeAnswer', () => {
+    const valid = { id: 'q', worktree: '/w', path: 'a.ts', startLine: 1, line: 2, code: '', question: 'Why?', agent: 'Claude Code', answer: 'Because.', answeredAt: 5 };
+
+    it('accepts a correct answer, also with empty code', () => {
+        expect(parseSavedCodeAnswer(valid)).toEqual(valid);
+    });
+
+    it('rejects a wrong answer', () => {
+        expect(parseSavedCodeAnswer({ ...valid, code: 3 })).toBeUndefined();
+        expect(parseSavedCodeAnswer({ ...valid, startLine: 3 })).toBeUndefined();
+        expect(parseSavedCodeAnswer({ ...valid, worktree: '' })).toBeUndefined();
     });
 });

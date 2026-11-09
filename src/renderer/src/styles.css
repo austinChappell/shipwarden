@@ -1691,6 +1691,7 @@ textarea.review-body {
 /* Review zones in the diff editor */
 
 .review-zone {
+    box-sizing: border-box;
     padding-right: 24px;
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     user-select: text;
@@ -9306,4 +9307,21 @@ button.pr-summary-cell:hover {
     gap: 3px;
     color: var(--info);
     font-size: 13.5px;
+}
+
+/* The "Ask agent" glyph in the gutter of the code editor */
+
+.ask-glyph {
+    border-radius: 4px;
+    background: var(--accent);
+    cursor: pointer;
+}
+
+.ask-glyph::after {
+    content: '?';
+    display: block;
+    color: var(--bg);
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
 }
