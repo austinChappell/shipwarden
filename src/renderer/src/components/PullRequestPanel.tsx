@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Bot, Check, ChevronRight, ExternalLink, GitCommitHorizontal, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Bot, Check, ChevronRight, Ellipsis, ExternalLink, GitCommitHorizontal, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, RefreshCw, TriangleAlert } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
 import { hostLabel, type BranchStatus, type MergeMethod, type PullRequest, type PullRequestChange, type PullRequestFile, type RepoTarget, type ReviewEvent, type ReviewThread } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
@@ -250,7 +250,9 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
     const review = useReviewState(target, pr?.number);
-    const [body, setBody] = useState('');
+    // The review text is in the store, so it stays when the user changes tabs, and an agent review can add to it.
+    const body = review.body;
+    const setBody = (value: string) => pr && reviewStore.setBody(target, pr.number, value);
     const [busy, setBusy] = useState(false);
     const [actionError, setActionError] = useState<string>();
     const [mergeMethod, setMergeMethod] = useState<MergeMethod>();
@@ -325,6 +327,16 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         if (method && await confirmDialog({ title: `${MERGE_LABELS[method]}: pull request #${pr.number} into ${pr.baseRefName}?`, confirmLabel: MERGE_LABELS[method] })) {
             run(() => window.shipwarden.github.merge(target, pr.number, pr.headRefOid, method));
         }
+    };
+
+    /** The actions that the user seldom needs: convert to draft and close. They are in a menu, away from the merge button. */
+    const moreActions = async () => {
+        const choice = await window.shipwarden.app.contextMenu([
+            ...(pr.isDraft ? [] : [{ id: 'draft', label: 'Convert to Draft' }, { type: 'separator' as const }]),
+            { id: 'close', label: 'Close Pull Request' }
+        ]);
+        if (choice === 'draft') await setDraft(true);
+        if (choice === 'close') await setState('closed');
     };
 
     const hasFooter = pr.state === 'OPEN' || (pr.state === 'CLOSED' && pr.viewerCanUpdate);
@@ -538,73 +550,89 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
 
             {pr.state === 'OPEN' && (
                 <div className="pr-footer">
-                    {actionError && <div className="form-error">{actionError}</div>}
-                    <textarea
-                        className="review-body"
-                        value={body}
-                        placeholder="Leave a review comment"
-                        onChange={event => setBody(event.target.value)}
-                    />
-                    {review.pending.length > 0 && <div className="panel-note">{review.pending.length} inline comment(s) go out with this review.</div>}
-                    <div className="row-buttons">
-                        {(pr.reviewEvents ?? GITHUB_REVIEW_EVENTS)
-                            .filter(event => event === 'COMMENT' || !pr.viewerDidAuthor)
-                            .map(event => event === 'COMMENT' ? (
-                                <button key={event} className="button" disabled={busy || (!body.trim() && review.pending.length === 0)} onClick={() => submit(event)}>Comment</button>
-                            ) : event === 'APPROVE' ? (
-                                <button key={event} className="button approve" disabled={busy} onClick={() => submit(event)}><Check size={14} strokeWidth={2} />Approve</button>
-                            ) : (
-                                <button key={event} className="button" disabled={busy} onClick={() => submit(event)}>{REVIEW_EVENT_TEXT[event].button}</button>
-                            ))}
-                    </div>
-                    {pr.autoMerge ? (
-                        <div className="auto-merge-row">
-                            <div className="panel-note">
-                                Auto-merge is on{pr.autoMerge.enabledBy ? ` (${pr.autoMerge.enabledBy})` : ''}.
-                                GitHub merges the pull request with "{MERGE_LABELS[pr.autoMerge.method]}" when all the requirements pass.
-                            </div>
-                            {pr.viewerCanDisableAutoMerge && (
-                                <button className="button" disabled={busy} onClick={() => setAutoMerge(false)}>Disable auto-merge</button>
+                    {actionError && <div className="form-error pr-footer-error">{actionError}</div>}
+                    <section className="footer-card review-card" aria-label="Your review">
+                        <header className="footer-card-header">
+                            <span className="footer-card-title">Your review</span>
+                            {review.pending.length > 0 && (
+                                <span className="pending-pill" title="These comments go out with this review.">
+                                    <MessageSquare size={12} strokeWidth={1.8} />
+                                    {review.pending.length} pending comment{review.pending.length === 1 ? '' : 's'}
+                                </span>
                             )}
+                        </header>
+                        <textarea
+                            className="review-body"
+                            value={body}
+                            placeholder="Write a summary of your review (optional)"
+                            onChange={event => setBody(event.target.value)}
+                        />
+                        <div className="review-actions">
+                            {(pr.reviewEvents ?? GITHUB_REVIEW_EVENTS)
+                                .filter(event => event === 'COMMENT' || !pr.viewerDidAuthor)
+                                .map(event => event === 'COMMENT' ? (
+                                    <button key={event} className="button" disabled={busy || (!body.trim() && review.pending.length === 0)} onClick={() => submit(event)}>Comment</button>
+                                ) : event === 'APPROVE' ? (
+                                    <button key={event} className="button approve" disabled={busy} onClick={() => submit(event)}><Check size={14} strokeWidth={2} />Approve</button>
+                                ) : (
+                                    <button key={event} className="button" disabled={busy} onClick={() => submit(event)}>{REVIEW_EVENT_TEXT[event].button}</button>
+                                ))}
                         </div>
-                    ) : (pr.viewerCanMerge || pr.viewerCanEnableAutoMerge) && (
-                    <>
-                    {method && (
-                        <div className="merge-row">
-                            {pr.viewerCanMerge && pr.viewerCanEnableAutoMerge && (
-                                <button className="button" disabled={busy} onClick={() => setAutoMerge(true)}>
-                                    <GitMerge size={14} strokeWidth={1.8} />Enable auto-merge
-                                </button>
+                    </section>
+                    {(pr.autoMerge || pr.viewerCanMerge || pr.viewerCanEnableAutoMerge || pr.viewerCanUpdate) && (
+                        <section className="footer-card merge-card" aria-label="Merge">
+                            <header className="footer-card-header">
+                                <span className="footer-card-title">Merge</span>
+                                <span className="header-spacer" />
+                                {pr.viewerCanUpdate && (
+                                    <button className="icon-button" title="More actions" aria-label="More actions" disabled={busy} onClick={() => void moreActions()}>
+                                        <Ellipsis size={15} strokeWidth={1.8} />
+                                    </button>
+                                )}
+                            </header>
+                            {pr.autoMerge ? (
+                                <>
+                                    <div className="panel-note">
+                                        Auto-merge is on{pr.autoMerge.enabledBy ? ` (${pr.autoMerge.enabledBy})` : ''}.
+                                        GitHub merges the pull request with "{MERGE_LABELS[pr.autoMerge.method]}" when all the requirements pass.
+                                    </div>
+                                    {pr.viewerCanDisableAutoMerge && (
+                                        <div className="merge-row">
+                                            <button className="button" disabled={busy} onClick={() => setAutoMerge(false)}>Disable auto-merge</button>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (pr.viewerCanMerge || pr.viewerCanEnableAutoMerge) && (
+                                <>
+                                    {pr.viewerCanMerge && blocker && <div className="panel-note">{blocker}</div>}
+                                    {method && (
+                                        <div className="merge-row">
+                                            {pr.viewerCanMerge && pr.viewerCanEnableAutoMerge && (
+                                                <button className="button" disabled={busy} onClick={() => setAutoMerge(true)}>
+                                                    <GitMerge size={14} strokeWidth={1.8} />Enable auto-merge
+                                                </button>
+                                            )}
+                                            <MergeButton
+                                                methods={pr.allowedMergeMethods}
+                                                method={method}
+                                                label={pr.viewerCanMerge ? undefined : 'Enable auto-merge'}
+                                                disabled={busy || (pr.viewerCanMerge && !!blocker)}
+                                                title={pr.viewerCanMerge ? blocker : undefined}
+                                                onSelect={setMergeMethod}
+                                                onRun={pr.viewerCanMerge ? merge : () => setAutoMerge(true)}
+                                            />
+                                        </div>
+                                    )}
+                                </>
                             )}
-                            <MergeButton
-                                methods={pr.allowedMergeMethods}
-                                method={method}
-                                label={pr.viewerCanMerge ? undefined : 'Enable auto-merge'}
-                                disabled={busy || (pr.viewerCanMerge && !!blocker)}
-                                title={pr.viewerCanMerge ? blocker : undefined}
-                                onSelect={setMergeMethod}
-                                onRun={pr.viewerCanMerge ? merge : () => setAutoMerge(true)}
-                            />
-                        </div>
-                    )}
-                    {pr.viewerCanMerge && blocker && <div className="panel-note">{blocker}</div>}
-                    </>
-                    )}
-                    {pr.viewerCanUpdate && (
-                        <div className="row-buttons">
-                            {pr.isDraft ? (
-                                <button className="button" disabled={busy} onClick={() => setDraft(false)}>
-                                    <GitPullRequest size={14} strokeWidth={1.8} />Ready for review
-                                </button>
-                            ) : (
-                                <button className="button" disabled={busy} onClick={() => setDraft(true)}>
-                                    <GitPullRequestDraft size={14} strokeWidth={1.8} />Convert to draft
-                                </button>
+                            {pr.viewerCanUpdate && pr.isDraft && (
+                                <div className="merge-row">
+                                    <button className="button" disabled={busy} onClick={() => setDraft(false)}>
+                                        <GitPullRequest size={14} strokeWidth={1.8} />Ready for review
+                                    </button>
+                                </div>
                             )}
-                            <button className="button danger" disabled={busy} onClick={() => setState('closed')}>
-                                <GitPullRequestClosed size={14} strokeWidth={1.8} />Close pull request
-                            </button>
-                        </div>
+                        </section>
                     )}
                 </div>
             )}

@@ -311,6 +311,8 @@ export interface PendingComment {
     line: number;
     side: DiffSide;
     body: string;
+    /** True when an agent review wrote the comment. The user can change it. It goes out as the user's comment. */
+    fromAgent?: boolean;
 }
 
 export type CheckStatus = 'queued' | 'in_progress' | 'completed' | 'waiting' | 'requested' | 'pending';

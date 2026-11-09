@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { ClipboardCheck, ExternalLink, FileDiff, GitCommitHorizontal, ListTodo, RefreshCw } from 'lucide-react';
+import { Bot, ClipboardCheck, ExternalLink, FileDiff, GitCommitHorizontal, ListTodo, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { BranchStatus, CheckRun, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
@@ -9,6 +9,7 @@ import { PullRequestFilesStream } from './PullRequestFilesStream';
 import { ConflictBadge, PullRequestCommitList, PullRequestFileList, PullRequestPanel, reviewText, StateBadge } from './PullRequestPanel';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
+import { CopyButton } from './CopyButton';
 
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
 
@@ -57,11 +58,14 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
     const [file, setFile] = useState<{ file: PullRequestFile; line?: number; nonce: number }>();
     const [check, setCheck] = useState<CheckRun>();
     const [fileError, setFileError] = useState<string>();
+    const [findRequest, setFindRequest] = useState<number>();
     const review = useReviewState(repo, pr?.number);
     const sideWidth = usePanelWidth('shipwarden.width.reviewSide', 320, 220, 560);
 
     const selectTab = (value: ReviewTab) => {
         setTab(value);
+        // The Files changed tab opens the search bar again only after a new ⌘F.
+        if (value !== 'files') setFindRequest(undefined);
         try {
             localStorage.setItem(TAB_KEY, value);
         } catch {
@@ -77,6 +81,20 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tabRequest?.nonce]);
 
+    // ⌘F searches the changed files. The capture phase gets the key before a comment box can stop it.
+    useEffect(() => {
+        const onKey = (event: KeyboardEvent) => {
+            if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+                event.preventDefault();
+                selectTab('files');
+                setFindRequest(Date.now());
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // A different pull request starts with no file and no log.
     useEffect(() => {
         setFile(undefined);
@@ -91,6 +109,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
     }, [repo, pr?.number, pr?.headRefOid]);
 
     const files = review.files;
+    const agentReview = review.agentReview;
 
     if (!pr) {
         return <div className="review-placeholder panel-message">{error ?? (loading ? 'Loading the pull request…' : '')}</div>;
@@ -109,12 +128,23 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
             <header className="review-pr-header">
                 <div className="review-pr-title">
                     <h2>{pr.title} <span className="review-pr-number">#{pr.number}</span></h2>
+                    <CopyButton text={pr.url} title="Copy the pull request URL" />
                     <button className="icon-button" title="Open on GitHub" onClick={event => openLink(pr.url, event)}>
                         <ExternalLink size={14} strokeWidth={1.6} />
                     </button>
                     <button className="icon-button" title="Refresh" onClick={() => onRefresh()}>
                         <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
                     </button>
+                    {pr.state === 'OPEN' && (
+                        <button
+                            className="button agent-review-button"
+                            title="An agent reviews the changes. Its comments become your pending comments. Nothing goes to GitHub until you submit the review."
+                            disabled={agentReview?.status === 'running'}
+                            onClick={() => void reviewStore.runAgentReview(repo, pr)}
+                        >
+                            <Bot size={14} strokeWidth={1.6} /> Agent review
+                        </button>
+                    )}
                 </div>
                 <div className="review-pr-meta">
                     <StateBadge pr={pr} />
@@ -126,6 +156,33 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                         <span className="dot-separator">·</span>{timeAgo(pr.createdAt)}
                     </span>
                 </div>
+                {agentReview && (
+                    <div className={`agent-review-status ${agentReview.status}`}>
+                        {agentReview.status === 'running' && (
+                            <>
+                                <LoaderCircle size={13} className="spin" />
+                                <span>The agent reviews the changes. This can take some minutes.</span>
+                                <button className="link-button" onClick={() => reviewStore.cancelAgentReview(repo, pr.number)}>Cancel</button>
+                            </>
+                        )}
+                        {agentReview.status === 'done' && (
+                            <>
+                                <Bot size={13} strokeWidth={1.6} />
+                                <span>
+                                    {agentReview.agent} added {agentReview.comments} pending comment{agentReview.comments === 1 ? '' : 's'}
+                                    {' '}and a summary to your review{agentReview.notes ? ` (with ${agentReview.notes} note${agentReview.notes === 1 ? '' : 's'} that are not on a changed line)` : ''}.
+                                    {' '}Edit them, then submit the review as yourself.
+                                </span>
+                                <button className="link-button" onClick={() => selectTab('files')}>Show comments</button>
+                                <button className="link-button" onClick={() => selectTab('overview')}>Show summary</button>
+                            </>
+                        )}
+                        {agentReview.status === 'error' && <span className="agent-review-error">The agent review failed: {agentReview.error}</span>}
+                        {agentReview.status !== 'running' && (
+                            <button className="icon-button" title="Close" onClick={() => reviewStore.dismissAgentReview(repo, pr.number)}><X size={13} /></button>
+                        )}
+                    </div>
+                )}
             </header>
 
             <nav className="pr-tabs" role="tablist">
@@ -202,6 +259,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                                 pr={pr}
                                 files={files}
                                 scrollTo={file && { path: file.file.path, nonce: file.nonce }}
+                                findRequest={findRequest}
                                 onRefresh={onRefresh}
                                 onError={setFileError}
                             />
