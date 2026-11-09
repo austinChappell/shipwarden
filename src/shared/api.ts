@@ -12,6 +12,7 @@ import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope,
 import type { AgentUpdate } from './agents';
 import type { AgentProgram } from './agent-programs';
 import type { AskAgentRequest, AskAgentResult, SavedAnswer, SavedCodeAnswer } from './ask-agent';
+import type { ReviewCheckout, ReviewCheckoutStatus } from './review-checkout';
 import type { AppSettings, CommandCheck } from './settings';
 import type { ProjectsState } from './projects';
 import type { ProviderUsage } from './usage';
@@ -364,6 +365,17 @@ export interface ShipWardenApi {
         setSelectedConnection(projectId: string, connectionId: string): Promise<void>;
         onChanged(listener: (connectionId: string, projectId: string) => void): () => void;
     };
+    review: {
+        /** Returns the local copy of a pull request, and if a copy needs a clone of the repository first. */
+        checkoutStatus(repo: RepoRef, number: number): Promise<ReviewCheckoutStatus>;
+        /**
+         * Makes or updates the local copy of a pull request at the commit `sha`. The copy is a detached git worktree
+         * in ~/.shipwarden/review. It clones the repository first only when `allowClone` is true.
+         */
+        checkout(repo: RepoRef, number: number, sha: string, allowClone: boolean): Promise<ReviewCheckout>;
+        /** Stops the language servers of a copy. The copy stays on disk. */
+        release(root: string): Promise<void>;
+    };
     lsp: {
         /** Starts the language server for the language in the worktree. Returns undefined when no server is available. */
         ensure(root: string, languageId: string): Promise<LspServerInfo | undefined>;
@@ -544,6 +556,9 @@ export const IpcChannels = {
     tasksSetSelectedCollection: 'tasks:setSelectedCollection',
     tasksSelectedConnection: 'tasks:selectedConnection',
     tasksSetSelectedConnection: 'tasks:setSelectedConnection',
+    reviewCheckoutStatus: 'review:checkoutStatus',
+    reviewCheckout: 'review:checkout',
+    reviewRelease: 'review:release',
     lspEnsure: 'lsp:ensure',
     lspMissing: 'lsp:missing',
     lspRequest: 'lsp:request',

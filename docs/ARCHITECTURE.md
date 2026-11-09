@@ -14,6 +14,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-07 | The Mac sends the terminal screen to the phone as styled text, not the raw output. | A headless xterm.js makes the screen from the same output. The phone needs no terminal emulator, and a dependency (SwiftTerm) is not necessary. |
 | 2026-11-07 | Use ghostty-web for terminals and import the user's Ghostty config. | This is Orca's approach (Orca imports the Ghostty config into xterm.js), with Ghostty's own VT parser in place of xterm.js. Supacode embeds the native libghostty, but that needs a Swift app. |
 | 2026-11-09 | Show PDF files in the built-in PDF viewer of Chromium, in a frame that loads a `shipwarden-file:` URL. | It needs no dependency. pdfjs-dist adds about 3 MB and a worker. The viewer has search, zoom and page thumbnails. |
+| 2026-11-09 | The Review view gets go to definition and a file explorer from a hidden, detached git worktree at the PR head. | A language server needs the files on disk. The GitHub API gives files, but no server can run on them. The worktree uses the existing LspManager, FileExplorer and Monaco. |
 
 ## The old name (Yardmaster)
 
@@ -592,6 +593,26 @@ Next:
     - A click in the file list opens the file and scrolls to it. The Unified/Split choice is in localStorage.
     - The worktree panel still uses `DiffView` (Monaco) for one file.
   The counts come from the PR query (`commitCount`, `checkCount`, `changedFiles`). The selected tab is kept in localStorage.
+- Code navigation (`ReviewCheckouts`, main, and `review-checkout-store`, page):
+  - The page asks for a local copy of the PR only when the user needs it: ⌘-click on a name in a diff, the file
+    button in a file header, or "All files" above the file list.
+  - The copy is a detached git worktree at the head commit: `~/.shipwarden/review/<owner>/<name>/pr-<number>`.
+    It belongs to the project repository whose "origin" is the GitHub repository (`localClone`). The user's clone
+    gets no branch. A fetch of `refs/pull/<number>/head` gets the commit, also for a PR from a fork.
+  - Without such a project, the page asks first. Then ShipWarden clones to `~/.shipwarden/review/<owner>/<name>/repo`
+    with `--filter=blob:none`, so git gets file contents only for the commits that the user opens.
+  - Git runs with no hooks, with no Git LFS downloads and with no password prompt. A new head commit moves the
+    worktree with `checkout --force`. Untracked files (for example `node_modules`) stay.
+  - `review-checkouts.json` (user data) keeps the copies. A copy that the user did not open for 7 days goes away
+    at the next start. A clone of ShipWarden goes away with its last copy.
+  - The sidebar and the phone do not show these worktrees. `knownWorktree` accepts them, so the file, watch and
+    protocol calls work.
+  - The page adds the copy as an extra root of `LspBridge` with its own opener (`addRoot`). "Go to definition" into
+    another file of the copy opens it in the code pane of the review, not in a worktree tab.
+  - ⌘-click uses `onTokenClick` of `@pierre/diffs`. Only the new side works, because the copy has only the head
+    commit. The code pane opens the file at the name and runs Monaco's "Go to Definition" after the server has the file.
+  - The code pane is a read-only Monaco editor with a "Back" list. "All files" shows `FileExplorer` on the copy.
+  - When the review closes the PR, the page closes the models of the copy and stops its language servers. The copy stays.
 - Merge shows only for the user's own PRs. "Send to agent" is not available, because the PR has no worktree.
 - Images: an image of a private repository is a `github.com/user-attachments` link that works only with a GitHub login
   session. The PR query also gets `bodyHTML`, which has signed `private-user-images` URLs (valid for some minutes).

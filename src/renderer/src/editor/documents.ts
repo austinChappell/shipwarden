@@ -75,6 +75,13 @@ export class DocumentStore {
         this.release(root);
     }
 
+    /** Removes the models of all files in a root. Unsaved changes are lost. */
+    closeRoot(root: string): void {
+        for (const document of [...this.documents.values()]) {
+            if (document.root === root) this.close(root, document.path);
+        }
+    }
+
     /**
      * Starts to watch the worktree of an open document. Without its own watch, the store gets change events
      * only while the file explorer shows the same worktree. An agent changes files also when the explorer is closed.
