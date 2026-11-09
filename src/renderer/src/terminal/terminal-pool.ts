@@ -8,6 +8,12 @@ import { pauseRendering, resumeRendering } from './render-loop';
 /** Clears the screen and the scrollback (⌘K). */
 const CLEAR_ALL = '\x1b[H\x1b[2J\x1b[3J';
 
+/**
+ * The time in milliseconds from the last fit request to the second fit.
+ * After a resize, FitAddon in ghostty-web 0.4 ignores fit() for 50 ms. This value must be larger.
+ */
+const TRAILING_FIT_MS = 80;
+
 interface Entry {
     session: TerminalSession;
     terminal: Terminal;
@@ -20,6 +26,8 @@ interface Entry {
     pending: [string, number][];
     /** The event handlers of this session. */
     bindings: { dispose(): void }[];
+    /** The timer of the second fit. See fit(). */
+    fitTimer?: ReturnType<typeof setTimeout>;
 }
 
 /**
@@ -136,10 +144,31 @@ export class TerminalPool {
         }
     }
 
-    /** Fits the terminal to its container. The function does nothing when the terminal is not visible. */
+    /**
+     * Fits the terminal to its container. The function does nothing when the terminal is not visible.
+     *
+     * After a resize, FitAddon in ghostty-web 0.4 ignores fit() for 50 ms. During a drag of a split divider, the last
+     * fit request often comes in that time, and the terminal keeps the size of an earlier step of the drag. Thus the
+     * function fits again when no request came for TRAILING_FIT_MS.
+     */
     fit(sessionId: string): void {
         const entry = this.entries.get(sessionId);
-        if (entry && entry.host.isConnected && entry.host.clientWidth > 0 && entry.host.clientHeight > 0) {
+        if (!entry) {
+            return;
+        }
+        this.fitNow(entry);
+        clearTimeout(entry.fitTimer);
+        entry.fitTimer = setTimeout(() => {
+            entry.fitTimer = undefined;
+            // The session can close, or the colors can change and make a new terminal, before the timer runs.
+            if (this.entries.get(sessionId) === entry) {
+                this.fitNow(entry);
+            }
+        }, TRAILING_FIT_MS);
+    }
+
+    private fitNow(entry: Entry): void {
+        if (entry.host.isConnected && entry.host.clientWidth > 0 && entry.host.clientHeight > 0) {
             entry.fit.fit();
         }
     }
