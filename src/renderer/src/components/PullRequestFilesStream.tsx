@@ -213,6 +213,7 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, q
                         comment={note.comment}
                         onRemove={() => reviewStore.removePending(target, pr.number, note.comment)}
                         onEdit={canComment ? body => reviewStore.updatePending(target, pr.number, note.comment, body) : undefined}
+                        onAccept={() => reviewStore.acceptPending(target, pr.number, note.comment)}
                     />
                 </div>
             );

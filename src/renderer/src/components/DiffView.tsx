@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { Bot, ChevronRight, LoaderCircle } from 'lucide-react';
+import { Bot, Check, ChevronRight, LoaderCircle } from 'lucide-react';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, RepoTarget, ReviewThread } from '@shared/github';
 import { monaco } from '../editor/monaco';
 import { gitHubSeenKey } from '@shared/dashboard';
@@ -79,7 +79,8 @@ export function ThreadZone({ thread, onReply, onResolve, onSendToAgent }: {
     );
 }
 
-export function PendingZone({ comment, onRemove, onEdit }: { comment: PendingComment; onRemove(): void; onEdit?(body: string): void }) {
+/** A pending comment. With `onAccept`, a comment from an agent review that waits for a decision shows an Accept button. */
+export function PendingZone({ comment, onRemove, onEdit, onAccept }: { comment: PendingComment; onRemove(): void; onEdit?(body: string): void; onAccept?(): void }) {
     const [editing, setEditing] = useState(false);
     const [text, setText] = useState(comment.body);
     const save = () => {
@@ -88,11 +89,13 @@ export function PendingZone({ comment, onRemove, onEdit }: { comment: PendingCom
         setEditing(false);
     };
     return (
-        <div className={`zone-card pending${comment.fromAgent ? ' from-agent' : ''}`}>
+        <div className={`zone-card pending${comment.fromAgent ? ' from-agent' : ''}${comment.needsDecision ? ' needs-decision' : ''}`}>
             <div className="comment-author">
                 <span className="tag">pending</span>
                 {comment.fromAgent && <span className="tag agent-tag"><Bot size={11} strokeWidth={1.8} /> agent draft</span>}
-                {' '}goes out as your comment with your next review
+                {comment.needsDecision
+                    ? ' Accept or remove this comment. You cannot submit your review until you do.'
+                    : ' goes out as your comment with your next review'}
             </div>
             {editing ? (
                 <textarea
@@ -116,6 +119,9 @@ export function PendingZone({ comment, onRemove, onEdit }: { comment: PendingCom
                     </>
                 ) : (
                     onEdit && <button className="link-button" onClick={() => { setText(comment.body); setEditing(true); }}>Edit</button>
+                )}
+                {comment.needsDecision && onAccept && !editing && (
+                    <button className="link-button accept-button" onClick={onAccept}><Check size={13} strokeWidth={2} /> Accept</button>
                 )}
                 <button className="link-button" onClick={onRemove}>Remove</button>
             </div>

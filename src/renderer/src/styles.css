@@ -8590,6 +8590,20 @@ button.gg-ref:hover {
     border-style: dashed;
 }
 
+.zone-card.pending.needs-decision {
+    border-color: var(--accent);
+}
+
+.link-button.accept-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.review-undecided {
+    margin-bottom: 6px;
+}
+
 .composer-mode {
     margin-bottom: 2px;
 }

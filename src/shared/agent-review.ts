@@ -72,7 +72,7 @@ export function reviewPrompt(input: ReviewPromptInput): string {
 
 export interface ParsedReview {
     summary: string;
-    /** The comments on lines of the diff. Each one has `fromAgent`. */
+    /** The comments on lines of the diff. Each one has `fromAgent` and `needsDecision`. */
     comments: PendingComment[];
     /** The comments that are not on a line of the diff, as Markdown list items. The caller adds them to the summary. */
     unplaced: string[];
@@ -116,7 +116,7 @@ export function parseAgentReview(answer: string, files: { path: string; patch?: 
         const wanted: DiffSide = side === 'LEFT' ? 'LEFT' : 'RIGHT';
         const fileLines = typeof path === 'string' ? lines.get(path) : undefined;
         if (typeof path === 'string' && Number.isInteger(line) && fileLines?.[wanted].has(line as number)) {
-            comments.push({ path, line: line as number, side: wanted, body: text, fromAgent: true });
+            comments.push({ path, line: line as number, side: wanted, body: text, fromAgent: true, needsDecision: true });
         } else {
             unplaced.push(`- ${where}: ${text.replace(/\n/g, '\n  ')}`);
         }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commentableLines, parseAgentReview, reviewBody, reviewPrompt } from './agent-review';
+import { undecidedCount } from './github';
 
 const PATCH = ['@@ -1,3 +1,3 @@', ' a', '-b', '+c', ' d'].join('\n');
 const FILES = [{ path: 'src/x.ts', status: 'modified', patch: PATCH }];
@@ -26,8 +27,8 @@ describe('parseAgentReview', () => {
         const review = parseAgentReview(answer, FILES);
         expect(review.summary).toBe('Looks fine.');
         expect(review.comments).toEqual([
-            { path: 'src/x.ts', line: 2, side: 'RIGHT', body: 'Rename c.', fromAgent: true },
-            { path: 'src/x.ts', line: 2, side: 'LEFT', body: 'Why remove b?', fromAgent: true }
+            { path: 'src/x.ts', line: 2, side: 'RIGHT', body: 'Rename c.', fromAgent: true, needsDecision: true },
+            { path: 'src/x.ts', line: 2, side: 'LEFT', body: 'Why remove b?', fromAgent: true, needsDecision: true }
         ]);
         expect(review.unplaced).toEqual(['- `src/x.ts` line 40: Far away.']);
         expect(reviewBody(review)).toBe('Looks fine.\n\nOther notes:\n\n- `src/x.ts` line 40: Far away.');
@@ -52,5 +53,16 @@ describe('reviewPrompt', () => {
         expect(prompt).toContain('- img.png (added, no diff from GitHub: binary or too large)');
         expect(prompt).toContain('"comments"');
         expect(prompt).toContain('Body');
+    });
+});
+
+describe('undecidedCount', () => {
+    it('counts only the agent comments that the user did not accept', () => {
+        const base = { path: 'src/x.ts', line: 2, side: 'RIGHT' as const, body: 'B' };
+        expect(undecidedCount([
+            { ...base, fromAgent: true, needsDecision: true },
+            { ...base, fromAgent: true },
+            base
+        ])).toBe(1);
     });
 });

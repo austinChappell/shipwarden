@@ -313,6 +313,16 @@ export interface PendingComment {
     body: string;
     /** True when an agent review wrote the comment. The user can change it. It goes out as the user's comment. */
     fromAgent?: boolean;
+    /**
+     * True when an agent review wrote the comment and the user did not accept it yet.
+     * The user must accept or remove each such comment before the review can go out.
+     */
+    needsDecision?: boolean;
+}
+
+/** Returns the number of pending comments that the user must accept or remove before the review can go out. */
+export function undecidedCount(comments: PendingComment[]): number {
+    return comments.filter(comment => comment.needsDecision).length;
 }
 
 export type CheckStatus = 'queued' | 'in_progress' | 'completed' | 'waiting' | 'requested' | 'pending';
