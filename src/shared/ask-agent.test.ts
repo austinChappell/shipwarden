@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { afterMarker, askPrompt, lineLabel, printCommand, sliceLines, stripTerminalCodes } from './ask-agent';
+import { afterMarker, askPrompt, lineLabel, parseSavedAnswer, printCommand, sliceLines, stripTerminalCodes } from './ask-agent';
 
 describe('printCommand', () => {
     it('runs each known agent in print mode', () => {
@@ -42,5 +42,26 @@ describe('helpers', () => {
     it('removes terminal control sequences', () => {
         expect(stripTerminalCodes('\x1b]0;claude\x07OK')).toBe('OK');
         expect(stripTerminalCodes('\x1b]2;title\x1b\\\x1b[1;32mOK\x1b[0m')).toBe('OK');
+    });
+});
+
+describe('parseSavedAnswer', () => {
+    const valid = {
+        id: 'q1', repo: { owner: 'o', name: 'r', extra: 1 }, number: 2, path: 'a.ts', side: 'LEFT', startLine: 1, line: 1,
+        question: 'Q', agent: 'Codex', answer: 'A', commit: 'abc', answeredAt: 5, unknown: true
+    };
+
+    it('keeps only the known fields', () => {
+        expect(parseSavedAnswer(valid)).toEqual({
+            id: 'q1', repo: { owner: 'o', name: 'r' }, number: 2, path: 'a.ts', side: 'LEFT', startLine: 1, line: 1,
+            question: 'Q', agent: 'Codex', answer: 'A', commit: 'abc', answeredAt: 5
+        });
+    });
+
+    it('returns undefined for a missing or wrong field', () => {
+        expect(parseSavedAnswer(null)).toBeUndefined();
+        expect(parseSavedAnswer({ ...valid, answer: '' })).toBeUndefined();
+        expect(parseSavedAnswer({ ...valid, number: 1.5 })).toBeUndefined();
+        expect(parseSavedAnswer({ ...valid, repo: undefined })).toBeUndefined();
     });
 });

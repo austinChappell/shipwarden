@@ -11,7 +11,7 @@ import type { LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentUpdate } from './agents';
 import type { AgentProgram } from './agent-programs';
-import type { AskAgentRequest, AskAgentResult } from './ask-agent';
+import type { AskAgentRequest, AskAgentResult, SavedAnswer } from './ask-agent';
 import type { AppSettings, CommandCheck } from './settings';
 import type { ProjectsState } from './projects';
 import type { ProviderUsage } from './usage';
@@ -126,6 +126,12 @@ export interface ShipWardenApi {
         run(request: AskAgentRequest): Promise<AskAgentResult>;
         /** Stops a question that runs. */
         cancel(id: string): Promise<void>;
+        /** Returns the saved questions and answers of a pull request, oldest first. */
+        answers(repo: RepoRef, number: number): Promise<SavedAnswer[]>;
+        /** Saves a question and its answer, or replaces the saved answer with the same ID. */
+        saveAnswer(answer: SavedAnswer): Promise<void>;
+        /** Removes a saved question and its answer. */
+        removeAnswer(id: string): Promise<void>;
     };
     settings: {
         get(): Promise<AppSettings>;
@@ -573,6 +579,9 @@ export const IpcChannels = {
     usageGet: 'usage:get',
     askRun: 'ask:run',
     askCancel: 'ask:cancel',
+    askAnswers: 'ask:answers',
+    askSaveAnswer: 'ask:saveAnswer',
+    askRemoveAnswer: 'ask:removeAnswer',
     usageRefresh: 'usage:refresh',
     usageChanged: 'usage:changed',
     updatesState: 'updates:state',

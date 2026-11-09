@@ -52,7 +52,10 @@ const api: ShipWardenApi = {
     },
     ask: {
         run: request => ipcRenderer.invoke(IpcChannels.askRun, request),
-        cancel: id => ipcRenderer.invoke(IpcChannels.askCancel, id)
+        cancel: id => ipcRenderer.invoke(IpcChannels.askCancel, id),
+        answers: (repo, number) => ipcRenderer.invoke(IpcChannels.askAnswers, repo, number),
+        saveAnswer: answer => ipcRenderer.invoke(IpcChannels.askSaveAnswer, answer),
+        removeAnswer: id => ipcRenderer.invoke(IpcChannels.askRemoveAnswer, id)
     },
     settings: {
         get: () => ipcRenderer.invoke(IpcChannels.settingsGet),
