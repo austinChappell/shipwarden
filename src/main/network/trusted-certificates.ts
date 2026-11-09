@@ -45,11 +45,18 @@ export class TrustedCertificates {
     private current: TrustStatus = {};
     /** The default certificates when the app started. A new apply starts from them, so removed certificates go away. */
     private defaults: string[] | undefined;
+    /** The extra certificates of the last apply, without the defaults. */
+    private extra: string[] = [];
 
     constructor(private readonly bundleFile: string, private readonly deps: TrustDeps = nodeDeps) {}
 
     status(): TrustStatus {
         return this.current;
+    }
+
+    /** The PEM of the extra certificates (the file and the keychain) of the last apply. The in-app browser uses them. */
+    extraCertificates(): readonly string[] {
+        return this.extra;
     }
 
     /**
@@ -93,6 +100,7 @@ export class TrustedCertificates {
             await this.deps.removeFile(this.bundleFile);
         }
         this.current = status;
+        this.extra = [...new Set(extra)];
         return status;
     }
 }

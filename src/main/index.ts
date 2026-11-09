@@ -46,6 +46,8 @@ import { RemoteDevices } from './remote/remote-devices';
 import { localHosts, RemoteServer } from './remote/remote-server';
 import { RemoteSnapshotBuilder } from './remote/remote-snapshot';
 import { ensureTlsIdentity } from './remote/tls-identity';
+import { BrowserViews } from './browser/browser-views';
+import type { BrowserBounds } from '@shared/browser';
 
 // Do this first. Terminals must not inherit the session of an agent that started ShipWarden.
 removeAgentSessionVariables(process.env);
@@ -77,6 +79,13 @@ const certificates = new TrustedCertificates(join(app.getPath('userData'), 'trus
 const networkReady: Promise<void> = shellReady
     .then(async () => { await certificates.apply((await settings.get()).network, loginShellCaFile()); })
     .catch(error => console.warn(`[network] The trusted certificates were not applied: ${error instanceof Error ? error.message : String(error)}`));
+/** The in-app browser. Each browser tab of the page has a WebContentsView in the main window. */
+const browserViews = new BrowserViews(() => mainWindow, () => certificates.extraCertificates(), {
+    onState: state => mainWindow?.webContents.send(IpcChannels.browserStateChanged, state),
+    onOpenTab: (url, openerId) => mainWindow?.webContents.send(IpcChannels.browserOpenTab, url, openerId),
+    onFocus: id => mainWindow?.webContents.send(IpcChannels.browserFocused, id),
+    onInput: (id, input) => browserKey(id, input)
+});
 const githubClient = new GitHubClient(networkReady);
 const github = new GitHubService(githubClient);
 
@@ -333,6 +342,7 @@ function createWindow(): void {
     });
     mainWindow.on('ready-to-show', () => mainWindow?.show());
     mainWindow.on('closed', () => {
+        browserViews.destroyAll();
         mainWindow = undefined;
     });
     // The workspace keys go to the app before the page gets them. A focused terminal takes all keys, so the menu
@@ -490,6 +500,16 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.seenMark, (_event, keys: unknown) => seen.mark(Array.isArray(keys) ? keys.filter((key): key is string => typeof key === 'string') : []));
     ipcMain.handle(IpcChannels.githubPullRequests, async (_event, repo: RepoRef, filter: PullRequestFilter, query?: string) =>
         github.pullRequests(await repoOf(repo), filter, query));
+    ipcMain.on(IpcChannels.browserCreate, (_event, id: string, url: string) => browserViews.create(String(id), String(url)));
+    ipcMain.on(IpcChannels.browserSetBounds, (_event, id: string, bounds: BrowserBounds | null) => browserViews.setBounds(String(id), validBounds(bounds)));
+    ipcMain.on(IpcChannels.browserLoad, (_event, id: string, url: string) => browserViews.load(String(id), String(url)));
+    ipcMain.on(IpcChannels.browserBack, (_event, id: string) => browserViews.back(String(id)));
+    ipcMain.on(IpcChannels.browserForward, (_event, id: string) => browserViews.forward(String(id)));
+    ipcMain.on(IpcChannels.browserReload, (_event, id: string) => browserViews.reload(String(id)));
+    ipcMain.on(IpcChannels.browserStop, (_event, id: string) => browserViews.stop(String(id)));
+    ipcMain.on(IpcChannels.browserFocus, (_event, id: string) => browserViews.focus(String(id)));
+    ipcMain.on(IpcChannels.browserDestroy, (_event, id: string) => browserViews.destroy(String(id)));
+    ipcMain.handle(IpcChannels.browserState, (_event, id: string) => browserViews.state(String(id)));
     ipcMain.on(IpcChannels.githubOpenInBrowser, (_event, url: string) => {
         // Commit statuses and task descriptions can link to other services, so any web URL is permitted.
         if (/^https?:\/\//.test(url)) {
@@ -728,6 +748,50 @@ function runAppKey(action: AppKeyAction): void {
     else if (action === 'quitAndStop') void quitAndStopSessions();
     else if (action === 'settings') openSettings();
     else if (action === 'hide') app.hide();
+}
+
+/** Returns the bounds when all four values are finite numbers. Else returns null, which hides the view. */
+function validBounds(bounds: unknown): BrowserBounds | null {
+    if (!bounds || typeof bounds !== 'object') return null;
+    const { x, y, width, height } = bounds as Record<string, unknown>;
+    const values = [x, y, width, height];
+    return values.every(value => typeof value === 'number' && Number.isFinite(value))
+        ? { x: x as number, y: y as number, width: width as number, height: height as number }
+        : null;
+}
+
+/**
+ * The keys of a browser view. The workspace keys and the app keys work as in the rest of the window.
+ * ⌘R loads the page again, ⌘L selects the address bar and ⌥⌘I opens the developer tools of the page.
+ * Returns true when the app used the key.
+ */
+function browserKey(id: string, input: Electron.Input): boolean {
+    const action = shortcutAction(input);
+    if (action) {
+        sendShortcut(action);
+        return true;
+    }
+    const appAction = appKeyAction(input);
+    if (appAction) {
+        runAppKey(appAction);
+        return true;
+    }
+    if (input.type !== 'keyDown' || !input.meta || input.control) return false;
+    const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
+    if (key === 'r' && !input.shift && !input.alt) {
+        browserViews.reload(id);
+        return true;
+    }
+    if (key === 'l' && !input.shift && !input.alt) {
+        mainWindow?.webContents.focus();
+        mainWindow?.webContents.send(IpcChannels.browserFocusAddress, id);
+        return true;
+    }
+    if (key === 'i' && input.alt && !input.shift) {
+        browserViews.toggleDevTools(id);
+        return true;
+    }
+    return false;
 }
 
 function sendShortcut(action: ShortcutAction): void {
