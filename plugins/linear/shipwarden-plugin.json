@@ -1,0 +1,21 @@
+{
+  "id": "linear",
+  "name": "Linear",
+  "version": "0.1.0",
+  "protocolVersion": 3,
+  "description": "Linear issues. Each Linear team is a collection. Restrict the connection to some teams in the settings.",
+  "command": "node",
+  "args": [
+    "index.js"
+  ],
+  "settings": [
+    {
+      "key": "apiKey",
+      "label": "API key",
+      "type": "secret",
+      "required": true,
+      "description": "A personal API key. In Linear, open Settings > Security & access > Personal API keys and make a new key. The key starts with lin_api_."
+    }
+  ],
+  "scopeLabel": "team"
+}
