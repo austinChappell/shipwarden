@@ -4749,6 +4749,21 @@ button:focus-visible {
     flex-direction: column;
 }
 
+/* The stream of changed files. It fills the space under the error banner. */
+.review-stream {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.file-list-toggle {
+    color: var(--muted);
+}
+
+.file-list-toggle:hover {
+    color: var(--text-strong);
+}
+
 .review-placeholder {
     flex: 1;
 }

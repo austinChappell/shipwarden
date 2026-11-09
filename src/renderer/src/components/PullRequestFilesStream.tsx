@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MultiFileDiff, PatchDiff, Virtualizer, type DiffLineAnnotation, type FileDiffOptions } from '@pierre/diffs/react';
-import { Bot, ChevronDown, ChevronRight, ChevronUp, ExternalLink, LoaderCircle, MessageSquare, Search, X } from 'lucide-react';
+import { Bot, ChevronDown, ChevronRight, ChevronUp, ExternalLink, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen, Search, X } from 'lucide-react';
 import type { DiffSide, FileVersions, PendingComment, PullRequest, PullRequestFile, RepoTarget, ReviewThread } from '@shared/github';
 import { unifiedPatch } from '@shared/patch';
 import { reviewStore, useReviewState } from '../github/review-store';
@@ -59,6 +59,8 @@ interface Props {
     onError(message: string): void;
     /** A request to open the search bar (⌘F). A new value opens it again and selects its text. */
     findRequest?: number;
+    /** The file list beside the stream. With it, the toolbar shows a button that hides and shows the list. */
+    fileList?: { open: boolean; toggle(): void };
 }
 
 export function readStyle(): DiffStyle {
@@ -344,7 +346,7 @@ export function FindBar({ query, caseSensitive, count, index, focusNonce, onQuer
  * All changed files of a pull request in one stream, like the "Files changed" page of GitHub. Each file can collapse.
  * A file that the user marks as viewed collapses, and viewed files start collapsed.
  */
-export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh, onError, findRequest }: Props) {
+export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh, onError, findRequest, fileList }: Props) {
     const review = useReviewState(target, pr.number);
     const mode = useColorMode();
     const [diffStyle, setDiffStyle] = useState<DiffStyle>(readStyle);
@@ -544,6 +546,16 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                 />
             )}
             <div className="files-stream-toolbar">
+                {fileList && (
+                    <button
+                        className="icon-button file-list-toggle"
+                        title={fileList.open ? 'Hide the file list' : 'Show the file list'}
+                        aria-pressed={fileList.open}
+                        onClick={fileList.toggle}
+                    >
+                        {fileList.open ? <PanelLeftClose size={15} strokeWidth={1.5} /> : <PanelLeftOpen size={15} strokeWidth={1.5} />}
+                    </button>
+                )}
                 <span className="files-stream-count">{viewedCount} of {files.length} viewed</span>
                 <span className="header-spacer" />
                 {answered.length > 0 && (
