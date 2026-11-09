@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CircleCheck, CircleDot, CircleX, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, GitMerge, MessageSquare, RefreshCw, Search } from 'lucide-react';
 import {
     PULL_REQUEST_FILTERS,
@@ -12,7 +12,6 @@ import {
 import { errorText, timeAgo } from '../util';
 import { Combobox, sortedGroups } from './Combobox';
 import { ReviewPullRequest } from './ReviewPullRequest';
-import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 
 const api = window.shipwarden.github;
 const REPO_KEY = 'shipwarden.reviewRepo';
@@ -42,8 +41,6 @@ export interface ReviewOpenRequest {
     tab: 'overview' | 'checks' | 'files';
     nonce: number;
 }
-
-/** What the right side shows: the diff of a file, or the log of a CI job. */
 
 function read(key: string): string | undefined {
     try {
@@ -85,6 +82,7 @@ const REVIEW_TEXT: Record<string, string> = { APPROVED: 'Approved', CHANGES_REQU
 
 /**
  * The Review view: the pull requests of one GitHub repository, from the organizations in Settings > Code review.
+ * The view has two pages. The list page shows the pull requests. The pull request page shows one pull request and hides the list.
  * The user can read the diff, comment, approve or request changes, mark files as viewed, read the CI logs,
  * and merge a pull request when they have write access to the repository.
  */
@@ -100,7 +98,6 @@ export function ReviewView({ githubKey, onOpenSettings, open }: Props) {
     const [pr, setPr] = useState<PullRequest | null>();
     const [prLoading, setPrLoading] = useState(false);
     const [prError, setPrError] = useState<string>();
-    const listWidth = usePanelWidth('shipwarden.width.reviewList', 320, 240, 560);
 
     // The repositories of the GitHub providers, each in its organizations.
     useEffect(() => {
@@ -235,7 +232,7 @@ export function ReviewView({ githubKey, onOpenSettings, open }: Props) {
 
     return (
         <div className="review-view">
-            <header className="tasks-header review-header">
+            {!selected && <header className="tasks-header review-header">
                 <div className="tasks-header-group where">
                     <Combobox
                         className="review-repo-select"
@@ -261,9 +258,9 @@ export function ReviewView({ githubKey, onOpenSettings, open }: Props) {
                         <RefreshCw size={15} strokeWidth={1.6} className={listLoading || prLoading ? 'spin' : ''} />
                     </button>
                 </div>
-            </header>
+            </header>}
 
-            {repos?.length === 0 && (
+            {!selected && repos?.length === 0 && (
                 <div className="review-empty">
                     <p>The selected organizations have no repositories that you can access.</p>
                     <button className="button" onClick={onOpenSettings}>Open Settings › Code review</button>
@@ -271,13 +268,14 @@ export function ReviewView({ githubKey, onOpenSettings, open }: Props) {
             )}
 
             {repoRef && (
-                <div className="review-body" style={{ '--review-list-width': `${listWidth.width}px` } as CSSProperties}>
-                    <div className="review-list">
+                <div className="review-body">
+                    {/* The list stays in the page when it is hidden, so that it keeps its scroll position. */}
+                    <div className="review-list" hidden={selected !== undefined}>
                         {error && <div className="form-error task-list-error">{error}</div>}
                         {!list && !error && <div className="panel-message">Loading pull requests…</div>}
                         {list?.length === 0 && <div className="panel-message">No pull requests.</div>}
                         {list?.map(item => (
-                            <button key={item.number} className={`review-item${item.number === selected ? ' selected' : ''}`} onClick={() => setSelected(item.number)}>
+                            <button key={item.number} className="review-item" onClick={() => setSelected(item.number)}>
                                 <StateIcon pr={item} />
                                 <span className="review-item-main">
                                     <span className="review-item-title">{item.title}</span>
@@ -294,14 +292,6 @@ export function ReviewView({ githubKey, onOpenSettings, open }: Props) {
                             </button>
                         ))}
                     </div>
-                    <ResizeHandle
-                        panel={listWidth}
-                        edge="right"
-                        label="Resize the pull request list"
-                        maxAvailable={() => (document.querySelector<HTMLElement>('.review-body')?.offsetWidth ?? Infinity) - 480}
-                    />
-
-                    {!selected && <div className="review-placeholder panel-message">Select a pull request.</div>}
 
                     {selected && (
                         <ReviewPullRequest
@@ -313,6 +303,7 @@ export function ReviewView({ githubKey, onOpenSettings, open }: Props) {
                             loading={prLoading}
                             error={prError}
                             onRefresh={refresh}
+                            onBack={() => setSelected(undefined)}
                         />
                     )}
                 </div>
