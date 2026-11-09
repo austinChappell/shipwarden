@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronRight, Download, FileText, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Undo2, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronRight, Download, FileText, GitBranch, GitCompareArrows, LoaderCircle, Minus, Plus, RefreshCw, Undo2, Upload } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
 import { changeLetter, type ChangeSide, type FetchResult, type FileChange, type GitChanges } from '@shared/git';
 import { gitChanged } from '../git/git-store';
@@ -16,6 +16,8 @@ interface Props {
     onReload(): void;
     /** Opens the diff of a file in a tab. */
     onOpenChange(change: FileChange, side: ChangeSide): void;
+    /** Opens one tab with the diffs of all changed files. */
+    onOpenAllChanges(): void;
     onOpenFile(path: string): void;
 }
 
@@ -71,7 +73,7 @@ function Group({ title, files, open, onToggle, action, children }: {
  * The Changes tab of the right panel: the git changes of the worktree. The user stages and unstages files, opens
  * the diff of a file, writes a commit message and commits, and pushes the branch.
  */
-export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOpenChange, onOpenFile }: Props) {
+export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOpenChange, onOpenAllChanges, onOpenFile }: Props) {
     const [message, setMessage] = useState('');
     const [amend, setAmend] = useState(false);
     const [busy, setBusy] = useState<string>();
@@ -201,6 +203,11 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                 {canPush && (
                     <button className="button changes-push" disabled={!!busy} title={changes.upstream ? `Push to ${changes.upstream}` : 'Push, and track origin'} onClick={() => void push()}>
                         {busy === 'push' ? <LoaderCircle size={13} className="spin" /> : <Upload size={13} strokeWidth={1.8} />} Push
+                    </button>
+                )}
+                {!clean && (
+                    <button className="icon-button" title="Show the diff of all changes" onClick={onOpenAllChanges}>
+                        <GitCompareArrows size={14} strokeWidth={1.6} />
                     </button>
                 )}
                 <button

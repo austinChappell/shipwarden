@@ -25,6 +25,7 @@ interface Props {
     onSendLogToAgent(check: CheckRun): void;
     onShowTerminal(sessionId: string): void;
     onOpenChange(change: FileChange, side: ChangeSide): void;
+    onOpenAllChanges(): void;
 }
 
 function readTab(): PanelTab {
@@ -106,6 +107,7 @@ export function RightPanel(props: Props) {
                     fetched={git.fetched}
                     onReload={() => git.reload(true)}
                     onOpenChange={props.onOpenChange}
+                    onOpenAllChanges={props.onOpenAllChanges}
                     onOpenFile={path => props.onOpenFile(path)}
                 />
             )}
