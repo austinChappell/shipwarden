@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowLeft, Bot, Check, ExternalLink, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { BranchStatus, CheckRun, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
 import { LogView } from './LogView';
 import { PullRequestFilesStream } from './PullRequestFilesStream';
-import { ConflictBadge, PullRequestCommitList, PullRequestFileList, PullRequestPanel, StateBadge } from './PullRequestPanel';
+import { BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, PullRequestPanel, StateBadge } from './PullRequestPanel';
 import { PullRequestSummary } from './PullRequestSummary';
 import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
@@ -53,6 +53,8 @@ interface Props {
     onBack(): void;
     /** A tab to show, for example from the Dashboard. A new `nonce` shows it again. */
     tabRequest?: { tab: ReviewTab; nonce: number };
+    /** Opens the New worktree dialog on the head branch of the pull request. Without it, the button does not show. */
+    onNewWorktree?(pr: PullRequest): void;
 }
 
 /** The last tab request that the view applied. A remount must not apply an old request again. */
@@ -97,7 +99,7 @@ function CheckTabCount({ total, counts }: { total: number; counts: CheckCounts |
  * A pull request in the Review view, with the tabs of GitHub: Overview, Commits, Checks and Files changed.
  * The tab stays the same when the user opens a different pull request.
  */
-export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh, onBack, tabRequest }: Props) {
+export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh, onBack, tabRequest, onNewWorktree }: Props) {
     const [tab, setTab] = useState<ReviewTab>(readTab);
     const [file, setFile] = useState<{ file: PullRequestFile; line?: number; nonce: number }>();
     const [check, setCheck] = useState<CheckRun>();
@@ -263,6 +265,18 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                 <div className="review-pr-title">
                     <h2>{pr.title} <span className="review-pr-number">#{pr.number}</span></h2>
                     <div className="review-pr-actions">
+                        {onNewWorktree && (
+                            <button
+                                className="icon-button"
+                                title={pr.isCrossRepository
+                                    ? `The branch ${pr.headRefName} is in a fork. ShipWarden can make a worktree only from a branch of origin.`
+                                    : `Make a worktree from the branch ${pr.headRefName}`}
+                                disabled={pr.isCrossRepository}
+                                onClick={() => onNewWorktree(pr)}
+                            >
+                                <FolderGit2 size={15} strokeWidth={1.6} />
+                            </button>
+                        )}
                         <CopyButton text={pr.url} title="Copy the pull request URL" />
                         <button className="icon-button" title="Open on GitHub" onClick={event => openLink(pr.url, event)}>
                             <ExternalLink size={15} strokeWidth={1.6} />
@@ -277,7 +291,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                     <ConflictBadge pr={pr} />
                     <span className="review-pr-summary">
                         <strong>{pr.author?.login ?? 'unknown'}</strong> {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'}
-                        {' '}{pr.commitCount} commit{pr.commitCount === 1 ? '' : 's'} into <code>{pr.baseRefName}</code> from <code>{pr.headRefName}</code>
+                        {' '}{pr.commitCount} commit{pr.commitCount === 1 ? '' : 's'} into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
                         <span className="dot-separator">·</span>{timeAgo(pr.createdAt)}
                     </span>
                 </div>

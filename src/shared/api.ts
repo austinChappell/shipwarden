@@ -67,7 +67,7 @@ export interface ShipWardenApi {
         info(): Promise<AppInfo>;
         /** Listens for the "Settings…" menu item (⌘,). */
         onOpenSettings(listener: () => void): () => void;
-        /** The workspace shortcuts: ⌘T, ⌘W, ⌘D, ⇧⌘D, ⌘[, ⌘] and ⇧⌘E. See `shortcutAction`. */
+        /** The workspace shortcuts, for example ⌘T, ⌘W, ⌘D, ⌘[ and ⌘]. See `shortcutAction`. */
         onShortcut(listener: (action: ShortcutAction) => void): () => void;
         /** Questions from the main process. The page shows them in its own dialog and sends the answer with `answerConfirm`. */
         onConfirmRequest(listener: (id: number, request: ConfirmRequest) => void): () => void;
@@ -249,6 +249,8 @@ export interface ShipWardenApi {
         changePullRequest(target: RepoTarget, number: number, change: PullRequestChange): Promise<void>;
         /** The repositories of all GitHub providers that are on, each in the organizations of its scope. */
         repositories(): Promise<GitHubRepoInfo[]>;
+        /** The GitHub repository of a local repository, from its "origin" remote. Null for a different remote. */
+        repoOf(root: string): Promise<RepoRef | null>;
         /** The pull requests of a repository for a filter of the Review view. */
         pullRequests(repo: RepoRef, filter: PullRequestFilter, query?: string): Promise<PullRequestSummary[]>;
         /** The review requests and the user's pull requests that need an action, from all GitHub providers that are on. */
@@ -495,6 +497,7 @@ export const IpcChannels = {
     githubPullRequestCandidates: 'github:pullRequestCandidates',
     githubChangePullRequest: 'github:changePullRequest',
     githubRepositories: 'github:repositories',
+    githubRepoOf: 'github:repoOf',
     githubPullRequests: 'github:pullRequests',
     githubDashboardPullRequests: 'github:dashboardPullRequests',
     githubDashboardComments: 'github:dashboardComments',

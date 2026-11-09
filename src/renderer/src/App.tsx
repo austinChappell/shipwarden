@@ -44,9 +44,10 @@ import { setupCommand } from '@shared/worktree-settings';
 import type { CreatedWorktree } from '@shared/worktrees';
 import type { ProjectsState } from '@shared/projects';
 import { pruneLayout, readLayout, writeLayout } from './layout-store';
-import { closePane, cycleFocus, findLeaf, focusedTab, groupOf, insertNode, leafOfTab, leaves, pruneGroups, resizeSplit, setGroup, splitPane, tabLayout, type PaneLayout, type PaneNode, type SplitGroups, type SplitSide } from '@shared/panes';
+import { closePane, findLeaf, focusSide, focusedTab, groupOf, insertNode, leafOfTab, leaves, pruneGroups, resizeSplit, setGroup, splitPane, tabLayout, type PaneLayout, type PaneNode, type SplitGroups, type SplitSide } from '@shared/panes';
 import { SplitDivider } from './components/SplitDivider';
 import { shortcutAction, type ShortcutAction } from '@shared/shortcuts';
+import { EMPTY_NAV_HISTORY, recordLocation, stepHistory, type NavLocation } from '@shared/nav-history';
 import { lspBridge } from './lsp/bridge';
 import type { LspMissingServer } from '@shared/lsp';
 import { terminalPool } from './terminal/terminal-pool';
@@ -699,6 +700,46 @@ export function App() {
     useEffect(() => api.browser.onFocus(id => focusBrowserPaneRef.current(id)), []);
 
     /**
+     * The back and forward history (⌘[ and ⌘]). Each change of the view, the worktree or the active tab adds an entry.
+     * A focus change in a split also adds one, because the tab of the focused pane is the active tab.
+     * The settings page has no entry. It has its own close button.
+     */
+    const navHistory = useRef(EMPTY_NAV_HISTORY);
+    const navLocation: NavLocation | undefined = mainView === 'settings' ? undefined
+        : mainView === 'worktree' ? (selectedPath ? { view: mainView, worktree: selectedPath, tab: activeTab } : undefined)
+            : mainView === 'graph' ? { view: mainView, repo: graphRepo }
+                : { view: mainView };
+    useEffect(() => {
+        if (navLocation) navHistory.current = recordLocation(navHistory.current, navLocation);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [navLocation?.view, navLocation?.worktree, navLocation?.tab, navLocation?.repo]);
+    /** Returns the tab keys of a worktree, in the order of its tab strip. */
+    const tabKeysOf = (path: string): TabKey[] => [
+        ...sessions.filter(session => session.worktreePath === path).map(session => `t:${session.id}`),
+        ...(openFiles[path] ?? []).map(file => `f:${file}`),
+        ...(extraTabs[path] ?? []).map(tab => tab.key)
+    ];
+    /** An entry is not valid when its worktree, its tab or its repository does not exist any more. */
+    const navValid = (location: NavLocation): boolean => {
+        if (location.view === 'graph') return !!location.repo && repos.includes(location.repo);
+        if (location.view !== 'worktree') return true;
+        if (!location.worktree || !worktrees.some(worktree => worktree.path === location.worktree)) return false;
+        return !location.tab || tabKeysOf(location.worktree).includes(location.tab);
+    };
+    const navigate = (step: 1 | -1) => {
+        const result = stepHistory(navHistory.current, step, navValid);
+        if (!result) return;
+        navHistory.current = result.history;
+        const { location } = result;
+        if (location.view === 'worktree' && location.worktree) {
+            setSelectedPath(location.worktree);
+            if (location.tab) activate(location.worktree, location.tab);
+        }
+        if (location.view === 'graph') setGraphRepo(location.repo);
+        setMainView(location.view as typeof mainView);
+    };
+
+    /**
      * Drops a dragged tab at a side of a pane of the active tab. The dragged tab, with all its panes when it is a split,
      * joins the split of the active tab, and leaves the tab strip.
      */
@@ -759,10 +800,15 @@ export function App() {
 
     /**
      * The workspace shortcuts, as in Ghostty. ⌘T: a new shell tab. ⌘W: close the focused pane, or the tab when it has
-     * one pane. ⌘D and ⇧⌘D: a new shell pane at the right of, or below, the focused pane. ⌘[ and ⌘]: move the focus.
+     * one pane. ⌘D and ⇧⌘D: a new shell pane at the right of, or below, the focused pane. ⌥⌘ and an arrow key: move the focus
+     * to the pane at that side. ⌘[ and ⌘]: back and forward.
      */
     const shortcut = async (action: ShortcutAction) => {
         if (dialogOpen()) return;
+        if (action === 'back' || action === 'forward') {
+            navigate(action === 'back' ? -1 : 1);
+            return;
+        }
         if (action === 'toggleSidebar') {
             toggleSidebar();
             return;
@@ -794,8 +840,9 @@ export function App() {
             else closeTabView(activeTab);
             return;
         }
-        if (action === 'next' || action === 'previous') {
-            if (layout && split && activeTab) commitGroup(activeTab, cycleFocus(layout, action === 'next' ? 1 : -1));
+        if (action === 'focusLeft' || action === 'focusRight' || action === 'focusUp' || action === 'focusDown') {
+            const side = ({ focusLeft: 'left', focusRight: 'right', focusUp: 'up', focusDown: 'down' } as const)[action];
+            if (layout && split && activeTab) commitGroup(activeTab, focusSide(layout, side));
             return;
         }
         try {
@@ -1146,6 +1193,32 @@ export function App() {
         setAppSettings(await api.settings.update({ hiddenWorktrees: next }));
     };
 
+    /**
+     * Opens a worktree for the head branch of a pull request from the Review view. A worktree that has the branch opens.
+     * Else the New worktree dialog opens on the remote branch. The repository must be in the active project.
+     */
+    const openPullRequestWorktree = async (repo: RepoRef, pr: PullRequest) => {
+        const same = (ref: RepoRef | null) => !!ref && ref.owner.toLowerCase() === repo.owner.toLowerCase() && ref.name.toLowerCase() === repo.name.toLowerCase();
+        let repoPath: string | undefined;
+        for (const path of repos) {
+            if (same(await api.github.repoOf(path).catch(() => null))) {
+                repoPath = path;
+                break;
+            }
+        }
+        if (!repoPath) {
+            setError(`No repository of this project has ${repo.owner}/${repo.name} as its "origin" remote. Add a clone of it to the project.`);
+            return;
+        }
+        const existing = worktreesByRepo[repoPath]?.find(worktree => worktree.branch === pr.headRefName);
+        if (existing) {
+            setSelectedPath(existing.path);
+            setMainView('worktree');
+            return;
+        }
+        setNewWorktree({ repo: repoPath, start: { remote: `origin/${pr.headRefName}` } });
+    };
+
     /** Creates a worktree from the New worktree dialog: its branch, start point, display name and agent. */
     const createWorktree = async (repoPath: string, request: NewWorktreeRequest) => {
         const worktree = await api.worktrees.create({
@@ -1157,6 +1230,8 @@ export function App() {
         if (request.name) await setWorktreeName(worktree.path, request.name);
         await refreshWorktrees(repoPath);
         setSelectedPath(worktree.path);
+        // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
+        setMainView('worktree');
         await prepareWorktree(repoPath, worktree);
         if (request.startAgent) await startTerminal(worktree, 'agent');
     };
@@ -1618,7 +1693,12 @@ export function App() {
                 )}
                 {mainView === 'review' && (
                     <main className="workspace">
-                        <ReviewView githubKey={githubKey} onOpenSettings={() => openSettings('review')} open={reviewOpen} />
+                        <ReviewView
+                            githubKey={githubKey}
+                            onOpenSettings={() => openSettings('review')}
+                            open={reviewOpen}
+                            onNewWorktree={(repo, pr) => void openPullRequestWorktree(repo, pr)}
+                        />
                     </main>
                 )}
                 {mainView === 'pipelines' && (
