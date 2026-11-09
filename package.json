@@ -1,6 +1,6 @@
 {
   "name": "shipwarden",
-  "version": "0.1.5",
+  "version": "0.2.19",
   "private": true,
   "description": "A desktop app that runs many coding agents at the same time, each in its own git worktree.",
   "author": "Austin Chappell",
