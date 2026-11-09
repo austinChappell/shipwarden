@@ -9,6 +9,8 @@ const HANDLERS = {
     'tasks/list': 'listTasks',
     'tasks/get': 'getTask',
     'tasks/update': 'updateTask',
+    'tasks/create': 'createTask',
+    'tasks/delete': 'deleteTask',
     'tasks/statuses': 'listStatuses',
     'tasks/statusOrder': 'statusOrder',
     'comments/list': 'listComments',
@@ -99,6 +101,8 @@ export function runPlugin(handlers, { input = process.stdin, output = process.st
                     ...result,
                     capabilities: {
                         update: !!handlers.updateTask,
+                        create: !!handlers.createTask,
+                        delete: !!handlers.deleteTask,
                         statuses: !!handlers.listStatuses,
                         statusOrder: !!handlers.statusOrder,
                         comments: !!(handlers.listComments && handlers.createComment),

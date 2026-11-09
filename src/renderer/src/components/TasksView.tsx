@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronRight, ExternalLink, GitBranch, List, LoaderCircle, Play, RefreshCw, Search, Settings, SquareKanban, X } from 'lucide-react';
+import { ChevronRight, ExternalLink, GitBranch, List, LoaderCircle, Pencil, Play, Plus, RefreshCw, Search, Settings, SquareKanban, Trash2, X } from 'lucide-react';
 import {
     boardColumns,
     collapsedByDefault,
@@ -26,7 +26,7 @@ import { seenStore } from '../seen-store';
 import { Combobox, sortedGroups } from './Combobox';
 import { Markdown } from './Markdown';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
-import { alertDialog, confirmDialog } from './ConfirmDialog';
+import { alertDialog, confirmDialog, promptDialog } from './ConfirmDialog';
 import { openLink } from '../links';
 
 /** The smallest width of the task details when the user drags the border of the task list. */
@@ -127,6 +127,8 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
     const [commentText, setCommentText] = useState('');
     const [busy, setBusy] = useState(false);
     const [detailError, setDetailError] = useState<string>();
+    /** The title and the description in the edit form, when the user edits the task. */
+    const [editing, setEditing] = useState<{ title: string; description: string }>();
     const [collapsed, setCollapsed] = useState<CollapseState>({});
     /** The workflow order of the statuses from the plugin's status order adapter, if it has one. */
     const [statusOrder, setStatusOrder] = useState<StatusOrder>();
@@ -356,6 +358,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         setDetail(undefined);
         setComments([]);
         setStatuses([]);
+        setEditing(undefined);
         if (selectedId) {
             loadDetail(selectedId);
         }
@@ -431,6 +434,39 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         const result = await request<{ message?: string }>('tasks/action', { taskId: detail.id, actionId });
         if (result?.message) await alertDialog(result.message);
         await loadDetail(detail.id);
+        // An action can move the task out of the filter, for example "Archive".
+        await loadTasks();
+    });
+
+    /** Asks for a title and makes a task in the selected collection. Then it opens the task, so the user can add a description. */
+    const createTask = async () => {
+        if (!collection) return;
+        const title = await promptDialog({ title: 'New task', placeholder: 'Title', confirmLabel: 'Create' });
+        if (!title) return;
+        setListError(undefined);
+        try {
+            const created = await request<Task>('tasks/create', { collection, title });
+            setTasks(list => [created, ...(list ?? []).filter(task => task.id !== created.id)]);
+            setSelectedId(created.id);
+        } catch (err) {
+            setListError(errorText(err));
+        }
+    };
+
+    const saveEdit = () => detail && editing && act(async () => {
+        const title = editing.title.trim();
+        if (!title) throw new Error('A task must have a title.');
+        const updated = await request<Task>('tasks/update', { id: detail.id, title, description: editing.description });
+        setDetail(updated);
+        setEditing(undefined);
+        setTasks(list => list?.map(task => (task.id === updated.id ? { ...task, title: updated.title, status: updated.status, updatedAt: updated.updatedAt } : task)));
+    });
+
+    const deleteTask = () => detail && act(async () => {
+        if (!(await confirmDialog({ title: `Delete "${detail.title}"?`, message: 'You cannot undo this.', confirmLabel: 'Delete', danger: true }))) return;
+        await request('tasks/delete', { id: detail.id });
+        setTasks(list => list?.filter(task => task.id !== detail.id));
+        setSelectedId(undefined);
     });
 
     const shown = useMemo(() => (tasks ?? []).filter(task => taskMatches(task, query)), [tasks, query]);
@@ -621,8 +657,49 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                                 Open <ExternalLink size={12} strokeWidth={1.6} />
                             </button>
                         )}
+                        <span className="header-spacer" />
+                        {source.capabilities.edit && !editing && (
+                            <button
+                                className="icon-button"
+                                title="Edit the title and the description"
+                                disabled={busy}
+                                onClick={() => setEditing({ title: detail.title, description: detail.description ?? '' })}
+                            >
+                                <Pencil size={14} strokeWidth={1.6} />
+                            </button>
+                        )}
+                        {source.capabilities.delete && (
+                            <button className="icon-button" title="Delete the task" disabled={busy} onClick={deleteTask}>
+                                <Trash2 size={14} strokeWidth={1.6} />
+                            </button>
+                        )}
                     </div>
-                    <h2 className="task-detail-title">{detail.title}</h2>
+                    {editing ? (
+                        <div className="task-edit">
+                            <input
+                                className="pr-title-input"
+                                value={editing.title}
+                                placeholder="Title"
+                                aria-label="Title"
+                                autoFocus
+                                onChange={event => setEditing({ ...editing, title: event.target.value })}
+                                onKeyDown={event => event.key === 'Enter' && saveEdit()}
+                            />
+                            <textarea
+                                className="review-body task-edit-description"
+                                value={editing.description}
+                                placeholder="Description (Markdown)"
+                                aria-label="Description"
+                                onChange={event => setEditing({ ...editing, description: event.target.value })}
+                            />
+                            <div className="row-buttons">
+                                <button className="button" disabled={busy} onClick={() => setEditing(undefined)}>Cancel</button>
+                                <button className="button primary" disabled={busy || !editing.title.trim()} onClick={saveEdit}>Save</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <h2 className="task-detail-title">{detail.title}</h2>
+                    )}
 
                     <div className="task-start">
                         {linkedWorktree(detail) ? (
@@ -687,9 +764,9 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                         )}
                     </div>
 
-                    {detail.description?.trim()
+                    {!editing && (detail.description?.trim()
                         ? <Markdown className="task-description" text={detail.description} />
-                        : <div className="task-description">No description.</div>}
+                        : <div className="task-description">No description.</div>)}
 
                     {source.capabilities.comments && (
                         <section className="task-comments">
@@ -764,6 +841,11 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                         </label>
                     )}
                     <span className="header-spacer" />
+                    {source?.capabilities.create && (
+                        <button className="icon-button" title="New task" disabled={!collection} onClick={createTask}>
+                            <Plus size={15} strokeWidth={1.6} />
+                        </button>
+                    )}
                     {source && (
                         <button
                             className="icon-button"

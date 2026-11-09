@@ -88,6 +88,9 @@ Result:
 {
   capabilities: {
     update?: boolean,          // tasks/update
+    create?: boolean,          // tasks/create
+    edit?: boolean,            // tasks/update also changes the title and the description
+    delete?: boolean,          // tasks/delete
     statuses?: boolean,        // tasks/statuses
     statusOrder?: boolean,     // tasks/statusOrder
     comments?: boolean,        // comments/list and comments/create
@@ -168,7 +171,9 @@ interface FilterDefinition {
 | `collections/list` | `{}` | `Collection[]` (required), only in the scope |
 | `tasks/list` | `{ collection: string, filter?: string, query?: string, cursor?: string }` | `{ tasks: Task[], nextCursor?: string }` |
 | `tasks/get` | `{ id: string }` | `Task` |
-| `tasks/update` | `{ id: string, status?: string }` (a status ID) | `Task` |
+| `tasks/update` | `{ id: string, status?: string, title?: string, description?: string }` | `Task` |
+| `tasks/create` | `{ collection: string, title: string, description?: string, status?: string }` | `Task` |
+| `tasks/delete` | `{ id: string }` | `null` |
 | `tasks/statuses` | `{ id?: string }` (the statuses that apply to a task) | `Status[]` |
 | `tasks/statusOrder` | `{ collection: string }` | `{ statuses: Status[] }` |
 | `comments/list` | `{ taskId: string }` | `Comment[]` |
@@ -176,6 +181,23 @@ interface FilterDefinition {
 | `tasks/action` | `{ taskId: string, actionId: string }` | `{ message?: string }` |
 | `activity/list` | `{ since: string }` (an ISO time) | `{ comments: ActivityComment[] }`: new comments from other people on the user's tasks |
 | `shutdown` | none | `null` |
+
+### Create, edit and delete
+
+These requests are optional. ShipWarden sends them only when the plugin has the capability.
+
+- `tasks/create` (capability `create`): the task view shows a "New task" button. ShipWarden sends the selected
+  collection and the title. `status` is a status ID. Without it, the plugin uses the first status of the workflow.
+  The result is the new task with its description.
+- `tasks/update` with `title` or `description` (capability `edit`): the task view shows an "Edit" button.
+  ShipWarden sends `title` and `description` only to a plugin with this capability. `status` is a status ID, as before.
+  A missing parameter does not change.
+- `tasks/delete` (capability `delete`): the task view shows a "Delete" button. ShipWarden asks the user first.
+
+The SDK sets `create` and `delete` from the handlers `createTask` and `deleteTask`. The plugin must set `edit` itself in
+the `initialize` result, because `updateTask` can exist without title and description changes.
+
+These additions do not change the protocol version. A plugin without the capabilities works as before.
 
 ### Activity (the Dashboard)
 
@@ -243,6 +265,18 @@ the user, so write it for a person to read.
 | Method | Params | Meaning |
 |---|---|---|
 | `tasks/changed` | `{ ids?: string[] }` | Tasks changed in the tracker. ShipWarden loads the list again. |
+
+## The built-in local plugin
+
+`plugins/local` keeps tasks in JSON files on the computer of the user. It needs no account and no network. Each
+repository of the project is a collection. The setting "Keep the tasks in the repository" selects the file:
+
+- Off (the default): `~/.shipwarden/tasks/<repository name>-<hash>.json`. Only this computer has the tasks.
+- On: `<main worktree>/.shipwarden/tasks.json`. A team can commit the file.
+
+The plugin writes a temporary file and then renames it, so a crash during a write does not damage the file. When a
+different process changes the file, the plugin sends `tasks/changed`. The plugin does not write to a file that is not
+valid JSON.
 
 ## The JavaScript SDK
 

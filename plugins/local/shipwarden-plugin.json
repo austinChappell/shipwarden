@@ -1,0 +1,25 @@
+{
+  "id": "local",
+  "name": "Local tasks",
+  "version": "0.1.0",
+  "protocolVersion": 3,
+  "description": "Tasks in a JSON file on this computer. It needs no account. Each repository of the project is a collection.",
+  "command": "node",
+  "args": [
+    "index.js"
+  ],
+  "settings": [
+    {
+      "key": "inRepository",
+      "label": "Keep the tasks in the repository",
+      "type": "boolean",
+      "description": "On: the tasks are in .shipwarden/tasks.json in the main worktree of each repository. Your team can commit this file. Off: the tasks are in ~/.shipwarden/tasks on this computer only. ShipWarden does not move the tasks when you change this setting."
+    },
+    {
+      "key": "statuses",
+      "label": "Statuses",
+      "type": "string",
+      "description": "The status names in workflow order, with commas between them. The default is \"To do, In progress, Done\". A name such as \"Done\" or \"Canceled\" sets the category of the status."
+    }
+  ]
+}
