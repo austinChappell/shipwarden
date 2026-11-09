@@ -190,7 +190,21 @@ export interface TaskSource {
     connectionId: string;
     pluginId: string;
     name: string;
-    capabilities: { update?: boolean; statuses?: boolean; statusOrder?: boolean; comments?: boolean; actions?: boolean; scopes?: boolean; activity?: boolean };
+    capabilities: {
+        update?: boolean;
+        /** "tasks/create": the view shows a button that makes a task. */
+        create?: boolean;
+        /** "tasks/update" also changes the title and the description. */
+        edit?: boolean;
+        /** "tasks/delete": the view shows a button that deletes a task. */
+        delete?: boolean;
+        statuses?: boolean;
+        statusOrder?: boolean;
+        comments?: boolean;
+        actions?: boolean;
+        scopes?: boolean;
+        activity?: boolean;
+    };
     fields: FieldDefinition[];
     actions: ActionDefinition[];
     filters: FilterDefinition[];

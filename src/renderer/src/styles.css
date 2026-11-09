@@ -2147,6 +2147,20 @@ button.task-linked {
     gap: 10px;
 }
 
+.task-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 6px 0 14px;
+}
+
+/* The selector is specific so that the rule for textarea.review-body cannot change the height. */
+.task-edit textarea.task-edit-description {
+    height: 220px;
+    min-height: 120px;
+    resize: vertical;
+}
+
 .task-detail-title {
     margin: 6px 0 14px;
     color: var(--text-strong);

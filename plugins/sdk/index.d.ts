@@ -79,6 +79,12 @@ export interface FilterDefinition {
 
 export interface Capabilities {
     update?: boolean;
+    /** The plugin makes new tasks ("tasks/create"). */
+    create?: boolean;
+    /** "tasks/update" also changes the title and the description. The plugin sets this capability itself. */
+    edit?: boolean;
+    /** The plugin deletes tasks ("tasks/delete"). */
+    delete?: boolean;
     statuses?: boolean;
     statusOrder?: boolean;
     comments?: boolean;
@@ -133,7 +139,12 @@ export interface Handlers {
     listCollections(params: Record<string, never>): Promise<Collection[]>;
     listTasks(params: { collection: string; filter?: string; query?: string; cursor?: string }): Promise<{ tasks: Task[]; nextCursor?: string }>;
     getTask(params: { id: string }): Promise<Task>;
-    updateTask?(params: { id: string; status?: string }): Promise<Task>;
+    /** Changes a task. `title` and `description` come only when the plugin has the capability "edit". */
+    updateTask?(params: { id: string; status?: string; title?: string; description?: string }): Promise<Task>;
+    /** Makes a task in a collection. Without `status`, the task gets the first status of the workflow. */
+    createTask?(params: { collection: string; title: string; description?: string; status?: string }): Promise<Task>;
+    /** Deletes a task. */
+    deleteTask?(params: { id: string }): Promise<null>;
     listStatuses?(params: { id?: string }): Promise<Status[]>;
     /**
      * Returns all statuses of the collection's workflow, in order. The list groups and the board columns use this order,
