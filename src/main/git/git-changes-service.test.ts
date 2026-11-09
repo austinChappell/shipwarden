@@ -25,7 +25,7 @@ describe('GitChangesService', () => {
 
     afterEach(() => rmSync(repo, { recursive: true, force: true }));
 
-    it('reads the history for the graph, with refs, and with only HEAD on request', async () => {
+    it('reads the history for the graph, with refs, and without remote branches on request', async () => {
         expect(await git.log(repo, 'all', 10)).toEqual({ commits: [], more: false });
         sh('commit', '-q', '--allow-empty', '-m', 'one');
         sh('commit', '-q', '--allow-empty', '-m', 'two');
@@ -42,8 +42,11 @@ describe('GitChangesService', () => {
         expect(two?.refs).toEqual([{ name: 'main', kind: 'local', current: true }, { name: 'v1', kind: 'tag' }]);
         expect(two?.parents).toHaveLength(1);
 
-        expect((await git.log(repo, 'head', 10)).commits.map(commit => commit.subject)).toEqual(['two', 'one']);
-        expect(await git.log(repo, 'head', 1)).toMatchObject({ more: true, commits: [{ subject: 'two' }] });
+        // A remote branch with a commit that no local branch has.
+        sh('update-ref', 'refs/remotes/origin/far', sh('commit-tree', '-m', 'remote only', '-p', 'HEAD', 'HEAD^{tree}').trim());
+        expect((await git.log(repo, 'all', 10)).commits.map(commit => commit.subject)).toContain('remote only');
+        expect((await git.log(repo, 'local', 10)).commits.map(commit => commit.subject)).not.toContain('remote only');
+        expect(await git.log(repo, 'all', 1)).toMatchObject({ more: true });
     });
 
     it('stages and unstages before the first commit, and makes the first commit', async () => {

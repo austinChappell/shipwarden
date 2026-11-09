@@ -162,12 +162,12 @@ export class GitChangesService {
     /** The message of the last commit, for "Amend". */
     /**
      * Returns the newest commits for the graph, children before parents. Scope "all" shows the local branches, the
-     * remote branches, the tags and HEAD. Scope "head" shows only the history of HEAD. A repository without commits
-     * gives an empty list.
+     * remote branches, the tags and HEAD. Scope "local" does not show the remote branches. A repository without
+     * commits gives an empty list.
      */
     async log(worktree: string, scope: GraphScope, limit: number): Promise<GraphLog> {
         const count = Math.max(1, Math.min(Math.floor(limit), 5000));
-        const refs = scope === 'all' ? ['--branches', '--remotes', '--tags', 'HEAD'] : ['HEAD'];
+        const refs = scope === 'all' ? ['--branches', '--remotes', '--tags', 'HEAD'] : ['--branches', '--tags', 'HEAD'];
         // One more commit than the limit tells if there are more.
         const output = await run(worktree, ['log', '--topo-order', '--decorate=full', `--format=${GRAPH_LOG_FORMAT}`, `--max-count=${count + 1}`, ...refs, '--'], { allowFailure: true });
         if (output === undefined) {

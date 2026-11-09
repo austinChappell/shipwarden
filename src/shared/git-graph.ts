@@ -21,8 +21,8 @@ export interface GraphCommit {
     refs: GraphRef[];
 }
 
-/** Which commits the graph shows. */
-export type GraphScope = 'all' | 'head';
+/** Which commits the graph shows: all branches and tags, or without the remote branches. */
+export type GraphScope = 'all' | 'local';
 
 export interface GraphLog {
     commits: GraphCommit[];

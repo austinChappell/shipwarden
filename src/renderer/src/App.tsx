@@ -11,7 +11,7 @@ import { LogView } from './components/LogView';
 import { RightPanel } from './components/RightPanel';
 import { confirmDialog, dialogOpen, promptDialog } from './components/ConfirmDialog';
 import { NewWorktreeDialog, type NewWorktreeRequest } from './components/NewWorktreeDialog';
-import type { GraphWorktreeStart } from './components/GitGraphPanel';
+import { GitGraphView, type GraphWorktreeStart } from './components/GitGraphView';
 import { TasksView } from './components/TasksView';
 import { Sidebar } from './components/Sidebar';
 import { TerminalView } from './components/TerminalView';
@@ -208,14 +208,16 @@ export function App() {
     const [extraTabs, setExtraTabs] = useState<Record<string, ExtraTab[]>>({});
     /** The center area shows the selected worktree or the task list of the repository. */
     /** The app starts on the Dashboard. A project switch restores the saved view of the project. */
-    const [mainView, setMainView] = useState<'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'settings'>('dashboard');
+    const [mainView, setMainView] = useState<'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'graph' | 'settings'>('dashboard');
+    /** The repository that the commit graph page shows. */
+    const [graphRepo, setGraphRepo] = useState<string>();
     const firstRestore = useRef(true);
     /** The task that the Tasks view opens next, for example from the task link of a worktree. */
     const [taskOpen, setTaskOpen] = useState<{ connectionId: string; taskId: string; nonce: number }>();
     /** The pull request that the Review view opens next, for example from the Dashboard. */
     const [reviewOpen, setReviewOpen] = useState<ReviewOpenRequest>();
     /** The view that the settings page goes back to when it closes. */
-    const viewBeforeSettings = useRef<'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes'>('dashboard');
+    const viewBeforeSettings = useRef<'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'graph'>('dashboard');
     const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
     /** False until the settings load. The appearance waits for them, so the start does not show the default theme. */
     const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -349,7 +351,9 @@ export function App() {
     // Save the layout of the project after each change. The first save comes after the restore, so that it does not remove the saved layout.
     useEffect(() => {
         if (layoutKey && restoredKey.current === layoutKey) {
-            writeLayout(layoutKey, { selectedPath, mainView: mainView === 'settings' ? viewBeforeSettings.current : mainView, openFiles, activeTabs, panes });
+            // The graph page is not saved: its repository is not in the layout. The worktree view opens in its place.
+            const savedView = mainView === 'settings' ? viewBeforeSettings.current : mainView;
+            writeLayout(layoutKey, { selectedPath, mainView: savedView === 'graph' ? 'worktree' : savedView, openFiles, activeTabs, panes });
         }
     }, [layoutKey, selectedPath, mainView, openFiles, activeTabs, panes]);
 
@@ -1398,6 +1402,11 @@ export function App() {
                     settingsActive={mainView === 'settings'}
                     onOpenSettings={() => openSettings()}
                     onOpenRepoSettings={repo => openSettings(`repo:${repo}`)}
+                    graphRepo={mainView === 'graph' ? graphRepo : undefined}
+                    onOpenGraph={repo => {
+                        setGraphRepo(repo);
+                        setMainView('graph');
+                    }}
                     repoLabel={repoLabel}
                     repoColor={repo => appSettings.repos[repo]?.color}
                     onOpenTasks={() => setMainView('tasks')}
@@ -1475,6 +1484,20 @@ export function App() {
                 {mainView === 'pipelines' && (
                     <main className="workspace">
                         <PipelinesView owners={appSettings.reviewOwners} onOpenSettings={() => openSettings('review')} />
+                    </main>
+                )}
+                {mainView === 'graph' && graphRepo && (
+                    <main className="workspace">
+                        <GitGraphView
+                            repo={worktreesByRepo[graphRepo]?.find(worktree => worktree.isMain)?.path ?? graphRepo}
+                            repoName={repoLabel(graphRepo)}
+                            worktrees={worktreesByRepo[graphRepo] ?? []}
+                            onNewWorktree={start => setGraphWorktree({ repo: graphRepo, start })}
+                            onOpenWorktree={worktree => {
+                                setSelectedPath(worktree.path);
+                                setMainView('worktree');
+                            }}
+                        />
                     </main>
                 )}
                 {mainView === 'notes' && (
@@ -1633,7 +1656,6 @@ export function App() {
                         onSendLogToAgent={sendLogToAgent}
                         onShowTerminal={id => activate(selectedPath, `t:${id}`)}
                         onOpenChange={openChange}
-                        onNewWorktree={start => selectedRepo && setGraphWorktree({ repo: selectedRepo, start })}
                     />
                 )}
                 {graphWorktree && (

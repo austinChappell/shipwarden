@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { CircleCheck, Files, GitCommitVertical, GitGraph, GitPullRequest, Plug, Workflow } from 'lucide-react';
+import { CircleCheck, Files, GitCommitVertical, GitPullRequest, Plug, Workflow } from 'lucide-react';
 import type { CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import type { BranchStatusState } from '../github/use-branch-status';
 import { ChecksPanel } from './ChecksPanel';
 import { FileExplorer } from './FileExplorer';
-import { GitGraphPanel, type GraphWorktreeStart } from './GitGraphPanel';
 import { ProcessesPanel } from './ProcessesPanel';
 import { ChangesPanel } from './ChangesPanel';
 import { PipelinesPanel } from './PipelinesPanel';
@@ -12,7 +11,7 @@ import { changeCount, type ChangeSide, type FileChange } from '@shared/git';
 import { useGitChanges } from '../git/git-store';
 import { PullRequestPanel } from './PullRequestPanel';
 
-type PanelTab = 'files' | 'changes' | 'graph' | 'pr' | 'checks' | 'pipelines' | 'processes';
+type PanelTab = 'files' | 'changes' | 'pr' | 'checks' | 'pipelines' | 'processes';
 const TAB_STORAGE_KEY = 'shipwarden.rightPanelTab';
 
 interface Props {
@@ -26,20 +25,18 @@ interface Props {
     onSendLogToAgent(check: CheckRun): void;
     onShowTerminal(sessionId: string): void;
     onOpenChange(change: FileChange, side: ChangeSide): void;
-    /** Opens the New worktree dialog with a start point from the graph. */
-    onNewWorktree(start: GraphWorktreeStart): void;
 }
 
 function readTab(): PanelTab {
     try {
         const value = localStorage.getItem(TAB_STORAGE_KEY);
-        return value === 'changes' || value === 'graph' || value === 'pr' || value === 'checks' || value === 'pipelines' || value === 'processes' ? value : 'files';
+        return value === 'changes' || value === 'pr' || value === 'checks' || value === 'pipelines' || value === 'processes' ? value : 'files';
     } catch {
         return 'files';
     }
 }
 
-/** The right panel: the file explorer, the changes, the commit graph, the pull request of the branch and its checks. */
+/** The right panel: the file explorer, the pull request of the branch and its checks. */
 export function RightPanel(props: Props) {
     const [tab, setTab] = useState<PanelTab>(readTab);
     const pr = props.github.status?.pullRequest;
@@ -76,7 +73,6 @@ export function RightPanel(props: Props) {
                     // A dot, without a number: local changes (accent), or only commits to pull (blue). The tooltip has the counts.
                     changed > 0 || behind > 0 ? <span className={`panel-badge${changed === 0 ? ' pull' : ''}`} aria-hidden="true" /> : undefined
                 )}
-                {tabButton('graph', 'Commit graph', <GitGraph size={17} strokeWidth={1.5} />)}
                 {tabButton(
                     'pr',
                     [pr ? `Pull request #${pr.number}` : 'Pull request', unresolved ? `${unresolved} unresolved ${unresolved === 1 ? 'thread' : 'threads'}` : ''].filter(Boolean).join(' · '),
@@ -111,15 +107,6 @@ export function RightPanel(props: Props) {
                     onReload={() => git.reload(true)}
                     onOpenChange={props.onOpenChange}
                     onOpenFile={path => props.onOpenFile(path)}
-                />
-            )}
-            {tab === 'graph' && (
-                <GitGraphPanel
-                    key={props.root}
-                    root={props.root}
-                    // New commits, a branch switch or a fetch changes this value, so the graph loads again.
-                    version={`${git.changes?.branch ?? ''}:${git.changes?.ahead ?? 0}:${git.changes?.behind ?? 0}:${git.fetched?.at ?? 0}`}
-                    onNewWorktree={props.onNewWorktree}
                 />
             )}
             {tab === 'pipelines' && (

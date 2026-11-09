@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FolderGit2, LoaderCircle, RefreshCw } from 'lucide-react';
+import { FolderGit2, GitGraph, LoaderCircle, RefreshCw } from 'lucide-react';
 import { layoutGraph, type GraphLog, type GraphRef, type GraphRow, type GraphScope } from '@shared/git-graph';
+import type { Worktree } from '@shared/worktrees';
 import { onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
 
 /** The number of commits in each load. "Load more" adds this number. */
-const PAGE = 300;
-const ROW_HEIGHT = 38;
-const LANE_WIDTH = 14;
+const PAGE = 500;
+const ROW_HEIGHT = 28;
+const LANE_WIDTH = 16;
 /** The graph shows at most this number of lanes. The lanes after it are cut, so the text has room. */
-const MAX_LANES = 10;
+const MAX_LANES = 24;
 const SCOPE_STORAGE_KEY = 'shipwarden.graphScope';
 const LANE_COLORS = ['var(--accent)', 'var(--info)', 'var(--purple)', 'var(--ok)', 'var(--danger)', 'var(--claude)'];
 
@@ -17,15 +18,18 @@ const LANE_COLORS = ['var(--accent)', 'var(--info)', 'var(--purple)', 'var(--ok)
 export type GraphWorktreeStart = { commit: string; label: string } | { remote: string };
 
 interface Props {
-    root: string;
-    /** A value that changes when the commits can change, for example after a commit or a fetch. Then the graph loads again. */
-    version: string;
+    /** The path of the repository: its main worktree. */
+    repo: string;
+    repoName: string;
+    /** The worktrees of the repository. A label of a branch that a worktree has checked out opens that worktree. */
+    worktrees: Worktree[];
     onNewWorktree(start: GraphWorktreeStart): void;
+    onOpenWorktree(worktree: Worktree): void;
 }
 
 function readScope(): GraphScope {
     try {
-        return localStorage.getItem(SCOPE_STORAGE_KEY) === 'head' ? 'head' : 'all';
+        return localStorage.getItem(SCOPE_STORAGE_KEY) === 'local' ? 'local' : 'all';
     } catch {
         return 'all';
     }
@@ -34,13 +38,13 @@ function readScope(): GraphScope {
 const laneColor = (lane: number) => LANE_COLORS[lane % LANE_COLORS.length];
 const laneX = (lane: number) => LANE_WIDTH / 2 + lane * LANE_WIDTH + 2;
 
-function shortAgo(ms: number): string {
+function formatDate(ms: number): string {
     const seconds = Math.round((Date.now() - ms) / 1000);
-    if (seconds < 60) return 'now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-    if (seconds < 86400 * 365) return `${Math.floor(seconds / 86400)}d`;
-    return `${Math.floor(seconds / (86400 * 365))}y`;
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`;
+    if (seconds < 86400 * 7) return `${Math.floor(seconds / 86400)} d ago`;
+    return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /** The lines and the dot of one row. A merge commit has a ring, other commits a full dot. */
@@ -62,8 +66,8 @@ function RowGraph({ row, lanes }: { row: GraphRow; lanes: number }) {
             <circle
                 cx={laneX(row.lane)}
                 cy={y(0.5)}
-                r={merge ? 3.4 : 4}
-                fill={merge ? 'var(--panel)' : laneColor(row.lane)}
+                r={merge ? 3.6 : 4.2}
+                fill={merge ? 'var(--bg)' : laneColor(row.lane)}
                 stroke={laneColor(row.lane)}
                 strokeWidth={merge ? 2 : 0}
             />
@@ -71,31 +75,44 @@ function RowGraph({ row, lanes }: { row: GraphRow; lanes: number }) {
     );
 }
 
-function RefChip({ gitRef, onCheckout }: { gitRef: GraphRef; onCheckout(remote: string): void }) {
-    const className = `gg-ref ${gitRef.kind}${gitRef.current ? ' current' : ''}`;
-    if (gitRef.kind === 'remote') {
+interface RefChipProps {
+    gitRef: GraphRef;
+    /** The worktree that has this local branch checked out. */
+    worktree?: Worktree;
+    onCheckout(remote: string): void;
+    onOpenWorktree(worktree: Worktree): void;
+}
+
+function RefChip({ gitRef, worktree, onCheckout, onOpenWorktree }: RefChipProps) {
+    const className = `gg-ref ${gitRef.kind}${gitRef.current ? ' current' : ''}${worktree ? ' in-worktree' : ''}`;
+    const action = gitRef.kind === 'remote'
+        ? { title: `Check out ${gitRef.name} in a new worktree`, run: () => onCheckout(gitRef.name) }
+        : worktree
+            ? { title: `Open the worktree of ${gitRef.name}`, run: () => onOpenWorktree(worktree) }
+            : undefined;
+    if (action) {
         return (
             <button
                 className={className}
-                title={`Check out ${gitRef.name} in a new worktree`}
+                title={action.title}
                 onClick={event => {
                     event.stopPropagation();
-                    onCheckout(gitRef.name);
+                    action.run();
                 }}
             >
                 {gitRef.name}
             </button>
         );
     }
-    const title = gitRef.kind === 'tag' ? `Tag ${gitRef.name}` : gitRef.current ? `${gitRef.name} (checked out here)` : gitRef.kind === 'head' ? 'Detached HEAD' : `Local branch ${gitRef.name}`;
+    const title = gitRef.kind === 'tag' ? `Tag ${gitRef.name}` : gitRef.kind === 'head' ? 'Detached HEAD' : `Local branch ${gitRef.name}`;
     return <span className={className} title={title}>{gitRef.name}</span>;
 }
 
 /**
- * The Graph tab of the right panel: the commit history of the repository with its branch lines, like
- * `git log --graph`. The user can start a new worktree from a commit, or check out a remote branch in a new worktree.
+ * The commit graph of a repository on a full page, like `git log --graph`. The user can start a new worktree from a
+ * commit, check out a remote branch in a new worktree, or open the worktree of a local branch.
  */
-export function GitGraphPanel({ root, version, onNewWorktree }: Props) {
+export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenWorktree }: Props) {
     const [scope, setScope] = useState<GraphScope>(readScope);
     const [limit, setLimit] = useState(PAGE);
     const [log, setLog] = useState<GraphLog>();
@@ -106,9 +123,15 @@ export function GitGraphPanel({ root, version, onNewWorktree }: Props) {
     const reload = useCallback(() => setReloads(value => value + 1), []);
 
     useEffect(() => {
+        setLog(undefined);
+        setError(undefined);
+        setLimit(PAGE);
+    }, [repo]);
+
+    useEffect(() => {
         let current = true;
         setLoading(true);
-        window.shipwarden.git.log(root, scope, limit).then(
+        window.shipwarden.git.log(repo, scope, limit).then(
             result => {
                 if (!current) return;
                 setLog(result);
@@ -119,7 +142,7 @@ export function GitGraphPanel({ root, version, onNewWorktree }: Props) {
         return () => {
             current = false;
         };
-    }, [root, scope, limit, version, reloads]);
+    }, [repo, scope, limit, reloads]);
 
     useEffect(() => {
         const off = onGitChanged(reload);
@@ -132,6 +155,7 @@ export function GitGraphPanel({ root, version, onNewWorktree }: Props) {
 
     const layout = useMemo(() => layoutGraph(log?.commits ?? []), [log]);
     const lanes = Math.min(Math.max(layout.width, 1), MAX_LANES);
+    const worktreeOfBranch = useMemo(() => new Map(worktrees.filter(item => item.branch).map(item => [item.branch!, item])), [worktrees]);
 
     const changeScope = (next: GraphScope) => {
         setScope(next);
@@ -144,26 +168,33 @@ export function GitGraphPanel({ root, version, onNewWorktree }: Props) {
     };
 
     return (
-        <div className="git-graph-panel">
-            <div className="pp-header">
-                <div className="segmented compact gg-scope" role="radiogroup" aria-label="Commits to show">
-                    {(['all', 'head'] as const).map(value => (
-                        <button
-                            key={value}
-                            role="radio"
-                            aria-checked={scope === value}
-                            className={scope === value ? 'selected' : ''}
-                            onClick={() => changeScope(value)}
-                        >
-                            {value === 'all' ? 'All branches' : 'This branch'}
-                        </button>
-                    ))}
+        <div className="git-graph-view">
+            <header className="tasks-header">
+                <div className="tasks-header-group where">
+                    <GitGraph size={15} strokeWidth={1.7} />
+                    <span className="gg-title">{repoName}</span>
+                    {log && <span className="gg-count">{log.commits.length}{log.more ? '+' : ''} commits</span>}
                 </div>
                 <span className="header-spacer" />
-                <button className="icon-button" title="Refresh" onClick={reload}>
-                    <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
-                </button>
-            </div>
+                <div className="tasks-header-group">
+                    <div className="segmented compact gg-scope" role="radiogroup" aria-label="Commits to show">
+                        {(['all', 'local'] as const).map(value => (
+                            <button
+                                key={value}
+                                role="radio"
+                                aria-checked={scope === value}
+                                className={scope === value ? 'selected' : ''}
+                                onClick={() => changeScope(value)}
+                            >
+                                {value === 'all' ? 'All branches' : 'Local branches'}
+                            </button>
+                        ))}
+                    </div>
+                    <button className="icon-button" title="Refresh" onClick={reload}>
+                        <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
+                    </button>
+                </div>
+            </header>
             {error && <div className="form-error pp-error">{error}</div>}
             {!log && !error && <div className="panel-note pp-note"><LoaderCircle size={12} className="spin" /> Reading the history…</div>}
             {log?.commits.length === 0 && <div className="panel-note pp-note">The repository has no commits.</div>}
@@ -172,24 +203,23 @@ export function GitGraphPanel({ root, version, onNewWorktree }: Props) {
                     const { commit } = row;
                     const short = commit.hash.slice(0, 7);
                     return (
-                        <div
-                            key={commit.hash}
-                            className="gg-row"
-                            style={{ height: ROW_HEIGHT }}
-                            title={`${commit.hash}\n${commit.author} · ${new Date(commit.date).toLocaleString()}\n\n${commit.subject}`}
-                        >
+                        <div key={commit.hash} className="gg-row" style={{ height: ROW_HEIGHT }}>
                             <RowGraph row={row} lanes={lanes} />
-                            <div className="gg-text">
-                                <div className="gg-subject">
-                                    {commit.refs.map(gitRef => (
-                                        <RefChip key={`${gitRef.kind}:${gitRef.name}`} gitRef={gitRef} onCheckout={remote => onNewWorktree({ remote })} />
-                                    ))}
-                                    <span className="gg-subject-text">{commit.subject}</span>
-                                </div>
-                                <div className="gg-meta">
-                                    <span className="mono">{short}</span> · {commit.author} · {shortAgo(commit.date)}
-                                </div>
+                            <div className="gg-subject" title={commit.subject}>
+                                {commit.refs.map(gitRef => (
+                                    <RefChip
+                                        key={`${gitRef.kind}:${gitRef.name}`}
+                                        gitRef={gitRef}
+                                        worktree={gitRef.kind === 'local' ? worktreeOfBranch.get(gitRef.name) : undefined}
+                                        onCheckout={remote => onNewWorktree({ remote })}
+                                        onOpenWorktree={onOpenWorktree}
+                                    />
+                                ))}
+                                <span className="gg-subject-text">{commit.subject}</span>
                             </div>
+                            <span className="gg-author" title={commit.author}>{commit.author}</span>
+                            <span className="gg-date" title={new Date(commit.date).toLocaleString()}>{formatDate(commit.date)}</span>
+                            <span className="gg-hash mono" title={commit.hash}>{short}</span>
                             <button
                                 className="icon-button gg-action"
                                 title={`New worktree from ${short}`}

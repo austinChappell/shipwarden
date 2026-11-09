@@ -631,7 +631,7 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.gitFetch, async (_event, worktree: string, force?: boolean) =>
         gitChanges.fetch(await knownWorktree(worktree), force === true ? 0 : 5 * 60 * 1000));
     ipcMain.handle(IpcChannels.gitLog, async (_event, worktree: string, scope: unknown, limit: unknown) =>
-        gitChanges.log(await knownWorktree(worktree), scope === 'head' ? 'head' : 'all', typeof limit === 'number' && Number.isFinite(limit) ? limit : 300));
+        gitChanges.log(await knownWorktree(worktree), scope === 'local' ? 'local' : 'all', typeof limit === 'number' && Number.isFinite(limit) ? limit : 300));
     ipcMain.handle(IpcChannels.gitPull, async (_event, worktree: string) => gitChanges.pull(await knownWorktree(worktree)));
     ipcMain.handle(IpcChannels.gitPush, async (_event, worktree: string) => gitChanges.push(await knownWorktree(worktree)));
     ipcMain.handle(IpcChannels.updatesState, () => updates.getState());

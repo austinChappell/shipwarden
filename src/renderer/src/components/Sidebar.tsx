@@ -9,6 +9,7 @@ import {
     CircleX,
     FolderMinus,
     FolderPlus,
+    GitGraph,
     GripVertical,
     GitPullRequest,
     GitPullRequestDraft,
@@ -67,6 +68,10 @@ interface Props {
     onOpenSettings(): void;
     /** Opens the settings of one repository. */
     onOpenRepoSettings(repo: string): void;
+    /** The repository whose commit graph shows. Undefined when the graph page does not show. */
+    graphRepo?: string;
+    /** Opens the commit graph of a repository on a full page. */
+    onOpenGraph(repo: string): void;
     /** The name of a repository: its name from the repository settings, else its folder name. */
     repoLabel(repo: string): string;
     repoColor(repo: string): RepoColor | undefined;
@@ -385,6 +390,16 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, total, dragPr
                     }}
                 >
                     <Plus size={14} strokeWidth={1.75} />
+                </button>
+                <button
+                    className={`icon-button repo-action${parent.graphRepo === repo ? ' on' : ''}`}
+                    title="Commit graph"
+                    onClick={event => {
+                        event.stopPropagation();
+                        parent.onOpenGraph(repo);
+                    }}
+                >
+                    <GitGraph size={14} strokeWidth={1.6} />
                 </button>
                 <button
                     className="icon-button repo-action"

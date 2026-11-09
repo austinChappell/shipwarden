@@ -2791,6 +2791,12 @@ body.resizing * {
     display: flex;
 }
 
+/* The graph button of the repository whose graph page shows stays visible, with the accent color. */
+.repo-action.on {
+    display: flex;
+    color: var(--accent);
+}
+
 .repo-empty {
     padding: 8px 16px;
 }
@@ -7245,31 +7251,42 @@ body.resizing-column * {
     padding-right: 48px;
 }
 
-/* The Graph tab of the right panel: the commits with their branch lines */
-.git-graph-panel {
+/* The commit graph page of a repository: the commits with their branch lines */
+.git-graph-view {
     display: flex;
-    flex: 1;
     flex-direction: column;
+    height: 100%;
     min-height: 0;
+    font-size: 13px;
+    container-type: inline-size;
+}
+
+.gg-title {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.gg-count {
+    color: var(--muted);
     font-size: 12px;
 }
 
 .gg-scope {
-    flex: 0 1 220px;
+    width: 230px;
 }
 
 .gg-rows {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding-bottom: 8px;
+    padding: 4px 0 16px;
 }
 
 .gg-row {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding-right: 6px;
+    gap: 12px;
+    padding: 0 12px 0 8px;
 }
 
 .gg-row:hover {
@@ -7278,18 +7295,14 @@ body.resizing-column * {
 
 .gg-lanes {
     flex: none;
-    margin-left: 4px;
-}
-
-.gg-text {
-    flex: 1;
-    min-width: 0;
 }
 
 .gg-subject {
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     color: var(--text-strong);
     white-space: nowrap;
     overflow: hidden;
@@ -7300,31 +7313,61 @@ body.resizing-column * {
     text-overflow: ellipsis;
 }
 
-.gg-meta {
+.gg-author,
+.gg-date,
+.gg-hash {
+    flex: none;
     color: var(--muted);
-    font-size: 11px;
+    font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
+.gg-author {
+    width: 140px;
+}
+
+.gg-date {
+    width: 100px;
+    text-align: right;
+}
+
+.gg-hash {
+    width: 58px;
+}
+
+/* A narrow page hides the author first, then the date, so the subject keeps room. */
+@container (max-width: 760px) {
+    .gg-author {
+        display: none;
+    }
+}
+
+@container (max-width: 560px) {
+    .gg-date {
+        display: none;
+    }
+}
+
 .gg-ref {
     flex: none;
-    max-width: 140px;
-    padding: 0 5px;
+    max-width: 220px;
+    padding: 0 6px;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: var(--raised);
     color: var(--text);
     font: inherit;
-    font-size: 10.5px;
-    line-height: 16px;
+    font-size: 11px;
+    line-height: 17px;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .gg-ref.local {
     border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+    color: var(--ok);
 }
 
 .gg-ref.current,
@@ -7337,16 +7380,20 @@ body.resizing-column * {
 .gg-ref.remote {
     border-color: color-mix(in srgb, var(--info) 45%, var(--border));
     color: var(--info);
-    cursor: pointer;
-}
-
-.gg-ref.remote:hover {
-    background: color-mix(in srgb, var(--info) 15%, var(--raised));
 }
 
 .gg-ref.tag {
     border-color: color-mix(in srgb, var(--purple) 45%, var(--border));
     color: var(--purple);
+}
+
+/* A label that is a button: a remote branch to check out, or a branch with a worktree to open. */
+button.gg-ref {
+    cursor: pointer;
+}
+
+button.gg-ref:hover {
+    background: color-mix(in srgb, currentColor 15%, var(--raised));
 }
 
 /* The New worktree button shows when the pointer is on the row, or when the button has the keyboard focus. */
@@ -7364,7 +7411,7 @@ body.resizing-column * {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin: 8px auto 0;
+    margin: 12px auto 0;
     font-size: 12px;
 }
 
