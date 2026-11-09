@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { Bot, ClipboardCheck, ExternalLink, FileDiff, GitCommitHorizontal, ListTodo, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Bot, ClipboardCheck, ExternalLink, FileDiff, GitCommitHorizontal, ListTodo, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { BranchStatus, CheckRun, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
@@ -23,6 +23,8 @@ interface Props {
     loading: boolean;
     error?: string;
     onRefresh(): Promise<void>;
+    /** Shows the list of pull requests again. */
+    onBack(): void;
     /** A tab to show, for example from the Dashboard. A new `nonce` shows it again. */
     tabRequest?: { tab: ReviewTab; nonce: number };
 }
@@ -53,7 +55,7 @@ function Tab({ id, current, icon, label, count, onSelect }: { id: ReviewTab; cur
  * A pull request in the Review view, with the tabs of GitHub: Overview, Commits, Checks and Files changed.
  * The tab stays the same when the user opens a different pull request.
  */
-export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh, tabRequest }: Props) {
+export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh, onBack, tabRequest }: Props) {
     const [tab, setTab] = useState<ReviewTab>(readTab);
     const [file, setFile] = useState<{ file: PullRequestFile; line?: number; nonce: number }>();
     const [check, setCheck] = useState<CheckRun>();
@@ -111,8 +113,19 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
     const files = review.files;
     const agentReview = review.agentReview;
 
+    const back = (
+        <button className="review-back" title="Show all pull requests" onClick={onBack}>
+            <ArrowLeft size={14} strokeWidth={1.6} /> {repo.owner}/{repo.name}
+        </button>
+    );
+
     if (!pr) {
-        return <div className="review-placeholder panel-message">{error ?? (loading ? 'Loading the pull request…' : '')}</div>;
+        return (
+            <div className="review-pr">
+                <header className="review-pr-header">{back}</header>
+                <div className="review-placeholder panel-message">{error ?? (loading ? 'Loading the pull request…' : '')}</div>
+            </div>
+        );
     }
 
     const openFile = (target: PullRequestFile, line?: number) => {
@@ -126,6 +139,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
     return (
         <div className="review-pr">
             <header className="review-pr-header">
+                {back}
                 <div className="review-pr-title">
                     <h2>{pr.title} <span className="review-pr-number">#{pr.number}</span></h2>
                     <CopyButton text={pr.url} title="Copy the pull request URL" />

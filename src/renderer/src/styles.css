@@ -4639,11 +4639,33 @@ button:focus-visible {
 }
 
 .review-list {
-    width: var(--review-list-width, 320px);
-    flex: 0 1 auto;
-    min-width: 240px;
+    flex: 1;
+    min-width: 0;
     overflow-y: auto;
-    border-right: 1px solid var(--border);
+}
+
+.review-list[hidden] {
+    display: none;
+}
+
+/* The link from a pull request back to the list of the repository. */
+.review-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0 0 8px -4px;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12.5px;
+    cursor: pointer;
+}
+
+.review-back:hover {
+    background: var(--hover);
+    color: var(--text);
 }
 
 .review-item {
@@ -4662,10 +4684,6 @@ button:focus-visible {
 
 .review-item:hover {
     background: var(--hover);
-}
-
-.review-item.selected {
-    background: var(--selected);
 }
 
 .review-item > svg {
