@@ -2,9 +2,12 @@ import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { compareEntries, type ContentMatch, type ContentSearchResult, type FileEntry } from '@shared/files';
+import { kindFromExtension, MAX_TEXT_FILE_SIZE, sniffKind, type FileInfo, type FileKind } from '@shared/file-types';
 
-/** ShipWarden does not open files that are larger than this limit. */
-export const MAX_FILE_SIZE = 5 * 1024 * 1024;
+/** ShipWarden does not open text files that are larger than this limit. */
+export const MAX_FILE_SIZE = MAX_TEXT_FILE_SIZE;
+/** The number of bytes at the start of a file that the kind test reads. */
+const SNIFF_BYTES = 8000;
 const MAX_CONTENT_MATCHES = 500;
 const HIDDEN_NAMES = new Set(['.git', '.DS_Store']);
 
@@ -42,6 +45,35 @@ export function resolveInside(root: string, relativePath: string): string {
         throw new Error(`The path "${relativePath}" is outside the worktree.`);
     }
     return absolute;
+}
+
+/**
+ * True when `target` is the folder `folder` or is in it. Both paths must be absolute.
+ * The test compares the paths only. It does not follow symbolic links.
+ */
+export function isInside(folder: string, target: string): boolean {
+    const relative = path.relative(folder, target);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/** Reads the first bytes of a file. */
+async function readStart(absolute: string, length = SNIFF_BYTES): Promise<Uint8Array> {
+    const handle = await fs.open(absolute, 'r');
+    try {
+        const buffer = Buffer.alloc(length);
+        const { bytesRead } = await handle.read(buffer, 0, length, 0);
+        return buffer.subarray(0, bytesRead);
+    } finally {
+        await handle.close();
+    }
+}
+
+/**
+ * Returns the kind of a file. The extension tells the kind of most files.
+ * For other files, the first bytes tell the kind.
+ */
+export async function detectKind(absolute: string): Promise<FileKind> {
+    return kindFromExtension(absolute) ?? sniffKind(await readStart(absolute));
 }
 
 /** Converts an OS path to a path with "/" separators. */
@@ -125,6 +157,16 @@ export class FileService {
             throw new Error(`git grep failed with exit code ${code}.`);
         }
         return parseGitGrep(stdout);
+    }
+
+    /** Returns the size and the kind of a file, so that the page can select a view. */
+    async info(root: string, file: string): Promise<FileInfo> {
+        const absolute = resolveInside(root, file);
+        const stat = await fs.stat(absolute);
+        if (!stat.isFile()) {
+            throw new Error(`The path "${file}" is not a file.`);
+        }
+        return { size: stat.size, kind: await detectKind(absolute) };
     }
 
     async readFile(root: string, file: string): Promise<string> {

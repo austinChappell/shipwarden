@@ -4,6 +4,7 @@ import type { NoteInfo } from './notes';
 import type { AppKeyAction, ShortcutAction } from './shortcuts';
 import type { WorkflowRun } from './pipelines';
 import type { ContentSearchResult, FileEntry, FilesChangedEvent } from './files';
+import type { FileInfo } from './file-types';
 import type { BranchStatus, BranchSummary, CheckRun, FileVersions, GitHubOwner, JobProgress, GitHubRepoInfo, MergeMethod, PendingComment, PullRequest, PullRequestCandidates, PullRequestChange, PullRequestFile, PullRequestFilter, PullRequestSummary, RepoRef, RepoTarget, ReviewEvent, Workflow } from './github';
 import type { LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
@@ -163,6 +164,12 @@ export interface ShipWardenApi {
         listFiles(root: string): Promise<string[]>;
         searchContents(root: string, query: string): Promise<ContentSearchResult>;
         read(root: string, file: string): Promise<string>;
+        /** Returns the size and the kind of a file. The page uses the kind to select a view. */
+        info(root: string, file: string): Promise<FileInfo>;
+        /** Shows the file in the Finder. */
+        reveal(root: string, file: string): Promise<void>;
+        /** Opens an image, PDF, audio or video file in the default app of macOS. Other files are refused. */
+        openInDefaultApp(root: string, file: string): Promise<void>;
         write(root: string, file: string, content: string): Promise<void>;
         /** Reads a text file outside the worktrees, for example a type declaration that a definition points to. */
         readExternal(absolutePath: string): Promise<string>;
@@ -397,6 +404,9 @@ export const IpcChannels = {
     filesListFiles: 'files:listFiles',
     filesSearch: 'files:search',
     filesRead: 'files:read',
+    filesInfo: 'files:info',
+    filesReveal: 'files:reveal',
+    filesOpenInDefaultApp: 'files:openInDefaultApp',
     filesWrite: 'files:write',
     filesReadExternal: 'files:readExternal',
     filesWatch: 'files:watch',
