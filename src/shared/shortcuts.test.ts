@@ -39,6 +39,15 @@ describe('toggleSidebar', () => {
     });
 });
 
+describe('newWorktree', () => {
+    it('is ⌘N without other modifier keys', () => {
+        expect(key({ key: 'n', code: 'KeyN' })).toBe('newWorktree');
+        expect(key({ shift: true, key: 'N', code: 'KeyN' })).toBeUndefined();
+        expect(key({ alt: true, key: '˜', code: 'KeyN' })).toBeUndefined();
+        expect(key({ control: true, key: 'n', code: 'KeyN' })).toBeUndefined();
+    });
+});
+
 describe('appKeyAction', () => {
     const key = (code: string, mods: Partial<{ meta: boolean; shift: boolean; alt: boolean; control: boolean }> = {}) =>
         ({ type: 'keyDown', meta: true, shift: false, alt: false, control: false, key: code.replace('Key', '').toLowerCase(), code, ...mods });

@@ -261,7 +261,8 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
   layout of the active tab from both, without the panes of closed views (`pruneGroups`).
 - Keys, as in Ghostty (`shortcutAction`): ⌘T a new shell tab, ⌘W close the focused pane (the tab when it has one
   pane; a running agent asks first), ⌘D and ⇧⌘D a new shell pane at the right of or below the focused pane, ⌘[ and ⌘]
-  move the focus. ⇧⌘W closes the window. A focused terminal takes all keys, so a menu shortcut alone does not work.
+  move the focus. ⇧⌘W closes the window. ⌘N opens the New worktree dialog for the repository on the screen: the
+  commit graph, else the selected worktree, else the first repository. A focused terminal takes all keys, so a menu shortcut alone does not work.
   The keys go through two ways: `before-input-event` in the main process (before the page and the menu), and a keydown
   listener of the page in the capture phase. Both send the same action. The File menu lists the keys.
 - When a terminal process ends (for example after `exit`), its pane closes, and the tab when it was its only pane.
