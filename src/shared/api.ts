@@ -163,7 +163,10 @@ export interface ShipWardenApi {
         remove(repoPath: string, worktreePath: string, options?: { skipTeardown?: boolean }): Promise<RemoveWorktreeResult>;
         /** The git-ignored files and folders of the main worktree that the copy settings copy now. */
         previewCopy(repoPath: string, copy: CopyIgnoredSettings): Promise<string[]>;
-        /** Deletes a local branch. Without `force`, a branch that is not merged stays and `notMerged` is true. */
+        /**
+         * Deletes a local branch. Without `force`, ShipWarden first pulls the start branch of the worktree. A failed pull
+         * does not stop the delete. A branch that is not merged stays and `notMerged` is true.
+         */
         deleteBranch(repoPath: string, branch: string, force?: boolean): Promise<{ deleted: boolean; notMerged?: boolean }>;
         /** The default folder of new worktrees, ~/.shipwarden/worktrees. */
         defaultFolder(): Promise<string>;

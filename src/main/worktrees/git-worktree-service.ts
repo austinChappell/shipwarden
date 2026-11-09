@@ -9,6 +9,10 @@ import { branchToFolderName, parseWorktreePorcelain } from './porcelain';
 /** The time limit for "git fetch" before a new worktree. Without network, git uses HEAD. */
 const FETCH_TIMEOUT_MS = 20_000;
 
+function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Returns the folder that contains the new worktrees.
  * The SHIPWARDEN_WORKTREES_DIR environment variable changes this folder.
@@ -150,19 +154,126 @@ export class GitWorktreeService {
     }
 
     /**
-     * Deletes a local branch. Without `force`, git refuses a branch with commits that are not merged, and the result
-     * says so, so the user can choose. The remote branch stays.
+     * Deletes a local branch. Without `force`, ShipWarden first pulls the newest commits of the start branch of
+     * the branch. Then git refuses a branch with commits that are not merged, and the result says so, so
+     * the user can choose. A failed pull does not stop the delete. The remote branch stays.
      */
     async deleteBranch(repoPath: string, branch: string, force = false): Promise<{ deleted: boolean; notMerged?: boolean }> {
+        const bases = force ? [] : await this.pullBase(repoPath, branch);
         try {
             await this.git(repoPath, ['branch', force ? '-D' : '-d', '--', branch]);
             return { deleted: true };
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            if (!force && /not fully merged/i.test(message)) {
-                return { deleted: false, notMerged: true };
+            if (force || !/not fully merged/i.test(errorMessage(error))) {
+                throw error;
             }
-            throw error;
+        }
+        // "git branch -d" compares with HEAD or with the upstream branch. The start branch can contain all the commits
+        // when HEAD does not. Then no commit is lost.
+        for (const base of bases) {
+            if (await this.isAncestor(repoPath, branch, base)) {
+                await this.git(repoPath, ['branch', '-D', '--', branch]);
+                return { deleted: true };
+            }
+        }
+        return { deleted: false, notMerged: true };
+    }
+
+    /**
+     * Fetches the remote of the branch that `branch` started from, and fast-forwards the local start branch. A branch
+     * without a known start point uses the default branch of "origin". Returns the start branches that exist, local
+     * and remote. This function does not throw. It writes a warning for each failure.
+     */
+    protected async pullBase(repoPath: string, branch: string): Promise<string[]> {
+        try {
+            let fetched: string | undefined;
+            let base = await this.startPoint(repoPath, branch);
+            if (!base) {
+                base = await this.remoteDefaultBranch(repoPath);
+                fetched = base ? 'origin' : undefined;
+            }
+            if (!base) return [];
+
+            const remotes = (await this.git(repoPath, ['remote'])).split('\n').map(name => name.trim()).filter(Boolean);
+            let local: string | undefined;
+            let remoteRef: string | undefined;
+            if (await this.branchExists(repoPath, base)) {
+                local = base;
+                remoteRef = await this.upstreamOf(repoPath, base);
+            } else if (await this.remoteBranchExists(repoPath, base)) {
+                remoteRef = base;
+                const remote = remotes.filter(name => base!.startsWith(`${name}/`)).sort((a, b) => b.length - a.length)[0];
+                const name = remote ? base.slice(remote.length + 1) : undefined;
+                local = name && await this.branchExists(repoPath, name) ? name : undefined;
+            } else {
+                // The start point is a tag or a commit. There is nothing to pull.
+                return [];
+            }
+
+            if (remoteRef) {
+                const remote = remotes.filter(name => remoteRef!.startsWith(`${name}/`)).sort((a, b) => b.length - a.length)[0];
+                if (remote && remote !== fetched) {
+                    await this.git(repoPath, ['fetch', '--quiet', remote], FETCH_TIMEOUT_MS)
+                        .catch(error => console.warn(`[worktrees] The fetch from ${remote} failed. ${errorMessage(error)}`));
+                }
+                if (local) {
+                    await this.fastForward(repoPath, local, remoteRef)
+                        .catch(error => console.warn(`[worktrees] Git cannot fast-forward "${local}" to "${remoteRef}". ${errorMessage(error)}`));
+                }
+            }
+            return [local, remoteRef].filter((ref): ref is string => !!ref);
+        } catch (error) {
+            console.warn(`[worktrees] ShipWarden cannot pull the start branch of "${branch}". ${errorMessage(error)}`);
+            return [];
+        }
+    }
+
+    /**
+     * Moves the local branch `local` to `remoteRef` when this is a fast-forward. If a worktree has the branch, the
+     * merge runs in that worktree. Git refuses a merge that changes local changes.
+     */
+    protected async fastForward(repoPath: string, local: string, remoteRef: string): Promise<void> {
+        const worktree = (await this.list(repoPath)).find(item => item.branch === local);
+        if (worktree) {
+            await this.git(worktree.path, ['merge', '--ff-only', '--quiet', remoteRef]);
+        } else {
+            await this.git(repoPath, ['fetch', '--quiet', '.', `refs/remotes/${remoteRef}:refs/heads/${local}`]);
+        }
+    }
+
+    /**
+     * Returns the start point of a branch from its first reflog entry, for example "origin/main". Git writes
+     * "branch: Created from <start point>" when it creates a branch. Returns undefined when the entry is "HEAD", or when
+     * the entry does not exist. Git deletes old reflog entries, by default after 90 days.
+     */
+    protected async startPoint(repoPath: string, branch: string): Promise<string | undefined> {
+        try {
+            const entries = (await this.git(repoPath, ['reflog', 'show', '--format=%gs', `refs/heads/${branch}`, '--'])).trim().split('\n');
+            const match = /^branch: Created from (.+)$/.exec(entries[entries.length - 1]?.trim() ?? '');
+            const start = match?.[1].trim();
+            return start && start !== 'HEAD' ? start.replace(/^refs\/(heads|remotes)\//, '') : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    /** Returns the upstream branch of a local branch, for example "origin/main", or undefined. */
+    protected async upstreamOf(repoPath: string, branch: string): Promise<string | undefined> {
+        try {
+            const upstream = (await this.git(repoPath, ['for-each-ref', '--format=%(upstream:short)', `refs/heads/${branch}`])).trim();
+            return upstream && await this.remoteBranchExists(repoPath, upstream) ? upstream : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    /** True when all the commits of `ref` are in `base`. */
+    protected async isAncestor(repoPath: string, ref: string, base: string): Promise<boolean> {
+        try {
+            await this.git(repoPath, ['merge-base', '--is-ancestor', `refs/heads/${ref}`, base]);
+            return true;
+        } catch {
+            return false;
         }
     }
 
@@ -226,7 +337,7 @@ export class GitWorktreeService {
         try {
             await this.git(repoPath, ['fetch', '--quiet', 'origin'], FETCH_TIMEOUT_MS);
         } catch (error) {
-            console.warn(`[worktrees] The fetch from origin failed. The new branch starts from HEAD. ${error instanceof Error ? error.message : String(error)}`);
+            console.warn(`[worktrees] The fetch from origin failed. The new branch starts from HEAD. ${errorMessage(error)}`);
             return undefined;
         }
         const candidates: string[] = [];

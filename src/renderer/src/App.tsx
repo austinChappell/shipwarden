@@ -1175,7 +1175,7 @@ export function App() {
         const name = appSettings.worktreeNames?.[worktree.path] ?? worktree.branch ?? worktree.path;
         const branch = options.deleteBranch ? worktree.branch : undefined;
         const teardown = appSettings.repos[repoPath]?.worktrees?.teardownScript ? ' The teardown script of the repository runs first.' : '';
-        const branchText = branch ? `Git then deletes the local branch "${branch}". The remote branch stays.` : 'Git keeps the branch.';
+        const branchText = branch ? `ShipWarden then pulls the newest changes of the branch that the worktree started from, and git deletes the local branch "${branch}". The remote branch stays.` : 'Git keeps the branch.';
         if (!(await confirmDialog({
             title: `Remove the worktree "${name}"?`,
             message: `${branchText} Uncommitted changes stop the removal. The terminals, editors and running processes of this worktree stop.${teardown}`,
