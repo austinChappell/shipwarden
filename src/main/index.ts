@@ -44,6 +44,7 @@ import { runScript } from './worktrees/run-script';
 import { normalizeWorktreeSettings, resolveWorktreeSettings, scriptEnvironment } from '@shared/worktree-settings';
 import { SettingsStore } from './settings-store';
 import { SeenStore } from './seen-store';
+import { AnswersStore } from './answers-store';
 import { UsageService } from './usage/usage-service';
 import { which } from './lsp/servers';
 import { agentForRepo, commandProgram, type AppSettings, type CommandCheck } from '@shared/settings';
@@ -217,6 +218,7 @@ async function killTerminal(id: string): Promise<void> {
 const usage = new UsageService(`ShipWarden/${app.getVersion()}`, list => mainWindow?.webContents.send(IpcChannels.usageChanged, list));
 const settings = new SettingsStore(join(app.getPath('userData'), 'settings.json'));
 const seen = new SeenStore(join(app.getPath('userData'), 'seen.json'));
+const answers = new AnswersStore(join(app.getPath('userData'), 'agent-answers.json'));
 /** A click on a notification brings the window to the front and tells the page where to go. */
 const notifications = new NotificationService(target => {
     if (mainWindow) {
@@ -653,6 +655,10 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.usageRefresh, () => usage.refresh(true));
     ipcMain.handle(IpcChannels.askRun, (_event, request: AskAgentRequest) => askAgent(request));
     ipcMain.handle(IpcChannels.askCancel, (_event, id: string) => askRunner.cancel(String(id)));
+    ipcMain.handle(IpcChannels.askAnswers, (_event, repo: RepoRef, number: number) =>
+        answers.list({ owner: String(repo?.owner ?? ''), name: String(repo?.name ?? '') }, Number(number)));
+    ipcMain.handle(IpcChannels.askSaveAnswer, (_event, answer: unknown) => answers.save(answer));
+    ipcMain.handle(IpcChannels.askRemoveAnswer, (_event, id: string) => answers.remove(String(id)));
     ipcMain.handle(IpcChannels.settingsGet, () => settings.get());
     ipcMain.handle(IpcChannels.settingsUpdate, async (_event, change: Partial<AppSettings>) => {
         const before = await settings.get();

@@ -1,13 +1,13 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MultiFileDiff, PatchDiff, Virtualizer, type DiffLineAnnotation, type FileDiffOptions } from '@pierre/diffs/react';
-import { ChevronDown, ChevronRight, ChevronUp, ExternalLink, LoaderCircle, MessageSquare, Search, X } from 'lucide-react';
+import { Bot, ChevronDown, ChevronRight, ChevronUp, ExternalLink, LoaderCircle, MessageSquare, Search, X } from 'lucide-react';
 import type { DiffSide, FileVersions, PendingComment, PullRequest, PullRequestFile, RepoTarget, ReviewThread } from '@shared/github';
 import { unifiedPatch } from '@shared/patch';
 import { reviewStore, useReviewState } from '../github/review-store';
-import { errorText } from '../util';
-import { ComposerZone, PendingZone, QuestionZone, ThreadZone, type AgentQuestion } from './DiffView';
+import { errorText, timeAgo } from '../util';
+import { ComposerZone, PendingZone, QuestionZone, ThreadZone, type AgentQuestion, type QuestionAction } from './DiffView';
 import { CopyButton } from './CopyButton';
-import { askPrompt, sliceLines } from '@shared/ask-agent';
+import { askPrompt, lineLabel, sliceLines, type SavedAnswer } from '@shared/ask-agent';
 import { searchPatches, type PatchMatch } from '@shared/pr-search';
 import { openLink } from '../links';
 
@@ -79,6 +79,22 @@ export function useColorMode(): 'light' | 'dark' {
     return mode;
 }
 
+/** Returns a saved answer as a question card. A saved answer starts collapsed. */
+const fromSaved = (saved: SavedAnswer): AgentQuestion => ({
+    id: saved.id,
+    path: saved.path,
+    side: saved.side,
+    startLine: saved.startLine,
+    line: saved.line,
+    question: saved.question,
+    status: 'done',
+    agent: saved.agent,
+    answer: saved.answer,
+    commit: saved.commit,
+    answeredAt: saved.answeredAt,
+    collapsed: true
+});
+
 const toSide = (side: DiffSide): 'deletions' | 'additions' => (side === 'LEFT' ? 'deletions' : 'additions');
 const fromSide = (side: 'deletions' | 'additions' | undefined): DiffSide => (side === 'deletions' ? 'LEFT' : 'RIGHT');
 
@@ -96,7 +112,7 @@ interface FileBodyProps {
     onComposer(composer: Composer | undefined): void;
     /** Asks the agent a question about the lines of the composer. Undefined when no agent can answer. */
     onAsk?(composer: Composer, question: string): void;
-    onQuestion(question: AgentQuestion, action: 'close' | 'cancel' | 'retry' | 'comment'): void;
+    onQuestion(question: AgentQuestion, action: QuestionAction): void;
     onRefresh(): Promise<void>;
 }
 
@@ -207,10 +223,9 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, q
                 <div className="stream-zone">
                     <QuestionZone
                         question={question}
-                        onClose={() => onQuestion(question, 'close')}
-                        onCancel={() => onQuestion(question, 'cancel')}
-                        onRetry={() => onQuestion(question, 'retry')}
-                        onUseAsComment={canComment ? () => onQuestion(question, 'comment') : undefined}
+                        headRefOid={pr.headRefOid}
+                        canComment={canComment}
+                        onAction={action => onQuestion(question, action)}
                     />
                 </div>
             );
@@ -334,6 +349,7 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
     const [open, setOpen] = useState<Record<string, boolean>>({});
     const [composer, setComposer] = useState<Composer & { path: string }>();
     const [questions, setQuestions] = useState<AgentQuestion[]>([]);
+    const [answersOpen, setAnswersOpen] = useState(false);
     const [findOpen, setFindOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [caseSensitive, setCaseSensitive] = useState(false);
@@ -344,12 +360,25 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
     const repo = typeof target === 'string' ? undefined : target;
     const sections = useRef(new Map<string, HTMLElement>());
 
-    // A different pull request starts with the default open state.
+    // A different pull request starts with the default open state, and with its saved answers.
     useEffect(() => {
         setOpen({});
         setComposer(undefined);
         setQuestions([]);
-    }, [pr.number]);
+        setAnswersOpen(false);
+        if (!repo) return;
+        let active = true;
+        window.shipwarden.ask.answers(repo, pr.number).then(saved => {
+            if (!active) return;
+            const loaded = saved.map(fromSaved);
+            // A question that the user asked while the list loaded stays.
+            setQuestions(list => [...loaded.filter(item => !list.some(other => other.id === item.id)), ...list]);
+        }).catch(err => onError(`The saved answers did not load. ${errorText(err)}`));
+        return () => {
+            active = false;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pr.number, repo?.owner, repo?.name]);
 
     const changeQuestion = (id: string, change: Partial<AgentQuestion>) =>
         setQuestions(list => list.map(item => (item.id === id ? { ...item, ...change } : item)));
@@ -371,7 +400,16 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
         const prompt = askPrompt({ pr, repo, path: question.path, side: question.side, startLine: question.startLine, endLine: question.line, code, patch: file?.patch, question: question.question });
         try {
             const result = await window.shipwarden.ask.run({ id: question.id, repo, headRefOid: pr.headRefOid, prompt });
-            setQuestions(list => list.map(item => (item.id === question.id && item.status === 'running' ? { ...item, status: 'done', agent: result.agent, answer: result.answer } : item)));
+            const answeredAt = Date.now();
+            setQuestions(list => list.map(item => (item.id === question.id && item.status === 'running'
+                ? { ...item, status: 'done', agent: result.agent, answer: result.answer, commit: pr.headRefOid, answeredAt, collapsed: false }
+                : item)));
+            // A cancelled run rejects, so each answer here is a real answer. It is saved also when the user opened a different pull request.
+            const saved: SavedAnswer = {
+                id: question.id, repo, number: pr.number, path: question.path, side: question.side, startLine: question.startLine, line: question.line,
+                question: question.question, agent: result.agent, answer: result.answer, commit: pr.headRefOid, answeredAt
+            };
+            window.shipwarden.ask.saveAnswer(saved).catch(err => onError(`The answer was not saved. ${errorText(err)}`));
         } catch (err) {
             setQuestions(list => list.map(item => (item.id === question.id && item.status === 'running' ? { ...item, status: 'error', error: errorText(err) } : item)));
         }
@@ -384,16 +422,35 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
         void runQuestion(question);
     };
 
-    const onQuestion = (question: AgentQuestion, action: 'close' | 'cancel' | 'retry' | 'comment') => {
-        if (action === 'retry') {
-            void runQuestion(question);
-            return;
+    const onQuestion = (question: AgentQuestion, action: QuestionAction) => {
+        switch (action) {
+            case 'retry':
+                void runQuestion(question);
+                return;
+            case 'toggle':
+                changeQuestion(question.id, { collapsed: !question.collapsed });
+                return;
+            case 'comment':
+                // The answer stays saved. The card collapses, so the pending comment is easy to see.
+                if (question.answer) {
+                    reviewStore.addPending(target, pr.number, { path: question.path, line: question.line, side: question.side, body: question.answer, fromAgent: true });
+                }
+                changeQuestion(question.id, { collapsed: true });
+                return;
+            case 'delete':
+                window.shipwarden.ask.removeAnswer(question.id).catch(err => onError(`The answer was not deleted. ${errorText(err)}`));
+                break;
+            default:
+                if (question.status === 'running') void window.shipwarden.ask.cancel(question.id);
         }
-        if (action === 'comment' && question.answer) {
-            reviewStore.addPending(target, pr.number, { path: question.path, line: question.line, side: question.side, body: question.answer, fromAgent: true });
-        }
-        if (question.status === 'running') void window.shipwarden.ask.cancel(question.id);
         setQuestions(list => list.filter(item => item.id !== question.id));
+    };
+
+    /** Opens the file of a saved answer, opens the card and scrolls to its line. */
+    const showAnswer = (question: AgentQuestion) => {
+        setAnswersOpen(false);
+        changeQuestion(question.id, { collapsed: false });
+        reveal(question);
     };
 
     const isOpen = (file: PullRequestFile) => open[file.path] ?? !file.viewed;
@@ -403,7 +460,7 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
     }, [findRequest]);
 
     /** Opens the file of a match and scrolls its line into view. The line can render some frames later. */
-    const reveal = (match: PatchMatch) => {
+    const reveal = (match: Pick<PatchMatch, 'path' | 'side' | 'line'>) => {
         setOpen(map => ({ ...map, [match.path]: true }));
         let tries = 0;
         const step = () => {
@@ -466,6 +523,7 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
         return <div className="panel-message"><LoaderCircle size={14} className="spin" /> Loading the changed files…</div>;
     }
     const viewedCount = files.filter(file => file.viewed).length;
+    const answered = questions.filter(question => question.status === 'done');
 
     return (
         <div className="files-stream">
@@ -485,6 +543,26 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
             <div className="files-stream-toolbar">
                 <span className="files-stream-count">{viewedCount} of {files.length} viewed</span>
                 <span className="header-spacer" />
+                {answered.length > 0 && (
+                    <div className="answers-menu">
+                        <button className="link-button" aria-expanded={answersOpen} onClick={() => setAnswersOpen(value => !value)}>
+                            <Bot size={12} strokeWidth={1.6} /> Agent answers ({answered.length})
+                        </button>
+                        {answersOpen && (
+                            <div className="answers-menu-list" role="menu">
+                                {answered.map(question => (
+                                    <button key={question.id} role="menuitem" className="answers-menu-item" onClick={() => showAnswer(question)}>
+                                        <span className="answers-menu-question">{question.question}</span>
+                                        <span className="answers-menu-where">
+                                            {question.path}, {lineLabel(question.startLine, question.line)}
+                                            {question.answeredAt ? ` · ${timeAgo(new Date(question.answeredAt).toISOString())}` : ''}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
                 <button className="link-button" onClick={() => setOpen(Object.fromEntries(files.map(file => [file.path, false])))}>Collapse all</button>
                 <button className="link-button" onClick={() => setOpen(Object.fromEntries(files.map(file => [file.path, true])))}>Expand all</button>
                 <div className="segmented compact" role="radiogroup" aria-label="Diff layout">

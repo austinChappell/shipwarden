@@ -120,3 +120,65 @@ export function afterMarker(output: string, marker: string): string {
     const index = output.indexOf(marker);
     return index < 0 ? output : output.slice(index + marker.length);
 }
+
+/** A question to the agent and its answer, kept on disk so that the user can read it again later. */
+export interface SavedAnswer {
+    /** The ID of the question. */
+    id: string;
+    repo: RepoRef;
+    /** The number of the pull request. */
+    number: number;
+    path: string;
+    side: DiffSide;
+    startLine: number;
+    line: number;
+    question: string;
+    /** The name of the agent that answered. */
+    agent: string;
+    answer: string;
+    /** The head commit of the pull request when the agent answered. The lines refer to this commit. */
+    commit: string;
+    /** The time of the answer, in milliseconds since 1970. */
+    answeredAt: number;
+}
+
+/** The longest text of a question or an answer that the store keeps. */
+const MAX_SAVED_TEXT = 200_000;
+
+const isText = (value: unknown, max = 1000): value is string => typeof value === 'string' && value.length > 0 && value.length <= max;
+const isLine = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0;
+
+/** Returns the value as a SavedAnswer, or undefined when a field is missing or not correct. */
+export function parseSavedAnswer(value: unknown): SavedAnswer | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const item = value as Record<string, unknown>;
+    const repo = item.repo as Record<string, unknown> | undefined;
+    if (!repo || !isText(repo.owner, 200) || !isText(repo.name, 200)) return undefined;
+    if (!isText(item.id, 200) || !isLine(item.number) || !isText(item.path, 4000)) return undefined;
+    if (item.side !== 'LEFT' && item.side !== 'RIGHT') return undefined;
+    if (!isLine(item.startLine) || !isLine(item.line) || item.startLine > item.line) return undefined;
+    if (!isText(item.question, MAX_SAVED_TEXT) || !isText(item.answer, MAX_SAVED_TEXT) || !isText(item.agent, 200)) return undefined;
+    if (typeof item.commit !== 'string' || item.commit.length > 100) return undefined;
+    if (typeof item.answeredAt !== 'number' || !Number.isFinite(item.answeredAt)) return undefined;
+    return {
+        id: item.id,
+        repo: { owner: repo.owner, name: repo.name },
+        number: item.number,
+        path: item.path,
+        side: item.side,
+        startLine: item.startLine,
+        line: item.line,
+        question: item.question,
+        agent: item.agent,
+        answer: item.answer,
+        commit: item.commit,
+        answeredAt: item.answeredAt
+    };
+}
+
+/** Returns true when the saved answer is about the pull request `number` of `repo`. The owner and name ignore case, as on GitHub. */
+export function isAnswerFor(answer: SavedAnswer, repo: RepoRef, number: number): boolean {
+    return answer.number === number
+        && answer.repo.owner.toLowerCase() === repo.owner.toLowerCase()
+        && answer.repo.name.toLowerCase() === repo.name.toLowerCase();
+}

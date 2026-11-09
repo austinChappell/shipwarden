@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { Bot, LoaderCircle } from 'lucide-react';
+import { Bot, ChevronRight, LoaderCircle } from 'lucide-react';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, RepoTarget, ReviewThread } from '@shared/github';
 import { monaco } from '../editor/monaco';
 import { gitHubSeenKey } from '@shared/dashboard';
@@ -186,31 +186,66 @@ export interface AgentQuestion {
     agent?: string;
     answer?: string;
     error?: string;
+    /** The head commit of the pull request when the agent answered. */
+    commit?: string;
+    /** The time of the answer, in milliseconds since 1970. */
+    answeredAt?: number;
+    /** True when the card shows only the question. A saved answer starts collapsed. */
+    collapsed?: boolean;
 }
 
-/** Shows a question to the agent under its lines, with the answer or the error. The answer can become a pending comment. */
-export function QuestionZone({ question, onClose, onCancel, onRetry, onUseAsComment }: {
+/** The actions on a question card. */
+export type QuestionAction = 'close' | 'cancel' | 'retry' | 'comment' | 'toggle' | 'delete';
+
+/**
+ * Shows a question to the agent under its lines, with the answer or the error. The answer can become a pending comment.
+ * An answer stays on disk until the user deletes it. "Hide" collapses the card to the question only.
+ */
+export function QuestionZone({ question, headRefOid, onAction, canComment }: {
     question: AgentQuestion;
-    onClose(): void;
-    onCancel(): void;
-    onRetry(): void;
-    onUseAsComment?(): void;
+    /** The current head commit of the pull request. */
+    headRefOid: string;
+    onAction(action: QuestionAction): void;
+    canComment: boolean;
 }) {
+    const done = question.status === 'done' && !!question.answer;
+    if (done && question.collapsed) {
+        return (
+            <div className="zone-card agent-question collapsed">
+                <button className="agent-question-toggle" title="Show the answer" onClick={() => onAction('toggle')}>
+                    <ChevronRight size={13} strokeWidth={1.8} />
+                    <Bot size={12} strokeWidth={1.6} />
+                    <span className="agent-question-summary">{question.question}</span>
+                    {question.answeredAt && <span className="agent-question-time">{timeAgo(new Date(question.answeredAt).toISOString())}</span>}
+                </button>
+            </div>
+        );
+    }
+    const outdated = done && !!question.commit && question.commit !== headRefOid;
     return (
         <div className="zone-card agent-question">
-            <div className="comment-author"><Bot size={12} strokeWidth={1.6} /> You asked {question.agent ?? 'the agent'}</div>
+            <div className="comment-author">
+                <Bot size={12} strokeWidth={1.6} /> You asked {question.agent ?? 'the agent'}
+                {done && question.answeredAt && <span className="agent-question-time">{timeAgo(new Date(question.answeredAt).toISOString())}</span>}
+            </div>
             <div className="comment-body agent-question-text">{question.question}</div>
             {question.status === 'running' && <div className="agent-question-wait"><LoaderCircle size={13} className="spin" /> The agent reads the code…</div>}
-            {question.status === 'done' && question.answer && <Markdown className="comment-body agent-answer" text={question.answer} />}
+            {done && <Markdown className="comment-body agent-answer" text={question.answer ?? ''} />}
+            {outdated && <div className="agent-question-outdated">The agent answered on commit {question.commit?.slice(0, 7)}. The pull request changed after that.</div>}
             {question.status === 'error' && <div className="form-error">{question.error}</div>}
             <div className="thread-actions">
                 {question.status === 'running' ? (
-                    <button className="link-button" onClick={onCancel}>Cancel</button>
+                    <button className="link-button" onClick={() => onAction('cancel')}>Cancel</button>
+                ) : done ? (
+                    <>
+                        {canComment && <button className="link-button" onClick={() => onAction('comment')}>Use as a pending comment</button>}
+                        <button className="link-button" onClick={() => onAction('toggle')}>Hide</button>
+                        <button className="link-button" onClick={() => onAction('delete')}>Delete</button>
+                    </>
                 ) : (
                     <>
-                        {question.status === 'error' && <button className="link-button" onClick={onRetry}>Try again</button>}
-                        {question.status === 'done' && onUseAsComment && <button className="link-button" onClick={onUseAsComment}>Use as a pending comment</button>}
-                        <button className="link-button" onClick={onClose}>Close</button>
+                        {question.status === 'error' && <button className="link-button" onClick={() => onAction('retry')}>Try again</button>}
+                        <button className="link-button" onClick={() => onAction('close')}>Close</button>
                     </>
                 )}
             </div>
