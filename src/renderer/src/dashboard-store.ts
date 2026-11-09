@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import { DASHBOARD_WINDOW_DAYS, gitHubSeenKey, isHiddenComment, taskSeenKey, type CommentFilter, type DashboardPullRequests, type PullRequestCommentItem, type TaskCommentItem } from '@shared/dashboard';
+import { DASHBOARD_WINDOW_DAYS, gitHubSeenKey, isHiddenComment, isMergedApproval, taskSeenKey, type CommentFilter, type DashboardPullRequests, type PullRequestCommentItem, type TaskCommentItem } from '@shared/dashboard';
 import { seenStore, useSeenVersion } from './seen-store';
 import { errorText } from './util';
 
@@ -86,7 +86,12 @@ class DashboardStore {
                 error => current() && this.set({ pullRequestsError: errorText(error) })
             ),
             github.dashboardComments().then(
-                prComments => current() && this.set({ prComments, prCommentsError: undefined }),
+                prComments => {
+                    if (!current()) return;
+                    // An approval of a merged pull request needs no action. Record it as seen.
+                    seenStore.mark(prComments.filter(isMergedApproval).map(item => gitHubSeenKey(item.id)));
+                    this.set({ prComments, prCommentsError: undefined });
+                },
                 error => current() && this.set({ prCommentsError: errorText(error) })
             ),
             this.loadTasks(projectId, since).then(tasks => current() && this.set({ tasks }))
@@ -126,7 +131,7 @@ class DashboardStore {
         const items = {
             reviewRequests: pullRequests.reviewRequests.map(item => ({ key: `r:${item.url}`, item })),
             myPullRequests: pullRequests.myPullRequests.map(item => ({ key: `m:${item.url}:${item.reasons.join(',')}`, item })),
-            prComments: prComments.map(item => ({ key: `c:${item.id}`, item })),
+            prComments: prComments.filter(item => !isMergedApproval(item)).map(item => ({ key: `c:${item.id}`, item })),
             taskComments: tasks.flatMap(source => (source.comments ?? []).map(comment => ({ key: `t:${source.connectionId}:${comment.id}`, item: { connectionId: source.connectionId, comment } })))
         };
         const keys = [...items.reviewRequests, ...items.myPullRequests, ...items.prComments, ...items.taskComments].map(entry => entry.key);

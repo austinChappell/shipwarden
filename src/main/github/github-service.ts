@@ -595,7 +595,8 @@ export class GitHubService {
                     createdAt: comment.createdAt,
                     url: comment.url,
                     path,
-                    reviewState: comment.state
+                    reviewState: comment.state,
+                    prState: pr.state
                 });
             }
         }

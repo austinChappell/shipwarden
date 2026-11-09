@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isHiddenComment, matchesRule, myPullRequestGroup, myPullRequestReasons, newComments, ownerQualifiers, parsePullRequestTitle, ruleRegex, shortAge } from './dashboard';
+import { isHiddenComment, isMergedApproval, matchesRule, myPullRequestGroup, myPullRequestReasons, newComments, ownerQualifiers, parsePullRequestTitle, ruleRegex, shortAge } from './dashboard';
 
 describe('myPullRequestReasons', () => {
     const base = { isDraft: false, reviewDecision: null, mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', checks: 'SUCCESS' };
@@ -43,6 +43,16 @@ describe('newComments', () => {
             comment('b', 'bob', '2026-11-04T00:00:00Z')
         ], 'me', since);
         expect(result.map(item => item.id)).toEqual(['b']);
+    });
+});
+
+describe('isMergedApproval', () => {
+    it('finds only an approval of a merged pull request', () => {
+        expect(isMergedApproval({ reviewState: 'APPROVED', prState: 'MERGED' })).toBe(true);
+        expect(isMergedApproval({ reviewState: 'APPROVED', prState: 'OPEN' })).toBe(false);
+        expect(isMergedApproval({ reviewState: 'APPROVED', prState: 'CLOSED' })).toBe(false);
+        expect(isMergedApproval({ reviewState: 'CHANGES_REQUESTED', prState: 'MERGED' })).toBe(false);
+        expect(isMergedApproval({ prState: 'MERGED' })).toBe(false);
     });
 });
 
