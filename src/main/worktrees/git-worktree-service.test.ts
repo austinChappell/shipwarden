@@ -169,4 +169,84 @@ describe('GitWorktreeService', () => {
         expect(await service.deleteBranch(repo, 'feat/work', true)).toEqual({ deleted: true });
         expect(git(repo, 'branch', '--list', 'feat/*').trim()).toBe('');
     });
+    describe('pulls the start branch before it deletes a branch', () => {
+
+        let origin: string;
+        let other: string;
+        const commit = (cwd: string, message: string) =>
+            git(cwd, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-q', '--allow-empty', '-m', message);
+
+        /** Makes a worktree with one commit, pushes it, and merges it into main of "origin" from another clone. */
+        const mergeOnRemote = async (branch: string) => {
+            const work = await service.create({ repoPath: repo, branch });
+            commit(work.path, 'work');
+            git(work.path, 'push', '-q', 'origin', branch);
+            git(other, 'fetch', '-q', 'origin');
+            git(other, 'merge', '-q', '--no-ff', '-m', 'merge', `origin/${branch}`);
+            git(other, 'push', '-q', 'origin', 'main');
+            await service.remove(repo, work.path);
+            return work;
+        };
+
+        beforeEach(() => {
+            origin = path.join(tmp, 'origin.git');
+            git(tmp, 'clone', '-q', '--bare', repo, origin);
+            git(repo, 'remote', 'add', 'origin', origin);
+            git(repo, 'fetch', '-q', 'origin');
+            git(repo, 'branch', '-q', '-u', 'origin/main', 'main');
+            other = path.join(tmp, 'other');
+            git(tmp, 'clone', '-q', origin, other);
+        });
+
+        it('pulls a local start branch that is not the default branch', async () => {
+            git(repo, 'branch', '-q', 'develop', 'main');
+            git(other, 'push', '-q', 'origin', 'main:develop');
+            git(repo, 'fetch', '-q', 'origin');
+            git(repo, 'branch', '-q', '-u', 'origin/develop', 'develop');
+            const work = await service.create({ repoPath: repo, branch: 'feat/dev', baseRef: 'develop' });
+            commit(work.path, 'work');
+            git(work.path, 'push', '-q', 'origin', 'feat/dev');
+            git(other, 'fetch', '-q', 'origin');
+            git(other, 'checkout', '-q', '-b', 'develop', 'origin/develop');
+            git(other, 'merge', '-q', '--no-ff', '-m', 'merge', 'origin/feat/dev');
+            git(other, 'push', '-q', 'origin', 'develop');
+            await service.remove(repo, work.path);
+            expect(await service.deleteBranch(repo, 'feat/dev')).toEqual({ deleted: true });
+            expect(git(repo, 'rev-parse', 'develop').trim()).toBe(git(other, 'rev-parse', 'HEAD').trim());
+        });
+
+        it('fast-forwards main in the main worktree and deletes the merged branch', async () => {
+            await mergeOnRemote('feat/merged');
+            expect(await service.deleteBranch(repo, 'feat/merged')).toEqual({ deleted: true });
+            expect(git(repo, 'rev-parse', 'main').trim()).toBe(git(other, 'rev-parse', 'HEAD').trim());
+        });
+
+        it('deletes a branch that the start branch contains when HEAD is on another branch', async () => {
+            git(repo, 'checkout', '-q', '-b', 'side');
+            await mergeOnRemote('feat/merged');
+            expect(await service.deleteBranch(repo, 'feat/merged')).toEqual({ deleted: true });
+            expect(git(repo, 'rev-parse', 'main').trim()).toBe(git(other, 'rev-parse', 'HEAD').trim());
+        });
+
+        it('uses the default branch of origin for a branch without a known start point', async () => {
+            git(repo, 'branch', 'old');
+            const old = await service.create({ repoPath: repo, branch: 'old' });
+            commit(old.path, 'old work');
+            git(old.path, 'push', '-q', 'origin', 'old');
+            git(other, 'fetch', '-q', 'origin');
+            git(other, 'merge', '-q', '--no-ff', '-m', 'merge', 'origin/old');
+            git(other, 'push', '-q', 'origin', 'main');
+            await service.remove(repo, old.path);
+            expect(await service.deleteBranch(repo, 'old')).toEqual({ deleted: true });
+        });
+
+        it('still reports a branch that is not merged when the pull fails', async () => {
+            const work = await service.create({ repoPath: repo, branch: 'feat/offline' });
+            commit(work.path, 'work');
+            await service.remove(repo, work.path);
+            await fs.rm(origin, { recursive: true, force: true });
+            expect(await service.deleteBranch(repo, 'feat/offline')).toEqual({ deleted: false, notMerged: true });
+            expect(await service.deleteBranch(repo, 'feat/offline', true)).toEqual({ deleted: true });
+        });
+    });
 });
