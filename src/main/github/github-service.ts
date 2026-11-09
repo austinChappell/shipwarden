@@ -161,7 +161,7 @@ query($owner: String!, $name: String!, $number: Int!) {
     pullRequest(number: $number) {
       id number title body bodyHTML url state isDraft mergeable mergeStateStatus reviewDecision
       author { login avatarUrl }
-      baseRefName headRefName baseRefOid headRefOid additions deletions changedFiles createdAt viewerDidAuthor viewerCanUpdate
+      baseRefName headRefName isCrossRepository baseRefOid headRefOid additions deletions changedFiles createdAt viewerDidAuthor viewerCanUpdate
       viewerCanEnableAutoMerge viewerCanDisableAutoMerge
       autoMergeRequest { mergeMethod enabledBy { login } }
       assignees(first: 20) { nodes { login avatarUrl } }

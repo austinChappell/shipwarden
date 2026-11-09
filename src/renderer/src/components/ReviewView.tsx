@@ -32,6 +32,8 @@ interface Props {
     onOpenSettings(): void;
     /** A pull request to open, for example from the Dashboard. A new `nonce` opens it again. */
     open?: ReviewOpenRequest;
+    /** Opens the New worktree dialog on the head branch of a pull request. */
+    onNewWorktree?(repo: RepoRef, pr: PullRequest): void;
 }
 
 export interface ReviewOpenRequest {
@@ -86,7 +88,7 @@ const REVIEW_TEXT: Record<string, string> = { APPROVED: 'Approved', CHANGES_REQU
  * The user can read the diff, comment, approve or request changes, mark files as viewed, read the CI logs,
  * and merge a pull request when they have write access to the repository.
  */
-export function ReviewView({ githubKey, onOpenSettings, open }: Props) {
+export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: Props) {
     const [repos, setRepos] = useState<GitHubRepoInfo[]>();
     const [repo, setRepo] = useState<string | undefined>(() => read(REPO_KEY));
     const [filter, setFilter] = useState<PullRequestFilter>(() => (PULL_REQUEST_FILTERS.some(item => item.id === read(FILTER_KEY)) ? read(FILTER_KEY) as PullRequestFilter : 'open'));
@@ -304,6 +306,7 @@ export function ReviewView({ githubKey, onOpenSettings, open }: Props) {
                             error={prError}
                             onRefresh={refresh}
                             onBack={() => setSelected(undefined)}
+                            onNewWorktree={onNewWorktree && (target => onNewWorktree(repoRef, target))}
                         />
                     )}
                 </div>

@@ -606,6 +606,7 @@ function registerIpc(): void {
         reviewProviders.test(String(id), typeof organization === 'string' ? organization : undefined));
     ipcMain.handle(IpcChannels.reviewProvidersGitHubOwners, (_event, id: string) => reviewProviders.githubOwners(String(id)));
     ipcMain.handle(IpcChannels.githubRepositories, () => reviewProviders.repositories());
+    ipcMain.handle(IpcChannels.githubRepoOf, (_event, root: string) => reviewProviders.githubRepoFor(String(root)).catch(() => null));
     ipcMain.handle(IpcChannels.githubDashboardPullRequests, () => reviewProviders.dashboardPullRequests());
     ipcMain.handle(IpcChannels.githubDashboardComments, () => reviewProviders.dashboardComments());
     ipcMain.handle(IpcChannels.seenKeys, () => seen.keys());

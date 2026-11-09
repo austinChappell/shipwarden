@@ -126,6 +126,7 @@ const api: ShipWardenApi = {
         pullRequestCandidates: target => ipcRenderer.invoke(IpcChannels.githubPullRequestCandidates, target),
         changePullRequest: (target, number, change) => ipcRenderer.invoke(IpcChannels.githubChangePullRequest, target, number, change),
         repositories: () => ipcRenderer.invoke(IpcChannels.githubRepositories),
+        repoOf: root => ipcRenderer.invoke(IpcChannels.githubRepoOf, root),
         pullRequests: (repo, filter, query) => ipcRenderer.invoke(IpcChannels.githubPullRequests, repo, filter, query),
         dashboardPullRequests: () => ipcRenderer.invoke(IpcChannels.githubDashboardPullRequests),
         dashboardComments: () => ipcRenderer.invoke(IpcChannels.githubDashboardComments),

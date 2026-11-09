@@ -16,6 +16,7 @@ import { openLink } from '../links';
 import type { CheckCounts } from '../github/use-check-counts';
 import { mergeConditions } from './PullRequestSummary';
 import { showContextMenu } from './ContextMenu';
+import { CopyButton } from './CopyButton';
 
 interface Props {
     /** The worktree of the branch, or the repository in the Review view. */
@@ -50,6 +51,16 @@ export function StateBadge({ pr }: { pr: PullRequest }) {
     if (pr.state === 'CLOSED') return <span className="pr-badge closed"><GitPullRequestClosed {...ICON} />Closed</span>;
     if (pr.isDraft) return <span className="pr-badge draft"><GitPullRequestDraft {...ICON} />Draft</span>;
     return <span className="pr-badge open"><GitPullRequest {...ICON} />Open</span>;
+}
+
+/** A branch name in code style, with a button that copies the name. */
+export function BranchName({ name }: { name: string }) {
+    return (
+        <span className="branch-name">
+            <code>{name}</code>
+            <CopyButton text={name} title="Copy the branch name" size={12} className="icon-button branch-copy" />
+        </span>
+    );
 }
 
 /** True when the pull request is open and GitHub reports conflicts with the base branch. */
@@ -663,7 +674,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     </div>
                     <h3 className="pr-title">{pr.title}</h3>
                     <div className="pr-meta">
-                        {pr.author?.login ?? 'unknown'} {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} into <code>{pr.baseRefName}</code> from <code>{pr.headRefName}</code>
+                        {pr.author?.login ?? 'unknown'} {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
                     </div>
                     <div className="pr-meta">
                         <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>

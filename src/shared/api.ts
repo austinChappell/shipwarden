@@ -248,6 +248,8 @@ export interface ShipWardenApi {
         changePullRequest(target: RepoTarget, number: number, change: PullRequestChange): Promise<void>;
         /** The repositories of all GitHub providers that are on, each in the organizations of its scope. */
         repositories(): Promise<GitHubRepoInfo[]>;
+        /** The GitHub repository of a local repository, from its "origin" remote. Null for a different remote. */
+        repoOf(root: string): Promise<RepoRef | null>;
         /** The pull requests of a repository for a filter of the Review view. */
         pullRequests(repo: RepoRef, filter: PullRequestFilter, query?: string): Promise<PullRequestSummary[]>;
         /** The review requests and the user's pull requests that need an action, from all GitHub providers that are on. */
@@ -483,6 +485,7 @@ export const IpcChannels = {
     githubPullRequestCandidates: 'github:pullRequestCandidates',
     githubChangePullRequest: 'github:changePullRequest',
     githubRepositories: 'github:repositories',
+    githubRepoOf: 'github:repoOf',
     githubPullRequests: 'github:pullRequests',
     githubDashboardPullRequests: 'github:dashboardPullRequests',
     githubDashboardComments: 'github:dashboardComments',

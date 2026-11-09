@@ -1146,6 +1146,32 @@ export function App() {
         setAppSettings(await api.settings.update({ hiddenWorktrees: next }));
     };
 
+    /**
+     * Opens a worktree for the head branch of a pull request from the Review view. A worktree that has the branch opens.
+     * Else the New worktree dialog opens on the remote branch. The repository must be in the active project.
+     */
+    const openPullRequestWorktree = async (repo: RepoRef, pr: PullRequest) => {
+        const same = (ref: RepoRef | null) => !!ref && ref.owner.toLowerCase() === repo.owner.toLowerCase() && ref.name.toLowerCase() === repo.name.toLowerCase();
+        let repoPath: string | undefined;
+        for (const path of repos) {
+            if (same(await api.github.repoOf(path).catch(() => null))) {
+                repoPath = path;
+                break;
+            }
+        }
+        if (!repoPath) {
+            setError(`No repository of this project has ${repo.owner}/${repo.name} as its "origin" remote. Add a clone of it to the project.`);
+            return;
+        }
+        const existing = worktreesByRepo[repoPath]?.find(worktree => worktree.branch === pr.headRefName);
+        if (existing) {
+            setSelectedPath(existing.path);
+            setMainView('worktree');
+            return;
+        }
+        setNewWorktree({ repo: repoPath, start: { remote: `origin/${pr.headRefName}` } });
+    };
+
     /** Creates a worktree from the New worktree dialog: its branch, start point, display name and agent. */
     const createWorktree = async (repoPath: string, request: NewWorktreeRequest) => {
         const worktree = await api.worktrees.create({
@@ -1157,6 +1183,8 @@ export function App() {
         if (request.name) await setWorktreeName(worktree.path, request.name);
         await refreshWorktrees(repoPath);
         setSelectedPath(worktree.path);
+        // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
+        setMainView('worktree');
         await prepareWorktree(repoPath, worktree);
         if (request.startAgent) await startTerminal(worktree, 'agent');
     };
@@ -1618,7 +1646,12 @@ export function App() {
                 )}
                 {mainView === 'review' && (
                     <main className="workspace">
-                        <ReviewView githubKey={githubKey} onOpenSettings={() => openSettings('review')} open={reviewOpen} />
+                        <ReviewView
+                            githubKey={githubKey}
+                            onOpenSettings={() => openSettings('review')}
+                            open={reviewOpen}
+                            onNewWorktree={(repo, pr) => void openPullRequestWorktree(repo, pr)}
+                        />
                     </main>
                 )}
                 {mainView === 'pipelines' && (

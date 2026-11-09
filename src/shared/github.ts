@@ -163,6 +163,8 @@ export interface PullRequest {
     author: GitHubUser | null;
     baseRefName: string;
     headRefName: string;
+    /** True when the head branch is in a fork. Then the "origin" remote does not have the branch. Undefined when not known. */
+    isCrossRepository?: boolean;
     baseRefOid: string;
     headRefOid: string;
     additions: number;
