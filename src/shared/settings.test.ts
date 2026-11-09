@@ -4,7 +4,7 @@ import { agentForRepo, agentTitle, commandProgram, DEFAULT_AGENTS, DEFAULT_SETTI
 describe('normalizeSettings', () => {
     it('gives a new installation the default agents', () => {
         expect(normalizeSettings(undefined)).toEqual(DEFAULT_SETTINGS);
-        expect(DEFAULT_SETTINGS.agents.map(agent => agent.name)).toEqual(['Claude Code', 'Codex', 'Gemini CLI']);
+        expect(DEFAULT_SETTINGS.agents.map(agent => agent.name)).toEqual(['Claude Code', 'Codex', 'Gemini CLI', 'opencode']);
     });
 
     it('turns the single agent command of older settings into the default agent', () => {
@@ -137,9 +137,12 @@ describe('agentTitle', () => {
 describe('missingDefaultAgents', () => {
     it('offers the default agents that the list does not have', () => {
         const agents = [{ id: 'claude', name: 'Claude Code', command: 'claude' }, { id: 'agent-x', name: 'Codex fast', command: '/opt/bin/codex --full-auto' }];
-        expect(missingDefaultAgents(agents)).toEqual([{ id: 'gemini', name: 'Gemini CLI', command: 'gemini' }]);
+        expect(missingDefaultAgents(agents)).toEqual([
+            { id: 'gemini', name: 'Gemini CLI', command: 'gemini' },
+            { id: 'opencode', name: 'opencode', command: 'opencode' }
+        ]);
         expect(missingDefaultAgents(DEFAULT_AGENTS)).toEqual([]);
         // An agent of the user with the same program counts as present.
-        expect(missingDefaultAgents([...agents, { id: 'g', name: 'Gemini', command: 'gemini --yolo' }])).toEqual([]);
+        expect(missingDefaultAgents([...agents, { id: 'g', name: 'Gemini', command: 'gemini --yolo' }, { id: 'o', name: 'OC', command: '~/.opencode/bin/opencode' }])).toEqual([]);
     });
 });

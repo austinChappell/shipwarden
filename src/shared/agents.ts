@@ -135,6 +135,40 @@ export function describeTool(tool: string, input: Record<string, unknown> = {}):
             return text(input.query) ? `Searching the web for "${oneLine(text(input.query)!, 40)}"` : 'Searching the web';
         case 'save_memory':
             return 'Saving a memory';
+        // The built-in tools of opencode. The file path is "filePath".
+        case 'bash': {
+            const description = text(input.description);
+            return description ? oneLine(description, 70) : `Running ${oneLine(text(input.command) ?? 'a command', 60)}`;
+        }
+        case 'edit':
+        case 'write':
+        case 'multiedit':
+            return `Editing ${fileName(input.filePath) ?? 'a file'}`;
+        case 'patch':
+        case 'apply_patch':
+            return 'Editing files';
+        case 'read':
+            return `Reading ${fileName(input.filePath) ?? 'a file'}`;
+        case 'list':
+            return `Listing ${fileName(input.path) ?? 'a folder'}`;
+        case 'grep':
+            return text(input.pattern) ? `Searching for "${oneLine(text(input.pattern)!, 40)}"` : 'Searching the code';
+        case 'webfetch': {
+            try {
+                return `Reading ${new URL(String(input.url)).host}`;
+            } catch {
+                return 'Reading a web page';
+            }
+        }
+        case 'websearch':
+        case 'codesearch':
+            return text(input.query) ? `Searching the web for "${oneLine(text(input.query)!, 40)}"` : 'Searching the web';
+        case 'task':
+            return text(input.description) ? `Running a subagent: ${oneLine(text(input.description)!, 50)}` : 'Running a subagent';
+        case 'todowrite':
+            return 'Updating its to-do list';
+        case 'question':
+            return 'Asking a question';
         default: {
             // Claude Code MCP tools are "mcp__<server>__<tool>".
             const mcp = /^mcp__(.+?)__(.+)$/.exec(tool);
@@ -258,14 +292,23 @@ export function shellQuote(value: string): string {
     return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
+/**
+ * Returns the inline opencode config (the OPENCODE_CONFIG_CONTENT variable) that loads ShipWarden's plugin.
+ * opencode adds the plugins of all config files together, so the user's own plugins and settings stay the same.
+ * `pluginPath` is the absolute path of the plugin file.
+ */
+export function opencodeHookConfig(pluginPath: string): string {
+    return JSON.stringify({ plugin: [`file://${encodeURI(pluginPath)}`] });
+}
+
 /** The agents that report their state through hooks. */
-export type HookAgent = 'claude' | 'gemini';
+export type HookAgent = 'claude' | 'gemini' | 'opencode';
 
 /** Returns the agent of a command if ShipWarden can give it hooks. Returns undefined for other agents. */
 export function hookAgentOf(command: string): HookAgent | undefined {
     const program = command.trim().split(/\s+/)[0];
     const name = program.slice(program.lastIndexOf('/') + 1);
-    return name === 'claude' || name === 'gemini' ? name : undefined;
+    return name === 'claude' || name === 'gemini' || name === 'opencode' ? name : undefined;
 }
 
 /** The hook settings files of the agents. */
@@ -274,10 +317,12 @@ export interface HookSettingsPaths {
     claude: string;
     /** The file that Gemini CLI gets in GEMINI_CLI_SYSTEM_DEFAULTS_PATH. */
     gemini: string;
+    /** The opencode plugin file. opencode gets it in OPENCODE_CONFIG_CONTENT. */
+    opencode: string;
 }
 
 /**
- * Adds ShipWarden's hook settings to an agent command when the agent is Claude Code or Gemini CLI.
+ * Adds ShipWarden's hook settings to an agent command when the agent is Claude Code, Gemini CLI or opencode.
  * Other agents keep their command, and ShipWarden shows no detailed state for them.
  */
 export function withAgentHooks(command: string, paths: HookSettingsPaths): string {
@@ -286,6 +331,8 @@ export function withAgentHooks(command: string, paths: HookSettingsPaths): strin
             return `${command.trim()} --settings ${shellQuote(paths.claude)}`;
         case 'gemini':
             return `GEMINI_CLI_SYSTEM_DEFAULTS_PATH=${shellQuote(paths.gemini)} ${command.trim()}`;
+        case 'opencode':
+            return `OPENCODE_CONFIG_CONTENT=${shellQuote(opencodeHookConfig(paths.opencode))} ${command.trim()}`;
         default:
             return command;
     }

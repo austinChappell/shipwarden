@@ -1,9 +1,9 @@
 import type { ProcessRow } from './processes';
 
 /** The agent programs that ShipWarden finds in a shell tab. */
-export type AgentProgram = 'claude' | 'codex' | 'gemini';
+export type AgentProgram = 'claude' | 'codex' | 'gemini' | 'opencode';
 
-const PROGRAMS: readonly AgentProgram[] = ['claude', 'codex', 'gemini'];
+const PROGRAMS: readonly AgentProgram[] = ['claude', 'codex', 'gemini', 'opencode'];
 
 const RUNTIMES = new Set(['node', 'bun', 'deno']);
 
@@ -14,10 +14,11 @@ function base(path: string): string {
 /**
  * Returns the agent program of a command line, or undefined for another program.
  * It knows these forms:
- * - The program name: `claude`, `codex`, `gemini`, or a path that ends with it.
+ * - The program name: `claude`, `codex`, `gemini`, `opencode`, or a path that ends with it.
  * - The native Claude Code binary: `…/claude/versions/2.1.0`.
  * - A script in a runtime: `node …/@anthropic-ai/claude-code/cli.js`, `node …/@openai/codex/bin/codex.js`,
- *   `node --max-old-space-size=8192 …/@google/gemini-cli/dist/index.js`. The options of the runtime are not the script.
+ *   `node --max-old-space-size=8192 …/@google/gemini-cli/dist/index.js`, `node …/opencode-ai/bin/opencode`.
+ *   The options of the runtime are not the script.
  */
 export function agentProgramOf(command: string): AgentProgram | undefined {
     const [program = '', ...args] = command.trim().split(/\s+/);
@@ -38,6 +39,9 @@ export function agentProgramOf(command: string): AgentProgram | undefined {
         }
         if (script.includes('/@google/gemini-cli/') || base(script) === 'gemini') {
             return 'gemini';
+        }
+        if (script.includes('/opencode-ai/') || base(script) === 'opencode') {
+            return 'opencode';
         }
     }
     return undefined;

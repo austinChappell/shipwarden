@@ -23,10 +23,11 @@ export const MAX_PATCH = 60_000;
 
 /**
  * Returns the shell command that runs an agent command in print mode. The prompt goes in on stdin.
- * Returns undefined when the command is not Claude Code, Codex or Gemini CLI.
+ * Returns undefined when the command is not Claude Code, Codex, Gemini CLI or opencode.
  * - Claude Code: `-p`. Print mode does not run a tool that needs a permission.
  * - Codex: `exec` with a read-only sandbox. `-` reads the prompt from stdin.
  * - Gemini CLI: `-p` adds the text to the prompt from stdin.
+ * - opencode: `run` with the built-in plan agent, which cannot edit files. `run` adds stdin to the message.
  */
 export function printCommand(command: string): string | undefined {
     const trimmed = command.trim();
@@ -37,6 +38,8 @@ export function printCommand(command: string): string | undefined {
             return `${trimmed} exec --sandbox read-only --skip-git-repo-check -`;
         case 'gemini':
             return `${trimmed} -p 'Answer the question above.'`;
+        case 'opencode':
+            return `${trimmed} run --agent plan 'Answer the question below.'`;
         default:
             return undefined;
     }

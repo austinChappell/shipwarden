@@ -11,6 +11,9 @@ import { basename, join } from 'path';
  * The file also adds a `gemini` function. The function starts Gemini CLI with ShipWarden's hook settings as its
  * system defaults file (GEMINI_CLI_SYSTEM_DEFAULTS_PATH). It does not replace a `gemini` function of the user, and it
  * does not replace a GEMINI_CLI_SYSTEM_DEFAULTS_PATH value of the user.
+ * The file also adds an `opencode` function. The function starts opencode with an inline config that loads
+ * ShipWarden's plugin (OPENCODE_CONFIG_CONTENT). It does not replace an `opencode` function of the user, and it does
+ * not replace an OPENCODE_CONFIG_CONTENT value of the user.
  * Only an interactive shell gets the function. Scripts and the shells of agent tools do not get it.
  */
 export const ZSHENV = `# ShipWarden shell integration. ShipWarden writes this file. Do not edit it.
@@ -44,6 +47,15 @@ if [[ -o interactive ]]; then
                 fi
             }
         fi
+        if (( ! $+functions[opencode] )); then
+            opencode() {
+                if [[ -n "\${SHIPWARDEN_OPENCODE_CONFIG_CONTENT-}" && -z "\${OPENCODE_CONFIG_CONTENT-}" ]]; then
+                    OPENCODE_CONFIG_CONTENT="$SHIPWARDEN_OPENCODE_CONFIG_CONTENT" command opencode "$@"
+                else
+                    command opencode "$@"
+                fi
+            }
+        fi
     }
     precmd_functions+=(_shipwarden_setup)
 fi
@@ -61,6 +73,8 @@ export interface ShellIntegration {
     hookSettingsPath: string;
     /** The hook settings file that `gemini` gets in GEMINI_CLI_SYSTEM_DEFAULTS_PATH. */
     geminiHookSettingsPath?: string;
+    /** The inline config that `opencode` gets in OPENCODE_CONFIG_CONTENT, or undefined when the plugin was not written. */
+    opencodeConfigContent?: string;
     /** ShipWarden's zsh folder, or undefined when it was not written. */
     zshFolder?: string;
 }
@@ -74,6 +88,9 @@ export function shellIntegrationEnv(env: NodeJS.ProcessEnv, integration: ShellIn
     const result: Record<string, string> = { SHIPWARDEN_HOOK_SETTINGS: integration.hookSettingsPath };
     if (integration.geminiHookSettingsPath) {
         result.SHIPWARDEN_GEMINI_HOOK_SETTINGS = integration.geminiHookSettingsPath;
+    }
+    if (integration.opencodeConfigContent) {
+        result.SHIPWARDEN_OPENCODE_CONFIG_CONTENT = integration.opencodeConfigContent;
     }
     const shell = env.SHELL || '/bin/zsh';
     if (!integration.zshFolder || basename(shell) !== 'zsh') {
