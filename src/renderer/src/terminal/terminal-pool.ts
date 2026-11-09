@@ -4,6 +4,7 @@ import { CTRL_V, isClearKey, isCtrlV, isImageOnlyPaste } from '@shared/shortcuts
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { loadGhostty, prepareFonts } from './ghostty';
 import { pauseRendering, resumeRendering } from './render-loop';
+import { writeKeepingScroll } from './scroll-lock';
 import { openLink } from '../links';
 
 /** Clears the screen and the scrollback (⌘K). */
@@ -258,7 +259,11 @@ export class TerminalPool {
         host.addEventListener('paste', onPaste, { capture: true });
         entry.bindings.push(
             { dispose: () => host.removeEventListener('paste', onPaste, { capture: true }) },
-            terminal.onData(data => this.api.write(session.id, data)),
+            terminal.onData(data => {
+                // Input from the user goes to the bottom, as in other terminals. Output keeps the scroll position.
+                terminal.scrollToBottom();
+                this.api.write(session.id, data);
+            }),
             terminal.onResize(({ cols, rows }) => this.api.resize(session.id, cols, rows))
         );
 
@@ -280,7 +285,7 @@ export class TerminalPool {
     /** ghostty-web 0.4 throws "offset is out of bounds" for an empty write. */
     private write(entry: Entry, data: string): void {
         if (data.length > 0) {
-            entry.terminal.write(data);
+            writeKeepingScroll(entry.terminal, data);
         }
     }
 }

@@ -6,7 +6,7 @@ import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
 import { LogView } from './LogView';
 import { PullRequestFilesStream } from './PullRequestFilesStream';
-import { ConflictBadge, PullRequestFileList, PullRequestPanel, reviewText, StateBadge } from './PullRequestPanel';
+import { ConflictBadge, PullRequestCommitList, PullRequestFileList, PullRequestPanel, reviewText, StateBadge } from './PullRequestPanel';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
 
@@ -161,23 +161,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
 
                 {tab === 'commits' && (
                     <div className="pr-commits">
-                        {pr.commitCount > pr.commits.length && (
-                            <div className="panel-note">The list shows the newest {pr.commits.length} of {pr.commitCount} commits, the newest first.</div>
-                        )}
-                        <div className="pr-commit-list">
-                        {[...pr.commits].reverse().map(commit => (
-                            <div key={commit.oid} className="pr-commit">
-                                <GitCommitHorizontal size={15} strokeWidth={1.6} className="pr-commit-icon" />
-                                <div className="pr-commit-main">
-                                    <div className="pr-commit-title">{commit.messageHeadline}</div>
-                                    <div className="pr-commit-meta">{commit.author ?? 'unknown'} committed {timeAgo(commit.committedDate)}</div>
-                                </div>
-                                <button className="link-button pr-commit-sha" title="Open the commit on GitHub" onClick={event => openLink(commit.url, event)}>
-                                    {commit.abbreviatedOid}
-                                </button>
-                            </div>
-                        ))}
-                        </div>
+                        <PullRequestCommitList pr={pr} />
                     </div>
                 )}
 
