@@ -1,5 +1,5 @@
 import { basename, join } from 'path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, shell } from 'electron';
 import { IpcChannels, type ConfirmRequest, type ContextMenuItem, type NotificationRequest } from '@shared/api';
 import type { CreateTerminalOptions } from '@shared/terminal';
 import type { CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult } from '@shared/worktrees';
@@ -11,7 +11,10 @@ import { claudeHookSettings, withAgentHooks } from '@shared/agents';
 import { shellIntegrationEnv, writeZshIntegration, type ShellIntegration } from './agents/shell-integration';
 import { ShellAgents } from './agents/shell-agents';
 import { writeFileSync } from 'fs';
-import { FileService } from './files/file-service';
+import { detectKind, FileService, resolveInside } from './files/file-service';
+import { createFileProtocolHandler } from './files/file-protocol';
+import { FILE_SCHEME } from '@shared/file-url';
+import { isMediaKind } from '@shared/file-types';
 import { FileWatcher } from './files/file-watcher';
 import { GitHubClient } from './github/github-client';
 import { GitHubService } from './github/github-service';
@@ -67,6 +70,12 @@ let mainWindow: BrowserWindow | undefined;
 const worktrees = new GitWorktreeService();
 const projects = new ProjectStore(join(app.getPath('userData'), 'projects.json'), join(app.getPath('userData'), 'state.json'));
 const files = new FileService();
+
+// The viewers of images, PDF, audio and video files get the files through this protocol.
+// The scheme must be privileged before the app is ready. "stream" lets <video> and <audio> read byte ranges.
+protocol.registerSchemesAsPrivileged([
+    { scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+]);
 const fileWatcher = new FileWatcher(event => mainWindow?.webContents.send(IpcChannels.filesChanged, event));
 // Language servers need the PATH of the login shell. Load it in the background.
 const shellReady = loadLoginShellPath();
@@ -337,7 +346,9 @@ function createWindow(): void {
             preload: join(__dirname, '../preload/index.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: true
+            sandbox: true,
+            // The built-in PDF viewer of Chromium is a plugin. Without this option, a PDF frame stays empty.
+            plugins: true
         }
     });
     mainWindow.on('ready-to-show', () => mainWindow?.show());
@@ -455,6 +466,22 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.filesListFiles, (_event, root: string) => files.listFiles(root));
     ipcMain.handle(IpcChannels.filesSearch, (_event, root: string, query: string) => files.searchContents(root, query));
     ipcMain.handle(IpcChannels.filesRead, (_event, root: string, file: string) => files.readFile(root, file));
+    // Like files.read, info does not need a known worktree. The editor also opens files of other roots.
+    ipcMain.handle(IpcChannels.filesInfo, (_event, root: string, file: string) => files.info(String(root), String(file)));
+    ipcMain.handle(IpcChannels.filesReveal, async (_event, root: string, file: string) => {
+        shell.showItemInFolder(resolveInside(await knownWorktree(root), String(file)));
+    });
+    ipcMain.handle(IpcChannels.filesOpenInDefaultApp, async (_event, root: string, file: string) => {
+        const absolute = resolveInside(await knownWorktree(root), String(file));
+        // Only viewable media files open. Thus the page cannot start a program or a script.
+        if (!isMediaKind(await detectKind(absolute))) {
+            throw new Error(`ShipWarden opens only images, PDF, audio and video files in the default app.`);
+        }
+        const message = await shell.openPath(absolute);
+        if (message) {
+            throw new Error(message);
+        }
+    });
     ipcMain.handle(IpcChannels.filesReadExternal, (_event, absolutePath: string) => files.readExternal(absolutePath));
     ipcMain.handle(IpcChannels.filesWrite, (_event, root: string, file: string, content: string) => files.writeFile(root, file, content));
     ipcMain.on(IpcChannels.filesWatch, (_event, root: string) => fileWatcher.start(root));
@@ -873,6 +900,7 @@ app.whenReady().then(async () => {
         console.warn(`[agents] The zsh integration was not written: ${error instanceof Error ? error.message : String(error)}`);
     }
     shellAgents.start();
+    protocol.handle(FILE_SCHEME, createFileProtocolHandler(knownWorktree));
     registerIpc();
     createWindow();
     void settings.get().then(all => remote.apply(all.remote)).catch(error => console.error('[remote] The phone server did not start:', error));

@@ -13,6 +13,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-07 | The phone connects to the main process over HTTPS on the local network, with a pinned self-signed certificate. | No server or account is necessary. A pinned certificate protects the token on a shared network, and it does not need a public CA. |
 | 2026-11-07 | The Mac sends the terminal screen to the phone as styled text, not the raw output. | A headless xterm.js makes the screen from the same output. The phone needs no terminal emulator, and a dependency (SwiftTerm) is not necessary. |
 | 2026-11-07 | Use ghostty-web for terminals and import the user's Ghostty config. | This is Orca's approach (Orca imports the Ghostty config into xterm.js), with Ghostty's own VT parser in place of xterm.js. Supacode embeds the native libghostty, but that needs a Swift app. |
+| 2026-11-09 | Show PDF files in the built-in PDF viewer of Chromium, in a frame that loads a `shipwarden-file:` URL. | It needs no dependency. pdfjs-dist adds about 3 MB and a worker. The viewer has search, zoom and page thumbnails. |
 
 ## The old name (Yardmaster)
 
@@ -446,6 +447,23 @@ Done:
 - The tree updates itself when files change on disk. One recursive watch covers each worktree.
 - Files open in Monaco tabs next to the terminal tabs. Cmd+S saves.
   An open file without unsaved changes reloads when an agent changes it.
+- File viewers (`FileView`). The main process tells the kind of a file (`files.info`): from the extension, else from
+  the first bytes (`shared/file-types.ts`).
+  - Images (png, jpg, gif, webp, svg, bmp, ico, avif): fit, 100% and zoom (also ⌘ and the scroll wheel), the size in
+    pixels and in bytes, and a checkerboard behind transparent parts. An SVG shows in an `<img>`, so its scripts do not run.
+  - PDF: the built-in PDF viewer of Chromium in an `<iframe>`. The window has `plugins: true` for this viewer.
+  - Audio and video: the `<audio>` and `<video>` elements.
+  - Binary files and text files larger than 5 MB: a panel with "Show in Finder", not the editor.
+  - Markdown: Source (Monaco), Side by side, or Preview. The preview reads the Monaco model, so it shows unsaved
+    changes and the changes of agents. Relative links and images resolve against the folder of the file. The last
+    mode applies to the next Markdown file.
+- The viewers load files through the `shipwarden-file:` protocol (`main/files/file-protocol.ts`). A URL has the form
+  `shipwarden-file://root/<root as hex>/<relative path>`. The handler sends a file only when these conditions are true:
+  - The root is a worktree of a project (`knownWorktree`).
+  - The real path (after symbolic links) is in the real path of the root.
+  - The file is an image, PDF, audio or video file. Source code and other text files are refused.
+  It sends byte ranges for `<video>` and `<audio>`. An SVG gets a CSP with `sandbox`. The page CSP allows the protocol
+  only in `img-src`, `media-src` and `frame-src`.
 
 ### Language servers
 
