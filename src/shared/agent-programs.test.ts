@@ -14,6 +14,16 @@ describe('agentProgramOf', () => {
         expect(agentProgramOf('node /usr/lib/node_modules/@openai/codex/bin/codex.js')).toBe('codex');
     });
 
+    it('finds Gemini CLI', () => {
+        expect(agentProgramOf('gemini')).toBe('gemini');
+        expect(agentProgramOf('/opt/homebrew/bin/gemini --yolo')).toBe('gemini');
+        expect(agentProgramOf('node /opt/homebrew/bin/gemini')).toBe('gemini');
+        // Gemini CLI starts itself again in node with a larger memory limit.
+        expect(agentProgramOf('node --max-old-space-size=8192 /usr/lib/node_modules/@google/gemini-cli/dist/index.js')).toBe('gemini');
+        expect(agentProgramOf('vim gemini.md')).toBeUndefined();
+        expect(agentProgramOf('node --inspect server.js')).toBeUndefined();
+    });
+
     it('ignores other programs', () => {
         expect(agentProgramOf('/bin/zsh -l')).toBeUndefined();
         expect(agentProgramOf('/Users/me/.codex/bin/codex-code-mode-host')).toBeUndefined();

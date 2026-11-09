@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shellIntegrationEnv } from './shell-integration';
+import { shellIntegrationEnv, ZSHENV } from './shell-integration';
 
 const integration = { hookSettingsPath: '/data/claude-hooks.json', zshFolder: '/data/shell-integration/zsh' };
 
@@ -24,5 +24,18 @@ describe('shellIntegrationEnv', () => {
         expect(shellIntegrationEnv({ SHELL: '/bin/bash' }, integration)).toEqual({ SHIPWARDEN_HOOK_SETTINGS: '/data/claude-hooks.json' });
         expect(shellIntegrationEnv({ SHELL: '/bin/zsh' }, { hookSettingsPath: '/data/claude-hooks.json' }))
             .toEqual({ SHIPWARDEN_HOOK_SETTINGS: '/data/claude-hooks.json' });
+    });
+});
+
+describe('Gemini CLI shell integration', () => {
+    it('gives each terminal the path of the Gemini CLI hook settings', () => {
+        const env = shellIntegrationEnv({ SHELL: '/bin/bash' }, { ...integration, geminiHookSettingsPath: '/data/gemini-hooks.json' });
+        expect(env).toEqual({ SHIPWARDEN_HOOK_SETTINGS: '/data/claude-hooks.json', SHIPWARDEN_GEMINI_HOOK_SETTINGS: '/data/gemini-hooks.json' });
+    });
+
+    it('adds a gemini function that keeps the system defaults path of the user', () => {
+        expect(ZSHENV).toContain('if (( ! $+functions[gemini] )); then');
+        expect(ZSHENV).toContain('-z "${GEMINI_CLI_SYSTEM_DEFAULTS_PATH-}"');
+        expect(ZSHENV).toContain('GEMINI_CLI_SYSTEM_DEFAULTS_PATH="$SHIPWARDEN_GEMINI_HOOK_SETTINGS" command gemini "$@"');
     });
 });

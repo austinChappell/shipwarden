@@ -8,6 +8,9 @@ import { basename, join } from 'path';
  * Before the first prompt, the file adds a `claude` function. The function starts Claude Code with ShipWarden's hook
  * settings, so a `claude` that the user types in a shell tab reports its state. The function does not replace a
  * `claude` function of the user, and it does not add a second --settings option.
+ * The file also adds a `gemini` function. The function starts Gemini CLI with ShipWarden's hook settings as its
+ * system defaults file (GEMINI_CLI_SYSTEM_DEFAULTS_PATH). It does not replace a `gemini` function of the user, and it
+ * does not replace a GEMINI_CLI_SYSTEM_DEFAULTS_PATH value of the user.
  * Only an interactive shell gets the function. Scripts and the shells of agent tools do not get it.
  */
 export const ZSHENV = `# ShipWarden shell integration. ShipWarden writes this file. Do not edit it.
@@ -32,6 +35,15 @@ if [[ -o interactive ]]; then
                 fi
             }
         fi
+        if (( ! $+functions[gemini] )); then
+            gemini() {
+                if [[ -r "\${SHIPWARDEN_GEMINI_HOOK_SETTINGS-}" && -z "\${GEMINI_CLI_SYSTEM_DEFAULTS_PATH-}" ]]; then
+                    GEMINI_CLI_SYSTEM_DEFAULTS_PATH="$SHIPWARDEN_GEMINI_HOOK_SETTINGS" command gemini "$@"
+                else
+                    command gemini "$@"
+                fi
+            }
+        fi
     }
     precmd_functions+=(_shipwarden_setup)
 fi
@@ -47,6 +59,8 @@ export function writeZshIntegration(folder: string): string {
 export interface ShellIntegration {
     /** The hook settings file that `claude` gets with --settings. */
     hookSettingsPath: string;
+    /** The hook settings file that `gemini` gets in GEMINI_CLI_SYSTEM_DEFAULTS_PATH. */
+    geminiHookSettingsPath?: string;
     /** ShipWarden's zsh folder, or undefined when it was not written. */
     zshFolder?: string;
 }
@@ -58,6 +72,9 @@ export interface ShellIntegration {
  */
 export function shellIntegrationEnv(env: NodeJS.ProcessEnv, integration: ShellIntegration): Record<string, string> {
     const result: Record<string, string> = { SHIPWARDEN_HOOK_SETTINGS: integration.hookSettingsPath };
+    if (integration.geminiHookSettingsPath) {
+        result.SHIPWARDEN_GEMINI_HOOK_SETTINGS = integration.geminiHookSettingsPath;
+    }
     const shell = env.SHELL || '/bin/zsh';
     if (!integration.zshFolder || basename(shell) !== 'zsh') {
         return result;

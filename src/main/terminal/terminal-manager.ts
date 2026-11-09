@@ -91,7 +91,12 @@ export class TerminalManager {
                 ...(this.hookEnvironment ? {
                     SHIPWARDEN_SESSION_ID: id,
                     SHIPWARDEN_HOOK_URL: this.hookEnvironment.url,
-                    SHIPWARDEN_HOOK_TOKEN: this.hookEnvironment.token
+                    SHIPWARDEN_HOOK_TOKEN: this.hookEnvironment.token,
+                    // Gemini CLI can remove a variable with "TOKEN" in its name from the hook environment.
+                    // It always keeps a variable with a name that starts with GEMINI_CLI_.
+                    GEMINI_CLI_SHIPWARDEN_SESSION_ID: id,
+                    GEMINI_CLI_SHIPWARDEN_HOOK_URL: this.hookEnvironment.url,
+                    GEMINI_CLI_SHIPWARDEN_HOOK_TOKEN: this.hookEnvironment.token
                 } : {})
             }
         });
