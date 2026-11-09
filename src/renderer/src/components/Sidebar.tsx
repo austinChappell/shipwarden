@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import {
-    ArrowDownUp,
     Check,
     ChevronDown,
     ChevronRight,
     CircleCheck,
     CircleDot,
     CircleX,
+    Clock,
+    EyeOff,
     FolderMinus,
     FolderPlus,
     GitGraph,
@@ -31,7 +32,7 @@ import type { RepoColor } from '@shared/settings';
 import { RepoIcon, repoColorStyle } from './RepoIcon';
 import type { TaskLink } from '@shared/tasks';
 import { runsAgent, type TerminalSession } from '@shared/terminal';
-import { sortWorktrees, WORKTREE_SORT_LABELS, type Worktree, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
+import { isHiddenAt, nextSnoozeEnd, snoozeText, sortWorktrees, type HiddenWorktree, type Worktree, type WorktreeSort } from '@shared/worktrees';
 import { errorText } from '../util';
 import { Logo } from './Logo';
 import { confirmDialog } from './ConfirmDialog';
@@ -91,9 +92,10 @@ interface Props {
     onWorktreeMenu(repo: string, worktree: Worktree): void;
     /** Opens the task of a worktree in the Tasks view. */
     onOpenTask(worktreePath: string): void;
-    /** The order of the worktrees in each repository. */
+    /** The order of the worktrees in each repository, from Settings › Worktrees. */
     worktreeSort: WorktreeSort;
-    onChangeWorktreeSort(sort: WorktreeSort): void;
+    /** The hidden and snoozed worktrees, by path. */
+    hiddenWorktrees?: Record<string, HiddenWorktree>;
     /** Moves a project to a new position in the project list. */
     onMoveProject(id: string, toIndex: number): void;
     /** Moves a repository of the active project to a new position. */
@@ -174,6 +176,23 @@ function useReorder(keys: readonly string[], onMove: (key: string, toIndex: numb
     };
 
     return { itemProps, dropClass };
+}
+
+/**
+ * Returns the current time. The value changes when the next snooze ends, so a snoozed worktree shows again at its
+ * end time. A change of `hidden` also reads the time again.
+ */
+function useNow(hidden: Record<string, HiddenWorktree> | undefined): number {
+    const [now, setNow] = useState(Date.now);
+    useEffect(() => setNow(Date.now()), [hidden]);
+    useEffect(() => {
+        const end = nextSnoozeEnd(hidden, now);
+        if (end === undefined) return;
+        // setTimeout fails with a delay above 2^31 - 1 ms. A longer snooze sets a new timer when this one ends.
+        const timer = setTimeout(() => setNow(Date.now()), Math.min(end - now + 50, 2 ** 31 - 1));
+        return () => clearTimeout(timer);
+    }, [hidden, now]);
+    return now;
 }
 
 /** The text of a worktree that the sidebar search looks at. */
@@ -342,6 +361,10 @@ interface RepoGroupProps {
     parent: Props;
     /** The worktrees to show, in sidebar order. A search can show fewer than all. */
     worktrees: Worktree[];
+    /** The hidden and snoozed worktrees, in sidebar order. They show under "N hidden". A search puts its matches in `worktrees`. */
+    hidden: Worktree[];
+    /** The time in milliseconds that decides which snoozes are active. */
+    now: number;
     /** The number of all worktrees of the repository. */
     total: number;
     /** The drag and drop handlers of the header, and the class that shows the drop line. */
@@ -350,15 +373,93 @@ interface RepoGroupProps {
 }
 
 /** One repository: a header that collapses, and its worktrees. */
-function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, total, dragProps, dropClass }: RepoGroupProps) {
+function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, total, dragProps, dropClass }: RepoGroupProps) {
     const { sessions, selectedPath } = parent;
     const summaries = parent.summaries[repo] ?? {};
     const [creating, setCreating] = useState(false);
-    const repoState = collapsed ? agentStateOf(sessions, new Set(worktrees.map(worktree => worktree.path))) : undefined;
+    const [showHidden, setShowHidden] = useState(false);
+    const shown = [...worktrees, ...hidden];
+    // A hidden agent that waits for the user still shows its state on the collapsed header.
+    const repoState = collapsed ? agentStateOf(sessions, new Set(shown.map(worktree => worktree.path))) : undefined;
+    const hiddenState = hidden.length > 0 && !showHidden ? agentStateOf(sessions, new Set(hidden.map(worktree => worktree.path))) : undefined;
     /** True when the repository is collapsed and contains the selected worktree. */
-    const holdsSelection = collapsed && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.pipelinesActive && worktrees.some(worktree => worktree.path === selectedPath);
+    const holdsSelection = collapsed && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.pipelinesActive && shown.some(worktree => worktree.path === selectedPath);
     const color = parent.repoColor(repo);
-    const runningInRepo = collapsed && sessions.some(session => runsAgent(session) && worktrees.some(worktree => worktree.path === session.worktreePath));
+    const runningInRepo = collapsed && sessions.some(session => runsAgent(session) && shown.some(worktree => worktree.path === session.worktreePath));
+
+    const renderRow = (worktree: Worktree) => {
+        const running = sessions.some(session => session.worktreePath === worktree.path && runsAgent(session));
+        const link = parent.links[worktree.path];
+        const agentState = agentStateOf(sessions, new Set([worktree.path]));
+        const dotClass = agentState ?? (running ? 'running' : '');
+        const dotTitle = agentState ? AGENT_STATE_LABELS[agentState] : running ? 'Agent is running' : 'No agent';
+        const pr = worktree.branch ? summaries[worktree.branch] : undefined;
+        const name = worktreeLabel(worktree, parent.worktreeNames);
+        const named = !!parent.worktreeNames?.[worktree.path];
+        const hiddenEntry = parent.hiddenWorktrees?.[worktree.path];
+        const isHidden = isHiddenAt(hiddenEntry, now);
+        return (
+            <li
+                key={worktree.path}
+                className={`worktree-row${isHidden ? ' hidden-worktree' : ''}${worktree.path === selectedPath && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.pipelinesActive ? ' selected' : ''}`}
+                title={worktree.path}
+                onClick={() => parent.onSelect(worktree)}
+                onContextMenu={event => {
+                    event.preventDefault();
+                    parent.onWorktreeMenu(repo, worktree);
+                }}
+            >
+                <span className={`status-dot ${dotClass}`} title={dotTitle} />
+                <div className="worktree-text">
+                    <div className="worktree-name">
+                        {isHidden && (hiddenEntry?.until
+                            ? <span className="worktree-hidden-mark" title={`Snoozed ${snoozeText(hiddenEntry.until, now)}`}><Clock size={11} strokeWidth={1.9} /></span>
+                            : <span className="worktree-hidden-mark" title="Hidden from the sidebar"><EyeOff size={11} strokeWidth={1.9} /></span>)}
+                        {name}
+                    </div>
+                    <div className="worktree-detail">
+                        {agentState && agentState !== 'idle' && agentState !== 'exited' && (
+                            <span className={`agent-state ${agentState}`}>{AGENT_STATE_LABELS[agentState]}</span>
+                        )}
+                        {isHidden && hiddenEntry?.until && <span className="worktree-snooze">Snoozed {snoozeText(hiddenEntry.until, now)} · </span>}
+                        {link ? (
+                            <button
+                                className="worktree-task"
+                                title={`Open the task: ${link.title}`}
+                                onClick={event => {
+                                    event.stopPropagation();
+                                    parent.onOpenTask(worktree.path);
+                                }}
+                            >
+                                {link.key ? `${link.key} · ` : ''}{link.title}
+                            </button>
+                        ) : named ? (worktree.branch ?? basename(worktree.path)) : worktree.isMain ? 'main worktree' : basename(worktree.path)}
+                    </div>
+                </div>
+                {pr && (
+                    <span className="worktree-pr" title={`Pull request #${pr.number}${pr.checks ? ` · checks ${pr.checks.toLowerCase()}` : ''}`}>
+                        {pr.isDraft ? <GitPullRequestDraft size={12} strokeWidth={1.8} /> : <GitPullRequest size={12} strokeWidth={1.8} />}
+                        {pr.number}
+                        {pr.checks === 'SUCCESS' && <CircleCheck size={12} strokeWidth={2} className="ci success" />}
+                        {(pr.checks === 'FAILURE' || pr.checks === 'ERROR') && <CircleX size={12} strokeWidth={2} className="ci failure" />}
+                        {(pr.checks === 'PENDING' || pr.checks === 'EXPECTED') && <CircleDot size={12} strokeWidth={2} className="ci pending" />}
+                    </span>
+                )}
+                {!worktree.isMain && (
+                    <button
+                        className="icon-button row-action"
+                        title="Remove worktree"
+                        onClick={event => {
+                            event.stopPropagation();
+                            parent.onRemove(repo, worktree);
+                        }}
+                    >
+                        ×
+                    </button>
+                )}
+            </li>
+        );
+    };
 
     return (
         <li className={`repo-group${color ? ' colored' : ''}`} style={repoColorStyle(color)}>
@@ -377,7 +478,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, total, dragPr
                         title={repoState ? `An agent in this repository: ${AGENT_STATE_LABELS[repoState]}` : 'An agent runs in this repository'}
                     />
                 )}
-                {(collapsed || worktrees.length < total) && <span className="repo-header-count">{worktrees.length < total ? `${worktrees.length}/${total}` : total}</span>}
+                {(collapsed || shown.length < total) && <span className="repo-header-count">{shown.length < total ? `${shown.length}/${total}` : total}</span>}
                 <button
                     className="icon-button repo-action"
                     title="New worktree"
@@ -437,134 +538,21 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, total, dragPr
 
             {!collapsed && (
                 <ul className="worktree-list">
-                    {worktrees.map(worktree => {
-                        const running = sessions.some(session => session.worktreePath === worktree.path && runsAgent(session));
-                        const link = parent.links[worktree.path];
-                        const agentState = agentStateOf(sessions, new Set([worktree.path]));
-                        const dotClass = agentState ?? (running ? 'running' : '');
-                        const dotTitle = agentState ? AGENT_STATE_LABELS[agentState] : running ? 'Agent is running' : 'No agent';
-                        const pr = worktree.branch ? summaries[worktree.branch] : undefined;
-                        const name = worktreeLabel(worktree, parent.worktreeNames);
-                        const named = !!parent.worktreeNames?.[worktree.path];
-                        return (
-                            <li
-                                key={worktree.path}
-                                className={`worktree-row${worktree.path === selectedPath && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.pipelinesActive ? ' selected' : ''}`}
-                                title={worktree.path}
-                                onClick={() => parent.onSelect(worktree)}
-                                onContextMenu={event => {
-                                    event.preventDefault();
-                                    parent.onWorktreeMenu(repo, worktree);
-                                }}
-                            >
-                                <span className={`status-dot ${dotClass}`} title={dotTitle} />
-                                <div className="worktree-text">
-                                    <div className="worktree-name">{name}</div>
-                                    <div className="worktree-detail">
-                                        {agentState && agentState !== 'idle' && agentState !== 'exited' && (
-                                            <span className={`agent-state ${agentState}`}>{AGENT_STATE_LABELS[agentState]}</span>
-                                        )}
-                                        {link ? (
-                                            <button
-                                                className="worktree-task"
-                                                title={`Open the task: ${link.title}`}
-                                                onClick={event => {
-                                                    event.stopPropagation();
-                                                    parent.onOpenTask(worktree.path);
-                                                }}
-                                            >
-                                                {link.key ? `${link.key} · ` : ''}{link.title}
-                                            </button>
-                                        ) : named ? (worktree.branch ?? basename(worktree.path)) : worktree.isMain ? 'main worktree' : basename(worktree.path)}
-                                    </div>
-                                </div>
-                                {pr && (
-                                    <span className="worktree-pr" title={`Pull request #${pr.number}${pr.checks ? ` · checks ${pr.checks.toLowerCase()}` : ''}`}>
-                                        {pr.isDraft ? <GitPullRequestDraft size={12} strokeWidth={1.8} /> : <GitPullRequest size={12} strokeWidth={1.8} />}
-                                        {pr.number}
-                                        {pr.checks === 'SUCCESS' && <CircleCheck size={12} strokeWidth={2} className="ci success" />}
-                                        {(pr.checks === 'FAILURE' || pr.checks === 'ERROR') && <CircleX size={12} strokeWidth={2} className="ci failure" />}
-                                        {(pr.checks === 'PENDING' || pr.checks === 'EXPECTED') && <CircleDot size={12} strokeWidth={2} className="ci pending" />}
-                                    </span>
-                                )}
-                                {!worktree.isMain && (
-                                    <button
-                                        className="icon-button row-action"
-                                        title="Remove worktree"
-                                        onClick={event => {
-                                            event.stopPropagation();
-                                            parent.onRemove(repo, worktree);
-                                        }}
-                                    >
-                                        ×
-                                    </button>
-                                )}
-                            </li>
-                        );
-                    })}
+                    {worktrees.map(renderRow)}
+                    {hidden.length > 0 && (
+                        <li className="worktree-hidden-toggle" title={showHidden ? 'Collapse the hidden worktrees' : 'Show the hidden and snoozed worktrees'} onClick={() => setShowHidden(value => !value)}>
+                            {showHidden ? <ChevronDown size={12} strokeWidth={2} /> : <ChevronRight size={12} strokeWidth={2} />}
+                            <EyeOff size={12} strokeWidth={1.75} />
+                            <span>{hidden.length} hidden</span>
+                            {hiddenState && hiddenState !== 'idle' && hiddenState !== 'exited' && (
+                                <span className={`status-dot ${hiddenState}`} title={`A hidden agent: ${AGENT_STATE_LABELS[hiddenState]}`} />
+                            )}
+                        </li>
+                    )}
+                    {showHidden && hidden.map(renderRow)}
                 </ul>
             )}
         </li>
-    );
-}
-
-const SORT_KEYS: WorktreeSortKey[] = ['name', 'created', 'updated'];
-
-/** The button and menu that set the order of the worktrees in each repository. */
-function WorktreeSortMenu({ sort, onChange }: { sort: WorktreeSort; onChange(sort: WorktreeSort): void }) {
-    const [open, setOpen] = useState(false);
-    const root = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (!open) return;
-        const onPointer = (event: PointerEvent) => {
-            if (!root.current?.contains(event.target as Node)) setOpen(false);
-        };
-        const onKey = (event: globalThis.KeyboardEvent) => {
-            if (event.key === 'Escape') setOpen(false);
-        };
-        window.addEventListener('pointerdown', onPointer);
-        window.addEventListener('keydown', onKey);
-        return () => {
-            window.removeEventListener('pointerdown', onPointer);
-            window.removeEventListener('keydown', onKey);
-        };
-    }, [open]);
-
-    const directionLabel = (by: WorktreeSortKey, direction: 'asc' | 'desc') => by === 'name'
-        ? (direction === 'asc' ? 'A to Z' : 'Z to A')
-        : (direction === 'asc' ? 'Oldest first' : 'Newest first');
-
-    return (
-        <div className="sort-menu-root" ref={root}>
-            <button
-                className={`icon-button${open ? ' active' : ''}`}
-                title={`Sort worktrees: ${WORKTREE_SORT_LABELS[sort.by]}, ${directionLabel(sort.by, sort.direction).toLowerCase()}`}
-                onClick={() => setOpen(value => !value)}
-            >
-                <ArrowDownUp size={14} strokeWidth={1.6} />
-            </button>
-            {open && (
-                <div className="project-menu sort-menu" role="menu">
-                    <div className="project-menu-label">Sort worktrees by</div>
-                    {SORT_KEYS.map(by => (
-                        <button key={by} role="menuitemradio" aria-checked={sort.by === by} className="project-menu-item" onClick={() => onChange({ ...sort, by })}>
-                            <span className="project-menu-check">{sort.by === by && <Check size={13} strokeWidth={2} />}</span>
-                            <span className="project-menu-name">{WORKTREE_SORT_LABELS[by]}</span>
-                        </button>
-                    ))}
-                    <div className="project-menu-separator" />
-                    {(['asc', 'desc'] as const).map(direction => (
-                        <button key={direction} role="menuitemradio" aria-checked={sort.direction === direction} className="project-menu-item" onClick={() => onChange({ ...sort, direction })}>
-                            <span className="project-menu-check">{sort.direction === direction && <Check size={13} strokeWidth={2} />}</span>
-                            <span className="project-menu-name">{direction === 'asc' ? 'Ascending' : 'Descending'}</span>
-                            <span className="project-menu-count">{directionLabel(sort.by, direction)}</span>
-                        </button>
-                    ))}
-                    <div className="sort-menu-note">The main worktree stays first.</div>
-                </div>
-            )}
-        </div>
     );
 }
 
@@ -578,14 +566,21 @@ export function Sidebar(outerProps: Props) {
     const search = query.trim().toLowerCase();
     const reorder = useReorder(props.repos, props.onMoveRepo, !search && props.repos.length > 1);
 
-    /** The repositories to show, each with its sorted worktrees. A search keeps a repository when its name or one of its worktrees matches. */
+    const now = useNow(props.hiddenWorktrees);
+    /**
+     * The repositories to show, each with its sorted worktrees. A search keeps a repository when its name or one of its
+     * worktrees matches. A search also finds hidden worktrees. Without a search, the hidden worktrees go to `hidden`.
+     */
     const groups = useMemo(() => props.repos.flatMap(repo => {
         const all = sortWorktrees(props.worktreesByRepo[repo] ?? [], props.worktreeSort, props.worktreeNames);
-        if (!search) return [{ repo, worktrees: all, total: all.length }];
+        if (!search) {
+            const isHidden = (worktree: Worktree) => isHiddenAt(props.hiddenWorktrees?.[worktree.path], now);
+            return [{ repo, worktrees: all.filter(worktree => !isHidden(worktree)), hidden: all.filter(isHidden), total: all.length }];
+        }
         const repoMatches = `${props.repoLabel(repo)}\n${basename(repo)}`.toLowerCase().includes(search);
         const worktrees = repoMatches ? all : all.filter(worktree => worktreeSearchText(worktree, props).includes(search));
-        return repoMatches || worktrees.length > 0 ? [{ repo, worktrees, total: all.length }] : [];
-    }), [props.repos, props.worktreesByRepo, props.worktreeSort, props.worktreeNames, props.links, props.repoLabel, search]);
+        return repoMatches || worktrees.length > 0 ? [{ repo, worktrees, hidden: [], total: all.length }] : [];
+    }), [props.repos, props.worktreesByRepo, props.worktreeSort, props.worktreeNames, props.hiddenWorktrees, now, props.links, props.repoLabel, search]);
     /** The agents of all projects that still run, and the state that needs the user most. */
     const runningAgents = props.sessions.filter(session => runsAgent(session)).length;
     const agentsState = worktreeAgentState(props.sessions.filter(session => runsAgent(session)).map(session => session.agentState));
@@ -647,7 +642,6 @@ export function Sidebar(outerProps: Props) {
             {/* Only the repositories change with the project, so the project switcher is their header. */}
             <div className="project-header">
                 <ProjectSwitcher {...props} />
-                <WorktreeSortMenu sort={props.worktreeSort} onChange={props.onChangeWorktreeSort} />
                 <button className="icon-button" title="Add a repository to this project" onClick={props.onAddRepo}>
                     <FolderPlus size={14} strokeWidth={1.6} />
                 </button>
@@ -677,7 +671,7 @@ export function Sidebar(outerProps: Props) {
             )}
 
             <ul className="repo-list">
-                {groups.map(({ repo, worktrees, total }) => (
+                {groups.map(({ repo, worktrees, hidden, total }) => (
                     <RepoGroup
                         key={repo}
                         repo={repo}
@@ -686,6 +680,8 @@ export function Sidebar(outerProps: Props) {
                         onToggle={() => toggle(repo)}
                         parent={props}
                         worktrees={worktrees}
+                        hidden={hidden}
+                        now={now}
                         total={total}
                         dragProps={reorder.itemProps(repo)}
                         dropClass={reorder.dropClass(repo)}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { branchFromName, normalizeWorktreeSort, sortWorktrees, localNameOfRemote, worktreeLabel, type Worktree } from './worktrees';
+import { branchFromName, isHiddenAt, nextSnoozeEnd, normalizeWorktreeSort, pruneHiddenWorktrees, snoozeEnd, sortWorktrees, localNameOfRemote, worktreeLabel, type Worktree } from './worktrees';
 
 describe('branchFromName', () => {
     it('makes a branch name from a display name', () => {
@@ -66,5 +66,35 @@ describe('localNameOfRemote', () => {
     it('returns undefined when no remote matches', () => {
         expect(localNameOfRemote('upstream/main', ['origin'])).toBeUndefined();
         expect(localNameOfRemote('origin/', ['origin'])).toBeUndefined();
+    });
+});
+
+describe('hidden worktrees', () => {
+    it('hides without an end, and snoozes until a time', () => {
+        expect(isHiddenAt(undefined, 10)).toBe(false);
+        expect(isHiddenAt({}, 10)).toBe(true);
+        expect(isHiddenAt({ until: 11 }, 10)).toBe(true);
+        expect(isHiddenAt({ until: 10 }, 10)).toBe(false);
+    });
+
+    it('removes the snoozes that ended and finds the next end', () => {
+        const hidden = { '/a': {}, '/b': { until: 5 }, '/c': { until: 20 }, '/d': { until: 15 } };
+        expect(pruneHiddenWorktrees(hidden, 10)).toEqual({ '/a': {}, '/c': { until: 20 }, '/d': { until: 15 } });
+        expect(pruneHiddenWorktrees({ '/b': { until: 5 } }, 10)).toBeUndefined();
+        expect(nextSnoozeEnd(hidden, 10)).toBe(15);
+        expect(nextSnoozeEnd({ '/a': {} }, 10)).toBeUndefined();
+    });
+
+    it('ends a snooze after hours, tomorrow at 9:00, or next Monday at 9:00', () => {
+        // Wednesday 12 November 2025, 14:30 local time.
+        const now = new Date(2025, 10, 12, 14, 30);
+        expect(snoozeEnd('hour', now)).toBe(now.getTime() + 3_600_000);
+        expect(snoozeEnd('fourHours', now)).toBe(now.getTime() + 4 * 3_600_000);
+        expect(snoozeEnd('tomorrow', now)).toBe(new Date(2025, 10, 13, 9).getTime());
+        expect(snoozeEnd('nextWeek', now)).toBe(new Date(2025, 10, 17, 9).getTime());
+        // On a Monday, "next week" is the Monday after it.
+        expect(snoozeEnd('nextWeek', new Date(2025, 10, 17, 8))).toBe(new Date(2025, 10, 24, 9).getTime());
+        // On a Sunday, it is the next day.
+        expect(snoozeEnd('nextWeek', new Date(2025, 10, 16, 20))).toBe(new Date(2025, 10, 17, 9).getTime());
     });
 });
