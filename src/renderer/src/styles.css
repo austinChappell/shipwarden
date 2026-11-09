@@ -5373,22 +5373,36 @@ button:focus-visible {
 .merge-split {
     position: relative;
     display: inline-flex;
+    border-radius: 6px;
 }
 
-.merge-split-main:not(.alone) {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
+/* With a menu, the wrapper has the border. The two parts show as one button with a line between them. */
+.merge-split.joined {
+    border: 1px solid color-mix(in srgb, var(--purple) 50%, transparent);
+    background: var(--raised);
 }
 
-.merge-split-arrow {
-    margin-left: -1px;
+.merge-split.joined > .button {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.merge-split.joined > .merge-split-main {
+    border-top-left-radius: inherit;
+    border-bottom-left-radius: inherit;
+}
+
+.merge-split.joined > .merge-split-arrow {
     padding-right: 7px;
     padding-left: 7px;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
+    border-left: 1px solid color-mix(in srgb, var(--purple) 50%, transparent);
+    border-top-right-radius: inherit;
+    border-bottom-right-radius: inherit;
 }
 
-.merge-split-arrow.on {
+.merge-split.joined > .button:not(:disabled):hover,
+.merge-split.joined > .merge-split-arrow.on {
     background: color-mix(in srgb, var(--purple) 15%, var(--raised));
 }
 
@@ -9148,9 +9162,21 @@ button.pr-summary-cell:hover {
     justify-content: center;
     min-height: 40px;
     padding: 6px 12px;
-    border-radius: 8px;
     font-size: 14px;
     font-weight: 600;
+}
+
+/* The parts of a split button get their corners from the wrapper. */
+.pr-overview .review-decisions .button,
+.pr-overview .merge-card .merge-row > .button,
+.pr-overview .merge-card .merge-split,
+.pr-overview .merge-card .merge-split-main.alone {
+    border-radius: 8px;
+}
+
+/* The wrapper border adds 2px. The joined button then has the same height as the other buttons. */
+.pr-overview .merge-card .merge-split.joined > .button {
+    min-height: 38px;
 }
 
 .review-decisions .button.approve {
