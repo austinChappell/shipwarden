@@ -1,12 +1,14 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowLeft, Bot, ClipboardCheck, ExternalLink, FileDiff, GitCommitHorizontal, ListTodo, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, ExternalLink, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { BranchStatus, CheckRun, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
 import { LogView } from './LogView';
 import { PullRequestFilesStream } from './PullRequestFilesStream';
-import { ConflictBadge, PullRequestCommitList, PullRequestFileList, PullRequestPanel, reviewText, StateBadge } from './PullRequestPanel';
+import { ConflictBadge, PullRequestCommitList, PullRequestFileList, PullRequestPanel, StateBadge } from './PullRequestPanel';
+import { PullRequestSummary } from './PullRequestSummary';
+import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
 import { CopyButton } from './CopyButton';
@@ -51,14 +53,21 @@ function readFileListOpen(): boolean {
     }
 }
 
-function Tab({ id, current, icon, label, count, onSelect }: { id: ReviewTab; current: ReviewTab; icon: ReactNode; label: string; count?: number; onSelect(id: ReviewTab): void }) {
+function Tab({ id, current, label, count, onSelect }: { id: ReviewTab; current: ReviewTab; label: string; count?: ReactNode; onSelect(id: ReviewTab): void }) {
     return (
         <button role="tab" aria-selected={id === current} className={`pr-tab${id === current ? ' selected' : ''}`} onClick={() => onSelect(id)}>
-            {icon}
             <span>{label}</span>
-            {count !== undefined && <span className="pr-tab-count">{count}</span>}
+            {count}
         </button>
     );
+}
+
+/** The count of the Checks tab. Its color shows the result of the checks. */
+function CheckTabCount({ total, counts }: { total: number; counts: CheckCounts | undefined }) {
+    if (!counts || counts.total === 0) return <span className="pr-tab-count">{total}</span>;
+    if (counts.failed > 0) return <span className="pr-tab-count failure" title={`${counts.failed} failed`}>{counts.total} <X size={11} strokeWidth={2.4} /></span>;
+    if (counts.running > 0) return <span className="pr-tab-count pending" title={`${counts.running} running`}>{counts.total}</span>;
+    return <span className="pr-tab-count success" title="All checks passed">{counts.total} <Check size={11} strokeWidth={2.4} /></span>;
 }
 
 /**
@@ -72,6 +81,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
     const [fileError, setFileError] = useState<string>();
     const [findRequest, setFindRequest] = useState<number>();
     const review = useReviewState(repo, pr?.number);
+    const checkCounts = useCheckCounts(repo, status?.sha, status);
     const sideWidth = usePanelWidth('shipwarden.width.reviewSide', 320, 220, 560);
     const [fileListOpen, setFileListOpen] = useState(readFileListOpen);
 
@@ -163,23 +173,15 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                 {back}
                 <div className="review-pr-title">
                     <h2>{pr.title} <span className="review-pr-number">#{pr.number}</span></h2>
-                    <CopyButton text={pr.url} title="Copy the pull request URL" />
-                    <button className="icon-button" title="Open on GitHub" onClick={event => openLink(pr.url, event)}>
-                        <ExternalLink size={14} strokeWidth={1.6} />
-                    </button>
-                    <button className="icon-button" title="Refresh" onClick={() => onRefresh()}>
-                        <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
-                    </button>
-                    {pr.state === 'OPEN' && (
-                        <button
-                            className="button agent-review-button"
-                            title="An agent reviews the changes. You accept or remove each of its comments. Nothing goes to GitHub until you submit the review."
-                            disabled={agentReview?.status === 'running'}
-                            onClick={() => void reviewStore.runAgentReview(repo, pr)}
-                        >
-                            <Bot size={14} strokeWidth={1.6} /> Agent review
+                    <div className="review-pr-actions">
+                        <CopyButton text={pr.url} title="Copy the pull request URL" />
+                        <button className="icon-button" title="Open on GitHub" onClick={event => openLink(pr.url, event)}>
+                            <ExternalLink size={15} strokeWidth={1.6} />
                         </button>
-                    )}
+                        <button className="icon-button" title="Refresh" onClick={() => onRefresh()}>
+                            <RefreshCw size={15} strokeWidth={1.6} className={loading ? 'spin' : ''} />
+                        </button>
+                    </div>
                 </div>
                 <div className="review-pr-meta">
                     <StateBadge pr={pr} />
@@ -187,7 +189,6 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                     <span className="review-pr-summary">
                         <strong>{pr.author?.login ?? 'unknown'}</strong> {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'}
                         {' '}{pr.commitCount} commit{pr.commitCount === 1 ? '' : 's'} into <code>{pr.baseRefName}</code> from <code>{pr.headRefName}</code>
-                        <span className="dot-separator">·</span>{reviewText(pr)}
                         <span className="dot-separator">·</span>{timeAgo(pr.createdAt)}
                     </span>
                 </div>
@@ -218,17 +219,15 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                         )}
                     </div>
                 )}
+                <PullRequestSummary pr={pr} checks={checkCounts} onSelectTab={selectTab} />
             </header>
 
             <nav className="pr-tabs" role="tablist">
-                <Tab id="overview" current={tab} onSelect={selectTab} icon={<ListTodo size={16} strokeWidth={1.6} />} label="Overview" />
-                <Tab id="commits" current={tab} onSelect={selectTab} icon={<GitCommitHorizontal size={16} strokeWidth={1.6} />} label="Commits" count={pr.commitCount} />
-                <Tab id="checks" current={tab} onSelect={selectTab} icon={<ClipboardCheck size={16} strokeWidth={1.6} />} label="Checks" count={pr.checkCount} />
-                <Tab id="files" current={tab} onSelect={selectTab} icon={<FileDiff size={16} strokeWidth={1.6} />} label="Files changed" count={pr.changedFiles} />
+                <Tab id="overview" current={tab} onSelect={selectTab} label="Overview" />
+                <Tab id="commits" current={tab} onSelect={selectTab} label="Commits" count={<span className="pr-tab-count">{pr.commitCount}</span>} />
+                <Tab id="checks" current={tab} onSelect={selectTab} label="Checks" count={<CheckTabCount total={pr.checkCount} counts={checkCounts} />} />
+                <Tab id="files" current={tab} onSelect={selectTab} label="Files changed" count={<span className="pr-tab-count">{pr.changedFiles}</span>} />
                 <span className="pr-tabs-spacer" />
-                <span className="pr-tabs-diffstat">
-                    <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>
-                </span>
                 {tab !== 'overview' && review.pending.length > 0 && pr.state === 'OPEN' && (
                     <button className="button primary pr-finish" onClick={() => selectTab('overview')}>
                         Finish review <span className="pr-tab-count">{review.pending.length}</span>
@@ -247,6 +246,11 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                             error={error}
                             onRefresh={onRefresh}
                             onOpenDiff={(_pr, target, line) => openFile(target, line)}
+                            checks={checkCounts}
+                            agentReview={{
+                                running: agentReview?.status === 'running',
+                                run: () => void reviewStore.runAgentReview(repo, pr)
+                            }}
                         />
                     </div>
                 )}

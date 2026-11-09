@@ -357,6 +357,7 @@ export function mapPullRequest(parts: PullRequestParts): PullRequest {
         checkCount: 0,
         assignees: [],
         reviewRequests,
+        viewerIsRequested: viewerId ? reviewers.some(reviewer => reviewer.id === viewerId && reviewer.vote === 0 && !reviewer.hasDeclined) : undefined,
         labels: (pr.labels ?? []).filter(label => label.active !== false).map(label => ({ name: label.name, color: '8b949e' })),
         viewerCanUpdate: true,
         viewerCanManage: true,

@@ -184,6 +184,8 @@ export interface PullRequest {
     assignees: GitHubUser[];
     /** The users and teams that GitHub asks for a review and that did not review yet. */
     reviewRequests: RequestedReviewer[];
+    /** True when the host asks the signed-in user for a review and the user did not review yet. Undefined when not known. */
+    viewerIsRequested?: boolean;
     labels: GitHubLabel[];
     /** True when the user can change the title and the description, can close or reopen the pull request, and can make it a draft or ready for review. */
     viewerCanUpdate: boolean;

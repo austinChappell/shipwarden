@@ -150,6 +150,7 @@ function git(cwd: string, args: string[]): Promise<string> {
 
 const PULL_REQUEST_QUERY = `
 query($owner: String!, $name: String!, $number: Int!) {
+  viewer { login }
   repository(owner: $owner, name: $name) {
     mergeCommitAllowed
     squashMergeAllowed
@@ -186,6 +187,7 @@ query($owner: String!, $name: String!, $number: Int!) {
 }`;
 
 interface GraphQlPullRequest {
+    viewer: { login: string };
     repository: {
         mergeCommitAllowed: boolean;
         squashMergeAllowed: boolean;
@@ -414,6 +416,8 @@ export class GitHubService {
                 if (reviewer?.login) return [{ kind: 'user', login: reviewer.login }];
                 return [];
             }),
+            // A request to a team of the user does not count. The query does not get the teams of the user.
+            viewerIsRequested: reviewRequests.nodes.some(({ requestedReviewer: reviewer }) => reviewer?.__typename === 'User' && reviewer.login === data.viewer?.login),
             viewerCanManage: canManagePullRequests(data.repository.viewerPermission),
             viewerCanMerge: canMergePullRequests(data.repository.viewerPermission),
             autoMerge: autoMergeRequest

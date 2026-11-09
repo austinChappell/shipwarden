@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { Check, Pencil, Search, Settings2, Users, X } from 'lucide-react';
+import { Check, Pencil, Plus, Search, Settings2, Users, X } from 'lucide-react';
 import { targetKey, type GitHubLabel, type PullRequest, type PullRequestCandidates, type RepoTarget } from '@shared/github';
 import { errorText } from '../util';
 import { applyMetaChanges, metaChangeKey, type MetaChange } from './pr-meta-changes';
@@ -30,8 +30,10 @@ interface PickerOption {
  * A list with a search field. Each click adds or removes one item. The list stays open, so the user can change
  * more than one item.
  */
-function MultiPicker({ title, options, selected, loading, error, onOpen, onToggle }: {
+function MultiPicker({ title, options, selected, loading, error, onOpen, onToggle, textTrigger }: {
     title: string;
+    /** True shows "Add" or "Edit" as the trigger, not an icon. */
+    textTrigger?: boolean;
     options: PickerOption[];
     selected: Set<string>;
     loading: boolean;
@@ -80,7 +82,7 @@ function MultiPicker({ title, options, selected, loading, error, onOpen, onToggl
     return (
         <div className="tag-picker" ref={root}>
             <button
-                className={`icon-button pr-meta-edit${open ? ' on' : ''}`}
+                className={textTrigger ? `link-button pr-meta-add${open ? ' on' : ''}` : `icon-button pr-meta-edit${open ? ' on' : ''}`}
                 title={title}
                 aria-haspopup="listbox"
                 aria-expanded={open}
@@ -93,7 +95,7 @@ function MultiPicker({ title, options, selected, loading, error, onOpen, onToggl
                     setOpen(!open);
                 }}
             >
-                <Settings2 size={13} strokeWidth={1.7} />
+                {textTrigger ? (selected.size > 0 ? 'Edit' : <><Plus size={12} strokeWidth={2} />Add</>) : <Settings2 size={13} strokeWidth={1.7} />}
             </button>
             {open && (
                 <div className="combobox-popover tag-picker-popover align-right">
@@ -140,7 +142,19 @@ function MultiPicker({ title, options, selected, loading, error, onOpen, onToggl
     );
 }
 
-function MetaRow({ title, picker, empty, children }: { title: string; picker?: ReactNode; empty: string; children: ReactNode[] }) {
+function MetaRow({ title, picker, empty, card, children }: { title: string; picker?: ReactNode; empty: string; card?: boolean; children: ReactNode[] }) {
+    if (card) {
+        // A row of the card: the title on the left, the values and the picker on the right.
+        return (
+            <div className="pr-meta-row card-row">
+                <span className="pr-meta-card-title">{title}</span>
+                <div className="pr-meta-values">
+                    {children.length > 0 ? children : !picker && <span className="panel-note">{empty}</span>}
+                    {picker}
+                </div>
+            </div>
+        );
+    }
     return (
         <div className="pr-meta-row">
             <div className="pr-meta-heading">
@@ -261,10 +275,12 @@ function usePendingMetaChanges(target: RepoTarget, pr: PullRequest, onRefresh: (
  * The reviewers, the assignees and the labels of a pull request, as on the GitHub sidebar.
  * A user with triage access or more can change them. The sidebar shows each change at once, before GitHub confirms it.
  */
-export function PullRequestMeta({ target, pr, onRefresh }: {
+export function PullRequestMeta({ target, pr, onRefresh, card }: {
     target: RepoTarget;
     pr: PullRequest;
     onRefresh(): Promise<void>;
+    /** True shows a card with the author and one row for each part, for the side column of the Overview tab. */
+    card?: boolean;
 }) {
     const [candidates, setCandidates] = useState<PullRequestCandidates>();
     const [loadError, setLoadError] = useState<string>();
@@ -301,13 +317,21 @@ export function PullRequestMeta({ target, pr, onRefresh }: {
             .map(option => ({ ...option, color: option.color ?? shown.labels.find(label => label.name === option.value)?.color }));
 
     return (
-        <section className="pr-section pr-meta-section">
+        <section className={card ? 'side-card pr-meta-card' : 'pr-section pr-meta-section'}>
             {error && <div className="form-error">{error}</div>}
+            {card && (
+                <div className="pr-meta-row card-row">
+                    <span className="pr-meta-card-title">Author</span>
+                    <div className="pr-meta-values"><span className="pr-meta-author">{pr.author?.login ?? 'unknown'}</span></div>
+                </div>
+            )}
             <MetaRow
                 title="Reviewers"
+                card={card}
                 empty="No reviewers"
                 picker={manage && pr.state === 'OPEN' && (
                     <MultiPicker
+                        textTrigger={card}
                         title="Ask for a review"
                         options={withCurrent(userOptions(pr.author?.login), requestedUsers)}
                         selected={requestedUsers}
@@ -343,9 +367,11 @@ export function PullRequestMeta({ target, pr, onRefresh }: {
 
             {pr.hasAssignees !== false && <MetaRow
                 title="Assignees"
+                card={card}
                 empty="No one is assigned"
                 picker={manage && (
                     <MultiPicker
+                        textTrigger={card}
                         title="Assign users"
                         options={withCurrent(userOptions(), assigned)}
                         selected={assigned}
@@ -365,9 +391,11 @@ export function PullRequestMeta({ target, pr, onRefresh }: {
 
             <MetaRow
                 title="Labels"
+                card={card}
                 empty="No labels"
                 picker={manage && (
                     <MultiPicker
+                        textTrigger={card}
                         title="Change the labels"
                         options={labelOptions(candidates?.labels ?? [])}
                         selected={labelled}
