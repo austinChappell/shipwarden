@@ -3990,6 +3990,16 @@ button:focus-visible {
     margin: 0;
 }
 
+/* A text field with its buttons at the right, in one line. */
+.row-buttons.inline-field {
+    flex-wrap: nowrap;
+}
+
+.row-buttons.inline-field input {
+    flex: 1;
+    min-width: 0;
+}
+
 .connection-section-label {
     margin: 16px 0 4px;
     color: var(--text-strong);
