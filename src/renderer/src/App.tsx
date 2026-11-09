@@ -9,6 +9,7 @@ import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
 import { LogView } from './components/LogView';
 import { RightPanel } from './components/RightPanel';
+import { requestExplorerFocus } from './files/explorer-focus';
 import { confirmDialog, dialogOpen, promptDialog } from './components/ConfirmDialog';
 import { showContextMenu } from './components/ContextMenu';
 import { NewWorktreeDialog, type NewWorktreeRequest } from './components/NewWorktreeDialog';
@@ -197,6 +198,8 @@ export function App() {
     const [dropTarget, setDropTarget] = useState<{ leafId: string; side: SplitSide }>();
     const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
     const [reveal, setReveal] = useState<Reveal>();
+    /** The file that gets the keyboard focus. Each open of a file sets it, also when the file is already open. */
+    const [focusRequest, setFocusRequest] = useState<{ root: string; path: string; nonce: number }>();
     const [explorerOpen, setExplorerOpen] = useState(readExplorerOpen);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         try {
@@ -768,6 +771,12 @@ export function App() {
             toggleExplorer();
             return;
         }
+        if (action === 'focusExplorer') {
+            if (mainView !== 'worktree' || !selectedPath) return;
+            if (!explorerOpen) toggleExplorer();
+            requestExplorerFocus();
+            return;
+        }
         if (action === 'newWorktree') {
             // The repository on the screen: the commit graph, else the selected worktree, else the first repository.
             const repo = (mainView === 'graph' ? graphRepo : undefined) ?? selectedRepo ?? repos[0];
@@ -987,6 +996,7 @@ export function App() {
             return list.includes(path) ? map : { ...map, [root]: [...list, path] };
         });
         activate(root, `f:${path}`);
+        setFocusRequest({ root, path, nonce: Date.now() });
         if (line) {
             setReveal({ root, path, line, column, nonce: Date.now() });
         }
@@ -1383,6 +1393,7 @@ export function App() {
                     revealLine={revealHere ? reveal.line : undefined}
                     revealColumn={revealHere ? reveal.column : undefined}
                     revealNonce={reveal?.nonce}
+                    focusNonce={focusRequest && focusRequest.root === selectedPath && focusRequest.path === path ? focusRequest.nonce : undefined}
                     onError={setError}
                     onInstallServer={server => void installServer(selectedPath, server)}
                     onOpenFile={file => openFile(file)}

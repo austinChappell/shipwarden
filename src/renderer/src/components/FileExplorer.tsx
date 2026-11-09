@@ -3,6 +3,8 @@ import { Ban, ChevronRight, File, ListCollapse, RefreshCw, Search, TextAlignStar
 import { baseName, matchLine, parentPath, type ContentMatch, type FileEntry } from '@shared/files';
 import { fileIcon, folderIcon } from '../files/file-icons';
 import { fuzzyFilter } from '../files/fuzzy';
+import { onExplorerFocusRequest, takeExplorerFocusRequest } from '../files/explorer-focus';
+import { treeKeyAction, type TreeRow } from '../files/tree-nav';
 
 type Mode = 'names' | 'contents';
 
@@ -53,7 +55,13 @@ export function FileExplorer({ root, activePath, onOpenFile }: Props) {
     const [error, setError] = useState<string>();
     /** The result that Enter opens. The arrow keys move it. */
     const [active, setActive] = useState(0);
+    /** The tree row that the arrow keys move. It shows only while the tree has the keyboard focus. */
+    const [cursor, setCursor] = useState<string>();
     const bodyRef = useRef<HTMLDivElement>(null);
+    const treeRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    /** The cursor row that the tree scrolled to last. */
+    const scrolledTo = useRef<string | undefined>(undefined);
     const childrenRef = useRef(children);
     childrenRef.current = children;
 
@@ -128,16 +136,21 @@ export function FileExplorer({ root, activePath, onOpenFile }: Props) {
         };
     }, [mode, query, root]);
 
-    const toggle = (entry: FileEntry) => {
+    /** Expands or collapses a folder. Without `open`, the folder changes to the other state. */
+    const setFolderOpen = (path: string, open?: boolean) => {
         setExpanded(set => {
+            const expand = open ?? !set.has(path);
+            if (expand === set.has(path)) {
+                return set;
+            }
             const next = new Set(set);
-            if (next.has(entry.path)) {
-                next.delete(entry.path);
-            } else {
-                next.add(entry.path);
-                if (!childrenRef.current.has(entry.path)) {
-                    loadDirectory(entry.path);
+            if (expand) {
+                next.add(path);
+                if (!childrenRef.current.has(path)) {
+                    loadDirectory(path);
                 }
+            } else {
+                next.delete(path);
             }
             return next;
         });
@@ -148,37 +161,145 @@ export function FileExplorer({ root, activePath, onOpenFile }: Props) {
         [mode, query, allFiles]
     );
 
-    const renderTree = (directory: string, depth: number): ReactNode[] => {
-        const entries = children.get(directory);
-        if (!entries) {
-            return [];
-        }
-        const rows: ReactNode[] = [];
-        for (const entry of entries) {
-            const open = expanded.has(entry.path);
-            const Icon = entry.isDirectory ? folderIcon(open) : fileIcon(entry.name);
-            rows.push(
-                <div
-                    key={entry.path}
-                    className={`tree-row${entry.ignored ? ' ignored' : ''}${entry.path === activePath ? ' active' : ''}`}
-                    style={{ paddingLeft: 8 + depth * INDENT }}
-                    title={entry.path}
-                    onClick={() => (entry.isDirectory ? toggle(entry) : onOpenFile(entry.path))}
-                >
-                    <span className={`tree-chevron${open ? ' open' : ''}`}>
-                        {entry.isDirectory && <ChevronRight size={14} strokeWidth={ICON_STROKE} />}
-                    </span>
-                    <Icon className="tree-icon" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                    <span className="tree-name">{entry.name}</span>
-                    {entry.ignored && <Ban className="tree-ignored" size={14} strokeWidth={ICON_STROKE} aria-label="Ignored by git" />}
-                </div>
-            );
-            if (entry.isDirectory && open) {
-                rows.push(...renderTree(entry.path, depth + 1));
+    /** The visible tree rows, in the order of the tree. The rows of a collapsed folder are not in the list. */
+    const treeRows = useMemo(() => {
+        const rows: (TreeRow & { entry: FileEntry; depth: number })[] = [];
+        const add = (directory: string, depth: number) => {
+            for (const entry of children.get(directory) ?? []) {
+                const open = entry.isDirectory && expanded.has(entry.path);
+                rows.push({ entry, depth, path: entry.path, isDirectory: entry.isDirectory, open, parent: directory });
+                if (open) {
+                    add(entry.path, depth + 1);
+                }
             }
-        }
+        };
+        add('', 0);
         return rows;
+    }, [children, expanded]);
+
+    // Scroll to the cursor row when the cursor moves. The row can show later, after its folder loads.
+    useEffect(() => {
+        if (cursor === scrolledTo.current) {
+            return;
+        }
+        const row = treeRef.current?.querySelector('.tree-row.cursor');
+        if (row) {
+            row.scrollIntoView({ block: 'nearest' });
+            scrolledTo.current = cursor;
+        }
+    }, [cursor, treeRows]);
+
+    /**
+     * Moves the keyboard focus to the explorer (⇧⌘E). With a query, the search box gets the focus.
+     * Else the tree gets the focus, and the cursor goes to the active file. The parent folders of that file expand.
+     */
+    const takeFocus = () => {
+        if (query) {
+            inputRef.current?.focus();
+            return;
+        }
+        // The focus event can put the cursor on the first row. The cursor of the active file comes after it.
+        treeRef.current?.focus();
+        if (activePath) {
+            const parts = activePath.split('/');
+            for (let index = 1; index < parts.length; index += 1) {
+                setFolderOpen(parts.slice(0, index).join('/'), true);
+            }
+            setCursor(activePath);
+        }
+        scrolledTo.current = undefined;
     };
+    const takeFocusRef = useRef(takeFocus);
+    takeFocusRef.current = takeFocus;
+    useEffect(() => {
+        const run = () => {
+            if (takeExplorerFocusRequest()) {
+                takeFocusRef.current();
+            }
+        };
+        // A request can come before the explorer mounts, for example when ⇧⌘E shows the right panel.
+        run();
+        return onExplorerFocusRequest(run);
+    }, []);
+
+    const onTreeFocus = (event: React.FocusEvent<HTMLDivElement>) => {
+        // A click on a row sets the cursor itself. A focus from the keyboard starts at the active file or the first row.
+        if (event.target !== event.currentTarget || treeRows.some(row => row.path === cursor)) {
+            return;
+        }
+        setCursor(treeRows.find(row => row.path === activePath)?.path ?? treeRows[0]?.path);
+    };
+
+    const onTreeKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.metaKey || event.ctrlKey || event.altKey) {
+            return;
+        }
+        const action = treeKeyAction(treeRows, cursor, event.key);
+        if (!action) {
+            return;
+        }
+        event.preventDefault();
+        switch (action.kind) {
+            case 'move':
+                setCursor(action.path);
+                break;
+            case 'expand':
+                setFolderOpen(action.path, true);
+                break;
+            case 'collapse':
+                setFolderOpen(action.path, false);
+                break;
+            case 'toggle':
+                setFolderOpen(action.path);
+                break;
+            case 'open':
+                // The editor of the file takes the keyboard focus.
+                onOpenFile(action.path);
+                break;
+        }
+    };
+
+    const renderTree = () => (
+        <div
+            ref={treeRef}
+            className="explorer-tree"
+            role="tree"
+            aria-label="Files"
+            tabIndex={0}
+            onFocus={onTreeFocus}
+            onKeyDown={onTreeKey}
+        >
+            {treeRows.map(({ entry, depth, open }) => {
+                const Icon = entry.isDirectory ? folderIcon(open) : fileIcon(entry.name);
+                return (
+                    <div
+                        key={entry.path}
+                        role="treeitem"
+                        aria-expanded={entry.isDirectory ? open : undefined}
+                        aria-selected={entry.path === cursor}
+                        className={`tree-row${entry.ignored ? ' ignored' : ''}${entry.path === activePath ? ' active' : ''}${entry.path === cursor ? ' cursor' : ''}`}
+                        style={{ paddingLeft: 8 + depth * INDENT }}
+                        title={entry.path}
+                        onClick={() => {
+                            setCursor(entry.path);
+                            if (entry.isDirectory) {
+                                setFolderOpen(entry.path);
+                            } else {
+                                onOpenFile(entry.path);
+                            }
+                        }}
+                    >
+                        <span className={`tree-chevron${open ? ' open' : ''}`}>
+                            {entry.isDirectory && <ChevronRight size={14} strokeWidth={ICON_STROKE} />}
+                        </span>
+                        <Icon className="tree-icon" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+                        <span className="tree-name">{entry.name}</span>
+                        {entry.ignored && <Ban className="tree-ignored" size={14} strokeWidth={ICON_STROKE} aria-label="Ignored by git" />}
+                    </div>
+                );
+            })}
+        </div>
+    );
 
     /** The results in the order of the list: a file, or a line of a file. Enter opens the active one. */
     const contentGroups = useMemo(() => {
@@ -205,6 +326,10 @@ export function FileExplorer({ root, activePath, onOpenFile }: Props) {
             flipMode();
         } else if (event.key === 'Escape') {
             setQuery('');
+        } else if (event.key === 'ArrowDown' && !query) {
+            // With no query, Down moves the focus from the search box to the tree.
+            event.preventDefault();
+            treeRef.current?.focus();
         } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
             setActive(index => Math.max(0, Math.min(results.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1))));
@@ -304,6 +429,7 @@ export function FileExplorer({ root, activePath, onOpenFile }: Props) {
                 <label className="explorer-search">
                     <Search size={ICON_SIZE - 1} strokeWidth={ICON_STROKE} />
                     <input
+                        ref={inputRef}
                         value={query}
                         placeholder={mode === 'names' ? 'Find files by name' : 'Search in files'}
                         spellCheck={false}
@@ -337,7 +463,7 @@ export function FileExplorer({ root, activePath, onOpenFile }: Props) {
 
             <div className="explorer-body" ref={bodyRef}>
                 {error && <div className="explorer-message error" onClick={() => setError(undefined)}>{error}</div>}
-                {!query && renderTree('', 0)}
+                {!query && renderTree()}
                 {query && mode === 'names' && renderNameMatches()}
                 {mode === 'contents' && query && renderContentMatches()}
             </div>

@@ -14,6 +14,11 @@ describe('shortcutAction', () => {
         expect(key({ key: ']', code: 'BracketRight' })).toBe('next');
     });
 
+    it('is ⇧⌘E for the focus in the file explorer, and ⌘E is not a shortcut', () => {
+        expect(key({ shift: true, key: 'E', code: 'KeyE' })).toBe('focusExplorer');
+        expect(key({ key: 'e', code: 'KeyE' })).toBeUndefined();
+    });
+
     it('ignores other keys, key up, and other modifiers', () => {
         expect(key({ type: 'keyUp' })).toBeUndefined();
         expect(key({ meta: false })).toBeUndefined();

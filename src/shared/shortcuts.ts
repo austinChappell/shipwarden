@@ -1,16 +1,20 @@
-/** The workspace shortcuts, as in Ghostty: tabs, splits, the focus between panes, and close. And ⌘B for the sidebar and ⌘N for a new worktree. */
-export type ShortcutAction = 'newTab' | 'close' | 'right' | 'down' | 'next' | 'previous' | 'toggleSidebar' | 'toggleRightPanel' | 'newWorktree';
+/**
+ * The workspace shortcuts, as in Ghostty: tabs, splits, the focus between panes, and close. And ⌘B for the sidebar,
+ * ⌘N for a new worktree and ⇧⌘E for the focus in the file explorer.
+ */
+export type ShortcutAction = 'newTab' | 'close' | 'right' | 'down' | 'next' | 'previous' | 'toggleSidebar' | 'toggleRightPanel' | 'newWorktree' | 'focusExplorer';
 
 /**
  * Returns the workspace action of a key: ⌘T (new tab), ⌘W (close the pane, or the tab with one pane),
  * ⌘D (split right), ⇧⌘D (split down), ⌘[ and ⌘] (focus), ⌘B (show or hide the sidebar), ⌥⌘B (show or hide the right panel),
- * ⌘N (open the New worktree dialog). Other keys return undefined.
+ * ⌘N (open the New worktree dialog), ⇧⌘E (move the focus to the file explorer). Other keys return undefined.
  */
 export function shortcutAction(input: { type: string; meta: boolean; shift: boolean; control: boolean; alt: boolean; key: string; code?: string }): ShortcutAction | undefined {
     if (input.type !== 'keyDown' || !input.meta || input.control) return undefined;
     const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
     if (input.alt) return key === 'b' && !input.shift ? 'toggleRightPanel' : undefined;
     if (key === 'd') return input.shift ? 'down' : 'right';
+    if (key === 'e') return input.shift ? 'focusExplorer' : undefined;
     if (input.shift) return undefined;
     if (key === 't') return 'newTab';
     if (key === 'w') return 'close';

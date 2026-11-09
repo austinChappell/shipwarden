@@ -66,7 +66,7 @@ export interface ShipWardenApi {
         info(): Promise<AppInfo>;
         /** Listens for the "Settings…" menu item (⌘,). */
         onOpenSettings(listener: () => void): () => void;
-        /** The workspace shortcuts: ⌘T, ⌘W, ⌘D, ⇧⌘D, ⌘[ and ⌘]. See `shortcutAction`. */
+        /** The workspace shortcuts: ⌘T, ⌘W, ⌘D, ⇧⌘D, ⌘[, ⌘] and ⇧⌘E. See `shortcutAction`. */
         onShortcut(listener: (action: ShortcutAction) => void): () => void;
         /** Questions from the main process. The page shows them in its own dialog and sends the answer with `answerConfirm`. */
         onConfirmRequest(listener: (id: number, request: ConfirmRequest) => void): () => void;
