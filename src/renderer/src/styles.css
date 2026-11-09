@@ -773,6 +773,16 @@ button {
     color: var(--text-strong);
 }
 
+.explorer-tree {
+    outline: none;
+}
+
+/* The keyboard cursor shows only while the tree has the focus. */
+.explorer-tree:focus .tree-row.cursor {
+    background: var(--selected);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
 .tree-chevron {
     width: 14px;
     flex-shrink: 0;

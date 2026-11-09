@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { hasExplorerFocusRequest, onExplorerFocusRequest } from '../files/explorer-focus';
 import { CircleCheck, Files, GitCommitVertical, GitPullRequest, Plug, Workflow } from 'lucide-react';
 import type { CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import type { BranchStatusState } from '../github/use-branch-status';
@@ -39,7 +40,8 @@ function readTab(): PanelTab {
 
 /** The right panel: the file explorer, the pull request of the branch and its checks. */
 export function RightPanel(props: Props) {
-    const [tab, setTab] = useState<PanelTab>(readTab);
+    // ⇧⌘E can show the panel. The panel then starts on the Files tab.
+    const [tab, setTab] = useState<PanelTab>(() => (hasExplorerFocusRequest() ? 'files' : readTab()));
     const pr = props.github.status?.pullRequest;
     const unresolved = pr?.threads.filter(thread => !thread.isResolved).length ?? 0;
     // The changes load while the panel shows, also on other tabs, for the count on the Changes tab.
@@ -55,6 +57,9 @@ export function RightPanel(props: Props) {
             // The tab stays for this session only.
         }
     };
+
+    // ⇧⌘E shows the Files tab. The explorer then takes the focus request when it mounts.
+    useEffect(() => onExplorerFocusRequest(() => select('files')), []);
 
     const tabButton = (id: PanelTab, title: string, icon: React.ReactNode, badge?: React.ReactNode) => (
         <button className={`panel-tab${tab === id ? ' selected' : ''}`} title={title} onClick={() => select(id)}>

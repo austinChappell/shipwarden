@@ -966,6 +966,7 @@ function buildMenu(): void {
             submenu: [
                 { label: 'Toggle Sidebar', accelerator: 'Command+B', click: () => sendShortcut('toggleSidebar') },
                 { label: 'Toggle Right Panel', accelerator: 'Alt+Command+B', click: () => sendShortcut('toggleRightPanel') },
+                { label: 'Focus File Explorer', accelerator: 'Shift+Command+E', click: () => sendShortcut('focusExplorer') },
                 { type: 'separator' },
                 { role: 'reload' },
                 { role: 'forceReload' },

@@ -16,6 +16,8 @@ interface Props {
     /** With a column, the editor puts the cursor there. Without it, the editor selects the full line. */
     revealColumn?: number;
     revealNonce?: number;
+    /** When this value changes, the editor gets the keyboard focus. */
+    focusNonce?: number;
     onError(message: string): void;
     /** Runs the install command of a missing language server. */
     onInstallServer(server: LspMissingServer): void;
@@ -32,7 +34,7 @@ interface AskRange {
  * A click in the gutter, the context menu or Cmd+Shift+A opens an "Ask agent" box for the line or the selected lines.
  * The answer shows under the lines. A saved answer shows only while the lines have the same text as when the user asked.
  */
-export function EditorView({ root, path, revealLine, revealColumn, revealNonce, onError, onInstallServer }: Props) {
+export function EditorView({ root, path, revealLine, revealColumn, revealNonce, focusNonce, onError, onInstallServer }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | undefined>(undefined);
     const [ready, setReady] = useState(false);
@@ -232,6 +234,13 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
             editor.focus();
         }
     }, [ready, revealLine, revealColumn, revealNonce]);
+
+    // The editor already has the focus after it loads. This effect is for a file that is already open.
+    useEffect(() => {
+        if (ready && focusNonce) {
+            editorRef.current?.focus();
+        }
+    }, [ready, focusNonce]);
 
     return (
         <div className="editor">
