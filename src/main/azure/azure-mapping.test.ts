@@ -243,4 +243,12 @@ describe('branchSummaries', () => {
             checks: 'PENDING'
         });
     });
+
+    it('sets the viewer role from the creator and the reviewers', () => {
+        const role = (viewerId?: string) => branchSummaries(repo, [pr], builds, viewerId)['feat/cart'].viewerRole;
+        expect(role(undefined)).toBeUndefined();
+        expect(role(pr.createdBy.id)).toBe('author');
+        expect(role('someone-else')).toBeUndefined();
+        expect(role('aa1')).toBe('involved');
+    });
 });

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Volume2 } from 'lucide-react';
-import { NOTIFICATION_EVENTS, NOTIFICATION_SOUNDS, type NotificationEvent, type NotificationSettings as NotificationSettingsValue } from '@shared/notifications';
+import { CI_SCOPES, NOTIFICATION_EVENTS, NOTIFICATION_SOUNDS, type CiScope, type NotificationEvent, type NotificationSettings as NotificationSettingsValue } from '@shared/notifications';
 import type { AppSettings } from '@shared/settings';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
@@ -19,7 +19,7 @@ function Switch({ checked, title, disabled, onChange }: { checked: boolean; titl
     );
 }
 
-/** The notification settings: on or off, while ShipWarden is active or not, and a switch and a sound for each event. */
+/** The notification settings: on or off, while ShipWarden is active or not, a switch and a sound for each event, and the pull requests for CI. */
 export function NotificationSettings({ settings, onSave }: Props) {
     const value = settings.notifications;
     const [error, setError] = useState<string>();
@@ -81,6 +81,17 @@ export function NotificationSettings({ settings, onSave }: Props) {
                             description={event.description}
                             control={(
                                 <div className="notification-controls">
+                                    {event.id === 'ciFinished' && (
+                                        <select
+                                            className="tasks-select"
+                                            value={value.ciScope}
+                                            disabled={!value.enabled || !current.enabled}
+                                            title="Pull requests"
+                                            onChange={change => void save({ ciScope: change.target.value as CiScope })}
+                                        >
+                                            {CI_SCOPES.map(scope => <option key={scope.id} value={scope.id}>{scope.label}</option>)}
+                                        </select>
+                                    )}
                                     <select
                                         className="tasks-select"
                                         value={current.sound ?? ''}

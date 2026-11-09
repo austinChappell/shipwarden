@@ -6,7 +6,7 @@ export type NotificationEvent = 'agentWaiting' | 'agentDone' | 'ciFinished' | 'd
 export const NOTIFICATION_EVENTS: { id: NotificationEvent; label: string; description: string }[] = [
     { id: 'agentWaiting', label: 'Agent needs input', description: 'An agent waits for your answer or for a permission.' },
     { id: 'agentDone', label: 'Agent finished', description: 'An agent ended its turn.' },
-    { id: 'ciFinished', label: 'CI finished', description: 'The checks of a pull request of a worktree passed or failed.' },
+    { id: 'ciFinished', label: 'CI finished', description: 'The checks of a pull request passed or failed. The menu selects which pull requests.' },
     { id: 'dashboard', label: 'New Dashboard items', description: 'New review requests, pull requests that need you, and new comments.' }
 ];
 
@@ -19,17 +19,29 @@ export interface NotificationEventSettings {
     sound: string | null;
 }
 
+/** The pull requests that can show a "CI finished" notification. */
+export type CiScope = 'mine' | 'involved' | 'all';
+
+export const CI_SCOPES: { id: CiScope; label: string }[] = [
+    { id: 'mine', label: 'My pull requests' },
+    { id: 'involved', label: 'Pull requests I am involved in' },
+    { id: 'all', label: 'All pull requests' }
+];
+
 export interface NotificationSettings {
     /** False turns off all notifications. */
     enabled: boolean;
     /** False: no notification while ShipWarden is the active app. */
     whenFocused: boolean;
+    /** The pull requests that can show a "CI finished" notification. */
+    ciScope: CiScope;
     events: Record<NotificationEvent, NotificationEventSettings>;
 }
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
     enabled: true,
     whenFocused: true,
+    ciScope: 'mine',
     events: {
         agentWaiting: { enabled: true, sound: 'Glass' },
         agentDone: { enabled: true, sound: null },
@@ -55,6 +67,7 @@ export function normalizeNotificationSettings(value: unknown): NotificationSetti
     return {
         enabled: raw.enabled !== false,
         whenFocused: raw.whenFocused !== false,
+        ciScope: CI_SCOPES.some(scope => scope.id === raw.ciScope) ? raw.ciScope as CiScope : DEFAULT_NOTIFICATION_SETTINGS.ciScope,
         events
     };
 }
@@ -80,4 +93,11 @@ export function ciChanges(before: Record<string, BranchSummary> | undefined, aft
         }
     }
     return changes;
+}
+
+/** Returns true when the CI scope includes the pull request. "involved" includes the pull requests of the user. */
+export function inCiScope(scope: CiScope, summary: Pick<BranchSummary, 'viewerRole'>): boolean {
+    if (scope === 'all') return true;
+    if (scope === 'involved') return summary.viewerRole !== undefined;
+    return summary.viewerRole === 'author';
 }

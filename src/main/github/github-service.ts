@@ -316,21 +316,30 @@ export class GitHubService {
             return {};
         }
         const data = await this.client.graphql<{
+            viewer: { login: string };
             repository: { pullRequests: { nodes: {
                 number: number; title: string; url: string; isDraft: boolean; headRefName: string; headRefOid: string; reviewDecision: BranchSummary['reviewDecision'];
-                isCrossRepository: boolean;
+                isCrossRepository: boolean; viewerDidAuthor: boolean;
+                assignees: { nodes: { login: string }[] };
+                reviewRequests: { nodes: { requestedReviewer: { login?: string } | null }[] };
+                participants: { nodes: { login: string }[] };
                 commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
             }[] } };
         }>(`query($owner: String!, $name: String!) {
+  viewer { login }
   repository(owner: $owner, name: $name) {
     pullRequests(states: OPEN, first: 100, orderBy: { field: UPDATED_AT, direction: DESC }) {
       nodes {
-        number title url isDraft headRefName headRefOid reviewDecision isCrossRepository
+        number title url isDraft headRefName headRefOid reviewDecision isCrossRepository viewerDidAuthor
+        assignees(first: 10) { nodes { login } }
+        reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } } } }
+        participants(first: 30) { nodes { login } }
         commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
       }
     }
   }
 }`, { owner: repo.owner, name: repo.name });
+        const viewer = data.viewer.login;
         const summaries: Record<string, BranchSummary> = {};
         for (const pr of data.repository.pullRequests.nodes) {
             // A pull request from a fork can have the same branch name as a local branch. It is not the worktree's PR.
@@ -344,7 +353,8 @@ export class GitHubService {
                 headSha: pr.headRefOid,
                 isDraft: pr.isDraft,
                 reviewDecision: pr.reviewDecision,
-                checks: pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null
+                checks: pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null,
+                viewerRole: githubViewerRole(viewer, pr)
             };
         }
         return summaries;
@@ -904,4 +914,18 @@ export class GitHubService {
         const names = list.map(branch => branch.name).filter(name => name !== info.default_branch);
         return [info.default_branch, ...names];
     }
+}
+
+/** Returns the relation of the viewer to a pull request. Participants are the author, the reviewers and the commenters. */
+export function githubViewerRole(viewer: string, pr: {
+    viewerDidAuthor: boolean;
+    assignees: { nodes: { login: string }[] };
+    reviewRequests: { nodes: { requestedReviewer: { login?: string } | null }[] };
+    participants: { nodes: { login: string }[] };
+}): BranchSummary['viewerRole'] {
+    if (pr.viewerDidAuthor) return 'author';
+    const involved = pr.assignees.nodes.some(user => user.login === viewer)
+        || pr.reviewRequests.nodes.some(request => request.requestedReviewer?.login === viewer)
+        || pr.participants.nodes.some(user => user.login === viewer);
+    return involved ? 'involved' : undefined;
 }

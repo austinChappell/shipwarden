@@ -192,11 +192,12 @@ export class AzureDevOpsService implements SourceHost {
     async branchSummaries(root: string): Promise<Record<string, BranchSummary>> {
         if (!(await this.repoFor(root))) return {};
         const repo = await this.resolve(root);
-        const [prs, builds] = await Promise.all([
+        const [prs, builds, viewerId] = await Promise.all([
             this.client.request<AzList<AzPullRequest>>('GET', `${repo.api}/pullrequests?searchCriteria.status=active&$top=100`),
-            this.recentBuilds(repo, 200).catch(() => [] as AzBuild[])
+            this.recentBuilds(repo, 200).catch(() => [] as AzBuild[]),
+            this.viewerId(repo.ref).catch(() => undefined)
         ]);
-        return branchSummaries(repo.ref, prs.value, builds);
+        return branchSummaries(repo.ref, prs.value, builds, viewerId);
     }
 
     async createPullRequest(root: string, request: NewPullRequest): Promise<number> {
