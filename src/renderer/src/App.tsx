@@ -530,9 +530,12 @@ export function App() {
     }
 
     const selected = worktrees.find(worktree => worktree.path === selectedPath);
+    /**
+     * The New worktree dialog that ⌘N or the commit graph opened, with its repository. The commit graph also gives a
+     * start point. Without a start point, the dialog starts from the default branch.
+     */
+    const [newWorktree, setNewWorktree] = useState<{ repo: string; start?: GraphWorktreeStart }>();
     /** The repository of the selected worktree. */
-    /** The New worktree dialog that the commit graph opened, with its repository and start point. */
-    const [graphWorktree, setGraphWorktree] = useState<{ repo: string; start: GraphWorktreeStart }>();
     const selectedRepo = repos.find(repo => worktreesByRepo[repo]?.some(worktree => worktree.path === selectedPath));
     const rightPanelShown = explorerOpen && !!selectedPath && mainView === 'worktree';
     const worktreeSessions = useMemo(
@@ -762,6 +765,12 @@ export function App() {
         }
         if (action === 'toggleRightPanel') {
             toggleExplorer();
+            return;
+        }
+        if (action === 'newWorktree') {
+            // The repository on the screen: the commit graph, else the selected worktree, else the first repository.
+            const repo = (mainView === 'graph' ? graphRepo : undefined) ?? selectedRepo ?? repos[0];
+            if (repo) setNewWorktree({ repo });
             return;
         }
         if (mainView !== 'worktree' || !selected) return;
@@ -1611,7 +1620,7 @@ export function App() {
                             repo={worktreesByRepo[graphRepo]?.find(worktree => worktree.isMain)?.path ?? graphRepo}
                             repoName={repoLabel(graphRepo)}
                             worktrees={worktreesByRepo[graphRepo] ?? []}
-                            onNewWorktree={start => setGraphWorktree({ repo: graphRepo, start })}
+                            onNewWorktree={start => setNewWorktree({ repo: graphRepo, start })}
                             onOpenWorktree={worktree => {
                                 setSelectedPath(worktree.path);
                                 setMainView('worktree');
@@ -1778,17 +1787,21 @@ export function App() {
                         onOpenAllChanges={openAllChanges}
                     />
                 )}
-                {graphWorktree && (
+                {newWorktree && (
                     <NewWorktreeDialog
-                        repoName={repoLabel(graphWorktree.repo)}
-                        repoPath={graphWorktree.repo}
-                        {...('remote' in graphWorktree.start
-                            ? { initialRemote: graphWorktree.start.remote }
-                            : { initialBase: { ref: graphWorktree.start.commit, label: graphWorktree.start.label } })}
-                        onClose={() => setGraphWorktree(undefined)}
+                        // A new key for each repository and start point, so that the dialog starts with empty fields.
+                        key={`${newWorktree.repo}\n${JSON.stringify(newWorktree.start ?? null)}`}
+                        repoName={repoLabel(newWorktree.repo)}
+                        repoPath={newWorktree.repo}
+                        {...(!newWorktree.start
+                            ? {}
+                            : 'remote' in newWorktree.start
+                                ? { initialRemote: newWorktree.start.remote }
+                                : { initialBase: { ref: newWorktree.start.commit, label: newWorktree.start.label } })}
+                        onClose={() => setNewWorktree(undefined)}
                         onCreate={async request => {
-                            await createWorktree(graphWorktree.repo, request);
-                            setGraphWorktree(undefined);
+                            await createWorktree(newWorktree.repo, request);
+                            setNewWorktree(undefined);
                         }}
                     />
                 )}

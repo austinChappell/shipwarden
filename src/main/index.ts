@@ -936,6 +936,7 @@ function buildMenu(): void {
             label: 'File',
             submenu: [
                 // The same keys as Ghostty. ⌘W closes a pane, so the window closes with ⇧⌘W.
+                { label: 'New Worktree…', accelerator: 'Command+N', click: () => sendShortcut('newWorktree') },
                 { label: 'New Shell Tab', accelerator: 'Command+T', click: () => sendShortcut('newTab') },
                 { label: 'Split Right', accelerator: 'Command+D', click: () => sendShortcut('right') },
                 { label: 'Split Down', accelerator: 'Shift+Command+D', click: () => sendShortcut('down') },
