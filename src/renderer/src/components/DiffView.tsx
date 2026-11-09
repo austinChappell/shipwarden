@@ -25,11 +25,104 @@ interface Composer {
     line: number;
 }
 
-interface ZoneHandle {
+export interface ZoneHandle {
     editor: monaco.editor.ICodeEditor;
     id: string;
     root: Root;
     observer: ResizeObserver;
+    widget: monaco.editor.IOverlayWidget;
+    dispose(): void;
+}
+
+let nextZoneId = 0;
+
+/**
+ * Shows React content under a line of the editor. The zone height follows the content.
+ * A view zone keeps the space free. The content is in an overlay widget on top of that space, as in the peek view of
+ * Monaco. Content in the view zone itself cannot get clicks, because the text layer of the editor covers view zones.
+ */
+export function addReviewZone(editor: monaco.editor.ICodeEditor, line: number, content: React.ReactNode, options: { focus?: boolean } = {}): ZoneHandle {
+    const domNode = document.createElement('div');
+    domNode.className = 'review-zone';
+    domNode.style.position = 'absolute';
+    domNode.style.display = 'none';
+    // Clicks and keys in a zone must not move the editor cursor.
+    domNode.addEventListener('mousedown', event => event.stopPropagation());
+    // The overlay is not in the scrollable part of the editor. Send the wheel to the editor, except in a text box that scrolls.
+    domNode.addEventListener('wheel', event => {
+        const box = (event.target as HTMLElement).closest('textarea');
+        if (box && box.scrollHeight > box.clientHeight) return;
+        event.preventDefault();
+        editor.setScrollTop(editor.getScrollTop() + event.deltaY);
+        editor.setScrollLeft(editor.getScrollLeft() + event.deltaX);
+    }, { passive: false });
+    const zoneRoot = createRoot(domNode);
+    zoneRoot.render(content);
+
+    // Monaco calls getId more than one time. The ID must not change.
+    const widgetId = `shipwarden.review-zone.${nextZoneId++}`;
+    const widget: monaco.editor.IOverlayWidget = { getId: () => widgetId, getDomNode: () => domNode, getPosition: () => null };
+    const place = () => {
+        const layout = editor.getLayoutInfo();
+        domNode.style.left = `${layout.contentLeft}px`;
+        domNode.style.width = `${Math.max(0, layout.contentWidth - layout.verticalScrollbarWidth)}px`;
+    };
+    place();
+    editor.addOverlayWidget(widget);
+    const layoutListener = editor.onDidLayoutChange(place);
+
+    const placeholder = document.createElement('div');
+    const zone: monaco.editor.IViewZone = {
+        afterLineNumber: line,
+        heightInPx: 80,
+        domNode: placeholder,
+        onDomNodeTop: top => {
+            domNode.style.top = `${top}px`;
+        }
+    };
+    let id = '';
+    editor.changeViewZones(accessor => {
+        id = accessor.addZone(zone);
+    });
+    // The editor hides the placeholder when its line is out of view. The content follows.
+    // A hidden element cannot get the focus, so `autoFocus` has no effect. The text box gets the focus when the zone first shows.
+    let focusPending = options.focus === true;
+    const visibility = new MutationObserver(() => {
+        const visible = placeholder.style.display !== 'none';
+        domNode.style.display = visible ? '' : 'none';
+        if (visible && focusPending) {
+            focusPending = false;
+            requestAnimationFrame(() => domNode.querySelector<HTMLElement>('textarea')?.focus());
+        }
+    });
+    visibility.observe(placeholder, { attributes: true, attributeFilter: ['style'] });
+
+    // The zone height follows the overlay. The overlay height includes the margins of the card. A hidden overlay has no height.
+    const observer = new ResizeObserver(() => {
+        const height = domNode.offsetHeight;
+        if (height && Math.abs(height - (zone.heightInPx ?? 0)) > 1) {
+            zone.heightInPx = height;
+            editor.changeViewZones(accessor => accessor.layoutZone(id));
+        }
+    });
+    observer.observe(domNode);
+    let disposed = false;
+    const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        observer.disconnect();
+        visibility.disconnect();
+        layoutListener.dispose();
+        editor.removeOverlayWidget(widget);
+        editor.changeViewZones(accessor => accessor.removeZone(id));
+    };
+    return { editor, id, root: zoneRoot, observer, widget, dispose };
+}
+
+/** Removes zones from their editors. React unmounts the content after the current render. */
+export function removeReviewZones(handles: ZoneHandle[]): void {
+    handles.forEach(handle => handle.dispose());
+    queueMicrotask(() => handles.forEach(handle => handle.root.unmount()));
 }
 
 export function ThreadZone({ thread, onReply, onResolve, onSendToAgent }: {
@@ -207,10 +300,12 @@ export type QuestionAction = 'close' | 'cancel' | 'retry' | 'comment' | 'toggle'
  * Shows a question to the agent under its lines, with the answer or the error. The answer can become a pending comment.
  * An answer stays on disk until the user deletes it. "Hide" collapses the card to the question only.
  */
-export function QuestionZone({ question, headRefOid, onAction, canComment }: {
+export function QuestionZone({ question, headRefOid, onAction, canComment, linesChanged = false }: {
     question: AgentQuestion;
     /** The current head commit of the pull request. */
     headRefOid: string;
+    /** True when the lines of a worktree file changed after the question. */
+    linesChanged?: boolean;
     onAction(action: QuestionAction): void;
     canComment: boolean;
 }) {
@@ -237,6 +332,7 @@ export function QuestionZone({ question, headRefOid, onAction, canComment }: {
             <div className="comment-body agent-question-text">{question.question}</div>
             {question.status === 'running' && <div className="agent-question-wait"><LoaderCircle size={13} className="spin" /> The agent reads the code…</div>}
             {done && <Markdown className="comment-body agent-answer" text={question.answer ?? ''} />}
+            {done && linesChanged && <div className="agent-question-outdated">The lines changed after you asked. The answer is about the old lines.</div>}
             {outdated && <div className="agent-question-outdated">The agent answered on commit {question.commit?.slice(0, 7)}. The pull request changed after that.</div>}
             {question.status === 'error' && <div className="form-error">{question.error}</div>}
             <div className="thread-actions">
@@ -348,7 +444,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
 
         return () => {
             disposed = true;
-            zonesRef.current.forEach(zone => zone.observer.disconnect());
+            zonesRef.current.forEach(zone => zone.dispose());
             const roots = zonesRef.current.map(zone => zone.root);
             zonesRef.current = [];
             diff.setModel(null);
@@ -369,30 +465,8 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
         const editorFor = (side: DiffSide) => (side === 'LEFT' ? diff.getOriginalEditor() : diff.getModifiedEditor());
         const handles: ZoneHandle[] = [];
 
-        const addZone = (side: DiffSide, line: number, content: React.ReactNode) => {
-            const editor = editorFor(side);
-            const domNode = document.createElement('div');
-            domNode.className = 'review-zone';
-            // Clicks and keys in a zone must not move the editor cursor.
-            domNode.addEventListener('mousedown', event => event.stopPropagation());
-            const zoneRoot = createRoot(domNode);
-            zoneRoot.render(content);
-            const zone: monaco.editor.IViewZone = { afterLineNumber: line, heightInPx: 80, domNode, suppressMouseDown: false };
-            let id = '';
-            editor.changeViewZones(accessor => {
-                id = accessor.addZone(zone);
-            });
-            // The zone height must follow the height of its content.
-            const observer = new ResizeObserver(() => {
-                const height = (domNode.firstElementChild as HTMLElement | null)?.offsetHeight;
-                if (height && Math.abs(height + 12 - (zone.heightInPx ?? 0)) > 1) {
-                    zone.heightInPx = height + 12;
-                    editor.changeViewZones(accessor => accessor.layoutZone(id));
-                }
-            });
-            requestAnimationFrame(() => domNode.firstElementChild && observer.observe(domNode.firstElementChild));
-            handles.push({ editor, id, root: zoneRoot, observer });
-        };
+        const addZone = (side: DiffSide, line: number, content: React.ReactNode, focus = false) =>
+            handles.push(addReviewZone(editorFor(side), line, content, { focus }));
 
         for (const thread of pr.threads) {
             if (thread.path !== file.path || thread.line === null) {
@@ -432,17 +506,13 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                         setComposer(undefined);
                     }}
                 />
-            ));
+            ), true);
         }
         zonesRef.current = handles;
 
         return () => {
-            for (const handle of handles) {
-                handle.observer.disconnect();
-                handle.editor.changeViewZones(accessor => accessor.removeZone(handle.id));
-            }
             zonesRef.current = [];
-            queueMicrotask(() => handles.forEach(handle => handle.root.unmount()));
+            removeReviewZones(handles);
         };
     }, [ready, pr, review.pending, composer, file.path, target]);
 

@@ -11,7 +11,7 @@ import type { LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentUpdate } from './agents';
 import type { AgentProgram } from './agent-programs';
-import type { AskAgentRequest, AskAgentResult, SavedAnswer } from './ask-agent';
+import type { AskAgentRequest, AskAgentResult, SavedAnswer, SavedCodeAnswer } from './ask-agent';
 import type { AppSettings, CommandCheck } from './settings';
 import type { ProjectsState } from './projects';
 import type { ProviderUsage } from './usage';
@@ -117,7 +117,8 @@ export interface ShipWardenApi {
     ask: {
         /**
          * Asks the agent of the repository (else the default agent) a question in print mode, and returns the answer.
-         * The agent runs in a local clone of the repository when a project has one, else in an empty folder.
+         * For a pull request, the agent runs in a local clone of the repository when a project has one, else in an
+         * empty folder. For a worktree file, the agent runs in the worktree.
          */
         run(request: AskAgentRequest): Promise<AskAgentResult>;
         /** Stops a question that runs. */
@@ -128,6 +129,12 @@ export interface ShipWardenApi {
         saveAnswer(answer: SavedAnswer): Promise<void>;
         /** Removes a saved question and its answer. */
         removeAnswer(id: string): Promise<void>;
+        /** Returns the saved questions and answers about a file in a worktree, oldest first. */
+        codeAnswers(worktree: string, path: string): Promise<SavedCodeAnswer[]>;
+        /** Saves a question about a worktree file and its answer, or replaces the saved answer with the same ID. */
+        saveCodeAnswer(answer: SavedCodeAnswer): Promise<void>;
+        /** Removes a saved question about a worktree file and its answer. */
+        removeCodeAnswer(id: string): Promise<void>;
     };
     settings: {
         get(): Promise<AppSettings>;
@@ -580,6 +587,9 @@ export const IpcChannels = {
     askAnswers: 'ask:answers',
     askSaveAnswer: 'ask:saveAnswer',
     askRemoveAnswer: 'ask:removeAnswer',
+    askCodeAnswers: 'ask:codeAnswers',
+    askSaveCodeAnswer: 'ask:saveCodeAnswer',
+    askRemoveCodeAnswer: 'ask:removeCodeAnswer',
     usageRefresh: 'usage:refresh',
     usageChanged: 'usage:changed',
     updatesState: 'updates:state',

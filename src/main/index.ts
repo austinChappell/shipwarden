@@ -15,7 +15,7 @@ import { writeOpencodePlugin } from './agents/opencode-plugin';
 import { shellIntegrationEnv, writeZshIntegration, type ShellIntegration } from './agents/shell-integration';
 import { ShellAgents } from './agents/shell-agents';
 import { AskAgentRunner } from './agents/ask-agent';
-import { folderNote, printCommand, type AskAgentRequest, type AskAgentResult } from '@shared/ask-agent';
+import { folderNote, isWorktreeAsk, printCommand, type AskAgentRequest, type AskAgentResult } from '@shared/ask-agent';
 import { writeFileSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import { detectKind, FileService, resolveInside } from './files/file-service';
@@ -45,7 +45,7 @@ import { runScript } from './worktrees/run-script';
 import { normalizeWorktreeSettings, resolveWorktreeSettings, scriptEnvironment } from '@shared/worktree-settings';
 import { SettingsStore } from './settings-store';
 import { SeenStore } from './seen-store';
-import { AnswersStore } from './answers-store';
+import { AnswersStore, CodeAnswersStore } from './answers-store';
 import { UsageService } from './usage/usage-service';
 import { which } from './lsp/servers';
 import { agentForRepo, commandProgram, type AppSettings, type CommandCheck } from '@shared/settings';
@@ -220,6 +220,7 @@ const usage = new UsageService(`ShipWarden/${app.getVersion()}`, list => mainWin
 const settings = new SettingsStore(join(app.getPath('userData'), 'settings.json'));
 const seen = new SeenStore(join(app.getPath('userData'), 'seen.json'));
 const answers = new AnswersStore(join(app.getPath('userData'), 'agent-answers.json'));
+const codeAnswers = new CodeAnswersStore(join(app.getPath('userData'), 'agent-code-answers.json'));
 /** A click on a notification brings the window to the front and tells the page where to go. */
 const notifications = new NotificationService(target => {
     if (mainWindow) {
@@ -343,28 +344,49 @@ async function localClone(repo: RepoRef): Promise<string | undefined> {
     return undefined;
 }
 
+/** Returns the project repository of a worktree, or undefined when no project has the worktree. */
+async function repoOfWorktree(worktree: string): Promise<string | undefined> {
+    const repos = [...new Set((await projects.get()).projects.flatMap(project => project.repos))];
+    for (const repo of repos) {
+        if ((await worktrees.list(repo).catch(() => [])).some(item => item.path === worktree)) return repo;
+    }
+    return undefined;
+}
+
 /**
- * Asks an agent a question about a pull request in print mode (the "Ask agent" box of the Review view).
- * The agent of the local clone applies, else the default agent. Without a local clone, the agent runs in an empty folder.
+ * Asks an agent a question in print mode, and returns the answer.
+ * - A question about a pull request (the "Ask agent" box of the Review view): the agent of the local clone applies,
+ *   else the default agent. Without a local clone, the agent runs in an empty folder.
+ * - A question about a file in a worktree (the "Ask agent" box of the editor): the agent of the repository of the
+ *   worktree applies, else the default agent. The agent runs in the worktree.
  */
 async function askAgent(request: AskAgentRequest): Promise<AskAgentResult> {
     await shellReady;
-    const repo = { owner: String(request?.repo?.owner ?? ''), name: String(request?.repo?.name ?? '') };
-    const clone = await localClone(repo);
-    const agent = agentForRepo(await settings.get(), clone);
+    let repoPath: string | undefined;
+    let cwd: string | undefined;
+    let prompt: string;
+    if (isWorktreeAsk(request)) {
+        cwd = await knownWorktree(request.worktree);
+        repoPath = await repoOfWorktree(cwd);
+        prompt = String(request.prompt ?? '');
+    } else {
+        const repo = { owner: String(request?.repo?.owner ?? ''), name: String(request?.repo?.name ?? '') };
+        repoPath = await localClone(repo);
+        cwd = repoPath;
+        // The note goes first, because the end of the prompt can say how to answer.
+        prompt = `${folderNote(!!repoPath, String(request?.headRefOid ?? ''))}\n\n${String(request?.prompt ?? '')}`;
+    }
+    const agent = agentForRepo(await settings.get(), repoPath);
     const command = printCommand(agent.command);
     if (!command) {
         throw new Error(`ShipWarden can ask only Claude Code, Codex, Gemini CLI or opencode. The agent "${agent.name}" runs "${agent.command}". Select a different agent in Settings › Agents.`);
     }
-    let cwd = clone;
     if (!cwd) {
         cwd = join(app.getPath('temp'), 'shipwarden-ask');
         await mkdir(cwd, { recursive: true });
     }
     await networkReady;
     const bundle = certificates.status().bundlePath;
-    // The note goes first, because the end of the prompt can say how to answer.
-    const prompt = `${folderNote(!!clone, String(request?.headRefOid ?? ''))}\n\n${String(request?.prompt ?? '')}`;
     const answer = await askRunner.run(String(request?.id ?? ''), { command, prompt, cwd, env: bundle ? { NODE_EXTRA_CA_CERTS: bundle } : {} });
     return { agent: agent.name, answer };
 }
@@ -652,6 +674,9 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.askAnswers, (_event, repo: RepoRef, number: number) =>
         answers.list({ owner: String(repo?.owner ?? ''), name: String(repo?.name ?? '') }, Number(number)));
     ipcMain.handle(IpcChannels.askSaveAnswer, (_event, answer: unknown) => answers.save(answer));
+    ipcMain.handle(IpcChannels.askCodeAnswers, (_event, worktree: string, path: string) => codeAnswers.list(String(worktree), String(path)));
+    ipcMain.handle(IpcChannels.askSaveCodeAnswer, (_event, answer: unknown) => codeAnswers.save(answer));
+    ipcMain.handle(IpcChannels.askRemoveCodeAnswer, (_event, id: string) => codeAnswers.remove(String(id)));
     ipcMain.handle(IpcChannels.askRemoveAnswer, (_event, id: string) => answers.remove(String(id)));
     ipcMain.handle(IpcChannels.settingsGet, () => settings.get());
     ipcMain.handle(IpcChannels.settingsUpdate, async (_event, change: Partial<AppSettings>) => {

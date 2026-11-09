@@ -2,7 +2,7 @@ import { agentProgramOf } from './agent-programs';
 import type { DiffSide, RepoRef } from './github';
 
 /** A question to an agent about lines of a pull request. The agent answers in print mode. It does not change files. */
-export interface AskAgentRequest {
+export interface PullRequestAskRequest {
     /** An ID from the renderer. `cancelAsk` uses it. */
     id: string;
     repo: RepoRef;
@@ -10,6 +10,23 @@ export interface AskAgentRequest {
     headRefOid: string;
     /** The full prompt, from `askPrompt`. The main process adds a line about the folder of the agent. */
     prompt: string;
+}
+
+/** A question to an agent about lines of a file in a worktree. The agent runs in the worktree. It does not change files. */
+export interface WorktreeAskRequest {
+    /** An ID from the renderer. `cancelAsk` uses it. */
+    id: string;
+    /** The path of the worktree. The agent runs in this folder. */
+    worktree: string;
+    /** The full prompt, from `codeAskPrompt`. */
+    prompt: string;
+}
+
+export type AskAgentRequest = PullRequestAskRequest | WorktreeAskRequest;
+
+/** Returns true when the request is about a file in a worktree. */
+export function isWorktreeAsk(request: AskAgentRequest): request is WorktreeAskRequest {
+    return typeof (request as Partial<WorktreeAskRequest>)?.worktree === 'string';
 }
 
 export interface AskAgentResult {
@@ -100,6 +117,28 @@ export function askPrompt(input: AskPromptInput): string {
     return parts.join('\n\n');
 }
 
+export interface CodeAskPromptInput {
+    /** The path of the file, relative to the worktree. */
+    path: string;
+    startLine: number;
+    endLine: number;
+    /** The text of the lines in the editor. It can contain changes that are not saved. */
+    code: string;
+    question: string;
+}
+
+/** Returns the prompt for a question about lines of a file in the current worktree. */
+export function codeAskPrompt(input: CodeAskPromptInput): string {
+    const code = input.code.length > MAX_PATCH ? `${input.code.slice(0, MAX_PATCH)}\n… (the lines continue)` : input.code;
+    const marker = fence(code);
+    return [
+        `My question is about ${input.path}, ${lineLabel(input.startLine, input.endLine)}. The current folder is the git worktree of the file.`,
+        `The lines as they are in my editor now. They can contain changes that I did not save:\n\n${marker}\n${code}\n${marker}`,
+        'Answer the question. Read more of the code if it helps you. Do not change files. Write the answer in Markdown.',
+        `Question: ${input.question}`
+    ].join('\n\n');
+}
+
 /** The text that the main process adds to the prompt about the folder of the agent. */
 export function folderNote(localClone: boolean, headRefOid: string): string {
     return localClone
@@ -184,4 +223,70 @@ export function isAnswerFor(answer: SavedAnswer, repo: RepoRef, number: number):
     return answer.number === number
         && answer.repo.owner.toLowerCase() === repo.owner.toLowerCase()
         && answer.repo.name.toLowerCase() === repo.name.toLowerCase();
+}
+
+/** A question to the agent about lines of a worktree file, and its answer, kept on disk. */
+export interface SavedCodeAnswer {
+    /** The ID of the question. */
+    id: string;
+    /** The path of the worktree. */
+    worktree: string;
+    /** The path of the file, relative to the worktree. */
+    path: string;
+    startLine: number;
+    line: number;
+    /** The text of the lines when the user asked, with "\n" between the lines. The answer shows only while the file has this text. */
+    code: string;
+    question: string;
+    /** The name of the agent that answered. */
+    agent: string;
+    answer: string;
+    /** The time of the answer, in milliseconds since 1970. */
+    answeredAt: number;
+}
+
+/** Returns the value as a SavedCodeAnswer, or undefined when a field is missing or not correct. */
+export function parseSavedCodeAnswer(value: unknown): SavedCodeAnswer | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const item = value as Record<string, unknown>;
+    if (!isText(item.id, 200) || !isText(item.worktree, 4000) || !isText(item.path, 4000)) return undefined;
+    if (!isLine(item.startLine) || !isLine(item.line) || item.startLine > item.line) return undefined;
+    // A question about an empty line has empty code.
+    if (typeof item.code !== 'string' || item.code.length > MAX_SAVED_TEXT) return undefined;
+    if (!isText(item.question, MAX_SAVED_TEXT) || !isText(item.answer, MAX_SAVED_TEXT) || !isText(item.agent, 200)) return undefined;
+    if (typeof item.answeredAt !== 'number' || !Number.isFinite(item.answeredAt)) return undefined;
+    return {
+        id: item.id,
+        worktree: item.worktree,
+        path: item.path,
+        startLine: item.startLine,
+        line: item.line,
+        code: item.code,
+        question: item.question,
+        agent: item.agent,
+        answer: item.answer,
+        answeredAt: item.answeredAt
+    };
+}
+
+/** Returns true when the code is short enough for the store to keep. */
+export function canSaveCode(code: string): boolean {
+    return code.length <= MAX_SAVED_TEXT;
+}
+
+/**
+ * Finds the lines of a question in the current lines of a file.
+ * Returns the old place when the lines are still there, else the nearest place with the same text.
+ * Returns undefined when no lines of the file have the text.
+ */
+export function locateCode(lines: readonly string[], question: { startLine: number; line: number; code: string }): { startLine: number; line: number } | undefined {
+    const wanted = question.code.split('\n');
+    const count = wanted.length;
+    const matchesAt = (start: number) => start >= 1 && start + count - 1 <= lines.length && wanted.every((text, index) => lines[start - 1 + index] === text);
+    if (matchesAt(question.startLine)) return { startLine: question.startLine, line: question.startLine + count - 1 };
+    let best: number | undefined;
+    for (let start = 1; start + count - 1 <= lines.length; start++) {
+        if (matchesAt(start) && (best === undefined || Math.abs(start - question.startLine) < Math.abs(best - question.startLine))) best = start;
+    }
+    return best === undefined ? undefined : { startLine: best, line: best + count - 1 };
 }
