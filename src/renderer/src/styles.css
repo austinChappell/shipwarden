@@ -5539,6 +5539,76 @@ button:focus-visible {
     overflow-y: auto;
 }
 
+/* The switch between the changed files and all files of the pull request. */
+.pr-file-side-switch {
+    flex: none;
+    margin: 8px 10px 0;
+}
+
+/* All files: the file explorer of the local copy fills the side. */
+.pr-all-files .panel-body {
+    min-height: 0;
+}
+
+.pr-all-files .explorer-header {
+    height: 36px;
+}
+
+/* The code of the pull request beside the diffs. Monaco fills it. */
+.review-code-pane {
+    flex: none;
+    min-width: 0;
+    display: flex;
+    border-left: 1px solid var(--border);
+}
+
+.review-code {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.review-code-header {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px 4px 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    font-size: 12px;
+}
+
+.review-code-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-strong);
+    font-family: 'JetBrains Mono', Menlo, monospace;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.review-code-body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.review-code-message {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.files-stream-hint {
+    color: var(--muted);
+}
+
 .pr-file.selected {
     background: var(--selected);
     color: var(--text-strong);

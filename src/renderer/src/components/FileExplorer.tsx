@@ -13,6 +13,8 @@ interface Props {
     /** The relative path of the file in the active editor tab. The explorer highlights it. */
     activePath?: string;
     onOpenFile(path: string, line?: number): void;
+    /** The name in the header. The default is the folder name of the root. */
+    title?: string;
 }
 
 const api = window.shipwarden.files;
@@ -44,7 +46,7 @@ function highlight(text: string, query: string): ReactNode {
 }
 
 /** The file explorer: a tree of the worktree, a file name filter and a content search. */
-export function FileExplorer({ root, activePath, onOpenFile }: Props) {
+export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     const [mode, setMode] = useState<Mode>('names');
     const [query, setQuery] = useState('');
     const [children, setChildren] = useState<Map<string, FileEntry[]>>(new Map());
@@ -416,7 +418,7 @@ export function FileExplorer({ root, activePath, onOpenFile }: Props) {
     return (
         <div className="panel-body">
             <div className="explorer-header">
-                <span className="explorer-title" title={root}>{baseName(root)}</span>
+                <span className="explorer-title" title={root}>{title ?? baseName(root)}</span>
                 <button className="icon-button" title="Collapse all folders" onClick={() => setExpanded(new Set())}>
                     <ListCollapse size={ICON_SIZE} strokeWidth={ICON_STROKE} />
                 </button>

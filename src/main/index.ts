@@ -46,6 +46,8 @@ import { normalizeWorktreeSettings, resolveWorktreeSettings, scriptEnvironment }
 import { SettingsStore } from './settings-store';
 import { SeenStore } from './seen-store';
 import { AnswersStore, CodeAnswersStore } from './answers-store';
+import { ReviewCheckouts } from './review/review-checkouts';
+import { checkCommitSha, checkPullNumber, checkRepoRef } from '@shared/review-checkout';
 import { UsageService } from './usage/usage-service';
 import { which } from './lsp/servers';
 import { agentForRepo, commandProgram, type AppSettings, type CommandCheck } from '@shared/settings';
@@ -220,6 +222,12 @@ const usage = new UsageService(`ShipWarden/${app.getVersion()}`, list => mainWin
 const settings = new SettingsStore(join(app.getPath('userData'), 'settings.json'));
 const seen = new SeenStore(join(app.getPath('userData'), 'seen.json'));
 const answers = new AnswersStore(join(app.getPath('userData'), 'agent-answers.json'));
+/** The local copies of pull requests for go to definition and the file explorer in the Review view. */
+const reviewCheckouts = new ReviewCheckouts({
+    folder: join(os.homedir(), '.shipwarden', 'review'),
+    indexFile: join(app.getPath('userData'), 'review-checkouts.json'),
+    findClone: repo => localClone(repo)
+});
 const codeAnswers = new CodeAnswersStore(join(app.getPath('userData'), 'agent-code-answers.json'));
 /** A click on a notification brings the window to the front and tells the page where to go. */
 const notifications = new NotificationService(target => {
@@ -253,7 +261,7 @@ execFile('/usr/sbin/scutil', ['--get', 'LocalHostName'], (error, stdout) => {
 
 const remoteSnapshot = new RemoteSnapshotBuilder({
     projects: () => projects.get(),
-    worktrees: repo => worktrees.list(repo),
+    worktrees: async repo => (await worktrees.list(repo)).filter(item => !reviewCheckouts.isInFolder(item.path)),
     settings: () => settings.get(),
     taskLinks: () => tasks.allLinks(),
     pullRequests: repo => reviewProviders.branchSummaries(repo),
@@ -322,6 +330,8 @@ const knownWorktrees = new Set<string>();
 const knownWorktree = async (worktree: unknown): Promise<string> => {
     const value = String(worktree);
     if (knownWorktrees.has(value)) return value;
+    // The copy of a pull request in the Review view. It can be in a clone that is not a project.
+    if (await reviewCheckouts.has(value)) return value;
     const repos = (await projects.get()).projects.flatMap(project => project.repos);
     for (const repo of repos) {
         (await worktrees.list(repo).catch(() => [])).forEach(item => knownWorktrees.add(item.path));
@@ -479,7 +489,9 @@ function registerIpc(): void {
         return projects.addRepo(id, result.filePaths[0]);
     });
 
-    ipcMain.handle(IpcChannels.worktreesList, async (_event, repoPath: string) => worktrees.withDates(await worktrees.list(repoPath)));
+    // The copies of pull requests for the Review view are worktrees too, but the sidebar does not show them.
+    ipcMain.handle(IpcChannels.worktreesList, async (_event, repoPath: string) =>
+        worktrees.withDates((await worktrees.list(repoPath)).filter(item => !reviewCheckouts.isInFolder(item.path))));
     ipcMain.handle(IpcChannels.worktreesBranches, (_event, repoPath: string) => worktrees.branches(String(repoPath)));
     ipcMain.handle(IpcChannels.worktreesCreate, async (_event, options: CreateWorktreeOptions): Promise<CreatedWorktree> => {
         const config = await worktreeSettingsFor(options.repoPath);
@@ -648,6 +660,18 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.tasksSetSelectedConnection, (_event, projectId: string, connectionId: string) =>
         tasks.setSelectedConnection(projectId, String(connectionId)));
     ipcMain.handle(IpcChannels.tasksSetLink, (_event, worktreePath: string, link: TaskLink | null) => tasks.setLink(worktreePath, link));
+
+    ipcMain.handle(IpcChannels.reviewCheckoutStatus, (_event, repo: unknown, number: unknown) =>
+        reviewCheckouts.status(checkRepoRef(repo), checkPullNumber(number)));
+    ipcMain.handle(IpcChannels.reviewCheckout, async (_event, repo: unknown, number: unknown, sha: unknown, allowClone: unknown) => {
+        await shellReady;
+        return reviewCheckouts.ensure(checkRepoRef(repo), checkPullNumber(number), checkCommitSha(sha), allowClone === true);
+    });
+    ipcMain.handle(IpcChannels.reviewRelease, async (_event, root: unknown) => {
+        // The language servers of a copy stop when the Review view closes the pull request.
+        const value = String(root);
+        if (await reviewCheckouts.has(value)) await lsp.stopRoot(value);
+    });
 
     ipcMain.handle(IpcChannels.lspEnsure, (_event, root: string, languageId: string) => lsp.ensure(root, languageId));
     ipcMain.handle(IpcChannels.lspMissing, (_event, root: string, languageId: string) => lsp.missing(root, languageId));
@@ -1021,6 +1045,8 @@ app.whenReady().then(async () => {
     void networkReady.then(() => usage.start());
     // The packaged app looks for updates. In development, the user can still check in Settings › About.
     if (app.isPackaged) void networkReady.then(() => updates.start());
+    // Remove the copies of pull requests that the user did not open for some days.
+    void shellReady.then(() => reviewCheckouts.prune()).catch(error => console.warn('[review] The old pull request copies were not removed:', error));
 
     // On macOS, the app stays open with no windows. The agents continue to run.
     app.on('activate', () => {

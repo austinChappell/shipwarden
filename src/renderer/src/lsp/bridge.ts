@@ -60,6 +60,10 @@ export type FileOpener = (root: string, path: string, line: number, column: numb
  */
 export class LspBridge {
     private roots: string[] = [];
+    /** Roots outside the worktrees, for example the copy of a pull request. Each root has its own opener. */
+    private readonly extraRoots = new Map<string, FileOpener>();
+    /** The tracking of each model that is in progress, by URI. */
+    private readonly tracking = new Map<string, Promise<void>>();
     private readonly synced = new Map<string, SyncedDocument>();
     /** Diagnostics that arrived before the model of the file existed. */
     private readonly pendingDiagnostics = new Map<string, Diagnostic[]>();
@@ -103,6 +107,32 @@ export class LspBridge {
 
     setOpener(opener: FileOpener): void {
         this.opener = opener;
+    }
+
+    /**
+     * Adds a root outside the worktrees. "Go to definition" into another file of this root calls `opener`, not the
+     * opener of the app. Returns a function that removes the root.
+     */
+    addRoot(root: string, opener: FileOpener): () => void {
+        this.extraRoots.set(root, opener);
+        monaco.editor.getModels().forEach(model => this.track(model));
+        return () => {
+            if (this.extraRoots.get(root) === opener) this.extraRoots.delete(root);
+        };
+    }
+
+    /**
+     * Resolves when the language server has the model, or when the model gets no server.
+     * A request before this time gets no result.
+     */
+    async whenTracked(model: monaco.editor.ITextModel): Promise<void> {
+        const uri = model.uri.toString();
+        if (this.synced.has(uri)) return;
+        await (this.tracking.get(uri) ?? this.track(model));
+    }
+
+    private allRoots(): string[] {
+        return [...this.roots, ...this.extraRoots.keys()];
     }
 
     /**
@@ -153,13 +183,22 @@ export class LspBridge {
         }
     }
 
-    private async track(model: monaco.editor.ITextModel): Promise<void> {
+    private track(model: monaco.editor.ITextModel): Promise<void> {
+        const uri = model.uri.toString();
+        const current = this.tracking.get(uri);
+        if (current) return current;
+        const promise = this.trackNow(model).finally(() => this.tracking.delete(uri));
+        this.tracking.set(uri, promise);
+        return promise;
+    }
+
+    private async trackNow(model: monaco.editor.ITextModel): Promise<void> {
         const uri = model.uri.toString();
         if (this.synced.has(uri) || model.uri.scheme !== 'file' || model.isDisposed()) {
             return;
         }
         const path = model.uri.path;
-        const root = rootForPath(this.roots, path);
+        const root = rootForPath(this.allRoots(), path);
         const languageId = lspLanguageId(path);
         if (!root || !languageId) {
             return;
@@ -318,7 +357,7 @@ export class LspBridge {
             if (monaco.editor.getModel(uri) || uri.scheme !== 'file') {
                 return;
             }
-            const root = rootForPath(this.roots, uri.path);
+            const root = rootForPath(this.allRoots(), uri.path);
             try {
                 if (root) {
                     await documents.open(root, uri.path.slice(root.length + 1));
@@ -461,8 +500,9 @@ export class LspBridge {
     private registerOpener(): void {
         monaco.editor.registerEditorOpener({
             openCodeEditor: (_source, resource, selectionOrPosition) => {
-                const root = rootForPath(this.roots, resource.path);
-                if (!root || !this.opener) {
+                const root = rootForPath(this.allRoots(), resource.path);
+                const opener = root && (this.extraRoots.get(root) ?? this.opener);
+                if (!root || !opener) {
                     return false;
                 }
                 let line = 1;
@@ -474,7 +514,7 @@ export class LspBridge {
                     line = selectionOrPosition.lineNumber;
                     column = selectionOrPosition.column;
                 }
-                this.opener(root, resource.path.slice(root.length + 1), line, column);
+                opener(root, resource.path.slice(root.length + 1), line, column);
                 return true;
             }
         });

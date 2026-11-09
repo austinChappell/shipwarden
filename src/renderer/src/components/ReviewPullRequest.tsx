@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ArrowLeft, Bot, Check, ExternalLink, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { BranchStatus, CheckRun, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
 import { reviewStore, useReviewState } from '../github/review-store';
@@ -12,11 +12,34 @@ import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
 import { CopyButton } from './CopyButton';
+import { FileExplorer } from './FileExplorer';
+import { CheckoutMessage, ReviewCodeView, type CodeLocation } from './ReviewCodeView';
+import { reviewCheckouts, useReviewCheckout } from '../github/review-checkout-store';
+import { lspBridge } from '../lsp/bridge';
+import { documents } from '../editor/documents';
 
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
 
 const TAB_KEY = 'shipwarden.reviewTab';
 const FILE_LIST_KEY = 'shipwarden.reviewFileList';
+const FILE_SIDE_KEY = 'shipwarden.reviewFileSide';
+
+/** The list beside the changed files: only the changed files, or all files of the pull request. */
+type FileSide = 'changed' | 'all';
+
+/** The code pane: the location that shows, and the locations that "Back" goes to. */
+interface CodeHistory {
+    current: CodeLocation;
+    back: CodeLocation[];
+}
+
+function readFileSide(): FileSide {
+    try {
+        return localStorage.getItem(FILE_SIDE_KEY) === 'all' ? 'all' : 'changed';
+    } catch {
+        return 'changed';
+    }
+}
 
 interface Props {
     repo: RepoRef;
@@ -84,6 +107,49 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
     const checkCounts = useCheckCounts(repo, status?.sha, status);
     const sideWidth = usePanelWidth('shipwarden.width.reviewSide', 320, 220, 560);
     const [fileListOpen, setFileListOpen] = useState(readFileListOpen);
+    const [fileSide, setFileSide] = useState<FileSide>(readFileSide);
+    const [code, setCode] = useState<CodeHistory>();
+    /** The cursor in the code pane. "Back" goes to this position, not to the start of the file. */
+    const cursorRef = useRef<{ path: string; line: number; column: number } | undefined>(undefined);
+    const codeWidth = usePanelWidth('shipwarden.width.reviewCode', 560, 320, 1400);
+    const checkout = useReviewCheckout(repo, pr?.number);
+    const checkoutRoot = checkout.status === 'ready' ? checkout.root : undefined;
+
+    /** Shows a location in the code pane. The location before it goes to the "Back" list. */
+    const openCode = (location: Omit<CodeLocation, 'nonce'>) => {
+        const next = { ...location, nonce: Date.now() };
+        setCode(history => {
+            if (!history) return { current: next, back: [] };
+            const cursor = cursorRef.current;
+            const previous = cursor && cursor.path === history.current.path
+                ? { path: cursor.path, line: cursor.line, column: cursor.column, nonce: 0 }
+                : { ...history.current, action: undefined };
+            return { current: next, back: [...history.back, previous].slice(-50) };
+        });
+    };
+    const openCodeRef = useRef(openCode);
+    openCodeRef.current = openCode;
+
+    const goBack = () => setCode(history => {
+        if (!history?.back.length) return history;
+        const previous = history.back[history.back.length - 1];
+        return { current: { ...previous, nonce: Date.now() }, back: history.back.slice(0, -1) };
+    });
+
+    /** Gets the local copy of the pull request. The state of the copy shows in the code pane and the file side. */
+    const ensureCheckout = () => {
+        if (pr) void reviewCheckouts.ensure(repo, pr);
+    };
+
+    const changeFileSide = (value: FileSide) => {
+        setFileSide(value);
+        if (value === 'all') ensureCheckout();
+        try {
+            localStorage.setItem(FILE_SIDE_KEY, value);
+        } catch {
+            // The choice stays for this session only.
+        }
+    };
 
     const toggleFileList = () => {
         const value = !fileListOpen;
@@ -133,7 +199,28 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
         setFile(undefined);
         setCheck(undefined);
         setFileError(undefined);
+        setCode(undefined);
+        cursorRef.current = undefined;
     }, [repo.owner, repo.name, pr?.number]);
+
+    // The list of all files needs the copy. A new head commit updates the copy.
+    useEffect(() => {
+        if (tab === 'files' && fileSide === 'all' && checkout.status !== 'working') ensureCheckout();
+        // The state of the copy is not a dependency. Else a copy that the user refused starts again at once.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tab, fileSide, repo.owner, repo.name, pr?.number, pr?.headRefOid]);
+
+    // The language servers get the copy as a root. "Go to definition" into another file opens it in the code pane.
+    useEffect(() => {
+        if (!checkoutRoot) return;
+        const removeRoot = lspBridge.addRoot(checkoutRoot, (_root, path, line, column) => openCodeRef.current({ path, line, column }));
+        return () => {
+            removeRoot();
+            // The editor of the code pane releases its model first. Its cleanup runs in the same commit.
+            setTimeout(() => documents.closeRoot(checkoutRoot));
+            void window.shipwarden.review.release(checkoutRoot).catch(() => undefined);
+        };
+    }, [checkoutRoot]);
 
     useEffect(() => {
         if (pr) {
@@ -166,6 +253,8 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
     const current = file && files?.find(item => item.path === file.file.path);
     const style = { '--review-side-width': `${sideWidth.width}px` } as CSSProperties;
     const sideMax = () => (document.querySelector<HTMLElement>('.pr-tab-body')?.offsetWidth ?? Infinity) - 320;
+    /** The code pane leaves space for the file list and for a narrow diff. */
+    const codeMax = () => (document.querySelector<HTMLElement>('.pr-tab-body')?.offsetWidth ?? Infinity) - (fileListOpen ? sideWidth.width : 0) - 320;
 
     return (
         <div className="review-pr">
@@ -279,18 +368,35 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                     <>
                         {fileListOpen && (
                             <>
-                                <div className="pr-side pr-file-side">
+                                <div className={`pr-side ${fileSide === 'all' ? 'pr-all-files' : 'pr-file-side'}`}>
+                                    <div className="segmented compact pr-file-side-switch" role="radiogroup" aria-label="Files">
+                                        <button role="radio" aria-checked={fileSide === 'changed'} className={fileSide === 'changed' ? 'selected' : ''} onClick={() => changeFileSide('changed')}>Changed</button>
+                                        <button role="radio" aria-checked={fileSide === 'all'} className={fileSide === 'all' ? 'selected' : ''} onClick={() => changeFileSide('all')}>All files</button>
+                                    </div>
                                     {fileError && <div className="form-error">{fileError}</div>}
-                                    <section className="pr-section">
-                                        <PullRequestFileList
-                                            target={repo}
-                                            pr={pr}
-                                            files={files}
-                                            selectedPath={current?.path}
-                                            onOpen={target => openFile(target)}
-                                            onError={setFileError}
-                                        />
-                                    </section>
+                                    {fileSide === 'changed' && (
+                                        <section className="pr-section">
+                                            <PullRequestFileList
+                                                target={repo}
+                                                pr={pr}
+                                                files={files}
+                                                selectedPath={current?.path}
+                                                onOpen={target => openFile(target)}
+                                                onError={setFileError}
+                                            />
+                                        </section>
+                                    )}
+                                    {fileSide === 'all' && (checkoutRoot
+                                        ? (
+                                            <FileExplorer
+                                                key={checkoutRoot}
+                                                root={checkoutRoot}
+                                                title={`${repo.name} #${pr.number}`}
+                                                activePath={code?.current.path}
+                                                onOpenFile={(path, line) => openCode({ path, line })}
+                                            />
+                                        )
+                                        : <CheckoutMessage checkout={checkout} onRetry={ensureCheckout} />)}
                                 </div>
                                 <ResizeHandle panel={sideWidth} edge="right" label="Resize the file list" maxAvailable={sideMax} />
                             </>
@@ -309,9 +415,36 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                                     fileList={{ open: fileListOpen, toggle: toggleFileList }}
                                     onRefresh={onRefresh}
                                     onError={setFileError}
+                                    onGoToDefinition={(path, line, column) => {
+                                        openCode({ path, line, column, action: 'definition' });
+                                        ensureCheckout();
+                                    }}
+                                    onOpenFile={path => {
+                                        openCode({ path });
+                                        ensureCheckout();
+                                    }}
                                 />
                             </div>
                         </div>
+                        {code && (
+                            <>
+                                <ResizeHandle panel={codeWidth} edge="left" label="Resize the code" maxAvailable={codeMax} />
+                                <div className="review-code-pane" style={{ width: codeWidth.width }}>
+                                    <ReviewCodeView
+                                        root={checkoutRoot}
+                                        checkout={checkout}
+                                        location={code.current}
+                                        canGoBack={code.back.length > 0}
+                                        onBack={goBack}
+                                        onClose={() => setCode(undefined)}
+                                        onRetry={ensureCheckout}
+                                        onCursor={(path, line, column) => {
+                                            cursorRef.current = { path, line, column };
+                                        }}
+                                    />
+                                </div>
+                            </>
+                        )}
                     </>
                 )}
             </div>

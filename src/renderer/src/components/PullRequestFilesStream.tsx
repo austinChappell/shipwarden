@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MultiFileDiff, PatchDiff, Virtualizer, type DiffLineAnnotation, type FileDiffOptions } from '@pierre/diffs/react';
-import { Bot, ChevronDown, ChevronRight, ChevronUp, ExternalLink, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen, Search, X } from 'lucide-react';
+import { Bot, ChevronDown, ChevronRight, ChevronUp, ExternalLink, FileCode, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen, Search, X } from 'lucide-react';
 import type { DiffSide, FileVersions, PendingComment, PullRequest, PullRequestFile, RepoTarget, ReviewThread } from '@shared/github';
 import { unifiedPatch } from '@shared/patch';
 import { reviewStore, useReviewState } from '../github/review-store';
@@ -33,6 +33,12 @@ export const THEME_CSS = `
 [data-line-annotation], [data-gutter-buffer=annotation] {
     --diffs-annotation-bg: var(--bg);
 }
+/* While ⌘ is down, a name on the new side of the diff shows as a link to its definition. */
+:host-context(.goto-armed) [data-additions] [data-char]:hover,
+:host-context(.goto-armed) [data-unified] [data-line-type]:not([data-line-type*=deletion]) [data-char]:hover {
+    text-decoration: underline;
+    cursor: pointer;
+}
 `;
 
 /** What an annotation under a diff line shows: a review thread, a pending comment, or the box for a new comment. */
@@ -61,6 +67,10 @@ interface Props {
     findRequest?: number;
     /** The file list beside the stream. With it, the toolbar shows a button that hides and shows the list. */
     fileList?: { open: boolean; toggle(): void };
+    /** ⌘-click on a name on the new side of a diff. The line and the column start at 1. */
+    onGoToDefinition?(path: string, line: number, column: number): void;
+    /** Opens the full file at the head commit. */
+    onOpenFile?(path: string): void;
 }
 
 export function readStyle(): DiffStyle {
@@ -118,6 +128,7 @@ interface FileBodyProps {
     onAsk?(composer: Composer, question: string): void;
     onQuestion(question: AgentQuestion, action: QuestionAction): void;
     onRefresh(): Promise<void>;
+    onGoToDefinition?(path: string, line: number, column: number): void;
 }
 
 /**
@@ -125,7 +136,7 @@ interface FileBodyProps {
  * The "+" in the gutter starts a comment. GitHub's patch is enough for most files. Without it (a large file),
  * the view loads both versions of the file.
  */
-const FileBody = memo(function FileBody({ target, pr, file, pending, composer, questions, highlight, diffStyle, mode, onComposer, onAsk, onQuestion, onRefresh }: FileBodyProps) {
+const FileBody = memo(function FileBody({ target, pr, file, pending, composer, questions, highlight, diffStyle, mode, onComposer, onAsk, onQuestion, onRefresh, onGoToDefinition }: FileBodyProps) {
     const patch = useMemo(() => unifiedPatch(file), [file]);
     const [versions, setVersions] = useState<FileVersions | 'error'>();
     const canComment = pr.state === 'OPEN';
@@ -176,6 +187,14 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, q
             const sameSide = fromSide(range.side) === side;
             onComposer({ line: range.end, startLine: sameSide ? Math.min(range.start, range.end) : range.end, side });
         },
+        // Only the new side is in the local copy of the pull request. A removed line has no definition there.
+        ...(onGoToDefinition ? {
+            onTokenClick: (token, event) => {
+                if (!event.metaKey || token.side !== 'additions') return;
+                event.preventDefault();
+                onGoToDefinition(file.path, token.lineNumber, token.lineCharStart + 1);
+            }
+        } satisfies Partial<FileDiffOptions<Note, undefined>> : {}),
         // The patch has only the lines near the changes. To show the hidden lines, the diff loads the two full files.
         loadDiffFiles: async () => {
             const result = await reviewStore.fileVersions(target, file, pr.baseRefOid, pr.headRefOid);
@@ -185,7 +204,7 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, q
                 newFile: { name: file.path, contents: result.head }
             };
         }
-    }), [diffStyle, mode, canComment, onAsk, onComposer, target, file, pr.baseRefOid, pr.headRefOid]);
+    }), [diffStyle, mode, canComment, onAsk, onComposer, onGoToDefinition, target, file, pr.baseRefOid, pr.headRefOid]);
 
     const renderAnnotation = (annotation: DiffLineAnnotation<Note>): ReactNode => {
         const note = annotation.metadata;
@@ -283,6 +302,27 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, q
     );
 });
 
+/** True while the ⌘ key is down. Always false when `enabled` is false. */
+function useMetaKey(enabled: boolean): boolean {
+    const [down, setDown] = useState(false);
+    useEffect(() => {
+        if (!enabled) return;
+        const onKey = (event: KeyboardEvent) => setDown(event.metaKey);
+        // The window does not get the key up when it loses the focus.
+        const onBlur = () => setDown(false);
+        window.addEventListener('keydown', onKey);
+        window.addEventListener('keyup', onKey);
+        window.addEventListener('blur', onBlur);
+        return () => {
+            window.removeEventListener('keydown', onKey);
+            window.removeEventListener('keyup', onKey);
+            window.removeEventListener('blur', onBlur);
+            setDown(false);
+        };
+    }, [enabled]);
+    return down;
+}
+
 /**
  * Returns the element of a diff line. The diff is in a shadow root. A removed line has the old line number,
  * and the other lines have the new line number. Returns undefined when the line is not rendered.
@@ -346,7 +386,7 @@ export function FindBar({ query, caseSensitive, count, index, focusNonce, onQuer
  * All changed files of a pull request in one stream, like the "Files changed" page of GitHub. Each file can collapse.
  * A file that the user marks as viewed collapses, and viewed files start collapsed.
  */
-export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh, onError, findRequest, fileList }: Props) {
+export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh, onError, findRequest, fileList, onGoToDefinition, onOpenFile }: Props) {
     const review = useReviewState(target, pr.number);
     const mode = useColorMode();
     const [diffStyle, setDiffStyle] = useState<DiffStyle>(readStyle);
@@ -364,6 +404,14 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
     /** The repository for the agent. Only the Review view has one. */
     const repo = typeof target === 'string' ? undefined : target;
     const sections = useRef(new Map<string, HTMLElement>());
+    /** True while ⌘ is down. Then the names on the new side show as links. */
+    const armed = useMetaKey(!!onGoToDefinition);
+    // FileBody is memoized, so it gets one function for the life of the stream.
+    const goToRef = useRef(onGoToDefinition);
+    goToRef.current = onGoToDefinition;
+    const goTo = useMemo(() => (onGoToDefinition
+        ? (path: string, line: number, column: number) => goToRef.current?.(path, line, column)
+        : undefined), [!!onGoToDefinition]);
 
     // A different pull request starts with the default open state, and with its saved answers.
     useEffect(() => {
@@ -531,7 +579,7 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
     const answered = questions.filter(question => question.status === 'done');
 
     return (
-        <div className="files-stream">
+        <div className={`files-stream${armed ? ' goto-armed' : ''}`}>
             {findOpen && (
                 <FindBar
                     query={query}
@@ -558,6 +606,7 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                 )}
                 <span className="files-stream-count">{viewedCount} of {files.length} viewed</span>
                 <span className="header-spacer" />
+                {onGoToDefinition && <span className="files-stream-hint">⌘-click a name to go to its definition</span>}
                 {answered.length > 0 && (
                     <div className="answers-menu">
                         <button className="link-button" aria-expanded={answersOpen} onClick={() => setAnswersOpen(value => !value)}>
@@ -605,6 +654,18 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                                     {file.previousPath && file.previousPath !== file.path ? `${file.previousPath} → ` : ''}{file.path}
                                 </span>
                                 <CopyButton text={file.path} title="Copy the file path" size={13} className="icon-button stream-file-copy" />
+                                {onOpenFile && file.status !== 'removed' && (
+                                    <button
+                                        className="icon-button stream-file-copy"
+                                        title="Open the full file, with go to definition"
+                                        onClick={event => {
+                                            event.stopPropagation();
+                                            onOpenFile(file.path);
+                                        }}
+                                    >
+                                        <FileCode size={13} strokeWidth={1.6} />
+                                    </button>
+                                )}
                                 {count > 0 && <span className="comment-count"><MessageSquare size={12} strokeWidth={1.6} />{count}</span>}
                                 <span className="additions">+{file.additions}</span>
                                 <span className="deletions">−{file.deletions}</span>
@@ -628,6 +689,7 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                                     onAsk={repo && ((at, text) => ask(file.path, at, text))}
                                     onQuestion={onQuestion}
                                     onRefresh={onRefresh}
+                                    onGoToDefinition={goTo}
                                 />
                             )}
                         </section>

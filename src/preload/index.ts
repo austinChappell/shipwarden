@@ -200,6 +200,11 @@ const api: ShipWardenApi = {
         setSelectedConnection: (projectId, connectionId) => ipcRenderer.invoke(IpcChannels.tasksSetSelectedConnection, projectId, connectionId),
         onChanged: listener => subscribe<[string, string]>(IpcChannels.tasksChanged, listener)
     },
+    review: {
+        checkoutStatus: (repo, number) => ipcRenderer.invoke(IpcChannels.reviewCheckoutStatus, repo, number),
+        checkout: (repo, number, sha, allowClone) => ipcRenderer.invoke(IpcChannels.reviewCheckout, repo, number, sha, allowClone),
+        release: root => ipcRenderer.invoke(IpcChannels.reviewRelease, root)
+    },
     lsp: {
         ensure: (root, languageId) => ipcRenderer.invoke(IpcChannels.lspEnsure, root, languageId),
         missing: (root, languageId) => ipcRenderer.invoke(IpcChannels.lspMissing, root, languageId),
