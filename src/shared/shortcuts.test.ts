@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appKeyAction, isClearKey, shortcutAction } from './shortcuts';
+import { appKeyAction, isClearKey, isCtrlV, isImageOnlyPaste, shortcutAction } from './shortcuts';
 
 const key = (change: Partial<Parameters<typeof shortcutAction>[0]>) =>
     shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: false, key: 'd', code: 'KeyD', ...change });
@@ -75,5 +75,35 @@ describe('isClearKey', () => {
         expect(isClearKey({ ...press, ctrlKey: true })).toBe(false);
         expect(isClearKey({ ...press, altKey: true })).toBe(false);
         expect(isClearKey({ ...press, shiftKey: true })).toBe(false);
+    });
+});
+
+describe('isCtrlV', () => {
+    const press = { key: 'v', code: 'KeyV', metaKey: false, ctrlKey: true, altKey: false, shiftKey: false };
+
+    it('finds Ctrl+V', () => {
+        expect(isCtrlV(press)).toBe(true);
+        expect(isCtrlV({ ...press, key: 'x' })).toBe(true);
+    });
+
+    it('ignores ⌘V, other keys and other modifiers', () => {
+        expect(isCtrlV({ ...press, ctrlKey: false, metaKey: true })).toBe(false);
+        expect(isCtrlV({ ...press, key: 'c', code: 'KeyC' })).toBe(false);
+        expect(isCtrlV({ ...press, metaKey: true })).toBe(false);
+        expect(isCtrlV({ ...press, altKey: true })).toBe(false);
+        expect(isCtrlV({ ...press, shiftKey: true })).toBe(false);
+    });
+});
+
+describe('isImageOnlyPaste', () => {
+    it('finds a paste with an image and no text', () => {
+        expect(isImageOnlyPaste(['image/png'], '')).toBe(true);
+        expect(isImageOnlyPaste(['Files'], '')).toBe(true);
+    });
+
+    it('ignores a paste with text', () => {
+        expect(isImageOnlyPaste(['text/plain', 'image/png'], 'shot.png')).toBe(false);
+        expect(isImageOnlyPaste(['text/plain'], 'hello')).toBe(false);
+        expect(isImageOnlyPaste([], '')).toBe(false);
     });
 });
