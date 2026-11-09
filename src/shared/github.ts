@@ -73,7 +73,28 @@ export interface GitHubRepoInfo {
 export type PullRequestState = 'OPEN' | 'CLOSED' | 'MERGED';
 export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
 export type MergeMethod = 'merge' | 'squash' | 'rebase';
-export type ReviewEvent = 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
+/**
+ * The result of a review. GitHub accepts APPROVE, REQUEST_CHANGES and COMMENT.
+ * Azure DevOps uses votes: APPROVE (10), APPROVE_WITH_SUGGESTIONS (5), WAIT_FOR_AUTHOR (-5) and REJECT (-10).
+ */
+export type ReviewEvent = 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT' | 'APPROVE_WITH_SUGGESTIONS' | 'WAIT_FOR_AUTHOR' | 'REJECT';
+
+/** The service that keeps the repository, its pull requests and its pipelines. */
+export type SourceHostKind = 'github' | 'azure';
+
+/** The name of a host for the UI, for example "Open on Azure DevOps". */
+export function hostLabel(host: SourceHostKind | undefined): string {
+    return host === 'azure' ? 'Azure DevOps' : 'GitHub';
+}
+
+/** The data of a new pull request from the branch of a worktree. */
+export interface NewPullRequest {
+    title: string;
+    body: string;
+    /** The target branch. Without it, the default branch of the repository. */
+    base?: string;
+    draft: boolean;
+}
 export type DiffSide = 'LEFT' | 'RIGHT';
 
 export interface GitHubUser {
@@ -174,6 +195,12 @@ export interface PullRequest {
     viewerCanDisableAutoMerge: boolean;
     /** True when the user can merge the pull request. This needs write access or more. Branch rules can still block the merge. */
     viewerCanMerge: boolean;
+    /** The host of the pull request. Undefined means GitHub. */
+    host?: SourceHostKind;
+    /** The review events that the host accepts, in the order of the buttons. Undefined means the GitHub events. */
+    reviewEvents?: ReviewEvent[];
+    /** False when the host has no assignees, for example Azure DevOps. Undefined means true. */
+    hasAssignees?: boolean;
 }
 
 /** An auto-merge on a pull request. GitHub merges the pull request with `method` when all the requirements pass. */
@@ -323,6 +350,10 @@ export interface BranchStatus {
     /** The commit that the checks belong to: the PR head, or the local HEAD when there is no PR. */
     sha: string;
     pullRequest: PullRequest | null;
+    /** The host of the repository. Undefined means GitHub. */
+    host?: SourceHostKind;
+    /** The web page that creates a pull request for the branch. Undefined means the GitHub compare page. */
+    createUrl?: string;
 }
 
 /**

@@ -341,7 +341,7 @@ export function PullRequestMeta({ target, pr, onRefresh }: {
                 ]}
             </MetaRow>
 
-            <MetaRow
+            {pr.hasAssignees !== false && <MetaRow
                 title="Assignees"
                 empty="No one is assigned"
                 picker={manage && (
@@ -361,7 +361,7 @@ export function PullRequestMeta({ target, pr, onRefresh }: {
                         {user.login}
                     </Chip>
                 ))}
-            </MetaRow>
+            </MetaRow>}
 
             <MetaRow
                 title="Labels"

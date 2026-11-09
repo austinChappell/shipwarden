@@ -23,6 +23,7 @@ import {
     type GitHubUser,
     type GitHubRepoInfo,
     type MergeMethod,
+    type NewPullRequest,
     type PendingComment,
     type PullRequestCandidates,
     type PullRequestChange,
@@ -282,6 +283,27 @@ export class GitHubService {
             : await this.client.rest<{ number: number }[]>('GET', `/repos/${repo.owner}/${repo.name}/pulls?state=all&sort=updated&direction=desc&head=${encodeURIComponent(`${repo.owner}:${branch}`)}`);
         const pullRequest = pulls.length > 0 ? await this.pullRequest(repo, pulls[0].number) : null;
         return { repo, branch, sha: pullRequest?.state === 'OPEN' ? pullRequest.headRefOid : localSha, pullRequest };
+    }
+
+    /** Creates a pull request from the branch of the worktree. The base is the default branch when the request has none. Returns its number. */
+    async createPullRequest(root: string, request: NewPullRequest): Promise<number> {
+        const repo = await this.repoFor(root);
+        if (!repo) {
+            throw new Error('The "origin" remote of this worktree is not a GitHub repository.');
+        }
+        const branch = await git(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
+        if (branch === 'HEAD') {
+            throw new Error('The worktree has no branch (detached HEAD).');
+        }
+        const base = request.base || (await this.client.rest<{ default_branch: string }>('GET', `/repos/${repo.owner}/${repo.name}`)).default_branch;
+        const created = await this.client.rest<{ number: number }>('POST', `/repos/${repo.owner}/${repo.name}/pulls`, {
+            title: request.title,
+            body: request.body,
+            head: branch,
+            base,
+            draft: request.draft
+        });
+        return created.number;
     }
 
     /**

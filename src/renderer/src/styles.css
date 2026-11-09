@@ -1012,6 +1012,27 @@ button {
     margin: 0 0 12px;
 }
 
+/* The form that creates a pull request for the branch of a worktree. */
+.pr-create-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pr-create-form input:not([type]) {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    background: var(--panel);
+    color: var(--text-strong);
+    font: 12px/1.45 -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.pr-create-form input:not([type]):focus {
+    border-color: var(--accent);
+}
+
 .panel-note {
     padding: 4px 0;
     color: var(--muted);

@@ -66,6 +66,7 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 │ FileWatcher        recursive fs.watch (FSEvents) per worktree    │
 │ LspManager         one language server per worktree and language │
 │ GitHubService      PRs, reviews, checks, job logs, workflows     │
+│ AzureDevOpsService the same for Azure Repos (SourceHosts selects)│
 │ TaskHost           task plugin processes (JSON-RPC on stdio)     │
 │ ProcessService     processes and ports per worktree, stop        │
 └──────────────────┬───────────────────────────────────────────────┘
@@ -515,6 +516,36 @@ Next:
   The review store keys its state with `targetKey(target)`.
 - Viewed files: `viewerViewedState` from GraphQL, changed with `markFileAsViewed` and `unmarkFileAsViewed`.
   The file list shows "x of y viewed". The diff header has a "Viewed" box. The change shows at once and goes back on an error.
+
+#### Azure DevOps (Azure Repos)
+
+- `SourceHost` (`main/source-host.ts`) is the interface of a host of pull requests and pipelines. `GitHubHost` adapts
+  `GitHubService` to it, and `AzureDevOpsService` (`main/azure/`) implements it. `SourceHosts` selects the host of each
+  call: a worktree whose "origin" remote is Azure Repos goes to Azure DevOps. All other targets go to GitHub. A call with
+  only an ID (resolve a thread, mark a file as viewed) goes to Azure when the ID starts with `azure:` (`encodeAzureId`).
+- The IPC API keeps the name `github`, so the page did not change its calls. The models stay the GitHub models.
+  `PullRequest.host`, `reviewEvents` and `hasAssignees`, and `BranchStatus.host` and `createUrl`, tell the page the
+  differences.
+- Remotes (`parseAzureRemote`): `https://[user@]dev.azure.com/{org}/{project}/_git/{repo}`,
+  `git@ssh.dev.azure.com:v3/{org}/{project}/{repo}` and `https://{org}.visualstudio.com/[DefaultCollection/]{project}/_git/{repo}`.
+  All REST calls go to `https://dev.azure.com/{org}` with `api-version=7.1`.
+- Token (`AzureDevOpsClient`): `AZURE_DEVOPS_EXT_PAT`, else the personal access token of Settings › Code review
+  (encrypted with safeStorage in `source-host-secrets.json`), else `az account get-access-token` for the Azure DevOps
+  resource. The client uses the global fetch after `networkReady`, so the trusted certificates of Settings › Network apply.
+- Mapping (`main/azure/azure-mapping.ts`):
+  - Votes: 10 approve, 5 approve with suggestions, -5 wait for author, -10 reject. A negative vote gives "changes
+    requested". A required reviewer without approval gives "review required".
+  - Threads with a file are review threads. Threads without a file are the conversation. System threads stay out.
+    "fixed", "wontFix", "closed" and "byDesign" are resolved. A reply goes to the thread (`databaseId` is the thread ID).
+  - Files come from the changes of the newest iteration against the base. The diff base is the common commit of the
+    iteration. Azure gives no line counts, so the counts are 0.
+  - A build is one check, with its build ID as job ID and run ID. The log is the task logs in timeline order. The tasks
+    are the steps. A pull request build tests a merge commit, so `checks` matches builds by `triggerInfo['pr.sourceSha']`.
+    Statuses of other services on the commit are checks too.
+  - Pipelines are build definitions. "Run" queues a build on the branch. Re-run failed jobs is a build retry.
+- Complete (merge) sends the head commit, so Azure refuses it when the branch changed. Auto-merge is auto-complete.
+- Not available for Azure: the Review view and the Pipelines view (they list GitHub repositories), the Dashboard,
+  assignees, the label list, and a stored "viewed" state (it stays in memory until the app quits).
 
 #### Review view
 

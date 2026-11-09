@@ -1,0 +1,74 @@
+{
+  "count": 4,
+  "value": [
+    {
+      "id": 905,
+      "buildNumber": "20261102.4",
+      "status": "inProgress",
+      "queueTime": "2026-11-02T11:27:00Z",
+      "startTime": "2026-11-02T11:28:00Z",
+      "sourceBranch": "refs/pull/22/merge",
+      "sourceVersion": "39f52d24533cc712fc845ed9fd1b6c06b3942588",
+      "reason": "pullRequest",
+      "definition": { "id": 7, "name": "shop-ci", "path": "\\" },
+      "requestedFor": { "id": "d6245f20", "displayName": "Norman Paulk", "uniqueName": "norman@contoso.com" },
+      "triggerInfo": {
+        "pr.number": "22",
+        "pr.sourceBranch": "refs/heads/feat/cart",
+        "pr.sourceSha": "b60280bc6e62e2f880f1b63c1e24987664d3bda3",
+        "pr.title": "Add the cart page"
+      },
+      "_links": { "web": { "href": "https://dev.azure.com/contoso/Web/_build/results?buildId=905" } }
+    },
+    {
+      "id": 904,
+      "buildNumber": "20261102.3",
+      "status": "completed",
+      "result": "succeeded",
+      "queueTime": "2026-11-02T11:27:00Z",
+      "startTime": "2026-11-02T11:27:30Z",
+      "finishTime": "2026-11-02T11:29:00Z",
+      "sourceBranch": "refs/pull/22/merge",
+      "sourceVersion": "39f52d24533cc712fc845ed9fd1b6c06b3942588",
+      "reason": "pullRequest",
+      "definition": { "id": 8, "name": "shop-lint", "path": "\\checks" },
+      "triggerInfo": {
+        "pr.number": "22",
+        "pr.sourceBranch": "refs/heads/feat/cart",
+        "pr.sourceSha": "b60280bc6e62e2f880f1b63c1e24987664d3bda3"
+      }
+    },
+    {
+      "id": 900,
+      "buildNumber": "20261102.1",
+      "status": "completed",
+      "result": "failed",
+      "queueTime": "2026-11-02T10:02:00Z",
+      "startTime": "2026-11-02T10:02:30Z",
+      "finishTime": "2026-11-02T10:06:00Z",
+      "sourceBranch": "refs/pull/22/merge",
+      "sourceVersion": "aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000",
+      "reason": "pullRequest",
+      "definition": { "id": 7, "name": "shop-ci", "path": "\\" },
+      "triggerInfo": {
+        "pr.number": "22",
+        "pr.sourceBranch": "refs/heads/feat/cart",
+        "pr.sourceSha": "0f3c1a2b9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b"
+      }
+    },
+    {
+      "id": 899,
+      "buildNumber": "20261102.0",
+      "status": "completed",
+      "result": "partiallySucceeded",
+      "queueTime": "2026-11-02T09:00:00Z",
+      "startTime": "2026-11-02T09:00:30Z",
+      "finishTime": "2026-11-02T09:05:00Z",
+      "sourceBranch": "refs/heads/main",
+      "sourceVersion": "f47bbc106853afe3c1b07a81754bce5f4b8dbf62",
+      "reason": "individualCI",
+      "definition": { "id": 7, "name": "shop-ci", "path": "\\" },
+      "triggerInfo": { "ci.message": "Merge the login fix" }
+    }
+  ]
+}
