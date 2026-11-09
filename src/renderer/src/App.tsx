@@ -10,6 +10,7 @@ import { DiffView } from './components/DiffView';
 import { LogView } from './components/LogView';
 import { RightPanel } from './components/RightPanel';
 import { confirmDialog, dialogOpen, promptDialog } from './components/ConfirmDialog';
+import { showContextMenu } from './components/ContextMenu';
 import { NewWorktreeDialog, type NewWorktreeRequest } from './components/NewWorktreeDialog';
 import { GitGraphView, type GraphWorktreeStart } from './components/GitGraphView';
 import { TasksView } from './components/TasksView';
@@ -1306,7 +1307,7 @@ export function App() {
         const link = links[worktree.path];
         const hidden = appSettings.hiddenWorktrees?.[worktree.path];
         const snoozeOptions = Object.keys(SNOOZE_LABELS) as SnoozeOption[];
-        const choice = await api.app.contextMenu([
+        const choice = await showContextMenu([
             ...(link ? [{ id: 'task', label: `Open Task${link.key ? ` ${link.key}` : ''}` }, { type: 'separator' as const }] : []),
             { id: 'rename', label: 'Rename…' },
             { type: 'separator' as const },
@@ -1317,8 +1318,8 @@ export function App() {
                     { label: 'Snooze', submenu: snoozeOptions.map(option => ({ id: `snooze:${option}`, label: SNOOZE_LABELS[option] })) }
                 ]),
             { type: 'separator' as const },
-            { id: 'remove', label: 'Remove Worktree…', enabled: !worktree.isMain },
-            { id: 'removeBranch', label: worktree.branch ? `Remove Worktree and Delete Branch "${worktree.branch}"…` : 'Remove Worktree and Delete Branch…', enabled: !worktree.isMain && !!worktree.branch }
+            { id: 'remove', label: 'Remove Worktree…', enabled: !worktree.isMain, danger: true },
+            { id: 'removeBranch', label: worktree.branch ? `Remove Worktree and Delete Branch "${worktree.branch}"…` : 'Remove Worktree and Delete Branch…', enabled: !worktree.isMain && !!worktree.branch, danger: true }
         ]);
         if (choice === 'task') openLinkedTask(worktree.path);
         if (choice === 'rename') await renameWorktree(worktree);
