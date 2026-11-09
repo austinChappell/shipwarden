@@ -24,6 +24,10 @@ interface Props {
     repoPath: string;
     onClose(): void;
     onCreate(request: NewWorktreeRequest): Promise<void>;
+    /** A start point for a new branch that is not a branch, for example a commit from the graph. */
+    initialBase?: { ref: string; label: string };
+    /** A remote branch to check out. The dialog opens in remote mode. */
+    initialRemote?: string;
 }
 
 /**
@@ -32,14 +36,14 @@ interface Props {
  * - Remote branch: a remote branch to check out. The local branch gets the same name and tracks the remote branch.
  * In both modes, the user chooses whether an agent starts in the worktree.
  */
-export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate }: Props) {
-    const [mode, setMode] = useState<Mode>('new');
-    const [remoteRef, setRemoteRef] = useState<string>();
+export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initialBase, initialRemote }: Props) {
+    const [mode, setMode] = useState<Mode>(initialRemote ? 'remote' : 'new');
+    const [remoteRef, setRemoteRef] = useState<string | undefined>(initialRemote);
     const [name, setName] = useState('');
     const [branch, setBranch] = useState('');
     /** True after the user types a branch name. Then the name does not change the branch any more. */
     const [branchEdited, setBranchEdited] = useState(false);
-    const [base, setBase] = useState<string>();
+    const [base, setBase] = useState<string | undefined>(initialBase?.ref);
     const [branches, setBranches] = useState<BranchList>();
     const [loadError, setLoadError] = useState<string>();
     const [startAgent, setStartAgent] = useState(true);
@@ -76,9 +80,10 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate }: Pro
         return [...byRemote].map(([label, items]) => ({ label, items }));
     }, [branches]);
     const groups = useMemo((): ComboboxGroup[] => (branches ? [
+        { label: 'Commit', items: initialBase ? [{ value: initialBase.ref, label: initialBase.label }] : [] },
         { label: 'Remote', items: branches.remote.map(ref => ({ value: ref, label: ref })) },
         { label: 'Local', items: branches.local.map(ref => ({ value: ref, label: ref })) }
-    ].filter(group => group.items.length > 0) : []), [branches]);
+    ].filter(group => group.items.length > 0) : []), [branches, initialBase]);
 
     const changeName = (value: string) => {
         setName(value);
