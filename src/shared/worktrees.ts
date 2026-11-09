@@ -40,6 +40,11 @@ export interface CreateWorktreeOptions {
     branch: string;
     /** The start point of a new branch. The default is HEAD of the main worktree. */
     baseRef?: string;
+    /**
+     * A remote branch to check out, for example "origin/feature/login". If the local branch does not exist, the
+     * service creates it from this remote branch and sets it to track the remote branch. Then `baseRef` does not apply.
+     */
+    trackRef?: string;
 }
 
 /** The branches that a new worktree can start from. */
@@ -50,6 +55,18 @@ export interface BranchList {
     remote: string[];
     /** The default start point: the default branch of "origin" after a fetch, for example "origin/main". */
     defaultBase?: string;
+    /** The names of the remotes, for example "origin". */
+    remotes: string[];
+}
+
+/**
+ * Returns the local branch name for a remote branch: "origin/feature/login" becomes "feature/login". The longest
+ * remote name that matches wins, because a remote name can contain "/". Returns undefined when no remote matches.
+ */
+export function localNameOfRemote(remoteRef: string, remotes: readonly string[]): string | undefined {
+    const remote = [...remotes].sort((a, b) => b.length - a.length).find(name => remoteRef.startsWith(`${name}/`));
+    const local = remote ? remoteRef.slice(remote.length + 1) : '';
+    return local || undefined;
 }
 
 /**

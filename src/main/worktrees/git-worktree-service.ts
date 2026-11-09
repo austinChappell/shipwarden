@@ -94,12 +94,19 @@ export class GitWorktreeService {
         await fs.mkdir(path.dirname(target), { recursive: true });
 
         const branchExists = await this.branchExists(main.path, branch);
+        const trackRef = branchExists ? undefined : options.trackRef?.trim();
+        if (trackRef && !(await this.remoteBranchExists(main.path, trackRef))) {
+            throw new Error(`The remote branch "${trackRef}" does not exist. Fetch the remote and try again.`);
+        }
         // A new branch starts from the newest default branch of "origin", not from a local branch that can be old.
-        const base = branchExists ? undefined : options.baseRef ?? await this.remoteDefaultBranch(main.path);
+        const base = branchExists || trackRef ? undefined : options.baseRef ?? await this.remoteDefaultBranch(main.path);
         // --no-track: the new branch must not push to the default branch by mistake.
+        // --track: a checkout of a remote branch pulls from and pushes to that remote branch.
         const args = branchExists
             ? ['worktree', 'add', target, branch]
-            : ['worktree', 'add', '--no-track', '-b', branch, target, ...(base ? [base] : [])];
+            : trackRef
+                ? ['worktree', 'add', '--track', '-b', branch, target, trackRef]
+                : ['worktree', 'add', '--no-track', '-b', branch, target, ...(base ? [base] : [])];
         await this.git(main.path, args);
 
         const created = await this.find(main.path, target);
@@ -126,7 +133,8 @@ export class GitWorktreeService {
             if (full.startsWith('refs/heads/')) local.push(short);
             else remote.push(short);
         }
-        return { local, remote, ...(defaultBase ? { defaultBase } : {}) };
+        const remotes = (await this.git(root, ['remote'])).split('\n').map(name => name.trim()).filter(Boolean);
+        return { local, remote, remotes, ...(defaultBase ? { defaultBase } : {}) };
     }
 
     /** Removes a worktree. This function does not remove the main worktree. */
@@ -242,6 +250,16 @@ export class GitWorktreeService {
     protected async branchExists(repoPath: string, branch: string): Promise<boolean> {
         try {
             await this.git(repoPath, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /** True when `ref` is a branch under refs/remotes, for example "origin/feature". */
+    protected async remoteBranchExists(repoPath: string, ref: string): Promise<boolean> {
+        try {
+            await this.git(repoPath, ['show-ref', '--verify', '--quiet', `refs/remotes/${ref}`]);
             return true;
         } catch {
             return false;

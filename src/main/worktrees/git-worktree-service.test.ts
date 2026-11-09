@@ -37,6 +37,29 @@ describe('GitWorktreeService', () => {
         expect(branches.defaultBase).toBe('origin/main');
         expect(branches.local.sort()).toEqual(['feature/a', 'main']);
         expect(branches.remote).toEqual(['origin/main']);
+        expect(branches.remotes).toEqual(['origin']);
+    });
+
+    it('checks out a remote branch into a new local branch that tracks it', async () => {
+        const origin = path.join(tmp, 'origin.git');
+        git(tmp, 'clone', '-q', '--bare', repo, origin);
+        git(repo, 'remote', 'add', 'origin', origin);
+        const other = path.join(tmp, 'other');
+        git(tmp, 'clone', '-q', origin, other);
+        git(other, 'checkout', '-q', '-b', 'feature/remote');
+        git(other, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-q', '--allow-empty', '-m', 'remote work');
+        git(other, 'push', '-q', 'origin', 'feature/remote');
+        git(repo, 'fetch', '-q', 'origin');
+
+        const worktree = await service.create({ repoPath: repo, branch: 'feature/remote', trackRef: 'origin/feature/remote', baseRef: 'main' });
+
+        expect(worktree.branch).toBe('feature/remote');
+        expect(git(worktree.path, 'log', '-1', '--format=%s').trim()).toBe('remote work');
+        expect(git(repo, 'rev-parse', '--abbrev-ref', 'feature/remote@{upstream}').trim()).toBe('origin/feature/remote');
+    });
+
+    it('rejects a remote branch that does not exist', async () => {
+        await expect(service.create({ repoPath: repo, branch: 'missing', trackRef: 'origin/missing' })).rejects.toThrow(/does not exist/);
     });
 
     it('starts a new branch from a chosen base', async () => {

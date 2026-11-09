@@ -1031,7 +1031,12 @@ export function App() {
 
     /** Creates a worktree from the New worktree dialog: its branch, start point, display name and agent. */
     const createWorktree = async (repoPath: string, request: NewWorktreeRequest) => {
-        const worktree = await api.worktrees.create({ repoPath, branch: request.branch, ...(request.baseRef ? { baseRef: request.baseRef } : {}) });
+        const worktree = await api.worktrees.create({
+            repoPath,
+            branch: request.branch,
+            ...(request.baseRef ? { baseRef: request.baseRef } : {}),
+            ...(request.trackRef ? { trackRef: request.trackRef } : {})
+        });
         if (request.name) await setWorktreeName(worktree.path, request.name);
         await refreshWorktrees(repoPath);
         setSelectedPath(worktree.path);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { branchFromName, normalizeWorktreeSort, sortWorktrees, worktreeLabel, type Worktree } from './worktrees';
+import { branchFromName, normalizeWorktreeSort, sortWorktrees, localNameOfRemote, worktreeLabel, type Worktree } from './worktrees';
 
 describe('branchFromName', () => {
     it('makes a branch name from a display name', () => {
@@ -51,5 +51,20 @@ describe('sortWorktrees', () => {
     it('gives a wrong stored value the default', () => {
         expect(normalizeWorktreeSort({ by: 'size', direction: 'up' })).toEqual({ by: 'created', direction: 'asc' });
         expect(normalizeWorktreeSort({ by: 'updated', direction: 'desc' })).toEqual({ by: 'updated', direction: 'desc' });
+    });
+});
+
+describe('localNameOfRemote', () => {
+    it('removes the remote name', () => {
+        expect(localNameOfRemote('origin/feature/login', ['origin'])).toBe('feature/login');
+    });
+
+    it('uses the longest remote name that matches', () => {
+        expect(localNameOfRemote('team/a/fix', ['team', 'team/a'])).toBe('fix');
+    });
+
+    it('returns undefined when no remote matches', () => {
+        expect(localNameOfRemote('upstream/main', ['origin'])).toBeUndefined();
+        expect(localNameOfRemote('origin/', ['origin'])).toBeUndefined();
     });
 });
