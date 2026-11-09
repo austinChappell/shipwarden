@@ -9155,12 +9155,13 @@ button.pr-summary-cell:hover {
 
 .review-decisions .button.approve {
     border-color: var(--ok);
-    background: color-mix(in srgb, var(--ok) 70%, var(--bg));
+    background: var(--ok);
     color: var(--bg);
 }
 
 .review-decisions .button.approve:hover:not(:disabled) {
-    background: var(--ok);
+    border-color: color-mix(in srgb, var(--ok) 85%, #fff);
+    background: color-mix(in srgb, var(--ok) 85%, #fff);
     color: var(--bg);
 }
 
