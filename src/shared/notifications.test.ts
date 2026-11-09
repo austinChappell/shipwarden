@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ciChanges, DEFAULT_NOTIFICATION_SETTINGS, normalizeNotificationSettings } from './notifications';
+import { ciChanges, DEFAULT_NOTIFICATION_SETTINGS, inCiScope, normalizeNotificationSettings } from './notifications';
 
 describe('normalizeNotificationSettings', () => {
     it('gives the defaults and keeps valid values', () => {
@@ -15,6 +15,24 @@ describe('normalizeNotificationSettings', () => {
         expect(settings.events.agentDone).toEqual({ enabled: true, sound: null });
         expect(settings.events.ciFinished).toEqual({ enabled: true, sound: null });
         expect(settings.events.dashboard).toEqual(DEFAULT_NOTIFICATION_SETTINGS.events.dashboard);
+    });
+
+    it('gives "mine" as the CI scope when the value is missing or not valid', () => {
+        expect(normalizeNotificationSettings(undefined).ciScope).toBe('mine');
+        expect(normalizeNotificationSettings({ ciScope: 'nobody' }).ciScope).toBe('mine');
+        expect(normalizeNotificationSettings({ ciScope: 'involved' }).ciScope).toBe('involved');
+        expect(normalizeNotificationSettings({ ciScope: 'all' }).ciScope).toBe('all');
+    });
+});
+
+describe('inCiScope', () => {
+    it('selects the pull requests for each scope', () => {
+        const author = { viewerRole: 'author' as const };
+        const involved = { viewerRole: 'involved' as const };
+        const other = {};
+        expect([author, involved, other].map(pr => inCiScope('mine', pr))).toEqual([true, false, false]);
+        expect([author, involved, other].map(pr => inCiScope('involved', pr))).toEqual([true, true, false]);
+        expect([author, involved, other].map(pr => inCiScope('all', pr))).toEqual([true, true, true]);
     });
 });
 

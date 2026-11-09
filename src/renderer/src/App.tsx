@@ -31,7 +31,7 @@ import { dashboardStore, useDashboardCount, useDashboardLoader, type DashboardNe
 import { githubScopeKey, useReviewProviders } from './review-providers-store';
 import { seenStore } from './seen-store';
 import { gitHubSeenKey, isHiddenComment, taskSeenKey } from '@shared/dashboard';
-import { ciChanges, type NotificationEvent } from '@shared/notifications';
+import { ciChanges, inCiScope, type NotificationEvent } from '@shared/notifications';
 import type { NotificationTarget } from '@shared/api';
 import type { RepoRef } from '@shared/github';
 import { useAppearance } from './theme/appearance';
@@ -432,11 +432,12 @@ export function App() {
     openNotificationRef.current = openNotificationTarget;
     useEffect(() => api.notifications.onClick(target => openNotificationRef.current(target)), []);
 
-    // CI finished: the checks of a pull request of a worktree went from waiting to a result.
+    // CI finished: the checks of a pull request went from waiting to a result. Settings › Notifications selects which pull requests.
     const previousSummaries = useRef<Record<string, Record<string, BranchSummary>>>({});
     useEffect(() => {
         for (const [repo, list] of Object.entries(summaries)) {
             for (const change of ciChanges(previousSummaries.current[repo], list)) {
+                if (!inCiScope(appSettings.notifications.ciScope, change.summary)) continue;
                 const worktree = worktreesByRepo[repo]?.find(item => item.branch === change.branch);
                 notify(
                     'ciFinished',

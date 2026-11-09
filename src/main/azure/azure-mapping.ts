@@ -524,8 +524,11 @@ export function rollupState(checks: readonly Pick<CheckRun, 'status' | 'conclusi
     return 'SUCCESS';
 }
 
-/** Returns the active pull requests by source branch, with the CI state of their newest builds. */
-export function branchSummaries(repo: AzureRepoRef, prs: readonly AzPullRequest[], builds: readonly AzBuild[]): Record<string, BranchSummary> {
+/**
+ * Returns the active pull requests by source branch, with the CI state of their newest builds.
+ * The viewer ID sets the viewer role: "author" for the creator, "involved" for a reviewer.
+ */
+export function branchSummaries(repo: AzureRepoRef, prs: readonly AzPullRequest[], builds: readonly AzBuild[], viewerId?: string): Record<string, BranchSummary> {
     const summaries: Record<string, BranchSummary> = {};
     for (const pr of prs) {
         if (pr.status !== 'active' || !pr.sourceRefName.startsWith('refs/heads/')) continue;
@@ -542,7 +545,10 @@ export function branchSummaries(repo: AzureRepoRef, prs: readonly AzPullRequest[
             headSha,
             isDraft: pr.isDraft ?? false,
             reviewDecision: reviewDecisionFromVotes(pr.reviewers ?? []),
-            checks: rollupState(prBuilds.map(build => buildToCheck(repo, build)))
+            checks: rollupState(prBuilds.map(build => buildToCheck(repo, build))),
+            viewerRole: !viewerId ? undefined
+                : pr.createdBy.id === viewerId ? 'author'
+                    : (pr.reviewers ?? []).some(reviewer => reviewer.id === viewerId) ? 'involved' : undefined
         };
     }
     return summaries;

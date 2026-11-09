@@ -398,6 +398,11 @@ export interface BranchSummary {
     reviewDecision: ReviewDecision;
     /** The combined state of the checks of the PR head: SUCCESS, FAILURE, ERROR, PENDING or EXPECTED. Null without checks. */
     checks: string | null;
+    /**
+     * The relation of the signed-in user to the PR. "author": the user opened the PR.
+     * "involved": the user is an assignee, a requested reviewer, a reviewer or a commenter. Undefined: no relation, or not known.
+     */
+    viewerRole?: 'author' | 'involved';
 }
 
 /** A summary of the checks of one commit. */

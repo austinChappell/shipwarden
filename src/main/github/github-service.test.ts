@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { canManagePullRequests, canMergePullRequests, type PullRequestChange } from '@shared/github';
 import type { GitHubClient } from './github-client';
-import { GitHubService } from './github-service';
+import { GitHubService, githubViewerRole } from './github-service';
 
 /** Records the REST calls of the service, without a network. */
 function recordCalls() {
@@ -44,5 +44,23 @@ describe('canMergePullRequests', () => {
         expect(canMergePullRequests('TRIAGE')).toBe(false);
         expect(canMergePullRequests('READ')).toBe(false);
         expect(canMergePullRequests(null)).toBe(false);
+    });
+});
+
+describe('githubViewerRole', () => {
+    const pr = (change: Partial<Parameters<typeof githubViewerRole>[1]> = {}) => ({
+        viewerDidAuthor: false,
+        assignees: { nodes: [] },
+        reviewRequests: { nodes: [] },
+        participants: { nodes: [{ login: 'octocat' }] },
+        ...change
+    });
+
+    it('finds the author, the involved users and the other users', () => {
+        expect(githubViewerRole('me', pr({ viewerDidAuthor: true }))).toBe('author');
+        expect(githubViewerRole('me', pr({ assignees: { nodes: [{ login: 'me' }] } }))).toBe('involved');
+        expect(githubViewerRole('me', pr({ reviewRequests: { nodes: [{ requestedReviewer: { login: 'me' } }, { requestedReviewer: {} }] } }))).toBe('involved');
+        expect(githubViewerRole('me', pr({ participants: { nodes: [{ login: 'me' }] } }))).toBe('involved');
+        expect(githubViewerRole('me', pr())).toBeUndefined();
     });
 });
