@@ -6,6 +6,7 @@ describe('printCommand', () => {
         expect(printCommand('claude --model opus')).toBe('claude --model opus -p');
         expect(printCommand('codex')).toBe('codex exec --sandbox read-only --skip-git-repo-check -');
         expect(printCommand('gemini')).toBe("gemini -p 'Answer the question above.'");
+        expect(printCommand('opencode')).toBe("opencode run --agent plan 'Answer the question below.'");
     });
 
     it('returns undefined for another program', () => {

@@ -39,3 +39,16 @@ describe('Gemini CLI shell integration', () => {
         expect(ZSHENV).toContain('GEMINI_CLI_SYSTEM_DEFAULTS_PATH="$SHIPWARDEN_GEMINI_HOOK_SETTINGS" command gemini "$@"');
     });
 });
+
+describe('opencode shell integration', () => {
+    it('gives each terminal the inline opencode config', () => {
+        const env = shellIntegrationEnv({ SHELL: '/bin/bash' }, { ...integration, opencodeConfigContent: '{"plugin":["file:///data/p.js"]}' });
+        expect(env.SHIPWARDEN_OPENCODE_CONFIG_CONTENT).toBe('{"plugin":["file:///data/p.js"]}');
+    });
+
+    it('adds an opencode function that keeps the inline config of the user', () => {
+        expect(ZSHENV).toContain('if (( ! $+functions[opencode] )); then');
+        expect(ZSHENV).toContain('-z "${OPENCODE_CONFIG_CONTENT-}"');
+        expect(ZSHENV).toContain('OPENCODE_CONFIG_CONTENT="$SHIPWARDEN_OPENCODE_CONFIG_CONTENT" command opencode "$@"');
+    });
+});

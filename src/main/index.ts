@@ -9,8 +9,9 @@ import { ReviewProviders } from './review-providers';
 import type { ConnectionChange, TaskLink } from '@shared/tasks';
 import * as os from 'os';
 import { removeAgentSessionVariables } from './agent-environment';
-import { claudeHookSettings, withAgentHooks, type HookSettingsPaths } from '@shared/agents';
+import { claudeHookSettings, opencodeHookConfig, withAgentHooks, type HookSettingsPaths } from '@shared/agents';
 import { writeGeminiHookSettings } from './agents/gemini-settings';
+import { writeOpencodePlugin } from './agents/opencode-plugin';
 import { shellIntegrationEnv, writeZshIntegration, type ShellIntegration } from './agents/shell-integration';
 import { ShellAgents } from './agents/shell-agents';
 import { AskAgentRunner } from './agents/ask-agent';
@@ -351,7 +352,7 @@ async function askAgent(request: AskAgentRequest): Promise<AskAgentResult> {
     const agent = agentForRepo(await settings.get(), clone);
     const command = printCommand(agent.command);
     if (!command) {
-        throw new Error(`ShipWarden can ask only Claude Code, Codex or Gemini CLI. The agent "${agent.name}" runs "${agent.command}". Select a different agent in Settings › Agents.`);
+        throw new Error(`ShipWarden can ask only Claude Code, Codex, Gemini CLI or opencode. The agent "${agent.name}" runs "${agent.command}". Select a different agent in Settings › Agents.`);
     }
     let cwd = clone;
     if (!cwd) {
@@ -369,13 +370,15 @@ async function askAgent(request: AskAgentRequest): Promise<AskAgentResult> {
 /**
  * The hook settings files of the agents. They are the same for each session.
  * Claude Code gets its file with --settings. Gemini CLI gets its file in GEMINI_CLI_SYSTEM_DEFAULTS_PATH.
+ * opencode gets an inline config in OPENCODE_CONFIG_CONTENT that loads the plugin file.
  */
 const hookSettingsPaths: HookSettingsPaths = {
     claude: join(app.getPath('userData'), 'claude-hooks.json'),
-    gemini: join(app.getPath('userData'), 'gemini-hooks.json')
+    gemini: join(app.getPath('userData'), 'gemini-hooks.json'),
+    opencode: join(app.getPath('userData'), 'opencode', 'shipwarden-agent-state.js')
 };
 
-/** The shell setup that adds the hook settings to a `claude` or `gemini` that the user types in a shell tab. */
+/** The shell setup that adds the hook settings to a `claude`, `gemini` or `opencode` that the user types in a shell tab. */
 const shellIntegration: ShellIntegration = { hookSettingsPath: hookSettingsPaths.claude, geminiHookSettingsPath: hookSettingsPaths.gemini };
 
 function createWindow(): void {
@@ -971,6 +974,13 @@ app.whenReady().then(async () => {
     } catch (error) {
         // Without the hook settings, Gemini CLI still runs. ShipWarden then shows no state for it.
         console.warn(`[agents] The Gemini CLI hook settings were not written: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    try {
+        writeOpencodePlugin(hookSettingsPaths.opencode);
+        shellIntegration.opencodeConfigContent = opencodeHookConfig(hookSettingsPaths.opencode);
+    } catch (error) {
+        // Without the plugin, opencode still runs. ShipWarden then shows no state for it.
+        console.warn(`[agents] The opencode plugin was not written: ${error instanceof Error ? error.message : String(error)}`);
     }
     try {
         shellIntegration.zshFolder = writeZshIntegration(join(app.getPath('userData'), 'shell-integration', 'zsh'));

@@ -158,7 +158,8 @@ function normalizeRules(raw: unknown): HiddenCommentRule[] | undefined {
 export const DEFAULT_AGENTS: readonly AgentDefinition[] = [
     { id: 'claude', name: 'Claude Code', command: 'claude' },
     { id: 'codex', name: 'Codex', command: 'codex' },
-    { id: 'gemini', name: 'Gemini CLI', command: 'gemini' }
+    { id: 'gemini', name: 'Gemini CLI', command: 'gemini' },
+    { id: 'opencode', name: 'opencode', command: 'opencode' }
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {

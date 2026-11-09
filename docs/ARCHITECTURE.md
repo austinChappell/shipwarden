@@ -160,17 +160,25 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
   `notification_type: "ToolPermission"`) → done (AfterAgent) → exited (SessionEnd). The hooks have the name
   `shipwarden-agent-state` in `/hooks`. Gemini CLI can remove variables with "TOKEN" in the name from the environment of a
   hook, so each terminal also gets `GEMINI_CLI_SHIPWARDEN_*` copies of the hook variables. Gemini CLI keeps those.
+- opencode has no command hooks. ShipWarden writes a plugin to `<app data>/opencode/shipwarden-agent-state.js`
+  (`writeOpencodePlugin`) and starts opencode with `OPENCODE_CONFIG_CONTENT={"plugin":["file://<plugin>"]}`. opencode adds
+  the plugins of all config files together, so the user's own config stays the same. The plugin runs in the opencode
+  process and sends Claude Code event names to the hook server: SessionStart (start), UserPromptSubmit (`chat.message`),
+  PreToolUse (`tool.execute.before`, and again after `permission.replied` or `question.replied`), Notification
+  (`permission.asked`, `question.asked`) and Stop (`session.status` idle after a prompt). The idle state of a subagent
+  session (a session with a `parentID`) does not end the turn. opencode sends no SessionEnd. The process scan shows when it stops.
 - The worktree list shows the state of the agent that needs the user most. A macOS notification appears when an agent
   needs input or is done, unless the user looks at that agent.
 - Other agents (for example Codex) run without hooks and show no detailed state.
 - Each terminal gets the hook variables, also a shell tab. A zsh shell gets `ZDOTDIR=<app data>/shell-integration/zsh`.
   That `.zshenv` sets `ZDOTDIR` back to the user's value and reads the user's startup files. Before the first prompt,
   it adds a `claude` function that adds `--settings <hooks file>`, and a `gemini` function that sets
-  `GEMINI_CLI_SYSTEM_DEFAULTS_PATH` (only when the user did not set it). Thus `claude` or `gemini` typed in a shell tab reports its state.
+  `GEMINI_CLI_SYSTEM_DEFAULTS_PATH`, and an `opencode` function that sets `OPENCODE_CONFIG_CONTENT` (each only when the user
+  did not set the variable). Thus `claude`, `gemini` or `opencode` typed in a shell tab reports its state.
   The shell tab then shows in the Agents view while the agent runs (`runsAgent`).
 - The main process finds agents in shell tabs itself (`ShellAgents`). Each 2 seconds it reads the process table and
-  finds `claude`, `codex` and `gemini` processes below the shell of each tab. The session then gets `agentProgram`. Thus Codex,
-  which has no hooks, shows too, and the tab leaves the Agents view when the agent process stops. A session of a
+  finds `claude`, `codex`, `gemini` and `opencode` processes below the shell of each tab. The session then gets `agentProgram`.
+  Thus Codex, which has no hooks, shows too, and the tab leaves the Agents view when the agent process stops. A session of a
   Yardmaster host has no shell PID, so it gets no agent program.
 - Each state change carries a message and a time. PreToolUse gives a description of the tool call for people
   (`describeTool`, for example "Editing App.tsx" or "Running npm test"). UserPromptSubmit gives a one-line summary of
@@ -238,10 +246,10 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 - Repository settings (the settings button of a repository in the sidebar, or Settings > Repositories): a display name
   (empty means the folder name), a default agent (else the global default) and a color marker. The main process keeps
   them by repository path in `settings.json`. A removed agent goes out of the repository settings.
-- ShipWarden adds its hooks only to Claude Code and Gemini CLI. Only an agent with hooks starts with the state "starting".
+- ShipWarden adds its hooks only to Claude Code, Gemini CLI and opencode. Only an agent with hooks starts with the state "starting".
   Another agent has no state, and the worktree list shows only that it runs.
-- A new installation gets Claude Code, Codex and Gemini CLI. The page offers a "Built-in" button for each default agent
-  that the list does not have, so an older installation can add Gemini CLI with one click.
+- A new installation gets Claude Code, Codex, Gemini CLI and opencode. The page offers a "Built-in" button for each default
+  agent that the list does not have, so an older installation can add Gemini CLI or opencode with one click.
 
 ### Split view
 

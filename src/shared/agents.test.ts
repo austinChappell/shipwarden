@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     agentStateFromHook, describeTool, oneLine, claudeHookSettings, GEMINI_HOOK_EVENTS, GEMINI_HOOK_NAME, geminiHookSettings, HOOK_EVENTS, hookAgentOf,
-    shellQuote, withAgentHooks, worktreeAgentState
+    opencodeHookConfig, shellQuote, withAgentHooks, worktreeAgentState
 } from './agents';
 
 describe('agentStateFromHook', () => {
@@ -108,7 +108,8 @@ describe('geminiHookSettings', () => {
 describe('withAgentHooks', () => {
     const paths = {
         claude: '/Users/me/Library/Application Support/shipwarden/claude-hooks.json',
-        gemini: '/Users/me/Library/Application Support/shipwarden/gemini-hooks.json'
+        gemini: '/Users/me/Library/Application Support/shipwarden/gemini-hooks.json',
+        opencode: '/Users/me/Library/Application Support/shipwarden/opencode/shipwarden-agent-state.js'
     };
 
     it('adds the settings to Claude Code and quotes the path', () => {
@@ -119,6 +120,13 @@ describe('withAgentHooks', () => {
     it('gives Gemini CLI the settings as its system defaults file', () => {
         expect(withAgentHooks('gemini', paths)).toBe(`GEMINI_CLI_SYSTEM_DEFAULTS_PATH='${paths.gemini}' gemini`);
         expect(withAgentHooks(' /opt/homebrew/bin/gemini --yolo ', paths)).toBe(`GEMINI_CLI_SYSTEM_DEFAULTS_PATH='${paths.gemini}' /opt/homebrew/bin/gemini --yolo`);
+    });
+
+    it('gives opencode an inline config that loads the plugin', () => {
+        const config = '{"plugin":["file:///Users/me/Library/Application%20Support/shipwarden/opencode/shipwarden-agent-state.js"]}';
+        expect(opencodeHookConfig(paths.opencode)).toBe(config);
+        expect(withAgentHooks('opencode --model anthropic/claude-sonnet-4', paths)).toBe(`OPENCODE_CONFIG_CONTENT='${config}' opencode --model anthropic/claude-sonnet-4`);
+        expect(hookAgentOf('/Users/me/.opencode/bin/opencode')).toBe('opencode');
     });
 
     it('keeps the command of other agents', () => {
@@ -154,6 +162,18 @@ describe('describeTool', () => {
         expect(describeTool('search_file_content', { pattern: 'useAppearance' })).toBe('Searching for "useAppearance"');
         expect(describeTool('google_web_search', { query: 'vitest mocks' })).toBe('Searching the web for "vitest mocks"');
         expect(describeTool('write_todos', {})).toBe('Updating its to-do list');
+    });
+
+    it('describes the opencode tools for people', () => {
+        expect(describeTool('bash', { command: 'npm test', description: 'Run the unit tests' })).toBe('Run the unit tests');
+        expect(describeTool('bash', { command: 'echo done' })).toBe('Running echo done');
+        expect(describeTool('edit', { filePath: '/repo/src/App.tsx' })).toBe('Editing App.tsx');
+        expect(describeTool('read', { filePath: '/repo/notes.txt' })).toBe('Reading notes.txt');
+        expect(describeTool('list', { path: '/repo/src' })).toBe('Listing src');
+        expect(describeTool('grep', { pattern: 'useAppearance' })).toBe('Searching for "useAppearance"');
+        expect(describeTool('webfetch', { url: 'https://opencode.ai/docs' })).toBe('Reading opencode.ai');
+        expect(describeTool('task', { description: 'Read notes.txt' })).toBe('Running a subagent: Read notes.txt');
+        expect(describeTool('todowrite', {})).toBe('Updating its to-do list');
     });
 
     it('keeps long text on one short line', () => {
