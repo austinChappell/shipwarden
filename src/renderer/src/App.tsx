@@ -1304,7 +1304,7 @@ export function App() {
             return <BrowserView key={extra.id} id={extra.id} hidden={!!draggingTab} focused={focused} onClose={() => closeFromView(extra.key)} />;
         }
         if (extra?.kind === 'changes') {
-            return <WorktreeChangesView key={selectedPath} worktree={selectedPath} onOpenFile={path => openFile(path)} />;
+            return <WorktreeChangesView key={selectedPath} worktree={selectedPath} focused={focused} onOpenFile={path => openFile(path)} />;
         }
         if (extra?.kind === 'change') {
             return (

@@ -206,8 +206,8 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                     </button>
                 )}
                 {!clean && (
-                    <button className="icon-button" title="Show the diff of all changes" onClick={onOpenAllChanges}>
-                        <GitCompareArrows size={14} strokeWidth={1.6} />
+                    <button className="button changes-push" title="Show the diffs of all changed files in one list" onClick={onOpenAllChanges}>
+                        <GitCompareArrows size={13} strokeWidth={1.8} /> View all
                     </button>
                 )}
                 <button

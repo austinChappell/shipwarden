@@ -267,7 +267,7 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, q
  * Returns the element of a diff line. The diff is in a shadow root. A removed line has the old line number,
  * and the other lines have the new line number. Returns undefined when the line is not rendered.
  */
-function findLineElement(section: HTMLElement, side: DiffSide, line: number): HTMLElement | undefined {
+export function findLineElement(section: HTMLElement, side: DiffSide, line: number): HTMLElement | undefined {
     for (const host of section.querySelectorAll('*')) {
         const root = host.shadowRoot;
         if (!root) continue;
@@ -280,7 +280,7 @@ function findLineElement(section: HTMLElement, side: DiffSide, line: number): HT
 }
 
 /** The search bar of the changed files (⌘F). Enter goes to the next match, Shift+Enter to the previous one. */
-function FindBar({ query, caseSensitive, count, index, focusNonce, onQuery, onCaseSensitive, onMove, onClose }: {
+export function FindBar({ query, caseSensitive, count, index, focusNonce, onQuery, onCaseSensitive, onMove, onClose }: {
     query: string;
     caseSensitive: boolean;
     count: number;
