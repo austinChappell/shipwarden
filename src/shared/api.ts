@@ -11,6 +11,7 @@ import type { LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentUpdate } from './agents';
 import type { AgentProgram } from './agent-programs';
+import type { AskAgentRequest, AskAgentResult } from './ask-agent';
 import type { AppSettings, CommandCheck } from './settings';
 import type { ProjectsState } from './projects';
 import type { ProviderUsage } from './usage';
@@ -116,6 +117,15 @@ export interface ShipWardenApi {
         /** Asks the providers again now. A provider that answered 429 waits until its wait ends. */
         refresh(): Promise<ProviderUsage[]>;
         onChanged(listener: (usage: ProviderUsage[]) => void): () => void;
+    };
+    ask: {
+        /**
+         * Asks the agent of the repository (else the default agent) a question in print mode, and returns the answer.
+         * The agent runs in a local clone of the repository when a project has one, else in an empty folder.
+         */
+        run(request: AskAgentRequest): Promise<AskAgentResult>;
+        /** Stops a question that runs. */
+        cancel(id: string): Promise<void>;
     };
     settings: {
         get(): Promise<AppSettings>;
@@ -561,6 +571,8 @@ export const IpcChannels = {
     browserFocused: 'browser:focused',
     browserFocusAddress: 'browser:focusAddress',
     usageGet: 'usage:get',
+    askRun: 'ask:run',
+    askCancel: 'ask:cancel',
     usageRefresh: 'usage:refresh',
     usageChanged: 'usage:changed',
     updatesState: 'updates:state',

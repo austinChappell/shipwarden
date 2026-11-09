@@ -5128,7 +5128,20 @@ button:focus-visible {
 
 .pr-overview .pr-footer {
     padding: 14px 20px 16px;
-    gap: 10px;
+    gap: 12px;
+}
+
+/* The Overview tab is wide: the review card and the merge card stand side by side. */
+@container (min-width: 760px) {
+    .pr-overview .pr-footer {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+        align-items: start;
+    }
+
+    .pr-overview .pr-footer-error {
+        grid-column: 1 / -1;
+    }
 }
 
 .pr-overview textarea.review-body {
@@ -8485,4 +8498,235 @@ button.gg-ref:hover {
 .browser-error-url {
     color: var(--muted);
     word-break: break-all;
+}
+
+/* Review view: copy buttons, agent review, agent questions and the search bar of the changed files */
+
+.icon-button.copied {
+    color: var(--ok);
+}
+
+.stream-file-copy {
+    flex: none;
+    opacity: 0;
+}
+
+.stream-file-header:hover .stream-file-copy,
+.stream-file-copy:focus-visible,
+.stream-file-copy.copied {
+    opacity: 1;
+}
+
+.agent-review-button {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 5px;
+    margin-left: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+}
+
+.agent-review-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 12px;
+}
+
+.agent-review-status > span {
+    flex: 1;
+    min-width: 0;
+}
+
+.agent-review-status.error {
+    border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+}
+
+.agent-review-error {
+    color: var(--danger);
+    white-space: pre-wrap;
+    user-select: text;
+}
+
+.tag.agent-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--text-strong);
+}
+
+.zone-card.pending.from-agent {
+    border-style: dashed;
+}
+
+.composer-mode {
+    margin-bottom: 2px;
+}
+
+.composer-mode button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.zone-card.composer.ask,
+.zone-card.agent-question {
+    border-color: color-mix(in srgb, var(--info) 60%, transparent);
+}
+
+.agent-question .comment-author {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.agent-question-text {
+    color: var(--muted);
+    white-space: pre-wrap;
+}
+
+.agent-question-wait {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.agent-answer {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.agent-question .form-error {
+    white-space: pre-wrap;
+}
+
+.find-bar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.find-bar input {
+    flex: 1;
+    min-width: 0;
+    max-width: 360px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    outline: none;
+    background: var(--bg);
+    color: var(--text-strong);
+    font: 12px -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.find-bar input:focus {
+    border-color: var(--accent);
+}
+
+.find-count {
+    min-width: 72px;
+    font-variant-numeric: tabular-nums;
+}
+
+.find-bar .find-case {
+    width: auto;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.find-bar .find-case.selected {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    color: var(--text-strong);
+}
+
+.find-bar .icon-button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* The footer of a pull request: the card for the user's review and the card for the merge. */
+
+.pr-footer {
+    box-shadow: 0 -6px 16px -12px rgb(0 0 0 / 0.5);
+}
+
+.footer-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 10px 12px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+}
+
+.footer-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 22px;
+}
+
+.footer-card-title {
+    color: var(--text-strong);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.pending-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--text-strong);
+    font-size: 11.5px;
+}
+
+.review-card textarea.review-body {
+    height: 180px;
+    min-height: 64px;
+    max-height: 480px;
+    resize: vertical;
+    background: var(--panel);
+}
+
+.review-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.merge-card .panel-note {
+    padding: 0;
+}
+
+.merge-card .merge-row {
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }

@@ -1,11 +1,14 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MultiFileDiff, PatchDiff, Virtualizer, type DiffLineAnnotation, type FileDiffOptions } from '@pierre/diffs/react';
-import { ChevronRight, ExternalLink, LoaderCircle, MessageSquare } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, ExternalLink, LoaderCircle, MessageSquare, Search, X } from 'lucide-react';
 import type { DiffSide, FileVersions, PendingComment, PullRequest, PullRequestFile, RepoTarget, ReviewThread } from '@shared/github';
 import { unifiedPatch } from '@shared/patch';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText } from '../util';
-import { ComposerZone, PendingZone, ThreadZone } from './DiffView';
+import { ComposerZone, PendingZone, QuestionZone, ThreadZone, type AgentQuestion } from './DiffView';
+import { CopyButton } from './CopyButton';
+import { askPrompt, sliceLines } from '@shared/ask-agent';
+import { searchPatches, type PatchMatch } from '@shared/pr-search';
 import { openLink } from '../links';
 
 export const STYLE_KEY = 'shipwarden.diffStyle';
@@ -34,7 +37,15 @@ export const THEME_CSS = `
 type Note =
     | { kind: 'thread'; thread: ReviewThread }
     | { kind: 'pending'; comment: PendingComment }
-    | { kind: 'composer'; line: number; side: DiffSide };
+    | { kind: 'composer'; line: number; startLine: number; side: DiffSide }
+    | { kind: 'question'; question: AgentQuestion };
+
+/** The box for a new comment or question: the lines from `startLine` to `line` on one side. */
+interface Composer {
+    line: number;
+    startLine: number;
+    side: DiffSide;
+}
 
 interface Props {
     target: RepoTarget;
@@ -44,6 +55,8 @@ interface Props {
     scrollTo?: { path: string; nonce: number };
     onRefresh(): Promise<void>;
     onError(message: string): void;
+    /** A request to open the search bar (⌘F). A new value opens it again and selects its text. */
+    findRequest?: number;
 }
 
 export function readStyle(): DiffStyle {
@@ -74,10 +87,16 @@ interface FileBodyProps {
     pr: PullRequest;
     file: PullRequestFile;
     pending: PendingComment[];
-    composer: { line: number; side: DiffSide } | undefined;
+    composer: Composer | undefined;
+    questions: AgentQuestion[];
+    /** The line of the current search match in this file. */
+    highlight: { side: DiffSide; line: number } | undefined;
     diffStyle: DiffStyle;
     mode: 'light' | 'dark';
-    onComposer(composer: { line: number; side: DiffSide } | undefined): void;
+    onComposer(composer: Composer | undefined): void;
+    /** Asks the agent a question about the lines of the composer. Undefined when no agent can answer. */
+    onAsk?(composer: Composer, question: string): void;
+    onQuestion(question: AgentQuestion, action: 'close' | 'cancel' | 'retry' | 'comment'): void;
     onRefresh(): Promise<void>;
 }
 
@@ -86,7 +105,7 @@ interface FileBodyProps {
  * The "+" in the gutter starts a comment. GitHub's patch is enough for most files. Without it (a large file),
  * the view loads both versions of the file.
  */
-const FileBody = memo(function FileBody({ target, pr, file, pending, composer, diffStyle, mode, onComposer, onRefresh }: FileBodyProps) {
+const FileBody = memo(function FileBody({ target, pr, file, pending, composer, questions, highlight, diffStyle, mode, onComposer, onAsk, onQuestion, onRefresh }: FileBodyProps) {
     const patch = useMemo(() => unifiedPatch(file), [file]);
     const [versions, setVersions] = useState<FileVersions | 'error'>();
     const canComment = pr.state === 'OPEN';
@@ -113,11 +132,14 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, d
         for (const comment of pending) {
             list.push({ side: toSide(comment.side), lineNumber: comment.line, metadata: { kind: 'pending', comment } });
         }
+        for (const question of questions) {
+            list.push({ side: toSide(question.side), lineNumber: question.line, metadata: { kind: 'question', question } });
+        }
         if (composer) {
             list.push({ side: toSide(composer.side), lineNumber: composer.line, metadata: { kind: 'composer', ...composer } });
         }
         return list;
-    }, [pr.threads, file.path, pending, composer]);
+    }, [pr.threads, file.path, pending, questions, composer]);
 
     const options = useMemo((): FileDiffOptions<Note, undefined> => ({
         diffStyle,
@@ -126,8 +148,14 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, d
         unsafeCSS: THEME_CSS,
         overflow: 'wrap',
         lineDiffType: 'word',
-        enableGutterUtility: canComment,
-        onGutterUtilityClick: range => onComposer({ line: range.end, side: fromSide(range.endSide ?? range.side) }),
+        // A closed pull request takes no comments, but the agent can still answer questions about it.
+        enableGutterUtility: canComment || !!onAsk,
+        onGutterUtilityClick: range => {
+            const side = fromSide(range.endSide ?? range.side);
+            // A range across both sides has no clear start line, so the box takes only the last line.
+            const sameSide = fromSide(range.side) === side;
+            onComposer({ line: range.end, startLine: sameSide ? Math.min(range.start, range.end) : range.end, side });
+        },
         // The patch has only the lines near the changes. To show the hidden lines, the diff loads the two full files.
         loadDiffFiles: async () => {
             const result = await reviewStore.fileVersions(target, file, pr.baseRefOid, pr.headRefOid);
@@ -137,7 +165,7 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, d
                 newFile: { name: file.path, contents: result.head }
             };
         }
-    }), [diffStyle, mode, canComment, onComposer, target, file, pr.baseRefOid, pr.headRefOid]);
+    }), [diffStyle, mode, canComment, onAsk, onComposer, target, file, pr.baseRefOid, pr.headRefOid]);
 
     const renderAnnotation = (annotation: DiffLineAnnotation<Note>): ReactNode => {
         const note = annotation.metadata;
@@ -163,12 +191,37 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, d
             );
         }
         if (note.kind === 'pending') {
-            return <div className="stream-zone"><PendingZone comment={note.comment} onRemove={() => reviewStore.removePending(target, pr.number, note.comment)} /></div>;
+            return (
+                <div className="stream-zone" onKeyDown={stop}>
+                    <PendingZone
+                        comment={note.comment}
+                        onRemove={() => reviewStore.removePending(target, pr.number, note.comment)}
+                        onEdit={canComment ? body => reviewStore.updatePending(target, pr.number, note.comment, body) : undefined}
+                    />
+                </div>
+            );
+        }
+        if (note.kind === 'question') {
+            const question = note.question;
+            return (
+                <div className="stream-zone">
+                    <QuestionZone
+                        question={question}
+                        onClose={() => onQuestion(question, 'close')}
+                        onCancel={() => onQuestion(question, 'cancel')}
+                        onRetry={() => onQuestion(question, 'retry')}
+                        onUseAsComment={canComment ? () => onQuestion(question, 'comment') : undefined}
+                    />
+                </div>
+            );
         }
         return (
             <div className="stream-zone" onKeyDown={stop}>
                 <ComposerZone
                     line={note.line}
+                    startLine={note.startLine}
+                    canComment={canComment}
+                    onAsk={onAsk && (question => onAsk({ line: note.line, startLine: note.startLine, side: note.side }, question))}
                     onCancel={() => onComposer(undefined)}
                     onAdd={body => {
                         reviewStore.addPending(target, pr.number, { path: file.path, line: note.line, side: note.side, body });
@@ -179,8 +232,13 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, d
         );
     };
 
+    const selectedLines = useMemo(
+        () => (highlight ? { start: highlight.line, end: highlight.line, side: toSide(highlight.side) } : null),
+        [highlight?.line, highlight?.side]
+    );
+
     if (patch) {
-        return <PatchDiff<Note, undefined> patch={patch} options={options} lineAnnotations={annotations} renderAnnotation={renderAnnotation} />;
+        return <PatchDiff<Note, undefined> patch={patch} options={options} lineAnnotations={annotations} selectedLines={selectedLines} renderAnnotation={renderAnnotation} />;
     }
     if (!versions) {
         return <div className="stream-file-note"><LoaderCircle size={13} className="spin" /> GitHub sent no patch for this large file. Loading both versions…</div>;
@@ -199,31 +257,182 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, d
             newFile={{ name: file.path, contents: versions.head }}
             options={options}
             lineAnnotations={annotations}
+            selectedLines={selectedLines}
             renderAnnotation={renderAnnotation}
         />
     );
 });
 
 /**
+ * Returns the element of a diff line. The diff is in a shadow root. A removed line has the old line number,
+ * and the other lines have the new line number. Returns undefined when the line is not rendered.
+ */
+function findLineElement(section: HTMLElement, side: DiffSide, line: number): HTMLElement | undefined {
+    for (const host of section.querySelectorAll('*')) {
+        const root = host.shadowRoot;
+        if (!root) continue;
+        for (const element of root.querySelectorAll<HTMLElement>(`[data-line="${line}"]`)) {
+            const removed = (element.dataset.lineType ?? '').includes('deletion');
+            if (removed === (side === 'LEFT')) return element;
+        }
+    }
+    return undefined;
+}
+
+/** The search bar of the changed files (⌘F). Enter goes to the next match, Shift+Enter to the previous one. */
+function FindBar({ query, caseSensitive, count, index, focusNonce, onQuery, onCaseSensitive, onMove, onClose }: {
+    query: string;
+    caseSensitive: boolean;
+    count: number;
+    index: number;
+    focusNonce: number;
+    onQuery(value: string): void;
+    onCaseSensitive(value: boolean): void;
+    onMove(step: 1 | -1): void;
+    onClose(): void;
+}) {
+    const inputRef = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+    }, [focusNonce]);
+    return (
+        <div className="find-bar" role="search">
+            <Search size={13} strokeWidth={1.6} />
+            <input
+                ref={inputRef}
+                value={query}
+                placeholder="Find in the changes"
+                aria-label="Find in the changes"
+                onChange={event => onQuery(event.target.value)}
+                onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        onMove(event.shiftKey ? -1 : 1);
+                    }
+                    if (event.key === 'Escape') onClose();
+                }}
+            />
+            <span className="find-count">{query ? (count ? `${index + 1} of ${count}` : 'No results') : ''}</span>
+            <button className={`icon-button find-case${caseSensitive ? ' selected' : ''}`} title="Match case" aria-pressed={caseSensitive} onClick={() => onCaseSensitive(!caseSensitive)}>Aa</button>
+            <button className="icon-button" title="Previous match (Shift+Enter)" disabled={!count} onClick={() => onMove(-1)}><ChevronUp size={14} /></button>
+            <button className="icon-button" title="Next match (Enter)" disabled={!count} onClick={() => onMove(1)}><ChevronDown size={14} /></button>
+            <button className="icon-button" title="Close (Escape)" onClick={onClose}><X size={14} /></button>
+        </div>
+    );
+}
+
+/**
  * All changed files of a pull request in one stream, like the "Files changed" page of GitHub. Each file can collapse.
  * A file that the user marks as viewed collapses, and viewed files start collapsed.
  */
-export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh, onError }: Props) {
+export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh, onError, findRequest }: Props) {
     const review = useReviewState(target, pr.number);
     const mode = useColorMode();
     const [diffStyle, setDiffStyle] = useState<DiffStyle>(readStyle);
     /** The open state of each file, by path. A file without an entry is open unless it is viewed. */
     const [open, setOpen] = useState<Record<string, boolean>>({});
-    const [composer, setComposer] = useState<{ path: string; line: number; side: DiffSide }>();
+    const [composer, setComposer] = useState<Composer & { path: string }>();
+    const [questions, setQuestions] = useState<AgentQuestion[]>([]);
+    const [findOpen, setFindOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const [caseSensitive, setCaseSensitive] = useState(false);
+    const [matchIndex, setMatchIndex] = useState(0);
+    const matches = useMemo(() => (findOpen ? searchPatches(files ?? [], query, caseSensitive) : []), [findOpen, files, query, caseSensitive]);
+    const current: PatchMatch | undefined = matches[Math.min(matchIndex, matches.length - 1)];
+    /** The repository for the agent. Only the Review view has one. */
+    const repo = typeof target === 'string' ? undefined : target;
     const sections = useRef(new Map<string, HTMLElement>());
 
     // A different pull request starts with the default open state.
     useEffect(() => {
         setOpen({});
         setComposer(undefined);
+        setQuestions([]);
     }, [pr.number]);
 
+    const changeQuestion = (id: string, change: Partial<AgentQuestion>) =>
+        setQuestions(list => list.map(item => (item.id === id ? { ...item, ...change } : item)));
+
+    /** Sends a question to the agent. The answer shows under the lines of the question. */
+    const runQuestion = async (question: AgentQuestion) => {
+        if (!repo) return;
+        changeQuestion(question.id, { status: 'running', error: undefined, answer: undefined });
+        const file = files?.find(item => item.path === question.path);
+        let code: string | undefined;
+        if (file) {
+            try {
+                const versions = await reviewStore.fileVersions(target, file, pr.baseRefOid, pr.headRefOid);
+                if (!versions.unavailable) code = sliceLines(question.side === 'LEFT' ? versions.base : versions.head, question.startLine, question.line);
+            } catch {
+                // The prompt has the diff. The agent can read the file itself.
+            }
+        }
+        const prompt = askPrompt({ pr, repo, path: question.path, side: question.side, startLine: question.startLine, endLine: question.line, code, patch: file?.patch, question: question.question });
+        try {
+            const result = await window.shipwarden.ask.run({ id: question.id, repo, headRefOid: pr.headRefOid, prompt });
+            setQuestions(list => list.map(item => (item.id === question.id && item.status === 'running' ? { ...item, status: 'done', agent: result.agent, answer: result.answer } : item)));
+        } catch (err) {
+            setQuestions(list => list.map(item => (item.id === question.id && item.status === 'running' ? { ...item, status: 'error', error: errorText(err) } : item)));
+        }
+    };
+
+    const ask = (path: string, at: Composer, text: string) => {
+        const question: AgentQuestion = { id: crypto.randomUUID(), path, ...at, question: text, status: 'running' };
+        setQuestions(list => [...list, question]);
+        setComposer(undefined);
+        void runQuestion(question);
+    };
+
+    const onQuestion = (question: AgentQuestion, action: 'close' | 'cancel' | 'retry' | 'comment') => {
+        if (action === 'retry') {
+            void runQuestion(question);
+            return;
+        }
+        if (action === 'comment' && question.answer) {
+            reviewStore.addPending(target, pr.number, { path: question.path, line: question.line, side: question.side, body: question.answer, fromAgent: true });
+        }
+        if (question.status === 'running') void window.shipwarden.ask.cancel(question.id);
+        setQuestions(list => list.filter(item => item.id !== question.id));
+    };
+
     const isOpen = (file: PullRequestFile) => open[file.path] ?? !file.viewed;
+
+    useEffect(() => {
+        if (findRequest) setFindOpen(true);
+    }, [findRequest]);
+
+    /** Opens the file of a match and scrolls its line into view. The line can render some frames later. */
+    const reveal = (match: PatchMatch) => {
+        setOpen(map => ({ ...map, [match.path]: true }));
+        let tries = 0;
+        const step = () => {
+            const section = sections.current.get(match.path);
+            const element = section && findLineElement(section, match.side, match.line);
+            if (element) {
+                element.scrollIntoView({ block: 'center' });
+                return;
+            }
+            // The virtual list renders only the files near the view. Scroll to the file, then look for the line again.
+            if (tries === 0) section?.scrollIntoView({ block: 'start' });
+            if (++tries < 30) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    };
+
+    // A new search text goes to the first match.
+    useEffect(() => {
+        setMatchIndex(0);
+        if (matches[0]) reveal(matches[0]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [query, caseSensitive]);
+
+    const moveMatch = (step: 1 | -1) => {
+        if (!matches.length) return;
+        const next = (Math.min(matchIndex, matches.length - 1) + step + matches.length) % matches.length;
+        setMatchIndex(next);
+        reveal(matches[next]);
+    };
 
     useEffect(() => {
         if (!scrollTo) return;
@@ -260,6 +469,19 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
 
     return (
         <div className="files-stream">
+            {findOpen && (
+                <FindBar
+                    query={query}
+                    caseSensitive={caseSensitive}
+                    count={matches.length}
+                    index={Math.min(matchIndex, matches.length - 1)}
+                    focusNonce={findRequest ?? 0}
+                    onQuery={setQuery}
+                    onCaseSensitive={setCaseSensitive}
+                    onMove={moveMatch}
+                    onClose={() => setFindOpen(false)}
+                />
+            )}
             <div className="files-stream-toolbar">
                 <span className="files-stream-count">{viewedCount} of {files.length} viewed</span>
                 <span className="header-spacer" />
@@ -289,6 +511,7 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                                 <span className="stream-file-path" title={file.path}>
                                     {file.previousPath && file.previousPath !== file.path ? `${file.previousPath} → ` : ''}{file.path}
                                 </span>
+                                <CopyButton text={file.path} title="Copy the file path" size={13} className="icon-button stream-file-copy" />
                                 {count > 0 && <span className="comment-count"><MessageSquare size={12} strokeWidth={1.6} />{count}</span>}
                                 <span className="additions">+{file.additions}</span>
                                 <span className="deletions">−{file.deletions}</span>
@@ -304,9 +527,13 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                                     file={file}
                                     pending={review.pending.filter(comment => comment.path === file.path)}
                                     composer={composer?.path === file.path ? composer : undefined}
+                                    questions={questions.filter(question => question.path === file.path)}
+                                    highlight={findOpen && current?.path === file.path ? current : undefined}
                                     diffStyle={diffStyle}
                                     mode={mode}
                                     onComposer={next => setComposer(next ? { ...next, path: file.path } : undefined)}
+                                    onAsk={repo && ((at, text) => ask(file.path, at, text))}
+                                    onQuestion={onQuestion}
                                     onRefresh={onRefresh}
                                 />
                             )}

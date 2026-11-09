@@ -50,6 +50,10 @@ const api: ShipWardenApi = {
         refresh: () => ipcRenderer.invoke(IpcChannels.usageRefresh),
         onChanged: listener => subscribe<[ProviderUsage[]]>(IpcChannels.usageChanged, listener)
     },
+    ask: {
+        run: request => ipcRenderer.invoke(IpcChannels.askRun, request),
+        cancel: id => ipcRenderer.invoke(IpcChannels.askCancel, id)
+    },
     settings: {
         get: () => ipcRenderer.invoke(IpcChannels.settingsGet),
         update: change => ipcRenderer.invoke(IpcChannels.settingsUpdate, change),

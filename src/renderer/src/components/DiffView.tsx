@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { Bot } from 'lucide-react';
+import { Bot, LoaderCircle } from 'lucide-react';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, RepoTarget, ReviewThread } from '@shared/github';
 import { monaco } from '../editor/monaco';
 import { gitHubSeenKey } from '@shared/dashboard';
@@ -79,35 +79,140 @@ export function ThreadZone({ thread, onReply, onResolve, onSendToAgent }: {
     );
 }
 
-export function PendingZone({ comment, onRemove }: { comment: PendingComment; onRemove(): void }) {
+export function PendingZone({ comment, onRemove, onEdit }: { comment: PendingComment; onRemove(): void; onEdit?(body: string): void }) {
+    const [editing, setEditing] = useState(false);
+    const [text, setText] = useState(comment.body);
+    const save = () => {
+        if (!text.trim()) return;
+        onEdit?.(text.trim());
+        setEditing(false);
+    };
     return (
-        <div className="zone-card pending">
-            <div className="comment-author"><span className="tag">pending</span> goes out with your next review</div>
-            <div className="comment-body">{comment.body}</div>
-            <div className="thread-actions"><button className="link-button" onClick={onRemove}>Remove</button></div>
+        <div className={`zone-card pending${comment.fromAgent ? ' from-agent' : ''}`}>
+            <div className="comment-author">
+                <span className="tag">pending</span>
+                {comment.fromAgent && <span className="tag agent-tag"><Bot size={11} strokeWidth={1.8} /> agent draft</span>}
+                {' '}goes out as your comment with your next review
+            </div>
+            {editing ? (
+                <textarea
+                    autoFocus
+                    value={text}
+                    onChange={event => setText(event.target.value)}
+                    onKeyDown={event => {
+                        if (event.key === 'Escape') setEditing(false);
+                        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) save();
+                        event.stopPropagation();
+                    }}
+                />
+            ) : (
+                <Markdown className="comment-body" text={comment.body} />
+            )}
+            <div className="thread-actions">
+                {editing ? (
+                    <>
+                        <button className="link-button" onClick={() => setEditing(false)}>Cancel</button>
+                        <button className="link-button" disabled={!text.trim()} onClick={save}>Save</button>
+                    </>
+                ) : (
+                    onEdit && <button className="link-button" onClick={() => { setText(comment.body); setEditing(true); }}>Edit</button>
+                )}
+                <button className="link-button" onClick={onRemove}>Remove</button>
+            </div>
         </div>
     );
 }
 
-export function ComposerZone({ line, onAdd, onCancel }: { line: number; onAdd(body: string): void; onCancel(): void }) {
+type ComposerMode = 'comment' | 'ask';
+
+/**
+ * The box for a new review comment under a line. With `onAsk`, the box can also ask the agent a question about the lines.
+ * `canComment` false shows only the question mode, for example for a closed pull request.
+ */
+export function ComposerZone({ line, startLine = line, onAdd, onAsk, onCancel, canComment = true }: {
+    line: number;
+    startLine?: number;
+    onAdd(body: string): void;
+    onAsk?(question: string): void;
+    onCancel(): void;
+    canComment?: boolean;
+}) {
     const [text, setText] = useState('');
+    const [mode, setMode] = useState<ComposerMode>(canComment ? 'comment' : 'ask');
+    const lines = startLine === line ? `line ${line}` : `lines ${startLine}–${line}`;
+    const submit = () => {
+        const value = text.trim();
+        if (!value) return;
+        if (mode === 'ask') onAsk?.(value);
+        else onAdd(value);
+    };
     return (
-        <div className="zone-card composer">
+        <div className={`zone-card composer${mode === 'ask' ? ' ask' : ''}`}>
+            {onAsk && canComment && (
+                <div className="segmented compact composer-mode" role="radiogroup" aria-label="Comment or question">
+                    <button className={mode === 'comment' ? 'selected' : ''} onClick={() => setMode('comment')}>Comment</button>
+                    <button className={mode === 'ask' ? 'selected' : ''} onClick={() => setMode('ask')}><Bot size={12} strokeWidth={1.6} /> Ask agent</button>
+                </div>
+            )}
             <textarea
                 autoFocus
                 value={text}
-                placeholder={`Comment on line ${line}`}
+                placeholder={mode === 'ask' ? `Ask the agent about ${lines}` : `Comment on ${lines}`}
                 onChange={event => setText(event.target.value)}
                 onKeyDown={event => {
                     if (event.key === 'Escape') onCancel();
-                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && text.trim()) onAdd(text.trim());
+                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit();
                     // Monaco must not handle keys that the user types in the comment box.
                     event.stopPropagation();
                 }}
             />
             <div className="row-buttons">
                 <button className="button" onClick={onCancel}>Cancel</button>
-                <button className="button primary" disabled={!text.trim()} onClick={() => onAdd(text.trim())}>Add review comment</button>
+                <button className="button primary" disabled={!text.trim()} onClick={submit}>{mode === 'ask' ? 'Ask agent' : 'Add review comment'}</button>
+            </div>
+        </div>
+    );
+}
+
+/** A question to the agent about lines of a file, and its answer when it comes. */
+export interface AgentQuestion {
+    id: string;
+    path: string;
+    side: DiffSide;
+    startLine: number;
+    line: number;
+    question: string;
+    status: 'running' | 'done' | 'error';
+    agent?: string;
+    answer?: string;
+    error?: string;
+}
+
+/** Shows a question to the agent under its lines, with the answer or the error. The answer can become a pending comment. */
+export function QuestionZone({ question, onClose, onCancel, onRetry, onUseAsComment }: {
+    question: AgentQuestion;
+    onClose(): void;
+    onCancel(): void;
+    onRetry(): void;
+    onUseAsComment?(): void;
+}) {
+    return (
+        <div className="zone-card agent-question">
+            <div className="comment-author"><Bot size={12} strokeWidth={1.6} /> You asked {question.agent ?? 'the agent'}</div>
+            <div className="comment-body agent-question-text">{question.question}</div>
+            {question.status === 'running' && <div className="agent-question-wait"><LoaderCircle size={13} className="spin" /> The agent reads the code…</div>}
+            {question.status === 'done' && question.answer && <Markdown className="comment-body agent-answer" text={question.answer} />}
+            {question.status === 'error' && <div className="form-error">{question.error}</div>}
+            <div className="thread-actions">
+                {question.status === 'running' ? (
+                    <button className="link-button" onClick={onCancel}>Cancel</button>
+                ) : (
+                    <>
+                        {question.status === 'error' && <button className="link-button" onClick={onRetry}>Try again</button>}
+                        {question.status === 'done' && onUseAsComment && <button className="link-button" onClick={onUseAsComment}>Use as a pending comment</button>}
+                        <button className="link-button" onClick={onClose}>Close</button>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -273,7 +378,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
         }
         for (const comment of review.pending) {
             if (comment.path === file.path) {
-                addZone(comment.side, comment.line, <PendingZone comment={comment} onRemove={() => reviewStore.removePending(target, pr.number, comment)} />);
+                addZone(comment.side, comment.line, <PendingZone comment={comment} onRemove={() => reviewStore.removePending(target, pr.number, comment)} onEdit={body => reviewStore.updatePending(target, pr.number, comment, body)} />);
             }
         }
         if (composer) {

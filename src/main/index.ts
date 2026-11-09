@@ -13,7 +13,10 @@ import { claudeHookSettings, withAgentHooks, type HookSettingsPaths } from '@sha
 import { writeGeminiHookSettings } from './agents/gemini-settings';
 import { shellIntegrationEnv, writeZshIntegration, type ShellIntegration } from './agents/shell-integration';
 import { ShellAgents } from './agents/shell-agents';
+import { AskAgentRunner } from './agents/ask-agent';
+import { folderNote, printCommand, type AskAgentRequest, type AskAgentResult } from '@shared/ask-agent';
 import { writeFileSync } from 'fs';
+import { mkdir } from 'fs/promises';
 import { detectKind, FileService, resolveInside } from './files/file-service';
 import { createFileProtocolHandler } from './files/file-protocol';
 import { FILE_SCHEME } from '@shared/file-url';
@@ -43,7 +46,7 @@ import { SettingsStore } from './settings-store';
 import { SeenStore } from './seen-store';
 import { UsageService } from './usage/usage-service';
 import { which } from './lsp/servers';
-import { commandProgram, type AppSettings, type CommandCheck } from '@shared/settings';
+import { agentForRepo, commandProgram, type AppSettings, type CommandCheck } from '@shared/settings';
 import { activePalette, DEFAULT_APPEARANCE, type Appearance } from '@shared/themes';
 import { execFile } from 'child_process';
 import { RemoteDevices } from './remote/remote-devices';
@@ -322,6 +325,46 @@ const knownWorktree = async (worktree: unknown): Promise<string> => {
     if (knownWorktrees.has(value)) return value;
     throw new Error(`"${value}" is not a worktree of a project.`);
 };
+
+const askRunner = new AskAgentRunner();
+
+/** Returns the main worktree of a project repository whose "origin" remote is the GitHub repository. */
+async function localClone(repo: RepoRef): Promise<string | undefined> {
+    const repos = [...new Set((await projects.get()).projects.flatMap(project => project.repos))];
+    for (const root of repos) {
+        const ref = await reviewProviders.githubRepoFor(root).catch(() => null);
+        if (ref && ref.owner.toLowerCase() === repo.owner.toLowerCase() && ref.name.toLowerCase() === repo.name.toLowerCase()) {
+            return root;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * Asks an agent a question about a pull request in print mode (the "Ask agent" box of the Review view).
+ * The agent of the local clone applies, else the default agent. Without a local clone, the agent runs in an empty folder.
+ */
+async function askAgent(request: AskAgentRequest): Promise<AskAgentResult> {
+    await shellReady;
+    const repo = { owner: String(request?.repo?.owner ?? ''), name: String(request?.repo?.name ?? '') };
+    const clone = await localClone(repo);
+    const agent = agentForRepo(await settings.get(), clone);
+    const command = printCommand(agent.command);
+    if (!command) {
+        throw new Error(`ShipWarden can ask only Claude Code, Codex or Gemini CLI. The agent "${agent.name}" runs "${agent.command}". Select a different agent in Settings › Agents.`);
+    }
+    let cwd = clone;
+    if (!cwd) {
+        cwd = join(app.getPath('temp'), 'shipwarden-ask');
+        await mkdir(cwd, { recursive: true });
+    }
+    await networkReady;
+    const bundle = certificates.status().bundlePath;
+    // The note goes first, because the end of the prompt can say how to answer.
+    const prompt = `${folderNote(!!clone, String(request?.headRefOid ?? ''))}\n\n${String(request?.prompt ?? '')}`;
+    const answer = await askRunner.run(String(request?.id ?? ''), { command, prompt, cwd, env: bundle ? { NODE_EXTRA_CA_CERTS: bundle } : {} });
+    return { agent: agent.name, answer };
+}
 
 /**
  * The hook settings files of the agents. They are the same for each session.
@@ -608,6 +651,8 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.appInfo, () => ({ version: app.getVersion(), dataFolder: app.getPath('userData'), ptyHostLog }));
     ipcMain.handle(IpcChannels.usageGet, () => usage.get());
     ipcMain.handle(IpcChannels.usageRefresh, () => usage.refresh(true));
+    ipcMain.handle(IpcChannels.askRun, (_event, request: AskAgentRequest) => askAgent(request));
+    ipcMain.handle(IpcChannels.askCancel, (_event, id: string) => askRunner.cancel(String(id)));
     ipcMain.handle(IpcChannels.settingsGet, () => settings.get());
     ipcMain.handle(IpcChannels.settingsUpdate, async (_event, change: Partial<AppSettings>) => {
         const before = await settings.get();
@@ -967,4 +1012,5 @@ app.on('before-quit', () => {
     fileWatcher.dispose();
     lsp.stopAll();
     tasks.stopAll();
+    askRunner.cancelAll();
 });
