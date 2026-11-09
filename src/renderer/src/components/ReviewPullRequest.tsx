@@ -14,6 +14,7 @@ import { CopyButton } from './CopyButton';
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
 
 const TAB_KEY = 'shipwarden.reviewTab';
+const FILE_LIST_KEY = 'shipwarden.reviewFileList';
 
 interface Props {
     repo: RepoRef;
@@ -41,6 +42,15 @@ function readTab(): ReviewTab {
     }
 }
 
+/** True when the file list of the Files changed tab shows. It shows when no choice is saved. */
+function readFileListOpen(): boolean {
+    try {
+        return localStorage.getItem(FILE_LIST_KEY) !== 'hidden';
+    } catch {
+        return true;
+    }
+}
+
 function Tab({ id, current, icon, label, count, onSelect }: { id: ReviewTab; current: ReviewTab; icon: ReactNode; label: string; count?: number; onSelect(id: ReviewTab): void }) {
     return (
         <button role="tab" aria-selected={id === current} className={`pr-tab${id === current ? ' selected' : ''}`} onClick={() => onSelect(id)}>
@@ -63,6 +73,17 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
     const [findRequest, setFindRequest] = useState<number>();
     const review = useReviewState(repo, pr?.number);
     const sideWidth = usePanelWidth('shipwarden.width.reviewSide', 320, 220, 560);
+    const [fileListOpen, setFileListOpen] = useState(readFileListOpen);
+
+    const toggleFileList = () => {
+        const value = !fileListOpen;
+        setFileListOpen(value);
+        try {
+            localStorage.setItem(FILE_LIST_KEY, value ? 'shown' : 'hidden');
+        } catch {
+            // The choice stays for this session only.
+        }
+    };
 
     const selectTab = (value: ReviewTab) => {
         setTab(value);
@@ -252,31 +273,40 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
 
                 {tab === 'files' && (
                     <>
-                        <div className="pr-side pr-file-side">
-                            {fileError && <div className="form-error">{fileError}</div>}
-                            <section className="pr-section">
-                            <PullRequestFileList
-                                target={repo}
-                                pr={pr}
-                                files={files}
-                                selectedPath={current?.path}
-                                onOpen={target => openFile(target)}
-                                onError={setFileError}
-                            />
-                            </section>
-                        </div>
-                        <ResizeHandle panel={sideWidth} edge="right" label="Resize the file list" maxAvailable={sideMax} />
+                        {fileListOpen && (
+                            <>
+                                <div className="pr-side pr-file-side">
+                                    {fileError && <div className="form-error">{fileError}</div>}
+                                    <section className="pr-section">
+                                        <PullRequestFileList
+                                            target={repo}
+                                            pr={pr}
+                                            files={files}
+                                            selectedPath={current?.path}
+                                            onOpen={target => openFile(target)}
+                                            onError={setFileError}
+                                        />
+                                    </section>
+                                </div>
+                                <ResizeHandle panel={sideWidth} edge="right" label="Resize the file list" maxAvailable={sideMax} />
+                            </>
+                        )}
                         <div className="review-content">
-                            <PullRequestFilesStream
-                                key={`${repo.owner}/${repo.name}#${pr.number}`}
-                                target={repo}
-                                pr={pr}
-                                files={files}
-                                scrollTo={file && { path: file.file.path, nonce: file.nonce }}
-                                findRequest={findRequest}
-                                onRefresh={onRefresh}
-                                onError={setFileError}
-                            />
+                            {/* Without the file list, the error shows above the diffs. A click removes it. */}
+                            {!fileListOpen && fileError && <div className="error-banner" onClick={() => setFileError(undefined)}>{fileError}</div>}
+                            <div className="review-stream">
+                                <PullRequestFilesStream
+                                    key={`${repo.owner}/${repo.name}#${pr.number}`}
+                                    target={repo}
+                                    pr={pr}
+                                    files={files}
+                                    scrollTo={file && { path: file.file.path, nonce: file.nonce }}
+                                    findRequest={findRequest}
+                                    fileList={{ open: fileListOpen, toggle: toggleFileList }}
+                                    onRefresh={onRefresh}
+                                    onError={setFileError}
+                                />
+                            </div>
                         </div>
                     </>
                 )}
