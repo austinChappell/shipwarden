@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bot, Check, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, RefreshCw, TriangleAlert } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
-import type { BranchStatus, MergeMethod, PullRequest, PullRequestChange, PullRequestFile, RepoTarget, ReviewEvent, ReviewThread } from '@shared/github';
+import { hostLabel, type BranchStatus, type MergeMethod, type PullRequest, type PullRequestChange, type PullRequestFile, type RepoTarget, type ReviewEvent, type ReviewThread } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
@@ -67,7 +67,7 @@ function mergeBlocker(pr: PullRequest): string | undefined {
     if (pr.state !== 'OPEN') return 'The pull request is not open.';
     if (pr.isDraft) return 'The pull request is a draft.';
     if (pr.mergeable === 'CONFLICTING') return 'The branch has conflicts with the base branch.';
-    if (pr.mergeable === 'UNKNOWN') return 'GitHub is still checking whether the branch can merge.';
+    if (pr.mergeable === 'UNKNOWN') return `${hostLabel(pr.host)} is still checking whether the branch can merge.`;
     if (pr.mergeStateStatus === 'BLOCKED') return 'Branch rules block the merge, for example required reviews or checks.';
     if (pr.mergeStateStatus === 'BEHIND') return 'The branch is behind the base branch.';
     return undefined;
@@ -134,7 +134,28 @@ export function PullRequestFileList({ target, pr, files, selectedPath, onOpen, o
     );
 }
 
-const REVIEW_STATE_TEXT: Record<string, string> = { APPROVED: 'approved', CHANGES_REQUESTED: 'requested changes', COMMENTED: 'reviewed', DISMISSED: 'dismissed' };
+const REVIEW_STATE_TEXT: Record<string, string> = {
+    APPROVED: 'approved',
+    CHANGES_REQUESTED: 'requested changes',
+    COMMENTED: 'reviewed',
+    DISMISSED: 'dismissed',
+    APPROVED_WITH_SUGGESTIONS: 'approved with suggestions',
+    WAITING_FOR_AUTHOR: 'is waiting for the author',
+    REJECTED: 'rejected'
+};
+
+/** The review events of GitHub, in the order of the buttons. */
+const GITHUB_REVIEW_EVENTS: ReviewEvent[] = ['COMMENT', 'REQUEST_CHANGES', 'APPROVE'];
+
+/** The text of each review event in the confirmation and on its button. */
+const REVIEW_EVENT_TEXT: Record<ReviewEvent, { confirm: string; button: string }> = {
+    COMMENT: { confirm: 'comment on', button: 'Comment' },
+    REQUEST_CHANGES: { confirm: 'request changes on', button: 'Request changes' },
+    APPROVE: { confirm: 'approve', button: 'Approve' },
+    APPROVE_WITH_SUGGESTIONS: { confirm: 'approve with suggestions', button: 'Approve with suggestions' },
+    WAIT_FOR_AUTHOR: { confirm: 'wait for the author on', button: 'Wait for author' },
+    REJECT: { confirm: 'reject', button: 'Reject' }
+};
 
 interface ConversationItem {
     id: string;
@@ -149,7 +170,7 @@ function conversationOf(pr: PullRequest): ConversationItem[] {
     return [
         ...pr.issueComments.map(comment => ({ id: comment.id, author: comment.author?.login ?? null, body: comment.body, createdAt: comment.createdAt })),
         ...pr.reviews
-            .filter(review => review.body.trim() || review.state === 'APPROVED' || review.state === 'CHANGES_REQUESTED')
+            .filter(review => review.body.trim() || (review.state !== 'COMMENTED' && review.state !== 'DISMISSED'))
             .map(review => ({ id: review.id, author: review.author?.login ?? null, body: review.body, createdAt: review.submittedAt ?? '', state: review.state }))
     ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
@@ -202,18 +223,10 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         return <div className="panel-message">{error ?? (loading ? 'Loading the pull request…' : '')}</div>;
     }
     if (status === null) {
-        return <div className="panel-message">This worktree has no GitHub remote named "origin".</div>;
+        return <div className="panel-message">This worktree has no GitHub or Azure Repos remote named "origin".</div>;
     }
     if (!pr) {
-        const compareUrl = `https://github.com/${status.repo.owner}/${status.repo.name}/compare/${encodeURIComponent(status.branch)}?expand=1`;
-        return (
-            <div className="panel-message">
-                <p>No pull request for <code>{status.branch}</code>.</p>
-                <button className="button" onClick={event => openLink(compareUrl, event)}>
-                    Create on GitHub <ExternalLink {...ICON} />
-                </button>
-            </div>
-        );
+        return <CreatePullRequest target={target} status={status} onCreated={onRefresh} />;
     }
 
     const files = review.files;
@@ -226,9 +239,8 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         : pr.allowedMergeMethods.includes(pr.defaultMergeMethod) ? pr.defaultMergeMethod : pr.allowedMergeMethods[0];
 
     const submit = async (event: ReviewEvent) => {
-        const labels: Record<ReviewEvent, string> = { APPROVE: 'approve', REQUEST_CHANGES: 'request changes on', COMMENT: 'comment on' };
         const pending = review.pending.length ? ` with ${review.pending.length} inline comment(s)` : '';
-        if (!(await confirmDialog({ title: `Submit a review to GitHub: ${labels[event]} pull request #${pr.number}${pending}?`, confirmLabel: 'Submit review' }))) {
+        if (!(await confirmDialog({ title: `Submit a review to ${hostLabel(pr.host)}: ${REVIEW_EVENT_TEXT[event].confirm} pull request #${pr.number}${pending}?`, confirmLabel: 'Submit review' }))) {
             return;
         }
         run(async () => {
@@ -306,7 +318,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     <div className="pr-title-row">
                         <StateBadge pr={pr} />
                         <ConflictBadge pr={pr} />
-                        <button className="link-button" title="Open on GitHub" onClick={event => openLink(pr.url, event)}>
+                        <button className="link-button" title={`Open on ${hostLabel(pr.host)}`} onClick={event => openLink(pr.url, event)}>
                             #{pr.number} <ExternalLink size={12} strokeWidth={1.6} />
                         </button>
                         <button className="icon-button pr-refresh" title="Refresh" onClick={() => onRefresh()}>
@@ -449,13 +461,15 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     />
                     {review.pending.length > 0 && <div className="panel-note">{review.pending.length} inline comment(s) go out with this review.</div>}
                     <div className="row-buttons">
-                        <button className="button" disabled={busy || (!body.trim() && review.pending.length === 0)} onClick={() => submit('COMMENT')}>Comment</button>
-                        {!pr.viewerDidAuthor && (
-                            <>
-                                <button className="button" disabled={busy} onClick={() => submit('REQUEST_CHANGES')}>Request changes</button>
-                                <button className="button approve" disabled={busy} onClick={() => submit('APPROVE')}><Check size={14} strokeWidth={2} />Approve</button>
-                            </>
-                        )}
+                        {(pr.reviewEvents ?? GITHUB_REVIEW_EVENTS)
+                            .filter(event => event === 'COMMENT' || !pr.viewerDidAuthor)
+                            .map(event => event === 'COMMENT' ? (
+                                <button key={event} className="button" disabled={busy || (!body.trim() && review.pending.length === 0)} onClick={() => submit(event)}>Comment</button>
+                            ) : event === 'APPROVE' ? (
+                                <button key={event} className="button approve" disabled={busy} onClick={() => submit(event)}><Check size={14} strokeWidth={2} />Approve</button>
+                            ) : (
+                                <button key={event} className="button" disabled={busy} onClick={() => submit(event)}>{REVIEW_EVENT_TEXT[event].button}</button>
+                            ))}
                     </div>
                     {pr.autoMerge ? (
                         <div className="auto-merge-row">
@@ -511,6 +525,59 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     <div className="row-buttons">
                         <button className="button" disabled={busy} onClick={() => setState('open')}>
                             <GitPullRequest size={14} strokeWidth={1.8} />Reopen pull request
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/** The form that creates a pull request for the branch of a worktree, on GitHub or Azure DevOps. */
+function CreatePullRequest({ target, status, onCreated }: { target: RepoTarget; status: BranchStatus; onCreated(): Promise<void> }) {
+    const [title, setTitle] = useState(status.branch);
+    const [body, setBody] = useState('');
+    const [draft, setDraft] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string>();
+    const host = hostLabel(status.host);
+    const webUrl = status.createUrl ?? `https://github.com/${status.repo.owner}/${status.repo.name}/compare/${encodeURIComponent(status.branch)}?expand=1`;
+
+    const create = async () => {
+        if (typeof target !== 'string' || !title.trim()) return;
+        if (!(await confirmDialog({ title: `Create a ${draft ? 'draft ' : ''}pull request on ${host} for ${status.branch}?`, confirmLabel: 'Create pull request' }))) {
+            return;
+        }
+        setBusy(true);
+        setError(undefined);
+        try {
+            await window.shipwarden.github.createPullRequest(target, { title: title.trim(), body, draft });
+            await onCreated();
+        } catch (err) {
+            setError(errorText(err));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div className="panel-message pr-create">
+            <p>No pull request for <code>{status.branch}</code>. Push the branch before you create one.</p>
+            {typeof target === 'string' && (
+                <div className="pr-create-form">
+                    <input value={title} placeholder="Title" onChange={event => setTitle(event.target.value)} disabled={busy} />
+                    <textarea className="review-body" value={body} placeholder="Description" onChange={event => setBody(event.target.value)} disabled={busy} />
+                    <label className="scope-option">
+                        <input type="checkbox" checked={draft} onChange={event => setDraft(event.target.checked)} disabled={busy} />
+                        Draft
+                    </label>
+                    {error && <div className="form-error">{error}</div>}
+                    <div className="row-buttons">
+                        <button className="button approve" disabled={busy || !title.trim()} onClick={create}>
+                            <GitPullRequest {...ICON} />Create pull request
+                        </button>
+                        <button className="button" onClick={event => openLink(webUrl, event)}>
+                            Create on {host} <ExternalLink {...ICON} />
                         </button>
                     </div>
                 </div>

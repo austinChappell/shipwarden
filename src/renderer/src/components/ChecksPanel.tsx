@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Bot, CircleCheck, CircleDot, CircleMinus, CircleX, ExternalLink, LoaderCircle, Play, RefreshCw, RotateCw } from 'lucide-react';
-import { summarizeChecks, type BranchStatus, type CheckRun, type RepoTarget, type Workflow } from '@shared/github';
+import { hostLabel, summarizeChecks, type BranchStatus, type CheckRun, type RepoTarget, type Workflow } from '@shared/github';
 import { errorText, formatDuration } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
@@ -90,7 +90,7 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
         return <div className="panel-message">Loading…</div>;
     }
     if (status === null) {
-        return <div className="panel-message">This worktree has no GitHub remote named "origin".</div>;
+        return <div className="panel-message">This worktree has no GitHub or Azure Repos remote named "origin".</div>;
     }
 
     const failedRuns = [...new Set((checks ?? []).filter(check => check.isActions && check.runId && FAILED.has(check.conclusion ?? '')).map(check => check.runId!))];
@@ -180,7 +180,7 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                                     </button>
                                 )}
                                 {check.url && (
-                                    <button className="icon-button" title="Open on GitHub" onClick={event => { event.stopPropagation(); openLink(check.url!, event); }}>
+                                    <button className="icon-button" title={`Open on ${hostLabel(status.host)}`} onClick={event => { event.stopPropagation(); openLink(check.url!, event); }}>
                                         <ExternalLink size={14} strokeWidth={1.6} />
                                     </button>
                                 )}
