@@ -5,7 +5,8 @@ import type { AppKeyAction, ShortcutAction } from './shortcuts';
 import type { WorkflowRun } from './pipelines';
 import type { ContentSearchResult, FileEntry, FilesChangedEvent } from './files';
 import type { FileInfo } from './file-types';
-import type { BranchStatus, BranchSummary, CheckRun, FileVersions, GitHubOwner, JobProgress, GitHubRepoInfo, MergeMethod, PendingComment, PullRequest, PullRequestCandidates, PullRequestChange, PullRequestFile, PullRequestFilter, PullRequestSummary, RepoRef, RepoTarget, ReviewEvent, Workflow } from './github';
+import type { BranchStatus, BranchSummary, CheckRun, FileVersions, GitHubOwner, JobProgress, GitHubRepoInfo, MergeMethod, NewPullRequest, PendingComment, PullRequest, PullRequestCandidates, PullRequestChange, PullRequestFile, PullRequestFilter, PullRequestSummary, RepoRef, RepoTarget, ReviewEvent, Workflow } from './github';
+import type { AzureTokenStatus } from './azure-devops';
 import type { LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentUpdate } from './agents';
@@ -178,9 +179,15 @@ export interface ShipWardenApi {
         unwatch(root: string): void;
         onChanged(listener: (event: FilesChangedEvent) => void): () => void;
     };
+    /**
+     * Pull requests, reviews and pipelines. The name is "github" for history. A worktree with an Azure Repos remote
+     * goes to Azure DevOps. All other targets go to GitHub.
+     */
     github: {
-        /** Returns the branch, its pull request and the commit for checks. Returns null when the worktree has no GitHub remote. */
+        /** Returns the branch, its pull request and the commit for checks. Returns null when the worktree has no GitHub or Azure Repos remote. */
         status(root: string): Promise<BranchStatus | null>;
+        /** Creates a pull request from the branch of the worktree. Returns its number. */
+        createPullRequest(root: string, request: NewPullRequest): Promise<number>;
         files(target: RepoTarget, number: number): Promise<PullRequestFile[]>;
         /** Returns the open pull requests of the repository by head branch, with their CI state. */
         branchSummaries(repoPath: string): Promise<Record<string, BranchSummary>>;
@@ -229,6 +236,16 @@ export interface ShipWardenApi {
         dashboardComments(owners: string[] | 'all' | undefined): Promise<PullRequestCommentItem[]>;
         /** Opens a web page (http or https) in the default browser. */
         openInBrowser(url: string): void;
+    };
+    azureDevOps: {
+        /** Tells if a token is saved and where the next request gets its token. */
+        tokenStatus(): Promise<AzureTokenStatus>;
+        /** Saves a personal access token, encrypted with the macOS keychain. */
+        saveToken(token: string): Promise<AzureTokenStatus>;
+        /** Removes the saved personal access token. */
+        clearToken(): Promise<AzureTokenStatus>;
+        /** Sends a request to an organization with the current token. Returns the name of the user of the token. */
+        test(organization: string): Promise<string>;
     };
     notes: {
         /** The folder of the notes, ~/.shipwarden/notes. */
@@ -443,6 +460,11 @@ export const IpcChannels = {
     githubPullRequests: 'github:pullRequests',
     githubDashboardPullRequests: 'github:dashboardPullRequests',
     githubDashboardComments: 'github:dashboardComments',
+    githubCreatePullRequest: 'github:createPullRequest',
+    azureTokenStatus: 'azure:tokenStatus',
+    azureSaveToken: 'azure:saveToken',
+    azureClearToken: 'azure:clearToken',
+    azureTest: 'azure:test',
     notesFolder: 'notes:folder',
     notesList: 'notes:list',
     notesFolders: 'notes:folders',

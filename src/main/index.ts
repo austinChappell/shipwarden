@@ -3,7 +3,12 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, shell
 import { IpcChannels, type ConfirmRequest, type ContextMenuItem, type NotificationRequest } from '@shared/api';
 import type { CreateTerminalOptions } from '@shared/terminal';
 import type { CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult } from '@shared/worktrees';
-import type { MergeMethod, PendingComment, PullRequestChange, PullRequestFile, PullRequestFilter, RepoRef, RepoTarget, ReviewEvent } from '@shared/github';
+import type { MergeMethod, NewPullRequest, PendingComment, PullRequestChange, PullRequestFile, PullRequestFilter, RepoRef, RepoTarget, ReviewEvent } from '@shared/github';
+import type { AzureTokenStatus } from '@shared/azure-devops';
+import { AzureDevOpsClient } from './azure/azure-client';
+import { AzureCredentials } from './azure/azure-credentials';
+import { AzureDevOpsService } from './azure/azure-service';
+import { GitHubHost, SourceHosts } from './source-host';
 import type { ConnectionChange, TaskLink } from '@shared/tasks';
 import * as os from 'os';
 import { removeAgentSessionVariables } from './agent-environment';
@@ -110,6 +115,17 @@ async function repoOf(target: RepoTarget): Promise<RepoRef> {
         throw new Error('The "origin" remote of this worktree is not a GitHub repository.');
     }
     return repo;
+}
+
+/** The Azure DevOps token. The client uses the same trusted certificates as the GitHub client (`networkReady`). */
+const azureCredentials = new AzureCredentials(join(app.getPath('userData'), 'source-host-secrets.json'));
+const azureClient = new AzureDevOpsClient({ ready: networkReady, savedToken: () => azureCredentials.token() });
+const azure = new AzureDevOpsService(azureClient);
+/** Selects GitHub or Azure DevOps for each pull request and pipeline call. */
+const hosts = new SourceHosts(new GitHubHost(github, repoOf), [azure]);
+
+async function azureTokenStatus(): Promise<AzureTokenStatus> {
+    return { saved: !!(await azureCredentials.token()), source: await azureClient.tokenSource() };
 }
 
 const tasks = new TaskHost({
@@ -252,7 +268,7 @@ const remoteSnapshot = new RemoteSnapshotBuilder({
     worktrees: repo => worktrees.list(repo),
     settings: () => settings.get(),
     taskLinks: () => tasks.allLinks(),
-    pullRequests: repo => github.branchSummaries(repo),
+    pullRequests: async repo => (await hosts.for(repo)).branchSummaries(repo),
     sessions: terminalSessions
 });
 
@@ -271,7 +287,7 @@ const remote = new RemoteServer({
         write: (id, data) => terminals.write(id, data),
         approvePullRequest: async (worktreePath, number, headSha, body) => {
             const worktree = await knownWorktree(worktreePath);
-            await github.submitReview(await repoOf(worktree), number, headSha, 'APPROVE', body, []);
+            await (await hosts.for(worktree)).submitReview(worktree, number, headSha, 'APPROVE', body, []);
             remoteSnapshot.invalidate();
         },
         onStatusChanged: () => mainWindow?.webContents.send(IpcChannels.remoteChanged)
@@ -494,38 +510,71 @@ function registerIpc(): void {
     ipcMain.on(IpcChannels.filesWatch, (_event, root: string) => fileWatcher.start(root));
     ipcMain.on(IpcChannels.filesUnwatch, (_event, root: string) => fileWatcher.stop(root));
 
-    ipcMain.handle(IpcChannels.githubStatus, (_event, root: string) => github.branchStatus(root));
-    ipcMain.handle(IpcChannels.githubBranchSummaries, (_event, repoPath: string) => github.branchSummaries(repoPath));
-    ipcMain.handle(IpcChannels.githubFiles, async (_event, target: RepoTarget, number: number) => github.pullRequestFiles(await repoOf(target), number));
+    // Each call goes to the host of its target: Azure DevOps for a worktree with an Azure Repos remote, else GitHub.
+    const host = (target: RepoTarget) => hosts.for(target);
+    ipcMain.handle(IpcChannels.githubStatus, (_event, root: string) => hosts.branchStatus(root));
+    ipcMain.handle(IpcChannels.githubBranchSummaries, async (_event, repoPath: string) => (await host(repoPath)).branchSummaries(repoPath));
+    ipcMain.handle(IpcChannels.githubCreatePullRequest, async (_event, root: string, request: NewPullRequest) =>
+        (await host(root)).createPullRequest(root, {
+            title: String(request?.title ?? '').trim(),
+            body: String(request?.body ?? ''),
+            base: typeof request?.base === 'string' && request.base ? request.base : undefined,
+            draft: request?.draft === true
+        }));
+    ipcMain.handle(IpcChannels.githubFiles, async (_event, target: RepoTarget, number: number) => (await host(target)).pullRequestFiles(target, number));
     ipcMain.handle(IpcChannels.githubFileVersions, async (_event, target: RepoTarget, file: PullRequestFile, baseSha: string, headSha: string) =>
-        github.fileVersions(await repoOf(target), file, baseSha, headSha));
+        (await host(target)).fileVersions(target, file, baseSha, headSha));
     ipcMain.handle(IpcChannels.githubSubmitReview, async (_event, target: RepoTarget, number: number, headSha: string, reviewEvent: ReviewEvent, body: string, comments: PendingComment[]) =>
-        github.submitReview(await repoOf(target), number, headSha, reviewEvent, body, comments));
+        (await host(target)).submitReview(target, number, headSha, reviewEvent, body, comments));
     ipcMain.handle(IpcChannels.githubReply, async (_event, target: RepoTarget, number: number, commentId: number, body: string) =>
-        github.replyToComment(await repoOf(target), number, commentId, body));
-    ipcMain.handle(IpcChannels.githubSetThreadResolved, (_event, threadId: string, resolved: boolean) => github.setThreadResolved(threadId, resolved));
+        (await host(target)).replyToComment(target, number, commentId, body));
+    ipcMain.handle(IpcChannels.githubSetThreadResolved, (_event, threadId: string, resolved: boolean) => hosts.forId(threadId).setThreadResolved(threadId, resolved));
     ipcMain.handle(IpcChannels.githubMerge, async (_event, target: RepoTarget, number: number, headSha: string, method: MergeMethod) =>
-        github.merge(await repoOf(target), number, headSha, method));
-    ipcMain.handle(IpcChannels.githubChecks, async (_event, target: RepoTarget, sha: string) => github.checks(await repoOf(target), sha));
-    ipcMain.handle(IpcChannels.githubJobProgress, async (_event, target: RepoTarget, jobId: number) => github.jobProgress(await repoOf(target), Number(jobId)));
-    ipcMain.handle(IpcChannels.githubJobLog, async (_event, target: RepoTarget, jobId: number) => github.jobLog(await repoOf(target), jobId));
-    ipcMain.handle(IpcChannels.githubSaveJobLog, async (_event, target: RepoTarget, jobId: number) => github.saveJobLog(await repoOf(target), jobId));
-    ipcMain.handle(IpcChannels.githubRerunJob, async (_event, target: RepoTarget, jobId: number) => github.rerunJob(await repoOf(target), jobId));
-    ipcMain.handle(IpcChannels.githubRerunFailedJobs, async (_event, target: RepoTarget, runId: number) => github.rerunFailedJobs(await repoOf(target), runId));
-    ipcMain.handle(IpcChannels.githubWorkflows, async (_event, target: RepoTarget, ref: string) => github.workflows(await repoOf(target), ref));
+        (await host(target)).merge(target, number, headSha, method));
+    ipcMain.handle(IpcChannels.githubChecks, async (_event, target: RepoTarget, sha: string) => (await host(target)).checks(target, sha));
+    ipcMain.handle(IpcChannels.githubJobProgress, async (_event, target: RepoTarget, jobId: number) => (await host(target)).jobProgress(target, Number(jobId)));
+    ipcMain.handle(IpcChannels.githubJobLog, async (_event, target: RepoTarget, jobId: number) => (await host(target)).jobLog(target, jobId));
+    ipcMain.handle(IpcChannels.githubSaveJobLog, async (_event, target: RepoTarget, jobId: number) => (await host(target)).saveJobLog(target, jobId));
+    ipcMain.handle(IpcChannels.githubRerunJob, async (_event, target: RepoTarget, jobId: number) => (await host(target)).rerunJob(target, jobId));
+    ipcMain.handle(IpcChannels.githubRerunFailedJobs, async (_event, target: RepoTarget, runId: number) => (await host(target)).rerunFailedJobs(target, runId));
+    ipcMain.handle(IpcChannels.githubWorkflows, async (_event, target: RepoTarget, ref: string) => (await host(target)).workflows(target, ref));
     ipcMain.handle(IpcChannels.githubDispatchWorkflow, async (_event, target: RepoTarget, workflowId: number, ref: string, inputs?: Record<string, string>) =>
-        github.dispatchWorkflow(await repoOf(target), workflowId, ref, inputs && typeof inputs === 'object' ? inputs : undefined));
+        (await host(target)).dispatchWorkflow(target, workflowId, ref, inputs && typeof inputs === 'object' ? inputs : undefined));
     ipcMain.handle(IpcChannels.githubWorkflowRuns, async (_event, target: RepoTarget, workflowId?: number) =>
-        github.workflowRuns(await repoOf(target), typeof workflowId === 'number' ? workflowId : undefined));
-    ipcMain.handle(IpcChannels.githubRunJobs, async (_event, target: RepoTarget, runId: number) => github.runJobs(await repoOf(target), Number(runId)));
-    ipcMain.handle(IpcChannels.githubCancelRun, async (_event, target: RepoTarget, runId: number) => github.cancelRun(await repoOf(target), Number(runId)));
-    ipcMain.handle(IpcChannels.githubRerunRun, async (_event, target: RepoTarget, runId: number) => github.rerunRun(await repoOf(target), Number(runId)));
-    ipcMain.handle(IpcChannels.githubBranches, async (_event, target: RepoTarget) => github.branches(await repoOf(target)));
-    ipcMain.handle(IpcChannels.githubPullRequest, async (_event, target: RepoTarget, number: number) => github.pullRequest(await repoOf(target), number));
-    ipcMain.handle(IpcChannels.githubSetFileViewed, (_event, pullRequestId: string, path: string, viewed: boolean) => github.setFileViewed(pullRequestId, path, viewed));
-    ipcMain.handle(IpcChannels.githubPullRequestCandidates, async (_event, target: RepoTarget) => github.pullRequestCandidates(await repoOf(target)));
+        (await host(target)).workflowRuns(target, typeof workflowId === 'number' ? workflowId : undefined));
+    ipcMain.handle(IpcChannels.githubRunJobs, async (_event, target: RepoTarget, runId: number) => (await host(target)).runJobs(target, Number(runId)));
+    ipcMain.handle(IpcChannels.githubCancelRun, async (_event, target: RepoTarget, runId: number) => (await host(target)).cancelRun(target, Number(runId)));
+    ipcMain.handle(IpcChannels.githubRerunRun, async (_event, target: RepoTarget, runId: number) => (await host(target)).rerunRun(target, Number(runId)));
+    ipcMain.handle(IpcChannels.githubBranches, async (_event, target: RepoTarget) => (await host(target)).branches(target));
+    ipcMain.handle(IpcChannels.githubPullRequest, async (_event, target: RepoTarget, number: number) => (await host(target)).pullRequest(target, number));
+    ipcMain.handle(IpcChannels.githubSetFileViewed, (_event, pullRequestId: string, path: string, viewed: boolean) =>
+        hosts.forId(pullRequestId).setFileViewed(pullRequestId, path, viewed));
+    ipcMain.handle(IpcChannels.githubPullRequestCandidates, async (_event, target: RepoTarget) => (await host(target)).pullRequestCandidates(target));
     ipcMain.handle(IpcChannels.githubChangePullRequest, async (_event, target: RepoTarget, number: number, change: PullRequestChange) =>
-        github.changePullRequest(await repoOf(target), number, change));
+        (await host(target)).changePullRequest(target, number, change));
+    ipcMain.handle(IpcChannels.azureTokenStatus, () => azureTokenStatus());
+    ipcMain.handle(IpcChannels.azureSaveToken, async (_event, token: string) => {
+        if (typeof token !== 'string' || !token.trim()) {
+            throw new Error('The token is empty.');
+        }
+        await azureCredentials.save(token);
+        azureClient.reset();
+        return azureTokenStatus();
+    });
+    ipcMain.handle(IpcChannels.azureClearToken, async () => {
+        await azureCredentials.clear();
+        azureClient.reset();
+        return azureTokenStatus();
+    });
+    ipcMain.handle(IpcChannels.azureTest, async (_event, organization: string) => {
+        const name = String(organization ?? '').trim();
+        if (!name) {
+            throw new Error('Type the name of the organization.');
+        }
+        const data = await azureClient.request<{ authenticatedUser?: { providerDisplayName?: string } }>(
+            'GET', `https://dev.azure.com/${encodeURIComponent(name)}/_apis/connectionData`);
+        return data.authenticatedUser?.providerDisplayName ?? 'unknown user';
+    });
     ipcMain.handle(IpcChannels.githubOwners, () => github.owners());
     ipcMain.handle(IpcChannels.githubRepositories, (_event, owners?: string[]) => github.repositories(owners));
     ipcMain.handle(IpcChannels.githubDashboardPullRequests, (_event, owners: string[] | 'all' | undefined) => github.dashboardPullRequests(owners));
@@ -637,8 +686,12 @@ function registerIpc(): void {
     });
     ipcMain.handle(IpcChannels.networkTest, async () => {
         await networkReady;
-        const hosts = [{ name: 'GitHub', url: 'https://api.github.com/' }, { name: 'ClickUp', url: 'https://api.clickup.com/' }];
-        return Promise.all(hosts.map(async host => {
+        const targets = [
+            { name: 'GitHub', url: 'https://api.github.com/' },
+            { name: 'ClickUp', url: 'https://api.clickup.com/' },
+            { name: 'Azure DevOps', url: 'https://dev.azure.com/' }
+        ];
+        return Promise.all(targets.map(async host => {
             try {
                 // Any HTTP answer shows that the TLS connection works. The status code does not matter.
                 await fetch(host.url, { method: 'HEAD', signal: AbortSignal.timeout(10_000) });

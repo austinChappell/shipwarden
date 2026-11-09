@@ -1,0 +1,97 @@
+{
+  "count": 4,
+  "value": [
+    {
+      "id": 101,
+      "publishedDate": "2026-11-02T11:00:00.000Z",
+      "lastUpdatedDate": "2026-11-02T11:30:00.000Z",
+      "status": "active",
+      "threadContext": {
+        "filePath": "/src/cart/Cart.tsx",
+        "rightFileStart": { "line": 42, "offset": 1 },
+        "rightFileEnd": { "line": 42, "offset": 20 }
+      },
+      "comments": [
+        {
+          "id": 1,
+          "parentCommentId": 0,
+          "author": { "id": "aa1", "displayName": "Ana Diaz", "uniqueName": "ana@contoso.com" },
+          "content": "Use the shared price formatter here.",
+          "publishedDate": "2026-11-02T11:00:00.000Z",
+          "commentType": "text"
+        },
+        {
+          "id": 2,
+          "parentCommentId": 1,
+          "author": { "id": "d6245f20-2af8-44f4-9451-8107cb2767db", "displayName": "Norman Paulk", "uniqueName": "norman@contoso.com" },
+          "content": "Done.",
+          "publishedDate": "2026-11-02T11:30:00.000Z",
+          "commentType": "text"
+        },
+        {
+          "id": 3,
+          "parentCommentId": 1,
+          "author": { "id": "aa1", "displayName": "Ana Diaz", "uniqueName": "ana@contoso.com" },
+          "content": "deleted text",
+          "publishedDate": "2026-11-02T11:40:00.000Z",
+          "commentType": "text",
+          "isDeleted": true
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "publishedDate": "2026-11-02T12:00:00.000Z",
+      "status": "fixed",
+      "threadContext": {
+        "filePath": "/src/cart/old.ts",
+        "leftFileStart": { "line": 7, "offset": 1 },
+        "leftFileEnd": { "line": 7, "offset": 9 },
+        "rightFileStart": null,
+        "rightFileEnd": null
+      },
+      "comments": [
+        {
+          "id": 1,
+          "parentCommentId": 0,
+          "author": { "id": "cc3", "displayName": "Chen Li", "uniqueName": "chen@contoso.com" },
+          "content": "Why remove this?",
+          "publishedDate": "2026-11-02T12:00:00.000Z",
+          "commentType": "text"
+        }
+      ]
+    },
+    {
+      "id": 103,
+      "publishedDate": "2026-11-02T10:30:00.000Z",
+      "status": "active",
+      "threadContext": null,
+      "comments": [
+        {
+          "id": 1,
+          "parentCommentId": 0,
+          "author": { "id": "cc3", "displayName": "Chen Li", "uniqueName": "chen@contoso.com" },
+          "content": "Please add a test for the empty cart.",
+          "publishedDate": "2026-11-02T10:30:00.000Z",
+          "commentType": "text"
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "publishedDate": "2026-11-02T10:20:00.000Z",
+      "status": "unknown",
+      "properties": { "CodeReviewThreadType": { "$type": "System.String", "$value": "VoteUpdate" } },
+      "comments": [
+        {
+          "id": 1,
+          "parentCommentId": 0,
+          "author": { "id": "aa1", "displayName": "Ana Diaz", "uniqueName": "ana@contoso.com" },
+          "content": "Ana Diaz voted 10",
+          "publishedDate": "2026-11-02T10:20:00.000Z",
+          "commentType": "system"
+        }
+      ]
+    }
+  ]
+}

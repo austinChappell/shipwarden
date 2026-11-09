@@ -1,0 +1,17 @@
+{
+  "count": 2,
+  "value": [
+    {
+      "id": 1,
+      "sourceRefCommit": { "commitId": "0f3c1a2b9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b" },
+      "targetRefCommit": { "commitId": "f47bbc106853afe3c1b07a81754bce5f4b8dbf62" },
+      "commonRefCommit": { "commitId": "e1d2c3b4a5968778695a4b3c2d1e0f9a8b7c6d5e" }
+    },
+    {
+      "id": 2,
+      "sourceRefCommit": { "commitId": "b60280bc6e62e2f880f1b63c1e24987664d3bda3" },
+      "targetRefCommit": { "commitId": "f47bbc106853afe3c1b07a81754bce5f4b8dbf62" },
+      "commonRefCommit": { "commitId": "e1d2c3b4a5968778695a4b3c2d1e0f9a8b7c6d5e" }
+    }
+  ]
+}

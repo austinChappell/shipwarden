@@ -121,7 +121,14 @@ const api: ShipWardenApi = {
         pullRequests: (repo, filter, query) => ipcRenderer.invoke(IpcChannels.githubPullRequests, repo, filter, query),
         dashboardPullRequests: owners => ipcRenderer.invoke(IpcChannels.githubDashboardPullRequests, owners),
         dashboardComments: owners => ipcRenderer.invoke(IpcChannels.githubDashboardComments, owners),
-        openInBrowser: url => ipcRenderer.send(IpcChannels.githubOpenInBrowser, url)
+        openInBrowser: url => ipcRenderer.send(IpcChannels.githubOpenInBrowser, url),
+        createPullRequest: (root, request) => ipcRenderer.invoke(IpcChannels.githubCreatePullRequest, root, request)
+    },
+    azureDevOps: {
+        tokenStatus: () => ipcRenderer.invoke(IpcChannels.azureTokenStatus),
+        saveToken: token => ipcRenderer.invoke(IpcChannels.azureSaveToken, token),
+        clearToken: () => ipcRenderer.invoke(IpcChannels.azureClearToken),
+        test: organization => ipcRenderer.invoke(IpcChannels.azureTest, organization)
     },
     notes: {
         folder: () => ipcRenderer.invoke(IpcChannels.notesFolder),

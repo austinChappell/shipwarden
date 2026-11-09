@@ -1,0 +1,17 @@
+{
+  "id": "8c8e4f1c-0000-0000-0000-000000000000",
+  "changeId": 12,
+  "records": [
+    { "id": "s1", "parentId": null, "type": "Stage", "name": "Build", "state": "inProgress", "result": null, "order": 1 },
+    { "id": "p1", "parentId": "s1", "type": "Phase", "name": "Build", "state": "inProgress", "result": null, "order": 1 },
+    { "id": "j2", "parentId": "p1", "type": "Job", "name": "Test", "state": "pending", "result": null, "order": 2, "log": null },
+    { "id": "j1", "parentId": "p1", "type": "Job", "name": "Compile", "state": "completed", "result": "succeeded", "order": 1,
+      "startTime": "2026-11-02T11:28:05Z", "finishTime": "2026-11-02T11:29:00Z", "log": { "id": 12, "url": "https://dev.azure.com/x/logs/12" } },
+    { "id": "t2", "parentId": "j1", "type": "Task", "name": "npm ci", "state": "completed", "result": "succeeded", "order": 2,
+      "startTime": "2026-11-02T11:28:10Z", "finishTime": "2026-11-02T11:28:40Z", "log": { "id": 4 } },
+    { "id": "t1", "parentId": "j1", "type": "Task", "name": "Checkout shop@feat/cart", "state": "completed", "result": "succeeded", "order": 1,
+      "startTime": "2026-11-02T11:28:05Z", "finishTime": "2026-11-02T11:28:09Z", "log": { "id": 3 } },
+    { "id": "t3", "parentId": "j2", "type": "Task", "name": "npm test", "state": "pending", "result": null, "order": 1 },
+    { "id": "c1", "parentId": "s1", "type": "Checkpoint", "name": "Checkpoint", "state": "completed", "result": "succeeded", "order": 0 }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "count": 2,
+  "value": [
+    {
+      "id": 1,
+      "state": "succeeded",
+      "description": "Sonar passed",
+      "context": { "name": "quality-gate", "genre": "sonarqube" },
+      "creationDate": "2026-11-02T11:30:00Z",
+      "updatedDate": "2026-11-02T11:31:00Z",
+      "targetUrl": "https://sonar.contoso.com/dashboard?id=shop"
+    },
+    {
+      "id": 2,
+      "state": "pending",
+      "context": { "name": "deploy-preview" },
+      "creationDate": "2026-11-02T11:32:00Z"
+    }
+  ]
+}
