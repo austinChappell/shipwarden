@@ -10,7 +10,7 @@ function fakeTerminal(overrides: Record<string, unknown> = {}) {
         viewportY: 3,
         scrollbarOpacity: 0.5,
         wasmTerm: { id: 'wasm' },
-        renderer: { render: vi.fn() },
+        renderer: { canvas: { width: 1536, height: 3120 }, render: vi.fn() },
         startRenderLoop: vi.fn(function (this: { animationFrameId?: number }) {
             this.animationFrameId = 8;
         }),
@@ -27,6 +27,18 @@ describe('render loop', () => {
         expect(cancel).toHaveBeenCalledWith(7);
         expect(terminal.animationFrameId).toBeUndefined();
         expect(isRenderingPaused(terminal)).toBe(true);
+    });
+
+    it('releases the canvas of a stopped terminal', () => {
+        const terminal = fakeTerminal();
+        pauseRendering(terminal, vi.fn());
+        expect(terminal.renderer.canvas).toEqual({ width: 0, height: 0 });
+    });
+
+    it('does not change the canvas of a terminal that it cannot stop', () => {
+        const terminal = fakeTerminal({ startRenderLoop: undefined });
+        pauseRendering(terminal, vi.fn());
+        expect(terminal.renderer.canvas).toEqual({ width: 1536, height: 3120 });
     });
 
     it('does not stop the loop two times', () => {

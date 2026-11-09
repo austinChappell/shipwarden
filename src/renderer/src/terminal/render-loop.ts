@@ -7,6 +7,11 @@
  * functions do nothing and the terminal draws as before.
  *
  * The WASM engine continues to receive all output while the loop is stopped. Only the canvas is not drawn.
+ *
+ * A stopped terminal also releases its canvas. A canvas has the full size of the pane at the device pixel ratio
+ * (for example 1536 x 3120 pixels), and Chromium keeps GPU buffers for it. Each open terminal added about 88 MB to
+ * the GPU process, also when it was hidden. A canvas with the size 0 x 0 has no buffers. The next draw finds the wrong
+ * size and makes the canvas full size again.
  */
 
 /** The internal fields of a ghostty-web 0.4 Terminal that this module uses. */
@@ -16,6 +21,7 @@ interface RenderLoopInternals {
     animationFrameId?: number;
     startRenderLoop?: () => void;
     renderer?: {
+        canvas?: { width: number; height: number };
         render(buffer: unknown, forceAll?: boolean, viewportY?: number, scrollbackProvider?: unknown, scrollbarOpacity?: number): void;
     };
     wasmTerm?: unknown;
@@ -53,6 +59,12 @@ export function pauseRendering(terminal: object, cancel: (id: number) => void = 
         cancel(t.animationFrameId);
         t.animationFrameId = undefined;
     }
+    // Release the pixels and the GPU buffers of the canvas. resumeRendering makes it full size again.
+    const canvas = t.renderer?.canvas;
+    if (canvas) {
+        canvas.width = 0;
+        canvas.height = 0;
+    }
     paused.add(terminal);
     return true;
 }
@@ -70,6 +82,7 @@ export function resumeRendering(terminal: object): boolean {
         return false;
     }
     // The screen changed while the loop was stopped. Draw all rows, not only the rows that the engine marks as changed.
+    // The canvas is 0 x 0, so this draw also makes the canvas full size again.
     t.renderer.render(t.wasmTerm, true, t.viewportY ?? 0, terminal, t.scrollbarOpacity ?? 0);
     t.startRenderLoop.call(terminal);
     return true;
