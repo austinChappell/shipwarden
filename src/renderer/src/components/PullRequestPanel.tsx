@@ -10,6 +10,8 @@ import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
 import { confirmDialog } from './ConfirmDialog';
 import { DescriptionEditor, EditDescriptionButton, PullRequestMeta } from './PullRequestDetails';
+import { MERGE_LABELS, MergeButton } from './MergeButton';
+import { PullRequestTimeline, REVIEW_STATE_TEXT } from './PullRequestTimeline';
 import { openLink } from '../links';
 
 interface Props {
@@ -30,7 +32,6 @@ interface Props {
 }
 
 const ICON = { size: 15, strokeWidth: 1.6 };
-const MERGE_LABELS: Record<MergeMethod, string> = { merge: 'Create a merge commit', squash: 'Squash and merge', rebase: 'Rebase and merge' };
 
 export function StateBadge({ pr }: { pr: PullRequest }) {
     if (pr.state === 'MERGED') return <span className="pr-badge merged"><GitMerge {...ICON} />Merged</span>;
@@ -214,16 +215,6 @@ export function PullRequestFileList({ target, pr, files, selectedPath, onOpen, o
     );
 }
 
-const REVIEW_STATE_TEXT: Record<string, string> = {
-    APPROVED: 'approved',
-    CHANGES_REQUESTED: 'requested changes',
-    COMMENTED: 'reviewed',
-    DISMISSED: 'dismissed',
-    APPROVED_WITH_SUGGESTIONS: 'approved with suggestions',
-    WAITING_FOR_AUTHOR: 'is waiting for the author',
-    REJECTED: 'rejected'
-};
-
 /** The review events of GitHub, in the order of the buttons. */
 const GITHUB_REVIEW_EVENTS: ReviewEvent[] = ['COMMENT', 'REQUEST_CHANGES', 'APPROVE'];
 
@@ -311,7 +302,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
 
     const files = review.files;
     const threads = pr.threads.filter(thread => showResolved || !thread.isResolved);
-    const conversation = conversationOf(pr);
+    const conversation = overview ? [] : conversationOf(pr);
     const unresolved = pr.threads.filter(thread => !thread.isResolved).length;
     const blocker = mergeBlocker(pr);
     const method = mergeMethod && pr.allowedMergeMethods.includes(mergeMethod)
@@ -391,6 +382,67 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         }
     };
 
+    const descriptionPart = editing ? (
+        <section className="pr-section">
+            <div className="section-title">Edit the title and the description</div>
+            {actionError && <div className="form-error pr-section-error">{actionError}</div>}
+            <DescriptionEditor pr={pr} busy={busy} onSave={saveDescription} onCancel={() => setEditing(false)} />
+        </section>
+    ) : (pr.body.trim() || overview || pr.viewerCanUpdate) && (
+        <PullRequestDescription pr={pr} overview={overview} onEdit={() => setEditing(true)} />
+    );
+    const metaPart = <PullRequestMeta target={target} pr={pr} onRefresh={onRefresh} />;
+    // Without a footer, an error of a change shows here.
+    const changeError = actionError && !editing && !hasFooter && <div className="form-error pr-section-error">{actionError}</div>;
+    const threadsPart = (
+        <section className="pr-section">
+            <div className="section-title">
+                Review threads ({unresolved} unresolved)
+                {pr.threads.length > unresolved && (
+                    <button className="link-button" onClick={() => setShowResolved(value => !value)}>
+                        {showResolved ? 'Hide resolved' : 'Show resolved'}
+                    </button>
+                )}
+            </div>
+            {threads.length === 0 && <div className="panel-note">No review comments.</div>}
+            {threads.map(thread => (
+                <div key={thread.id} className={`thread-card${thread.isResolved ? ' resolved' : ''}`}>
+                    <button className="thread-location" onClick={() => openThread(thread)}>
+                        {thread.path}{thread.line ?? thread.originalLine ? `:${thread.line ?? thread.originalLine}` : ''}
+                        {thread.isOutdated && <span className="tag">outdated</span>}
+                        {thread.isResolved && <span className="tag">resolved</span>}
+                    </button>
+                    {thread.comments.map(comment => (
+                        <div key={comment.id} className="thread-comment">
+                            <div className="comment-author">{comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span></div>
+                            <Markdown className="comment-body" text={comment.body} />
+                        </div>
+                    ))}
+                    {replyTo === thread.id && (
+                        <div className="reply-box">
+                            <textarea autoFocus value={replyText} placeholder="Reply" onChange={event => setReplyText(event.target.value)} />
+                            <div className="row-buttons">
+                                <button className="button" onClick={() => setReplyTo(undefined)}>Cancel</button>
+                                <button className="button primary" disabled={busy || !replyText.trim()} onClick={() => sendReply(thread)}>Reply</button>
+                            </div>
+                        </div>
+                    )}
+                    <div className="thread-actions">
+                        <button className="link-button" onClick={() => { setReplyTo(thread.id); setReplyText(''); }}>Reply</button>
+                        <button className="link-button" disabled={busy} onClick={() => run(() => window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved))}>
+                            {thread.isResolved ? 'Unresolve' : 'Resolve'}
+                        </button>
+                        {onSendToAgent && (
+                            <button className="link-button" onClick={() => onSendToAgent(threadPrompt(pr, thread))}>
+                                <Bot size={13} strokeWidth={1.6} /> Send to agent
+                            </button>
+                        )}
+                    </div>
+                </div>
+            ))}
+        </section>
+    );
+
     return (
         <div className="pr-panel">
             <div className="pr-scroll">
@@ -434,19 +486,20 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     </div>
                 )}
 
-                {editing ? (
-                    <section className="pr-section">
-                        <div className="section-title">Edit the title and the description</div>
-                        {actionError && <div className="form-error pr-section-error">{actionError}</div>}
-                        <DescriptionEditor pr={pr} busy={busy} onSave={saveDescription} onCancel={() => setEditing(false)} />
-                    </section>
-                ) : (pr.body.trim() || overview || pr.viewerCanUpdate) && (
-                    <PullRequestDescription pr={pr} overview={overview} onEdit={() => setEditing(true)} />
-                )}
-
-                <PullRequestMeta target={target} pr={pr} onRefresh={onRefresh} />
-                {/* Without a footer, an error of a change shows here. */}
-                {actionError && !editing && !hasFooter && <div className="form-error pr-section-error">{actionError}</div>}
+                {overview ? (
+                    <div className="pr-overview-columns">
+                        <div className="pr-overview-main">
+                            {descriptionPart}
+                            {changeError}
+                            <PullRequestTimeline pr={pr} />
+                            {threadsPart}
+                        </div>
+                        <aside className="pr-overview-aside">{metaPart}</aside>
+                    </div>
+                ) : <>
+                {descriptionPart}
+                {metaPart}
+                {changeError}
 
                 {conversation.length > 0 && (
                     <section className="pr-section">
@@ -479,52 +532,8 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     </section>
                 )}
 
-                <section className="pr-section">
-                    <div className="section-title">
-                        Review threads ({unresolved} unresolved)
-                        {pr.threads.length > unresolved && (
-                            <button className="link-button" onClick={() => setShowResolved(value => !value)}>
-                                {showResolved ? 'Hide resolved' : 'Show resolved'}
-                            </button>
-                        )}
-                    </div>
-                    {threads.length === 0 && <div className="panel-note">No review comments.</div>}
-                    {threads.map(thread => (
-                        <div key={thread.id} className={`thread-card${thread.isResolved ? ' resolved' : ''}`}>
-                            <button className="thread-location" onClick={() => openThread(thread)}>
-                                {thread.path}{thread.line ?? thread.originalLine ? `:${thread.line ?? thread.originalLine}` : ''}
-                                {thread.isOutdated && <span className="tag">outdated</span>}
-                                {thread.isResolved && <span className="tag">resolved</span>}
-                            </button>
-                            {thread.comments.map(comment => (
-                                <div key={comment.id} className="thread-comment">
-                                    <div className="comment-author">{comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span></div>
-                                    <Markdown className="comment-body" text={comment.body} />
-                                </div>
-                            ))}
-                            {replyTo === thread.id && (
-                                <div className="reply-box">
-                                    <textarea autoFocus value={replyText} placeholder="Reply" onChange={event => setReplyText(event.target.value)} />
-                                    <div className="row-buttons">
-                                        <button className="button" onClick={() => setReplyTo(undefined)}>Cancel</button>
-                                        <button className="button primary" disabled={busy || !replyText.trim()} onClick={() => sendReply(thread)}>Reply</button>
-                                    </div>
-                                </div>
-                            )}
-                            <div className="thread-actions">
-                                <button className="link-button" onClick={() => { setReplyTo(thread.id); setReplyText(''); }}>Reply</button>
-                                <button className="link-button" disabled={busy} onClick={() => run(() => window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved))}>
-                                    {thread.isResolved ? 'Unresolve' : 'Resolve'}
-                                </button>
-                                {onSendToAgent && (
-                                    <button className="link-button" onClick={() => onSendToAgent(threadPrompt(pr, thread))}>
-                                        <Bot size={13} strokeWidth={1.6} /> Send to agent
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </section>
+                {threadsPart}
+                </>}
             </div>
 
             {pr.state === 'OPEN' && (
@@ -560,21 +569,24 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                         </div>
                     ) : (pr.viewerCanMerge || pr.viewerCanEnableAutoMerge) && (
                     <>
-                    <div className="merge-row">
-                        <select value={method} onChange={event => setMergeMethod(event.target.value as MergeMethod)} disabled={busy}>
-                            {pr.allowedMergeMethods.map(item => <option key={item} value={item}>{MERGE_LABELS[item]}</option>)}
-                        </select>
-                        {pr.viewerCanEnableAutoMerge && (
-                            <button className="button" disabled={busy || !method} onClick={() => setAutoMerge(true)}>
-                                <GitMerge size={14} strokeWidth={1.8} />Enable auto-merge
-                            </button>
-                        )}
-                        {pr.viewerCanMerge && (
-                            <button className="button merge" disabled={busy || !!blocker || !method} title={blocker} onClick={merge}>
-                                <GitMerge size={14} strokeWidth={1.8} />Merge
-                            </button>
-                        )}
-                    </div>
+                    {method && (
+                        <div className="merge-row">
+                            {pr.viewerCanMerge && pr.viewerCanEnableAutoMerge && (
+                                <button className="button" disabled={busy} onClick={() => setAutoMerge(true)}>
+                                    <GitMerge size={14} strokeWidth={1.8} />Enable auto-merge
+                                </button>
+                            )}
+                            <MergeButton
+                                methods={pr.allowedMergeMethods}
+                                method={method}
+                                label={pr.viewerCanMerge ? undefined : 'Enable auto-merge'}
+                                disabled={busy || (pr.viewerCanMerge && !!blocker)}
+                                title={pr.viewerCanMerge ? blocker : undefined}
+                                onSelect={setMergeMethod}
+                                onRun={pr.viewerCanMerge ? merge : () => setAutoMerge(true)}
+                            />
+                        </div>
+                    )}
                     {pr.viewerCanMerge && blocker && <div className="panel-note">{blocker}</div>}
                     </>
                     )}

@@ -1,4 +1,6 @@
 import type { WorkflowInput } from './pipelines';
+import { EMOJI_SHORTCODES } from './emoji-shortcodes';
+
 /** A GitHub repository. */
 export interface RepoRef {
     owner: string;
@@ -201,7 +203,27 @@ export interface PullRequest {
     reviewEvents?: ReviewEvent[];
     /** False when the host has no assignees, for example Azure DevOps. Undefined means true. */
     hasAssignees?: boolean;
+    /** The newest 100 events of the pull request, the oldest first. Undefined when the host gives no events. */
+    timeline?: TimelineEvent[];
 }
+
+/**
+ * One event in the history of a pull request, for example a label that a user added.
+ * Comments, reviews and commits are not events. The pull request has them in other fields.
+ */
+export type TimelineEvent = { id: string; createdAt: string; actor: string | null } & (
+    | { kind: 'assigned' | 'unassigned'; user: string }
+    | { kind: 'labeled' | 'unlabeled'; label: GitHubLabel }
+    | { kind: 'reviewRequested' | 'reviewRequestRemoved'; reviewer: string }
+    | { kind: 'closed' | 'reopened' | 'readyForReview' | 'convertToDraft' | 'autoMergeEnabled' | 'autoMergeDisabled' | 'headRefRestored' }
+    | { kind: 'merged'; commit: string | null; commitUrl: string | null; base: string }
+    | { kind: 'renamed'; from: string; to: string }
+    | { kind: 'forcePushed'; before: string | null; after: string | null }
+    | { kind: 'headRefDeleted'; branch: string }
+    | { kind: 'baseChanged'; from: string; to: string }
+    | { kind: 'reviewDismissed'; reviewer: string | null; message: string | null }
+    | { kind: 'referenced'; repo: string; number: number; title: string; url: string }
+);
 
 /** An auto-merge on a pull request. GitHub merges the pull request with `method` when all the requirements pass. */
 export interface AutoMerge {
@@ -464,4 +486,18 @@ export function withSignedImages(text: string, urls: Map<string, string>): strin
         return text;
     }
     return text.replace(new RegExp(`https://github\\.com/user-attachments/assets/(${ATTACHMENT_ID})`, 'g'), (link, id: string) => urls.get(id) ?? link);
+}
+
+/**
+ * Replaces each `:shortcode:` of a GitHub emoji with the emoji, for example ":warning:" → "⚠️".
+ * Text in code spans and code blocks does not change. An unknown shortcode, or text such as "10:30:00", does not change.
+ */
+export function withEmoji(text: string): string {
+    if (!text.includes(':')) {
+        return text;
+    }
+    return text
+        .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/)
+        .map((part, index) => index % 2 === 1 ? part : part.replace(/:([a-z0-9_+-]+):/gi, (code, name: string) => EMOJI_SHORTCODES[name] ?? code))
+        .join('');
 }

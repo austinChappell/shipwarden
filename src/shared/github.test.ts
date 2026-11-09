@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanActionsLog, latestChecks, parseActionsRunId, parseGitHubRemote, pullRequestSearch, signedImageUrls, summarizeChecks, tailLines, targetKey, withSignedImages, type CheckRun } from './github';
+import { cleanActionsLog, latestChecks, parseActionsRunId, parseGitHubRemote, pullRequestSearch, signedImageUrls, summarizeChecks, tailLines, targetKey, withEmoji, withSignedImages, type CheckRun } from './github';
 
 describe('parseGitHubRemote', () => {
     it.each([
@@ -87,5 +87,20 @@ describe('signed images', () => {
 
     it('keeps the text when there are no signed URLs', () => {
         expect(withSignedImages('no images', new Map())).toBe('no images');
+    });
+});
+
+describe('emoji shortcodes', () => {
+    it('replaces the shortcodes of GitHub emoji', () => {
+        expect(withEmoji(':white_check_mark: All good. :warning: Behind. :umbrella: :loudspeaker: :+1:'))
+            .toBe('✅️ All good. ⚠️ Behind. ☔️ 📢 👍');
+    });
+
+    it('keeps unknown shortcodes, custom image emoji and times', () => {
+        expect(withEmoji(':not_an_emoji: :shipit: at 10:30:00')).toBe(':not_an_emoji: :shipit: at 10:30:00');
+    });
+
+    it('keeps the shortcodes in code', () => {
+        expect(withEmoji('`:warning:` and\n```\n:warning:\n```\n:warning:')).toBe('`:warning:` and\n```\n:warning:\n```\n⚠️');
     });
 });

@@ -11,6 +11,7 @@ import {
     parseGitHubRemote,
     pullRequestSearch,
     signedImageUrls,
+    withEmoji,
     withSignedImages,
     type BranchStatus,
     type BranchSummary,
@@ -47,6 +48,7 @@ import {
     type PullRequestCommentItem
 } from '@shared/dashboard';
 import { GitHubClient, GitHubError } from './github-client';
+import { mapTimeline, TIMELINE_QUERY, type GraphQlTimeline } from './timeline';
 import { parseWorkflowFile } from './workflow-file';
 import type { WorkflowRun } from '@shared/pipelines';
 
@@ -361,7 +363,18 @@ export class GitHubService {
     }
 
     async pullRequest(repo: RepoRef, number: number): Promise<PullRequest> {
-        const data = await this.client.graphql<GraphQlPullRequest>(PULL_REQUEST_QUERY, { owner: repo.owner, name: repo.name, number });
+        const variables = { owner: repo.owner, name: repo.name, number };
+        // A failed timeline does not stop the pull request. The Overview then shows only the comments and the reviews.
+        const [data, timeline] = await Promise.all([
+            this.client.graphql<GraphQlPullRequest>(PULL_REQUEST_QUERY, variables),
+            this.client.graphql<GraphQlTimeline>(TIMELINE_QUERY, variables).then(
+                result => mapTimeline(result.repository.pullRequest?.timelineItems.nodes ?? []),
+                err => {
+                    console.warn(`The timeline of pull request #${number} did not load: ${err instanceof Error ? err.message : String(err)}`);
+                    return undefined;
+                }
+            )
+        ]);
         const pr = data.repository.pullRequest;
         if (!pr) {
             throw new Error(`Pull request #${number} does not exist in ${repo.owner}/${repo.name}.`);
@@ -372,17 +385,20 @@ export class GitHubService {
         if (data.repository.rebaseMergeAllowed) allowed.push('rebase');
         const { commits, headCommit, bodyHTML, comments: issueComments, assignees, labels, reviewRequests, autoMergeRequest, ...rest } = pr;
         // Images of private repositories need the signed URLs from the HTML that GitHub rendered.
-        const images = signedImageUrls([
+        const html = [
             bodyHTML,
             ...pr.reviews.nodes.map(review => review.bodyHTML),
             ...issueComments.nodes.map(comment => comment.bodyHTML),
             ...pr.reviewThreads.nodes.flatMap(thread => thread.comments.nodes.map(comment => comment.bodyHTML))
-        ]);
+        ];
+        const images = signedImageUrls(html);
+        // The Markdown has emoji shortcodes such as :warning:. GitHub shows them as emoji.
+        const render = (body: string) => withEmoji(withSignedImages(body, images));
         const sign = <T extends { body: string; bodyHTML: string }>({ bodyHTML: _html, ...item }: T): Omit<T, 'bodyHTML'> =>
-            ({ ...item, body: withSignedImages(item.body, images) });
+            ({ ...item, body: render(item.body) });
         return {
             ...rest,
-            body: withSignedImages(pr.body, images),
+            body: render(pr.body),
             commits: commits.nodes.map(({ commit: { author, ...commit } }) => ({ ...commit, author: author?.user?.login ?? author?.name ?? null })),
             commitCount: commits.totalCount,
             checkCount: headCommit.nodes[0]?.commit.statusCheckRollup?.contexts.totalCount ?? 0,
@@ -404,7 +420,8 @@ export class GitHubService {
                 ? { method: autoMergeRequest.mergeMethod.toLowerCase() as MergeMethod, enabledBy: autoMergeRequest.enabledBy?.login ?? null }
                 : null,
             viewerCanEnableAutoMerge: data.repository.autoMergeAllowed && pr.viewerCanEnableAutoMerge,
-            viewerCanDisableAutoMerge: pr.viewerCanDisableAutoMerge
+            viewerCanDisableAutoMerge: pr.viewerCanDisableAutoMerge,
+            timeline
         };
     }
 
