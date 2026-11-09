@@ -10,8 +10,21 @@ describe('shortcutAction', () => {
         expect(key({ shift: true, key: 'D' })).toBe('down');
         expect(key({ key: 't', code: 'KeyT' })).toBe('newTab');
         expect(key({ key: 'w', code: 'KeyW' })).toBe('close');
-        expect(key({ key: '[', code: 'BracketLeft' })).toBe('previous');
-        expect(key({ key: ']', code: 'BracketRight' })).toBe('next');
+    });
+
+    it('is ⌘[ for back and ⌘] for forward', () => {
+        expect(key({ key: '[', code: 'BracketLeft' })).toBe('back');
+        expect(key({ key: ']', code: 'BracketRight' })).toBe('forward');
+    });
+
+    it('is ⌥⌘ and an arrow key for the focus between panes', () => {
+        expect(key({ alt: true, key: 'ArrowLeft', code: 'ArrowLeft' })).toBe('focusLeft');
+        expect(key({ alt: true, key: 'ArrowRight', code: 'ArrowRight' })).toBe('focusRight');
+        expect(key({ alt: true, key: 'ArrowUp', code: 'ArrowUp' })).toBe('focusUp');
+        expect(key({ alt: true, key: 'ArrowDown', code: 'ArrowDown' })).toBe('focusDown');
+        // ⌘ and an arrow key without Option move the cursor in a text field.
+        expect(key({ key: 'ArrowLeft', code: 'ArrowLeft' })).toBeUndefined();
+        expect(key({ alt: true, shift: true, key: 'ArrowLeft', code: 'ArrowLeft' })).toBeUndefined();
     });
 
     it('is ⇧⌘E for the focus in the file explorer, and ⌘E is not a shortcut', () => {
