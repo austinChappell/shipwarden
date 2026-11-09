@@ -9335,3 +9335,23 @@ button.pr-summary-cell:hover {
     line-height: 18px;
     text-align: center;
 }
+
+/* A branch name with a copy button. The button shows only on hover. It keeps its space, so the text does not move. */
+.branch-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    vertical-align: baseline;
+}
+
+.branch-copy {
+    width: 18px;
+    height: 18px;
+    opacity: 0;
+}
+
+.branch-name:hover .branch-copy,
+.branch-copy:focus-visible,
+.branch-copy.copied {
+    opacity: 1;
+}
