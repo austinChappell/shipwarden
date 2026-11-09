@@ -149,16 +149,25 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
   (`SHIPWARDEN_HOOK_URL`, `SHIPWARDEN_HOOK_TOKEN`, `SHIPWARDEN_SESSION_ID`).
 - States: starting → idle (SessionStart) → working (UserPromptSubmit, PreToolUse) → waiting (Notification) → done (Stop) → exited (SessionEnd).
   A Notification with `notification_type: "idle_prompt"` does not change done or idle. Claude Code sends it about
-  60 seconds after a turn ends.
+  60 seconds after a turn ends. A SessionEnd with `reason: "clear"` (from /clear) does not change the state.
+- Gemini CLI has no `--settings` option. ShipWarden starts it with `GEMINI_CLI_SYSTEM_DEFAULTS_PATH=<app data>/gemini-hooks.json`.
+  The system defaults file has the lowest priority, and Gemini CLI adds the hooks of all settings files together. Thus the
+  user's `~/.gemini/settings.json` and the project's `.gemini/settings.json` stay the same. ShipWarden copies the values of
+  the system defaults file that Gemini CLI uses without ShipWarden into its file (`writeGeminiHookSettings`).
+- Gemini CLI states: idle (SessionStart) → working (BeforeAgent, BeforeTool, AfterTool) → waiting (Notification with
+  `notification_type: "ToolPermission"`) → done (AfterAgent) → exited (SessionEnd). The hooks have the name
+  `shipwarden-agent-state` in `/hooks`. Gemini CLI can remove variables with "TOKEN" in the name from the environment of a
+  hook, so each terminal also gets `GEMINI_CLI_SHIPWARDEN_*` copies of the hook variables. Gemini CLI keeps those.
 - The worktree list shows the state of the agent that needs the user most. A macOS notification appears when an agent
   needs input or is done, unless the user looks at that agent.
 - Other agents (for example Codex) run without hooks and show no detailed state.
 - Each terminal gets the hook variables, also a shell tab. A zsh shell gets `ZDOTDIR=<app data>/shell-integration/zsh`.
   That `.zshenv` sets `ZDOTDIR` back to the user's value and reads the user's startup files. Before the first prompt,
-  it adds a `claude` function that adds `--settings <hooks file>`. Thus `claude` typed in a shell tab reports its state.
+  it adds a `claude` function that adds `--settings <hooks file>`, and a `gemini` function that sets
+  `GEMINI_CLI_SYSTEM_DEFAULTS_PATH` (only when the user did not set it). Thus `claude` or `gemini` typed in a shell tab reports its state.
   The shell tab then shows in the Agents view while the agent runs (`runsAgent`).
 - The main process finds agents in shell tabs itself (`ShellAgents`). Each 2 seconds it reads the process table and
-  finds `claude` and `codex` processes below the shell of each tab. The session then gets `agentProgram`. Thus Codex,
+  finds `claude`, `codex` and `gemini` processes below the shell of each tab. The session then gets `agentProgram`. Thus Codex,
   which has no hooks, shows too, and the tab leaves the Agents view when the agent process stops. A session of a
   Yardmaster host has no shell PID, so it gets no agent program.
 - Each state change carries a message and a time. PreToolUse gives a description of the tool call for people
@@ -227,8 +236,10 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 - Repository settings (the settings button of a repository in the sidebar, or Settings > Repositories): a display name
   (empty means the folder name), a default agent (else the global default) and a color marker. The main process keeps
   them by repository path in `settings.json`. A removed agent goes out of the repository settings.
-- ShipWarden adds its hooks only to Claude Code. Only an agent with hooks starts with the state "starting". Another agent
-  has no state, and the worktree list shows only that it runs.
+- ShipWarden adds its hooks only to Claude Code and Gemini CLI. Only an agent with hooks starts with the state "starting".
+  Another agent has no state, and the worktree list shows only that it runs.
+- A new installation gets Claude Code, Codex and Gemini CLI. The page offers a "Built-in" button for each default agent
+  that the list does not have, so an older installation can add Gemini CLI with one click.
 
 ### Split view
 
