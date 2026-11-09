@@ -63,7 +63,7 @@ class ReviewStore {
         }));
         change(viewed);
         try {
-            await window.shipwarden.github.setFileViewed(pullRequestId, path, viewed);
+            await window.shipwarden.github.setFileViewed(target, pullRequestId, path, viewed);
         } catch (error) {
             change(!viewed);
             throw error;

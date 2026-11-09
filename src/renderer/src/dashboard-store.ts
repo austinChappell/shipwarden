@@ -32,14 +32,15 @@ export interface DashboardNews {
 }
 
 interface Scope {
-    owners: string[] | 'all' | undefined;
+    /** A key for the GitHub providers and their scopes (see `githubScopeKey`). */
+    githubKey: string | null | undefined;
     projectId: string | undefined;
 }
 
 /** Loads the items of the Dashboard for the whole app, so that the sidebar can show the count in all views. */
 class DashboardStore {
     private state: DashboardState = { tasks: [], loading: false };
-    private scope: Scope = { owners: undefined, projectId: undefined };
+    private scope: Scope = { githubKey: undefined, projectId: undefined };
     private request = 0;
     private readonly listeners = new Set<() => void>();
     private readonly newsListeners = new Set<(news: DashboardNews) => void>();
@@ -71,7 +72,7 @@ class DashboardStore {
 
     async refresh(): Promise<void> {
         const id = ++this.request;
-        const { owners, projectId } = this.scope;
+        const { projectId } = this.scope;
         this.set({ loading: true });
         await seenStore.load();
         const since = new Date(Date.now() - DASHBOARD_WINDOW_DAYS * 24 * 3600 * 1000).toISOString();
@@ -80,11 +81,11 @@ class DashboardStore {
         const current = () => id === this.request;
         const github = window.shipwarden.github;
         await Promise.all([
-            github.dashboardPullRequests(owners).then(
+            github.dashboardPullRequests().then(
                 pullRequests => current() && this.set({ pullRequests, pullRequestsError: undefined }),
                 error => current() && this.set({ pullRequestsError: errorText(error) })
             ),
-            github.dashboardComments(owners).then(
+            github.dashboardComments().then(
                 prComments => current() && this.set({ prComments, prCommentsError: undefined }),
                 error => current() && this.set({ prCommentsError: errorText(error) })
             ),
@@ -153,14 +154,12 @@ class DashboardStore {
 export const dashboardStore = new DashboardStore();
 
 /** Loads the Dashboard when the scope changes, and again every few minutes. */
-export function useDashboardLoader(ready: boolean, owners: string[] | 'all' | undefined, projectId: string | undefined): void {
-    const ownerKey = owners === 'all' ? 'all' : owners?.join(',');
+export function useDashboardLoader(ready: boolean, githubKey: string | null | undefined, projectId: string | undefined): void {
     useEffect(() => {
-        if (ready) {
-            dashboardStore.setScope({ owners, projectId });
+        if (ready && githubKey !== undefined) {
+            dashboardStore.setScope({ githubKey, projectId });
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ready, ownerKey, projectId]);
+    }, [ready, githubKey, projectId]);
     useEffect(() => {
         if (!ready) return;
         const timer = setInterval(() => void dashboardStore.refresh(), REFRESH_MS);

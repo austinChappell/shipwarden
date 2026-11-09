@@ -55,7 +55,7 @@ export interface AzureClientOptions {
 
 /**
  * Sends authenticated requests to the Azure DevOps REST API (version 7.1).
- * The token comes from AZURE_DEVOPS_EXT_PAT, else from the saved personal access token, else from the az CLI.
+ * The token comes from the saved personal access token of the provider, else from AZURE_DEVOPS_EXT_PAT, else from the az CLI.
  * The client uses the global fetch of Node, so the trusted certificates of Settings › Network apply.
  */
 export class AzureDevOpsClient {
@@ -149,12 +149,12 @@ export class AzureDevOpsClient {
         const next = (async (): Promise<AzureAuth> => {
             await this.options.ready;
             const basic = (token: string) => `Basic ${Buffer.from(`:${token}`).toString('base64')}`;
-            if (process.env.AZURE_DEVOPS_EXT_PAT) {
-                return { header: basic(process.env.AZURE_DEVOPS_EXT_PAT), source: 'env' };
-            }
             const saved = await this.options.savedToken();
             if (saved) {
                 return { header: basic(saved), source: 'saved' };
+            }
+            if (process.env.AZURE_DEVOPS_EXT_PAT) {
+                return { header: basic(process.env.AZURE_DEVOPS_EXT_PAT), source: 'env' };
             }
             try {
                 const token = await (this.options.azToken ?? azCliToken)();

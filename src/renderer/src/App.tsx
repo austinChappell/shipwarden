@@ -28,6 +28,7 @@ import { NotesView } from './components/NotesView';
 import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
 import { dashboardStore, useDashboardCount, useDashboardLoader, type DashboardNews } from './dashboard-store';
+import { githubScopeKey, useReviewProviders } from './review-providers-store';
 import { seenStore } from './seen-store';
 import { gitHubSeenKey, isHiddenComment, taskSeenKey } from '@shared/dashboard';
 import { ciChanges, type NotificationEvent } from '@shared/notifications';
@@ -479,7 +480,9 @@ export function App() {
     };
     const closeSettings = useCallback(() => setMainView(viewBeforeSettings.current), []);
 
-    useDashboardLoader(settingsLoaded, appSettings.reviewOwners, activeProject?.id);
+    const reviewProviders = useReviewProviders();
+    const githubKey = githubScopeKey(reviewProviders);
+    useDashboardLoader(settingsLoaded, githubKey, activeProject?.id);
     const commentFilter = useMemo(
         () => ({ hiddenAuthors: appSettings.dashboardHiddenAuthors, hiddenRules: appSettings.dashboardHiddenRules }),
         [appSettings.dashboardHiddenAuthors, appSettings.dashboardHiddenRules]
@@ -487,9 +490,9 @@ export function App() {
     const dashboardCount = useDashboardCount(commentFilter);
     /** A new hiding rule from a Dashboard comment, for Settings > Dashboard to fill in. */
     const [rulePrefill, setRulePrefill] = useState<{ author: string; text: string; nonce: number }>();
-    /** Opens a pull request in the Review view. Without organizations for the Review view, GitHub opens in the browser. */
+    /** Opens a pull request in the Review view. Without a GitHub provider, GitHub opens in the browser. */
     const openPullRequest = (repo: RepoRef, number: number, tab: ReviewTabRequest) => {
-        if (!appSettings.reviewOwners) {
+        if (!githubKey) {
             openLink(`https://github.com/${repo.owner}/${repo.name}/pull/${number}`);
             return;
         }
@@ -1552,12 +1555,12 @@ export function App() {
                 )}
                 {mainView === 'review' && (
                     <main className="workspace">
-                        <ReviewView owners={appSettings.reviewOwners} onOpenSettings={() => openSettings('review')} open={reviewOpen} />
+                        <ReviewView githubKey={githubKey} onOpenSettings={() => openSettings('review')} open={reviewOpen} />
                     </main>
                 )}
                 {mainView === 'pipelines' && (
                     <main className="workspace">
-                        <PipelinesView owners={appSettings.reviewOwners} onOpenSettings={() => openSettings('review')} />
+                        <PipelinesView githubKey={githubKey} onOpenSettings={() => openSettings('review')} />
                     </main>
                 )}
                 {mainView === 'graph' && graphRepo && (

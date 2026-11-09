@@ -4,7 +4,6 @@ import type { PullRequestChange } from '@shared/github';
 import type { AzureDevOpsClient } from './azure-client';
 import { withApiVersion } from './azure-client';
 import { AzureDevOpsService } from './azure-service';
-import { SourceHosts, type ClaimingHost, type SourceHost } from '../source-host';
 import buildsJson from './fixtures/builds.json';
 import statusesJson from './fixtures/statuses.json';
 import timelineJson from './fixtures/timeline.json';
@@ -162,24 +161,5 @@ describe('withApiVersion', () => {
         expect(withApiVersion('https://dev.azure.com/a/_apis/x?$top=5')).toBe('https://dev.azure.com/a/_apis/x?$top=5&api-version=7.1');
         expect(withApiVersion('https://dev.azure.com/a/_apis/x?api-version=7.0')).toBe('https://dev.azure.com/a/_apis/x?api-version=7.0');
         expect(withApiVersion('https://dev.azure.com/a/_apis/connectionData')).toBe('https://dev.azure.com/a/_apis/connectionData');
-    });
-});
-
-describe('SourceHosts', () => {
-    const fake = (kind: 'github' | 'azure', owns: boolean) => ({ kind, owns: async () => owns }) as unknown as ClaimingHost;
-
-    it('selects Azure for its worktrees and GitHub for the rest', async () => {
-        const github = fake('github', false) as SourceHost;
-        const azure = fake('azure', true);
-        expect(await new SourceHosts(github, [azure]).for('/work/shop')).toBe(azure);
-        expect(await new SourceHosts(github, [fake('azure', false)]).for('/work/api')).toBe(github);
-    });
-
-    it('selects the host of an ID', () => {
-        const github = fake('github', false) as SourceHost;
-        const azure = fake('azure', false);
-        const hosts = new SourceHosts(github, [azure]);
-        expect(hosts.forId('azure:contoso/Web/shop/22/101')).toBe(azure);
-        expect(hosts.forId('PRRT_kwDOAbc')).toBe(github);
     });
 });

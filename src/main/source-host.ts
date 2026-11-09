@@ -1,4 +1,3 @@
-import { isAzureId } from '@shared/azure-devops';
 import type {
     BranchStatus,
     BranchSummary,
@@ -98,38 +97,4 @@ export class GitHubHost implements SourceHost {
     async cancelRun(target: RepoTarget, runId: number) { return this.github.cancelRun(await this.repoOf(target), runId); }
     async rerunRun(target: RepoTarget, runId: number) { return this.github.rerunRun(await this.repoOf(target), runId); }
     async branches(target: RepoTarget) { return this.github.branches(await this.repoOf(target)); }
-}
-
-/** A host that can tell if a target belongs to it, for example a worktree with an Azure Repos remote. */
-export interface ClaimingHost extends SourceHost {
-    owns(target: RepoTarget): Promise<boolean>;
-}
-
-/**
- * Selects the host of a target. The first host that owns the target gets the call. GitHub is the fallback,
- * because the Review view and the Pipelines view list only GitHub repositories.
- */
-export class SourceHosts {
-    constructor(private readonly fallback: SourceHost, private readonly others: ClaimingHost[]) {}
-
-    async for(target: RepoTarget): Promise<SourceHost> {
-        for (const host of this.others) {
-            if (await host.owns(target)) return host;
-        }
-        return this.fallback;
-    }
-
-    /** Selects the host of a pull request or thread ID. Azure IDs start with "azure:". Other IDs are GitHub node IDs. */
-    forId(id: string): SourceHost {
-        if (isAzureId(String(id))) {
-            const azure = this.others.find(host => host.kind === 'azure');
-            if (azure) return azure;
-        }
-        return this.fallback;
-    }
-
-    /** Returns the branch status from the host of the worktree. */
-    async branchStatus(root: string): Promise<BranchStatus | null> {
-        return (await this.for(root)).branchStatus(root);
-    }
 }

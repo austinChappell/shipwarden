@@ -195,7 +195,7 @@ export function SettingsView({ settings, mode, terminal, repos, initialSection, 
                             />
                         )}
                         {current.id === 'tasks' && <TaskManagersSettings />}
-                        {current.id === 'review' && <CodeReviewSettings settings={settings} onSave={onSave} />}
+                        {current.id === 'review' && <CodeReviewSettings />}
                         {current.id === 'worktrees' && <WorktreeSettings settings={settings} repos={repos} onSave={onSave} />}
                         {current.id === 'notifications' && <NotificationSettings settings={settings} onSave={onSave} />}
                         {current.id === 'network' && <NetworkSettings settings={settings} onSave={onSave} />}

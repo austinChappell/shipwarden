@@ -1,5 +1,6 @@
 import { execFile } from 'child_process';
 import { networkErrorDetail } from '@shared/network';
+import type { ReviewTokenSource } from '@shared/review-providers';
 
 const API = 'https://api.github.com';
 
@@ -9,14 +10,24 @@ export class GitHubError extends Error {
     }
 }
 
+export interface GitHubClientOptions {
+    /** Resolves when the trusted certificates apply (Settings › Network). No request starts before it. */
+    ready: Promise<void>;
+    /** The saved personal access token of the provider, or undefined. */
+    savedToken?(): Promise<string | undefined>;
+    /** The account of the GitHub CLI. Undefined means the active account. */
+    cliAccount?(): string | undefined;
+}
+
 /**
  * Sends authenticated requests to the GitHub REST and GraphQL APIs.
- * The token comes from the GitHub CLI (`gh auth token`). The GITHUB_TOKEN environment variable has priority.
+ * The token comes from the saved personal access token, else from GITHUB_TOKEN, else from the GitHub CLI (`gh auth token`).
+ * When the provider has a GitHub CLI account, the client does not use GITHUB_TOKEN.
  */
 export class GitHubClient {
-    private token: Promise<string> | undefined;
+    private token: Promise<{ value: string; source: ReviewTokenSource }> | undefined;
 
-    constructor(private readonly ready: Promise<void>) {}
+    constructor(private readonly options: GitHubClientOptions) {}
 
     async rest<T>(method: string, path: string, body?: unknown, accept = 'application/vnd.github+json'): Promise<T> {
         const response = await this.fetch(method, `${API}${path}`, body, accept);
@@ -93,7 +104,7 @@ export class GitHubClient {
     }
 
     private async fetch(method: string, url: string, body?: unknown, accept = 'application/vnd.github+json'): Promise<Response> {
-        const token = await this.getToken();
+        const token = (await this.getToken()).value;
         let response: Response;
         try {
             response = await fetch(url, {
@@ -128,25 +139,44 @@ export class GitHubClient {
 
     /** Returns the GitHub token, or undefined when there is none. Public repositories work without it. */
     async optionalToken(): Promise<string | undefined> {
-        return this.getToken().catch(() => undefined);
+        return this.getToken().then(token => token.value, () => undefined);
     }
 
-    private getToken(): Promise<string> {
+    /** Returns where the token comes from, or undefined when no token is available. */
+    async tokenSource(): Promise<ReviewTokenSource | undefined> {
+        return this.getToken().then(token => token.source, () => undefined);
+    }
+
+    /** Forgets the token, for example after the user saves a new token. */
+    reset(): void {
+        this.token = undefined;
+    }
+
+    private getToken(): Promise<{ value: string; source: ReviewTokenSource }> {
         this.token ??= (async () => {
-            if (process.env.GITHUB_TOKEN) {
-                return process.env.GITHUB_TOKEN;
+            const saved = await this.options.savedToken?.();
+            if (saved) {
+                return { value: saved, source: 'saved' as const };
             }
-            await this.ready;
-            return new Promise<string>((resolve, reject) => {
-                execFile('gh', ['auth', 'token', '--hostname', 'github.com'], { timeout: 10000 }, (error, stdout) => {
+            const account = this.options.cliAccount?.();
+            if (!account && process.env.GITHUB_TOKEN) {
+                return { value: process.env.GITHUB_TOKEN, source: 'env' as const };
+            }
+            await this.options.ready;
+            const args = ['auth', 'token', '--hostname', 'github.com', ...(account ? ['--user', account] : [])];
+            const value = await new Promise<string>((resolve, reject) => {
+                execFile('gh', args, { timeout: 10000 }, (error, stdout) => {
                     const token = stdout?.trim();
                     if (error || !token) {
-                        reject(new Error('ShipWarden cannot get a GitHub token. Install the GitHub CLI and run "gh auth login", or set GITHUB_TOKEN.'));
+                        reject(new Error(account
+                            ? `ShipWarden cannot get a GitHub token for the account "${account}". Run "gh auth login" for this account, or save a token in Settings › Code review.`
+                            : 'ShipWarden cannot get a GitHub token. Install the GitHub CLI and run "gh auth login", set GITHUB_TOKEN, or save a token in Settings › Code review.'));
                     } else {
                         resolve(token);
                     }
                 });
             });
+            return { value, source: 'cli' as const };
         })();
         this.token.catch(() => {
             this.token = undefined;

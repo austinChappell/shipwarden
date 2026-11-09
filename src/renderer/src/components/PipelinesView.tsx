@@ -17,8 +17,8 @@ const ACTIVE_POLL_MS = 8_000;
 const IDLE_POLL_MS = 60_000;
 
 interface Props {
-    /** The GitHub owners of Settings › Code review. Undefined: the user did not choose yet. */
-    owners: string[] | 'all' | undefined;
+    /** A key for the GitHub providers of Settings › Code review. Undefined: not loaded yet. Null: no GitHub provider is on. */
+    githubKey: string | null | undefined;
     onOpenSettings(): void;
 }
 
@@ -182,7 +182,7 @@ export function RunDialog({ repo, workflow, branches, onClose, onStarted }: RunD
  * The Pipelines view: the workflows of a GitHub repository, their runs, the jobs and logs of a run, and a dialog
  * that starts a workflow with a `workflow_dispatch` trigger. Other providers (GitLab, Azure DevOps) can come later.
  */
-export function PipelinesView({ owners, onOpenSettings }: Props) {
+export function PipelinesView({ githubKey, onOpenSettings }: Props) {
     const [repos, setRepos] = useState<GitHubRepoInfo[]>();
     const [repo, setRepo] = useState<string | undefined>(readRepo);
     const [workflows, setWorkflows] = useState<Workflow[]>();
@@ -198,7 +198,6 @@ export function PipelinesView({ owners, onOpenSettings }: Props) {
     const [actionError, setActionError] = useState<string>();
     const workflowWidth = usePanelWidth('shipwarden.width.pipelineWorkflows', 230, 180, 400);
     const runsWidth = usePanelWidth('shipwarden.width.pipelineRuns', 380, 260, 640);
-    const ownerKey = owners === 'all' ? 'all' : owners?.join(',');
 
     const repoRef = useMemo<RepoRef | undefined>(() => {
         if (!repo) return undefined;
@@ -207,9 +206,9 @@ export function PipelinesView({ owners, onOpenSettings }: Props) {
     }, [repo]);
 
     useEffect(() => {
-        if (!owners) return;
+        if (!githubKey) return;
         let current = true;
-        github.repositories(owners === 'all' ? undefined : owners).then(list => {
+        github.repositories().then(list => {
             if (!current) return;
             setRepos(list);
             setRepo(value => (value && list.some(item => `${item.owner}/${item.name}` === value) ? value : list[0] && `${list[0].owner}/${list[0].name}`));
@@ -217,8 +216,7 @@ export function PipelinesView({ owners, onOpenSettings }: Props) {
         return () => {
             current = false;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ownerKey]);
+    }, [githubKey]);
 
     // The workflows and branches of the repository. The workflows come from the default branch.
     useEffect(() => {
@@ -298,13 +296,16 @@ export function PipelinesView({ owners, onOpenSettings }: Props) {
         }
     };
 
-    if (!owners) {
+    if (githubKey === undefined) {
+        return <div className="pipelines-view" />;
+    }
+    if (githubKey === null) {
         return (
             <div className="pipelines-view">
                 <div className="review-empty">
                     <WorkflowIcon size={30} strokeWidth={1.3} />
                     <h2>Pipelines</h2>
-                    <p>Choose the GitHub organizations whose repositories you want to see. The Review view uses the same choice.</p>
+                    <p>Add a GitHub provider to see the workflows of its repositories. The Review view uses the same providers.</p>
                     <button className="button primary" onClick={onOpenSettings}>Open Settings › Code review</button>
                 </div>
             </div>

@@ -513,7 +513,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                             )}
                             <div className="thread-actions">
                                 <button className="link-button" onClick={() => { setReplyTo(thread.id); setReplyText(''); }}>Reply</button>
-                                <button className="link-button" disabled={busy} onClick={() => run(() => window.shipwarden.github.setThreadResolved(thread.id, !thread.isResolved))}>
+                                <button className="link-button" disabled={busy} onClick={() => run(() => window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved))}>
                                     {thread.isResolved ? 'Unresolve' : 'Resolve'}
                                 </button>
                                 {onSendToAgent && (

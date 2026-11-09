@@ -155,7 +155,7 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, d
                             await onRefresh();
                         }}
                         onResolve={async () => {
-                            await window.shipwarden.github.setThreadResolved(thread.id, !thread.isResolved);
+                            await window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved);
                             await onRefresh();
                         }}
                     />
