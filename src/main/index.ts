@@ -4,11 +4,8 @@ import { IpcChannels, type ConfirmRequest, type ContextMenuItem, type Notificati
 import type { CreateTerminalOptions } from '@shared/terminal';
 import type { CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult } from '@shared/worktrees';
 import type { MergeMethod, NewPullRequest, PendingComment, PullRequestChange, PullRequestFile, PullRequestFilter, RepoRef, RepoTarget, ReviewEvent } from '@shared/github';
-import type { AzureTokenStatus } from '@shared/azure-devops';
-import { AzureDevOpsClient } from './azure/azure-client';
-import { AzureCredentials } from './azure/azure-credentials';
-import { AzureDevOpsService } from './azure/azure-service';
-import { GitHubHost, SourceHosts } from './source-host';
+import type { ReviewProviderChange, ReviewProviderKind } from '@shared/review-providers';
+import { ReviewProviders } from './review-providers';
 import type { ConnectionChange, TaskLink } from '@shared/tasks';
 import * as os from 'os';
 import { removeAgentSessionVariables } from './agent-environment';
@@ -22,8 +19,6 @@ import { createFileProtocolHandler } from './files/file-protocol';
 import { FILE_SCHEME } from '@shared/file-url';
 import { isMediaKind } from '@shared/file-types';
 import { FileWatcher } from './files/file-watcher';
-import { GitHubClient } from './github/github-client';
-import { GitHubService } from './github/github-service';
 import { LspManager } from './lsp/lsp-manager';
 import { PluginSettings } from './tasks/plugin-settings';
 import { TaskHost } from './tasks/task-host';
@@ -101,32 +96,18 @@ const browserViews = new BrowserViews(() => mainWindow, () => certificates.extra
     onFocus: id => mainWindow?.webContents.send(IpcChannels.browserFocused, id),
     onInput: (id, input) => browserKey(id, input)
 });
-const githubClient = new GitHubClient(networkReady);
-const github = new GitHubService(githubClient);
-
-/** Returns the GitHub repository of the worktree. Throws an error when the worktree has no GitHub remote. */
-/** Returns the GitHub repository of a target: a repository from the Review view, or the repository of a worktree. */
-async function repoOf(target: RepoTarget): Promise<RepoRef> {
-    if (typeof target === 'object' && target && typeof target.owner === 'string' && typeof target.name === 'string') {
-        return { owner: target.owner, name: target.name };
-    }
-    const repo = await github.repoFor(String(target));
-    if (!repo) {
-        throw new Error('The "origin" remote of this worktree is not a GitHub repository.');
-    }
-    return repo;
-}
-
-/** The Azure DevOps token. The client uses the same trusted certificates as the GitHub client (`networkReady`). */
-const azureCredentials = new AzureCredentials(join(app.getPath('userData'), 'source-host-secrets.json'));
-const azureClient = new AzureDevOpsClient({ ready: networkReady, savedToken: () => azureCredentials.token() });
-const azure = new AzureDevOpsService(azureClient);
-/** Selects GitHub or Azure DevOps for each pull request and pipeline call. */
-const hosts = new SourceHosts(new GitHubHost(github, repoOf), [azure]);
-
-async function azureTokenStatus(): Promise<AzureTokenStatus> {
-    return { saved: !!(await azureCredentials.token()), source: await azureClient.tokenSource() };
-}
+/**
+ * The code review providers (GitHub and Azure DevOps accounts). Each pull request and pipeline call goes to the provider
+ * of its target. The clients use the same trusted certificates as the in-app browser (`networkReady`).
+ */
+const reviewProviders = new ReviewProviders({
+    file: join(app.getPath('userData'), 'review-providers.json'),
+    // The file of the old Azure DevOps token, so that the migration of an older version keeps the token.
+    secretsFile: join(app.getPath('userData'), 'source-host-secrets.json'),
+    ready: networkReady,
+    legacyReviewOwners: async () => (await settings.get()).reviewOwners,
+    onChanged: () => mainWindow?.webContents.send(IpcChannels.reviewProvidersChanged)
+});
 
 const tasks = new TaskHost({
     pluginFolders: [
@@ -135,7 +116,7 @@ const tasks = new TaskHost({
         { path: join(os.homedir(), '.shipwarden', 'plugins'), builtIn: false }
     ],
     settings: new PluginSettings(join(app.getPath('userData'), 'plugin-settings.json')),
-    repoFor: root => github.repoFor(root),
+    repoFor: root => reviewProviders.githubRepoFor(root),
     projectRepos: async projectId => (await projects.get()).projects.find(project => project.id === projectId)?.repos ?? [],
     configFile: join(app.getPath('userData'), 'task-managers.json'),
     legacySourcesFile: join(app.getPath('userData'), 'task-sources.json'),
@@ -186,7 +167,7 @@ const terminals = new PtyHostClient({
 const updates = new UpdateService({
     version: app.getVersion(),
     bundlePath: bundlePathOf(process.execPath, app.isPackaged),
-    token: () => githubClient.optionalToken(),
+    token: () => reviewProviders.optionalGitHubToken(),
     tempFolder: join(app.getPath('temp'), 'shipwarden-update'),
     onState: state => mainWindow?.webContents.send(IpcChannels.updatesChanged, state),
     quit: () => app.quit()
@@ -268,7 +249,7 @@ const remoteSnapshot = new RemoteSnapshotBuilder({
     worktrees: repo => worktrees.list(repo),
     settings: () => settings.get(),
     taskLinks: () => tasks.allLinks(),
-    pullRequests: async repo => (await hosts.for(repo)).branchSummaries(repo),
+    pullRequests: repo => reviewProviders.branchSummaries(repo),
     sessions: terminalSessions
 });
 
@@ -287,7 +268,7 @@ const remote = new RemoteServer({
         write: (id, data) => terminals.write(id, data),
         approvePullRequest: async (worktreePath, number, headSha, body) => {
             const worktree = await knownWorktree(worktreePath);
-            await (await hosts.for(worktree)).submitReview(worktree, number, headSha, 'APPROVE', body, []);
+            await (await reviewProviders.for(worktree)).submitReview(worktree, number, headSha, 'APPROVE', body, []);
             remoteSnapshot.invalidate();
         },
         onStatusChanged: () => mainWindow?.webContents.send(IpcChannels.remoteChanged)
@@ -510,10 +491,10 @@ function registerIpc(): void {
     ipcMain.on(IpcChannels.filesWatch, (_event, root: string) => fileWatcher.start(root));
     ipcMain.on(IpcChannels.filesUnwatch, (_event, root: string) => fileWatcher.stop(root));
 
-    // Each call goes to the host of its target: Azure DevOps for a worktree with an Azure Repos remote, else GitHub.
-    const host = (target: RepoTarget) => hosts.for(target);
-    ipcMain.handle(IpcChannels.githubStatus, (_event, root: string) => hosts.branchStatus(root));
-    ipcMain.handle(IpcChannels.githubBranchSummaries, async (_event, repoPath: string) => (await host(repoPath)).branchSummaries(repoPath));
+    // Each call goes to the provider of its target: Azure DevOps for a worktree with an Azure Repos remote, else GitHub.
+    const host = (target: RepoTarget) => reviewProviders.for(target);
+    ipcMain.handle(IpcChannels.githubStatus, (_event, root: string) => reviewProviders.branchStatus(root));
+    ipcMain.handle(IpcChannels.githubBranchSummaries, (_event, repoPath: string) => reviewProviders.branchSummaries(repoPath));
     ipcMain.handle(IpcChannels.githubCreatePullRequest, async (_event, root: string, request: NewPullRequest) =>
         (await host(root)).createPullRequest(root, {
             title: String(request?.title ?? '').trim(),
@@ -528,7 +509,8 @@ function registerIpc(): void {
         (await host(target)).submitReview(target, number, headSha, reviewEvent, body, comments));
     ipcMain.handle(IpcChannels.githubReply, async (_event, target: RepoTarget, number: number, commentId: number, body: string) =>
         (await host(target)).replyToComment(target, number, commentId, body));
-    ipcMain.handle(IpcChannels.githubSetThreadResolved, (_event, threadId: string, resolved: boolean) => hosts.forId(threadId).setThreadResolved(threadId, resolved));
+    ipcMain.handle(IpcChannels.githubSetThreadResolved, async (_event, target: RepoTarget, threadId: string, resolved: boolean) =>
+        (await host(target)).setThreadResolved(threadId, resolved));
     ipcMain.handle(IpcChannels.githubMerge, async (_event, target: RepoTarget, number: number, headSha: string, method: MergeMethod) =>
         (await host(target)).merge(target, number, headSha, method));
     ipcMain.handle(IpcChannels.githubChecks, async (_event, target: RepoTarget, sha: string) => (await host(target)).checks(target, sha));
@@ -547,42 +529,28 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.githubRerunRun, async (_event, target: RepoTarget, runId: number) => (await host(target)).rerunRun(target, Number(runId)));
     ipcMain.handle(IpcChannels.githubBranches, async (_event, target: RepoTarget) => (await host(target)).branches(target));
     ipcMain.handle(IpcChannels.githubPullRequest, async (_event, target: RepoTarget, number: number) => (await host(target)).pullRequest(target, number));
-    ipcMain.handle(IpcChannels.githubSetFileViewed, (_event, pullRequestId: string, path: string, viewed: boolean) =>
-        hosts.forId(pullRequestId).setFileViewed(pullRequestId, path, viewed));
+    ipcMain.handle(IpcChannels.githubSetFileViewed, async (_event, target: RepoTarget, pullRequestId: string, path: string, viewed: boolean) =>
+        (await host(target)).setFileViewed(pullRequestId, path, viewed));
     ipcMain.handle(IpcChannels.githubPullRequestCandidates, async (_event, target: RepoTarget) => (await host(target)).pullRequestCandidates(target));
     ipcMain.handle(IpcChannels.githubChangePullRequest, async (_event, target: RepoTarget, number: number, change: PullRequestChange) =>
         (await host(target)).changePullRequest(target, number, change));
-    ipcMain.handle(IpcChannels.azureTokenStatus, () => azureTokenStatus());
-    ipcMain.handle(IpcChannels.azureSaveToken, async (_event, token: string) => {
-        if (typeof token !== 'string' || !token.trim()) {
-            throw new Error('The token is empty.');
-        }
-        await azureCredentials.save(token);
-        azureClient.reset();
-        return azureTokenStatus();
-    });
-    ipcMain.handle(IpcChannels.azureClearToken, async () => {
-        await azureCredentials.clear();
-        azureClient.reset();
-        return azureTokenStatus();
-    });
-    ipcMain.handle(IpcChannels.azureTest, async (_event, organization: string) => {
-        const name = String(organization ?? '').trim();
-        if (!name) {
-            throw new Error('Type the name of the organization.');
-        }
-        const data = await azureClient.request<{ authenticatedUser?: { providerDisplayName?: string } }>(
-            'GET', `https://dev.azure.com/${encodeURIComponent(name)}/_apis/connectionData`);
-        return data.authenticatedUser?.providerDisplayName ?? 'unknown user';
-    });
-    ipcMain.handle(IpcChannels.githubOwners, () => github.owners());
-    ipcMain.handle(IpcChannels.githubRepositories, (_event, owners?: string[]) => github.repositories(owners));
-    ipcMain.handle(IpcChannels.githubDashboardPullRequests, (_event, owners: string[] | 'all' | undefined) => github.dashboardPullRequests(owners));
-    ipcMain.handle(IpcChannels.githubDashboardComments, (_event, owners: string[] | 'all' | undefined) => github.dashboardComments(owners));
+    ipcMain.handle(IpcChannels.reviewProvidersList, () => reviewProviders.list());
+    ipcMain.handle(IpcChannels.reviewProvidersAdd, (_event, kind: ReviewProviderKind, name: string) => reviewProviders.add(kind, String(name ?? '')));
+    ipcMain.handle(IpcChannels.reviewProvidersUpdate, (_event, id: string, change: ReviewProviderChange) => reviewProviders.update(String(id), change ?? {}));
+    ipcMain.handle(IpcChannels.reviewProvidersRemove, (_event, id: string) => reviewProviders.remove(String(id)));
+    ipcMain.handle(IpcChannels.reviewProvidersSaveToken, (_event, id: string, token: string) => reviewProviders.saveToken(String(id), token));
+    ipcMain.handle(IpcChannels.reviewProvidersClearToken, (_event, id: string) => reviewProviders.clearToken(String(id)));
+    ipcMain.handle(IpcChannels.reviewProvidersTokenSource, (_event, id: string) => reviewProviders.tokenSource(String(id)));
+    ipcMain.handle(IpcChannels.reviewProvidersTest, (_event, id: string, organization?: string) =>
+        reviewProviders.test(String(id), typeof organization === 'string' ? organization : undefined));
+    ipcMain.handle(IpcChannels.reviewProvidersGitHubOwners, (_event, id: string) => reviewProviders.githubOwners(String(id)));
+    ipcMain.handle(IpcChannels.githubRepositories, () => reviewProviders.repositories());
+    ipcMain.handle(IpcChannels.githubDashboardPullRequests, () => reviewProviders.dashboardPullRequests());
+    ipcMain.handle(IpcChannels.githubDashboardComments, () => reviewProviders.dashboardComments());
     ipcMain.handle(IpcChannels.seenKeys, () => seen.keys());
     ipcMain.handle(IpcChannels.seenMark, (_event, keys: unknown) => seen.mark(Array.isArray(keys) ? keys.filter((key): key is string => typeof key === 'string') : []));
     ipcMain.handle(IpcChannels.githubPullRequests, async (_event, repo: RepoRef, filter: PullRequestFilter, query?: string) =>
-        github.pullRequests(await repoOf(repo), filter, query));
+        (await reviewProviders.github(repo)).pullRequests({ owner: String(repo?.owner), name: String(repo?.name) }, filter, query));
     ipcMain.on(IpcChannels.browserCreate, (_event, id: string, url: string) => browserViews.create(String(id), String(url)));
     ipcMain.on(IpcChannels.browserSetBounds, (_event, id: string, bounds: BrowserBounds | null) => browserViews.setBounds(String(id), validBounds(bounds)));
     ipcMain.on(IpcChannels.browserLoad, (_event, id: string, url: string) => browserViews.load(String(id), String(url)));

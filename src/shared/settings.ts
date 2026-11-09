@@ -74,8 +74,8 @@ export interface AppSettings {
     /** The settings of each repository, by the root of its main worktree. */
     repos: Record<string, RepoSettings>;
     /**
-     * The GitHub owners (users and organizations) whose repositories the Review view offers. "all" means all owners.
-     * Undefined means that the user did not choose yet, so the Review view asks for a choice.
+     * The GitHub owners of older versions. "all" means all owners. At the first start, `ReviewProviders` makes a GitHub
+     * provider from it, with a list as the scope. Newer versions keep the scope in the provider.
      */
     reviewOwners?: string[] | 'all';
     /**

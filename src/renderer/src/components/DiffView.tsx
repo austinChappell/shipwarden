@@ -260,7 +260,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                         await onRefresh();
                     }}
                     onResolve={async () => {
-                        await window.shipwarden.github.setThreadResolved(thread.id, !thread.isResolved);
+                        await window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved);
                         await onRefresh();
                     }}
                     onSendToAgent={onSendToAgent && (() => onSendToAgent(

@@ -303,7 +303,7 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 
 - The sidebar item "Pipelines" (below "Review") shows the GitHub Actions workflows of one repository. The name is
   neutral, because GitLab and Azure DevOps (planned providers) call these pipelines. The repositories come from the
-  organizations of Settings › Code review, the same as the Review view.
+  GitHub providers of Settings › Code review, the same as the Review view.
 - Columns: the workflows (with a run button when the workflow has a `workflow_dispatch` trigger), the newest 40 runs
   (of all workflows or one), and the selected run: its actions, its jobs (latest attempt) and the log of a job.
 - Run dialog: a branch (from `/branches`, the default branch first) and the inputs of the trigger. GitHub has no API
@@ -520,18 +520,30 @@ Next:
 #### Azure DevOps (Azure Repos)
 
 - `SourceHost` (`main/source-host.ts`) is the interface of a host of pull requests and pipelines. `GitHubHost` adapts
-  `GitHubService` to it, and `AzureDevOpsService` (`main/azure/`) implements it. `SourceHosts` selects the host of each
-  call: a worktree whose "origin" remote is Azure Repos goes to Azure DevOps. All other targets go to GitHub. A call with
-  only an ID (resolve a thread, mark a file as viewed) goes to Azure when the ID starts with `azure:` (`encodeAzureId`).
+  `GitHubService` to it, and `AzureDevOpsService` (`main/azure/`) implements it.
+- `ReviewProviders` (`main/review-providers.ts`) keeps the code review providers of Settings › Code review in
+  `review-providers.json`. Each provider has a kind (`github` or `azure`), a name, an on/off switch, an optional scope
+  (a list of organizations, else all) and, for GitHub, an optional GitHub CLI account. Each provider has its own client,
+  token and caches. The user can add more than one provider of a kind, for example two GitHub accounts.
+- Routing: a worktree whose "origin" remote is Azure Repos goes to an Azure DevOps provider. All other targets go to a
+  GitHub provider. `pickProvider` (`shared/review-providers.ts`) selects the provider of the kind: first a provider whose
+  scope has the organization of the remote, then a provider with all organizations, then the first provider of the kind.
+  Calls that change a thread or a file take the target too, so they go to the same provider.
+- A new user has no providers. The user adds each provider in Settings › Code review, as with the task managers.
+  Without a provider of a kind, the worktrees of that kind show no pull requests.
+- At the first start, a user of an older version keeps the setup of that version: a GitHub provider when
+  `reviewOwners` is set (a list becomes its scope), and an Azure DevOps provider with the ID `azure-devops` when a token
+  of that ID is saved, so it keeps the token.
 - The IPC API keeps the name `github`, so the page did not change its calls. The models stay the GitHub models.
   `PullRequest.host`, `reviewEvents` and `hasAssignees`, and `BranchStatus.host` and `createUrl`, tell the page the
   differences.
 - Remotes (`parseAzureRemote`): `https://[user@]dev.azure.com/{org}/{project}/_git/{repo}`,
   `git@ssh.dev.azure.com:v3/{org}/{project}/{repo}` and `https://{org}.visualstudio.com/[DefaultCollection/]{project}/_git/{repo}`.
   All REST calls go to `https://dev.azure.com/{org}` with `api-version=7.1`.
-- Token (`AzureDevOpsClient`): `AZURE_DEVOPS_EXT_PAT`, else the personal access token of Settings › Code review
-  (encrypted with safeStorage in `source-host-secrets.json`), else `az account get-access-token` for the Azure DevOps
-  resource. The client uses the global fetch after `networkReady`, so the trusted certificates of Settings › Network apply.
+- Token (`AzureDevOpsClient`): the personal access token of the provider (encrypted with safeStorage in
+  `source-host-secrets.json`, by provider ID), else `AZURE_DEVOPS_EXT_PAT`, else `az account get-access-token` for the
+  Azure DevOps resource. The GitHub client uses the same order: the saved token, else `GITHUB_TOKEN`, else
+  `gh auth token`. A GitHub provider with a GitHub CLI account skips `GITHUB_TOKEN` and runs `gh auth token --user`. The client uses the global fetch after `networkReady`, so the trusted certificates of Settings › Network apply.
 - Mapping (`main/azure/azure-mapping.ts`):
   - Votes: 10 approve, 5 approve with suggestions, -5 wait for author, -10 reject. A negative vote gives "changes
     requested". A required reviewer without approval gives "review required".
@@ -550,8 +562,8 @@ Next:
 #### Review view
 
 - The sidebar item "Review" (below "Tasks") opens a main view for the pull requests of any repository, not only local ones.
-- Settings › Code review: the provider (only GitHub now) and the organizations (`reviewOwners`: `'all'` or a list of logins).
-  Without a choice, the view shows a link to these settings.
+- The repositories come from all GitHub providers that are on, each in its scope. Without a GitHub provider, the view
+  shows a link to Settings › Code review.
 - The view shows one repository at a time (from `/user/repos`, grouped by owner, without archived repositories).
   Filters: open, review requested, mine, assigned to me, closed. They become a GitHub search query (`pullRequestSearch`).
   The list refreshes every 60 seconds.
@@ -575,7 +587,8 @@ Next:
 
 - The app starts on the Dashboard (the sidebar item above "Agents"). Its badge counts the items that need the user.
   `dashboard-store` loads the items for the whole app every 5 minutes, so the badge is correct in all views.
-- GitHub (`dashboardPullRequests` first, then the slow `dashboardComments`), in the owners of Settings › Code review:
+- GitHub (`dashboardPullRequests` first, then the slow `dashboardComments`), from each GitHub provider in its scope.
+  The results of all providers merge, without duplicates:
   - Review requests: `is:open draft:false review-requested:@me`.
   - The user's open PRs with an action: changes requested, CI failing, merge conflicts, or ready to merge (`myPullRequestReasons`).
   - New comments: light searches (`author:@me`, `commenter:@me`, `reviewed-by:@me`, updated in the last 7 days) give the PRs.

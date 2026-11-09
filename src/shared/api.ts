@@ -6,7 +6,7 @@ import type { WorkflowRun } from './pipelines';
 import type { ContentSearchResult, FileEntry, FilesChangedEvent } from './files';
 import type { FileInfo } from './file-types';
 import type { BranchStatus, BranchSummary, CheckRun, FileVersions, GitHubOwner, JobProgress, GitHubRepoInfo, MergeMethod, NewPullRequest, PendingComment, PullRequest, PullRequestCandidates, PullRequestChange, PullRequestFile, PullRequestFilter, PullRequestSummary, RepoRef, RepoTarget, ReviewEvent, Workflow } from './github';
-import type { AzureTokenStatus } from './azure-devops';
+import type { ReviewProviderChange, ReviewProviderInfo, ReviewProviderKind, ReviewTokenSource } from './review-providers';
 import type { LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentUpdate } from './agents';
@@ -194,7 +194,7 @@ export interface ShipWardenApi {
         fileVersions(target: RepoTarget, file: PullRequestFile, baseSha: string, headSha: string): Promise<FileVersions>;
         submitReview(target: RepoTarget, number: number, headSha: string, event: ReviewEvent, body: string, comments: PendingComment[]): Promise<void>;
         reply(target: RepoTarget, number: number, commentId: number, body: string): Promise<void>;
-        setThreadResolved(threadId: string, resolved: boolean): Promise<void>;
+        setThreadResolved(target: RepoTarget, threadId: string, resolved: boolean): Promise<void>;
         merge(target: RepoTarget, number: number, headSha: string, method: MergeMethod): Promise<void>;
         checks(target: RepoTarget, sha: string): Promise<CheckRun[]>;
         jobLog(target: RepoTarget, jobId: number): Promise<string>;
@@ -219,33 +219,39 @@ export interface ShipWardenApi {
         /** Returns a pull request with its reviews and threads, for a repository without a worktree. */
         pullRequest(target: RepoTarget, number: number): Promise<PullRequest>;
         /** Marks a file of a pull request as viewed or not viewed. `pullRequestId` is the node ID of the pull request. */
-        setFileViewed(pullRequestId: string, path: string, viewed: boolean): Promise<void>;
+        setFileViewed(target: RepoTarget, pullRequestId: string, path: string, viewed: boolean): Promise<void>;
         /** The users that the user can assign or ask for a review, and the labels of the repository. */
         pullRequestCandidates(target: RepoTarget): Promise<PullRequestCandidates>;
         /** Changes the details, an assignee, a reviewer or a label of a pull request. */
         changePullRequest(target: RepoTarget, number: number, change: PullRequestChange): Promise<void>;
-        /** The user and the organizations of the GitHub token. */
-        owners(): Promise<GitHubOwner[]>;
-        /** The repositories of the owners that the user can access. All owners when `owners` is undefined. */
-        repositories(owners?: string[]): Promise<GitHubRepoInfo[]>;
+        /** The repositories of all GitHub providers that are on, each in the organizations of its scope. */
+        repositories(): Promise<GitHubRepoInfo[]>;
         /** The pull requests of a repository for a filter of the Review view. */
         pullRequests(repo: RepoRef, filter: PullRequestFilter, query?: string): Promise<PullRequestSummary[]>;
-        /** The review requests and the user's pull requests that need an action, for the owners of Settings > Code review. */
-        dashboardPullRequests(owners: string[] | 'all' | undefined): Promise<DashboardPullRequests>;
-        /** The new comments on pull requests for the Dashboard. */
-        dashboardComments(owners: string[] | 'all' | undefined): Promise<PullRequestCommentItem[]>;
+        /** The review requests and the user's pull requests that need an action, from all GitHub providers that are on. */
+        dashboardPullRequests(): Promise<DashboardPullRequests>;
+        /** The new comments on pull requests for the Dashboard, from all GitHub providers that are on. */
+        dashboardComments(): Promise<PullRequestCommentItem[]>;
         /** Opens a web page (http or https) in the default browser. */
         openInBrowser(url: string): void;
     };
-    azureDevOps: {
-        /** Tells if a token is saved and where the next request gets its token. */
-        tokenStatus(): Promise<AzureTokenStatus>;
-        /** Saves a personal access token, encrypted with the macOS keychain. */
-        saveToken(token: string): Promise<AzureTokenStatus>;
-        /** Removes the saved personal access token. */
-        clearToken(): Promise<AzureTokenStatus>;
-        /** Sends a request to an organization with the current token. Returns the name of the user of the token. */
-        test(organization: string): Promise<string>;
+    reviewProviders: {
+        /** The code review providers of Settings › Code review. */
+        list(): Promise<ReviewProviderInfo[]>;
+        add(kind: ReviewProviderKind, name: string): Promise<ReviewProviderInfo>;
+        update(id: string, change: ReviewProviderChange): Promise<void>;
+        /** Removes the provider and its saved token. */
+        remove(id: string): Promise<void>;
+        /** Saves a personal access token for the provider, encrypted with the macOS keychain. */
+        saveToken(id: string, token: string): Promise<void>;
+        clearToken(id: string): Promise<void>;
+        /** Where the next request of the provider gets its token. Undefined when no token is available. */
+        tokenSource(id: string): Promise<ReviewTokenSource | undefined>;
+        /** Sends a request with the token of the provider. Returns the name of the user of the token. Azure DevOps needs an organization. */
+        test(id: string, organization?: string): Promise<string>;
+        /** The user and the organizations of a GitHub provider. */
+        githubOwners(id: string): Promise<GitHubOwner[]>;
+        onChanged(listener: () => void): () => void;
     };
     notes: {
         /** The folder of the notes, ~/.shipwarden/notes. */
@@ -455,16 +461,21 @@ export const IpcChannels = {
     githubSetFileViewed: 'github:setFileViewed',
     githubPullRequestCandidates: 'github:pullRequestCandidates',
     githubChangePullRequest: 'github:changePullRequest',
-    githubOwners: 'github:owners',
     githubRepositories: 'github:repositories',
     githubPullRequests: 'github:pullRequests',
     githubDashboardPullRequests: 'github:dashboardPullRequests',
     githubDashboardComments: 'github:dashboardComments',
     githubCreatePullRequest: 'github:createPullRequest',
-    azureTokenStatus: 'azure:tokenStatus',
-    azureSaveToken: 'azure:saveToken',
-    azureClearToken: 'azure:clearToken',
-    azureTest: 'azure:test',
+    reviewProvidersList: 'reviewProviders:list',
+    reviewProvidersAdd: 'reviewProviders:add',
+    reviewProvidersUpdate: 'reviewProviders:update',
+    reviewProvidersRemove: 'reviewProviders:remove',
+    reviewProvidersSaveToken: 'reviewProviders:saveToken',
+    reviewProvidersClearToken: 'reviewProviders:clearToken',
+    reviewProvidersTokenSource: 'reviewProviders:tokenSource',
+    reviewProvidersTest: 'reviewProviders:test',
+    reviewProvidersGitHubOwners: 'reviewProviders:githubOwners',
+    reviewProvidersChanged: 'reviewProviders:changed',
     notesFolder: 'notes:folder',
     notesList: 'notes:list',
     notesFolders: 'notes:folders',

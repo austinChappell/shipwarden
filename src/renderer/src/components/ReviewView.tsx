@@ -27,8 +27,8 @@ const repoCache = new Map<string, GitHubRepoInfo[]>();
 const listCache = new Map<string, PullRequestSummary[]>();
 
 interface Props {
-    /** The GitHub owners whose repositories the view offers. "all" means all owners. Undefined means no choice yet. */
-    owners: string[] | 'all' | undefined;
+    /** A key for the GitHub providers of Settings › Code review. Undefined: not loaded yet. Null: no GitHub provider is on. */
+    githubKey: string | null | undefined;
     /** Opens Settings > Code review. */
     onOpenSettings(): void;
     /** A pull request to open, for example from the Dashboard. A new `nonce` opens it again. */
@@ -88,7 +88,7 @@ const REVIEW_TEXT: Record<string, string> = { APPROVED: 'Approved', CHANGES_REQU
  * The user can read the diff, comment, approve or request changes, mark files as viewed, read the CI logs,
  * and merge a pull request when they have write access to the repository.
  */
-export function ReviewView({ owners, onOpenSettings, open }: Props) {
+export function ReviewView({ githubKey, onOpenSettings, open }: Props) {
     const [repos, setRepos] = useState<GitHubRepoInfo[]>();
     const [repo, setRepo] = useState<string | undefined>(() => read(REPO_KEY));
     const [filter, setFilter] = useState<PullRequestFilter>(() => (PULL_REQUEST_FILTERS.some(item => item.id === read(FILTER_KEY)) ? read(FILTER_KEY) as PullRequestFilter : 'open'));
@@ -102,25 +102,22 @@ export function ReviewView({ owners, onOpenSettings, open }: Props) {
     const [prError, setPrError] = useState<string>();
     const listWidth = usePanelWidth('shipwarden.width.reviewList', 320, 240, 560);
 
-    const ownerKey = owners === 'all' ? 'all' : owners?.join(',');
-
-    // The repositories of the chosen owners.
+    // The repositories of the GitHub providers, each in its organizations.
     useEffect(() => {
-        if (!owners) return;
+        if (!githubKey) return;
         let cancelled = false;
-        setRepos(repoCache.get(ownerKey!));
+        setRepos(repoCache.get(githubKey));
         setError(undefined);
-        api.repositories(owners === 'all' ? undefined : owners).then(result => {
+        api.repositories().then(result => {
             if (cancelled) return;
-            repoCache.set(ownerKey!, result);
+            repoCache.set(githubKey, result);
             setRepos(result);
             setRepo(current => (current && result.some(item => repoId(item) === current) ? current : result[0] && repoId(result[0])));
         }, err => !cancelled && setError(errorText(err)));
         return () => {
             cancelled = true;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ownerKey]);
+    }, [githubKey]);
 
     const repoRef = useMemo<RepoRef | undefined>(() => {
         if (!repo) return undefined;
@@ -220,13 +217,16 @@ export function ReviewView({ owners, onOpenSettings, open }: Props) {
     /** The repositories by owner, for the groups of the picker. */
     const groups = useMemo(() => sortedGroups(repos ?? [], item => item.owner, item => ({ value: repoId(item), label: item.name })), [repos]);
 
-    if (!owners) {
+    if (githubKey === undefined) {
+        return <div className="review-view" />;
+    }
+    if (githubKey === null) {
         return (
             <div className="review-view">
                 <div className="review-empty">
                     <GitPullRequest size={30} strokeWidth={1.3} />
                     <h2>Review pull requests</h2>
-                    <p>Choose the GitHub organizations whose pull requests you want to see here.</p>
+                    <p>Add a GitHub provider to see its pull requests here.</p>
                     <button className="button primary" onClick={onOpenSettings}>Open Settings › Code review</button>
                 </div>
             </div>
