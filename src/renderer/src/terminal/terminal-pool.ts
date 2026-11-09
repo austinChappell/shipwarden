@@ -1,37 +1,11 @@
 import { FitAddon, Terminal } from 'ghostty-web';
 import { findKeybind } from '@shared/keybinds';
-import { isClearKey } from '@shared/shortcuts';
+import { CTRL_V, isClearKey, isCtrlV, isImageOnlyPaste } from '@shared/shortcuts';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
-import { prepareTerminal } from './ghostty';
+import { loadGhostty, prepareFonts } from './ghostty';
 
-/**
- * Clears the screen and the scrollback.
- * ghostty-web 0.4 can reuse the WASM memory of a closed terminal without clearing it.
- * Without this sequence, text from the closed terminal can show in the new terminal.
- */
+/** Clears the screen and the scrollback (⌘K). */
 const CLEAR_ALL = '\x1b[H\x1b[2J\x1b[3J';
-
-/**
- * A full reset (RIS) and a clear, for a spare terminal that a new session uses: the modes, the colors, the title,
- * the screen and the scrollback of the old session go away.
- */
-const RESET_ALL = `\x1bc${CLEAR_ALL}`;
-
-/** The pool keeps at most this number of spare terminals. Each spare keeps its WASM memory. */
-const MAX_SPARES = 4;
-
-/**
- * A terminal of a closed session, for a new session. ghostty-web 0.4 does not clear the WASM memory of a freed
- * terminal, and a new terminal in that memory can show text and wrong characters of the old one. A spare is never
- * freed, so its memory stays its own.
- */
-interface Spare {
-    terminal: Terminal;
-    fit: FitAddon;
-    host: HTMLDivElement;
-    /** The settings of the terminal. A spare is used only with the same settings, because the WASM engine keeps them. */
-    settingsKey: string;
-}
 
 interface Entry {
     session: TerminalSession;
@@ -43,9 +17,8 @@ interface Entry {
     shownSeq: number;
     /** Live chunks that arrive before the replay. */
     pending: [string, number][];
-    /** The event handlers of this session. They go away when the terminal becomes a spare. */
+    /** The event handlers of this session. */
     bindings: { dispose(): void }[];
-    settingsKey: string;
 }
 
 /**
@@ -55,7 +28,6 @@ interface Entry {
 export class TerminalPool {
     private readonly entries = new Map<string, Entry>();
     private readonly creating = new Map<string, Promise<Entry>>();
-    private readonly spares: Spare[] = [];
     private readonly api = window.shipwarden.terminals;
 
     constructor() {
@@ -139,11 +111,7 @@ export class TerminalPool {
      */
     resetAll(): void {
         for (const sessionId of [...this.entries.keys()]) {
-            this.free(sessionId);
-        }
-        for (const spare of this.spares.splice(0)) {
-            spare.host.remove();
-            spare.terminal.dispose();
+            this.dispose(sessionId);
         }
     }
 
@@ -156,8 +124,8 @@ export class TerminalPool {
     }
 
     /**
-     * Removes the terminal of a closed session. The terminal becomes a spare for the next session when the pool has
-     * space for it, because a freed terminal can leave text in the WASM memory that a new terminal shows.
+     * Removes and destroys the terminal of a session. Its Ghostty instance and its WASM memory go away with it.
+     * A change of the colors also uses this, because a new terminal is necessary for new colors.
      */
     dispose(sessionId: string): void {
         const entry = this.entries.get(sessionId);
@@ -166,61 +134,33 @@ export class TerminalPool {
         }
         this.entries.delete(sessionId);
         entry.bindings.forEach(binding => binding.dispose());
-        entry.terminal.attachCustomKeyEventHandler(() => false);
         entry.host.remove();
-        if (this.spares.length < MAX_SPARES) {
-            this.spares.push({ terminal: entry.terminal, fit: entry.fit, host: entry.host, settingsKey: entry.settingsKey });
-        } else {
-            entry.terminal.dispose();
-        }
-    }
-
-    /** Destroys the terminal of a session, without a spare. A change of the colors needs new terminals. */
-    private free(sessionId: string): void {
-        const entry = this.entries.get(sessionId);
-        if (entry) {
-            entry.bindings.forEach(binding => binding.dispose());
-            entry.host.remove();
-            entry.terminal.dispose();
-            this.entries.delete(sessionId);
-        }
+        entry.terminal.dispose();
     }
 
     private async create(session: TerminalSession, settings: TerminalSettings, container: HTMLElement): Promise<Entry> {
-        await prepareTerminal(settings);
+        // Each terminal has its own Ghostty instance, so it cannot show the memory of another terminal.
+        const [ghostty] = await Promise.all([loadGhostty(), prepareFonts(settings)]);
 
-        const settingsKey = JSON.stringify(settings);
-        const spareIndex = this.spares.findIndex(item => item.settingsKey === settingsKey);
-        let terminal: Terminal;
-        let fit: FitAddon;
-        let host: HTMLDivElement;
-        if (spareIndex >= 0) {
-            // A spare terminal: reset it, so nothing of its old session shows.
-            ({ terminal, fit, host } = this.spares.splice(spareIndex, 1)[0]);
-            container.appendChild(host);
-            terminal.write(RESET_ALL);
-            fit.fit();
-        } else {
-            host = document.createElement('div');
-            host.className = 'terminal-host';
-            // The terminal measures its size when it opens, so the host must be in the document.
-            container.appendChild(host);
-            terminal = new Terminal({
-                fontFamily: settings.fontFamily,
-                fontSize: settings.fontSize,
-                cursorStyle: settings.cursorStyle,
-                cursorBlink: settings.cursorBlink,
-                theme: settings.colors,
-                scrollback: 10000
-            });
-            fit = new FitAddon();
-            terminal.loadAddon(fit);
-            terminal.open(host);
-            terminal.write(CLEAR_ALL);
-            fit.fit();
-        }
+        const host = document.createElement('div');
+        host.className = 'terminal-host';
+        // The terminal measures its size when it opens, so the host must be in the document.
+        container.appendChild(host);
+        const terminal = new Terminal({
+            ghostty,
+            fontFamily: settings.fontFamily,
+            fontSize: settings.fontSize,
+            cursorStyle: settings.cursorStyle,
+            cursorBlink: settings.cursorBlink,
+            theme: settings.colors,
+            scrollback: 10000
+        });
+        const fit = new FitAddon();
+        terminal.loadAddon(fit);
+        terminal.open(host);
+        fit.fit();
 
-        const entry: Entry = { session, terminal, fit, host, shownSeq: -1, pending: [], bindings: [], settingsKey };
+        const entry: Entry = { session, terminal, fit, host, shownSeq: -1, pending: [], bindings: [] };
         this.entries.set(session.id, entry);
 
         // ⌘K clears the screen and the scrollback, as in Ghostty and Terminal.app.
@@ -236,6 +176,12 @@ export class TerminalPool {
                 this.api.write(session.id, '\x0c');
                 return true;
             }
+            // ghostty-web 0.4 sends nothing for Ctrl+V. Claude Code and Codex read an image from the clipboard on Ctrl+V.
+            if (isCtrlV(event)) {
+                event.preventDefault();
+                this.api.write(session.id, CTRL_V);
+                return true;
+            }
             const keybind = findKeybind(settings.keybinds, event);
             if (keybind) {
                 event.preventDefault();
@@ -244,7 +190,19 @@ export class TerminalPool {
             }
             return false;
         });
+        // ghostty-web 0.4 pastes only text. For a ⌘V with only an image, send Ctrl+V, so that the agent reads the image
+        // from the clipboard. The capture phase runs before the paste handlers of ghostty-web.
+        const onPaste = (event: ClipboardEvent) => {
+            const data = event.clipboardData;
+            if (data && isImageOnlyPaste([...data.types], data.getData('text/plain'))) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                this.api.write(session.id, CTRL_V);
+            }
+        };
+        host.addEventListener('paste', onPaste, { capture: true });
         entry.bindings.push(
+            { dispose: () => host.removeEventListener('paste', onPaste, { capture: true }) },
             terminal.onData(data => this.api.write(session.id, data)),
             terminal.onResize(({ cols, rows }) => this.api.resize(session.id, cols, rows))
         );

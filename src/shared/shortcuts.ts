@@ -45,3 +45,24 @@ export function isClearKey(input: { key: string; code?: string; metaKey: boolean
     const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
     return key === 'k' && input.metaKey && !input.ctrlKey && !input.altKey && !input.shiftKey;
 }
+
+/** The character that Ctrl+V sends. Claude Code and Codex then read an image from the clipboard. */
+export const CTRL_V = '\x16';
+
+/**
+ * Returns true for Ctrl+V without other modifier keys.
+ * ghostty-web 0.4 sends nothing for Ctrl+V, so the terminal must send the character itself.
+ */
+export function isCtrlV(input: { key: string; code?: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }): boolean {
+    const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
+    return key === 'v' && input.ctrlKey && !input.metaKey && !input.altKey && !input.shiftKey;
+}
+
+/**
+ * Returns true for a paste with an image and no text.
+ * ghostty-web 0.4 pastes only text, so it ignores this paste. The terminal then sends Ctrl+V.
+ * `types` are the types of the clipboard data, for example "text/plain" or "image/png".
+ */
+export function isImageOnlyPaste(types: readonly string[], text: string): boolean {
+    return text.length === 0 && types.some(type => type.startsWith('image/') || type === 'Files');
+}

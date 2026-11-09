@@ -348,11 +348,13 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 ### Known problems in ghostty-web 0.4
 
 - An empty `write()` throws "offset is out of bounds". `TerminalPool` skips empty writes.
-- A new terminal can reuse the WASM memory of a closed terminal without clearing it. Old text and garbled characters
-  can then show. `TerminalPool` clears the screen and the scrollback of each new terminal, and it does not free the
-  terminal of a closed session: it keeps up to 4 spares with the same settings and resets a spare (`ESC c` and a clear)
-  for the next session. Only a color change frees terminals (`resetAll`), because the colors need new terminals.
-- We should report both problems to coder/ghostty-web.
+- ghostty-web frees WASM memory and uses it again without clearing it. With one shared WASM instance, a new terminal
+  showed old text and garbled characters of a closed terminal, also at a different width. Spare terminals with a reset
+  (`ESC c` and a clear) did not stop it. Probably a clear frees the old pages, and the next output uses them again.
+  Now each terminal gets its own Ghostty instance (`loadGhostty`), so a terminal can show only its own memory. The
+  instance goes away with the terminal. Upstream issues: coder/ghostty-web#138, #141, #210.
+- ghostty-web pastes only text, and it sends nothing for Ctrl+V. `TerminalPool` sends Ctrl+V (`\x16`) for Ctrl+V and
+  for a ⌘V with only an image. Claude Code and Codex then read the image from the clipboard.
 
 ## Planned parts
 
