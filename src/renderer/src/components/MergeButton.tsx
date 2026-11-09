@@ -61,7 +61,7 @@ export function MergeButton({ methods, method, label, disabled, title, onSelect,
 
     const choice = methods.length > 1;
     return (
-        <div className="merge-split" ref={root}>
+        <div className={`merge-split${choice ? ' joined' : ''}`} ref={root}>
             <button className={`button merge merge-split-main${choice ? '' : ' alone'}`} disabled={disabled} title={title} onClick={onRun}>
                 <GitMerge size={14} strokeWidth={1.8} />{label ?? BUTTON_LABELS[method]}
             </button>
