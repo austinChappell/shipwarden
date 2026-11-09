@@ -46,6 +46,13 @@ export interface PullRequestCommentItem {
     path?: string;
     /** The state of a review, for example APPROVED or CHANGES_REQUESTED. */
     reviewState?: string;
+    /** The state of the pull request: OPEN, CLOSED or MERGED. */
+    prState?: string;
+}
+
+/** Returns true when the item approves a pull request that is merged. The user does not need to see it. */
+export function isMergedApproval(item: Pick<PullRequestCommentItem, 'reviewState' | 'prState'>): boolean {
+    return item.reviewState === 'APPROVED' && item.prState === 'MERGED';
 }
 
 /** The pull requests of the Dashboard. They load fast, so the Dashboard shows them before the comments. */
