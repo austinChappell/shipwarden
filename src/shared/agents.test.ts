@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { agentStateFromHook, describeTool, oneLine, claudeHookSettings, HOOK_EVENTS, shellQuote, withAgentHooks, worktreeAgentState } from './agents';
+import {
+    agentStateFromHook, describeTool, oneLine, claudeHookSettings, GEMINI_HOOK_EVENTS, GEMINI_HOOK_NAME, geminiHookSettings, HOOK_EVENTS, hookAgentOf,
+    shellQuote, withAgentHooks, worktreeAgentState
+} from './agents';
 
 describe('agentStateFromHook', () => {
     it('maps the hook events to agent states', () => {
@@ -12,6 +15,28 @@ describe('agentStateFromHook', () => {
         expect(agentStateFromHook('Stop', { last_assistant_message: ' I fixed the bug. ' })).toEqual({ state: 'done', message: 'I fixed the bug.' });
         expect(agentStateFromHook('SessionEnd', { reason: 'other' })).toEqual({ state: 'exited' });
         expect(agentStateFromHook('PostToolUse', {})).toBeUndefined();
+    });
+
+    it('maps the Gemini CLI hook events to agent states', () => {
+        expect(agentStateFromHook('SessionStart', { source: 'startup', hook_event_name: 'SessionStart' })).toEqual({ state: 'idle' });
+        expect(agentStateFromHook('BeforeAgent', { prompt: ' Add a\ntest ' }))
+            .toEqual({ state: 'working', message: 'Reading your prompt', prompt: 'Add a test' });
+        expect(agentStateFromHook('BeforeTool', { tool_name: 'run_shell_command', tool_input: { command: 'npm test' } }))
+            .toEqual({ state: 'working', message: 'Running npm test' });
+        expect(agentStateFromHook('Notification', { notification_type: 'ToolPermission', message: 'Allow run_shell_command?' }, 'working'))
+            .toEqual({ state: 'waiting', message: 'Allow run_shell_command?' });
+        // The user answered the permission prompt, and the tool ran.
+        expect(agentStateFromHook('AfterTool', { tool_name: 'replace', tool_input: { file_path: '/repo/src/App.tsx' } }, 'waiting'))
+            .toEqual({ state: 'working', message: 'Editing App.tsx' });
+        expect(agentStateFromHook('AfterAgent', { prompt: 'Add a test', prompt_response: ' I added the test. ' }))
+            .toEqual({ state: 'done', message: 'I added the test.' });
+        expect(agentStateFromHook('AfterAgent', {})).toEqual({ state: 'done', message: undefined });
+        expect(agentStateFromHook('SessionEnd', { reason: 'exit' })).toEqual({ state: 'exited' });
+        expect(agentStateFromHook('BeforeModel', {})).toBeUndefined();
+    });
+
+    it('does not show "exited" when the user clears the session', () => {
+        expect(agentStateFromHook('SessionEnd', { reason: 'clear' }, 'done')).toBeUndefined();
     });
 
     it('keeps "done" for the idle notification, but shows a permission prompt', () => {
@@ -44,16 +69,63 @@ describe('claudeHookSettings', () => {
     });
 });
 
+describe('geminiHookSettings', () => {
+    type Group = { matcher?: string; hooks: { name: string; type: string; command: string; timeout: number }[] };
+
+    it('has one named curl hook for each event, and the tool events match all tools', () => {
+        const settings = geminiHookSettings();
+        const hooks = settings.hooks as Record<string, Group[]>;
+        expect(Object.keys(hooks)).toEqual([...GEMINI_HOOK_EVENTS]);
+        const beforeTool = hooks.BeforeTool[0];
+        expect(beforeTool.matcher).toBe('.*');
+        expect(hooks.AfterAgent[0].matcher).toBeUndefined();
+        expect(beforeTool.hooks[0]).toMatchObject({ name: GEMINI_HOOK_NAME, type: 'command', timeout: 5000 });
+        expect(beforeTool.hooks[0].command).toContain(
+            '"${GEMINI_CLI_SHIPWARDEN_HOOK_URL:-${SHIPWARDEN_HOOK_URL:-$YARDMASTER_HOOK_URL}}/hook/${GEMINI_CLI_SHIPWARDEN_SESSION_ID:-${SHIPWARDEN_SESSION_ID:-$YARDMASTER_SESSION_ID}}/BeforeTool"'
+        );
+        expect(beforeTool.hooks[0].command).toContain('X-ShipWarden-Token: ${GEMINI_CLI_SHIPWARDEN_HOOK_TOKEN:-${SHIPWARDEN_HOOK_TOKEN:-$YARDMASTER_HOOK_TOKEN}}');
+        expect(beforeTool.hooks[0].command.endsWith('|| true')).toBe(true);
+    });
+
+    it('keeps the values and hooks of the system defaults file', () => {
+        const adminHook = { matcher: 'write_file', hooks: [{ type: 'command', command: 'audit.sh' }] };
+        const settings = geminiHookSettings({ ui: { theme: 'GitHub' }, hooks: { BeforeTool: [adminHook], PreCompress: [adminHook] } });
+        expect(settings.ui).toEqual({ theme: 'GitHub' });
+        const hooks = settings.hooks as Record<string, Group[]>;
+        expect(hooks.BeforeTool).toHaveLength(2);
+        expect(hooks.BeforeTool[0]).toBe(adminHook);
+        expect(hooks.BeforeTool[1].hooks[0].name).toBe(GEMINI_HOOK_NAME);
+        expect(hooks.PreCompress).toEqual([adminHook]);
+    });
+
+    it('ignores a system defaults file that is not an object', () => {
+        expect(Object.keys(geminiHookSettings([1, 2]))).toEqual(['hooks']);
+        expect(Object.keys(geminiHookSettings(null))).toEqual(['hooks']);
+        expect(Object.keys((geminiHookSettings({ hooks: 'bad' }).hooks as object))).toEqual([...GEMINI_HOOK_EVENTS]);
+    });
+});
+
 describe('withAgentHooks', () => {
-    const path = '/Users/me/Library/Application Support/shipwarden/claude-hooks.json';
+    const paths = {
+        claude: '/Users/me/Library/Application Support/shipwarden/claude-hooks.json',
+        gemini: '/Users/me/Library/Application Support/shipwarden/gemini-hooks.json'
+    };
 
     it('adds the settings to Claude Code and quotes the path', () => {
-        expect(withAgentHooks('claude', path)).toBe(`claude --settings '${path}'`);
-        expect(withAgentHooks('/opt/bin/claude --model opus', path)).toBe(`/opt/bin/claude --model opus --settings '${path}'`);
+        expect(withAgentHooks('claude', paths)).toBe(`claude --settings '${paths.claude}'`);
+        expect(withAgentHooks('/opt/bin/claude --model opus', paths)).toBe(`/opt/bin/claude --model opus --settings '${paths.claude}'`);
+    });
+
+    it('gives Gemini CLI the settings as its system defaults file', () => {
+        expect(withAgentHooks('gemini', paths)).toBe(`GEMINI_CLI_SYSTEM_DEFAULTS_PATH='${paths.gemini}' gemini`);
+        expect(withAgentHooks(' /opt/homebrew/bin/gemini --yolo ', paths)).toBe(`GEMINI_CLI_SYSTEM_DEFAULTS_PATH='${paths.gemini}' /opt/homebrew/bin/gemini --yolo`);
     });
 
     it('keeps the command of other agents', () => {
-        expect(withAgentHooks('codex', path)).toBe('codex');
+        expect(withAgentHooks('codex', paths)).toBe('codex');
+        expect(withAgentHooks('gemini-helper', paths)).toBe('gemini-helper');
+        expect(hookAgentOf('aider --yes')).toBeUndefined();
+        expect(hookAgentOf('/usr/local/bin/gemini')).toBe('gemini');
     });
 
     it('quotes single quotes for the shell', () => {
@@ -72,6 +144,16 @@ describe('describeTool', () => {
         expect(describeTool('Task', { description: 'Find the flaky test' })).toBe('Running a subagent: Find the flaky test');
         expect(describeTool('mcp__clickup__get_task', {})).toBe('Using get task (clickup)');
         expect(describeTool('Unknown')).toBe('Using Unknown');
+    });
+
+    it('describes the Gemini CLI tools for people', () => {
+        expect(describeTool('run_shell_command', { command: 'npm test', description: 'Run the unit tests' })).toBe('Run the unit tests');
+        expect(describeTool('replace', { file_path: '/repo/src/App.tsx' })).toBe('Editing App.tsx');
+        expect(describeTool('write_file', { file_path: '/repo/NOTES.md' })).toBe('Editing NOTES.md');
+        expect(describeTool('read_file', { absolute_path: '/repo/README.md' })).toBe('Reading README.md');
+        expect(describeTool('search_file_content', { pattern: 'useAppearance' })).toBe('Searching for "useAppearance"');
+        expect(describeTool('google_web_search', { query: 'vitest mocks' })).toBe('Searching the web for "vitest mocks"');
+        expect(describeTool('write_todos', {})).toBe('Updating its to-do list');
     });
 
     it('keeps long text on one short line', () => {

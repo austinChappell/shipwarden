@@ -7,7 +7,8 @@ import type { MergeMethod, PendingComment, PullRequestChange, PullRequestFile, P
 import type { ConnectionChange, TaskLink } from '@shared/tasks';
 import * as os from 'os';
 import { removeAgentSessionVariables } from './agent-environment';
-import { claudeHookSettings, withAgentHooks } from '@shared/agents';
+import { claudeHookSettings, withAgentHooks, type HookSettingsPaths } from '@shared/agents';
+import { writeGeminiHookSettings } from './agents/gemini-settings';
 import { shellIntegrationEnv, writeZshIntegration, type ShellIntegration } from './agents/shell-integration';
 import { ShellAgents } from './agents/shell-agents';
 import { writeFileSync } from 'fs';
@@ -325,11 +326,17 @@ const knownWorktree = async (worktree: unknown): Promise<string> => {
     throw new Error(`"${value}" is not a worktree of a project.`);
 };
 
-/** The hook settings file that agents get with --settings. It is the same for each session. */
-const hookSettingsPath = join(app.getPath('userData'), 'claude-hooks.json');
+/**
+ * The hook settings files of the agents. They are the same for each session.
+ * Claude Code gets its file with --settings. Gemini CLI gets its file in GEMINI_CLI_SYSTEM_DEFAULTS_PATH.
+ */
+const hookSettingsPaths: HookSettingsPaths = {
+    claude: join(app.getPath('userData'), 'claude-hooks.json'),
+    gemini: join(app.getPath('userData'), 'gemini-hooks.json')
+};
 
-/** The shell setup that adds the hook settings to a `claude` that the user types in a shell tab. */
-const shellIntegration: ShellIntegration = { hookSettingsPath };
+/** The shell setup that adds the hook settings to a `claude` or `gemini` that the user types in a shell tab. */
+const shellIntegration: ShellIntegration = { hookSettingsPath: hookSettingsPaths.claude, geminiHookSettingsPath: hookSettingsPaths.gemini };
 
 function createWindow(): void {
     mainWindow = new BrowserWindow({
@@ -572,7 +579,7 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.terminalsSettings, () => loadGhosttySettings());
     ipcMain.handle(IpcChannels.terminalsList, terminalSessions);
     ipcMain.handle(IpcChannels.terminalsCreate, async (_event, options: CreateTerminalOptions) => {
-        const command = options.isAgent && options.command ? withAgentHooks(options.command, hookSettingsPath) : options.command;
+        const command = options.isAgent && options.command ? withAgentHooks(options.command, hookSettingsPaths) : options.command;
         // Only an agent that got the hooks reports its state.
         const env = { ...process.env, ...shellIntegrationEnv(process.env, shellIntegration) };
         const session = await terminals.create({ ...options, command, reportsAgentState: !!options.isAgent && command !== options.command }, env);
@@ -888,10 +895,16 @@ app.whenReady().then(async () => {
     applyNativeAppearance((await settings.get()).appearance);
     buildMenu();
     try {
-        writeFileSync(hookSettingsPath, JSON.stringify(claudeHookSettings(), null, 2));
+        writeFileSync(hookSettingsPaths.claude, JSON.stringify(claudeHookSettings(), null, 2));
     } catch (error) {
         // Without the hook settings, agents still run. ShipWarden then shows no agent state.
         console.warn(`[agents] The hook settings were not written: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    try {
+        writeGeminiHookSettings(hookSettingsPaths.gemini);
+    } catch (error) {
+        // Without the hook settings, Gemini CLI still runs. ShipWarden then shows no state for it.
+        console.warn(`[agents] The Gemini CLI hook settings were not written: ${error instanceof Error ? error.message : String(error)}`);
     }
     try {
         shellIntegration.zshFolder = writeZshIntegration(join(app.getPath('userData'), 'shell-integration', 'zsh'));

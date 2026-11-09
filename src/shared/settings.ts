@@ -157,7 +157,8 @@ function normalizeRules(raw: unknown): HiddenCommentRule[] | undefined {
 /** The agents of a new installation. */
 export const DEFAULT_AGENTS: readonly AgentDefinition[] = [
     { id: 'claude', name: 'Claude Code', command: 'claude' },
-    { id: 'codex', name: 'Codex', command: 'codex' }
+    { id: 'codex', name: 'Codex', command: 'codex' },
+    { id: 'gemini', name: 'Gemini CLI', command: 'gemini' }
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -285,6 +286,15 @@ export function commandProgram(command: string): string {
 export function agentTitle(command: string): string {
     const program = commandProgram(command);
     return program.slice(program.lastIndexOf('/') + 1) || 'agent';
+}
+
+/**
+ * Returns the default agents that are not in an agent list. An agent with the same program counts as present.
+ * The settings page offers them, so an older installation can add an agent that ShipWarden got later (for example Gemini CLI).
+ */
+export function missingDefaultAgents(agents: readonly AgentDefinition[]): AgentDefinition[] {
+    const programs = new Set(agents.map(agent => agentTitle(agent.command)));
+    return DEFAULT_AGENTS.filter(agent => !programs.has(agentTitle(agent.command)) && !agents.some(item => item.id === agent.id));
 }
 
 /** The result of a check of the agent command. */

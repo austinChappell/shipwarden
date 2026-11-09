@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CircleAlert, CircleCheck, Plus, Trash2 } from 'lucide-react';
-import { cleanCommand, commandProgram, type AgentDefinition, type AppSettings, type CommandCheck } from '@shared/settings';
+import { hookAgentOf } from '@shared/agents';
+import { cleanCommand, commandProgram, missingDefaultAgents, type AgentDefinition, type AppSettings, type CommandCheck } from '@shared/settings';
 import { errorText } from '../util';
 import { SettingsGroup } from './settings-ui';
 
@@ -28,9 +29,10 @@ function useCommandCheck(command: string): CommandCheck | undefined {
 function CommandCheckLine({ command }: { command: string }) {
     const check = useCommandCheck(command);
     if (!check) return null;
-    const program = commandProgram(command);
-    const name = program.slice(program.lastIndexOf('/') + 1);
-    const hooks = name === 'claude' ? ' ShipWarden shows its state from Claude Code hooks.' : ' ShipWarden shows only that it runs.';
+    const agent = hookAgentOf(commandProgram(command));
+    const hooks = agent === 'claude' ? ' ShipWarden shows its state from Claude Code hooks.'
+        : agent === 'gemini' ? ' ShipWarden shows its state from Gemini CLI hooks.'
+        : ' ShipWarden shows only that it runs.';
     return check.path ? (
         <span className="settings-check ok"><CircleCheck size={13} strokeWidth={2} /> {check.path}.{hooks}</span>
     ) : (
@@ -173,6 +175,22 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                 />
                 <button type="submit" className="button" disabled={!newCommand.trim()}><Plus size={13} strokeWidth={1.8} />Add</button>
             </form>
+            {missingDefaultAgents(settings.agents).length > 0 && (
+                <div className="settings-row agent-add">
+                    <span className="agent-add-label">Built-in</span>
+                    {missingDefaultAgents(settings.agents).map(agent => (
+                        <button
+                            key={agent.id}
+                            type="button"
+                            className="button"
+                            title={`Add ${agent.name} (${agent.command}) to the list`}
+                            onClick={() => save({ agents: [...settings.agents, agent] })}
+                        >
+                            <Plus size={13} strokeWidth={1.8} />{agent.name}
+                        </button>
+                    ))}
+                </div>
+            )}
             {error && <div className="settings-row"><div className="form-error">{error}</div></div>}
         </SettingsGroup>
     );
