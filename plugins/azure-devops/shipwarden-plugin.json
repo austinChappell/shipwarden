@@ -1,0 +1,34 @@
+{
+  "id": "azure-devops",
+  "name": "Azure Boards",
+  "version": "0.1.0",
+  "protocolVersion": 3,
+  "description": "Azure DevOps work items (Azure Boards). Each Azure DevOps project is a collection. Restrict the connection to some projects in the settings.",
+  "command": "node",
+  "args": [
+    "index.js"
+  ],
+  "settings": [
+    {
+      "key": "organization",
+      "label": "Organization",
+      "type": "string",
+      "required": true,
+      "description": "The organization name or URL, for example \"contoso\" or \"https://dev.azure.com/contoso\"."
+    },
+    {
+      "key": "token",
+      "label": "Personal access token",
+      "type": "secret",
+      "required": true,
+      "description": "A personal access token with the scope \"Work Items (Read & write)\". In Azure DevOps, open User settings > Personal access tokens."
+    },
+    {
+      "key": "areaPath",
+      "label": "Area path",
+      "type": "string",
+      "description": "Optional. Show only the work items in this area and its child areas, for example \"Contoso\\Web\"."
+    }
+  ],
+  "scopeLabel": "project"
+}
