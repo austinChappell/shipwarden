@@ -3,6 +3,7 @@ import { findKeybind } from '@shared/keybinds';
 import { CTRL_V, isClearKey, isCtrlV, isImageOnlyPaste } from '@shared/shortcuts';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { loadGhostty, prepareFonts } from './ghostty';
+import { pauseRendering, resumeRendering } from './render-loop';
 
 /** Clears the screen and the scrollback (⌘K). */
 const CLEAR_ALL = '\x1b[H\x1b[2J\x1b[3J';
@@ -29,6 +30,26 @@ export class TerminalPool {
     private readonly entries = new Map<string, Entry>();
     private readonly creating = new Map<string, Promise<Entry>>();
     private readonly api = window.shipwarden.terminals;
+    /**
+     * Stops the draw loop of a terminal that is not visible, and starts it again when the terminal is visible.
+     * A terminal is not visible when its tab is not selected (its host is not in the document), or when its pane is
+     * hidden or has no size. The terminal continues to receive output while its loop is stopped.
+     */
+    private readonly visibility = new IntersectionObserver(records => {
+        for (const record of records) {
+            const terminal = this.hosts.get(record.target);
+            if (!terminal) {
+                continue;
+            }
+            if (record.isIntersecting && record.target.isConnected) {
+                resumeRendering(terminal);
+            } else {
+                pauseRendering(terminal);
+            }
+        }
+    });
+    /** The terminal of each host element, for the visibility observer. */
+    private readonly hosts = new WeakMap<Element, Terminal>();
 
     constructor() {
         this.api.onData((id, data, seq) => {
@@ -133,6 +154,7 @@ export class TerminalPool {
             return;
         }
         this.entries.delete(sessionId);
+        this.visibility.unobserve(entry.host);
         entry.bindings.forEach(binding => binding.dispose());
         entry.host.remove();
         entry.terminal.dispose();
@@ -162,6 +184,8 @@ export class TerminalPool {
 
         const entry: Entry = { session, terminal, fit, host, shownSeq: -1, pending: [], bindings: [] };
         this.entries.set(session.id, entry);
+        this.hosts.set(host, terminal);
+        this.visibility.observe(host);
 
         // ⌘K clears the screen and the scrollback, as in Ghostty and Terminal.app.
         // Keybinds from the Ghostty config that send text, for example shift+enter.
