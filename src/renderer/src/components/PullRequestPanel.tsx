@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { Bot, ChevronRight, CircleX, ExternalLink, GitPullRequest, Maximize2, RefreshCw, TriangleAlert } from 'lucide-react';
 import {
     hostLabel,
@@ -16,7 +17,8 @@ import {
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { seenStore } from '../seen-store';
-import { errorText, timeAgo } from '../util';
+import { errorText, optionalErrorText, timeAgo } from '../util';
+import { changePullRequest, mergePullRequest, submitReview } from '../github/pull-request-mutations';
 import { confirmDialog } from './ConfirmDialog';
 import { DescriptionEditor, PullRequestMeta } from './PullRequestDetails';
 import { PullRequestTimeline } from './PullRequestTimeline';
@@ -54,6 +56,7 @@ interface Props {
     status: BranchStatus | null | undefined;
     loading: boolean;
     error?: string;
+    /** Loads the pull request again, for the Refresh button. A change from the panel updates the cache and does not call it. */
     onRefresh(): Promise<void>;
     onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number): void;
     /**
@@ -93,15 +96,19 @@ export function PullRequestPanel({
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
     // Without counts from the parent, the panel loads the checks itself, for the CI banner.
-    const ownChecks = useCheckCounts(target, givenChecks ? undefined : status?.sha, status);
+    const ownChecks = useCheckCounts(target, givenChecks ? undefined : status?.sha);
     const checks = givenChecks ?? ownChecks;
     const failedChecks = bannerChecks(pr, checks);
     const review = useReviewState(target, pr?.number);
     // The review text is in the store, so it stays when the user changes tabs, and an agent review can add to it.
     const body = review.body;
     const setBody = (value: string) => pr && reviewStore.setBody(target, pr.number, value);
-    const [busy, setBusy] = useState(false);
-    const [actionError, setActionError] = useState<string>();
+    // One mutation runs the changes of the panel, so the panel has one busy state and one error.
+    const action = useMutation({ mutationFn: (change: () => Promise<void>) => change() });
+    const busy = action.isPending;
+    /** An error of the file list. A new change clears it. */
+    const [filesError, setFilesError] = useState<string>();
+    const actionError = optionalErrorText(action.error) ?? filesError;
     const [mergeMethod, setMergeMethod] = useState<MergeMethod>();
     const [showResolved, setShowResolved] = useState(false);
     const [commitsOpen, setCommitsOpen] = useState(false);
@@ -115,7 +122,7 @@ export function PullRequestPanel({
     // biome-ignore lint/correctness/useExhaustiveDependencies: A new head commit loads the file list again.
     useEffect(() => {
         if (prNumber !== undefined) {
-            reviewStore.loadFiles(target, prNumber).catch(err => setActionError(errorText(err)));
+            reviewStore.loadFiles(target, prNumber).catch(err => setFilesError(errorText(err)));
         }
     }, [target, prNumber, pr?.headRefOid]);
 
@@ -125,17 +132,11 @@ export function PullRequestPanel({
         seenStore.mark(shownCommentIds(pr, showResolved).map(gitHubSeenKey));
     }, [pr, showResolved]);
 
-    const run = async (action: () => Promise<void>) => {
-        setBusy(true);
-        setActionError(undefined);
-        try {
-            await action();
-            await onRefresh();
-        } catch (err) {
-            setActionError(errorText(err));
-        } finally {
-            setBusy(false);
-        }
+    /** Runs a change on the host. The change puts its result into the cache, so the panel shows it without a new load. */
+    const run = async (change: () => Promise<void>) => {
+        setFilesError(undefined);
+        // The mutation keeps the error, and the panel shows it.
+        await action.mutateAsync(change).catch(() => undefined);
     };
 
     if (status === undefined) {
@@ -146,7 +147,7 @@ export function PullRequestPanel({
         return <div className="panel-message">This worktree has no GitHub or Azure Repos remote named "origin".</div>;
     }
     if (!pr) {
-        return <CreatePullRequest target={target} status={status} onCreated={onRefresh} />;
+        return <CreatePullRequest target={target} status={status} />;
     }
 
     const files = review.files;
@@ -159,7 +160,7 @@ export function PullRequestPanel({
             return;
         }
         run(async () => {
-            await window.shipwarden.github.submitReview(target, pr.number, pr.headRefOid, event, body.trim(), review.pending);
+            await submitReview(target, pr, event, body.trim(), review.pending);
             reviewStore.clearPending(target, pr.number);
             setBody('');
         });
@@ -167,7 +168,7 @@ export function PullRequestPanel({
 
     const merge = async () => {
         if (method && (await confirmDialog({ title: mergeConfirmTitle(pr, method), confirmLabel: MERGE_LABELS[method] }))) {
-            run(() => window.shipwarden.github.merge(target, pr.number, pr.headRefOid, method));
+            run(() => mergePullRequest(target, pr, method, typeof target === 'string' ? status.repo : target));
         }
     };
 
@@ -184,7 +185,7 @@ export function PullRequestPanel({
         if (choice === 'close') await setState('closed');
     };
 
-    const change = (value: PullRequestChange) => run(() => window.shipwarden.github.changePullRequest(target, pr.number, value));
+    const change = (value: PullRequestChange) => run(() => changePullRequest(target, pr, value));
 
     const setState = async (state: 'open' | 'closed') => {
         if (await confirmDialog(stateConfirm(pr, state))) {
@@ -208,7 +209,7 @@ export function PullRequestPanel({
 
     const saveDescription = (title: string, text: string) =>
         run(async () => {
-            await window.shipwarden.github.changePullRequest(target, pr.number, descriptionChange(pr, title, text));
+            await changePullRequest(target, pr, descriptionChange(pr, title, text));
             setEditing(false);
         });
 
@@ -383,7 +384,7 @@ export function PullRequestPanel({
 
                         {!overview && (
                             <section className="pr-section">
-                                <PullRequestFileList target={target} pr={pr} files={files} onOpen={file => onOpenDiff(pr, file)} onError={setActionError} />
+                                <PullRequestFileList target={target} pr={pr} files={files} onOpen={file => onOpenDiff(pr, file)} onError={setFilesError} />
                             </section>
                         )}
 

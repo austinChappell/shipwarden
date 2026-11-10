@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, LoaderCircle, Plus, Trash2 } from 'lucide-react';
-import type { GitHubOwner } from '@shared/github';
 import {
     REVIEW_PROVIDER_KINDS,
     providerKindName,
@@ -10,8 +10,8 @@ import {
     type ReviewProviderKind,
     type ReviewTokenSource
 } from '@shared/review-providers';
-import { reviewProvidersStore, useReviewProviders } from '../review-providers-store';
-import { errorText } from '../util';
+import { providerAdded, providerChanged, providerRemoved, providerTokenChanged, reviewProviderKeys, useReviewProviders } from '../review-providers-store';
+import { optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { SettingsGroup } from './settings-ui';
 
@@ -54,23 +54,27 @@ function providerMeta(provider: ReviewProviderInfo): string {
  * switch, its token and its organizations. The layout is the same as the task managers.
  */
 export function CodeReviewSettings() {
+    const queryClient = useQueryClient();
     const providers = useReviewProviders();
     const [openId, setOpenId] = useState<string>();
     const [adding, setAdding] = useState<ReviewProviderKind | ''>('');
-    const [error, setError] = useState<string>();
 
-    const add = async () => {
-        if (!adding) return;
-        try {
-            const existing = (providers ?? []).filter(item => item.kind === adding).length;
-            const name = providerKindName(adding);
-            const created = await api.add(adding, existing ? `${name} ${existing + 1}` : name);
+    const addMutation = useMutation({
+        mutationFn: (kind: ReviewProviderKind) => {
+            const existing = (providers ?? []).filter(item => item.kind === kind).length;
+            const name = providerKindName(kind);
+            return api.add(kind, existing ? `${name} ${existing + 1}` : name);
+        },
+        onSuccess: created => {
             setAdding('');
             setOpenId(created.id);
-            await reviewProvidersStore.reload();
-        } catch (err) {
-            setError(errorText(err));
+            providerAdded(queryClient, created);
         }
+    });
+    const error = optionalErrorText(addMutation.error);
+
+    const add = () => {
+        if (adding) addMutation.mutate(adding);
     };
 
     return (
@@ -125,19 +129,20 @@ export function CodeReviewSettings() {
 
 /** One provider: a summary row that opens to its name, token and organizations. */
 function ProviderCard({ provider, open, onToggle }: { provider: ReviewProviderInfo; open: boolean; onToggle(): void }) {
+    const queryClient = useQueryClient();
     const [name, setName] = useState(provider.name);
-    const [error, setError] = useState<string>();
     useEffect(() => setName(provider.name), [provider.name]);
 
-    const update = async (change: ReviewProviderChange) => {
-        setError(undefined);
-        try {
-            await api.update(provider.id, change);
-            await reviewProvidersStore.reload();
-        } catch (err) {
-            setError(errorText(err));
-        }
-    };
+    const updateMutation = useMutation({
+        mutationFn: (change: ReviewProviderChange) => api.update(provider.id, change),
+        onSuccess: (_result, change) => providerChanged(queryClient, provider, change)
+    });
+    const removeMutation = useMutation({
+        mutationFn: () => api.remove(provider.id),
+        onSuccess: () => providerRemoved(queryClient, provider)
+    });
+    const error = optionalErrorText(updateMutation.error ?? removeMutation.error);
+    const update = (change: ReviewProviderChange) => updateMutation.mutate(change);
 
     const remove = async () => {
         if (
@@ -151,12 +156,7 @@ function ProviderCard({ provider, open, onToggle }: { provider: ReviewProviderIn
         ) {
             return;
         }
-        try {
-            await api.remove(provider.id);
-            await reviewProvidersStore.reload();
-        } catch (err) {
-            setError(errorText(err));
-        }
+        removeMutation.mutate();
     };
 
     return (
@@ -231,38 +231,28 @@ function CliAccountField({ provider, onChange }: { provider: ReviewProviderInfo;
 
 /** The personal access token of a provider and a test of the token. The page never reads the token back. */
 function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
-    const [source, setSource] = useState<ReviewTokenSource | undefined | null>(null);
+    const queryClient = useQueryClient();
     const [token, setToken] = useState('');
     const [organization, setOrganization] = useState('');
-    const [message, setMessage] = useState<string>();
-    const [error, setError] = useState<string>();
-    const [busy, setBusy] = useState(false);
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: A new token or CLI account changes the source. These values reload it.
-    useEffect(() => {
-        let cancelled = false;
-        setSource(null);
-        api.tokenSource(provider.id).then(
-            value => !cancelled && setSource(value),
-            () => !cancelled && setSource(undefined)
-        );
-        return () => {
-            cancelled = true;
-        };
-    }, [provider.id, provider.tokenSaved, provider.cliAccount]);
+    // A new token or CLI account marks the source as stale. The settings page shows the current source each time that it opens.
+    const sourceQuery = useQuery({
+        queryKey: reviewProviderKeys.tokenSource(provider.id),
+        // A query cannot keep undefined, so "no token" is null in the cache.
+        queryFn: async () => (await api.tokenSource(provider.id)) ?? null,
+        staleTime: 0
+    });
+    /** Null while the source loads. Undefined when no token is available or the request failed. */
+    const source: ReviewTokenSource | undefined | null = sourceQuery.isPending ? null : (sourceQuery.data ?? undefined);
 
-    const act = async (action: () => Promise<void>) => {
-        setBusy(true);
-        setError(undefined);
-        setMessage(undefined);
-        try {
-            await action();
-        } catch (err) {
-            setError(errorText(err));
-        } finally {
-            setBusy(false);
-        }
-    };
+    /** The token actions of the page. Each one returns the message to show after it. */
+    const action = useMutation({
+        mutationFn: async (run: () => Promise<string>) => run()
+    });
+    const busy = action.isPending;
+    const message = action.data;
+    const error = optionalErrorText(action.error);
+    const act = (run: () => Promise<string>) => action.mutate(run);
 
     const azure = provider.kind === 'azure';
     return (
@@ -284,7 +274,8 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
                             act(async () => {
                                 await api.saveToken(provider.id, token);
                                 setToken('');
-                                setMessage('The token is saved.');
+                                providerTokenChanged(queryClient, provider, true);
+                                return 'The token is saved.';
                             })
                         }
                     >
@@ -297,7 +288,8 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
                             onClick={() =>
                                 act(async () => {
                                     await api.clearToken(provider.id);
-                                    setMessage('The token is removed.');
+                                    providerTokenChanged(queryClient, provider, false);
+                                    return 'The token is removed.';
                                 })
                             }
                         >
@@ -326,7 +318,7 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
                         onClick={() =>
                             act(async () => {
                                 const user = await api.test(provider.id, azure ? organization : undefined);
-                                setMessage(`The token works. It belongs to ${user}.`);
+                                return `The token works. It belongs to ${user}.`;
                             })
                         }
                     >
@@ -343,22 +335,13 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
 
 /** The GitHub organizations of a provider: all of them, or a list from the account of the token. */
 function GitHubScope({ provider, onChange }: { provider: ReviewProviderInfo; onChange(scope: string[] | null): void }) {
-    const [owners, setOwners] = useState<GitHubOwner[]>();
-    const [error, setError] = useState<string>();
-
-    // biome-ignore lint/correctness/useExhaustiveDependencies: A new token or CLI account changes the organizations. These values reload them.
-    useEffect(() => {
-        let cancelled = false;
-        setOwners(undefined);
-        setError(undefined);
-        api.githubOwners(provider.id).then(
-            list => !cancelled && setOwners(list),
-            err => !cancelled && setError(errorText(err))
-        );
-        return () => {
-            cancelled = true;
-        };
-    }, [provider.id, provider.tokenSaved, provider.cliAccount]);
+    // The organizations come from GitHub. A new token or CLI account marks them as stale.
+    const ownersQuery = useQuery({
+        queryKey: reviewProviderKeys.githubOwners(provider.id),
+        queryFn: () => api.githubOwners(provider.id)
+    });
+    const owners = ownersQuery.data;
+    const error = optionalErrorText(ownersQuery.error);
 
     const value = provider.scope;
     const mode = value ? 'some' : 'all';

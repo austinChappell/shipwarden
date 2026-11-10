@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { GitPullRequest, X } from 'lucide-react';
 import { parseRepoId, repoId, type BranchStatus, type CheckRun, type PullRequest, type RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { QueueItem } from '@shared/review-queue';
-import { errorText } from '../util';
-import { cacheKey, cached, remember } from '../data-cache';
-import { reviewStore } from '../github/review-store';
-import { reviewOverviewStore, useReviewOverview, useReviewQueue } from '../github/review-overview-store';
+import { queryClient } from '../query-client';
+import { errorText, optionalErrorText } from '../util';
+import { reviewKeys, reviewStore } from '../github/review-store';
+import { refreshRepo, useReviewOverview, useReviewQueue } from '../github/review-overview-store';
 import { sortedGroups } from './Combobox';
 import { ReviewHome } from './ReviewHome';
 import { ReviewRepoPage } from './ReviewRepoPage';
@@ -14,7 +15,10 @@ import { ReviewPullRequest } from './ReviewPullRequest';
 
 const api = window.shipwarden.github;
 
-const prKey = (repo: string, number: number) => cacheKey('review.pr', repo, number);
+/** The query of one pull request. The query cache keeps it, so a pull request that opens again shows at once. */
+function pullRequestQuery(repo: RepoRef, number: number) {
+    return { queryKey: reviewKeys.pullRequest(repo, number), queryFn: () => api.pullRequest(repo, number) };
+}
 
 interface Props {
     /** A key for the providers of Settings › Code review. Undefined: not loaded yet. Null: no provider is on. */
@@ -73,9 +77,8 @@ export function ReviewView({
     const queueItems = useReviewQueue();
     const [repo, setRepo] = useState<string>();
     const [selected, setSelected] = useState<number>();
-    const [pr, setPr] = useState<PullRequest | null>();
-    const [prLoading, setPrLoading] = useState(false);
-    const [prError, setPrError] = useState<string>();
+    /** The error of the last agent review start, for the pull request that the user selected then. */
+    const [agentError, setAgentError] = useState<{ repo: string; number: number; text: string }>();
     const [queue, setQueue] = useState<ActiveQueue>();
     /** The repository and the pull request that the user came back from. The pages focus their rows. */
     const [lastRepo, setLastRepo] = useState<string>();
@@ -110,33 +113,20 @@ export function ReviewView({
         openPr(open.repo, open.number);
     }, [open?.nonce]);
 
-    /** Each pull request request gets a number, so that a slow response for another pull request cannot show. */
-    const prRequest = useRef(0);
-    const loadPr = useCallback(async () => {
-        if (!repoRef || !selected) return;
-        const id = ++prRequest.current;
-        setPrLoading(true);
-        try {
-            const result = await api.pullRequest(repoRef, selected);
-            if (id !== prRequest.current) return;
-            setPr(remember(prKey(repoId(repoRef), selected), result));
-            setPrError(undefined);
-        } catch (err) {
-            if (id === prRequest.current) setPrError(errorText(err));
-        } finally {
-            if (id === prRequest.current) setPrLoading(false);
-        }
-    }, [repoRef, selected]);
-
-    // A pull request shows its cached data immediately, and loads new data in the background.
-    useEffect(() => {
-        setPr(repoRef && selected ? cached<PullRequest>(prKey(repoId(repoRef), selected)) : undefined);
-        setPrError(undefined);
-        void loadPr();
-    }, [loadPr, repoRef, selected]);
+    // A pull request shows its cached data immediately. Its comments and reviews change often. Thus it loads again in the
+    // background each time that it opens.
+    const prQuery = useQuery({
+        ...pullRequestQuery(repoRef ?? { owner: '', name: '' }, selected ?? 0),
+        enabled: !!repoRef && !!selected,
+        staleTime: 0
+    });
+    const pr = repoRef && selected ? prQuery.data : undefined;
+    const prLoading = prQuery.isFetching;
+    const shownAgentError = agentError && agentError.repo === repo && agentError.number === selected ? agentError.text : undefined;
+    const prError = shownAgentError ?? optionalErrorText(prQuery.error);
 
     const refresh = async () => {
-        await Promise.all([loadPr(), repo ? reviewOverviewStore.refresh(repo) : undefined]);
+        await Promise.all([prQuery.refetch(), repo ? refreshRepo(repo) : undefined]);
     };
 
     /** The panels take a branch status. In the Review view, it comes from the pull request. */
@@ -190,10 +180,10 @@ export function ReviewView({
         if (!repoRef || !repo) return;
         setSelected(number);
         try {
-            const full = cached<PullRequest>(prKey(repo, number)) ?? (await api.pullRequest(repoRef, number));
+            const full = await queryClient.ensureQueryData(pullRequestQuery(repoRef, number));
             void reviewStore.runAgentReview(repoRef, full);
         } catch (err) {
-            setPrError(errorText(err));
+            setAgentError({ repo, number, text: errorText(err) });
         }
     };
 

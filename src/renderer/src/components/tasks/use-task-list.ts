@@ -1,59 +1,41 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type SetStateAction } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { statusForColumn, statusKey, type StatusGroup, type StatusOrder, type Task, type TaskSource, type TaskStatus } from '@shared/tasks';
-import { errorText } from '../../util';
-import { cached, remember } from '../../data-cache';
+import { errorText, optionalErrorText } from '../../util';
 import { promptDialog } from '../ConfirmDialog';
-import { patchTask, prependTask, statusOrderKey, tasksKey, uniqueTasks, type ConnectionState } from './task-view-logic';
+import { patchTask, prependTask, taskQueryKeys, uniqueTasks } from './task-view-logic';
 import type { TaskRequest } from './use-task-source';
 
 const api = window.shipwarden.tasks;
-const POLL_MS = 60_000;
 /** The list loads at most this number of pages. ClickUp sends 100 tasks per page. */
 const MAX_PAGES = 5;
 
 interface Options {
     projectId: string;
-    connectionId: string | undefined;
-    connectionState: ConnectionState;
+    /** The source of the selected connection, or undefined while it loads. */
     source: TaskSource | null | undefined;
     collection: string | undefined;
     filter: string | undefined;
     request: TaskRequest;
-    setListError(error: string | undefined): void;
     setSelectedId(id: string | undefined): void;
 }
 
-/** The tasks of the selected collection. The hook loads them now, on a timer and on change notifications. */
-export function useTaskList({ projectId, connectionId, connectionState, source, collection, filter, request, setListError, setSelectedId }: Options) {
-    const [tasks, setTasks] = useState<Task[]>();
-    const [loading, setLoading] = useState(false);
-    /** The workflow order of the statuses from the plugin's status order adapter, if it has one. */
-    const [statusOrder, setStatusOrder] = useState<StatusOrder>();
+/**
+ * The tasks of the selected collection. The query cache keeps them for the session.
+ * The list loads again when its data is stale, on the timer of the query client and on change notifications.
+ */
+export function useTaskList({ projectId, source, collection, filter, request, setSelectedId }: Options) {
+    const queryClient = useQueryClient();
+    const connectionId = source?.connectionId;
+    const listKey = taskQueryKeys.list(connectionId, projectId, collection, filter);
+    /** The error of the last action on the list, for example a failed move. */
+    const [actionError, setActionError] = useState<string>();
     /** The tasks that move to another status now. */
     const [moving, setMoving] = useState<Set<string>>(new Set());
 
-    // A task manager that is not ready has no tasks.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: A new project must run this check again. The body does not read projectId.
-    useEffect(() => {
-        if (connectionState !== 'ready' || !connectionId) {
-            setTasks(undefined);
-        }
-    }, [connectionState, connectionId, projectId]);
-
-    // A new collection or filter shows its cached tasks, or nothing. Tasks of the old collection must not show.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: setListError is a state setter from TasksView. It is stable, but Biome cannot see that.
-    useEffect(() => {
-        setTasks(connectionId && collection ? cached(tasksKey(connectionId, projectId, collection, filter)) : undefined);
-        setStatusOrder(connectionId && collection ? cached(statusOrderKey(connectionId, projectId, collection)) : undefined);
-        setListError(undefined);
-    }, [connectionId, projectId, collection, filter]);
-
-    // biome-ignore lint/correctness/useExhaustiveDependencies: setListError is a state setter from TasksView. It is stable, but Biome cannot see that.
-    const loadTasks = useCallback(async () => {
-        // After a switch, the old source is still in state for one render. Load only for the selected connection.
-        if (!source || !collection || source.connectionId !== connectionId) return;
-        setLoading(true);
-        try {
+    const listQuery = useQuery({
+        queryKey: listKey,
+        queryFn: async () => {
             const all: Task[] = [];
             let cursor: string | undefined;
             for (let page = 0; page < MAX_PAGES; page++) {
@@ -64,46 +46,57 @@ export function useTaskList({ projectId, connectionId, connectionState, source, 
                     break;
                 }
             }
-            setTasks(remember(tasksKey(connectionId, projectId, collection, filter), uniqueTasks(all)));
-            if (source.capabilities.statusOrder) {
-                request<StatusOrder>('tasks/statusOrder', { collection }).then(
-                    result => setStatusOrder(remember(statusOrderKey(connectionId, projectId, collection), result)),
-                    () => setStatusOrder(undefined)
-                );
-            }
-            setListError(undefined);
-        } catch (err) {
-            setListError(errorText(err));
-        } finally {
-            setLoading(false);
-        }
-    }, [source, collection, connectionId, projectId, filter, request]);
+            return uniqueTasks(all);
+        },
+        enabled: !!source && !!collection
+    });
+    const tasks = source && collection ? listQuery.data : undefined;
 
-    // Load the list now, and again on a timer and on change notifications. The search filters the loaded tasks in the renderer.
-    useEffect(() => {
-        loadTasks();
-    }, [loadTasks]);
-    useEffect(() => {
-        const timer = setInterval(loadTasks, POLL_MS);
-        const off = api.onChanged((changedConnection, changedProject) => changedConnection === connectionId && changedProject === projectId && loadTasks());
-        return () => {
-            clearInterval(timer);
-            off();
-        };
-    }, [loadTasks, connectionId, projectId]);
+    /** The workflow order of the statuses from the plugin's status order adapter, if it has one. */
+    const statusOrderQuery = useQuery({
+        queryKey: taskQueryKeys.statusOrder(connectionId, projectId, collection),
+        queryFn: () => request<StatusOrder>('tasks/statusOrder', { collection }),
+        enabled: !!source?.capabilities.statusOrder && !!collection
+    });
+    const statusOrder = source?.capabilities.statusOrder && collection && !statusOrderQuery.isError ? statusOrderQuery.data : undefined;
+
+    // A new collection or filter has no error of the old one.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The body does not read the dependencies, but a change must clear the error.
+    useEffect(() => setActionError(undefined), [connectionId, projectId, collection, filter]);
+
+    /** Changes the cached tasks of the selected collection. */
+    const setTasks = (update: SetStateAction<Task[] | undefined>) =>
+        queryClient.setQueryData<Task[]>(listKey, update as (list: Task[] | undefined) => Task[] | undefined);
+
+    /** Loads the list again now. */
+    const loadTasks = useCallback(async () => {
+        setActionError(undefined);
+        await queryClient.invalidateQueries({ queryKey: taskQueryKeys.list(connectionId, projectId, collection, filter) });
+    }, [queryClient, connectionId, projectId, collection, filter]);
+
+    // A change notification of the plugin marks all lists of the connection as stale. The list that shows now loads again.
+    useEffect(
+        () =>
+            api.onChanged((changedConnection, changedProject) => {
+                if (changedConnection === connectionId && changedProject === projectId) {
+                    void queryClient.invalidateQueries({ queryKey: ['tasks', 'list', connectionId, projectId] });
+                }
+            }),
+        [queryClient, connectionId, projectId]
+    );
 
     /** Asks for a title and makes a task in the selected collection. Then it opens the task, so the user can add a description. */
     const createTask = async () => {
         if (!collection) return;
         const title = await promptDialog({ title: 'New task', placeholder: 'Title', confirmLabel: 'Create' });
         if (!title) return;
-        setListError(undefined);
+        setActionError(undefined);
         try {
             const created = await request<Task>('tasks/create', { collection, title });
             setTasks(list => prependTask(list, created));
             setSelectedId(created.id);
         } catch (err) {
-            setListError(errorText(err));
+            setActionError(errorText(err));
         }
     };
 
@@ -117,7 +110,9 @@ export function useTaskList({ projectId, connectionId, connectionState, source, 
         }
         const setStatus = (status: TaskStatus) => setTasks(list => patchTask(list, task.id, { status }));
         setMoving(set => new Set(set).add(task.id));
-        setListError(undefined);
+        setActionError(undefined);
+        // A list that loads now must not put the card back in its old column.
+        await queryClient.cancelQueries({ queryKey: listKey });
         // Move the card at once. The request can take a second. A failure moves the card back.
         setStatus({ id: column.key, name: column.name, color: column.color, category: column.category });
         try {
@@ -130,7 +125,7 @@ export function useTaskList({ projectId, connectionId, connectionState, source, 
             onUpdated(updated);
         } catch (err) {
             setStatus(task.status);
-            setListError(errorText(err));
+            setActionError(errorText(err));
         } finally {
             setMoving(set => {
                 const next = new Set(set);
@@ -140,5 +135,8 @@ export function useTaskList({ projectId, connectionId, connectionState, source, 
         }
     };
 
-    return { tasks, setTasks, loading, statusOrder, moving, loadTasks, createTask, moveTask };
+    /** The error of a failed action, else the error of the last load. */
+    const listError = actionError ?? (source && collection ? optionalErrorText(listQuery.error) : undefined);
+
+    return { tasks, setTasks, loading: listQuery.isFetching, listError, statusOrder, moving, loadTasks, createTask, moveTask };
 }

@@ -1,4 +1,5 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
     DASHBOARD_WINDOW_DAYS,
     gitHubSeenKey,
@@ -10,11 +11,10 @@ import {
     type PullRequestCommentItem,
     type TaskCommentItem
 } from '@shared/dashboard';
+import { repoId, type RepoRef } from '@shared/github';
+import { keyRoots, queryClient } from './query-client';
 import { seenStore, useSeenVersion } from './seen-store';
-import { errorText } from './util';
-
-/** The Dashboard loads again at this interval. ClickUp allows 100 requests per minute, so the interval is long. */
-const REFRESH_MS = 5 * 60 * 1000;
+import { errorText, optionalErrorText } from './util';
 
 export interface TaskActivity {
     connectionId: string;
@@ -42,155 +42,200 @@ export interface DashboardNews {
 }
 
 interface Scope {
-    /** A key for the providers and their scopes (see `reviewScopeKey`). */
-    reviewKey: string | null | undefined;
+    /** A key for the providers and their scopes (see `reviewScopeKey`). Null: no provider is on. */
+    reviewKey: string | null;
     projectId: string | undefined;
 }
 
-/** Loads the items of the Dashboard for the whole app, so that the sidebar can show the count in all views. */
-class DashboardStore {
-    private state: DashboardState = { tasks: [], loading: false };
-    private scope: Scope = { reviewKey: undefined, projectId: undefined };
-    private request = 0;
-    private readonly listeners = new Set<() => void>();
-    private readonly newsListeners = new Set<(news: DashboardNews) => void>();
-    /** The keys of all items of the earlier refreshes. Undefined until the first complete refresh. */
-    private known: Set<string> | undefined;
+/**
+ * The query keys of the Dashboard. The pull requests and the comments depend on the providers.
+ * The task activity depends on the task managers of the project.
+ */
+export const dashboardKeys = {
+    pullRequests: (reviewKey: string | null) => [...keyRoots.dashboard, 'pullRequests', reviewKey] as const,
+    comments: (reviewKey: string | null) => [...keyRoots.dashboard, 'comments', reviewKey] as const,
+    tasks: (projectId: string | undefined) => [...keyRoots.dashboard, 'tasks', projectId] as const
+};
 
-    /** Calls the listener with the new items after each complete refresh. The first refresh has no news. */
-    onNews(listener: (news: DashboardNews) => void): () => void {
-        this.newsListeners.add(listener);
-        return () => this.newsListeners.delete(listener);
-    }
-
-    get = (): DashboardState => this.state;
-
-    subscribe = (listener: () => void): (() => void) => {
-        this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
+/** The query of the pull requests of the Dashboard. The Review view uses it too, to find the repositories of the user. */
+export function dashboardPullRequestsQuery(reviewKey: string | null) {
+    return {
+        queryKey: dashboardKeys.pullRequests(reviewKey),
+        queryFn: () => window.shipwarden.github.dashboardPullRequests()
     };
+}
 
-    setScope(scope: Scope): void {
-        const same = JSON.stringify(scope) === JSON.stringify(this.scope);
-        this.scope = scope;
-        // Another project or other organizations: their items are not news.
-        if (!same) this.known = undefined;
-        if (!same || !this.state.updatedAt) {
-            void this.refresh();
+function commentsQuery(reviewKey: string | null) {
+    return {
+        queryKey: dashboardKeys.comments(reviewKey),
+        queryFn: async (): Promise<PullRequestCommentItem[]> => {
+            const [prComments] = await Promise.all([window.shipwarden.github.dashboardComments(), seenStore.load()]);
+            // An approval of a merged pull request needs no action. Record it as seen.
+            seenStore.mark(prComments.filter(isMergedApproval).map(item => gitHubSeenKey(item.id)));
+            return prComments;
         }
+    };
+}
+
+function tasksQuery(projectId: string | undefined) {
+    return {
+        queryKey: dashboardKeys.tasks(projectId),
+        queryFn: () => loadTasks(projectId)
+    };
+}
+
+/** Asks each task manager with the "activity" capability for new comments. */
+async function loadTasks(projectId: string | undefined): Promise<TaskActivity[]> {
+    if (!projectId) {
+        return [];
     }
-
-    async refresh(): Promise<void> {
-        const id = ++this.request;
-        const { projectId } = this.scope;
-        this.set({ loading: true });
-        await seenStore.load();
-        const since = new Date(Date.now() - DASHBOARD_WINDOW_DAYS * 24 * 3600 * 1000).toISOString();
-
-        // Each part shows when it arrives. The pull requests are fast, the comments are slow.
-        const current = () => id === this.request;
-        const github = window.shipwarden.github;
-        await Promise.all([
-            github.dashboardPullRequests().then(
-                pullRequests => current() && this.set({ pullRequests, pullRequestsError: undefined }),
-                error => current() && this.set({ pullRequestsError: errorText(error) })
-            ),
-            github.dashboardComments().then(
-                prComments => {
-                    if (!current()) return;
-                    // An approval of a merged pull request needs no action. Record it as seen.
-                    seenStore.mark(prComments.filter(isMergedApproval).map(item => gitHubSeenKey(item.id)));
-                    this.set({ prComments, prCommentsError: undefined });
-                },
-                error => current() && this.set({ prCommentsError: errorText(error) })
-            ),
-            this.loadTasks(projectId, since).then(tasks => current() && this.set({ tasks }))
-        ]);
-        if (current()) {
-            this.set({ loading: false, updatedAt: Date.now() });
-            this.findNews();
-        }
-    }
-
-    /** Asks each task manager with the "activity" capability for new comments. */
-    private async loadTasks(projectId: string | undefined, since: string): Promise<TaskActivity[]> {
-        if (!projectId) {
-            return [];
-        }
-        const api = window.shipwarden.tasks;
-        const connections = await api.enabledConnections().catch(() => []);
-        const results = await Promise.all(
-            connections.map(async (connection): Promise<TaskActivity | undefined> => {
-                try {
-                    const source = await api.source(connection.id, projectId);
-                    if (!source.capabilities.activity) {
-                        return undefined;
-                    }
-                    const result = (await api.request(connection.id, projectId, 'activity/list', { since })) as { comments: TaskCommentItem[] };
-                    return { connectionId: connection.id, name: connection.name, comments: result.comments };
-                } catch (error) {
-                    return { connectionId: connection.id, name: connection.name, error: errorText(error) };
+    const since = new Date(Date.now() - DASHBOARD_WINDOW_DAYS * 24 * 3600 * 1000).toISOString();
+    const api = window.shipwarden.tasks;
+    const connections = await api.enabledConnections().catch(() => []);
+    const results = await Promise.all(
+        connections.map(async (connection): Promise<TaskActivity | undefined> => {
+            try {
+                const source = await api.source(connection.id, projectId);
+                if (!source.capabilities.activity) {
+                    return undefined;
                 }
-            })
-        );
-        return results.filter((item): item is TaskActivity => !!item);
-    }
-
-    /** Finds the items that no earlier refresh had. An item with a changed reason (a new CI failure) is new too. */
-    private findNews(): void {
-        const { pullRequests, prComments, tasks } = this.state;
-        if (!pullRequests || !prComments) return;
-        const items = {
-            reviewRequests: pullRequests.reviewRequests.map(item => ({ key: `r:${item.url}`, item })),
-            myPullRequests: pullRequests.myPullRequests.map(item => ({ key: `m:${item.url}:${item.reasons.join(',')}`, item })),
-            prComments: prComments.filter(item => !isMergedApproval(item)).map(item => ({ key: `c:${item.id}`, item })),
-            taskComments: tasks.flatMap(source =>
-                (source.comments ?? []).map(comment => ({
-                    key: `t:${source.connectionId}:${comment.id}`,
-                    item: { connectionId: source.connectionId, comment }
-                }))
-            )
-        };
-        const keys = [...items.reviewRequests, ...items.myPullRequests, ...items.prComments, ...items.taskComments].map(entry => entry.key);
-        const known = this.known;
-        this.known = new Set([...(known ?? []), ...keys]);
-        if (!known) return;
-        const fresh = <T>(list: { key: string; item: T }[]) => list.filter(entry => !known.has(entry.key)).map(entry => entry.item);
-        const news: DashboardNews = {
-            reviewRequests: fresh(items.reviewRequests),
-            myPullRequests: fresh(items.myPullRequests),
-            prComments: fresh(items.prComments),
-            taskComments: fresh(items.taskComments)
-        };
-        if (news.reviewRequests.length + news.myPullRequests.length + news.prComments.length + news.taskComments.length > 0) {
-            this.newsListeners.forEach(listener => listener(news));
-        }
-    }
-
-    private set(change: Partial<DashboardState>): void {
-        this.state = { ...this.state, ...change };
-        this.listeners.forEach(listener => listener());
-    }
+                const result = (await api.request(connection.id, projectId, 'activity/list', { since })) as { comments: TaskCommentItem[] };
+                return { connectionId: connection.id, name: connection.name, comments: result.comments };
+            } catch (error) {
+                return { connectionId: connection.id, name: connection.name, error: errorText(error) };
+            }
+        })
+    );
+    return results.filter((item): item is TaskActivity => !!item);
 }
 
-export const dashboardStore = new DashboardStore();
+/**
+ * The scope of the Dashboard. The loader in App sets it. The views read it, so that they use the same query keys.
+ * Undefined until the settings load.
+ */
+let currentScope: Scope | undefined;
+const scopeListeners = new Set<() => void>();
 
-/** Loads the Dashboard when the scope changes, and again every few minutes. */
+function setScope(scope: Scope | undefined): void {
+    if (JSON.stringify(scope) === JSON.stringify(currentScope)) return;
+    currentScope = scope;
+    scopeListeners.forEach(listener => listener());
+}
+
+function useScope(): Scope | undefined {
+    return useSyncExternalStore(
+        listener => {
+            scopeListeners.add(listener);
+            return () => scopeListeners.delete(listener);
+        },
+        () => currentScope
+    );
+}
+
+/** Reads the Dashboard data of a scope from the query cache. Each part shows when it arrives. The pull requests are fast, the comments are slow. */
+function useDashboardData(scope: Scope | undefined): DashboardState {
+    const enabled = scope !== undefined;
+    const reviewKey = scope?.reviewKey ?? null;
+    const pullRequests = useQuery({ ...dashboardPullRequestsQuery(reviewKey), enabled });
+    const comments = useQuery({ ...commentsQuery(reviewKey), enabled });
+    const tasks = useQuery({ ...tasksQuery(scope?.projectId), enabled });
+    const queries = [pullRequests, comments, tasks];
+    // The Dashboard is up to date when each part has a result: data or an error.
+    const settled = queries.every(query => query.status !== 'pending');
+    const updatedAt = settled ? Math.max(...queries.map(query => Math.max(query.dataUpdatedAt, query.errorUpdatedAt))) : undefined;
+    return {
+        pullRequests: pullRequests.data,
+        pullRequestsError: optionalErrorText(pullRequests.error),
+        prComments: comments.data,
+        prCommentsError: optionalErrorText(comments.error),
+        tasks: tasks.data ?? [],
+        loading: queries.some(query => query.isFetching),
+        updatedAt: updatedAt || undefined
+    };
+}
+
+/** The keys of the items of the Dashboard. An item with a changed reason (a new CI failure) gets a new key. */
+function newsItems(pullRequests: DashboardPullRequests, prComments: PullRequestCommentItem[], tasks: TaskActivity[]) {
+    return {
+        reviewRequests: pullRequests.reviewRequests.map(item => ({ key: `r:${item.url}`, item })),
+        myPullRequests: pullRequests.myPullRequests.map(item => ({ key: `m:${item.url}:${item.reasons.join(',')}`, item })),
+        prComments: prComments.filter(item => !isMergedApproval(item)).map(item => ({ key: `c:${item.id}`, item })),
+        taskComments: tasks.flatMap(source =>
+            (source.comments ?? []).map(comment => ({
+                key: `t:${source.connectionId}:${comment.id}`,
+                item: { connectionId: source.connectionId, comment }
+            }))
+        )
+    };
+}
+
+/**
+ * Finds the items that no earlier refresh had. Returns the keys of all items, and the news.
+ * Without earlier keys (the first refresh), there is no news.
+ */
+export function findDashboardNews(
+    known: Set<string> | undefined,
+    pullRequests: DashboardPullRequests,
+    prComments: PullRequestCommentItem[],
+    tasks: TaskActivity[]
+): { known: Set<string>; news?: DashboardNews } {
+    const items = newsItems(pullRequests, prComments, tasks);
+    const keys = [...items.reviewRequests, ...items.myPullRequests, ...items.prComments, ...items.taskComments].map(entry => entry.key);
+    const all = new Set([...(known ?? []), ...keys]);
+    if (!known) return { known: all };
+    const fresh = <T>(list: { key: string; item: T }[]) => list.filter(entry => !known.has(entry.key)).map(entry => entry.item);
+    const news: DashboardNews = {
+        reviewRequests: fresh(items.reviewRequests),
+        myPullRequests: fresh(items.myPullRequests),
+        prComments: fresh(items.prComments),
+        taskComments: fresh(items.taskComments)
+    };
+    const count = news.reviewRequests.length + news.myPullRequests.length + news.prComments.length + news.taskComments.length;
+    return { known: all, news: count > 0 ? news : undefined };
+}
+
+const newsListeners = new Set<(news: DashboardNews) => void>();
+
+/** Calls the listener with the new items after each complete refresh. The first refresh has no news. */
+export function onDashboardNews(listener: (news: DashboardNews) => void): () => void {
+    newsListeners.add(listener);
+    return () => newsListeners.delete(listener);
+}
+
+/**
+ * Loads the Dashboard for the whole app, so that the sidebar can show the count in all views.
+ * The queries stay in use here. Thus the data loads again every few minutes (the default of the query client).
+ * After each complete refresh, the loader tells the news listeners about the new items.
+ */
 export function useDashboardLoader(ready: boolean, reviewKey: string | null | undefined, projectId: string | undefined): void {
+    const scope = ready && reviewKey !== undefined ? { reviewKey, projectId } : undefined;
+    const scopeId = JSON.stringify(scope);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: scopeId holds the content of scope.
+    useEffect(() => setScope(scope), [scopeId]);
+    const state = useDashboardData(scope);
+
+    // The keys of all items of the earlier refreshes. Another project or other organizations: their items are not news.
+    const known = useRef<{ scopeId: string; keys?: Set<string> }>({ scopeId });
+    if (known.current.scopeId !== scopeId) known.current = { scopeId };
+    const { pullRequests, prComments, tasks, loading, updatedAt } = state;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new update time or the end of a load is a new refresh. The data comes from the same render.
     useEffect(() => {
-        if (ready && reviewKey !== undefined) {
-            dashboardStore.setScope({ reviewKey, projectId });
-        }
-    }, [ready, reviewKey, projectId]);
-    useEffect(() => {
-        if (!ready) return;
-        const timer = setInterval(() => void dashboardStore.refresh(), REFRESH_MS);
-        return () => clearInterval(timer);
-    }, [ready]);
+        if (loading || !updatedAt || !pullRequests || !prComments) return;
+        const result = findDashboardNews(known.current.keys, pullRequests, prComments, tasks);
+        known.current.keys = result.known;
+        const news = result.news;
+        if (news) newsListeners.forEach(listener => listener(news));
+    }, [updatedAt, loading]);
 }
 
+/** Returns the Dashboard data of the current scope. The loader in App keeps it up to date. */
 export function useDashboard(): DashboardState {
-    return useSyncExternalStore(dashboardStore.subscribe, dashboardStore.get);
+    return useDashboardData(useScope());
+}
+
+/** Loads all parts of the Dashboard again. */
+export function refreshDashboard(): Promise<void> {
+    return queryClient.refetchQueries({ queryKey: keyRoots.dashboard, type: 'active' });
 }
 
 /** The number of items that need the user: review requests, own pull requests to act on, and unseen comments. */
@@ -206,4 +251,40 @@ export function useDashboardCount(filter: CommentFilter): number {
         0
     );
     return (state.pullRequests?.reviewRequests.length ?? 0) + (state.pullRequests?.myPullRequests.length ?? 0) + prComments + taskComments;
+}
+
+/** A pull request by its repository and number. */
+export interface PullRequestRef {
+    repo: RepoRef;
+    number: number;
+}
+
+function sameRef(a: PullRequestRef, b: PullRequestRef): boolean {
+    return a.number === b.number && repoId(a.repo).toLowerCase() === repoId(b.repo).toLowerCase();
+}
+
+/** Removes merged pull requests from the review requests and from the pull requests of the user. */
+export function withoutMergedPullRequests(data: DashboardPullRequests, merged: PullRequestRef[]): DashboardPullRequests {
+    const open = (item: PullRequestRef) => !merged.some(ref => sameRef(ref, item));
+    return { reviewRequests: data.reviewRequests.filter(open), myPullRequests: data.myPullRequests.filter(open) };
+}
+
+/** Sets the state MERGED on the comments of merged pull requests. An approval of a merged pull request then needs no action. */
+export function withMergedComments(items: PullRequestCommentItem[], merged: PullRequestRef[]): PullRequestCommentItem[] {
+    return items.map(item => (merged.some(ref => sameRef(ref, item)) ? { ...item, prState: 'MERGED' } : item));
+}
+
+/** Updates the cached Dashboard data after merges. No request goes to the providers. */
+export function applyMergedToDashboard(merged: PullRequestRef[]): void {
+    if (merged.length === 0) return;
+    queryClient.setQueriesData<DashboardPullRequests>(
+        { queryKey: [...keyRoots.dashboard, 'pullRequests'] },
+        data => data && withoutMergedPullRequests(data, merged)
+    );
+    queryClient.setQueriesData<PullRequestCommentItem[]>({ queryKey: [...keyRoots.dashboard, 'comments'] }, data => {
+        if (!data) return data;
+        const items = withMergedComments(data, merged);
+        seenStore.mark(items.filter(isMergedApproval).map(item => gitHubSeenKey(item.id)));
+        return items;
+    });
 }

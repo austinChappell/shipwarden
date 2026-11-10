@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState, type SetStateAction } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Task, TaskComment, TaskSource, TaskStatus } from '@shared/tasks';
 import { taskSeenKey } from '@shared/dashboard';
-import { errorText } from '../../util';
-import { cached, remember } from '../../data-cache';
+import { errorText, optionalErrorText } from '../../util';
 import { seenStore } from '../../seen-store';
 import { alertDialog, confirmDialog } from '../ConfirmDialog';
-import { detailKey, patchTask, removeTask, type CachedDetail } from './task-view-logic';
+import { patchTask, removeTask, taskQueryKeys, type CachedDetail } from './task-view-logic';
 import type { TaskRequest } from './use-task-source';
 
 interface Options {
@@ -14,7 +14,7 @@ interface Options {
     selectedId: string | undefined;
     setSelectedId(id: string | undefined): void;
     request: TaskRequest;
-    setTasks: Dispatch<SetStateAction<Task[] | undefined>>;
+    setTasks(update: SetStateAction<Task[] | undefined>): void;
     loadTasks(): Promise<void>;
 }
 
@@ -24,60 +24,65 @@ export interface TaskEdit {
     description: string;
 }
 
+const NO_STATUSES: TaskStatus[] = [];
+const NO_COMMENTS: TaskComment[] = [];
+
 /** The details of the selected task, its statuses and comments, and the actions on the task. */
 export function useTaskDetail({ projectId, source, selectedId, setSelectedId, request, setTasks, loadTasks }: Options) {
-    const [detail, setDetail] = useState<Task>();
-    const [statuses, setStatuses] = useState<TaskStatus[]>([]);
-    const [comments, setComments] = useState<TaskComment[]>([]);
+    const queryClient = useQueryClient();
+    const detailKey = taskQueryKeys.detail(source?.connectionId, projectId, selectedId);
     const [commentText, setCommentText] = useState('');
     const [busy, setBusy] = useState(false);
-    const [detailError, setDetailError] = useState<string>();
+    /** The error of the last action on the task. */
+    const [actionError, setActionError] = useState<string>();
     const [editing, setEditing] = useState<TaskEdit>();
 
-    const loadDetail = useCallback(
-        async (id: string) => {
-            setDetailError(undefined);
-            try {
-                const [task, statusList, commentList] = await Promise.all([
-                    request<Task>('tasks/get', { id }),
-                    source?.capabilities.statuses ? request<TaskStatus[]>('tasks/statuses', { id }) : Promise.resolve([]),
-                    source?.capabilities.comments ? request<TaskComment[]>('comments/list', { taskId: id }) : Promise.resolve([])
-                ]);
-                setDetail(task);
-                setStatuses(statusList);
-                setComments(commentList);
-                if (source) remember(detailKey(source.connectionId, projectId, id), { task, statuses: statusList, comments: commentList });
-                // The comments of an open task count as seen on the Dashboard.
-                if (source) {
-                    seenStore.mark(commentList.map(comment => taskSeenKey(source.connectionId, comment.id)));
-                }
-            } catch (err) {
-                setDetailError(errorText(err));
+    // A task shows its cached details immediately. The details load again each time that the user selects the task.
+    const detailQuery = useQuery({
+        queryKey: detailKey,
+        queryFn: async (): Promise<CachedDetail> => {
+            const id = selectedId as string;
+            const [task, statusList, commentList] = await Promise.all([
+                request<Task>('tasks/get', { id }),
+                source?.capabilities.statuses ? request<TaskStatus[]>('tasks/statuses', { id }) : Promise.resolve([]),
+                source?.capabilities.comments ? request<TaskComment[]>('comments/list', { taskId: id }) : Promise.resolve([])
+            ]);
+            // The comments of an open task count as seen on the Dashboard.
+            if (source) {
+                seenStore.mark(commentList.map(comment => taskSeenKey(source.connectionId, comment.id)));
             }
+            return { task, statuses: statusList, comments: commentList };
         },
-        [request, source, projectId]
-    );
+        enabled: !!source && !!selectedId,
+        staleTime: 0
+    });
+    const data = source && selectedId ? detailQuery.data : undefined;
+    const detail = data?.task;
+    const statuses = data?.statuses ?? NO_STATUSES;
+    const comments = data?.comments ?? NO_COMMENTS;
+    const detailError = actionError ?? (source && selectedId ? optionalErrorText(detailQuery.error) : undefined);
 
-    // A task shows its cached details immediately, and loads new details in the background.
+    /** Changes the cached details of the selected task. */
+    const patchDetail = (patch: (current: CachedDetail) => CachedDetail) =>
+        queryClient.setQueryData<CachedDetail>(detailKey, current => current && patch(current));
+    const setDetail = (task: Task) => patchDetail(current => ({ ...current, task }));
+    const loadDetail = () => queryClient.invalidateQueries({ queryKey: detailKey });
+
+    // Another task has no edit form and no error of the old task.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The body does not read the dependencies, but a change must reset the form.
     useEffect(() => {
-        const last = source && selectedId ? cached<CachedDetail>(detailKey(source.connectionId, projectId, selectedId)) : undefined;
-        setDetail(last?.task);
-        setComments(last?.comments ?? []);
-        setStatuses(last?.statuses ?? []);
         setEditing(undefined);
-        if (selectedId) {
-            loadDetail(selectedId);
-        }
-    }, [selectedId, source, projectId, loadDetail]);
+        setActionError(undefined);
+    }, [selectedId, source?.connectionId, projectId]);
 
     /** Runs an action on the task. The detail panel shows the error of a failed action. */
     const act = async (action: () => Promise<void>) => {
         setBusy(true);
-        setDetailError(undefined);
+        setActionError(undefined);
         try {
             await action();
         } catch (err) {
-            setDetailError(errorText(err));
+            setActionError(errorText(err));
         } finally {
             setBusy(false);
         }
@@ -96,7 +101,7 @@ export function useTaskDetail({ projectId, source, selectedId, setSelectedId, re
         commentText.trim() &&
         act(async () => {
             const created = await request<TaskComment>('comments/create', { taskId: detail.id, body: commentText.trim() });
-            setComments(list => [...list, created]);
+            patchDetail(current => ({ ...current, comments: [...current.comments, created] }));
             setCommentText('');
         });
 
@@ -106,7 +111,7 @@ export function useTaskDetail({ projectId, source, selectedId, setSelectedId, re
             if (confirmText && !(await confirmDialog({ title: confirmText }))) return;
             const result = await request<{ message?: string }>('tasks/action', { taskId: detail.id, actionId });
             if (result?.message) await alertDialog(result.message);
-            await loadDetail(detail.id);
+            await loadDetail();
             // An action can move the task out of the filter, for example "Archive".
             await loadTasks();
         });

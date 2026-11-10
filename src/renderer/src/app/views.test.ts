@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isNavValid, navLocationOf, viewToSave } from './views';
+import { isNavValid, navLocationOf, viewAfterProjectSwitch, viewToSave } from './views';
 
 describe('viewToSave', () => {
     it('saves the view below the settings page', () => {
@@ -53,5 +53,17 @@ describe('isNavValid', () => {
 
     it('accepts all entries of other views', () => {
         expect(isNavValid({ view: 'dashboard' }, [], [], tabsOf)).toBe(true);
+    });
+});
+
+describe('viewAfterProjectSwitch', () => {
+    it('keeps the current view', () => {
+        expect(viewAfterProjectSwitch('tasks')).toBe('tasks');
+        expect(viewAfterProjectSwitch('review')).toBe('review');
+        expect(viewAfterProjectSwitch('worktree')).toBe('worktree');
+    });
+
+    it('shows the worktree view in place of the graph of the old project', () => {
+        expect(viewAfterProjectSwitch('graph')).toBe('worktree');
     });
 });

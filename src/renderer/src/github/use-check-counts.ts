@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { latestChecks, type CheckRun, type RepoTarget } from '@shared/github';
+import { checksQuery, isFailedConclusion } from './ci-queries';
 
 /** The checks of one commit, by result. */
 export interface CheckCounts {
@@ -11,45 +12,23 @@ export interface CheckCounts {
     failedChecks: CheckRun[];
 }
 
-const FAILED = new Set(['failure', 'timed_out', 'cancelled', 'action_required', 'error']);
+/** The time between two loads of the checks while a check runs. */
 const POLL_RUNNING_MS = 15_000;
 
 export function countChecks(checks: readonly CheckRun[]): CheckCounts {
     const latest = latestChecks(checks);
-    const failedChecks = latest.filter(check => check.status === 'completed' && FAILED.has(check.conclusion ?? ''));
+    const failedChecks = latest.filter(check => check.status === 'completed' && isFailedConclusion(check.conclusion));
     const failed = failedChecks.length;
     const running = latest.filter(check => check.status !== 'completed').length;
     return { total: latest.length, passed: latest.length - failed - running, failed, running, failedChecks };
 }
 
 /**
- * Loads the checks of a commit and counts them. The hook loads them again when `refresh` changes,
- * and it polls while checks run. Undefined while the checks load or when they do not load.
+ * Loads the checks of a commit and counts them. The Checks panel uses the same cached checks.
+ * Undefined while the checks load or when they do not load.
  */
-export function useCheckCounts(target: RepoTarget, sha: string | undefined, refresh: unknown): CheckCounts | undefined {
-    const [counts, setCounts] = useState<{ sha: string; counts: CheckCounts }>();
-
-    // biome-ignore lint/correctness/useExhaustiveDependencies: A new refresh value tells the hook to load the checks again.
-    useEffect(() => {
-        if (!sha) return;
-        let stopped = false;
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const load = async () => {
-            try {
-                const result = countChecks(await window.shipwarden.github.checks(target, sha));
-                if (stopped) return;
-                setCounts({ sha, counts: result });
-                if (result.running > 0) timer = setTimeout(load, POLL_RUNNING_MS);
-            } catch {
-                // The summary shows no counts. The Checks tab shows the error.
-            }
-        };
-        void load();
-        return () => {
-            stopped = true;
-            clearTimeout(timer);
-        };
-    }, [target, sha, refresh]);
-
-    return counts && counts.sha === sha ? counts.counts : undefined;
+export function useCheckCounts(target: RepoTarget, sha: string | undefined): CheckCounts | undefined {
+    const query = useQuery({ ...checksQuery(target, sha, POLL_RUNNING_MS), select: countChecks });
+    // An error does not show here. The Checks tab shows it.
+    return sha ? query.data : undefined;
 }

@@ -10,7 +10,6 @@ import {
     isGroupCollapsed,
     missingSettingsText,
     neighborColumn,
-    nextSelection,
     parseCollapseState,
     parseViewMode,
     patchTask,
@@ -18,8 +17,6 @@ import {
     pickFilter,
     prependTask,
     removeTask,
-    same,
-    selectedCollection,
     targetRepo,
     taskLabel,
     toggleCollapse,
@@ -99,19 +96,6 @@ describe('formatField', () => {
     });
 });
 
-describe('same', () => {
-    it('keeps the current value when the data is equal', () => {
-        const current = { a: [1, 2] };
-        expect(same(current, { a: [1, 2] })).toBe(current);
-    });
-
-    it('gives the next value when the data changes or no current value exists', () => {
-        const next = { a: [3] };
-        expect(same({ a: [1] }, next)).toBe(next);
-        expect(same<{ a: number[] } | undefined>(undefined, next)).toBe(next);
-    });
-});
-
 describe('pickConnection', () => {
     const list = [connection('a', false), connection('b', true), connection('c', true)];
 
@@ -150,24 +134,6 @@ describe('pickFilter', () => {
         expect(pickFilter(filters, undefined)).toBe('all');
         expect(pickFilter([{ id: 'one', label: 'One' }], undefined)).toBe('one');
         expect(pickFilter([], undefined)).toBeUndefined();
-    });
-});
-
-describe('collection selection', () => {
-    it('counts the selection only for its own connection', () => {
-        const selection = { connectionId: 'a', id: 'list-1' };
-        expect(selectedCollection({ connectionId: 'a' }, selection)).toBe('list-1');
-        expect(selectedCollection({ connectionId: 'b' }, selection)).toBeUndefined();
-        expect(selectedCollection(null, selection)).toBeUndefined();
-        expect(selectedCollection({ connectionId: 'a' }, undefined)).toBeUndefined();
-    });
-
-    it('keeps the same object when the picked collection does not change', () => {
-        const current = { connectionId: 'a', id: 'list-1' };
-        expect(nextSelection(current, 'a', 'list-1')).toBe(current);
-        expect(nextSelection(current, 'a', 'list-2')).toEqual({ connectionId: 'a', id: 'list-2' });
-        expect(nextSelection(current, 'b', 'list-1')).toEqual({ connectionId: 'b', id: 'list-1' });
-        expect(nextSelection(current, 'a', undefined)).toBeUndefined();
     });
 });
 

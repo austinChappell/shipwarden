@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ListTodo, PanelRight } from 'lucide-react';
 import type { CheckRun, PullRequest, PullRequestFile } from '@shared/github';
-import type { TaskLink } from '@shared/tasks';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { RightPanel } from './components/RightPanel';
 import { requestExplorerFocus } from './files/explorer-focus';
@@ -54,6 +53,7 @@ import { useShortcuts } from './app/use-shortcuts';
 import { useStoredFlag } from './app/use-stored-flag';
 import { useTerminalColors } from './app/use-terminal-colors';
 import { useWorkspaceTabs } from './app/use-workspace-tabs';
+import { useTaskLinks } from './app/task-links';
 import { useWorktreeActions, type NewWorktreeTarget } from './app/use-worktree-actions';
 import { isNavValid, navLocationOf, VIEW_OF_ACTION, type ContentView, type MainView } from './app/views';
 
@@ -97,7 +97,7 @@ export function App() {
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const { mode, palette } = useAppearance(settingsLoaded ? appSettings.appearance : undefined);
     /** The task of each worktree, by worktree path. */
-    const [links, setLinks] = useState<Record<string, TaskLink>>({});
+    const links = useTaskLinks();
     const [error, setError] = useState<string>();
     const sidebarWidth = usePanelWidth('shipwarden.width.sidebar', 260, 180, 480);
     const explorerWidth = usePanelWidth('shipwarden.width.explorer', 300, 220, 720);
@@ -148,7 +148,6 @@ export function App() {
         sessions,
         setSessions,
         links,
-        setLinks,
         openFiles: tabs.openFiles,
         setOpenFiles: tabs.setOpenFiles,
         setExtraTabs: tabs.setExtraTabs,
@@ -263,7 +262,6 @@ export function App() {
         (async () => {
             const [state, terminalSettings, existing] = await Promise.all([api.projects.get(), api.terminals.settings(), api.terminals.list()]);
             setSettings(terminalSettings);
-            api.tasks.links().then(setLinks, () => undefined);
             api.settings
                 .get()
                 .then(setAppSettings, () => undefined)

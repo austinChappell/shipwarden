@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, GitMerge, GitPullRequest, GitPullRequestDraft, RefreshCw, Search } from 'lucide-react';
 import { parseRepoId, repoLabel, type PullRequestSummary, type RepoRef } from '@shared/github';
 import { MY_PULL_REQUEST_REASON_LABELS, parsePullRequestTitle, shortAge } from '@shared/dashboard';
@@ -13,17 +14,15 @@ import {
     type PullRequestSort,
     type ReviewGroup
 } from '@shared/review-queue';
-import { errorText, timeAgo } from '../util';
-import { cacheKey, cached, remember } from '../data-cache';
+import { optionalErrorText, timeAgo } from '../util';
 import { focusFirstItem, moveListFocus } from '../keyboard/list-nav';
-import { reviewOverviewStore, useRepoEntry } from '../github/review-overview-store';
+import { overviewKeys, refreshRepo, useRepoEntry } from '../github/review-overview-store';
 import { Combobox, type ComboboxGroup } from './Combobox';
 import { ChecksLabel, Dotted, KeyLegend, focusedData, useInitialFocus, usePageKeys } from './ReviewParts';
 
 export type RepoTab = 'needs' | 'mine' | 'open' | 'merged';
 
 const SORT_KEY = 'shipwarden.reviewSort';
-const mergedKey = (repo: string, query: string) => cacheKey('review.merged', repo, query);
 
 function readSort(): PullRequestSort {
     try {
@@ -197,15 +196,9 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
     const [query, setQuery] = useState('');
     const [sort, setSortState] = useState<PullRequestSort>(readSort);
     const [showWaiting, setShowWaiting] = useState(false);
-    const [merged, setMerged] = useState<PullRequestSummary[] | undefined>(() => cached(mergedKey(repo, '')));
-    const [mergedError, setMergedError] = useState<string>();
     const rootRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
-
-    useEffect(() => {
-        reviewOverviewStore.ensure(repo);
-    }, [repo]);
 
     const prs = useMemo(() => (data?.pullRequests ?? []).filter(pr => matchesSearch(pr, query)), [data, query]);
     const byGroup = useMemo(() => {
@@ -227,31 +220,23 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         setTabState(savedTabs.get(repo.toLowerCase()));
         setQuery('');
         setShowWaiting(false);
-        setMerged(cached(mergedKey(repo, '')));
-        setMergedError(undefined);
     }, [repo]);
 
     // The merged list comes from a GitHub search. It loads when the tab shows, after a short pause in typing.
+    const [mergedQuery, setMergedQuery] = useState('');
     useEffect(() => {
-        if (current !== 'merged') return;
-        let cancelled = false;
-        const key = mergedKey(repo, query.trim());
-        const last = cached<PullRequestSummary[]>(key);
-        if (last) setMerged(last);
-        const timer = setTimeout(
-            () => {
-                window.shipwarden.github.pullRequests(repoRef, 'merged', query).then(
-                    result => !cancelled && (setMerged(remember(key, result)), setMergedError(undefined)),
-                    error => !cancelled && setMergedError(errorText(error))
-                );
-            },
-            query ? 350 : 0
-        );
-        return () => {
-            cancelled = true;
-            clearTimeout(timer);
-        };
-    }, [current, repo, repoRef, query]);
+        const timer = setTimeout(() => setMergedQuery(query.trim()), query ? 350 : 0);
+        return () => clearTimeout(timer);
+    }, [query]);
+    const mergedResult = useQuery({
+        queryKey: overviewKeys.merged(repo, mergedQuery),
+        queryFn: (): Promise<PullRequestSummary[]> => window.shipwarden.github.pullRequests(repoRef, 'merged', mergedQuery),
+        enabled: current === 'merged',
+        // The last list stays while the list of a new search text loads.
+        placeholderData: keepPreviousData
+    });
+    const merged = mergedResult.data;
+    const mergedError = optionalErrorText(mergedResult.error);
 
     const setSort = (value: PullRequestSort) => {
         setSortState(value);
@@ -338,7 +323,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                         />
                     </label>
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Refresh" onClick={() => void reviewOverviewStore.refresh(repo)}>
+                    <button className="icon-button" title="Refresh" onClick={() => void refreshRepo(repo)}>
                         <RefreshCw size={15} strokeWidth={1.6} className={entry?.loading ? 'spin' : ''} />
                     </button>
                     <select

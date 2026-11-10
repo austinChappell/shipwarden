@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { Bot, ChevronRight } from 'lucide-react';
 import {
     ciStateOf,
@@ -16,6 +17,8 @@ import type { BranchSummary } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
 import type { RepoColor } from '@shared/settings';
 import { highestWindow, PROVIDER_NAMES, type ProviderUsage } from '@shared/usage';
+import { branchSummariesQuery, summariesByRepo } from '../github/use-branch-status';
+import { useUsage } from '../usage-query';
 import { RepoIcon } from './RepoIcon';
 import { useAgentSessions } from '../terminal/agent-state-store';
 import { outputActivity } from '../terminal/output-activity';
@@ -25,9 +28,6 @@ import type { Worktree } from '@shared/worktrees';
 import { moveListFocus } from '../keyboard/list-nav';
 
 const api = window.shipwarden;
-
-/** The time between two loads of the pull requests and their CI state. */
-const SUMMARY_POLL_MS = 60_000;
 
 interface Props {
     sessions: TerminalSession[];
@@ -96,9 +96,8 @@ function usageText(usage: readonly ProviderUsage[]): string | undefined {
  */
 export function AgentsView({ sessions: sessionList, projects, links, repoLabel, repoColor, onOpen }: Props) {
     const [places, setPlaces] = useState<Record<string, Place>>({});
-    /** The open pull requests of each repository by head branch, with their CI state. */
-    const [summaries, setSummaries] = useState<Record<string, Record<string, BranchSummary>>>({});
-    const [usage, setUsage] = useState<ProviderUsage[]>([]);
+    // The plan usage of the agents. ShipWarden has no usage for each agent, only for each sign-in.
+    const usage = useUsage();
     const sessions = useAgentSessions(sessionList);
     const [now, setNow] = useState(Date.now());
 
@@ -129,32 +128,16 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
     }, [repoKey, agents.length]);
 
     // Load the pull requests and their CI state for each repository that has an agent. One request covers a repository.
+    // The worktree list shares the cache. It already loads the repositories of the active project each minute.
     const agentRepoKey = [...new Set(agents.map(session => session.worktreePath && places[session.worktreePath]?.repo).filter(Boolean))].sort().join('\0');
-    useEffect(() => {
-        const repoList = agentRepoKey ? agentRepoKey.split('\0') : [];
-        let cancelled = false;
-        const load = () =>
-            repoList.forEach(repo => {
-                api.github.branchSummaries(repo).then(
-                    result => {
-                        if (!cancelled) setSummaries(map => ({ ...map, [repo]: result }));
-                    },
-                    () => undefined
-                );
-            });
-        load();
-        const timer = setInterval(load, SUMMARY_POLL_MS);
-        return () => {
-            cancelled = true;
-            clearInterval(timer);
-        };
-    }, [agentRepoKey]);
-
-    // The plan usage of the agents. ShipWarden has no usage for each agent, only for each sign-in.
-    useEffect(() => {
-        api.usage.get().then(setUsage, () => undefined);
-        return api.usage.onChanged(setUsage);
-    }, []);
+    const agentRepos = useMemo(() => (agentRepoKey ? agentRepoKey.split('\0') : []), [agentRepoKey]);
+    const activeRepos = new Set(projects?.projects.find(project => project.id === projects.activeId)?.repos ?? []);
+    const combineSummaries = useCallback((results: UseQueryResult<Record<string, BranchSummary>>[]) => summariesByRepo(agentRepos, results), [agentRepos]);
+    /** The open pull requests of each repository by head branch, with their CI state. */
+    const summaries = useQueries({
+        queries: agentRepos.map(repo => ({ ...branchSummariesQuery(repo), ...(activeRepos.has(repo) ? { refetchInterval: false as const } : {}) })),
+        combine: combineSummaries
+    });
 
     // The time since the last output counts in seconds.
     useEffect(() => {

@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, ExternalLink, LoaderCircle, Play, RefreshCw, RotateCw, Square } from 'lucide-react';
 import type { CheckRun, Workflow } from '@shared/github';
 import { runIsActive, type WorkflowRun } from '@shared/pipelines';
-import { errorText, formatDuration, timeAgo } from '../util';
+import { formatDuration, optionalErrorText, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { confirmDialog } from './ConfirmDialog';
 import { RunDialog, RunIcon } from './PipelinesView';
 import { openLink } from '../links';
 import { moveListFocus } from '../keyboard/list-nav';
+import { branchesQuery, ciActions, runJobsQuery, useCiAction, workflowRunsQuery, workflowsQuery } from '../github/ci-queries';
 
-const github = window.shipwarden.github;
-/** The time between two reads of the runs while a run waits or runs, and while all runs are done. */
+/** The time between two reads of the runs and the jobs while a run or a job waits or runs. */
 const POLL_ACTIVE_MS = 10_000;
-const POLL_IDLE_MS = 60_000;
 
 interface Props {
     /** The worktree. Its repository gives the workflows and runs. */
@@ -28,44 +28,25 @@ function RunRow({
     root,
     run,
     ownBranch,
-    onOpenLog,
-    onChanged
+    onOpenLog
 }: {
     root: string;
     run: WorkflowRun;
     /** True when the run is of the branch of the worktree. Its branch name shows as a tag. */
     ownBranch: boolean;
     onOpenLog(job: CheckRun): void;
-    onChanged(): void;
 }) {
     const [open, setOpen] = useState(false);
-    const [jobs, setJobs] = useState<CheckRun[]>();
-    const [error, setError] = useState<string>();
     const active = runIsActive(run);
+    // The jobs load when the row opens.
+    const jobsQuery = useQuery({ ...runJobsQuery(root, run.id, active, POLL_ACTIVE_MS), enabled: open });
+    const jobs = jobsQuery.data;
+    const action = useCiAction();
+    const error = optionalErrorText(action.error ?? jobsQuery.error);
 
-    const loadJobs = useCallback(async () => {
-        try {
-            setJobs(await github.runJobs(root, run.id));
-            setError(undefined);
-        } catch (err) {
-            setError(errorText(err));
-        }
-    }, [root, run.id]);
-
-    // The jobs load when the row opens, and again when the run changes (for example a new status).
-    // biome-ignore lint/correctness/useExhaustiveDependencies: The run status and update time do not show in the body. A change to them must reload the jobs.
-    useEffect(() => {
-        if (open) void loadJobs();
-    }, [open, run.status, run.updatedAt, loadJobs]);
-
-    const act = async (title: string, label: string, action: () => Promise<void>) => {
+    const act = async (title: string, label: string, perform: () => Promise<void>) => {
         if (!(await confirmDialog({ title, confirmLabel: label }))) return;
-        try {
-            await action();
-            onChanged();
-        } catch (err) {
-            setError(errorText(err));
-        }
+        action.mutate(perform);
     };
 
     return (
@@ -100,7 +81,7 @@ function RunRow({
                         <button
                             className="icon-button"
                             title="Cancel the run"
-                            onClick={() => void act(`Cancel the run "${run.title}"?`, 'Cancel run', () => github.cancelRun(root, run.id))}
+                            onClick={() => void act(`Cancel the run "${run.title}"?`, 'Cancel run', () => ciActions.cancelRun(root, run.id))}
                         >
                             <Square size={12} strokeWidth={2} />
                         </button>
@@ -108,7 +89,7 @@ function RunRow({
                         <button
                             className="icon-button"
                             title="Run all jobs again"
-                            onClick={() => void act(`Run "${run.title}" again?`, 'Run again', () => github.rerunRun(root, run.id))}
+                            onClick={() => void act(`Run "${run.title}" again?`, 'Run again', () => ciActions.rerunRun(root, run.id))}
                         >
                             <RotateCw size={13} strokeWidth={1.8} />
                         </button>
@@ -146,63 +127,26 @@ function RunRow({
  * by hand.
  */
 export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
-    const [runs, setRuns] = useState<WorkflowRun[]>();
-    const [workflows, setWorkflows] = useState<Workflow[]>();
-    const [error, setError] = useState<string>();
-    const [loading, setLoading] = useState(false);
     const [running, setRunning] = useState<Workflow>();
-    const [branches, setBranches] = useState<string[]>();
-    /** The branch that the workflow list (and the inputs) came from. The Run dialog starts on it. */
-    const [workflowRef, setWorkflowRef] = useState<string>();
     const [showWorkflows, setShowWorkflows] = useState(false);
-
-    const load = useCallback(async () => {
-        if (document.visibilityState !== 'visible') return;
-        setLoading(true);
-        try {
-            setRuns(await github.workflowRuns(root));
-            setError(undefined);
-        } catch (err) {
-            setError(errorText(err));
-        } finally {
-            setLoading(false);
-        }
-    }, [root]);
-
-    useEffect(() => {
-        setRuns(undefined);
-        void load();
-    }, [load]);
-
-    const active = runs?.some(runIsActive) ?? false;
-    useEffect(() => {
-        const timer = setInterval(() => void load(), active ? POLL_ACTIVE_MS : POLL_IDLE_MS);
-        return () => clearInterval(timer);
-    }, [load, active]);
+    const runsQuery = useQuery(workflowRunsQuery(root, undefined, POLL_ACTIVE_MS));
+    const runs = runsQuery.data;
 
     // The workflows of the branch of the worktree: its workflow files can differ from the default branch. A branch
     // that is not on GitHub yet has no files there, so then the workflows of the default branch show.
-    useEffect(() => {
-        if (!showWorkflows || workflows) return;
-        let current = true;
-        (async () => {
-            const list = await github.branches(root);
-            const defaultBranch = list[0];
-            let ref = branch && list.includes(branch) ? branch : defaultBranch;
-            let found = ref ? await github.workflows(root, ref) : [];
-            if (!found.some(item => item.dispatchable) && defaultBranch && ref !== defaultBranch) {
-                ref = defaultBranch;
-                found = await github.workflows(root, ref);
-            }
-            if (!current) return;
-            setWorkflowRef(ref);
-            setBranches(ref ? [ref, ...list.filter(item => item !== ref)] : list);
-            setWorkflows(found);
-        })().catch(err => current && setError(errorText(err)));
-        return () => {
-            current = false;
-        };
-    }, [showWorkflows, workflows, root, branch]);
+    // The workflows load when the user opens the list for the first time.
+    const branchesResult = useQuery({ ...branchesQuery(root), enabled: showWorkflows });
+    const list = branchesResult.data;
+    const defaultBranch = list?.[0];
+    const ownRef = list && (branch && list.includes(branch) ? branch : defaultBranch);
+    const ownResult = useQuery({ ...workflowsQuery(root, ownRef), enabled: showWorkflows && !!ownRef });
+    const useDefault = !!ownResult.data && !ownResult.data.some(item => item.dispatchable) && !!defaultBranch && ownRef !== defaultBranch;
+    const defaultResult = useQuery({ ...workflowsQuery(root, defaultBranch), enabled: showWorkflows && useDefault });
+    /** The branch that the workflow list (and the inputs) came from. The Run dialog starts on it. */
+    const workflowRef = useDefault ? defaultBranch : ownRef;
+    const workflows: Workflow[] | undefined = list && !ownRef ? [] : useDefault ? defaultResult.data : ownResult.data;
+    const branches = list && (workflowRef ? [workflowRef, ...list.filter(item => item !== workflowRef)] : list);
+    const error = optionalErrorText(runsQuery.error ?? branchesResult.error ?? ownResult.error ?? defaultResult.error);
 
     const startRun = (workflow: Workflow) => setRunning(workflow);
 
@@ -219,8 +163,8 @@ export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
                     <Play size={13} strokeWidth={1.8} />
                     <span className="pp-run-label">Run</span>
                 </button>
-                <button className="icon-button" title="Refresh" onClick={() => void load()}>
-                    <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
+                <button className="icon-button" title="Refresh" onClick={() => void runsQuery.refetch()}>
+                    <RefreshCw size={14} strokeWidth={1.6} className={runsQuery.isFetching ? 'spin' : ''} />
                 </button>
             </div>
 
@@ -262,14 +206,7 @@ export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
                 )}
                 {runs?.length === 0 && <div className="panel-note pp-note">The repository has no workflow runs.</div>}
                 {runs?.map(run => (
-                    <RunRow
-                        key={run.id}
-                        root={root}
-                        run={run}
-                        ownBranch={!!branch && run.branch === branch}
-                        onOpenLog={onOpenLog}
-                        onChanged={() => void load()}
-                    />
+                    <RunRow key={run.id} root={root} run={run} ownBranch={!!branch && run.branch === branch} onOpenLog={onOpenLog} />
                 ))}
             </div>
 
@@ -282,8 +219,6 @@ export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
                     onStarted={() => {
                         setRunning(undefined);
                         setShowWorkflows(false);
-                        // GitHub needs a moment before the new run is in the list.
-                        setTimeout(() => void load(), 2500);
                     }}
                 />
             )}

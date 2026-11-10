@@ -36,26 +36,16 @@ interface Props {
 /** The tasks of the project's task managers, one collection at a time, with a detail pane for the selected task. */
 export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree, onOpenSettings, repoLabel, openTask }: Props) {
     const [selectedId, setSelectedId] = useState<string>();
-    const [listError, setListError] = useState<string>();
     const [query, setQuery] = useState('');
     const listWidth = usePanelWidth('shipwarden.width.taskList', 460, 300, 900);
     const boardDetailWidth = usePanelWidth('shipwarden.width.taskBoardDetail', 420, 320, 800);
 
-    const sourceState = useTaskSource(projectId, setSelectedId, setListError);
+    const sourceState = useTaskSource(projectId, setSelectedId);
     const { connections, connectionId, source, sourceError, collection, request } = sourceState;
     const prefs = useTaskViewPrefs(projectId, source?.pluginId);
-    const list = useTaskList({
-        projectId,
-        connectionId,
-        connectionState: sourceState.connectionState,
-        source,
-        collection,
-        filter: sourceState.filter,
-        request,
-        setListError,
-        setSelectedId
-    });
+    const list = useTaskList({ projectId, source, collection, filter: sourceState.filter, request, setSelectedId });
     const { tasks, loadTasks } = list;
+    const listError = sourceState.collectionsError ?? list.listError;
     const detailState = useTaskDetail({ projectId, source, selectedId, setSelectedId, request, setTasks: list.setTasks, loadTasks });
 
     /**

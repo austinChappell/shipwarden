@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Bot, CircleCheck, CircleDashed, CircleMinus, CircleX, ExternalLink, LoaderCircle, RefreshCw, RotateCw } from 'lucide-react';
 import type { CheckRun, JobProgress, JobStep, RepoTarget } from '@shared/github';
 import { monaco } from '../editor/monaco';
-import { errorText, formatDuration } from '../util';
+import { errorText, formatDuration, optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
+import { ciActions, ciKeys, isFailedConclusion, useCiAction } from '../github/ci-queries';
 
 interface Props {
     target: RepoTarget;
@@ -39,14 +41,13 @@ function registerLogLanguage(): void {
 
 /** The time between two reads of the steps of a running job. */
 const STEP_POLL_MS = 5000;
-const FAILED = new Set(['failure', 'timed_out', 'cancelled', 'action_required', 'error']);
 
 function StepIcon({ step }: { step: Pick<JobStep, 'status' | 'conclusion'> }) {
     const props = { size: 14, strokeWidth: 1.8 };
     if (step.status === 'in_progress') return <LoaderCircle {...props} className="step-icon running spin" />;
     if (step.status !== 'completed') return <CircleDashed {...props} className="step-icon pending" />;
     if (step.conclusion === 'success') return <CircleCheck {...props} className="step-icon success" />;
-    if (FAILED.has(step.conclusion ?? '')) return <CircleX {...props} className="step-icon failure" />;
+    if (isFailedConclusion(step.conclusion)) return <CircleX {...props} className="step-icon failure" />;
     return <CircleMinus {...props} className="step-icon skipped" />;
 }
 
@@ -93,41 +94,48 @@ function JobSteps({ progress, error }: { progress: JobProgress | undefined; erro
 export function LogView({ target, check, onSendToAgent }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | undefined>(undefined);
-    const [message, setMessage] = useState('Loading the log…');
-    const [busy, setBusy] = useState(false);
-    /** True when the log shows. Until then, the live steps show. */
-    const [logReady, setLogReady] = useState(false);
-    /** True when GitHub has no log for the job yet (it runs, or it just completed). Then the steps refresh. */
-    const [logMissing, setLogMissing] = useState(false);
-    const [progress, setProgress] = useState<JobProgress>();
-    const [progressError, setProgressError] = useState<string>();
+    const action = useCiAction();
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: A new check status gives a new load function. Then the log loads again, for example when the job completes.
-    const load = useCallback(async () => {
-        const editor = editorRef.current;
-        if (!editor) {
-            return;
-        }
-        setMessage('Loading the log…');
-        try {
-            const log = await window.shipwarden.github.jobLog(target, check.id);
-            editor.getModel()?.setValue(log);
-            // The error is usually near the end of a failed log.
-            const model = editor.getModel();
-            const lines = model?.getLinesContent() ?? [];
-            const firstError = lines.findIndex(line => line.startsWith('##[error]'));
-            editor.revealLineInCenter(firstError >= 0 ? firstError + 1 : lines.length);
-            setMessage('');
-            setLogReady(true);
-            setLogMissing(false);
-        } catch (err) {
-            const text = errorText(err);
-            // A running job has no log yet (404). The live steps show instead.
-            setMessage(text.includes('404') ? '' : text);
-            setLogReady(false);
-            setLogMissing(text.includes('404'));
-        }
-    }, [target, check.id, check.status]);
+    // The log of a job does not change after the job completes, so it does not load again by itself.
+    // The refresh button loads it again. A failed load (for example a 404 while the job runs) loads again on the next mount.
+    const logQuery = useQuery({
+        queryKey: ciKeys.jobLog(target, check.id),
+        queryFn: () => window.shipwarden.github.jobLog(target, check.id),
+        staleTime: Number.POSITIVE_INFINITY,
+        refetchInterval: false
+    });
+    const log = logQuery.data;
+    /** True when the log shows. Until then, the live steps show. */
+    const logReady = log !== undefined;
+    const logError = optionalErrorText(logQuery.error);
+    /** True when GitHub has no log for the job yet (it runs, or it just completed). Then the steps refresh. */
+    const logMissing = !logReady && !!logError?.includes('404');
+
+    // The steps are live data. While the log is not ready, they load every 5 seconds (only while the window shows).
+    const progressQuery = useQuery({
+        queryKey: ciKeys.jobProgress(target, check.id),
+        queryFn: () => window.shipwarden.github.jobProgress(target, check.id),
+        enabled: logMissing,
+        staleTime: 0,
+        refetchInterval: STEP_POLL_MS
+    });
+    const progress = logMissing ? progressQuery.data : undefined;
+
+    // When the job completes, load the log. GitHub can need a few seconds to store it, so the next completed read
+    // of the steps tries again.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Each new read of the steps must run the effect. The refetch function does not change.
+    useEffect(() => {
+        if (logMissing && progressQuery.data?.status === 'completed') void logQuery.refetch();
+    }, [logMissing, progressQuery.dataUpdatedAt]);
+
+    // A new status of the check loads the log again, for example when the job completes.
+    const shownStatus = useRef(check.status);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Only a new status of the check must run the effect. The refetch function does not change.
+    useEffect(() => {
+        if (shownStatus.current === check.status) return;
+        shownStatus.current = check.status;
+        void logQuery.refetch();
+    }, [check.status]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -150,52 +158,40 @@ export function LogView({ target, check, onSendToAgent }: Props) {
             folding: false
         });
         editorRef.current = editor;
-        load();
         return () => {
             editor.dispose();
             model.dispose();
             editorRef.current = undefined;
         };
-    }, [load]);
+    }, []);
 
-    // While the log is not ready, read the steps now and every 5 seconds (only while the window shows). When the job
-    // completes, load the log. GitHub can need a few seconds to store it, so the next read tries again.
+    // The editor shows each new log. This effect comes after the effect that makes the editor.
     useEffect(() => {
-        if (logReady || !logMissing) return;
-        let stopped = false;
-        const read = async () => {
-            if (document.visibilityState !== 'visible') return;
-            try {
-                const next = await window.shipwarden.github.jobProgress(target, check.id);
-                if (stopped) return;
-                setProgress(next);
-                setProgressError(undefined);
-                if (next.status === 'completed') void load();
-            } catch (err) {
-                if (!stopped) setProgressError(errorText(err));
-            }
-        };
-        void read();
-        const timer = setInterval(() => void read(), STEP_POLL_MS);
-        return () => {
-            stopped = true;
-            clearInterval(timer);
-        };
-    }, [logReady, logMissing, target, check.id, load]);
+        const editor = editorRef.current;
+        const model = editor?.getModel();
+        if (!editor || !model || log === undefined) {
+            return;
+        }
+        model.setValue(log);
+        // The error is usually near the end of a failed log.
+        const lines = model.getLinesContent();
+        const firstError = lines.findIndex(line => line.startsWith('##[error]'));
+        editor.revealLineInCenter(firstError >= 0 ? firstError + 1 : lines.length);
+    }, [log]);
+
+    const actionMessage = action.isSuccess
+        ? 'GitHub started the job again. The Checks panel shows its state.'
+        : action.error
+          ? errorText(action.error)
+          : undefined;
+    // A running job has no log yet (404). The live steps show instead of the error.
+    const message = actionMessage ?? (logQuery.isFetching && !logReady && !logMissing ? 'Loading the log…' : logMissing ? undefined : logError);
 
     const rerun = async () => {
         if (!(await confirmDialog({ title: `Run the job "${check.name}" again?`, confirmLabel: 'Run again' }))) {
             return;
         }
-        setBusy(true);
-        try {
-            await window.shipwarden.github.rerunJob(target, check.id);
-            setMessage('GitHub started the job again. Refresh the Checks panel to see its state.');
-        } catch (err) {
-            setMessage(errorText(err));
-        } finally {
-            setBusy(false);
-        }
+        action.mutate(() => ciActions.rerunJob(target, check.id, check.runId));
     };
 
     return (
@@ -205,11 +201,11 @@ export function LogView({ target, check, onSendToAgent }: Props) {
                 <span className="diff-path">{check.name}</span>
                 <span className="check-duration">{formatDuration(check.startedAt, check.completedAt)}</span>
                 <span className="header-spacer" />
-                <button className="icon-button" title="Load the log again" onClick={load}>
+                <button className="icon-button" title="Load the log again" onClick={() => void logQuery.refetch()}>
                     <RefreshCw size={14} strokeWidth={1.6} />
                 </button>
                 {check.status === 'completed' && (
-                    <button className="icon-button" title="Run this job again" disabled={busy} onClick={rerun}>
+                    <button className="icon-button" title="Run this job again" disabled={action.isPending} onClick={() => void rerun()}>
                         <RotateCw size={14} strokeWidth={1.6} />
                     </button>
                 )}
@@ -225,7 +221,7 @@ export function LogView({ target, check, onSendToAgent }: Props) {
                 )}
             </div>
             {message && <div className="editor-failure">{message}</div>}
-            {logMissing && !logReady && <JobSteps progress={progress} error={progressError} />}
+            {logMissing && !logReady && <JobSteps progress={progress} error={optionalErrorText(progressQuery.error)} />}
             <div className="editor-monaco" ref={containerRef} style={logReady ? undefined : { display: 'none' }} />
         </div>
     );

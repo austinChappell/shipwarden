@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { QueryClientProvider } from '@tanstack/react-query';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/700.css';
 import './styles.css';
@@ -10,6 +11,7 @@ import { UpdateNotice } from './components/UpdateNotice';
 import { applyLastPalette } from './theme/appearance';
 import { outputActivity } from './terminal/output-activity';
 import { appKeyAction } from '@shared/shortcuts';
+import { queryClient } from './query-client';
 
 /** The page settings of Yardmaster (the old app name) have the prefix "yardmaster.". Copy them one time to the new prefix. */
 function migrateLegacyStorage(): void {
@@ -62,9 +64,11 @@ window.shipwarden.app.onConfirmRequest((id, request) => {
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
-        <App />
-        <UpdateNotice />
-        <DialogHost />
-        <ContextMenuHost />
+        <QueryClientProvider client={queryClient}>
+            <App />
+            <UpdateNotice />
+            <DialogHost />
+            <ContextMenuHost />
+        </QueryClientProvider>
     </StrictMode>
 );

@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
-import { parseRepoId, repoId, type GitHubRepoInfo } from '@shared/github';
+import { notifyManager, useQueries, useQuery, type Query } from '@tanstack/react-query';
+import { repoId, parseRepoId, type GitHubRepoInfo, type PullRequest, type RepoRef } from '@shared/github';
 import { reviewQueue, type QueueItem, type RepoPullRequests } from '@shared/review-queue';
-import { cacheKey, cached, remember } from '../data-cache';
-import { dashboardStore } from '../dashboard-store';
-import { errorText } from '../util';
+import { applyMergedToDashboard, dashboardPullRequestsQuery, type PullRequestRef } from '../dashboard-store';
+import { keyRoots, queryClient } from '../query-client';
+import { optionalErrorText } from '../util';
+import { reviewKeys } from './review-store';
 
-/** The store loads all repositories again at this interval. */
-const REFRESH_MS = 3 * 60 * 1000;
-/** A repository loads again when a view asks for it and its data is older than this. */
-const STALE_MS = 30 * 1000;
 /** The number of repository requests at the same time. More can trigger the secondary rate limit of GitHub. */
 const PARALLEL = 3;
 
@@ -32,196 +30,236 @@ export interface ReviewOverviewState {
     repos: Record<string, RepoEntry>;
 }
 
-const repoOfKey = (path: string) => cacheKey('github.repoOf', path);
-
 function lower(id: string): string {
     return id.toLowerCase();
 }
 
 /**
- * Loads the open pull requests of the repositories that matter to the user: the repositories of the projects,
- * and the repositories with a review request or a pull request of the user (from the Dashboard).
- * The store loads at app start, so that the Review view shows its data immediately.
+ * The query keys of the Review overview. The keys of a repository use the lower-case ID, because the sources of the IDs
+ * do not always agree on the case. The repository data depends on the providers (`reviewKey`).
  */
-class ReviewOverviewStore {
-    private state: ReviewOverviewState = { catalogLoading: false, projectRepos: [], repos: {} };
-    private reviewKey: string | null | undefined;
-    private paths: string[] = [];
-    private readonly listeners = new Set<() => void>();
-    private readonly requests = new Map<string, number>();
-    private readonly waiting: string[] = [];
-    private running = 0;
-    private catalogRequest = 0;
-    private nextRequest = 0;
+export const overviewKeys = {
+    catalog: (reviewKey: string | null) => [...keyRoots.repositories, reviewKey] as const,
+    repoOf: (path: string) => [...keyRoots.repoOf, path] as const,
+    /** The start of the keys of the open pull requests of a repository, for all providers. */
+    openOf: (id: string) => [...keyRoots.repoPullRequests, lower(id), 'open'] as const,
+    open: (id: string, reviewKey: string | null) => [...keyRoots.repoPullRequests, lower(id), 'open', reviewKey] as const,
+    /** The start of the keys of the merged pull requests of a repository, for all search texts. */
+    mergedOf: (id: string) => [...keyRoots.repoPullRequests, lower(id), 'merged'] as const,
+    merged: (id: string, query: string) => [...keyRoots.repoPullRequests, lower(id), 'merged', query] as const
+};
 
-    constructor() {
-        dashboardStore.subscribe(() => this.trackDashboard());
-    }
-
-    get = (): ReviewOverviewState => this.state;
-
-    subscribe = (listener: () => void): (() => void) => {
-        this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
+/** Returns a function that runs tasks with not more than `parallel` tasks at the same time. The other tasks wait in order. */
+export function createLimiter(parallel: number): <T>(task: () => Promise<T>) => Promise<T> {
+    let running = 0;
+    const waiting: (() => void)[] = [];
+    const next = () => {
+        if (running >= parallel) return;
+        const start = waiting.shift();
+        if (start) start();
     };
-
-    /** Sets the providers and the local repositories. A change loads the data again. */
-    setScope(reviewKey: string | null | undefined, paths: string[]): void {
-        const keyChanged = reviewKey !== this.reviewKey;
-        const pathsChanged = paths.join('\n') !== this.paths.join('\n');
-        this.reviewKey = reviewKey;
-        this.paths = paths;
-        if (keyChanged) {
-            this.waiting.length = 0;
-            this.requests.clear();
-            this.set({ catalog: undefined, catalogError: undefined, repos: {} });
-        }
-        if (!reviewKey) return;
-        if (keyChanged) void this.loadCatalog();
-        if (keyChanged || pathsChanged) void this.resolveProjects();
-    }
-
-    /** Loads all repositories again. */
-    refreshAll(): void {
-        if (!this.reviewKey) return;
-        void this.loadCatalog();
-        Object.keys(this.state.repos).forEach(key => this.queue(key));
-    }
-
-    /** Loads a repository when it is not loaded, or when its data is older than `maxAge`. */
-    ensure(id: string, maxAge = STALE_MS): void {
-        if (!this.reviewKey) return;
-        const entry = this.state.repos[lower(id)];
-        if (!entry) {
-            this.setRepo(id, { loading: false });
-        }
-        const current = this.state.repos[lower(id)];
-        if (current.loading) return;
-        if (!current.loadedAt || Date.now() - current.loadedAt > maxAge) this.queue(lower(id));
-    }
-
-    /** Loads a repository now, also when its data is new. */
-    refresh(id: string): Promise<void> {
-        if (!this.state.repos[lower(id)]) this.setRepo(id, { loading: false });
-        return this.load(lower(id));
-    }
-
-    private async loadCatalog(): Promise<void> {
-        const id = ++this.catalogRequest;
-        const key = this.reviewKey;
-        const cacheId = cacheKey('review.repos', key);
-        if (!this.state.catalog) this.set({ catalog: cached(cacheId) });
-        this.set({ catalogLoading: true });
-        try {
-            const catalog = await window.shipwarden.github.repositories();
-            if (id === this.catalogRequest) this.set({ catalog: remember(cacheId, catalog), catalogError: undefined });
-        } catch (error) {
-            if (id === this.catalogRequest) this.set({ catalogError: errorText(error) });
-        } finally {
-            if (id === this.catalogRequest) this.set({ catalogLoading: false });
-        }
-    }
-
-    /** Finds the GitHub or Azure Repos repository of each local repository, from its "origin" remote. */
-    private async resolveProjects(): Promise<void> {
-        const paths = this.paths;
-        const fromCache = paths.flatMap(path => cached<string | null>(repoOfKey(path)) ?? []);
-        if (fromCache.length) this.setProjects(fromCache);
-        const ids = await Promise.all(
-            paths.map(async path => {
-                const ref = await window.shipwarden.github.repoOf(path).catch(() => null);
-                return remember(repoOfKey(path), ref && repoId(ref));
-            })
-        );
-        if (paths !== this.paths) return;
-        this.setProjects(ids.filter((id): id is string => !!id));
-    }
-
-    private setProjects(ids: string[]): void {
-        const unique = [...new Map(ids.map(id => [lower(id), id])).values()];
-        if (unique.join('\n') !== this.state.projectRepos.join('\n')) this.set({ projectRepos: unique });
-        unique.forEach(id => this.ensure(id, REFRESH_MS));
-    }
-
-    /** Tracks the repositories with a review request or a pull request of the user. */
-    private trackDashboard(): void {
-        const pullRequests = dashboardStore.get().pullRequests;
-        if (!pullRequests || !this.reviewKey) return;
-        for (const item of [...pullRequests.reviewRequests, ...pullRequests.myPullRequests]) {
-            this.ensure(repoId(item.repo), REFRESH_MS);
-        }
-    }
-
-    private queue(key: string): void {
-        if (this.waiting.includes(key) || this.state.repos[key]?.loading) return;
-        this.waiting.push(key);
-        this.pump();
-    }
-
-    private pump(): void {
-        while (this.running < PARALLEL && this.waiting.length) {
-            const key = this.waiting.shift()!;
-            this.running++;
-            void this.load(key).finally(() => {
-                this.running--;
-                this.pump();
+    return <T>(task: () => Promise<T>) =>
+        new Promise<T>((resolve, reject) => {
+            waiting.push(() => {
+                running++;
+                task()
+                    .then(resolve, reject)
+                    .finally(() => {
+                        running--;
+                        next();
+                    });
             });
-        }
-    }
-
-    private async load(key: string): Promise<void> {
-        const entry = this.state.repos[key];
-        if (!entry) return;
-        const request = ++this.nextRequest;
-        this.requests.set(key, request);
-        this.setRepo(entry.id, { loading: true });
-        try {
-            const data = await window.shipwarden.github.repoPullRequests(parseRepoId(entry.id));
-            if (this.requests.get(key) === request) this.setRepo(entry.id, { data, error: undefined, loading: false, loadedAt: Date.now() });
-        } catch (error) {
-            if (this.requests.get(key) === request) this.setRepo(entry.id, { error: errorText(error), loading: false, loadedAt: Date.now() });
-        }
-    }
-
-    private setRepo(id: string, change: Partial<RepoEntry>): void {
-        const key = lower(id);
-        const current = this.state.repos[key] ?? { id, loading: false };
-        this.set({ repos: { ...this.state.repos, [key]: { ...current, ...change } } });
-    }
-
-    private set(change: Partial<ReviewOverviewState>): void {
-        this.state = { ...this.state, ...change };
-        this.listeners.forEach(listener => listener());
-    }
+            next();
+        });
 }
 
-export const reviewOverviewStore = new ReviewOverviewStore();
+const limit = createLimiter(PARALLEL);
 
-/** Loads the Review data when the scope changes, and again every few minutes. */
+function catalogQuery(reviewKey: string | null) {
+    return { queryKey: overviewKeys.catalog(reviewKey), queryFn: () => window.shipwarden.github.repositories() };
+}
+
+/** Finds the GitHub or Azure Repos repository of a local repository, from its "origin" remote. Null: no such remote. */
+function repoOfQuery(path: string) {
+    return {
+        queryKey: overviewKeys.repoOf(path),
+        queryFn: (): Promise<RepoRef | null> => window.shipwarden.github.repoOf(path).catch(() => null)
+    };
+}
+
+/** The open pull requests of a repository. Not more than PARALLEL of these requests run at the same time. */
+function openQuery(id: string, reviewKey: string | null) {
+    return {
+        queryKey: overviewKeys.open(id, reviewKey),
+        queryFn: () => limit(() => window.shipwarden.github.repoPullRequests(parseRepoId(id))),
+        meta: { repoId: id }
+    };
+}
+
+/** Removes duplicate IDs. The case of an ID does not matter. The first spelling stays. */
+export function uniqueRepoIds(ids: string[]): string[] {
+    const result = new Map<string, string>();
+    for (const id of ids) if (!result.has(lower(id))) result.set(lower(id), id);
+    return [...result.values()];
+}
+
+/** The IDs of the repositories of the local repositories. */
+function useProjectRepos(paths: string[], enabled: boolean): string[] {
+    const results = useQueries({ queries: paths.map(path => ({ ...repoOfQuery(path), enabled })) });
+    const joined = results.flatMap(result => (result.data ? [repoId(result.data)] : [])).join('\n');
+    return useMemo(() => (joined ? uniqueRepoIds(joined.split('\n')) : []), [joined]);
+}
+
+/** The scope of the Review overview. The loader in App sets it. The views read it, so that they use the same query keys. */
+interface Scope {
+    reviewKey: string | null;
+    paths: string[];
+}
+
+let currentScope: Scope | undefined;
+const scopeListeners = new Set<() => void>();
+
+function setScope(scope: Scope | undefined): void {
+    if (JSON.stringify(scope) === JSON.stringify(currentScope)) return;
+    currentScope = scope;
+    scopeListeners.forEach(listener => listener());
+}
+
+function useScope(): Scope | undefined {
+    return useSyncExternalStore(
+        listener => {
+            scopeListeners.add(listener);
+            return () => scopeListeners.delete(listener);
+        },
+        () => currentScope
+    );
+}
+
+const NO_PATHS: string[] = [];
+
+/**
+ * Loads the open pull requests of the repositories that matter to the user: the repositories of the projects,
+ * and the repositories with a review request or a pull request of the user (from the Dashboard).
+ * The loader runs at app start, so that the Review view shows its data immediately. The queries stay in use here.
+ * Thus the data loads again every few minutes (the default of the query client).
+ */
 export function useReviewOverviewLoader(ready: boolean, reviewKey: string | null | undefined, paths: string[]): void {
-    useEffect(() => {
-        if (ready && reviewKey !== undefined) reviewOverviewStore.setScope(reviewKey, paths);
-    }, [ready, reviewKey, paths]);
-    useEffect(() => {
-        if (!ready) return;
-        const timer = setInterval(() => reviewOverviewStore.refreshAll(), REFRESH_MS);
-        return () => clearInterval(timer);
-    }, [ready]);
+    const scope = ready && reviewKey !== undefined ? { reviewKey, paths } : undefined;
+    const scopeId = JSON.stringify(scope);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: scopeId holds the content of scope.
+    useEffect(() => setScope(scope), [scopeId]);
+    const enabled = ready && !!reviewKey;
+    const key = reviewKey ?? null;
+    useQuery({ ...catalogQuery(key), enabled });
+    const projectRepos = useProjectRepos(paths, enabled);
+    // The Dashboard loader loads these pull requests. This query only reads them.
+    const dashboard = useQuery({ ...dashboardPullRequestsQuery(key), enabled: ready && reviewKey !== undefined });
+    const tracked = useMemo(() => {
+        const items = dashboard.data ? [...dashboard.data.reviewRequests, ...dashboard.data.myPullRequests] : [];
+        return uniqueRepoIds([...projectRepos, ...items.map(item => repoId(item.repo))]);
+    }, [projectRepos, dashboard.data]);
+    useQueries({ queries: tracked.map(id => ({ ...openQuery(id, key), enabled })) });
+}
+
+/** The cache changes when a query of open pull requests changes. The views then read the entries again. */
+let repoCacheVersion = 0;
+const repoCacheListeners = new Set<() => void>();
+queryClient.getQueryCache().subscribe(event => {
+    const queryKey = event.query.queryKey;
+    if (event.type !== 'added' && event.type !== 'removed' && event.type !== 'updated') return;
+    if (queryKey[0] !== keyRoots.repoPullRequests[0] || queryKey[1] !== keyRoots.repoPullRequests[1] || queryKey[3] !== 'open') return;
+    // A query can enter the cache while a component renders. Thus the views get the change later, not in that render.
+    notifyManager.schedule(() => {
+        repoCacheVersion++;
+        repoCacheListeners.forEach(listener => listener());
+    });
+});
+
+function subscribeRepoCache(listener: () => void): () => void {
+    repoCacheListeners.add(listener);
+    return () => repoCacheListeners.delete(listener);
+}
+
+/** Makes the entry of a repository from the state of its query. */
+function entryOf(id: string, query: Pick<Query, 'state'>): RepoEntry {
+    const state = query.state as Query<RepoPullRequests>['state'];
+    const loadedAt = Math.max(state.dataUpdatedAt, state.errorUpdatedAt);
+    return {
+        id,
+        data: state.data,
+        error: optionalErrorText(state.error),
+        loading: state.fetchStatus === 'fetching',
+        loadedAt: loadedAt || undefined
+    };
+}
+
+/** The entries of all cached repositories of the providers, also of the repositories that the user opened before. */
+function useRepoEntries(reviewKey: string | null | undefined): Record<string, RepoEntry> {
+    const version = useSyncExternalStore(subscribeRepoCache, () => repoCacheVersion);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The version changes when the cached entries change.
+    return useMemo(() => {
+        const repos: Record<string, RepoEntry> = {};
+        if (!reviewKey) return repos;
+        for (const query of queryClient.getQueryCache().findAll({ queryKey: keyRoots.repoPullRequests })) {
+            const [, , key, kind, scope] = query.queryKey;
+            if (kind !== 'open' || scope !== reviewKey || typeof key !== 'string' || !key) continue;
+            repos[key] = entryOf((query.meta?.repoId as string | undefined) ?? key, query);
+        }
+        return repos;
+    }, [version, reviewKey]);
 }
 
 export function useReviewOverview(): ReviewOverviewState {
-    return useSyncExternalStore(reviewOverviewStore.subscribe, reviewOverviewStore.get);
+    const scope = useScope();
+    const reviewKey = scope?.reviewKey ?? null;
+    const enabled = !!reviewKey;
+    const catalog = useQuery({ ...catalogQuery(reviewKey), enabled });
+    const projectRepos = useProjectRepos(scope?.paths ?? NO_PATHS, enabled);
+    const repos = useRepoEntries(reviewKey);
+    return {
+        catalog: enabled ? catalog.data : undefined,
+        catalogError: enabled ? optionalErrorText(catalog.error) : undefined,
+        catalogLoading: catalog.isFetching,
+        projectRepos,
+        repos
+    };
 }
 
-/** Returns the loaded data of one repository (see `repoId`). */
+/** Loads one repository (see `repoId`) while the caller shows it, and returns its data. */
 export function useRepoEntry(id: string | undefined): RepoEntry | undefined {
-    const state = useReviewOverview();
-    return id ? state.repos[lower(id)] : undefined;
+    const reviewKey = useScope()?.reviewKey ?? null;
+    const query = useQuery({ ...openQuery(id ?? '', reviewKey), enabled: !!reviewKey && !!id });
+    if (!id) return undefined;
+    return {
+        id,
+        data: query.data,
+        error: optionalErrorText(query.error),
+        loading: query.isFetching,
+        loadedAt: Math.max(query.dataUpdatedAt, query.errorUpdatedAt) || undefined
+    };
+}
+
+/** Loads one repository again now, also when its data is new. */
+export function refreshRepo(id: string): Promise<void> {
+    return queryClient.refetchQueries({ queryKey: overviewKeys.openOf(id) });
+}
+
+/** Loads the list of repositories and all cached repositories again. */
+export function refreshReviewOverview(): Promise<void> {
+    const reviewKey = currentScope?.reviewKey;
+    if (!reviewKey) return Promise.resolve();
+    return Promise.all([
+        queryClient.refetchQueries({ queryKey: overviewKeys.catalog(reviewKey) }),
+        queryClient.refetchQueries({
+            queryKey: keyRoots.repoPullRequests,
+            predicate: query => query.queryKey[3] === 'open' && query.queryKey[4] === reviewKey
+        })
+    ]).then(() => undefined);
 }
 
 /** Returns the review queue: the pull requests to review in all loaded repositories, the oldest first. */
 export function useReviewQueue(): QueueItem[] {
-    const { repos } = useReviewOverview();
+    const repos = useRepoEntries(useScope()?.reviewKey);
     return useMemo(() => {
         const loaded = new Map<string, RepoPullRequests>();
         for (const entry of Object.values(repos)) {
@@ -229,4 +267,30 @@ export function useReviewQueue(): QueueItem[] {
         }
         return reviewQueue(loaded);
     }, [repos]);
+}
+
+/** Removes a pull request from the open pull requests of a repository. The open count goes down when the list had it. */
+export function withoutOpenPullRequest(data: RepoPullRequests, number: number): RepoPullRequests {
+    const pullRequests = data.pullRequests.filter(pr => pr.number !== number);
+    if (pullRequests.length === data.pullRequests.length) return data;
+    return { ...data, pullRequests, openCount: Math.max(0, data.openCount - 1) };
+}
+
+/** Sets the state MERGED on a pull request. */
+export function asMerged(pr: PullRequest): PullRequest {
+    return { ...pr, state: 'MERGED' };
+}
+
+/**
+ * Updates the cached data after merges, with no request for the changed data: the Dashboard lists, the open pull
+ * requests of the repositories and the cached pull requests. Only the merged lists of the repositories load again.
+ */
+export function applyMerged(merged: PullRequestRef[]): void {
+    applyMergedToDashboard(merged);
+    for (const { repo, number } of merged) {
+        const id = repoId(repo);
+        queryClient.setQueriesData<RepoPullRequests>({ queryKey: overviewKeys.openOf(id) }, data => data && withoutOpenPullRequest(data, number));
+        queryClient.setQueryData<PullRequest>(reviewKeys.pullRequest(repo, number), pr => pr && asMerged(pr));
+        void queryClient.invalidateQueries({ queryKey: overviewKeys.mergedOf(id) });
+    }
 }
