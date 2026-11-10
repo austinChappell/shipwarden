@@ -4,6 +4,9 @@ import type { ReviewTokenSource } from '@shared/review-providers';
 
 const API = 'https://api.github.com';
 
+/** The statuses that GitHub gives when a request fails for a short time. */
+const RETRY_STATUSES = [502, 503, 504];
+
 export class GitHubError extends Error {
     constructor(
         message: string,
@@ -95,7 +98,7 @@ export class GitHubClient {
                 break;
             } catch (error) {
                 // A response that GitHub stops early has no complete JSON body. It is the same failure as a 502.
-                const retry = error instanceof GitHubError ? [502, 503, 504].includes(error.status) : error instanceof SyntaxError;
+                const retry = error instanceof GitHubError ? RETRY_STATUSES.includes(error.status) : error instanceof SyntaxError;
                 if (attempt >= 2 || !retry) {
                     throw error;
                 }
@@ -108,7 +111,25 @@ export class GitHubClient {
         return result.data as T;
     }
 
+    /**
+     * Sends a request. GitHub sometimes gives 502, 503 or 504 for a short time.
+     * A GET request does not change data, so the client tries it again 2 times.
+     */
     private async fetch(method: string, url: string, body?: unknown, accept = 'application/vnd.github+json'): Promise<Response> {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await this.fetchOnce(method, url, body, accept);
+            } catch (error) {
+                const retry = method === 'GET' && error instanceof GitHubError && RETRY_STATUSES.includes(error.status);
+                if (attempt >= 2 || !retry) {
+                    throw error;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+            }
+        }
+    }
+
+    private async fetchOnce(method: string, url: string, body?: unknown, accept = 'application/vnd.github+json'): Promise<Response> {
         const token = (await this.getToken()).value;
         let response: Response;
         try {
