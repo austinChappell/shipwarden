@@ -16,6 +16,7 @@ import {
     GitPullRequestDraft,
     LayoutDashboard,
     NotebookPen,
+    Plug,
     Workflow,
     ListTodo,
     Bot,
@@ -40,6 +41,9 @@ import { NewWorktreeDialog, type NewWorktreeRequest } from './NewWorktreeDialog'
 import { moveMenuFocus, useMenuClose } from './use-menu';
 import { worktreeLabel } from '@shared/worktrees';
 import { useAgentSessions } from '../terminal/agent-state-store';
+import { useWorktreePorts } from '../worktree-ports-query';
+import type { PortOwner } from '@shared/processes';
+import { portList, WorktreePorts } from './WorktreePorts';
 import { onSidebarFocusRequest, takeSidebarFocusRequest } from '../sidebar-focus';
 import { moveIndex, reorderKeyDelta } from './reorder';
 
@@ -482,10 +486,12 @@ interface RepoGroupProps {
     moveByKey(event: ReactKeyboardEvent<HTMLElement>): boolean;
     /** The tooltip text that tells how to change the order. */
     reorderHint?: string;
+    /** The listening ports of each worktree, by worktree path. */
+    ports: Record<string, PortOwner[]>;
 }
 
 /** One repository: a header that collapses, and its worktrees. */
-function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, total, dragProps, dropClass, moveByKey, reorderHint }: RepoGroupProps) {
+function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, total, dragProps, dropClass, moveByKey, reorderHint, ports }: RepoGroupProps) {
     const { sessions, selectedPath } = parent;
     const summaries = parent.summaries[repo] ?? {};
     const [creating, setCreating] = useState(false);
@@ -507,6 +513,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
         shown.some(worktree => worktree.path === selectedPath);
     const color = parent.repoColor(repo);
     const runningInRepo = collapsed && sessions.some(session => runsAgent(session) && shown.some(worktree => worktree.path === session.worktreePath));
+    const repoPorts = collapsed ? [...new Set(shown.flatMap(worktree => (ports[worktree.path] ?? []).map(item => item.port)))].sort((a, b) => a - b) : [];
 
     const renderRow = (worktree: Worktree) => {
         const running = sessions.some(session => session.worktreePath === worktree.path && runsAgent(session));
@@ -519,6 +526,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
         const named = !!parent.worktreeNames?.[worktree.path];
         const hiddenEntry = parent.hiddenWorktrees?.[worktree.path];
         const isHidden = isHiddenAt(hiddenEntry, now);
+        const worktreePorts = ports[worktree.path];
         return (
             <li
                 key={worktree.path}
@@ -576,6 +584,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                         )}
                     </div>
                 </div>
+                {worktreePorts && <WorktreePorts worktreePath={worktree.path} ports={worktreePorts} />}
                 {pr && (
                     <span className="worktree-pr" title={`Pull request #${pr.number}${pr.checks ? ` · checks ${pr.checks.toLowerCase()}` : ''}`}>
                         {pr.isDraft ? <GitPullRequestDraft size={12} strokeWidth={1.8} /> : <GitPullRequest size={12} strokeWidth={1.8} />}
@@ -631,6 +640,14 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                         className={`status-dot ${repoState ?? 'running'}`}
                         title={repoState ? `An agent in this repository: ${AGENT_STATE_LABELS[repoState]}` : 'An agent runs in this repository'}
                     />
+                )}
+                {repoPorts.length > 0 && (
+                    <span
+                        className="worktree-ports repo-ports"
+                        title={`Processes in this repository listen on ${portList(repoPorts.map(port => ({ port })))}. Expand the repository to open or stop them.`}
+                    >
+                        <Plug size={11} strokeWidth={1.9} />
+                    </span>
                 )}
                 {(collapsed || shown.length < total) && <span className="repo-header-count">{shown.length < total ? `${shown.length}/${total}` : total}</span>}
                 <button
@@ -749,6 +766,7 @@ export function Sidebar(outerProps: Props) {
             }),
         [repos, worktreesByRepo, worktreeSort, worktreeNames, hiddenWorktrees, now, links, repoLabel, search]
     );
+    const ports = useWorktreePorts(repos.flatMap(repo => (worktreesByRepo[repo] ?? []).map(worktree => worktree.path)));
     /** The agents of all projects that still run, and the state that needs the user most. */
     const runningAgents = props.sessions.filter(session => runsAgent(session)).length;
     const agentsState = worktreeAgentState(props.sessions.filter(session => runsAgent(session)).map(session => session.agentState));
@@ -879,6 +897,7 @@ export function Sidebar(outerProps: Props) {
                         dropClass={reorder.dropClass(repo)}
                         moveByKey={event => reorder.moveByKey(event, repo)}
                         reorderHint={reorder.hint}
+                        ports={ports}
                     />
                 ))}
                 {search && groups.length === 0 && <li className="repo-empty repo-no-match">No repositories or worktrees match “{query.trim()}”.</li>}

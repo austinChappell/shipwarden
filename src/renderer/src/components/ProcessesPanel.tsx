@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Bot, ChevronRight, CircleStop, ExternalLink, LoaderCircle, RefreshCw, SquareTerminal } from 'lucide-react';
-import type { ListeningPort, ProcessInfo, ProcessTree, WorktreeProcesses } from '@shared/processes';
+import { portUrl, type ListeningPort, type ProcessInfo, type ProcessTree, type WorktreeProcesses } from '@shared/processes';
 import { errorText } from '../util';
 import { openLink } from '../links';
 
@@ -29,13 +29,6 @@ function formatElapsed(value: string): string {
     if (hours > 0) return `${hours}h ${minutes}m`;
     if (minutes > 0) return `${minutes}m`;
     return `${seconds}s`;
-}
-
-/** The address of a port for a browser. A port on all addresses or on the loopback address opens as localhost. */
-function portUrl(port: ListeningPort): string {
-    const local = ['*', '0.0.0.0', '::', '127.0.0.1', '::1', 'localhost'].includes(port.address);
-    const host = local ? 'localhost' : port.address.includes(':') ? `[${port.address}]` : port.address;
-    return `http://${host}:${port.port}`;
 }
 
 /** The arguments of a command line, without the program. The name of the program shows next to it. */

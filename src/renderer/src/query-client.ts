@@ -67,7 +67,9 @@ export const keyRoots = {
     /** The state of the app updates. */
     updates: ['updates'],
     /** The state of the network certificates. */
-    network: ['network']
+    network: ['network'],
+    /** The listening ports of each worktree, for the sidebar. */
+    worktreePorts: ['worktreePorts']
 } as const;
 
 /** The roots that a change to a pull request, a branch or a CI run can make stale. */

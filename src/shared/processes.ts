@@ -327,6 +327,33 @@ export function worktreePids(group: WorktreeProcesses, options: { includeOthers:
     return trees.flatMap(item => [item.root.pid, ...item.descendants.map(child => child.pid)]);
 }
 
+/** A listening port of a worktree, with the process to stop for it. */
+export interface PortOwner extends ListeningPort {
+    /** The top process of the tree that has the port. A stop stops this process and its child processes. */
+    pid: number;
+    /** The short program name of the top process. */
+    name: string;
+}
+
+/** The listening ports of a worktree, in port order. Each port has the top process of its tree. */
+export function worktreePortOwners(group: WorktreeProcesses): PortOwner[] {
+    const trees = [...group.terminals.flatMap(terminal => terminal.jobs), ...group.others];
+    const owners: PortOwner[] = [];
+    for (const item of trees) {
+        for (const port of item.ports) {
+            if (!owners.some(owner => owner.port === port.port)) owners.push({ ...port, pid: item.root.pid, name: item.root.name });
+        }
+    }
+    return owners.sort((a, b) => a.port - b.port);
+}
+
+/** The address of a port for a browser. A port on all addresses or on the loopback address opens as localhost. */
+export function portUrl(port: ListeningPort): string {
+    const local = ['*', '0.0.0.0', '::', '127.0.0.1', '::1', 'localhost'].includes(port.address);
+    const host = local ? 'localhost' : port.address.includes(':') ? `[${port.address}]` : port.address;
+    return `http://${host}:${port.port}`;
+}
+
 /** The number of processes and the ports of a worktree, for a badge. */
 export function worktreeSummary(group: WorktreeProcesses): { processes: number; ports: number[] } {
     const trees = [...group.terminals.flatMap(terminal => terminal.jobs), ...group.others];
