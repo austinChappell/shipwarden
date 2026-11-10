@@ -257,6 +257,12 @@ button {
 .agent-state.waiting { color: var(--danger); }
 .agent-state.done { color: var(--ok); }
 .agent-state.starting { color: var(--muted); }
+.agent-state.blocked-ci { color: var(--purple); }
+.agent-state.quiet { color: var(--muted); }
+
+.status-dot.blocked-ci {
+    background: var(--purple);
+}
 
 .worktree-pr {
     flex-shrink: 0;
@@ -4369,10 +4375,33 @@ button:focus-visible,
 }
 
 .agents-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--panel);
     overflow: hidden;
+}
+
+.agents-states {
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.agents-state-count { color: var(--muted); }
+.agents-state-count.waiting { color: var(--danger); }
+.agents-state-count.blocked-ci { color: var(--purple); }
+.agents-state-count.working { color: var(--accent); }
+.agents-state-count.done { color: var(--ok); }
+
+.agents-usage {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .agent-row {
@@ -4388,7 +4417,7 @@ button:focus-visible,
     cursor: pointer;
 }
 
-.agent-row + .agent-row {
+.agents-list > li + li {
     border-top: 1px solid var(--border);
 }
 
@@ -4438,10 +4467,32 @@ button:focus-visible,
     max-width: 40%;
 }
 
-.agent-side .agent-state {
+.agent-state-line {
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+}
+
+.agent-side .agent-state {
+    margin-right: 0;
+}
+
+.agent-since {
+    color: var(--muted);
+}
+
+.agent-pr {
+    flex: none;
+    color: var(--muted);
+}
+
+.agent-pr.failed { color: var(--danger); }
+.agent-pr.running { color: var(--accent); }
+.agent-pr.passed { color: var(--ok); }
+
+.agent-where-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .agent-where {

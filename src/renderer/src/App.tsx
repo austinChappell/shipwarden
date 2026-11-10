@@ -55,6 +55,7 @@ import { lspBridge } from './lsp/bridge';
 import type { LspMissingServer } from '@shared/lsp';
 import { terminalPool } from './terminal/terminal-pool';
 import { agentStateStore } from './terminal/agent-state-store';
+import { outputActivity } from './terminal/output-activity';
 import { sessionListStore } from './terminal/session-list-store';
 import { ChangeDiffView } from './components/ChangeDiffView';
 import { WorktreeChangesView } from './components/WorktreeChangesView';
@@ -995,6 +996,7 @@ export function App() {
         }
         terminalPool.dispose(id);
         agentStateStore.delete(id);
+        outputActivity.delete(id);
         setSessions(list => list.filter(item => item.id !== id));
         // The host keeps an ended session for its output. The tab is gone, so the host can forget it.
         void api.terminals.kill(id).catch(() => undefined);
@@ -1173,6 +1175,7 @@ export function App() {
         await api.terminals.kill(session.id);
         terminalPool.dispose(session.id);
         agentStateStore.delete(session.id);
+        outputActivity.delete(session.id);
         setSessions(list => list.filter(item => item.id !== session.id));
     };
 
@@ -1436,6 +1439,7 @@ export function App() {
             sessions.filter(session => session.worktreePath === worktree.path).forEach(session => {
                 terminalPool.dispose(session.id);
                 agentStateStore.delete(session.id);
+                outputActivity.delete(session.id);
             });
             setSessions(list => list.filter(session => session.worktreePath !== worktree.path));
             (openFiles[worktree.path] ?? []).forEach(path => documents.close(worktree.path, path));
