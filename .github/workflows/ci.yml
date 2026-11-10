@@ -1,4 +1,4 @@
-# Checks each pull request and each push to main: format and lint, types, unit tests, the build,
+# Checks each pull request, each merge queue group and each push to main: format and lint, types, unit tests, the build,
 # and the contract between the desktop API and the iPhone models.
 name: CI
 
@@ -6,6 +6,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # A merge queue runs CI on each queued group. The required "check" job must report there too.
+  merge_group:
 
 permissions:
   contents: read
