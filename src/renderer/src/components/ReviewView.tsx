@@ -11,6 +11,7 @@ import {
 } from '@shared/github';
 import { errorText, timeAgo } from '../util';
 import { cacheKey, cached, remember } from '../data-cache';
+import { focusFirstItem, moveListFocus } from '../keyboard/list-nav';
 import { Combobox, sortedGroups } from './Combobox';
 import { RepoIcon } from './RepoIcon';
 import { ReviewPullRequest } from './ReviewPullRequest';
@@ -126,6 +127,7 @@ function RepoList({ repos, projectRepos, error, loading, onSelect, onRefresh, on
     }, [repos, inProjects, all, query]);
 
     const first = groups[0]?.items[0]?.value;
+    const repoListRef = useRef<HTMLDivElement>(null);
     const showAllButton = (
         <button className="button review-show-all" onClick={() => setShowAll(true)}>
             Show all repositories{repos ? ` (${repos.length})` : ''}
@@ -146,6 +148,7 @@ function RepoList({ repos, projectRepos, error, loading, onSelect, onRefresh, on
                             onChange={event => setQuery(event.target.value)}
                             onKeyDown={event => {
                                 if (event.key === 'Enter' && first) onSelect(first);
+                                if (event.key === 'ArrowDown' && focusFirstItem(repoListRef.current)) event.preventDefault();
                             }}
                         />
                     </label>
@@ -161,7 +164,7 @@ function RepoList({ repos, projectRepos, error, loading, onSelect, onRefresh, on
                     </button>
                 </div>
             </header>
-            <div className="review-list">
+            <div className="review-list" ref={repoListRef} onKeyDown={moveListFocus}>
                 {error && <div className="form-error task-list-error">{error}</div>}
                 {!repos && !error && <div className="panel-message">Loading repositories…</div>}
                 {repos?.length === 0 && (
@@ -180,7 +183,7 @@ function RepoList({ repos, projectRepos, error, loading, onSelect, onRefresh, on
                     <section key={`${index}:${group.label}`} className="review-repo-group">
                         <h3 className="review-repo-owner">{group.label}</h3>
                         {group.items.map(item => (
-                            <button key={item.value} className="review-item review-repo-item" onClick={() => onSelect(item.value)}>
+                            <button key={item.value} className="review-item review-repo-item" data-nav-item onClick={() => onSelect(item.value)}>
                                 <RepoIcon />
                                 <span className="review-item-title">{item.label}</span>
                             </button>
@@ -233,6 +236,7 @@ export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewW
     const [pr, setPr] = useState<PullRequest | null>();
     const [prLoading, setPrLoading] = useState(false);
     const [prError, setPrError] = useState<string>();
+    const prListRef = useRef<HTMLDivElement>(null);
 
     // The repositories of the GitHub providers, each in its organizations.
     const reposRequest = useRef(0);
@@ -416,7 +420,15 @@ export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewW
                 <div className="tasks-header-group how">
                     <label className="tasks-search">
                         <Search size={14} strokeWidth={1.6} />
-                        <input value={query} placeholder="Search pull requests" spellCheck={false} onChange={event => setQuery(event.target.value)} />
+                        <input
+                            value={query}
+                            placeholder="Search pull requests"
+                            spellCheck={false}
+                            onChange={event => setQuery(event.target.value)}
+                            onKeyDown={event => {
+                                if (event.key === 'ArrowDown' && focusFirstItem(prListRef.current)) event.preventDefault();
+                            }}
+                        />
                     </label>
                     <span className="header-spacer" />
                     <button className="icon-button" title="Refresh" onClick={refresh}>
@@ -428,12 +440,12 @@ export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewW
             {repoRef && (
                 <div className="review-body">
                     {/* The list stays in the page when it is hidden, so that it keeps its scroll position. */}
-                    <div className="review-list" hidden={selected !== undefined}>
+                    <div className="review-list" ref={prListRef} hidden={selected !== undefined} onKeyDown={moveListFocus}>
                         {error && <div className="form-error task-list-error">{error}</div>}
                         {!list && !error && <div className="panel-message">Loading pull requests…</div>}
                         {list?.length === 0 && <div className="panel-message">No pull requests.</div>}
                         {list?.map(item => (
-                            <button key={item.number} className="review-item" onClick={() => setSelected(item.number)}>
+                            <button key={item.number} className="review-item" data-nav-item onClick={() => setSelected(item.number)}>
                                 <StateIcon pr={item} />
                                 <span className="review-item-main">
                                     <span className="review-item-title">{item.title}</span>

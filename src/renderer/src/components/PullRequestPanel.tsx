@@ -17,6 +17,7 @@ import type { CheckCounts } from '../github/use-check-counts';
 import { mergeConditions } from './PullRequestSummary';
 import { showContextMenu } from './ContextMenu';
 import { CopyButton } from './CopyButton';
+import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 
 interface Props {
     /** The worktree of the branch, or the repository in the Review view. */
@@ -206,34 +207,41 @@ export function PullRequestFileList({ target, pr, files, selectedPath, onOpen, o
                 {files && files.length > 0 && <span className="viewed-count">{files.filter(item => item.viewed).length} of {files.length} viewed</span>}
             </div>
             {!files && <div className="panel-note">Loading files…</div>}
-            {files?.map(file => {
-                const Icon = fileIcon(baseName(file.path));
-                const count = commentCount(file.path);
-                return (
-                    <div
-                        key={file.path}
-                        className={`tree-row pr-file${file.path === selectedPath ? ' selected' : ''}${file.viewed ? ' viewed' : ''}`}
-                        title={file.path}
-                        onClick={() => onOpen(file)}
-                    >
-                        <span className={`file-status status-${file.status}`}>{file.status[0].toUpperCase()}</span>
-                        <Icon className="tree-icon" size={15} strokeWidth={1.5} />
-                        <span className="tree-name">{baseName(file.path)}</span>
-                        <span className="tree-detail">{parentPath(file.path)}</span>
-                        {count > 0 && <span className="comment-count"><MessageSquare size={12} strokeWidth={1.6} />{count}</span>}
-                        <span className="additions">+{file.additions}</span>
-                        <span className="deletions">−{file.deletions}</span>
-                        <input
-                            type="checkbox"
-                            className="viewed-box"
-                            title={file.viewed ? 'Viewed. Click to mark as not viewed.' : 'Mark as viewed'}
-                            checked={!!file.viewed}
-                            onClick={event => event.stopPropagation()}
-                            onChange={event => reviewStore.setViewed(target, pr.number, pr.id, file.path, event.target.checked).catch(err => onError(errorText(err)))}
-                        />
-                    </div>
-                );
-            })}
+            <div onKeyDown={moveListFocus}>
+                {files?.map(file => {
+                    const Icon = fileIcon(baseName(file.path));
+                    const count = commentCount(file.path);
+                    return (
+                        <div
+                            key={file.path}
+                            className={`tree-row pr-file${file.path === selectedPath ? ' selected' : ''}${file.viewed ? ' viewed' : ''}`}
+                            title={file.path}
+                            tabIndex={0}
+                            role="button"
+                            aria-label={file.path}
+                            data-nav-item
+                            onClick={() => onOpen(file)}
+                            onKeyDown={itemKeys(() => onOpen(file))}
+                        >
+                            <span className={`file-status status-${file.status}`}>{file.status[0].toUpperCase()}</span>
+                            <Icon className="tree-icon" size={15} strokeWidth={1.5} />
+                            <span className="tree-name">{baseName(file.path)}</span>
+                            <span className="tree-detail">{parentPath(file.path)}</span>
+                            {count > 0 && <span className="comment-count"><MessageSquare size={12} strokeWidth={1.6} />{count}</span>}
+                            <span className="additions">+{file.additions}</span>
+                            <span className="deletions">−{file.deletions}</span>
+                            <input
+                                type="checkbox"
+                                className="viewed-box"
+                                title={file.viewed ? 'Viewed. Click to mark as not viewed.' : 'Mark as viewed'}
+                                checked={!!file.viewed}
+                                onClick={event => event.stopPropagation()}
+                                onChange={event => reviewStore.setViewed(target, pr.number, pr.id, file.path, event.target.checked).catch(err => onError(errorText(err)))}
+                            />
+                        </div>
+                    );
+                })}
+            </div>
         </>
     );
 }

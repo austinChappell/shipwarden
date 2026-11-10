@@ -25,6 +25,7 @@ import type { ClickModifiers } from '@shared/browser';
 import { Markdown } from './Markdown';
 import { Masonry } from './Masonry';
 import { confirmDialog } from './ConfirmDialog';
+import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 
 export type ReviewTabRequest = 'overview' | 'checks' | 'files';
 
@@ -111,7 +112,16 @@ function CommentRow({ seenKey, author, createdAt, label, preview, body, onOpen, 
     };
     return (
         <div className={`dash-comment${seen ? ' seen' : ''}${open ? ' open' : ''}`}>
-            <div className="dash-comment-head" onClick={toggle}>
+            <div
+                className="dash-comment-head"
+                tabIndex={0}
+                role="button"
+                aria-expanded={open}
+                aria-label={`Comment from ${author}`}
+                data-nav-item
+                onClick={toggle}
+                onKeyDown={itemKeys(toggle)}
+            >
                 <ChevronRight size={13} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
                 {!seen && <span className="dash-unseen" title="New" />}
                 <strong className="dash-author">{author}</strong>
@@ -245,14 +255,14 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                 </div>
             </header>
 
-            <div className="dash-scroll">
+            <div className="dash-scroll" onKeyDown={moveListFocus}>
                 <Masonry minColumnWidth={420} gap={18} layoutKey={layoutKey}>
                     <Section icon={<GitPullRequest size={15} strokeWidth={1.7} />} title="Review requests" count={pullRequests?.reviewRequests.length ?? 0}>
                         {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
                         {!pullRequests && !state.pullRequestsError && <div className="panel-note">Loading…</div>}
                         {pullRequests?.reviewRequests.length === 0 && <Empty text="No pull requests wait for your review." />}
                         {pullRequests?.reviewRequests.map(pr => (
-                            <button key={pr.url} className="dash-row" onClick={() => onOpenPullRequest(pr.repo, pr.number, 'files')}>
+                            <button key={pr.url} className="dash-row" data-nav-item onClick={() => onOpenPullRequest(pr.repo, pr.number, 'files')}>
                                 <Title title={pr.title} />
                                 <Meta repo={pr.repo} number={pr.number} age={pr.updatedAt} ageTitle={`Updated ${timeAgo(pr.updatedAt)}`}>
                                     <span className="dash-person">{pr.author ?? 'unknown'}</span>
@@ -277,7 +287,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                         <span className="dash-subgroup-count">{items.length}</span>
                                     </div>
                                     {items.map(pr => (
-                                        <button key={pr.url} className="dash-row" onClick={() => onOpenPullRequest(pr.repo, pr.number, myPrTab(pr))}>
+                                        <button key={pr.url} className="dash-row" data-nav-item onClick={() => onOpenPullRequest(pr.repo, pr.number, myPrTab(pr))}>
                                             <Title title={pr.title} />
                                             <Meta repo={pr.repo} number={pr.number} age={pr.updatedAt} ageTitle={`Updated ${timeAgo(pr.updatedAt)}`}>
                                                 {pr.reasons.filter(reason => reason !== group).map(reason => {
@@ -309,7 +319,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                         {state.prComments && shownPrComments.length === 0 && <Empty text={`No new comments in the last ${DASHBOARD_WINDOW_DAYS} days.`} />}
                         {groupBy(shownPrComments, item => item.prUrl).map(([url, items]) => (
                             <div key={url} className="dash-group">
-                                <button className="dash-row dash-group-head" onClick={() => onOpenPullRequest(items[0].repo, items[0].number, 'overview')}>
+                                <button className="dash-row dash-group-head" data-nav-item onClick={() => onOpenPullRequest(items[0].repo, items[0].number, 'overview')}>
                                     <Title title={items[0].prTitle} />
                                     <Meta repo={items[0].repo} number={items[0].number} />
                                 </button>
@@ -349,7 +359,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                             const task: TaskCommentItem = items[0].comment;
                             return (
                                 <div key={key} className="dash-group">
-                                    <button className="dash-row dash-group-head" onClick={event => openUrl(task.taskUrl, event)} title="Open the task in the browser">
+                                    <button className="dash-row dash-group-head" data-nav-item onClick={event => openUrl(task.taskUrl, event)} title="Open the task in the browser">
                                         <span className={`dash-ticket${task.taskKey ? '' : ' none'}`}>{task.taskKey ?? ''}</span>
                                         <span className="dash-title">{task.taskTitle}</span>
                                         <span className="dash-meta"><span className="dash-repo">{items[0].source.name}</span></span>

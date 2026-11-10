@@ -10,6 +10,7 @@ import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
 import { cacheKey, cached, remember } from '../data-cache';
+import { moveListFocus } from '../keyboard/list-nav';
 
 const github = window.shipwarden.github;
 const REPO_KEY = 'shipwarden.pipelinesRepo';
@@ -360,16 +361,18 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
             {error && <div className="form-error task-list-error">{error}</div>}
 
             <div className="pipelines-body" style={style}>
-                <nav className="pipeline-workflows">
+                <nav className="pipeline-workflows" onKeyDown={moveListFocus}>
                     <div className="section-title">Workflows</div>
-                    <button className={`pipeline-workflow${workflowId === undefined ? ' selected' : ''}`} onClick={() => setWorkflowId(undefined)}>
+                    <button className={`pipeline-workflow${workflowId === undefined ? ' selected' : ''}`} data-nav-item aria-pressed={workflowId === undefined} onClick={() => setWorkflowId(undefined)}>
                         <span className="pipeline-workflow-name">All workflows</span>
                     </button>
                     {!workflows && !error && <div className="panel-note"><LoaderCircle size={12} className="spin" /> Loading…</div>}
                     {workflows?.length === 0 && <div className="panel-note">This repository has no workflows in .github/workflows.</div>}
                     {workflows?.map(workflow => (
                         <div key={workflow.id} className={`pipeline-workflow${workflowId === workflow.id ? ' selected' : ''}`} onClick={() => setWorkflowId(workflow.id)}>
-                            <span className="pipeline-workflow-name" title={workflow.path}>{workflow.name}</span>
+                            <button className="row-toggle" data-nav-item aria-pressed={workflowId === workflow.id}>
+                                <span className="pipeline-workflow-name" title={workflow.path}>{workflow.name}</span>
+                            </button>
                             {workflow.dispatchable && (
                                 <button
                                     className="icon-button pipeline-run-button"
@@ -387,7 +390,7 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
                 </nav>
                 <ResizeHandle panel={workflowWidth} edge="right" label="Resize the workflow list" />
 
-                <div className="pipeline-runs">
+                <div className="pipeline-runs" onKeyDown={moveListFocus}>
                     {(() => {
                         const selectedWorkflow = workflows?.find(item => item.id === workflowId);
                         return selectedWorkflow?.dispatchable ? (
@@ -400,7 +403,7 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
                     {!runs && !error && <div className="panel-message">Loading runs…</div>}
                     {runs?.length === 0 && <div className="panel-message">No runs.</div>}
                     {runs?.map(item => (
-                        <button key={item.id} className={`pipeline-run${item.id === runId ? ' selected' : ''}`} onClick={() => setRunId(item.id)}>
+                        <button key={item.id} className={`pipeline-run${item.id === runId ? ' selected' : ''}`} data-nav-item aria-pressed={item.id === runId} onClick={() => setRunId(item.id)}>
                             <RunIcon run={item} />
                             <span className="pipeline-run-main">
                                 <span className="pipeline-run-title">{item.title}</span>
@@ -448,11 +451,11 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
                                 </div>
                                 {actionError && <div className="form-error">{actionError}</div>}
                             </div>
-                            <div className="pipeline-jobs">
+                            <div className="pipeline-jobs" onKeyDown={moveListFocus}>
                                 {!jobs && <div className="panel-note"><LoaderCircle size={12} className="spin" /> Loading jobs…</div>}
                                 {jobs?.length === 0 && <div className="panel-note">No jobs yet.</div>}
                                 {jobs?.map(item => (
-                                    <button key={item.id} className={`check-row clickable pipeline-job${item.id === job?.id ? ' selected' : ''}`} onClick={() => setJob(item)}>
+                                    <button key={item.id} className={`check-row clickable pipeline-job${item.id === job?.id ? ' selected' : ''}`} data-nav-item aria-pressed={item.id === job?.id} onClick={() => setJob(item)}>
                                         <CheckIcon check={item} />
                                         <span className="check-name">{item.name}</span>
                                         <span className="check-duration">{formatDuration(item.startedAt, item.completedAt)}</span>

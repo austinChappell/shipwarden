@@ -13,6 +13,7 @@ import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
 import { CopyButton } from './CopyButton';
 import { FileExplorer } from './FileExplorer';
+import { ErrorBanner } from './ErrorBanner';
 import { CheckoutMessage, ReviewCodeView, type CodeLocation } from './ReviewCodeView';
 import { reviewCheckouts, useReviewCheckout } from '../github/review-checkout-store';
 import { lspBridge } from '../lsp/bridge';
@@ -417,7 +418,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                         )}
                         <div className="review-content">
                             {/* Without the file list, the error shows above the diffs. A click removes it. */}
-                            {!fileListOpen && fileError && <div className="error-banner" onClick={() => setFileError(undefined)}>{fileError}</div>}
+                            {!fileListOpen && fileError && <ErrorBanner onClose={() => setFileError(undefined)}>{fileError}</ErrorBanner>}
                             <div className="review-stream">
                                 <PullRequestFilesStream
                                     key={`${repo.owner}/${repo.name}#${pr.number}`}

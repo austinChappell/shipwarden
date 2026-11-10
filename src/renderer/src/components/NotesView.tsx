@@ -3,6 +3,8 @@ import { ChevronRight, Copy, Folder, FolderInput, FolderOpen, FolderPlus, Notebo
 import { folderBaseName, folderNameError, isInFolder, joinNotePath, noteMatches, noteNameError, normalizeTags, parentFolder, splitNotePath, tagOptions, uniqueNoteName, type NoteInfo } from '@shared/notes';
 import { monaco } from '../editor/monaco';
 import { fileIcon } from '../files/file-icons';
+import { treeKeyAction, type TreeRow } from '../files/tree-nav';
+import { itemKeys } from '../keyboard/list-nav';
 import { errorText, timeAgo } from '../util';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
@@ -590,6 +592,35 @@ export function NotesView() {
     };
 
     const indent = (depth: number) => ({ '--note-depth': depth } as CSSProperties);
+    /** The keys of the rows in the tree. A folder key and a note key cannot be equal. */
+    const folderKey = (path: string) => `folder:${path}`;
+    const noteKey = (name: string) => `note:${name}`;
+    /**
+     * Moves the focus in the tree of folders and notes, in the order of the rows.
+     * Right opens a folder. Left closes a folder, or moves to the parent folder.
+     */
+    const treeKeys = (event: React.KeyboardEvent<HTMLElement>) => {
+        const cursor = (event.target as HTMLElement).dataset.treeKey;
+        if (cursor === undefined || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        const elements = [...event.currentTarget.querySelectorAll<HTMLElement>('[data-tree-key]')];
+        const rows: TreeRow[] = elements.map(element => ({
+            path: element.dataset.treeKey!,
+            isDirectory: element.dataset.treeFolder !== undefined,
+            open: element.getAttribute('aria-expanded') === 'true',
+            parent: element.dataset.treeParent ?? ''
+        }));
+        const action = treeKeyAction(rows, cursor, event.key);
+        if (!action) return;
+        event.preventDefault();
+        if (action.kind === 'move') {
+            const element = elements.find(item => item.dataset.treeKey === action.path);
+            element?.focus();
+            element?.scrollIntoView({ block: 'nearest' });
+        } else if ((action.kind === 'expand' || action.kind === 'collapse') && !filtering) {
+            setFolderOpen(action.path.slice('folder:'.length), action.kind === 'expand');
+        }
+    };
     const noteRow = (note: NoteInfo) => {
         const Icon = fileIcon(note.fileName);
         return (
@@ -597,6 +628,8 @@ export function NotesView() {
                 key={note.name}
                 className={`note-row${note.name === selected ? ' selected' : ''}`}
                 style={indent(depthOf(note.folder))}
+                data-tree-key={noteKey(note.name)}
+                data-tree-parent={note.folder ? folderKey(note.folder) : ''}
                 draggable
                 onDragStart={event => {
                     event.dataTransfer.setData(NOTE_DRAG_TYPE, note.name);
@@ -656,6 +689,15 @@ export function NotesView() {
                             className="note-folder-header"
                             style={indent(depth)}
                             title={path}
+                            tabIndex={0}
+                            role="button"
+                            aria-expanded={open}
+                            aria-label={`Folder ${name}`}
+                            data-nav-item
+                            data-tree-key={folderKey(path)}
+                            data-tree-folder
+                            data-tree-parent={parentFolder(path) ? folderKey(parentFolder(path)) : ''}
+                            onKeyDown={itemKeys(() => !filtering && setFolderOpen(path, !open))}
                             draggable
                             onDragStart={event => {
                                 event.dataTransfer.setData(FOLDER_DRAG_TYPE, path);
@@ -718,6 +760,7 @@ export function NotesView() {
                 <div
                     className={`notes-list${dropTarget === '' ? ' drop-top' : ''}`}
                     {...dropProps('')}
+                    onKeyDown={treeKeys}
                     onDragLeave={event => {
                         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(undefined);
                     }}

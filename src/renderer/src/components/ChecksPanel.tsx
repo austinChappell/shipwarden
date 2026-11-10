@@ -4,6 +4,7 @@ import { hostLabel, summarizeChecks, type BranchStatus, type CheckRun, type Repo
 import { errorText, formatDuration } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
+import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 
 interface Props {
     target: RepoTarget;
@@ -150,15 +151,21 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                 {error && <div className="form-error">{error}</div>}
             </div>
 
-            <div className="checks-list">
+            <div className="checks-list" onKeyDown={moveListFocus}>
                 {checks?.map(check => {
                     const failed = FAILED.has(check.conclusion ?? '');
+                    const open = () => check.isActions && onOpenLog(check);
                     return (
                         <div
                             key={`${check.isStatus ? 's' : 'c'}${check.id}`}
                             className={`check-row${check.isActions ? ' clickable' : ''}`}
                             title={check.isActions ? 'Show the log' : check.name}
-                            onClick={() => check.isActions && onOpenLog(check)}
+                            tabIndex={0}
+                            role={check.isActions ? 'button' : undefined}
+                            aria-label={check.name}
+                            data-nav-item
+                            onClick={open}
+                            onKeyDown={itemKeys(open)}
                         >
                             <CheckIcon check={check} />
                             <span className="check-name">{check.name}</span>

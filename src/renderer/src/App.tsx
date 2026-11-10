@@ -39,6 +39,7 @@ import type { RepoRef } from '@shared/github';
 import { useAppearance } from './theme/appearance';
 import { terminalTheme } from '@shared/themes';
 import { StatusBar } from './components/StatusBar';
+import { ErrorBanner } from './components/ErrorBanner';
 import { agentForRepo, DEFAULT_SETTINGS, repoDisplayName, type AgentDefinition, type AppSettings, type RepoScript } from '@shared/settings';
 import { setupCommand } from '@shared/worktree-settings';
 import type { CreatedWorktree } from '@shared/worktrees';
@@ -1843,7 +1844,7 @@ export function App() {
                     </header>
 
                     {error && (
-                        <div className="error-banner" onClick={() => setError(undefined)} title="Click to close">{error}</div>
+                        <ErrorBanner title="Click to close" onClose={() => setError(undefined)}>{error}</ErrorBanner>
                     )}
 
                     <section className={`terminal-area${draggingTab ? ' dragging-tab' : ''}`}>
