@@ -34,7 +34,7 @@ applyLastPalette();
 // Record the time of the last output of each terminal from the start. The Agents view shows it.
 outputActivity.start(window.shipwarden.terminals);
 
-// The app keys (⌘Q, ⇧⌥⌘Q, ⌘, and ⌘H), in the capture phase, before a terminal takes them. The main process normally
+// The app keys (⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U and ⌘H), in the capture phase, before a terminal takes them. The main process normally
 // reads these keys first (before-input-event). This is the second way, when it does not.
 window.addEventListener(
     'keydown',

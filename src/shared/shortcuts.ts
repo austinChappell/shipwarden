@@ -138,11 +138,11 @@ export function isCommentKey(input: { key: string; code?: string; metaKey: boole
 }
 
 /** The app keys of the macOS menu that the main process runs itself. */
-export type AppKeyAction = 'quit' | 'quitAndStop' | 'settings' | 'hide';
+export type AppKeyAction = 'quit' | 'quitAndStop' | 'settings' | 'checkForUpdates' | 'hide';
 
 /**
  * Returns the app action of a key: ⌘Q (quit, the agents keep running), ⇧⌥⌘Q (quit and stop all agents),
- * ⌘, (settings) and ⌘H (hide). A focused terminal takes all keys, so the menu does not get these keys. The main
+ * ⌘, (settings), ⇧⌘U (check for updates) and ⌘H (hide). A focused terminal takes all keys, so the menu does not get these keys. The main
  * process reads them before the page. Other keys return undefined.
  */
 export function appKeyAction(input: {
@@ -160,6 +160,7 @@ export function appKeyAction(input: {
         if (input.shift && input.alt) return 'quitAndStop';
         return input.shift || input.alt ? undefined : 'quit';
     }
+    if (key === 'u') return input.shift && !input.alt ? 'checkForUpdates' : undefined;
     if (input.shift || input.alt) return undefined;
     if (input.code === 'Comma' || key === ',') return 'settings';
     if (key === 'h') return 'hide';

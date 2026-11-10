@@ -167,10 +167,11 @@ describe('appKeyAction', () => {
         ...mods
     });
 
-    it('finds the quit, settings and hide keys', () => {
+    it('finds the quit, settings, update and hide keys', () => {
         expect(appKeyAction(key('KeyQ'))).toBe('quit');
         expect(appKeyAction(key('KeyQ', { shift: true, alt: true }))).toBe('quitAndStop');
         expect(appKeyAction({ ...key('Comma'), key: ',' })).toBe('settings');
+        expect(appKeyAction(key('KeyU', { shift: true }))).toBe('checkForUpdates');
         expect(appKeyAction(key('KeyH'))).toBe('hide');
     });
 
@@ -181,6 +182,8 @@ describe('appKeyAction', () => {
         expect(appKeyAction(key('KeyQ', { meta: false }))).toBeUndefined();
         expect(appKeyAction(key('KeyQ', { control: true }))).toBeUndefined();
         expect(appKeyAction(key('KeyT'))).toBeUndefined();
+        expect(appKeyAction(key('KeyU'))).toBeUndefined();
+        expect(appKeyAction(key('KeyU', { shift: true, alt: true }))).toBeUndefined();
     });
 });
 
