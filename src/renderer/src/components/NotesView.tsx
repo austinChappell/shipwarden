@@ -15,6 +15,7 @@ import {
     uniqueNoteName,
     type NoteInfo
 } from '@shared/notes';
+import type { ViewRoute } from '@shared/nav-history';
 import { monaco } from '../editor/monaco';
 import { fileIcon } from '../files/file-icons';
 import { treeKeyAction, type TreeRow } from '../files/tree-nav';
@@ -478,14 +479,21 @@ type Editing = { kind: 'note'; folder: string; name: string } | { kind: 'folder'
  * JetBrains IDEs. Each note has a name (the file name) and tags. A note can be at the top level or in a folder, and
  * folders can be in folders. The files are in ~/.shipwarden/notes, and each folder is a folder there.
  */
-export function NotesView() {
+interface Props {
+    /** The selected note in the query: `note`. */
+    route: ViewRoute;
+    /** Changes the selected note. The change replaces the current history entry. */
+    onRoute(route: ViewRoute): void;
+}
+
+export function NotesView({ route, onRoute }: Props) {
     const [notes, setNotes] = useState<NoteInfo[]>();
     const [folders, setFolders] = useState<string[]>([]);
     const [folder, setFolder] = useState('');
     const [error, setError] = useState<string>();
     const [query, setQuery] = useState('');
     const [tagFilter, setTagFilter] = useState<string[]>([]);
-    const [selected, setSelected] = useState<string | undefined>(readSelected);
+    const selected = route.query?.note;
     const [editing, setEditing] = useState<Editing>();
     const [collapsed, setCollapsed] = useState(readCollapsed);
     /** The folder under a dragged note or folder: a folder path, or "" for the top level. */
@@ -509,9 +517,16 @@ export function NotesView() {
     }, [load]);
 
     const select = (name: string | undefined) => {
-        setSelected(name);
+        onRoute({ query: { note: name } });
         writeSelected(name);
     };
+    // A history entry without a note, for example the entry page of the view, shows the note that the user selected last.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect runs one time, when the view opens.
+    useEffect(() => {
+        if (selected) return;
+        const saved = readSelected();
+        if (saved) onRoute({ query: { note: saved } });
+    }, []);
     /** Opens a folder and its parents, or closes one folder. */
     const setFolderOpen = (path: string, open: boolean) => {
         setCollapsed(current => {

@@ -14,6 +14,7 @@ import {
     type SourceHostKind,
     type Workflow
 } from '@shared/github';
+import type { NavQuery, ViewRoute } from '@shared/nav-history';
 import { dispatchInputs, runIsActive, type WorkflowInput, type WorkflowRun } from '@shared/pipelines';
 import { formatDuration, optionalErrorText, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
@@ -34,6 +35,16 @@ interface Props {
     /** A key for the providers of Settings › Code review. Undefined: not loaded yet. Null: no provider is on. */
     reviewKey: string | null | undefined;
     onOpenSettings(): void;
+    /** The selections of the view in the query: `repo`, `workflow`, `run` and `job`. */
+    route: ViewRoute;
+    /** Changes the selections. The change replaces the current history entry. */
+    onRoute(route: ViewRoute): void;
+}
+
+/** Reads an ID from the query. Undefined when the value is not a number. */
+function queryId(value: string | undefined): number | undefined {
+    const id = value ? Number(value) : Number.NaN;
+    return Number.isFinite(id) ? id : undefined;
 }
 
 function readRepo(): string | undefined {
@@ -219,11 +230,16 @@ export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }
  * workflow. On GitHub, the workflows are GitHub Actions and a workflow starts by hand with a `workflow_dispatch` trigger.
  * On Azure DevOps, the workflows are the pipelines (build definitions) of the repository, and a run is one build.
  */
-export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
-    const [chosenRepo, setChosenRepo] = useState<string | undefined>(readRepo);
-    const [workflowId, setWorkflowId] = useState<number>();
-    const [runId, setRunId] = useState<number>();
-    const [job, setJob] = useState<CheckRun>();
+export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Props) {
+    /** The repository that the user selected last. The view uses it when the query has no repository. */
+    const [savedRepo] = useState<string | undefined>(readRepo);
+    const query = route.query ?? {};
+    const chosenRepo = query.repo ?? savedRepo;
+    const workflowId = queryId(query.workflow);
+    const runId = queryId(query.run);
+    const jobId = queryId(query.job);
+    const setQuery = (change: NavQuery) => onRoute({ query: { ...query, ...change } });
+    const setWorkflowId = (id: number | undefined) => setQuery({ workflow: id?.toString() });
     const [dialog, setDialog] = useState<Workflow>();
     const workflowWidth = usePanelWidth('shipwarden.width.pipelineWorkflows', 230, 180, 400);
     const runsWidth = usePanelWidth('shipwarden.width.pipelineRuns', 380, 260, 640);
@@ -253,21 +269,20 @@ export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
     // The jobs of the selected run.
     const jobsQuery = useQuery(runJobsQuery(repoRef, runId, !!selectedRun && runIsActive(selectedRun), ACTIVE_POLL_MS));
     const jobs = runId === undefined ? undefined : jobsQuery.data;
+    const job: CheckRun | undefined = jobs?.find(item => item.id === jobId);
 
     const action = useCiAction();
     const error = optionalErrorText(reposQuery.error ?? branchesResult.error ?? workflowsResult.error ?? runsQuery.error);
     const actionError = optionalErrorText(action.error ?? jobsQuery.error);
 
     const selectRun = (id: number | undefined) => {
-        setRunId(id);
-        setJob(undefined);
+        setQuery({ run: id?.toString(), job: undefined });
         action.reset();
     };
     const selectRepo = (value: string) => {
-        setChosenRepo(value);
         writeRepo(value);
-        setWorkflowId(undefined);
-        selectRun(undefined);
+        onRoute({ query: { repo: value } });
+        action.reset();
     };
 
     const act = async (label: string, perform: () => Promise<void>) => {
@@ -497,7 +512,7 @@ export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
                                         className={`check-row clickable pipeline-job${item.id === job?.id ? ' selected' : ''}`}
                                         data-nav-item
                                         aria-pressed={item.id === job?.id}
-                                        onClick={() => setJob(item)}
+                                        onClick={() => setQuery({ job: item.id.toString() })}
                                     >
                                         <CheckIcon check={item} />
                                         <span className="check-name">{item.name}</span>

@@ -54,7 +54,8 @@ const SECTIONS: { id: FixedSection; label: string; icon: LucideIcon }[] = [
 
 const SECTION_STORAGE_KEY = 'shipwarden.settingsSection';
 
-function readSection(): SectionId {
+/** Returns the app section that the user selected last. The settings page opens on it when no section is requested. */
+export function readSettingsSection(): string {
     try {
         const value = localStorage.getItem(SECTION_STORAGE_KEY);
         return SECTIONS.some(item => item.id === value) ? (value as SectionId) : 'appearance';
@@ -73,10 +74,12 @@ interface Props {
     /** The repositories of the active project. Each one has a section with its settings. */
     repos: string[];
     /**
-     * The section to open, for example "repo:<path>" from the settings button of a repository. A new object selects the
-     * section again.
+     * The section that the page shows: a fixed section, or "repo:<path>" for the settings of one repository. Each section
+     * is a page of the history.
      */
-    initialSection?: { id: string };
+    section: string;
+    /** Shows a different section. The change adds a history entry. */
+    onSelectSection(section: string): void;
     /** A new hiding rule for Settings > Dashboard to fill in, from a comment on the Dashboard. */
     rulePrefill?: { author: string; text: string; nonce: number };
     onSave(change: Partial<AppSettings>): Promise<void>;
@@ -87,16 +90,12 @@ interface Props {
  * The settings page: a section list at the left and the selected section at the right. The list has the app sections
  * and the repositories of the active project. ⌘, opens it. Escape closes it.
  */
-export function SettingsView({ settings, mode, terminal, repos, initialSection, rulePrefill, onSave, onClose }: Props) {
+export function SettingsView({ settings, mode, terminal, repos, section: sectionProp, onSelectSection, rulePrefill, onSave, onClose }: Props) {
     const [status, setStatus] = useState<string>();
     const [info, setInfo] = useState<AppInfo>();
-    /** The section that the page shows: the requested section, else the last app section that the user selected. */
-    const [section, setSection] = useState<SectionId>(() => (initialSection?.id as SectionId | undefined) ?? readSection());
-    useEffect(() => {
-        if (initialSection) setSection(initialSection.id as SectionId);
-    }, [initialSection]);
+    const section = sectionProp as SectionId;
     const selectSection = (id: SectionId) => {
-        setSection(id);
+        onSelectSection(id);
         if (id.startsWith('repo:')) return;
         try {
             localStorage.setItem(SECTION_STORAGE_KEY, id);

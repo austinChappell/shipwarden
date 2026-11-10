@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { GitPullRequest, X } from 'lucide-react';
 import { parseRepoId, repoId, type BranchStatus, type CheckRun, type PullRequest, type RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { QueueItem } from '@shared/review-queue';
+import type { ViewRoute } from '@shared/nav-history';
 import { queryClient } from '../query-client';
 import { errorText, optionalErrorText } from '../util';
 import { reviewKeys, reviewStore } from '../github/review-store';
@@ -11,7 +12,8 @@ import { refreshRepo, useReviewOverview, useReviewQueue } from '../github/review
 import { sortedGroups } from './Combobox';
 import { ReviewHome } from './ReviewHome';
 import { ReviewRepoPage } from './ReviewRepoPage';
-import { ReviewPullRequest } from './ReviewPullRequest';
+import { isReviewTab, ReviewPullRequest, type ReviewTab } from './ReviewPullRequest';
+import { parseReviewPage, reviewPage } from '../app/review-page';
 
 const api = window.shipwarden.github;
 
@@ -25,8 +27,10 @@ interface Props {
     reviewKey: string | null | undefined;
     /** Opens Settings > Code review. */
     onOpenSettings(): void;
-    /** A pull request to open, for example from the Dashboard. A new `nonce` opens it again. */
-    open?: ReviewOpenRequest;
+    /** The page of the view (see `reviewPage` in app/review-page) and the tab of the pull request (`tab` in the query). */
+    route: ViewRoute;
+    /** Shows a different page or tab. A different page adds a history entry. */
+    onRoute(route: ViewRoute): void;
     /** Opens the New worktree dialog on the head branch of a pull request. */
     onNewWorktree?(repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>): void;
     /** Sends a prompt to the agent of the worktree of the head branch of a pull request. */
@@ -39,14 +43,6 @@ interface Props {
     projects?: ProjectsState;
     /** Adds the repository to a project, with a clone when necessary. Resolves false when the user cancels. */
     onPullRepo?(repo: RepoRef, target: PullRepoTarget): Promise<boolean>;
-}
-
-export interface ReviewOpenRequest {
-    /** The ID of the repository (see `repoId`). */
-    repo: string;
-    number: number;
-    tab: 'overview' | 'checks' | 'files';
-    nonce: number;
 }
 
 /** A review queue that the user started: a fixed list of pull requests, and the position in it. */
@@ -65,7 +61,8 @@ interface ActiveQueue {
 export function ReviewView({
     reviewKey,
     onOpenSettings,
-    open,
+    route,
+    onRoute,
     onNewWorktree,
     onSendToAgent,
     onSendLogToAgent,
@@ -75,43 +72,31 @@ export function ReviewView({
 }: Props) {
     const overview = useReviewOverview();
     const queueItems = useReviewQueue();
-    const [repo, setRepo] = useState<string>();
-    const [selected, setSelected] = useState<number>();
+    const { repo, number: selected } = parseReviewPage(route.page);
+    const routeTab = isReviewTab(route.query?.tab) ? route.query.tab : undefined;
     /** The error of the last agent review start, for the pull request that the user selected then. */
     const [agentError, setAgentError] = useState<{ repo: string; number: number; text: string }>();
     const [queue, setQueue] = useState<ActiveQueue>();
     /** The repository and the pull request that the user came back from. The pages focus their rows. */
     const [lastRepo, setLastRepo] = useState<string>();
     const [lastNumber, setLastNumber] = useState<number>();
+    // A step back to a page above gives the focus to the row of the page that the user came back from. This is also
+    // true for the back step of the history (⌘[).
+    const previous = useRef({ repo, selected });
+    useEffect(() => {
+        const before = previous.current;
+        previous.current = { repo, selected };
+        if (before.repo && !repo) setLastRepo(before.repo);
+        if (before.selected && !selected && before.repo === repo) setLastNumber(before.selected);
+    }, [repo, selected]);
 
     const repoRef = useMemo(() => (repo ? parseRepoId(repo) : undefined), [repo]);
 
+    /** Shows a page of the view. A different page adds a history entry. */
+    const go = (target?: string, number?: number) => onRoute({ page: reviewPage(target, number) });
     /** Opens a pull request, also in another repository. */
-    const pendingOpen = useRef<{ repo: string; number: number } | undefined>(undefined);
-    const openPr = useCallback(
-        (target: string, number: number) => {
-            // The selection effect below runs only when the repository changes.
-            pendingOpen.current = target !== repo ? { repo: target, number } : undefined;
-            setRepo(target);
-            setSelected(number);
-        },
-        [repo]
-    );
-
-    // A new repository starts with no selection, or with the pull request of an open request.
-    useEffect(() => {
-        const pending = pendingOpen.current;
-        setSelected(pending && pending.repo === repo ? pending.number : undefined);
-        pendingOpen.current = undefined;
-    }, [repo]);
-
-    // An open request selects its repository and pull request.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect runs one time for each open request. A new nonce is a new request.
-    useEffect(() => {
-        if (!open) return;
-        setQueue(undefined);
-        openPr(open.repo, open.number);
-    }, [open?.nonce]);
+    const openPr = (target: string, number: number) => go(target, number);
+    const selectTab = (tab: ReviewTab) => onRoute({ page: route.page, query: { ...route.query, tab } });
 
     // A pull request shows its cached data immediately. Its comments and reviews change often. Thus it loads again in the
     // background each time that it opens.
@@ -161,24 +146,22 @@ export function ReviewView({
     };
     const endQueue = () => {
         setQueue(undefined);
-        setLastRepo(repo);
-        setRepo(undefined);
+        go();
     };
 
     const backToList = () => {
         setQueue(undefined);
-        setLastNumber(selected);
-        setSelected(undefined);
+        go(repo);
     };
-    const backToHome = () => {
-        setLastRepo(repo);
-        setRepo(undefined);
-    };
+    const backToHome = () => go();
+    /** The queue shows only on the page of its current pull request. Another page, for example after ⌘[, hides it. */
+    const queueItem = queue?.items[queue.index];
+    const shownQueue = queueItem && queueItem.repo === repo && queueItem.number === selected ? queue : undefined;
 
     /** Opens the pull request and starts an agent review of it. The agent posts nothing. */
     const handToAgent = async (number: number) => {
         if (!repoRef || !repo) return;
-        setSelected(number);
+        go(repo, number);
         try {
             const full = await queryClient.ensureQueryData(pullRequestQuery(repoRef, number));
             void reviewStore.runAgentReview(repoRef, full);
@@ -208,13 +191,7 @@ export function ReviewView({
     if (!repo || !repoRef) {
         return (
             <div className="review-view">
-                <ReviewHome
-                    queue={queueItems}
-                    focusRepo={lastRepo}
-                    onSelect={value => setRepo(value)}
-                    onStartQueue={startQueue}
-                    onOpenSettings={onOpenSettings}
-                />
+                <ReviewHome queue={queueItems} focusRepo={lastRepo} onSelect={value => go(value)} onStartQueue={startQueue} onOpenSettings={onOpenSettings} />
             </div>
         );
     }
@@ -229,23 +206,23 @@ export function ReviewView({
                 groups={groups}
                 focusNumber={lastNumber}
                 hidden={selected !== undefined}
-                onSelectRepo={value => setRepo(value)}
+                onSelectRepo={value => go(value)}
                 onBack={backToHome}
-                onOpen={number => setSelected(number)}
+                onOpen={number => go(repo, number)}
                 onCheckout={onNewWorktree && (target => onNewWorktree(repoRef, target))}
                 onHandToAgent={number => void handToAgent(number)}
             />
 
             {selected && (
                 <div className="review-body review-pr-wrap">
-                    {queue && (
+                    {shownQueue && (
                         <div className="review-queue-bar" role="status">
                             <span>
-                                Review queue · {queue.index + 1} of {queue.items.length}
+                                Review queue · {shownQueue.index + 1} of {shownQueue.items.length}
                             </span>
                             <span className="header-spacer" />
                             <button className="button" onClick={stepQueue}>
-                                {queue.index + 1 < queue.items.length ? 'Next pull request' : 'Finish queue'}
+                                {shownQueue.index + 1 < shownQueue.items.length ? 'Next pull request' : 'Finish queue'}
                             </button>
                             <button className="icon-button" title="End the review queue" onClick={endQueue}>
                                 <X size={14} strokeWidth={1.7} />
@@ -254,7 +231,8 @@ export function ReviewView({
                     )}
                     <ReviewPullRequest
                         key={repo}
-                        tabRequest={open && open.repo === repo && open.number === selected ? open : undefined}
+                        tab={routeTab}
+                        onSelectTab={selectTab}
                         repo={repoRef}
                         status={status}
                         pr={pr ?? undefined}

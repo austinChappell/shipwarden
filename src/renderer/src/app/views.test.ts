@@ -17,12 +17,12 @@ describe('viewToSave', () => {
 });
 
 describe('navLocationOf', () => {
-    it('gives no entry for the settings page', () => {
-        expect(navLocationOf('settings', '/w', 't:1', 'repo')).toBeUndefined();
+    it('gives the section of the settings page as its page', () => {
+        expect(navLocationOf('settings', '/w', 't:1', 'repo', { page: 'network' })).toEqual({ view: 'settings', page: 'network' });
     });
 
     it('gives the worktree and the tab in the worktree view', () => {
-        expect(navLocationOf('worktree', '/w', 't:1', undefined)).toEqual({ view: 'worktree', worktree: '/w', tab: 't:1' });
+        expect(navLocationOf('worktree', '/w', 't:1', undefined)).toEqual({ view: 'worktree', worktree: '/w', tab: 't:1', query: undefined });
         expect(navLocationOf('worktree', undefined, undefined, undefined)).toBeUndefined();
     });
 
@@ -30,8 +30,22 @@ describe('navLocationOf', () => {
         expect(navLocationOf('graph', '/w', 't:1', '/repo')).toEqual({ view: 'graph', repo: '/repo' });
     });
 
-    it('gives only the view for other views', () => {
+    it('gives the view, its page and its query for other views', () => {
         expect(navLocationOf('dashboard', '/w', 't:1', '/repo')).toEqual({ view: 'dashboard' });
+        expect(navLocationOf('review', '/w', 't:1', '/repo', { page: 'owner/repo#4', query: { tab: 'files' } })).toEqual({
+            view: 'review',
+            page: 'owner/repo#4',
+            query: { tab: 'files' }
+        });
+    });
+
+    it('gives the query of the worktree view, without a page', () => {
+        expect(navLocationOf('worktree', '/w', 't:1', undefined, { page: 'x', query: { panel: 'checks' } })).toEqual({
+            view: 'worktree',
+            worktree: '/w',
+            tab: 't:1',
+            query: { panel: 'checks' }
+        });
     });
 });
 

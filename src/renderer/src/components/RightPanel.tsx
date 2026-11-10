@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { hasExplorerFocusRequest, onExplorerFocusRequest } from '../files/explorer-focus';
+import { useEffect, useRef } from 'react';
+import { onExplorerFocusRequest } from '../files/explorer-focus';
 import { CircleCheck, Files, GitCommitVertical, GitPullRequest, Plug, Workflow } from 'lucide-react';
 import type { CheckRun, DiffSide, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
 import type { BranchStatusState } from '../github/use-branch-status';
@@ -13,11 +13,15 @@ import { useGitChanges } from '../git/git-store';
 import { PullRequestPanel } from './PullRequestPanel';
 import { moveTabFocus } from '../tablist';
 
-type PanelTab = 'files' | 'changes' | 'pr' | 'checks' | 'pipelines' | 'processes';
+export type PanelTab = 'files' | 'changes' | 'pr' | 'checks' | 'pipelines' | 'processes';
 const TAB_STORAGE_KEY = 'shipwarden.rightPanelTab';
 
 interface Props {
     root: string;
+    /** The tab that shows. The app keeps it in the query of the history entry. */
+    tab: PanelTab;
+    /** Shows a different tab. */
+    onSelectTab(tab: PanelTab): void;
     activeFile?: string;
     github: BranchStatusState;
     onOpenFile(path: string, line?: number): void;
@@ -33,19 +37,33 @@ interface Props {
     onOpenInReview?(repo: RepoRef, pr: PullRequest): void;
 }
 
-function readTab(): PanelTab {
+/** True when the text is the name of a tab of the right panel. */
+export function isPanelTab(value: string | undefined): value is PanelTab {
+    return value === 'files' || value === 'changes' || value === 'pr' || value === 'checks' || value === 'pipelines' || value === 'processes';
+}
+
+/** Returns the tab that the user selected last. */
+export function readPanelTab(): PanelTab {
     try {
-        const value = localStorage.getItem(TAB_STORAGE_KEY);
-        return value === 'changes' || value === 'pr' || value === 'checks' || value === 'pipelines' || value === 'processes' ? value : 'files';
+        const value = localStorage.getItem(TAB_STORAGE_KEY) ?? undefined;
+        return isPanelTab(value) ? value : 'files';
     } catch {
         return 'files';
     }
 }
 
+/** Keeps the tab that the user selected last. A new worktree page starts on this tab. */
+export function writePanelTab(tab: PanelTab): void {
+    try {
+        localStorage.setItem(TAB_STORAGE_KEY, tab);
+    } catch {
+        // The tab stays for this session only.
+    }
+}
+
 /** The right panel: the file explorer, the pull request of the branch and its checks. */
 export function RightPanel(props: Props) {
-    // ⇧⌘E can show the panel. The panel then starts on the Files tab.
-    const [tab, setTab] = useState<PanelTab>(() => (hasExplorerFocusRequest() ? 'files' : readTab()));
+    const tab = props.tab;
     const status = props.github.status;
     const pr = status?.pullRequest;
     const openInReview = props.onOpenInReview;
@@ -55,18 +73,12 @@ export function RightPanel(props: Props) {
     const changed = git.changes ? changeCount(git.changes) : 0;
     const behind = git.changes?.behind ?? 0;
 
-    const select = (next: PanelTab) => {
-        setTab(next);
-        try {
-            localStorage.setItem(TAB_STORAGE_KEY, next);
-        } catch {
-            // The tab stays for this session only.
-        }
-    };
+    const select = props.onSelectTab;
+    const selectRef = useRef(select);
+    selectRef.current = select;
 
     // ⇧⌘E shows the Files tab. The explorer then takes the focus request when it mounts.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: The listener registers one time. select only sets state and storage, so an old copy is correct.
-    useEffect(() => onExplorerFocusRequest(() => select('files')), []);
+    useEffect(() => onExplorerFocusRequest(() => selectRef.current('files')), []);
 
     // ← and → move the focus to the previous or the next tab. That tab then shows.
     const tabButton = (id: PanelTab, title: string, icon: React.ReactNode, badge?: React.ReactNode) => (
