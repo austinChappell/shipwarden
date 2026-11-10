@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { Bot, Check, ChevronRight, LoaderCircle, Send } from 'lucide-react';
+import { Bot, Check, ChevronRight, FileDiff, LoaderCircle, Send } from 'lucide-react';
 import { noteTargetOptions, type NoteTarget } from '@shared/code-note';
 import type { AgentDefinition } from '@shared/settings';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, RepoTarget, ReviewThread } from '@shared/github';
@@ -11,6 +11,9 @@ import { seenStore } from '../seen-store';
 import { useWorktreeSessions } from '../terminal/session-list-store';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
+import { CommentBody } from './CommentBody';
+import { suggestionBlock, threadSuggestionTarget } from '@shared/suggestion';
+import { applyThreadSuggestion } from '../github/suggestions';
 import { radioGroupKeys } from './keyboard';
 
 interface Props {
@@ -143,12 +146,15 @@ export function removeReviewZones(handles: ZoneHandle[]): void {
     queueMicrotask(() => handles.forEach(handle => handle.root.unmount()));
 }
 
-export function ThreadZone({ thread, onReply, onResolve, onSendToAgent }: {
+export function ThreadZone({ thread, onReply, onResolve, onSendToAgent, worktree }: {
     thread: ReviewThread;
     onReply(body: string): Promise<void>;
     onResolve(): Promise<void>;
     onSendToAgent?(): void;
+    /** The worktree of the pull request. With it, a suggested change can go into the file. */
+    worktree?: string;
 }) {
+    const original = threadSuggestionTarget(thread)?.original;
     const [replying, setReplying] = useState(false);
     const [text, setText] = useState('');
     const [busy, setBusy] = useState(false);
@@ -169,7 +175,12 @@ export function ThreadZone({ thread, onReply, onResolve, onSendToAgent }: {
             {thread.comments.map(comment => (
                 <div key={comment.id} className="thread-comment">
                     <div className="comment-author">{comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span></div>
-                    <Markdown className="comment-body" text={comment.body} />
+                    <CommentBody
+                        body={comment.body}
+                        original={original}
+                        outdated={thread.isOutdated}
+                        onApply={worktree && original ? lines => applyThreadSuggestion(worktree, thread, lines) : undefined}
+                    />
                 </div>
             ))}
             {replying && <textarea autoFocus value={text} placeholder="Reply" onChange={event => setText(event.target.value)} />}
@@ -220,7 +231,7 @@ export function PendingZone({ comment, onRemove, onEdit, onAccept }: { comment: 
                     }}
                 />
             ) : (
-                <Markdown className="comment-body" text={comment.body} />
+                <CommentBody body={comment.body} original={comment.originalCode?.split('\n')} />
             )}
             <div className="thread-actions">
                 {editing ? (
@@ -257,10 +268,13 @@ export interface NoteOptions {
  * With `note`, the box can also send a note about the lines to an agent that runs, or to a new agent.
  * `canComment` false hides the comment mode, for example for a closed pull request or a file of a worktree.
  */
-export function ComposerZone({ line, startLine = line, onAdd, onAsk, note, onCancel, canComment = true, initialMode }: {
+export function ComposerZone({ line, startLine = line, onAdd, onAsk, onSuggest, note, onCancel, canComment = true, initialMode }: {
     line: number;
     startLine?: number;
-    onAdd(body: string): void;
+    /** Adds the comment. `originalCode` is the text of the lines when the user started a suggested change. */
+    onAdd(body: string, originalCode?: string): void;
+    /** Returns the text of the lines for a suggested change. Without it, the "Suggest a change" button does not show. */
+    onSuggest?(): Promise<string | undefined>;
     onAsk?(question: string): void;
     note?: NoteOptions;
     onCancel(): void;
@@ -270,6 +284,10 @@ export function ComposerZone({ line, startLine = line, onAdd, onAsk, note, onCan
 }) {
     const [text, setText] = useState('');
     const [mode, setMode] = useState<ComposerMode>(initialMode ?? (canComment ? 'comment' : 'ask'));
+    const textRef = useRef<HTMLTextAreaElement>(null);
+    /** The text of the lines when the user started a suggested change. */
+    const [originalCode, setOriginalCode] = useState<string>();
+    const [suggestError, setSuggestError] = useState<string>();
     const [targetKey, setTargetKey] = useState<string>();
     const sessions = useWorktreeSessions(note?.worktree ?? '');
     const targets = note ? noteTargetOptions(sessions, note.agents, note.defaultAgentId) : [];
@@ -287,7 +305,39 @@ export function ComposerZone({ line, startLine = line, onAdd, onAsk, note, onCan
         if (mode === 'ask') onAsk?.(value);
         else if (mode === 'note') {
             if (target) note?.onSend(value, target.target);
-        } else onAdd(value);
+        } else onAdd(value, originalCode);
+    };
+    /** Puts a suggestion block with the text of the lines at the cursor. */
+    const suggest = async () => {
+        if (!onSuggest) return;
+        setSuggestError(undefined);
+        let code: string | undefined;
+        try {
+            code = await onSuggest();
+        } catch (err) {
+            setSuggestError(errorText(err));
+            return;
+        }
+        if (code === undefined) {
+            setSuggestError('ShipWarden cannot read the lines of the file.');
+            return;
+        }
+        const box = textRef.current;
+        const at = box ? box.selectionStart : text.length;
+        const end = box ? box.selectionEnd : text.length;
+        const before = text.slice(0, at);
+        const after = text.slice(end);
+        const prefix = before && !before.endsWith('\n') ? '\n' : '';
+        const suggestion = suggestionBlock(code);
+        const block = `${prefix}${suggestion}${after && !after.startsWith('\n') ? '\n' : ''}`;
+        setText(before + block + after);
+        setOriginalCode(code);
+        // Select the lines in the block, so the user can type the change at once.
+        const first = before.length + prefix.length + suggestion.indexOf('\n') + 1;
+        requestAnimationFrame(() => {
+            box?.focus();
+            box?.setSelectionRange(first, first + code.length);
+        });
     };
     const placeholder = mode === 'ask' ? `Ask the agent about ${lines}` : mode === 'note' ? `Tell the agent what to do with ${lines}` : `Comment on ${lines}`;
     const submitLabel = mode === 'ask' ? 'Ask agent' : mode === 'note' ? 'Send to agent' : 'Add review comment';
@@ -301,6 +351,7 @@ export function ComposerZone({ line, startLine = line, onAdd, onAsk, note, onCan
                 </div>
             )}
             <textarea
+                ref={textRef}
                 autoFocus
                 value={text}
                 placeholder={placeholder}
@@ -313,7 +364,13 @@ export function ComposerZone({ line, startLine = line, onAdd, onAsk, note, onCan
                     event.stopPropagation();
                 }}
             />
+            {suggestError && <div className="form-error">{suggestError}</div>}
             <div className="row-buttons">
+                {mode === 'comment' && onSuggest && (
+                    <button className="button composer-suggest" title={`Add a suggested change for ${lines}`} onClick={suggest}>
+                        <FileDiff size={13} strokeWidth={1.6} /> Suggest a change
+                    </button>
+                )}
                 {mode === 'note' && (
                     <select
                         className="tasks-select composer-target"
@@ -554,6 +611,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
             addZone(thread.side, thread.line, (
                 <ThreadZone
                     thread={thread}
+                    worktree={typeof target === 'string' ? target : undefined}
                     onReply={async body => {
                         await window.shipwarden.github.reply(target, pr.number, thread.comments[thread.comments.length - 1].databaseId, body);
                         await onRefresh();
@@ -581,8 +639,13 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                     line={composer.line}
                     startLine={composer.startLine}
                     onCancel={() => setComposer(undefined)}
-                    onAdd={body => {
-                        reviewStore.addPending(target, pr.number, { path: file.path, line: composer.line, side: composer.side, body });
+                    onSuggest={composer.side === 'RIGHT' ? async () => {
+                        const model = diff.getModifiedEditor().getModel();
+                        return model ? model.getLinesContent().slice((composer.startLine ?? composer.line) - 1, composer.line).join('\n') : undefined;
+                    } : undefined}
+                    onAdd={(body, originalCode) => {
+                        const startLine = composer.startLine !== undefined && composer.startLine < composer.line ? composer.startLine : undefined;
+                        reviewStore.addPending(target, pr.number, { path: file.path, line: composer.line, startLine, side: composer.side, body, originalCode });
                         setComposer(undefined);
                     }}
                 />

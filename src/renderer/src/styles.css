@@ -1536,6 +1536,81 @@ code {
     font-weight: 400;
 }
 
+/* A suggested change in a review comment: the old lines and the new lines, as on GitHub. */
+.suggestion {
+    margin: 6px 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.suggestion-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.suggestion-header .link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.suggestion-lines {
+    overflow-x: auto;
+    font: 12px/1.5 'JetBrains Mono', Menlo, monospace;
+}
+
+.suggestion-line {
+    padding: 0 8px;
+    white-space: pre;
+}
+
+.suggestion-sign {
+    display: inline-block;
+    width: 16px;
+    user-select: none;
+}
+
+.suggestion-line.removed {
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.suggestion-line.added {
+    background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.suggestion-note {
+    padding: 2px 8px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.suggestion-result {
+    padding: 4px 8px;
+    border-top: 1px solid var(--border);
+    color: var(--ok);
+    font-size: 11px;
+}
+
+.composer-suggest {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: auto;
+}
+
+.suggestion .form-error {
+    margin: 0;
+    padding: 4px 8px;
+    border-top: 1px solid var(--border);
+}
+
 .comment-body {
     margin-top: 3px;
     color: var(--text);

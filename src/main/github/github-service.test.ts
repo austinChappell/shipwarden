@@ -30,6 +30,25 @@ describe('changePullRequest', () => {
     });
 });
 
+describe('submitReview', () => {
+    it('sends the start line of a comment on more than one line', async () => {
+        const { calls, service } = recordCalls();
+        await service.submitReview(repo, 7, 'abc', 'COMMENT', '', [
+            { path: 'a.ts', line: 5, startLine: 3, side: 'RIGHT', body: '```suggestion\nx\n```', originalCode: 'a\nb\nc' },
+            { path: 'b.ts', line: 2, side: 'RIGHT', body: 'One line.' }
+        ]);
+        expect(calls).toEqual([['POST', '/repos/acme/api/pulls/7/reviews', {
+            commit_id: 'abc',
+            event: 'COMMENT',
+            body: undefined,
+            comments: [
+                { path: 'a.ts', line: 5, side: 'RIGHT', body: '```suggestion\nx\n```', start_line: 3, start_side: 'RIGHT' },
+                { path: 'b.ts', line: 2, side: 'RIGHT', body: 'One line.' }
+            ]
+        }]]);
+    });
+});
+
 describe('canManagePullRequests', () => {
     it('lets triage access and more change the assignees, the reviewers and the labels', () => {
         expect(['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE'].map(canManagePullRequests)).toEqual([true, true, true, true]);
