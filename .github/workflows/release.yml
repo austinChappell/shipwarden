@@ -2,7 +2,9 @@
 # Run it from GitHub › Actions › Release, or: gh workflow run release.yml -f bump=patch
 #
 # Code signing (optional): add the secrets MAC_CERTIFICATE_P12 (the certificate and its private key, as base64)
-# and MAC_CERTIFICATE_PASSWORD. Without them, the build has an ad-hoc signature. See docs/RELEASING.md.
+# and MAC_CERTIFICATE_PASSWORD. Without them, the build has an ad-hoc signature.
+# Notarization (optional): add the secrets APPLE_API_KEY_P8 (the App Store Connect API key, as base64),
+# APPLE_API_KEY_ID and APPLE_API_ISSUER. Notarization needs the signing secrets too. See docs/RELEASING.md.
 name: Release
 
 on:
@@ -76,6 +78,9 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           npx electron-vite build
           BUILDER_ARGS=(--mac --publish never)
@@ -84,6 +89,19 @@ jobs:
             unset CSC_LINK CSC_KEY_PASSWORD
             BUILDER_ARGS+=(-c.mac.identity=null)
           fi
+          # electron-builder notarizes the app when APPLE_API_KEY, APPLE_API_KEY_ID and APPLE_API_ISSUER are set.
+          # APPLE_API_KEY is the path of the .p8 file.
+          NOTARIZE=false
+          if [ -n "$CSC_LINK" ] && [ -n "$APPLE_API_KEY_P8" ] && [ -n "$APPLE_API_KEY_ID" ] && [ -n "$APPLE_API_ISSUER" ]; then
+            NOTARIZE=true
+            export APPLE_API_KEY="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+            trap 'rm -f "$APPLE_API_KEY"' EXIT
+            (umask 077 && printf '%s' "$APPLE_API_KEY_P8" | base64 --decode > "$APPLE_API_KEY")
+          else
+            echo "::warning::No notarization key or no signing certificate. The build is not notarized."
+            unset APPLE_API_KEY_ID APPLE_API_ISSUER
+          fi
+          unset APPLE_API_KEY_P8
           # electron-builder downloads its tools (7zip, dmgbuild) from GitHub Releases, which sometimes answers with 504.
           # Retry only the observed HTTP 504 download failure. Attempts 3 and 4 use a mirror.
           # All other failures, including checksum mismatches, stop the release immediately.
@@ -113,6 +131,11 @@ jobs:
             echo "::warning::electron-builder failed (attempt $ATTEMPT of 4). The next attempt starts in $WAIT seconds."
             sleep "$WAIT"
           done
+          if [ "$NOTARIZE" = true ]; then
+            # Stop the release if the app does not have a stapled notarization ticket.
+            xcrun stapler validate dist/mac-arm64/ShipWarden.app
+            spctl --assess --type execute --verbose=4 dist/mac-arm64/ShipWarden.app
+          fi
 
       - name: Write the update manifest
         run: |
