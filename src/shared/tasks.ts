@@ -135,11 +135,6 @@ export function findStartStatus(statuses: readonly TaskStatus[], wanted: string 
 export interface ConnectionInfo extends TaskConnection {
     pluginName: string;
     scopeLabel?: string;
-    /**
-     * True when the plugin uses the repositories of the project. Then each project has its own plugin process and its own task data.
-     * False when all projects use one plugin process and the same task data.
-     */
-    projectContext: boolean;
     settings: SettingDefinition[];
     /** True when each required setting has a value. */
     configured: boolean;
@@ -147,17 +142,6 @@ export interface ConnectionInfo extends TaskConnection {
     settingsWithValue: string[];
     /** The values of the settings that are not secret. */
     publicSettings: Record<string, string | boolean>;
-}
-
-/** The project key of a plugin process that all projects use. The plugin of such a connection does not use the project repositories. */
-export const ALL_PROJECTS = '*';
-
-/**
- * Returns the project key of the task data of a connection: the project, or ALL_PROJECTS when the plugin does not use the project.
- * The plugin host keys its processes with it. The Tasks view keys its cached data with it.
- */
-export function taskProjectKey(connection: Pick<ConnectionInfo, 'projectContext'> | undefined, projectId: string): string {
-    return connection && !connection.projectContext ? ALL_PROJECTS : projectId;
 }
 
 /** The task manager settings. All projects use the same connections. */

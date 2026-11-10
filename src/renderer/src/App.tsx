@@ -209,7 +209,7 @@ export function App() {
 
     const reviewProviders = useReviewProviders();
     const reviewKey = reviewScopeKey(reviewProviders);
-    useDashboardLoader(settingsLoaded, reviewKey, activeProject?.id);
+    useDashboardLoader(settingsLoaded, reviewKey);
     useReviewOverviewLoader(settingsLoaded, reviewKey, project.allRepos);
     const reviewCount = useReviewQueue().length;
     const commentFilter = useMemo(

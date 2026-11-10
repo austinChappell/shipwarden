@@ -15,6 +15,6 @@
       "description": "A personal API token. In ClickUp, open Settings > Apps and copy the token that starts with pk_."
     }
   ],
-  "projectContext": false,
+  "usesRepositories": false,
   "scopeLabel": "workspace"
 }

@@ -379,21 +379,21 @@ export interface ShipWardenApi {
         removeConnection(id: string): Promise<void>;
         /** The scopes that a connection can include, for example ClickUp workspaces or GitHub organizations. */
         scopes(connectionId: string): Promise<TaskScope[]>;
-        /** The connections that are on. Each project uses these. */
+        /** The connections that are on. All projects use these. */
         enabledConnections(): Promise<ConnectionInfo[]>;
-        /** Starts the plugin of a connection for a project and returns its description. */
-        source(connectionId: string, projectId: string): Promise<TaskSource>;
-        /** Sends a protocol request, for example "tasks/list", to the plugin of a connection in a project. */
-        request(connectionId: string, projectId: string, method: string, params: unknown): Promise<unknown>;
+        /** Starts the plugin of a connection and returns its description. All projects use the same plugin process. */
+        source(connectionId: string): Promise<TaskSource>;
+        /** Sends a protocol request, for example "tasks/list", to the plugin of a connection. */
+        request(connectionId: string, method: string, params: unknown): Promise<unknown>;
         links(): Promise<Record<string, TaskLink>>;
         setLink(worktreePath: string, link: TaskLink | null): Promise<void>;
         /** Returns the collection that the user selected last for a connection. */
         selectedCollection(connectionId: string): Promise<string | undefined>;
         setSelectedCollection(connectionId: string, collectionId: string): Promise<void>;
-        /** Returns the connection that the Tasks view showed last in a project. */
-        selectedConnection(projectId: string): Promise<string | undefined>;
-        setSelectedConnection(projectId: string, connectionId: string): Promise<void>;
-        onChanged(listener: (connectionId: string, projectId: string) => void): () => void;
+        /** Returns the connection that the Tasks view showed last. */
+        selectedConnection(): Promise<string | undefined>;
+        setSelectedConnection(connectionId: string): Promise<void>;
+        onChanged(listener: (connectionId: string) => void): () => void;
     };
     review: {
         /** Returns the local copy of a pull request, and if a copy needs a clone of the repository first. */

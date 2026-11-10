@@ -8,7 +8,7 @@ const PAGE_SIZE = 50;
 /** The plugin lists at most this number of pages of repositories, with 100 repositories on each page. */
 const MAX_REPO_PAGES = 3;
 
-/** The GitHub repositories ("owner/name") of the ShipWarden project. The first one is the default collection. */
+/** The GitHub repositories ("owner/name") of the ShipWarden projects. The first one is the default collection. */
 let projectRepos = [];
 /** The owners (users and organizations) in the connection's scope, in lowercase. Undefined means all. */
 let owners;
@@ -94,7 +94,7 @@ runPlugin({
         return [{ id: login, name: login, detail: 'your account' }, ...orgs.map(org => ({ id: org.login, name: org.login }))];
     },
 
-    /** Each repository with issues in the scope is a collection. The first GitHub repository of the project is the default. */
+    /** Each repository with issues in the scope is a collection. The first GitHub repository of the projects is the default. */
     async listCollections() {
         const repos = [];
         for (let page = 1; page <= MAX_REPO_PAGES; page++) {
@@ -107,7 +107,7 @@ runPlugin({
         const inScope = repo => !owners || owners.includes(repo.split('/')[0].toLowerCase());
         const defaultRepo = projectRepos.find(inScope);
         const collections = toCollections(repos, defaultRepo).filter(collection => inScope(collection.id));
-        // A repository of the project can be outside the first pages, for example a public repository of another owner.
+        // A repository of the projects can be outside the first pages, for example a public repository of another owner.
         if (defaultRepo && !collections.some(collection => collection.default)) {
             const [owner, name] = defaultRepo.split('/');
             collections.unshift({ id: defaultRepo, name, path: owner, url: `https://github.com/${defaultRepo}`, default: true });

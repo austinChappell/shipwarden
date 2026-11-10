@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_PROJECTS, taskProjectKey, type ConnectionInfo, type StatusGroup, type Task, type TaskLink } from '@shared/tasks';
+import type { ConnectionInfo, StatusGroup, Task, TaskLink } from '@shared/tasks';
 import {
     acceptsDrop,
     collectionPlaceholder,
@@ -34,7 +34,6 @@ const task = (id: string, status = 'to do', extra: Partial<Task> = {}): Task => 
 const connection = (id: string, configured: boolean): ConnectionInfo => ({
     id,
     pluginId: 'p',
-    projectContext: true,
     name: id,
     enabled: true,
     pluginName: 'P',
@@ -242,14 +241,5 @@ describe('labels and text', () => {
         expect(collectionPlaceholder(undefined)).toBe('Loading collections…');
         expect(collectionPlaceholder([])).toBe('No collections');
         expect(collectionPlaceholder([{ id: '1', name: 'One' }])).toBe('Select a collection');
-    });
-});
-
-describe('taskProjectKey', () => {
-    it('shares the task data of a plugin without project context between the projects', () => {
-        expect(taskProjectKey({ projectContext: false }, 'work')).toBe(ALL_PROJECTS);
-        expect(taskProjectKey({ projectContext: true }, 'work')).toBe('work');
-        // Before the connections load, the key is the project.
-        expect(taskProjectKey(undefined, 'work')).toBe('work');
     });
 });

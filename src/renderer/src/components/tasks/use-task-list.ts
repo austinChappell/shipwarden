@@ -11,8 +11,6 @@ const api = window.shipwarden.tasks;
 const MAX_PAGES = 5;
 
 interface Options {
-    /** The project key of the task data (see `taskProjectKey`). */
-    projectKey: string;
     /** The source of the selected connection, or undefined while it loads. */
     source: TaskSource | null | undefined;
     collection: string | undefined;
@@ -25,10 +23,10 @@ interface Options {
  * The tasks of the selected collection. The query cache keeps them for the session.
  * The list loads again when its data is stale, on the timer of the query client and on change notifications.
  */
-export function useTaskList({ projectKey, source, collection, filter, request, setSelectedId }: Options) {
+export function useTaskList({ source, collection, filter, request, setSelectedId }: Options) {
     const queryClient = useQueryClient();
     const connectionId = source?.connectionId;
-    const listKey = taskQueryKeys.list(connectionId, projectKey, collection, filter);
+    const listKey = taskQueryKeys.list(connectionId, collection, filter);
     /** The error of the last action on the list, for example a failed move. */
     const [actionError, setActionError] = useState<string>();
     /** The tasks that move to another status now. */
@@ -55,7 +53,7 @@ export function useTaskList({ projectKey, source, collection, filter, request, s
 
     /** The workflow order of the statuses from the plugin's status order adapter, if it has one. */
     const statusOrderQuery = useQuery({
-        queryKey: taskQueryKeys.statusOrder(connectionId, projectKey, collection),
+        queryKey: taskQueryKeys.statusOrder(connectionId, collection),
         queryFn: () => request<StatusOrder>('tasks/statusOrder', { collection }),
         enabled: !!source?.capabilities.statusOrder && !!collection
     });
@@ -63,7 +61,7 @@ export function useTaskList({ projectKey, source, collection, filter, request, s
 
     // A new collection or filter has no error of the old one.
     // biome-ignore lint/correctness/useExhaustiveDependencies: The body does not read the dependencies, but a change must clear the error.
-    useEffect(() => setActionError(undefined), [connectionId, projectKey, collection, filter]);
+    useEffect(() => setActionError(undefined), [connectionId, collection, filter]);
 
     /** Changes the cached tasks of the selected collection. */
     const setTasks = (update: SetStateAction<Task[] | undefined>) =>
@@ -72,18 +70,18 @@ export function useTaskList({ projectKey, source, collection, filter, request, s
     /** Loads the list again now. */
     const loadTasks = useCallback(async () => {
         setActionError(undefined);
-        await queryClient.invalidateQueries({ queryKey: taskQueryKeys.list(connectionId, projectKey, collection, filter) });
-    }, [queryClient, connectionId, projectKey, collection, filter]);
+        await queryClient.invalidateQueries({ queryKey: taskQueryKeys.list(connectionId, collection, filter) });
+    }, [queryClient, connectionId, collection, filter]);
 
     // A change notification of the plugin marks all lists of the connection as stale. The list that shows now loads again.
     useEffect(
         () =>
-            api.onChanged((changedConnection, changedProjectKey) => {
-                if (changedConnection === connectionId && changedProjectKey === projectKey) {
-                    void queryClient.invalidateQueries({ queryKey: ['tasks', 'list', connectionId, projectKey] });
+            api.onChanged(changedConnection => {
+                if (changedConnection === connectionId) {
+                    void queryClient.invalidateQueries({ queryKey: ['tasks', 'list', connectionId] });
                 }
             }),
-        [queryClient, connectionId, projectKey]
+        [queryClient, connectionId]
     );
 
     /** Asks for a title and makes a task in the selected collection. Then it opens the task, so the user can add a description. */

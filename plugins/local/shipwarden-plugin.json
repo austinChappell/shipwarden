@@ -3,7 +3,7 @@
   "name": "Local tasks",
   "version": "0.1.0",
   "protocolVersion": 3,
-  "description": "Tasks in a JSON file on this computer. It needs no account. Each repository of the project is a collection.",
+  "description": "Tasks in a JSON file on this computer. It needs no account. Each repository of the projects is a collection.",
   "command": "node",
   "args": ["index.js"],
   "settings": [

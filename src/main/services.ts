@@ -124,13 +124,13 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
         ],
         settings: new PluginSettings(join(userData, 'plugin-settings.json')),
         repoFor: root => reviewProviders.githubRepoFor(root),
-        projectRepos: async projectId => (await projects.get()).projects.find(project => project.id === projectId)?.repos ?? [],
+        allRepos: async () => (await projects.get()).projects.flatMap(project => project.repos),
         configFile: join(userData, 'task-managers.json'),
         legacySourcesFile: join(userData, 'task-sources.json'),
         linksFile: join(userData, 'task-links.json'),
         collectionsFile: join(userData, 'task-collections.json'),
         selectedConnectionsFile: join(userData, 'task-selected-connections.json'),
-        onChanged: (connectionId, projectId) => window.send(IpcChannels.tasksChanged, connectionId, projectId),
+        onChanged: connectionId => window.send(IpcChannels.tasksChanged, connectionId),
         // A plugin is another process, so it gets the extra certificates as a bundle file.
         pluginEnv: async (): Promise<Record<string, string>> => {
             await networkReady;

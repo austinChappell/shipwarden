@@ -37,7 +37,7 @@ let me;
 /** The project IDs in the connection's scope. Undefined means all projects. */
 let scope;
 let areaPath;
-/** The repository roots of the ShipWarden project. */
+/** The repository roots of the ShipWarden projects. */
 let repositoryRoots = [];
 
 /** All projects of the organization, with the time of the load. */
@@ -314,7 +314,7 @@ connection = runPlugin({
 
     /**
      * Each project in the scope is a collection. The project of the area path setting, or of an Azure Repos remote
-     * of the ShipWarden project, is the default.
+     * of a ShipWarden project, is the default.
      */
     async listCollections() {
         const projects = await scopedProjects();

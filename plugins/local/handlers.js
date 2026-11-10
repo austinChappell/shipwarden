@@ -1,4 +1,4 @@
-// The request handlers of the local task plugin. Each repository of the project is a collection with its own task file.
+// The request handlers of the local task plugin. Each repository of the projects is a collection with its own task file.
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import { cleanTitle, matchesFilter, matchesQuery, parseStatuses, parseTaskId, taskFilePath, toComment, toTask } from './map.js';
@@ -17,7 +17,7 @@ export function createHandlers({ home, author = async () => undefined }) {
     const fileOf = collection => {
         const entry = collections.get(collection);
         if (!entry) {
-            throw new Error(`The repository "${collection}" is not in this ShipWarden project.`);
+            throw new Error(`The repository "${collection}" is not in a ShipWarden project.`);
         }
         return entry.file;
     };
@@ -78,7 +78,7 @@ export function createHandlers({ home, author = async () => undefined }) {
             };
         },
 
-        /** Each repository of the project is a collection. The first repository is the default. */
+        /** Each repository of the projects is a collection. The first repository is the default. */
         async listCollections() {
             return [...collections.entries()].map(([id, entry], index) => ({
                 id,

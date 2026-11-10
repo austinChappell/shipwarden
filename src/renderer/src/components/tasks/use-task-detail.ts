@@ -9,8 +9,6 @@ import { patchTask, removeTask, taskQueryKeys, type CachedDetail } from './task-
 import type { TaskRequest } from './use-task-source';
 
 interface Options {
-    /** The project key of the task data (see `taskProjectKey`). */
-    projectKey: string;
     source: TaskSource | null | undefined;
     selectedId: string | undefined;
     setSelectedId(id: string | undefined): void;
@@ -29,9 +27,9 @@ const NO_STATUSES: TaskStatus[] = [];
 const NO_COMMENTS: TaskComment[] = [];
 
 /** The details of the selected task, its statuses and comments, and the actions on the task. */
-export function useTaskDetail({ projectKey, source, selectedId, setSelectedId, request, setTasks, loadTasks }: Options) {
+export function useTaskDetail({ source, selectedId, setSelectedId, request, setTasks, loadTasks }: Options) {
     const queryClient = useQueryClient();
-    const detailKey = taskQueryKeys.detail(source?.connectionId, projectKey, selectedId);
+    const detailKey = taskQueryKeys.detail(source?.connectionId, selectedId);
     const [commentText, setCommentText] = useState('');
     const [busy, setBusy] = useState(false);
     /** The error of the last action on the task. */
@@ -74,7 +72,7 @@ export function useTaskDetail({ projectKey, source, selectedId, setSelectedId, r
     useEffect(() => {
         setEditing(undefined);
         setActionError(undefined);
-    }, [selectedId, source?.connectionId, projectKey]);
+    }, [selectedId, source?.connectionId]);
 
     /** Runs an action on the task. The detail panel shows the error of a failed action. */
     const act = async (action: () => Promise<void>) => {

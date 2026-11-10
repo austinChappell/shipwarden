@@ -71,12 +71,14 @@ describe('TaskHost', () => {
     let dir: string;
     let host: TaskHost;
     let settings: MemorySettings;
+    /** The repositories of all projects. The duplicate checks that the host sends each repository one time. */
+    let repos: string[];
 
     const hostOptions = (): TaskHostOptions => ({
         pluginFolders: [{ path: path.join(dir, 'plugins'), builtIn: true }],
         settings,
         repoFor: async () => null,
-        projectRepos: async projectId => (projectId === 'work' ? ['/repos/api', '/repos/web'] : ['/repos/side']),
+        allRepos: async () => repos,
         configFile: path.join(dir, 'task-managers.json'),
         legacySourcesFile: path.join(dir, 'task-sources.json'),
         linksFile: path.join(dir, 'links.json'),
@@ -106,6 +108,7 @@ describe('TaskHost', () => {
         );
         await fs.mkdir(path.join(dir, 'plugins', 'no-manifest'));
         settings = new MemorySettings();
+        repos = ['/repos/api', '/repos/web', '/repos/api'];
         host = makeHost();
     });
 
@@ -124,15 +127,15 @@ describe('TaskHost', () => {
 
     it('shows the error of a plugin that cannot start', async () => {
         const connection = await host.addConnection('test-tracker', 'Tracker');
-        await expect(host.source(connection.id, 'work')).rejects.toThrow('The test plugin needs a token.');
+        await expect(host.source(connection.id)).rejects.toThrow('The test plugin needs a token.');
     });
 
-    it('starts a connection for a project with its settings, scope and repositories', async () => {
+    it('starts a connection with its settings, its scope and the repositories of all projects', async () => {
         const connection = await host.addConnection('test-tracker', 'Tracker');
         await host.saveConnectionSettings(connection.id, { token: 'abc' });
         expect((await host.connections())[0].configured).toBe(true);
 
-        const source = await host.source(connection.id, 'work');
+        const source = await host.source(connection.id);
         expect(source).toMatchObject({
             connectionId: connection.id,
             pluginId: 'test-tracker',
@@ -145,17 +148,15 @@ describe('TaskHost', () => {
             { id: 'w2', name: 'Workspace 2' }
         ]);
 
-        const collections = (await host.request(connection.id, 'work', 'collections/list', {})) as { name: string }[];
+        const collections = (await host.request(connection.id, 'collections/list', {})) as { name: string }[];
         expect(collections[0].name).toBe('Inbox in all for /repos/api,/repos/web');
-        const result = (await host.request(connection.id, 'work', 'tasks/list', { collection: 'inbox', filter: 'all' })) as { tasks: { title: string }[] };
+        const result = (await host.request(connection.id, 'tasks/list', { collection: 'inbox', filter: 'all' })) as { tasks: { title: string }[] };
         expect(result.tasks[0].title).toBe('Task in inbox with abc and all');
-        await expect(host.request(connection.id, 'work', 'tasks/get', { id: '9' })).rejects.toThrow('Task 9 is not here.');
+        await expect(host.request(connection.id, 'tasks/get', { id: '9' })).rejects.toThrow('Task 9 is not here.');
 
         // A new global scope restarts the plugin with the scope.
         await host.updateConnection(connection.id, { scope: ['w2'] });
-        expect(((await host.request(connection.id, 'work', 'collections/list', {})) as { name: string }[])[0].name).toBe(
-            'Inbox in w2 for /repos/api,/repos/web'
-        );
+        expect(((await host.request(connection.id, 'collections/list', {})) as { name: string }[])[0].name).toBe('Inbox in w2 for /repos/api,/repos/web');
     });
 
     it('lists only the connections that are on, and removes a connection with its settings', async () => {
@@ -165,37 +166,41 @@ describe('TaskHost', () => {
         await host.updateConnection(b.id, { enabled: false });
         expect((await host.enabledConnections()).map(connection => connection.name)).toEqual(['A']);
 
-        // Each project gets its own process with its own repositories, and the connection's scope.
+        // The process gets the connection's scope.
         await host.updateConnection(b.id, { enabled: true, scope: ['w1'] });
-        expect(((await host.request(b.id, 'side', 'collections/list', {})) as { name: string }[])[0].name).toBe('Inbox in w1 for /repos/side');
+        expect(((await host.request(b.id, 'collections/list', {})) as { name: string }[])[0].name).toBe('Inbox in w1 for /repos/api,/repos/web');
 
         await host.removeConnection(b.id);
         expect(settings.data[b.id]).toBeUndefined();
         expect((await host.enabledConnections()).map(connection => connection.id)).toEqual([a.id]);
     });
 
-    it('uses one process for all projects when the plugin has no project context', async () => {
+    it('starts a plugin again when the repositories change, but not a plugin that does not use them', async () => {
         const folder = path.join(dir, 'plugins', 'shared-tracker');
         await fs.mkdir(folder, { recursive: true });
         await fs.copyFile(path.join(dir, 'plugins', 'test-tracker', 'index.mjs'), path.join(folder, 'index.mjs'));
         await fs.writeFile(
             path.join(folder, 'shipwarden-plugin.json'),
-            JSON.stringify({ id: 'shared-tracker', name: 'Shared', protocolVersion: 3, command: 'node', args: ['index.mjs'], projectContext: false })
+            JSON.stringify({ id: 'shared-tracker', name: 'Shared', protocolVersion: 3, command: 'node', args: ['index.mjs'], usesRepositories: false })
         );
         const shared = await host.addConnection('shared-tracker', 'Shared');
         const local = await host.addConnection('test-tracker', 'Local');
         await host.saveConnectionSettings(shared.id, { token: 'a' });
         await host.saveConnectionSettings(local.id, { token: 'b' });
-        expect((await host.connections()).map(connection => connection.projectContext)).toEqual([false, true]);
+        const collections = async (id: string) => ((await host.request(id, 'collections/list', {})) as { name: string }[]).map(item => item.name);
 
-        const collections = async (id: string, project: string) => (await host.request(id, project, 'collections/list', {})) as { name: string }[];
-        const [work, side] = [await collections(shared.id, 'work'), await collections(shared.id, 'side')];
-        // The shared process gets no repositories, and both projects get the same process.
-        expect(work[0].name).toBe('Inbox in all for ');
-        expect(side[1].name).toBe(work[1].name);
-        // A plugin with project context keeps one process for each project.
-        expect((await collections(local.id, 'side'))[1].name).not.toBe((await collections(local.id, 'work'))[1].name);
-        expect(validateManifest({ id: 'x', name: 'X', command: 'node', protocolVersion: 3, projectContext: 'no' })).toContain('projectContext');
+        const [sharedBefore, localBefore] = [await collections(shared.id), await collections(local.id)];
+        expect(sharedBefore[0]).toBe('Inbox in all for ');
+        expect(localBefore[0]).toBe('Inbox in all for /repos/api,/repos/web');
+        // The same repositories: the same process answers.
+        expect((await collections(local.id))[1]).toBe(localBefore[1]);
+
+        repos = ['/repos/api', '/repos/web', '/repos/side'];
+        const localAfter = await collections(local.id);
+        expect(localAfter[0]).toBe('Inbox in all for /repos/api,/repos/web,/repos/side');
+        expect(localAfter[1]).not.toBe(localBefore[1]);
+        expect((await collections(shared.id))[1]).toBe(sharedBefore[1]);
+        expect(validateManifest({ id: 'x', name: 'X', command: 'node', protocolVersion: 3, usesRepositories: 'no' })).toContain('usesRepositories');
     });
 
     it('makes the first connections from the settings of protocol version 2', async () => {
@@ -217,16 +222,22 @@ describe('TaskHost', () => {
         ]);
     });
 
-    it('remembers the selected collection of each connection and the selected connection of each project', async () => {
+    it('remembers the selected collection of each connection and the selected connection', async () => {
         expect(await host.selectedCollection('clickup')).toBeUndefined();
         await host.setSelectedCollection('clickup', '901');
         await host.setSelectedCollection('github-issues', 'o/r');
         await host.setSelectedCollection('clickup', '902');
         expect(await host.selectedCollection('clickup')).toBe('902');
         expect(await host.selectedCollection('github-issues')).toBe('o/r');
-        await host.setSelectedConnection('work', 'clickup');
-        expect(await host.selectedConnection('work')).toBe('clickup');
-        expect(await host.selectedConnection('side')).toBeUndefined();
+        expect(await host.selectedConnection()).toBeUndefined();
+        await host.setSelectedConnection('clickup');
+        expect(await host.selectedConnection()).toBe('clickup');
+    });
+
+    it('reads the selected connection from the file of an older version, with one connection for each project', async () => {
+        await fs.writeFile(path.join(dir, 'selected.json'), JSON.stringify({ work: 'github-issues' }));
+        host = makeHost();
+        expect(await host.selectedConnection()).toBe('github-issues');
     });
 
     it('keeps the task link of a worktree', async () => {
