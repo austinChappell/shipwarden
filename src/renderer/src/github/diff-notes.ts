@@ -138,3 +138,32 @@ export function composerPlaceholder(mode: ComposerMode, lines: string): string {
 export function composerSubmitLabel(mode: ComposerMode): string {
     return mode === 'ask' ? 'Ask agent' : mode === 'note' ? 'Send to agent' : 'Add review comment';
 }
+
+/** A line that the diff shows now: its number and the top of its box, in pixels. */
+export interface RenderedLine {
+    line: number;
+    top: number;
+}
+
+/** The line height that `seekDelta` uses when it cannot measure one. */
+const DEFAULT_LINE_HEIGHT = 20;
+
+/**
+ * Returns the pixels to scroll so that a line that the diff does not show comes near `center`.
+ * The diff shows only the lines near the view. The estimate uses the lines that show now.
+ * Returns undefined when the line is between the first and the last line that show, or when no line shows.
+ */
+export function seekDelta(target: number, rendered: RenderedLine[], center: number): number | undefined {
+    if (!rendered.length) return undefined;
+    let first = rendered[0];
+    let last = rendered[0];
+    for (const item of rendered) {
+        if (item.line < first.line) first = item;
+        if (item.line > last.line) last = item;
+    }
+    if (target >= first.line && target <= last.line) return undefined;
+    const measured = last.line > first.line ? (last.top - first.top) / (last.line - first.line) : 0;
+    const lineHeight = measured > 0 && Number.isFinite(measured) ? measured : DEFAULT_LINE_HEIGHT;
+    const anchor = target > last.line ? last : first;
+    return anchor.top + (target - anchor.line) * lineHeight - center;
+}

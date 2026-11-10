@@ -192,3 +192,22 @@ export function isCtrlV(input: { key: string; code?: string; metaKey: boolean; c
 export function isImageOnlyPaste(types: readonly string[], text: string): boolean {
     return text.length === 0 && types.some(type => type.startsWith('image/') || type === 'Files');
 }
+
+/**
+ * Returns the step of a pending-comment key in the changed files of a pull request:
+ * 1 for N (the next comment) and -1 for P (the previous comment). Keys with ⌘, Ctrl, Alt or Shift return undefined.
+ */
+export function pendingCommentStep(input: {
+    key: string;
+    code?: string;
+    metaKey: boolean;
+    ctrlKey: boolean;
+    altKey: boolean;
+    shiftKey: boolean;
+}): 1 | -1 | undefined {
+    if (input.metaKey || input.ctrlKey || input.altKey || input.shiftKey) return undefined;
+    const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
+    if (key === 'n') return 1;
+    if (key === 'p') return -1;
+    return undefined;
+}

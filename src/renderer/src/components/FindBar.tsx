@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import type { DiffSide } from '@shared/github';
-import { findCountText } from '../github/diff-notes';
+import { findCountText, type RenderedLine } from '../github/diff-notes';
 
 /**
  * Returns the element of a diff line. The diff is in a shadow root. A removed line has the old line number,
@@ -17,6 +17,20 @@ export function findLineElement(section: HTMLElement, side: DiffSide, line: numb
         }
     }
     return undefined;
+}
+
+/** Returns the lines that the diff in a file section shows now, with the top of each box. */
+export function renderedLines(section: HTMLElement): RenderedLine[] {
+    const list: RenderedLine[] = [];
+    for (const host of section.querySelectorAll('*')) {
+        const root = host.shadowRoot;
+        if (!root) continue;
+        for (const element of root.querySelectorAll<HTMLElement>('[data-line]')) {
+            const line = Number(element.dataset.line);
+            if (Number.isFinite(line)) list.push({ line, top: element.getBoundingClientRect().top });
+        }
+    }
+    return list;
 }
 
 /** The search bar of the changed files (⌘F). Enter goes to the next match, Shift+Enter to the previous one. */

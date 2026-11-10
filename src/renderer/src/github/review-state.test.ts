@@ -4,7 +4,9 @@ import {
     conversationOf,
     decisionEvents,
     firstUndecided,
+    nextPendingIndex,
     openCommentCount,
+    pendingOrder,
     pendingText,
     reviewButtons,
     reviewConfirmTitle,
@@ -103,6 +105,50 @@ describe('firstUndecided', () => {
 
     it('returns undefined when all comments have a decision', () => {
         expect(firstUndecided([comment('a.ts')], files)).toBeUndefined();
+    });
+});
+
+describe('pendingOrder', () => {
+    const files = [{ path: 'b.ts' }, { path: 'a.ts' }] as PullRequestFile[];
+
+    it('sorts by the file list and then by the line', () => {
+        const a5 = comment('a.ts', { line: 5 });
+        const b9 = comment('b.ts', { line: 9 });
+        const b2 = comment('b.ts', { line: 2 });
+        expect(pendingOrder([a5, b9, b2], files).map(stop => stop.comment)).toEqual([b2, b9, a5]);
+    });
+
+    it('puts a file that is not in the list at the end', () => {
+        const other = comment('z.ts', { line: 1 });
+        const a = comment('a.ts');
+        expect(pendingOrder([other, a], files).map(stop => stop.comment)).toEqual([a, other]);
+    });
+
+    it('counts the comments before each comment on the same line and side', () => {
+        const first = comment('a.ts', { body: 'one' });
+        const second = comment('a.ts', { body: 'two' });
+        const left = comment('a.ts', { side: 'LEFT' });
+        expect(pendingOrder([first, left, second], files).map(stop => [stop.comment.body, stop.nth])).toEqual([
+            ['one', 0],
+            ['Fix', 0],
+            ['two', 1]
+        ]);
+    });
+});
+
+describe('nextPendingIndex', () => {
+    it('starts at the first comment for down and at the last comment for up', () => {
+        expect(nextPendingIndex(undefined, 4, 1)).toBe(0);
+        expect(nextPendingIndex(undefined, 4, -1)).toBe(3);
+    });
+
+    it('wraps at the two ends', () => {
+        expect(nextPendingIndex(3, 4, 1)).toBe(0);
+        expect(nextPendingIndex(0, 4, -1)).toBe(3);
+    });
+
+    it('moves from the last comment when the list got shorter', () => {
+        expect(nextPendingIndex(6, 4, -1)).toBe(2);
     });
 });
 

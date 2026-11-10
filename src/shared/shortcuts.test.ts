@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appKeyAction, isClearKey, isCommentKey, isCtrlV, isImageOnlyPaste, shortcutAction } from './shortcuts';
+import { appKeyAction, isClearKey, isCommentKey, isCtrlV, isImageOnlyPaste, pendingCommentStep, shortcutAction } from './shortcuts';
 
 const key = (change: Partial<Parameters<typeof shortcutAction>[0]>) =>
     shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: false, key: 'd', code: 'KeyD', ...change });
@@ -229,5 +229,29 @@ describe('isImageOnlyPaste', () => {
         expect(isImageOnlyPaste(['text/plain', 'image/png'], 'shot.png')).toBe(false);
         expect(isImageOnlyPaste(['text/plain'], 'hello')).toBe(false);
         expect(isImageOnlyPaste([], '')).toBe(false);
+    });
+});
+
+describe('pendingCommentStep', () => {
+    const press = { key: 'n', code: 'KeyN', metaKey: false, ctrlKey: false, altKey: false, shiftKey: false };
+
+    it('returns 1 for N and -1 for P', () => {
+        expect(pendingCommentStep(press)).toBe(1);
+        expect(pendingCommentStep({ ...press, key: 'p', code: 'KeyP' })).toBe(-1);
+    });
+
+    it('reads the code of the key before the key', () => {
+        expect(pendingCommentStep({ ...press, key: 'ñ' })).toBe(1);
+    });
+
+    it('returns undefined for a key with a modifier key', () => {
+        expect(pendingCommentStep({ ...press, metaKey: true })).toBeUndefined();
+        expect(pendingCommentStep({ ...press, ctrlKey: true })).toBeUndefined();
+        expect(pendingCommentStep({ ...press, altKey: true })).toBeUndefined();
+        expect(pendingCommentStep({ ...press, shiftKey: true, key: 'N' })).toBeUndefined();
+    });
+
+    it('returns undefined for other keys', () => {
+        expect(pendingCommentStep({ ...press, key: 'j', code: 'KeyJ' })).toBeUndefined();
     });
 });

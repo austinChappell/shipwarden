@@ -118,7 +118,7 @@ export const FileBody = memo(function FileBody({
         if (note.kind === 'thread') {
             const thread = note.thread;
             return (
-                <div className="stream-zone" onKeyDown={stop}>
+                <div className="stream-zone" data-note="thread" data-line={thread.line ?? 0} data-side={thread.side} onKeyDown={stop}>
                     {thread.line === null && <div className="stream-zone-note">Outdated: line {thread.originalLine ?? '?'} of an older commit</div>}
                     <ThreadZone
                         thread={thread}
@@ -131,7 +131,7 @@ export const FileBody = memo(function FileBody({
         }
         if (note.kind === 'pending') {
             return (
-                <div className="stream-zone" onKeyDown={stop}>
+                <div className="stream-zone" data-note="pending" data-line={note.comment.line} data-side={note.comment.side} onKeyDown={stop}>
                     <PendingZone
                         comment={note.comment}
                         onRemove={() => reviewStore.removePending(target, pr.number, note.comment)}

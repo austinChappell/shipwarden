@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { hasExplorerFocusRequest, onExplorerFocusRequest } from '../files/explorer-focus';
 import { CircleCheck, Files, GitCommitVertical, GitPullRequest, Plug, Workflow } from 'lucide-react';
-import type { CheckRun, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
+import type { CheckRun, DiffSide, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
 import type { BranchStatusState } from '../github/use-branch-status';
 import { ChecksPanel } from './ChecksPanel';
 import { FileExplorer } from './FileExplorer';
@@ -21,7 +21,7 @@ interface Props {
     activeFile?: string;
     github: BranchStatusState;
     onOpenFile(path: string, line?: number): void;
-    onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number): void;
+    onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number, side?: DiffSide): void;
     onOpenLog(check: CheckRun): void;
     onSendToAgent(prompt: string): void;
     onSendLogToAgent(check: CheckRun): void;

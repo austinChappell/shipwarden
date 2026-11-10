@@ -6,6 +6,7 @@ import {
     undecidedCount,
     type BranchStatus,
     type CheckRun,
+    type DiffSide,
     type MergeMethod,
     type PullRequest,
     type PullRequestChange,
@@ -58,7 +59,7 @@ interface Props {
     error?: string;
     /** Loads the pull request again, for the Refresh button. A change from the panel updates the cache and does not call it. */
     onRefresh(): Promise<void>;
-    onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number): void;
+    onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number, side?: DiffSide): void;
     /**
      * Sends a prompt to the agent of the worktree, for a review thread or the merge conflicts.
      * Without it, the threads and the conflicts banner have no "Send to agent" button.
@@ -216,7 +217,7 @@ export function PullRequestPanel({
     const openThread = (thread: ReviewThread) => {
         const file = files?.find(item => item.path === thread.path);
         if (file) {
-            onOpenDiff(pr, file, threadLine(thread) ?? undefined);
+            onOpenDiff(pr, file, threadLine(thread) ?? undefined, thread.side);
         }
     };
 
