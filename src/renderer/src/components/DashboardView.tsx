@@ -95,15 +95,23 @@ function Empty({ text }: { text: string }) {
 type Tone = 'review' | 'ready' | 'changes' | 'blocked' | 'stale';
 
 /** A count at the top of the Dashboard. A click scrolls to its card. */
-function StatCard({ tone, label, count, detail, onClick }: { tone: Tone; label: string; count: number | undefined; detail: string; onClick(): void }) {
-    return (
-        <button className={`dash-stat${count === 0 ? ' zero' : ''}`} onClick={onClick}>
+function StatCard({ tone, label, count, detail, onClick }: { tone: Tone; label: string; count: number | undefined; detail: string; onClick?(): void }) {
+    const className = `dash-stat${count === 0 ? ' zero' : ''}`;
+    const body = (
+        <>
             <span className="dash-stat-label">
                 <span className={`dash-dot ${tone}`} />
                 {label}
             </span>
             <span className="dash-stat-count">{count ?? '–'}</span>
             <span className="dash-stat-detail">{detail}</span>
+        </>
+    );
+    // A card with no section to show is plain text. It gets no button, no pointer and no hover.
+    if (!onClick) return <div className={className}>{body}</div>;
+    return (
+        <button className={`${className} clickable`} onClick={onClick}>
+            {body}
         </button>
     );
 }
@@ -401,10 +409,19 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
     const myPrTab = (pr: MyPullRequestItem): ReviewTabRequest => (pr.reasons.includes('ci-failing') ? 'checks' : 'overview');
     const openMine = (pr: MyPullRequestItem) => onOpenPullRequest(pr.repo, pr.number, myPrTab(pr));
 
+    /** Scrolls to the section and flashes it. The flash shows the section when the page cannot scroll. */
     const scrollTo = (id: string) => {
         if (id === 'dash-stale') setStaleOpen(true);
-        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const section = document.getElementById(id);
+        if (!section) return;
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        section.classList.remove('dash-flash');
+        void section.offsetWidth; // Restart the animation when the user clicks again.
+        section.classList.add('dash-flash');
+        section.addEventListener('animationend', () => section.classList.remove('dash-flash'), { once: true });
     };
+    /** Gives the click handler only when the section shows rows. */
+    const jumpTo = (id: string, shown: number) => (shown > 0 ? () => scrollTo(id) : undefined);
 
     /** Merges the pull requests one after the other, after the user confirms. GitHub refuses a merge after a new push. */
     const merge = async (prs: MyPullRequestItem[]) => {
@@ -516,21 +533,21 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                             label="Needs your review"
                             count={pullRequests && reviewRequests.length}
                             detail={loaded ? reviewDetail : 'Loading…'}
-                            onClick={() => scrollTo('dash-review')}
+                            onClick={jumpTo('dash-review', shownReviews.length)}
                         />
                         <StatCard
                             tone="ready"
                             label="Ready to merge"
                             count={pullRequests && all.ready.length}
                             detail={all.ready.length ? 'One click each' : 'Nothing to merge'}
-                            onClick={() => scrollTo('dash-ready')}
+                            onClick={jumpTo('dash-ready', buckets.ready.length)}
                         />
                         <StatCard
                             tone="changes"
                             label="Changes requested"
                             count={pullRequests && all.changes.length}
                             detail={oldestChange ? `Oldest ${shortAge(oldestChange.updatedAt)}` : 'No changes asked'}
-                            onClick={() => scrollTo('dash-changes')}
+                            onClick={jumpTo('dash-changes', buckets.changes.length)}
                         />
                         <StatCard
                             tone="blocked"
@@ -543,14 +560,14 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                           .join(' · ')
                                     : 'CI green, no conflicts'
                             }
-                            onClick={() => scrollTo('dash-blocked')}
+                            onClick={jumpTo('dash-blocked', buckets.blocked.length)}
                         />
                         <StatCard
                             tone="stale"
                             label={`Stale ${DASHBOARD_STALE_DAYS}d+`}
                             count={pullRequests && all.stale.length}
                             detail={all.stale.length ? 'Close or revive' : 'None'}
-                            onClick={() => scrollTo('dash-stale')}
+                            onClick={jumpTo('dash-stale', buckets.stale.length)}
                         />
                     </div>
 

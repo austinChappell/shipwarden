@@ -6055,11 +6055,25 @@ button:focus-visible,
     color: var(--text);
     font: inherit;
     text-align: left;
+}
+
+.dash-stat.clickable {
     cursor: pointer;
 }
 
-.dash-stat:hover {
+.dash-stat.clickable:hover {
     border-color: var(--muted);
+}
+
+.dash-flash {
+    animation: dash-flash 0.9s ease-out;
+}
+
+@keyframes dash-flash {
+    from {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px var(--accent);
+    }
 }
 
 .dash-stat-label {
