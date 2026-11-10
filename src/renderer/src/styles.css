@@ -518,6 +518,24 @@ button {
     user-select: text;
 }
 
+/* An error message with a close button at the right. */
+.error-closable {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.error-closable-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.error-close {
+    flex: none;
+    padding: 1px;
+    color: inherit;
+}
+
 .terminal-area {
     flex: 1;
     min-height: 0;
@@ -934,7 +952,11 @@ button {
     display: flex;
     align-items: baseline;
     gap: 8px;
+    width: 100%;
     padding: 4px 14px 2px;
+    border: 0;
+    background: none;
+    text-align: left;
     cursor: pointer;
 }
 
@@ -1958,7 +1980,8 @@ textarea.review-body {
     gap: 2px;
 }
 
-.check-row:hover .check-actions {
+.check-row:hover .check-actions,
+.check-row:focus-within .check-actions {
     display: flex;
 }
 
@@ -2289,6 +2312,16 @@ button.task-linked {
     min-width: 320px;
     display: flex;
     flex-direction: column;
+}
+
+/* The detail panel gets the focus when the user selects a task with the keyboard. */
+.task-detail:focus {
+    outline: none;
+}
+
+.task-detail:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
+    outline-offset: -2px;
 }
 
 .task-detail-scroll {
@@ -3913,6 +3946,32 @@ button:focus-visible,
 [data-sidebar-item]:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
     outline-offset: 1px;
+}
+
+/* A list item that the arrow keys reach. The ring shows for the keyboard only. */
+[data-nav-item]:focus:not(:focus-visible) {
+    outline: none;
+}
+
+[data-nav-item]:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: -2px;
+}
+
+/* A button that toggles a row or a header. It looks like the text of the row. */
+.row-toggle {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: inherit;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    letter-spacing: inherit;
+    text-align: left;
+    text-transform: inherit;
+    cursor: pointer;
 }
 
 /* Settings layout: a section list at the left and one section at the right */
@@ -6627,6 +6686,16 @@ body.resizing-column * {
     background: color-mix(in srgb, var(--bg) 28%, transparent);
 }
 
+/* Outside a split, a faint accent line shows that the pane has the focus. */
+.pane:not(.focused):not(.unfocused):focus-within::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
 .pane-drop-layer {
     position: absolute;
     inset: 0;
@@ -7654,6 +7723,7 @@ body.resizing-column * {
 .note-move:has(select:focus-visible) {
     outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
     outline-offset: 1px;
+    color: var(--text);
 }
 
 /* In a folder header, the control has the size of the icon buttons next to it. */
@@ -8332,6 +8402,7 @@ button.gg-ref:hover {
 }
 
 .gg-row:hover .gg-action,
+.gg-row:focus-within .gg-action,
 .gg-action:focus-visible {
     opacity: 1;
 }
@@ -8765,6 +8836,7 @@ button.gg-ref:hover {
 }
 
 .stream-file-header:hover .stream-file-copy,
+.stream-file-header:focus-within .stream-file-copy,
 .stream-file-copy:focus-visible,
 .stream-file-copy.copied {
     opacity: 1;

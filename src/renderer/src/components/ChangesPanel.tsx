@@ -5,6 +5,7 @@ import { changeLetter, type ChangeSide, type FetchResult, type FileChange, type 
 import { gitChanged } from '../git/git-store';
 import { confirmDialog } from './ConfirmDialog';
 import { errorText } from '../util';
+import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 
 interface Props {
     worktree: string;
@@ -59,9 +60,11 @@ function Group({ title, files, open, onToggle, action, children }: {
     return (
         <section className="changes-group">
             <div className="changes-group-head" onClick={onToggle}>
-                <ChevronRight size={13} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
-                <span className="changes-group-title">{title}</span>
-                <span className="changes-group-count">{files.length}</span>
+                <button className="row-toggle" data-nav-item aria-expanded={open}>
+                    <ChevronRight size={13} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
+                    <span className="changes-group-title">{title}</span>
+                    <span className="changes-group-count">{files.length}</span>
+                </button>
                 <span className="changes-group-action" onClick={event => event.stopPropagation()}>{action}</span>
             </div>
             {open && children}
@@ -151,12 +154,18 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
 
     const row = (change: FileChange, side: ChangeSide | 'conflict') => {
         const inIndex = side === 'staged';
+        const open = () => onOpenChange(change, side === 'conflict' ? 'unstaged' : side);
         return (
             <div
                 key={`${side}:${change.path}`}
                 className="change-row"
                 title={change.oldPath ? `${change.oldPath} → ${change.path}` : change.path}
-                onClick={() => onOpenChange(change, side === 'conflict' ? 'unstaged' : side)}
+                tabIndex={0}
+                role="button"
+                aria-label={change.path}
+                data-nav-item
+                onClick={open}
+                onKeyDown={itemKeys(open)}
             >
                 <span className={`change-letter ${change.kind}`}>{changeLetter(change.kind)}</span>
                 <span className={`change-name${change.kind === 'deleted' ? ' deleted' : ''}`}>{baseName(change.path)}</span>
@@ -265,7 +274,7 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
             {(actionError || error) && <div className="form-error changes-error">{actionError ?? error}</div>}
             {notice && <div className="changes-notice">{notice}</div>}
 
-            <div className="changes-list">
+            <div className="changes-list" onKeyDown={moveListFocus}>
                 {clean && <p className="panel-note changes-clean">No changes. The working tree is clean.</p>}
                 {changes.conflicted.length > 0 && (
                     <Group title="Merge conflicts" files={changes.conflicted} open={!closed.has('conflicts')} onToggle={() => toggleGroup('conflicts')}>

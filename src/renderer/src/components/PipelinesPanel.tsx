@@ -7,6 +7,7 @@ import { CheckIcon } from './ChecksPanel';
 import { confirmDialog } from './ConfirmDialog';
 import { RunDialog, RunIcon } from './PipelinesView';
 import { openLink } from '../links';
+import { moveListFocus } from '../keyboard/list-nav';
 
 const github = window.shipwarden.github;
 /** The time between two reads of the runs while a run waits or runs, and while all runs are done. */
@@ -63,19 +64,21 @@ function RunRow({ root, run, ownBranch, onOpenLog, onChanged }: {
     return (
         <div className={`pp-run${open ? ' open' : ''}`}>
             <div className="pp-run-head" onClick={() => setOpen(value => !value)} title={run.title}>
-                <ChevronRight size={12} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
-                <RunIcon run={run} />
-                <span className="pp-run-main">
-                    <span className="pp-run-title">{run.title}</span>
-                    <span className="pp-run-meta">
-                        {run.workflowName} #{run.runNumber}
-                        {run.branch && (ownBranch
-                            ? <> · <span className="pp-own-branch" title="The branch of this worktree">{run.branch}</span></>
-                            : ` · ${run.branch}`)}
-                        {` · ${timeAgo(run.createdAt)}`}
-                        {run.startedAt ? ` · ${formatDuration(run.startedAt, active ? null : run.updatedAt)}` : ''}
+                <button className="row-toggle" data-nav-item aria-expanded={open}>
+                    <ChevronRight size={12} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
+                    <RunIcon run={run} />
+                    <span className="pp-run-main">
+                        <span className="pp-run-title">{run.title}</span>
+                        <span className="pp-run-meta">
+                            {run.workflowName} #{run.runNumber}
+                            {run.branch && (ownBranch
+                                ? <> · <span className="pp-own-branch" title="The branch of this worktree">{run.branch}</span></>
+                                : ` · ${run.branch}`)}
+                            {` · ${timeAgo(run.createdAt)}`}
+                            {run.startedAt ? ` · ${formatDuration(run.startedAt, active ? null : run.updatedAt)}` : ''}
+                        </span>
                     </span>
-                </span>
+                </button>
                 <span className="pp-run-actions" onClick={event => event.stopPropagation()}>
                     {active
                         ? <button className="icon-button" title="Cancel the run" onClick={() => void act(`Cancel the run "${run.title}"?`, 'Cancel run', () => github.cancelRun(root, run.id))}><Square size={12} strokeWidth={2} /></button>
@@ -89,7 +92,7 @@ function RunRow({ root, run, ownBranch, onOpenLog, onChanged }: {
                     {!jobs && !error && <div className="panel-note pp-note"><LoaderCircle size={12} className="spin" /> Loading the jobs…</div>}
                     {jobs?.length === 0 && <div className="panel-note pp-note">The run has no jobs yet.</div>}
                     {jobs?.map(job => (
-                        <button key={job.id} className="pp-job" title={`Open the log of ${job.name}`} onClick={() => onOpenLog(job)}>
+                        <button key={job.id} className="pp-job" data-nav-item title={`Open the log of ${job.name}`} onClick={() => onOpenLog(job)}>
                             <CheckIcon check={job} />
                             <span className="pp-job-name">{job.name}</span>
                             <span className="pp-job-time">{formatDuration(job.startedAt, job.completedAt)}</span>
@@ -201,7 +204,7 @@ export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
             )}
 
             {error && <div className="form-error pp-error">{error}</div>}
-            <div className="pp-runs">
+            <div className="pp-runs" onKeyDown={moveListFocus}>
                 {!runs && !error && <div className="panel-message"><LoaderCircle size={14} className="spin" /> Loading the runs…</div>}
                 {runs?.length === 0 && <div className="panel-note pp-note">The repository has no workflow runs.</div>}
                 {runs?.map(run => (

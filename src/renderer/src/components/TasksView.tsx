@@ -29,6 +29,7 @@ import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { alertDialog, confirmDialog, promptDialog } from './ConfirmDialog';
 import { openLink } from '../links';
 import { cacheKey, cached, remember } from '../data-cache';
+import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 
 /** The smallest width of the task details when the user drags the border of the task list. */
 const MIN_DETAIL_WIDTH = 320;
@@ -456,6 +457,31 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         </button>
     );
 
+    /** The detail panel. A task that the user selects with the keyboard moves the focus into it. */
+    const detailRef = useRef<HTMLDivElement>(null);
+    const focusDetail = useRef(false);
+    /** The task of the board card that gets the focus again after a move with the keyboard. */
+    const focusCard = useRef<string | undefined>(undefined);
+    const selectFromKeyboard = (id: string) => {
+        if (id === selectedId) {
+            detailRef.current?.focus();
+            return;
+        }
+        focusDetail.current = true;
+        setSelectedId(id);
+    };
+    useEffect(() => {
+        if (!focusDetail.current) return;
+        focusDetail.current = false;
+        detailRef.current?.focus();
+    }, [selectedId]);
+    useEffect(() => {
+        const id = focusCard.current;
+        if (!id) return;
+        focusCard.current = undefined;
+        document.querySelector<HTMLElement>(`.board-card[data-task-id="${CSS.escape(id)}"]`)?.focus();
+    }, [tasks]);
+
     const linkedWorktree = (task: Task) => Object.entries(links).find(([, link]) => linkMatchesTask(link, source?.connectionId, task))?.[0];
 
     const act = async (action: () => Promise<void>) => {
@@ -569,7 +595,17 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
     const renderTask = (task: Task) => {
         const worktree = linkedWorktree(task);
         return (
-            <div key={task.id} className={`task-row${task.id === selectedId ? ' selected' : ''}`} onClick={() => setSelectedId(task.id)}>
+            <div
+                key={task.id}
+                className={`task-row${task.id === selectedId ? ' selected' : ''}`}
+                tabIndex={0}
+                role="button"
+                aria-label={task.key ? `${task.key} ${task.title}` : task.title}
+                aria-pressed={task.id === selectedId}
+                data-nav-item
+                onClick={() => setSelectedId(task.id)}
+                onKeyDown={itemKeys(() => selectFromKeyboard(task.id))}
+            >
                 <StatusDot status={task.status} />
                 {task.key && <span className="task-key">{task.key}</span>}
                 <span className="task-title">{task.title}</span>
@@ -586,7 +622,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         const closed = isCollapsed(key, collapsedByDefault(group.category));
         return (
             <section key={key}>
-                <button className="status-group" aria-expanded={!closed} onClick={() => toggleGroup(key, collapsedByDefault(group.category))}>
+                <button className="status-group" data-nav-item aria-expanded={!closed} onClick={() => toggleGroup(key, collapsedByDefault(group.category))}>
                     <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${closed ? '' : ' open'}`} />
                     <StatusDot status={{ id: group.key, name: group.name, color: group.color, category: group.category }} />
                     <span className="status-group-name">{group.name}</span>
@@ -608,15 +644,35 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         }
     };
 
+    /**
+     * Moves a task to the previous or next board column from the keyboard.
+     * It uses the same path as a drop on the column.
+     */
+    const moveTaskBy = (task: Task, step: -1 | 1) => {
+        const index = columns.findIndex(column => column.tasks.some(item => item.id === task.id));
+        const column = index === -1 ? undefined : columns[index + step];
+        if (!canMove || !column || moving.has(task.id)) return;
+        focusCard.current = task.id;
+        void moveTask(task, column);
+    };
+
     const renderCard = (task: Task) => {
         const worktree = linkedWorktree(task);
         const isMoving = moving.has(task.id);
+        const select = itemKeys(() => selectFromKeyboard(task.id));
         return (
             <div
                 key={task.id}
+                tabIndex={0}
+                role="button"
+                aria-label={task.key ? `${task.key} ${task.title}` : task.title}
+                aria-pressed={task.id === selectedId}
+                aria-keyshortcuts={canMove ? 'Alt+ArrowLeft Alt+ArrowRight' : undefined}
+                data-nav-item
+                data-task-id={task.id}
                 className={`board-card${task.id === selectedId ? ' selected' : ''}${isMoving ? ' moving' : ''}${dragging?.id === task.id ? ' dragging' : ''}`}
                 draggable={canMove && !isMoving}
-                title={canMove ? 'Drag to another column to change the status' : undefined}
+                title={canMove ? 'Drag to another column to change the status. Or press ⌥← or ⌥→.' : undefined}
                 onDragStart={event => {
                     event.dataTransfer.setData('text/plain', task.id);
                     event.dataTransfer.effectAllowed = 'move';
@@ -627,6 +683,14 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                     setDropTarget(undefined);
                 }}
                 onClick={() => setSelectedId(task.id)}
+                onKeyDown={event => {
+                    if (event.target === event.currentTarget && event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+                        event.preventDefault();
+                        moveTaskBy(task, event.key === 'ArrowLeft' ? -1 : 1);
+                    } else {
+                        select(event);
+                    }
+                }}
             >
                 <div className="board-card-top">
                     {task.key && <span className="task-key">{task.key}</span>}
@@ -686,7 +750,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                     <span className="status-group-count">{column.tasks.length}</span>
                 </button>
                 {!closed && (
-                    <div className="board-cards">
+                    <div className="board-cards" onKeyDown={moveListFocus}>
                         {column.tasks.map(renderCard)}
                         {column.tasks.length === 0 && <div className="board-empty">{accepts ? 'Drop here' : 'No tasks'}</div>}
                     </div>
@@ -952,7 +1016,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                                 label="Resize the task details"
                                 maxAvailable={() => (document.querySelector<HTMLElement>('.tasks-body')?.offsetWidth ?? Infinity) - 280}
                             />
-                            <div className="task-detail board-detail" style={{ width: boardDetailWidth.width }}>
+                            <div className="task-detail board-detail" ref={detailRef} tabIndex={-1} style={{ width: boardDetailWidth.width }}>
                                 <button className="icon-button board-detail-close" title="Close the details" onClick={() => setSelectedId(undefined)}>
                                     <X size={15} strokeWidth={1.75} />
                                 </button>
@@ -965,7 +1029,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
 
             {source && viewMode === 'list' && (
                 <div className="tasks-body" style={{ '--task-list-width': `${listWidth.width}px` } as CSSProperties}>
-                    <div className="task-list">
+                    <div className="task-list" onKeyDown={moveListFocus}>
                         {listError && <div className="form-error task-list-error">{listError}</div>}
                         {tasks === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
                         {tasks?.length === 0 && <div className="panel-message">No tasks in this collection.</div>}
@@ -978,7 +1042,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                         label="Resize the task list"
                         maxAvailable={() => (document.querySelector<HTMLElement>('.tasks-body')?.offsetWidth ?? Infinity) - MIN_DETAIL_WIDTH}
                     />
-                    <div className="task-detail">
+                    <div className="task-detail" ref={detailRef} tabIndex={-1}>
                         {detailContent}
                     </div>
                 </div>

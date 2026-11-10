@@ -338,11 +338,13 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
                                     }}
                                 >
                                     <header className="stream-file-header" onClick={() => setOpen(map => ({ ...map, [entry.key]: !expanded }))}>
-                                        <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${expanded ? ' open' : ''}`} />
-                                        <span className={`change-letter ${change.kind}`}>{changeLetter(change.kind)}</span>
-                                        <span className="stream-file-path" title={change.path}>
-                                            {change.oldPath ? `${change.oldPath} → ` : ''}{change.path}
-                                        </span>
+                                        <button className="row-toggle" aria-expanded={expanded}>
+                                            <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${expanded ? ' open' : ''}`} />
+                                            <span className={`change-letter ${change.kind}`}>{changeLetter(change.kind)}</span>
+                                            <span className="stream-file-path" title={change.path}>
+                                                {change.oldPath ? `${change.oldPath} → ` : ''}{change.path}
+                                            </span>
+                                        </button>
                                         <span className="change-actions worktree-changes-actions" onClick={event => event.stopPropagation()}>
                                             {change.kind !== 'deleted' && (
                                                 <button className="icon-button" title="Open the file" onClick={() => onOpenFile(change.path)}>

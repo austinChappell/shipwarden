@@ -4,6 +4,7 @@ import { layoutGraph, type GraphLog, type GraphRef, type GraphRow, type GraphSco
 import type { Worktree } from '@shared/worktrees';
 import { onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
+import { moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
 
 /** The number of commits in each load. "Load more" adds this number. */
@@ -199,12 +200,12 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
             {error && <div className="form-error pp-error">{error}</div>}
             {!log && !error && <div className="panel-note pp-note"><LoaderCircle size={12} className="spin" /> Reading the history…</div>}
             {log?.commits.length === 0 && <div className="panel-note pp-note">The repository has no commits.</div>}
-            <div className="gg-rows">
+            <div className="gg-rows" onKeyDown={moveListFocus}>
                 {layout.rows.map(row => {
                     const { commit } = row;
                     const short = commit.hash.slice(0, 7);
                     return (
-                        <div key={commit.hash} className="gg-row" style={{ height: ROW_HEIGHT }}>
+                        <div key={commit.hash} className="gg-row" style={{ height: ROW_HEIGHT }} tabIndex={0} aria-label={`${short} ${commit.subject}`} data-nav-item>
                             <RowGraph row={row} lanes={lanes} />
                             <div className="gg-subject" title={commit.subject}>
                                 {commit.refs.map(gitRef => (

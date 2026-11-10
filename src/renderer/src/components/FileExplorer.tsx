@@ -5,6 +5,7 @@ import { fileIcon, folderIcon } from '../files/file-icons';
 import { fuzzyFilter } from '../files/fuzzy';
 import { onExplorerFocusRequest, takeExplorerFocusRequest } from '../files/explorer-focus';
 import { treeKeyAction, type TreeRow } from '../files/tree-nav';
+import { ErrorBanner } from './ErrorBanner';
 
 type Mode = 'names' | 'contents';
 
@@ -415,11 +416,11 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                 {summary(contentResults.matches.length, contentResults.truncated)}
                 {contentGroups.map(([path, matches]) => (
                     <div key={path} className="search-group">
-                        <div className="search-group-head" title={path} onClick={() => onOpenFile(path, matches[0].line)}>
+                        <button className="search-group-head" title={path} onClick={() => onOpenFile(path, matches[0].line)}>
                             <span className="search-file-name">{baseName(path)}</span>
                             <span className="search-file-path">{parentPath(path)}</span>
                             <span className="search-count">{matches.length}</span>
-                        </div>
+                        </button>
                         {matches.map(match => {
                             index += 1;
                             const position = index;
@@ -500,7 +501,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
             </div>
 
             <div className="explorer-body" ref={bodyRef}>
-                {error && <div className="explorer-message error" onClick={() => setError(undefined)}>{error}</div>}
+                {error && <ErrorBanner className="explorer-message error" onClose={() => setError(undefined)}>{error}</ErrorBanner>}
                 {!query && renderTree()}
                 {query && mode === 'names' && renderNameMatches()}
                 {mode === 'contents' && query && renderContentMatches()}

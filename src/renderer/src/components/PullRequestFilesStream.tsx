@@ -661,11 +661,13 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                             }}
                         >
                             <header className="stream-file-header" onClick={() => setOpen(map => ({ ...map, [file.path]: !expanded }))}>
-                                <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${expanded ? ' open' : ''}`} />
-                                <span className={`file-status status-${file.status}`}>{file.status[0].toUpperCase()}</span>
-                                <span className="stream-file-path" title={file.path}>
-                                    {file.previousPath && file.previousPath !== file.path ? `${file.previousPath} → ` : ''}{file.path}
-                                </span>
+                                <button className="row-toggle" aria-expanded={expanded}>
+                                    <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${expanded ? ' open' : ''}`} />
+                                    <span className={`file-status status-${file.status}`}>{file.status[0].toUpperCase()}</span>
+                                    <span className="stream-file-path" title={file.path}>
+                                        {file.previousPath && file.previousPath !== file.path ? `${file.previousPath} → ` : ''}{file.path}
+                                    </span>
+                                </button>
                                 <CopyButton text={file.path} title="Copy the file path" size={13} className="icon-button stream-file-copy" />
                                 {onOpenFile && file.status !== 'removed' && (
                                     <button

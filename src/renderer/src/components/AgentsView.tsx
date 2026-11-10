@@ -8,6 +8,7 @@ import { useAgentSessions } from '../terminal/agent-state-store';
 import type { TaskLink } from '@shared/tasks';
 import { runsAgent, type TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
+import { moveListFocus } from '../keyboard/list-nav';
 
 const api = window.shipwarden;
 
@@ -109,7 +110,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                 <h1>Agents</h1>
                 <span className="agents-count">{agents.length} running</span>
             </header>
-            <div className="agents-scroll">
+            <div className="agents-scroll" onKeyDown={moveListFocus}>
                 {agents.length === 0 && (
                     <div className="agents-empty">
                         <Bot size={28} strokeWidth={1.4} />
@@ -133,7 +134,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                 const label = state ? AGENT_STATE_LABELS[state] : 'Running';
                                 const time = since(session.agentStateAt, now);
                                 return (
-                                    <button key={session.id} className={`agent-row ${state ?? 'running'}`} onClick={() => onOpen(session, group.id)}>
+                                    <button key={session.id} className={`agent-row ${state ?? 'running'}`} data-nav-item onClick={() => onOpen(session, group.id)}>
                                         <span className={`status-dot ${state ?? 'running'}`} />
                                         <span className="agent-main">
                                             <span className="agent-name" title={name}>{name}</span>
