@@ -36,7 +36,7 @@ import type { AgentProgram } from './agent-programs';
 import type { AskAgentRequest, AskAgentResult, SavedAnswer, SavedCodeAnswer } from './ask-agent';
 import type { ReviewCheckout, ReviewCheckoutStatus } from './review-checkout';
 import type { AppSettings, CommandCheck } from './settings';
-import type { ProjectsState } from './projects';
+import type { ProjectsState, PullRepoResult, PullRepoTarget } from './projects';
 import type { ProviderUsage } from './usage';
 import type { UpdateState } from './updates';
 import type { ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
@@ -180,6 +180,13 @@ export interface ShipWardenApi {
         move(id: string, toIndex: number): Promise<ProjectsState>;
         /** Moves a repository to a new position in the project. */
         moveRepo(id: string, repo: string, toIndex: number): Promise<ProjectsState>;
+        /** Returns the main worktree of a project repository whose "origin" remote is the GitHub repository. Returns null when no project has a clone. */
+        findRepo(repo: RepoRef): Promise<string | null>;
+        /**
+         * Adds a GitHub repository to a project and makes that project active. Without a clone in a project, it shows a
+         * folder dialog and clones the repository into the selected folder. Returns null when the user cancels.
+         */
+        pullRepo(repo: RepoRef, target: PullRepoTarget): Promise<PullRepoResult | null>;
     };
     worktrees: {
         list(repoPath: string): Promise<Worktree[]>;
@@ -481,6 +488,8 @@ export const IpcChannels = {
     projectsRemoveRepo: 'projects:removeRepo',
     projectsMove: 'projects:move',
     projectsMoveRepo: 'projects:moveRepo',
+    projectsFindRepo: 'projects:findRepo',
+    projectsPullRepo: 'projects:pullRepo',
     worktreesList: 'worktrees:list',
     worktreesCreate: 'worktrees:create',
     worktreesBranches: 'worktrees:branches',

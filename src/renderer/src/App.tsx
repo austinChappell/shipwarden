@@ -520,6 +520,8 @@ export function App() {
                                 onOpenSettings={() => openSettings('review')}
                                 open={reviewOpen}
                                 onNewWorktree={(repo, pr) => void worktreeActions.openPullRequestWorktree(repo, pr)}
+                                projects={projects}
+                                onPullRepo={project.pullRepo}
                             />
                         </main>
                     )}
