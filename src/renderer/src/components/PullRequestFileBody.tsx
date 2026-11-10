@@ -4,6 +4,7 @@ import { ExternalLink, LoaderCircle } from 'lucide-react';
 import type { DiffSide, FileVersions, PendingComment, PullRequest, PullRequestFile, RepoTarget } from '@shared/github';
 import { unifiedPatch } from '@shared/patch';
 import { sliceLines } from '@shared/ask-agent';
+import { threadPrompt } from '../github/agent-prompts';
 import { reviewStore } from '../github/review-store';
 import { composerFromRange, lineAnnotations, toSide, type Composer, type Note } from '../github/diff-notes';
 import type { AgentQuestion, QuestionAction } from '../github/agent-questions';
@@ -28,6 +29,8 @@ interface FileBodyProps {
     onQuestion(question: AgentQuestion, action: QuestionAction): void;
     onRefresh(): Promise<void>;
     onGoToDefinition?(path: string, line: number, column: number): void;
+    /** Sends a prompt to an agent. Without it, the review threads have no "Send to agent" button. */
+    onSendToAgent?(prompt: string): void;
 }
 
 /**
@@ -49,7 +52,8 @@ export const FileBody = memo(function FileBody({
     onAsk,
     onQuestion,
     onRefresh,
-    onGoToDefinition
+    onGoToDefinition,
+    onSendToAgent
 }: FileBodyProps) {
     const patch = useMemo(() => unifiedPatch(file), [file]);
     const [versions, setVersions] = useState<FileVersions | 'error'>();
@@ -117,6 +121,7 @@ export const FileBody = memo(function FileBody({
                     {thread.line === null && <div className="stream-zone-note">Outdated: line {thread.originalLine ?? '?'} of an older commit</div>}
                     <ThreadZone
                         thread={thread}
+                        onSendToAgent={onSendToAgent && (() => onSendToAgent(threadPrompt(pr, thread)))}
                         onReply={async body => {
                             await window.shipwarden.github.reply(target, pr.number, thread.comments[thread.comments.length - 1].databaseId, body);
                             await onRefresh();

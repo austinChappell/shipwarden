@@ -56,7 +56,10 @@ interface Props {
     error?: string;
     onRefresh(): Promise<void>;
     onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number): void;
-    /** Sends a review comment to the agent of the worktree. Without it (in the Review view), the button does not show. */
+    /**
+     * Sends a prompt to the agent of the worktree, for a review thread or the merge conflicts.
+     * Without it, the threads and the conflicts banner have no "Send to agent" button.
+     */
     onSendToAgent?(prompt: string): void;
     /** Sends the failed checks to the agent of the worktree. Without it, the CI banner has no "Send to agent" button. */
     onSendChecksToAgent?(checks: CheckRun[]): void;

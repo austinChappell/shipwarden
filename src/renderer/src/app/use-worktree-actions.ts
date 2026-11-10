@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { PullRequest, RepoRef } from '@shared/github';
+import type { ProjectsState } from '@shared/projects';
 import type { AppSettings, AgentDefinition, RepoScript } from '@shared/settings';
 import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
@@ -33,12 +34,18 @@ const api = window.shipwarden;
 export interface NewWorktreeTarget {
     repo: string;
     start?: GraphWorktreeStart;
+    /** A prompt for the agent of the new worktree. ShipWarden sends it after it creates the worktree. */
+    prompt?: string;
 }
 
 interface Options {
     appSettings: AppSettings;
     setAppSettings: (settings: AppSettings) => void;
     activeProjectId: string | undefined;
+    /** All projects. Undefined while they load. */
+    projects: ProjectsState | undefined;
+    /** Makes a project active. With `keepView`, the main view does not change. */
+    switchProject: (id: string, keepView?: boolean) => Promise<void>;
     repos: string[];
     worktreesByRepo: Record<string, Worktree[]>;
     worktrees: Worktree[];
@@ -126,31 +133,57 @@ export function useWorktreeActions(options: Options) {
 
     /**
      * Opens a worktree for the head branch of a pull request from the Review view. A worktree that has the branch opens.
-     * Else the New worktree dialog opens on the remote branch. The repository must be in the active project.
+     * Else the New worktree dialog opens on the remote branch.
+     * When the active project does not have the repository, ShipWarden makes the first project that has it active.
+     * With a prompt, ShipWarden sends the prompt to the agent of the worktree. For a new worktree, it sends the prompt after the dialog creates it.
      */
-    const openPullRequestWorktree = async (repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>) => {
-        let repoPath: string | undefined;
-        for (const path of options.repos) {
-            if (sameRepoRef(await api.github.repoOf(path).catch(() => null), repo)) {
-                repoPath = path;
-                break;
-            }
-        }
-        if (!repoPath) {
-            setError(`No repository of this project has ${repo.owner}/${repo.name} as its "origin" remote. Add a clone of it to the project.`);
+    const openPullRequestWorktree = async (repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>, prompt?: string) => {
+        const found = await findRepoPath(repo);
+        if (!found) {
+            setError(`No project has a repository with ${repo.owner}/${repo.name} as its "origin" remote. Add a clone of it to a project.`);
             return;
         }
-        const existing = options.worktreesByRepo[repoPath]?.find(worktree => worktree.branch === pr.headRefName);
+        const { projectId, repoPath } = found;
+        let worktrees = options.worktreesByRepo[repoPath];
+        if (projectId !== options.activeProjectId) {
+            await options.switchProject(projectId, true);
+            // The worktree list of this render is for the old project.
+            worktrees = await refreshWorktrees(repoPath);
+        }
+        const existing = worktrees?.find(worktree => worktree.branch === pr.headRefName);
         if (existing) {
             setSelectedPath(existing.path);
             setMainView('worktree');
+            if (prompt) await options.sendToAgent(prompt, existing);
             return;
         }
-        options.setNewWorktree({ repo: repoPath, start: { remote: `origin/${pr.headRefName}` } });
+        options.setNewWorktree({ repo: repoPath, start: { remote: `origin/${pr.headRefName}` }, ...(prompt ? { prompt } : {}) });
     };
 
-    /** Creates a worktree from the New worktree dialog: its branch, start point, display name and agent. */
-    const createWorktree = async (repoPath: string, request: NewWorktreeRequest) => {
+    /**
+     * Finds the repository folder with the GitHub repository as its "origin" remote. The active project comes first.
+     * Then the other projects come in their order. Returns undefined when no project has the repository.
+     */
+    const findRepoPath = async (repo: RepoRef): Promise<{ projectId: string; repoPath: string } | undefined> => {
+        const active = options.activeProjectId;
+        const projects = options.projects?.projects ?? [];
+        const candidates = [
+            ...(active ? options.repos.map(repoPath => ({ projectId: active, repoPath })) : []),
+            ...projects.filter(project => project.id !== active).flatMap(project => project.repos.map(repoPath => ({ projectId: project.id, repoPath })))
+        ];
+        for (const candidate of candidates) {
+            if (sameRepoRef(await api.github.repoOf(candidate.repoPath).catch(() => null), repo)) {
+                return candidate;
+            }
+        }
+        return undefined;
+    };
+
+    /**
+     * Creates a worktree from the New worktree dialog: its branch, start point, display name and agent.
+     * With a prompt, ShipWarden sends the prompt to an agent of the new worktree, also when "startAgent" is false.
+     */
+    const createWorktree = async (repoPath: string, request: NewWorktreeRequest, prompt?: string) => {
         const worktree = await api.worktrees.create({
             repoPath,
             branch: request.branch,
@@ -163,7 +196,8 @@ export function useWorktreeActions(options: Options) {
         // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
         setMainView('worktree');
         await options.prepareWorktree(repoPath, worktree);
-        if (request.startAgent) await options.startTerminal(worktree, 'agent');
+        if (prompt) await options.sendToAgent(prompt, worktree);
+        else if (request.startAgent) await options.startTerminal(worktree, 'agent');
     };
 
     const renameWorktree = async (worktree: Worktree) => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtualizer } from '@pierre/diffs/react';
 import { Bot, ChevronRight, FileCode, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { PullRequest, PullRequestFile, RepoTarget } from '@shared/github';
@@ -44,13 +44,31 @@ interface Props {
     onGoToDefinition?(path: string, line: number, column: number): void;
     /** Opens the full file at the head commit. */
     onOpenFile?(path: string): void;
+    /** Sends a prompt to an agent. Without it, the review threads have no "Send to agent" button. */
+    onSendToAgent?(prompt: string): void;
 }
 
 /**
  * All changed files of a pull request in one stream, like the "Files changed" page of GitHub. Each file can collapse.
  * A file that the user marks as viewed collapses, and viewed files start collapsed.
  */
-export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh, onError, findRequest, fileList, onGoToDefinition, onOpenFile }: Props) {
+export function PullRequestFilesStream({
+    target,
+    pr,
+    files,
+    scrollTo,
+    onRefresh,
+    onError,
+    findRequest,
+    fileList,
+    onGoToDefinition,
+    onOpenFile,
+    onSendToAgent
+}: Props) {
+    // The file bodies are memoized. A stable function keeps them from a new render each time the parent renders.
+    const sendRef = useRef(onSendToAgent);
+    sendRef.current = onSendToAgent;
+    const sendToAgent = useCallback((prompt: string) => sendRef.current?.(prompt), []);
     const review = useReviewState(target, pr.number);
     const mode = useColorMode();
     const [diffStyle, setDiffStyle] = useState<DiffStyle>(readStyle);
@@ -409,6 +427,7 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                                     onQuestion={onQuestion}
                                     onRefresh={onRefresh}
                                     onGoToDefinition={goTo}
+                                    onSendToAgent={onSendToAgent ? sendToAgent : undefined}
                                 />
                             )}
                         </section>

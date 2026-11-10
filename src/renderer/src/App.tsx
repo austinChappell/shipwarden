@@ -137,6 +137,8 @@ export function App() {
         appSettings,
         setAppSettings,
         activeProjectId: activeProject?.id,
+        projects,
+        switchProject: project.switchProject,
         repos,
         worktreesByRepo,
         worktrees,
@@ -428,7 +430,7 @@ export function App() {
             closeFromView: tabs.closeFromView,
             openFile: path => openFile(path),
             sendToAgent,
-            sendLogToAgent: agents.sendLogToAgent,
+            sendLogToAgent: check => agents.sendLogToAgent(check),
             setError
         });
 
@@ -520,6 +522,13 @@ export function App() {
                                 onOpenSettings={() => openSettings('review')}
                                 open={reviewOpen}
                                 onNewWorktree={(repo, pr) => void worktreeActions.openPullRequestWorktree(repo, pr)}
+                                onSendToAgent={(repo, pr, prompt) => void worktreeActions.openPullRequestWorktree(repo, pr, prompt)}
+                                onSendLogToAgent={(repo, pr, check) =>
+                                    void agents.sendLogToAgent(check, repo, prompt => worktreeActions.openPullRequestWorktree(repo, pr, prompt))
+                                }
+                                onSendChecksToAgent={(repo, pr, checks) =>
+                                    void agents.sendChecksToAgent(checks, repo, prompt => worktreeActions.openPullRequestWorktree(repo, pr, prompt))
+                                }
                                 projects={projects}
                                 onPullRepo={project.pullRepo}
                             />
@@ -708,7 +717,7 @@ export function App() {
                             onOpenDiff={openDiff}
                             onOpenLog={openLog}
                             onSendToAgent={sendToAgent}
-                            onSendLogToAgent={agents.sendLogToAgent}
+                            onSendLogToAgent={check => void agents.sendLogToAgent(check)}
                             onSendChecksToAgent={agents.sendChecksToAgent}
                             onShowTerminal={id => activate(selectedPath, `t:${id}`)}
                             onOpenChange={openChange}
@@ -728,7 +737,7 @@ export function App() {
                                   : { initialBase: { ref: newWorktree.start.commit, label: newWorktree.start.label } })}
                             onClose={() => setNewWorktree(undefined)}
                             onCreate={async request => {
-                                await worktreeActions.createWorktree(newWorktree.repo, request);
+                                await worktreeActions.createWorktree(newWorktree.repo, request, newWorktree.prompt);
                                 setNewWorktree(undefined);
                             }}
                         />

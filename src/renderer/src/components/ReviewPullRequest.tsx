@@ -60,6 +60,15 @@ interface Props {
     tabRequest?: { tab: ReviewTab; nonce: number };
     /** Opens the New worktree dialog on the head branch of the pull request. Without it, the button does not show. */
     onNewWorktree?(pr: PullRequest): void;
+    /**
+     * Sends a prompt to the agent of the worktree of the head branch. Without it, or when no project has the repository,
+     * the threads and the conflicts banner have no "Send to agent" button.
+     */
+    onSendToAgent?(pr: PullRequest, prompt: string): void;
+    /** Sends the log of a check to the agent of the worktree of the head branch. Without it, the Checks tab has no button. */
+    onSendLogToAgent?(pr: PullRequest, check: CheckRun): void;
+    /** Sends the failed checks to the agent of the worktree of the head branch. Without it, the CI banner has no button. */
+    onSendChecksToAgent?(pr: PullRequest, checks: CheckRun[]): void;
     /** The projects. Undefined while they load. */
     projects?: ProjectsState;
     /** Adds the repository to a project. Without it, the "Pull into project" button does not show. */
@@ -150,7 +159,22 @@ function CheckTabCount({ total, counts }: { total: number; counts: CheckCounts |
  * A pull request in the Review view, with the tabs of GitHub: Overview, Commits, Checks and Files changed.
  * The tab stays the same when the user opens a different pull request.
  */
-export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh, onBack, tabRequest, onNewWorktree, projects, onPullRepo }: Props) {
+export function ReviewPullRequest({
+    repo,
+    status,
+    pr,
+    loading,
+    error,
+    onRefresh,
+    onBack,
+    tabRequest,
+    onNewWorktree,
+    onSendToAgent,
+    onSendLogToAgent,
+    onSendChecksToAgent,
+    projects,
+    onPullRepo
+}: Props) {
     const [tab, setTab] = useState<ReviewTab>(readTab);
     const inProject = useRepoInProject(repo, projects);
     const [pullOpen, setPullOpen] = useState(false);
@@ -310,6 +334,9 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
         selectTab('files');
     };
     const current = file && files?.find(item => item.path === file.file.path);
+    // The agent works in a worktree of the head branch. That needs a clone of the repository in a project.
+    const sendToAgent = inProject && onSendToAgent ? (prompt: string) => onSendToAgent(pr, prompt) : undefined;
+    const sendLogToAgent = inProject && onSendLogToAgent ? (target: CheckRun) => onSendLogToAgent(pr, target) : undefined;
     const style = { '--review-side-width': `${sideWidth.width}px` } as CSSProperties;
     const sideMax = () => (document.querySelector<HTMLElement>('.pr-tab-body')?.offsetWidth ?? Infinity) - 320;
     /** The code pane leaves space for the file list and for a narrow diff. */
@@ -436,6 +463,8 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                             onRefresh={onRefresh}
                             onOpenDiff={(_pr, target, line) => openFile(target, line)}
                             checks={checkCounts}
+                            onSendToAgent={sendToAgent}
+                            onSendChecksToAgent={inProject && onSendChecksToAgent ? checks => onSendChecksToAgent(pr, checks) : undefined}
                             agentReview={{
                                 running: agentReview?.status === 'running',
                                 run: () => void reviewStore.runAgentReview(repo, pr)
@@ -453,12 +482,18 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                 {tab === 'checks' && (
                     <>
                         <div className="pr-side">
-                            <ChecksPanel key={`${repo.owner}/${repo.name}#${pr.number}`} target={repo} status={status} onOpenLog={setCheck} />
+                            <ChecksPanel
+                                key={`${repo.owner}/${repo.name}#${pr.number}`}
+                                target={repo}
+                                status={status}
+                                onOpenLog={setCheck}
+                                onSendLogToAgent={sendLogToAgent}
+                            />
                         </div>
                         <ResizeHandle panel={sideWidth} edge="right" label="Resize the check list" maxAvailable={sideMax} />
                         <div className="review-content">
                             {check ? (
-                                <LogView key={check.id} target={repo} check={check} />
+                                <LogView key={check.id} target={repo} check={check} onSendToAgent={sendLogToAgent} />
                             ) : (
                                 <div className="panel-message">Select a check to read its log.</div>
                             )}
@@ -531,6 +566,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                                     findRequest={findRequest}
                                     fileList={{ open: fileListOpen, toggle: toggleFileList }}
                                     onRefresh={onRefresh}
+                                    onSendToAgent={sendToAgent}
                                     onError={setFileError}
                                     onGoToDefinition={(path, line, column) => {
                                         openCode({ path, line, column, action: 'definition' });
