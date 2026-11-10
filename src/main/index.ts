@@ -128,7 +128,7 @@ app.whenReady().then(async () => {
     await services.projects.load();
     mainWindow.applyAppearance((await settings.get()).appearance);
     Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate({ openSettings, quitAndStopSessions: () => void quitAndStop(), sendShortcut })));
-    writeAgentHookFiles(services.hookPaths, services.shellIntegration, join(app.getPath('userData'), 'shell-integration', 'zsh'));
+    writeAgentHookFiles(services.hookPaths, services.shellIntegration, join(app.getPath('userData'), 'shell-integration'));
     services.shellAgents.start();
     protocol.handle(
         FILE_SCHEME,

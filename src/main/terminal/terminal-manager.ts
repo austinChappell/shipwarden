@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import * as pty from 'node-pty';
+import { basename } from 'path';
 import type { AgentState, AgentStateChange, AgentUpdate } from '@shared/agents';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession } from '@shared/terminal';
 import { OutputBuffer } from './output-buffer';
@@ -74,7 +75,11 @@ export class TerminalManager {
         // A command runs as the shell command, so the shell does not echo it. When the command exits, a normal shell starts.
         // The .zshenv of ShipWarden's zsh folder sets ZDOTDIR back to the user's value. The next shell gets the folder again.
         const zdotdir = env.SHIPWARDEN_ZDOTDIR ? 'ZDOTDIR="$SHIPWARDEN_ZDOTDIR" ' : '';
-        const args = options.command ? ['-l', '-i', '-c', `${options.command}; ${zdotdir}exec ${shell} -l`] : ['-l'];
+        // bash reads ShipWarden's startup file in place of ~/.bashrc. The file reads the login files itself.
+        const bashInit = basename(shell) === 'bash' ? env.SHIPWARDEN_BASH_INIT : undefined;
+        const shellArgs = bashInit ? ['--init-file', bashInit] : ['-l'];
+        const nextArgs = bashInit ? '--init-file "$SHIPWARDEN_BASH_INIT"' : '-l';
+        const args = options.command ? ['-l', '-i', '-c', `${options.command}; ${zdotdir}exec ${shell} ${nextArgs}`] : shellArgs;
         const cols = Math.max(options.cols, 2);
         const rows = Math.max(options.rows, 1);
         const child = pty.spawn(shell, args, {

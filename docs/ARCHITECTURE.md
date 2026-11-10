@@ -186,8 +186,14 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   `GEMINI_CLI_SYSTEM_DEFAULTS_PATH`, and an `opencode` function that sets `OPENCODE_CONFIG_CONTENT` (each only when the user
   did not set the variable). Thus `claude`, `gemini` or `opencode` typed in a shell tab reports its state.
   The shell tab then shows in the Agents view while the agent runs (`runsAgent`).
+- A bash shell gets `SHIPWARDEN_BASH_INIT=<app data>/shell-integration/init.bash`, and the terminal manager starts it with
+  `--init-file` and that file in place of `-l`. Such a shell is not a login shell, so the file reads `/etc/profile` and the
+  first of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, as `bash -l` does. Then it adds the same three functions.
+  Other shells start as plain login shells.
 - The main process finds agents in shell tabs itself (`ShellAgents`). Each 2 seconds it reads the process table and
-  finds `claude`, `codex`, `gemini` and `opencode` processes below the shell of each tab. The session then gets `agentProgram`.
+  finds `claude`, `codex`, `gemini` and `opencode` processes below the shell of each tab. Only a process in the foreground
+  process group of the tab's terminal counts (`pgid` = `tpgid`), so an agent that the user stopped with Ctrl+Z or started
+  in the background does not count. The session then gets `agentProgram`.
   Thus Codex, which has no hooks, shows too, and the tab leaves the Agents view when the agent process stops. A session of a
   Yardmaster host has no shell PID, so it gets no agent program.
 - Each state change carries a message and a time. PreToolUse gives a description of the tool call for people
