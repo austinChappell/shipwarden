@@ -196,7 +196,9 @@ export function useWorktreeActions(options: Options) {
         // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
         setMainView('worktree');
         await options.prepareWorktree(repoPath, worktree);
-        if (prompt) await options.sendToAgent(prompt, worktree);
+        // Do not wait for the prompt. The agent can show a question, for example a folder trust question. The user must
+        // answer it in the agent tab, and the open dialog blocks that tab. The dialog closes when this function returns.
+        if (prompt) void options.sendToAgent(prompt, worktree).catch(err => setError(errorText(err)));
         else if (request.startAgent) await options.startTerminal(worktree, 'agent');
     };
 
