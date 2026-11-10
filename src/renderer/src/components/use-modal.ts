@@ -55,6 +55,7 @@ export function useModal(ref: RefObject<HTMLElement | null>): void {
     // The render reads the focus. An effect is too late, because `autoFocus` in the dialog moves the focus first.
     const previous = useRef<Element | null>(null);
     if (previous.current === null) previous.current = document.activeElement;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect must run one time, when the dialog mounts. ref is a ref object.
     useEffect(() => {
         const before = previous.current;
         const element = ref.current;

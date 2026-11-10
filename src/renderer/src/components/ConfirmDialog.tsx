@@ -88,6 +88,7 @@ export function DialogHost() {
     const previousFocus = useRef<Element | null>(null);
     const [text, setText] = useState('');
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect must run one time for each dialog. The id identifies the dialog.
     useEffect(() => {
         if (!current) return;
         previousFocus.current = document.activeElement;

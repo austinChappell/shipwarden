@@ -53,6 +53,7 @@ function RunRow({
     }, [root, run.id]);
 
     // The jobs load when the row opens, and again when the run changes (for example a new status).
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The run status and update time do not show in the body. A change to them must reload the jobs.
     useEffect(() => {
         if (open) void loadJobs();
     }, [open, run.status, run.updatedAt, loadJobs]);

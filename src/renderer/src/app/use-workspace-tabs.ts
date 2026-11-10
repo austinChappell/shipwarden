@@ -120,11 +120,8 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
     const activeTab = pickActiveTab(tabKeys, selectedPath ? activeTabs[selectedPath] : undefined);
     const tabKeysKey = tabKeys.join('\n');
     /** The split tabs of the selected worktree, without the panes of closed tabs. */
-    const groups = useMemo(
-        () => (selectedPath ? pruneGroups(panes[selectedPath] ?? [], tabKeys) : []),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [selectedPath, panes, tabKeysKey]
-    );
+    // biome-ignore lint/correctness/useExhaustiveDependencies: tabKeys is a new array on each render. tabKeysKey changes only when the tab keys change.
+    const groups = useMemo(() => (selectedPath ? pruneGroups(panes[selectedPath] ?? [], tabKeys) : []), [selectedPath, panes, tabKeysKey]);
     /** The panes of the active tab. */
     const layout = useMemo(() => activeLayout(groups, activeTab), [groups, activeTab]);
     const split = !!layout && layout.root.kind === 'split';
@@ -132,6 +129,7 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
     const stripItems = stripItemsOf(tabKeys, groups, activeTab);
 
     // A new active tab can be outside the visible part of the tab strip.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect must run each time the active tab changes. It finds the tab in the page.
     useEffect(() => {
         document.querySelector('.tabs .tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }, [activeTab]);

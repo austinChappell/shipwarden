@@ -108,6 +108,7 @@ export function RunDialog({ repo, workflow, branches, onClose, onStarted }: RunD
     const dialog = useRef<HTMLDivElement>(null);
     useModal(dialog);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The inputs load again only for a new branch. The other values do not change while the dialog is open.
     useEffect(() => {
         if (!branch || branch === branches?.[0]) {
             setInputs(workflow.inputs);
@@ -311,7 +312,7 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
     useEffect(() => {
         setRuns(repoRef ? cached(runsKey(`${repoRef.owner}/${repoRef.name}`, workflowId)) : undefined);
         void loadRuns();
-    }, [loadRuns]);
+    }, [repoRef, workflowId, loadRuns]);
 
     const selectedRun = runs?.find(item => item.id === runId);
     const active = !!runs?.some(runIsActive);
@@ -334,10 +335,10 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
         setJob(undefined);
         setActionError(undefined);
         void loadJobs();
-    }, [loadJobs]);
+    }, [repoRef, runId, loadJobs]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The jobs load again only when the status or time of the run changes. The effect above loads them for a new run.
     useEffect(() => {
         if (selectedRun) void loadJobs();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedRun?.status, selectedRun?.updatedAt]);
 
     const act = async (label: string, action: () => Promise<void>) => {

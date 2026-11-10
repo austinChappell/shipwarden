@@ -98,6 +98,7 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
     }, [open]);
 
     // Keep the active item visible when the keys move it.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect must run when the active item changes or the list opens. It finds the item in the page.
     useEffect(() => {
         list.current?.querySelector('.combobox-option.active')?.scrollIntoView({ block: 'nearest' });
     }, [active, open]);

@@ -129,12 +129,14 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
 
     const reload = useCallback(() => setReloads(value => value + 1), []);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A different repository clears the old log and the page limit.
     useEffect(() => {
         setLog(undefined);
         setError(undefined);
         setLimit(PAGE);
     }, [repo]);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A change of reloads loads the log again.
     useEffect(() => {
         let current = true;
         setLoading(true);

@@ -54,6 +54,7 @@ function OutdatedHostNotice() {
 export function TerminalView({ session, settings, focused = true }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The session object changes on each update. Only a new session ID or new settings attach the terminal again. Another effect sends the focus.
     useEffect(() => {
         const container = containerRef.current;
         if (!container) {
@@ -69,7 +70,6 @@ export function TerminalView({ session, settings, focused = true }: Props) {
             observer.disconnect();
             terminalPool.detach(session.id, container);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [session.id, settings]);
 
     // A pane that gets the focus gives the keyboard to its terminal.

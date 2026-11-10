@@ -86,12 +86,11 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
     }, [api, id, showPage]);
 
     // When the tab gets the focus: a tab without an address selects the address bar, else the page gets the keyboard.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The focus moves only when the tab shows or gets the focus. A change of state must not move the focus.
     useEffect(() => {
         if (!focused) return;
         if (!state || state.url === BLANK_PAGE || state.url === '') input.current?.focus();
         else api.focus(id);
-        // Only when the tab shows or gets the focus, not after each state change.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, focused]);
 
     // ⌘L in the page selects the address bar.

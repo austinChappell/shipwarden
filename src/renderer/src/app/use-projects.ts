@@ -52,21 +52,24 @@ export function useProjects(options: Options) {
     /** True until the first project shows. The first restore keeps the start view (the Dashboard). */
     const firstRestore = useRef(true);
 
-    // React creates the callback below one time. The callback keeps the label function of the first render.
-    const { repoLabel } = options;
+    // The ref holds the newest label function. The stable callback below then shows the newest repository name.
+    const repoLabelRef = useRef(options.repoLabel);
+    repoLabelRef.current = options.repoLabel;
     /** Loads the worktrees of one repository. Returns an empty list when the repository cannot be read. */
-    const refreshWorktrees = useCallback(async (repo: string): Promise<Worktree[]> => {
-        try {
-            const list = await api.worktrees.list(repo);
-            setWorktreesByRepo(map => ({ ...map, [repo]: list }));
-            return list;
-        } catch (err) {
-            setWorktreesByRepo(map => ({ ...map, [repo]: [] }));
-            setError(`${repoLabel(repo)}: ${errorText(err)}`);
-            return [];
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    const refreshWorktrees = useCallback(
+        async (repo: string): Promise<Worktree[]> => {
+            try {
+                const list = await api.worktrees.list(repo);
+                setWorktreesByRepo(map => ({ ...map, [repo]: list }));
+                return list;
+            } catch (err) {
+                setWorktreesByRepo(map => ({ ...map, [repo]: [] }));
+                setError(`${repoLabelRef.current(repo)}: ${errorText(err)}`);
+                return [];
+            }
+        },
+        [setError]
+    );
 
     /** Loads the worktrees of all repositories of a project. Returns all of them, in sidebar order. */
     const refreshAll = useCallback(async (repoList: readonly string[]) => (await Promise.all(repoList.map(refreshWorktrees))).flat(), [refreshWorktrees]);
@@ -80,54 +83,56 @@ export function useProjects(options: Options) {
      * Terminal sessions that are still running keep their active tab.
      * `fallbackKey` is the key of an older layout (one repository) that a project without its own layout uses.
      */
-    const restoreLayout = useCallback(async (key: string, list: Worktree[], sessionIds: string[], fallbackKey?: string) => {
-        restoredKey.current = undefined;
-        let stored = readLayout(key);
-        if (!stored.selectedPath && Object.keys(stored.openFiles).length === 0 && fallbackKey) {
-            stored = readLayout(fallbackKey);
-        }
-        const saved = pruneLayout(
-            stored,
-            list.map(worktree => worktree.path),
-            sessionIds
-        );
-        const openFiles: Record<string, string[]> = {};
-        await Promise.all(
-            Object.entries(saved.openFiles).map(async ([root, files]) => {
-                // info and not read: an image or a PDF is not text, but its tab must stay.
-                const exists = await Promise.all(
-                    files.map(file =>
-                        api.files.info(root, file).then(
-                            () => true,
-                            () => false
+    const restoreLayout = useCallback(
+        async (key: string, list: Worktree[], sessionIds: string[], fallbackKey?: string) => {
+            restoredKey.current = undefined;
+            let stored = readLayout(key);
+            if (!stored.selectedPath && Object.keys(stored.openFiles).length === 0 && fallbackKey) {
+                stored = readLayout(fallbackKey);
+            }
+            const saved = pruneLayout(
+                stored,
+                list.map(worktree => worktree.path),
+                sessionIds
+            );
+            const openFiles: Record<string, string[]> = {};
+            await Promise.all(
+                Object.entries(saved.openFiles).map(async ([root, files]) => {
+                    // info and not read: an image or a PDF is not text, but its tab must stay.
+                    const exists = await Promise.all(
+                        files.map(file =>
+                            api.files.info(root, file).then(
+                                () => true,
+                                () => false
+                            )
                         )
-                    )
-                );
-                const kept = files.filter((_file, index) => exists[index]);
-                if (kept.length > 0) {
-                    openFiles[root] = kept;
-                }
-            })
-        );
-        const activeTabs = keepOpenFileTabs(saved.activeTabs, openFiles);
-        // The cursor positions of files that did not open again are not necessary.
-        editorPositions.prune(
-            list.map(worktree => worktree.path),
-            openFiles
-        );
-        // Merge, so that the documents of another repository keep their tabs and can close normally.
-        setOpenFiles(map => ({ ...map, ...openFiles }));
-        setActiveTabs(map => ({ ...map, ...activeTabs }));
-        setPanes(map => ({ ...map, ...saved.panes }));
-        setSelectedPath(saved.selectedPath ?? list[0]?.path);
-        if (firstRestore.current) {
-            firstRestore.current = false;
-        } else {
-            setMainView(saved.mainView ?? 'worktree');
-        }
-        restoredKey.current = key;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+                    );
+                    const kept = files.filter((_file, index) => exists[index]);
+                    if (kept.length > 0) {
+                        openFiles[root] = kept;
+                    }
+                })
+            );
+            const activeTabs = keepOpenFileTabs(saved.activeTabs, openFiles);
+            // The cursor positions of files that did not open again are not necessary.
+            editorPositions.prune(
+                list.map(worktree => worktree.path),
+                openFiles
+            );
+            // Merge, so that the documents of another repository keep their tabs and can close normally.
+            setOpenFiles(map => ({ ...map, ...openFiles }));
+            setActiveTabs(map => ({ ...map, ...activeTabs }));
+            setPanes(map => ({ ...map, ...saved.panes }));
+            setSelectedPath(saved.selectedPath ?? list[0]?.path);
+            if (firstRestore.current) {
+                firstRestore.current = false;
+            } else {
+                setMainView(saved.mainView ?? 'worktree');
+            }
+            restoredKey.current = key;
+        },
+        [setOpenFiles, setActiveTabs, setPanes, setSelectedPath, setMainView]
+    );
 
     /** Loads the worktrees of the active project and opens its saved tabs. */
     const showProject = useCallback(
@@ -146,11 +151,11 @@ export function useProjects(options: Options) {
     const { openFiles, activeTabs, panes } = options;
     const layoutKey = activeProject ? `project:${activeProject.id}` : undefined;
     // Save the layout of the project after each change. The first save comes after the restore, so that it does not remove the saved layout.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: viewBeforeSettings is a ref. A change of its value must not save the layout.
     useEffect(() => {
         if (layoutKey && restoredKey.current === layoutKey) {
             writeLayout(layoutKey, { selectedPath, mainView: viewToSave(mainView, viewBeforeSettings.current), openFiles, activeTabs, panes });
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [layoutKey, selectedPath, mainView, openFiles, activeTabs, panes]);
 
     // The PR and CI state of each branch for the worktree list. One request covers all worktrees of a repository.

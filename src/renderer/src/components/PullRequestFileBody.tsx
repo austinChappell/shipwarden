@@ -175,9 +175,12 @@ export const FileBody = memo(function FileBody({
         );
     };
 
+    // The fields are the dependencies. A new highlight object with the same line does not make a new selection.
+    const highlightLine = highlight?.line;
+    const highlightSide = highlight?.side;
     const selectedLines = useMemo(
-        () => (highlight ? { start: highlight.line, end: highlight.line, side: toSide(highlight.side) } : null),
-        [highlight?.line, highlight?.side]
+        () => (highlightLine !== undefined && highlightSide ? { start: highlightLine, end: highlightLine, side: toSide(highlightSide) } : null),
+        [highlightLine, highlightSide]
     );
 
     if (patch) {

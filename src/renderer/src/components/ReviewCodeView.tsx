@@ -130,6 +130,7 @@ function CodeEditor({ root, location, onCursor }: { root: string; location: Code
         };
     }, [root]);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Each new nonce is a new request. It shows the location again after the user moves the cursor.
     useEffect(() => {
         const editor = editorRef.current;
         if (!editor) return;

@@ -61,6 +61,7 @@ export function RightPanel(props: Props) {
     };
 
     // ⇧⌘E shows the Files tab. The explorer then takes the focus request when it mounts.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The listener registers one time. select only sets state and storage, so an old copy is correct.
     useEffect(() => onExplorerFocusRequest(() => select('files')), []);
 
     // ← and → move the focus to the previous or the next tab. That tab then shows.

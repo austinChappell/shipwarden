@@ -129,6 +129,7 @@ function TagPicker({ tags, allTags, onAdd, onRemoveLast }: { tags: string[]; all
         window.addEventListener('mousedown', onDown);
         return () => window.removeEventListener('mousedown', onDown);
     }, [open]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new query selects the first option again.
     useEffect(() => setActive(0), [query]);
 
     const choose = (tag: string) => {
@@ -334,10 +335,10 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
             model.dispose();
             modelRef.current = undefined;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [note.name]);
+    }, [note.name, flush]);
 
     // Another app or an agent changed the file: show the new text when the editor has no unsaved changes.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Only a new modifiedAt reads the file again. A new name makes a new editor that reads the file.
     useEffect(() => {
         const model = modelRef.current;
         if (!model || dirty.current || state === 'loading') return;
@@ -349,7 +350,6 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
             },
             () => undefined
         );
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [note.modifiedAt]);
 
     /** Renames the file. The note stays in its folder. */

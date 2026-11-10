@@ -42,6 +42,7 @@ export function FindBar({
     onClose(): void;
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Each new focusNonce is a new request to focus the input.
     useEffect(() => {
         inputRef.current?.focus();
         inputRef.current?.select();

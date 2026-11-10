@@ -107,6 +107,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
 
     // The worktrees of all repositories of all projects tell which project and branch each agent belongs to.
     const repoKey = allRepos.join('\0');
+    // biome-ignore lint/correctness/useExhaustiveDependencies: repoKey holds the content of allRepos. A new agent can use a new worktree, so the count reloads the list.
     useEffect(() => {
         let cancelled = false;
         Promise.all(
@@ -125,7 +126,6 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
         return () => {
             cancelled = true;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [repoKey, agents.length]);
 
     // Load the pull requests and their CI state for each repository that has an agent. One request covers a repository.

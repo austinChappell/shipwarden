@@ -38,12 +38,15 @@ export function readStyle(): DiffStyle {
     }
 }
 
+function readColorMode(): 'light' | 'dark' {
+    return document.documentElement.dataset.mode === 'light' ? 'light' : 'dark';
+}
+
 /** The color mode of the app ("light" or "dark"), from the root element. */
 export function useColorMode(): 'light' | 'dark' {
-    const read = (): 'light' | 'dark' => (document.documentElement.dataset.mode === 'light' ? 'light' : 'dark');
-    const [mode, setMode] = useState(read);
+    const [mode, setMode] = useState(readColorMode);
     useEffect(() => {
-        const observer = new MutationObserver(() => setMode(read()));
+        const observer = new MutationObserver(() => setMode(readColorMode()));
         observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mode'] });
         return () => observer.disconnect();
     }, []);

@@ -63,6 +63,7 @@ export function useNotifications(options: Options) {
 
     // CI finished: the checks of a pull request went from waiting to a result. Settings › Notifications selects which pull requests.
     const previousSummaries = useRef<Record<string, Record<string, BranchSummary>>>({});
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect must run only when the summaries change. It reads the other values from the same render.
     useEffect(() => {
         for (const [repo, list] of Object.entries(summaries)) {
             for (const change of ciChanges(previousSummaries.current[repo], list)) {
@@ -72,7 +73,6 @@ export function useNotifications(options: Options) {
             }
         }
         previousSummaries.current = summaries;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [summaries]);
 
     // New Dashboard items: one notification for each refresh, without hidden authors and seen comments.

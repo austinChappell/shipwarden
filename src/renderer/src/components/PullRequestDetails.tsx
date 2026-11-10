@@ -66,12 +66,13 @@ function MultiPicker({
     }, [open]);
 
     // The selected items come first. Each word of the search must be in the label.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The order changes only when the popover opens. Thus an item does not move when the user selects it.
     const shown = useMemo(() => {
         const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
         return options
             .filter(option => words.every(word => option.label.toLowerCase().includes(word)))
             .sort((a, b) => Number(selected.has(b.value)) - Number(selected.has(a.value)));
-    }, [options, query, open]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [options, query, open]);
 
     const onKey = (event: KeyboardEvent) => {
         if (event.key === 'ArrowDown') {
@@ -333,9 +334,11 @@ export function PullRequestMeta({
     };
 
     // A different repository has different users and labels.
+    const repoKey = targetKey(target);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect clears the candidates when the repository changes.
     useEffect(() => {
         setCandidates(undefined);
-    }, [targetKey(target)]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [repoKey]);
 
     const reviewed = reviewedBy(pr);
     const requestedUsers = new Set(shown.reviewRequests.filter(item => item.kind === 'user').map(item => item.login));

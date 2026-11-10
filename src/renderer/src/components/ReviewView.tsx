@@ -339,12 +339,12 @@ export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewW
     }, [repo]);
 
     // An open request selects its repository and pull request.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Each new nonce is one open request. A new object with the same nonce must not select again.
     useEffect(() => {
         if (!open) return;
         pendingOpen.current = open;
         setRepo(open.repo);
         setSelected(open.number);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open?.nonce]);
 
     /** Each pull request request gets a number, so that a slow response for another pull request cannot show. */
@@ -370,7 +370,7 @@ export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewW
         setPr(repoRef && selected ? cached<PullRequest>(prKey(repoId(repoRef), selected)) : undefined);
         setPrError(undefined);
         void loadPr();
-    }, [loadPr]);
+    }, [loadPr, repoRef, selected]);
 
     const refresh = async () => {
         await Promise.all([loadPr(), loadList()]);

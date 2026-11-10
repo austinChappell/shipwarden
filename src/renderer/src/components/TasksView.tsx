@@ -63,6 +63,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
      * The task shows in the details also when it is not in the selected collection.
      */
     const pendingOpen = useRef<{ connectionId: string; taskId: string } | undefined>(undefined);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Only a new nonce opens a task. A change of connection must not open the same task again.
     useEffect(() => {
         if (!openTask) return;
         if (openTask.connectionId === connectionId && source?.connectionId === connectionId) {
@@ -73,7 +74,6 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         if (openTask.connectionId !== connectionId) {
             sourceState.selectConnection(openTask.connectionId);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openTask?.nonce]);
     useEffect(() => {
         const pending = pendingOpen.current;
@@ -96,11 +96,13 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         focusDetail.current = true;
         setSelectedId(id);
     };
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The focus moves after a new task shows. The body does not read selectedId, but a change must run it.
     useEffect(() => {
         if (!focusDetail.current) return;
         focusDetail.current = false;
         detailRef.current?.focus();
     }, [selectedId]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The card gets the focus after the list updates. The body does not read tasks, but a change must run it.
     useEffect(() => {
         const id = focusCard.current;
         if (!id) return;

@@ -208,6 +208,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     }, [children, expanded]);
 
     // Scroll to the cursor row when the cursor moves. The row can show later, after its folder loads.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A change of treeRows can show the cursor row. Then the effect scrolls to it.
     useEffect(() => {
         if (cursor === scrolledTo.current) {
             return;
@@ -339,7 +340,9 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
         [mode, nameMatches, contentGroups]
     );
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: New results select the first result again.
     useEffect(() => setActive(0), [results]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The selected row changes when active changes. Then the effect scrolls to it.
     useEffect(() => {
         bodyRef.current?.querySelector('.search-result.selected')?.scrollIntoView({ block: 'nearest' });
     }, [active]);

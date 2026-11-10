@@ -68,7 +68,7 @@ export function useTaskDetail({ projectId, source, selectedId, setSelectedId, re
         if (selectedId) {
             loadDetail(selectedId);
         }
-    }, [selectedId, loadDetail]);
+    }, [selectedId, source, projectId, loadDetail]);
 
     /** Runs an action on the task. The detail panel shows the error of a failed action. */
     const act = async (action: () => Promise<void>) => {

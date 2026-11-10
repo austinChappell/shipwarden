@@ -154,6 +154,11 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
     const review = useReviewState(target, pr.number);
     /** The file in the loaded file list, for its "Viewed" state. */
     const viewedFile = review.files?.find(item => item.path === file.path);
+    // The zones keep these functions. The refs give the zones the newest functions without a new set of zones.
+    const onRefreshRef = useRef(onRefresh);
+    onRefreshRef.current = onRefresh;
+    const onSendToAgentRef = useRef(onSendToAgent);
+    onSendToAgentRef.current = onSendToAgent;
 
     // The comments in this diff count as seen on the Dashboard.
     useEffect(() => {
@@ -161,6 +166,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
     }, [pr, file.path]);
 
     // Create the diff editor and load the two versions of the file.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The file object changes on each refresh. The editor loads again only for a new path or new commits.
     useEffect(() => {
         const container = containerRef.current;
         if (!container) {
@@ -287,13 +293,13 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                     worktree={typeof target === 'string' ? target : undefined}
                     onReply={async body => {
                         await window.shipwarden.github.reply(target, pr.number, thread.comments[thread.comments.length - 1].databaseId, body);
-                        await onRefresh();
+                        await onRefreshRef.current();
                     }}
                     onResolve={async () => {
                         await window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved);
-                        await onRefresh();
+                        await onRefreshRef.current();
                     }}
-                    onSendToAgent={onSendToAgent && (() => onSendToAgent(threadPrompt(pr, thread)))}
+                    onSendToAgent={onSendToAgentRef.current && (() => onSendToAgentRef.current?.(threadPrompt(pr, thread)))}
                 />
             );
         }
@@ -348,6 +354,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
         };
     }, [ready, pr, review.pending, composer, file.path, target]);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new revealNonce shows the same line again after the user scrolls away.
     useEffect(() => {
         const diff = diffRef.current;
         if (ready && diff && revealLine) {

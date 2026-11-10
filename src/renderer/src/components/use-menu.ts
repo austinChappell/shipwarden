@@ -12,6 +12,7 @@ export function useMenuClose(open: boolean, root: RefObject<HTMLElement | null>,
     const onClose = useRef(close);
     onClose.current = close;
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: root is a ref object. The effect reads its element each time the menu opens.
     useEffect(() => {
         if (!open) return;
         const element = root.current;

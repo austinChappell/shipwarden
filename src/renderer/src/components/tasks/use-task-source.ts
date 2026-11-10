@@ -83,6 +83,7 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
     const connectionState = connectionStateOf(connections, connectionId);
 
     // Start the plugin of the selected task manager. The cached source shows immediately while the plugin starts.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: setSelectedId is a state setter from TasksView. It is stable, but Biome cannot see that.
     useEffect(() => {
         let cancelled = false;
         setSourceError(undefined);
@@ -126,6 +127,7 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
 
     // Load the collections of the source and select the saved one, the plugin's default or the first one.
     const sourceConnection = source?.connectionId;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: setListError is a stable state setter from TasksView. A new collectionsReload value must load the collections again.
     useEffect(() => {
         // After a switch, the old source is still in state for one render. Load only for the selected connection.
         if (!sourceConnection || sourceConnection !== connectionId) {

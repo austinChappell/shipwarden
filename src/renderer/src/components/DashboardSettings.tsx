@@ -48,6 +48,7 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
     const rules = settings.dashboardHiddenRules ?? [];
     const dashboard = useDashboard();
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The form fills only for a new nonce. Other prefill changes must not overwrite the user's edits.
     useEffect(() => {
         if (prefill && prefill.nonce !== appliedPrefill) {
             appliedPrefill = prefill.nonce;
@@ -67,8 +68,11 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
     };
 
     const regexError = match === 'regex' && text.trim() ? ruleRegex(text) : undefined;
-    const draft: HiddenCommentRule | undefined =
-        text.trim() && typeof regexError !== 'string' ? { id: 'draft', author: author.trim() || undefined, match, text } : undefined;
+    const regexValid = typeof regexError !== 'string';
+    const draft = useMemo<HiddenCommentRule | undefined>(
+        () => (text.trim() && regexValid ? { id: 'draft', author: author.trim() || undefined, match, text } : undefined),
+        [author, match, text, regexValid]
+    );
 
     /** The comments on the Dashboard now that the draft rule hides, so the user can check the rule before adding it. */
     const matches = useMemo(() => {
@@ -78,7 +82,7 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
             ...dashboard.tasks.flatMap(source => (source.comments ?? []).map(item => ({ author: item.author, text: item.body })))
         ];
         return comments.filter(comment => matchesRule(draft, comment.author, comment.text));
-    }, [dashboard, draft?.author, draft?.match, draft?.text]);
+    }, [dashboard, draft]);
 
     const addRule = async () => {
         if (!draft) return;

@@ -102,6 +102,7 @@ export function LogView({ target, check, onSendToAgent }: Props) {
     const [progress, setProgress] = useState<JobProgress>();
     const [progressError, setProgressError] = useState<string>();
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new check status gives a new load function. Then the log loads again, for example when the job completes.
     const load = useCallback(async () => {
         const editor = editorRef.current;
         if (!editor) {

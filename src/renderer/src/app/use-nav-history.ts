@@ -7,9 +7,9 @@ import { EMPTY_NAV_HISTORY, recordLocation, stepHistory, type NavLocation } from
  */
 export function useNavHistory(location: NavLocation | undefined) {
     const history = useRef(EMPTY_NAV_HISTORY);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The caller makes a new location object on each render. Only a change of a field adds an entry.
     useEffect(() => {
         if (location) history.current = recordLocation(history.current, location);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location?.view, location?.worktree, location?.tab, location?.repo]);
 
     return (step: 1 | -1, isValid: (location: NavLocation) => boolean): NavLocation | undefined => {

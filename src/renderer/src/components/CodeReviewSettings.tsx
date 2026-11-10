@@ -238,6 +238,7 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
     const [error, setError] = useState<string>();
     const [busy, setBusy] = useState(false);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new token or CLI account changes the source. These values reload it.
     useEffect(() => {
         let cancelled = false;
         setSource(null);
@@ -345,6 +346,7 @@ function GitHubScope({ provider, onChange }: { provider: ReviewProviderInfo; onC
     const [owners, setOwners] = useState<GitHubOwner[]>();
     const [error, setError] = useState<string>();
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new token or CLI account changes the organizations. These values reload them.
     useEffect(() => {
         let cancelled = false;
         setOwners(undefined);

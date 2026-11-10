@@ -274,6 +274,7 @@ function useReorder(keys: readonly string[], onMove: (key: string, toIndex: numb
  */
 function useNow(hidden: Record<string, HiddenWorktree> | undefined): number {
     const [now, setNow] = useState(Date.now);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A change of hidden must read the time again. The effect does not read hidden.
     useEffect(() => setNow(Date.now()), [hidden]);
     useEffect(() => {
         const end = nextSnoozeEnd(hidden, now);
@@ -286,12 +287,9 @@ function useNow(hidden: Record<string, HiddenWorktree> | undefined): number {
 }
 
 /** The text of a worktree that the sidebar search looks at. */
-function worktreeSearchText(worktree: Worktree, props: Props): string {
-    const link = props.links[worktree.path];
-    return [worktreeLabel(worktree, props.worktreeNames), worktree.branch, basename(worktree.path), link?.key, link?.title]
-        .filter(Boolean)
-        .join('\n')
-        .toLowerCase();
+function worktreeSearchText(worktree: Worktree, links: Props['links'], worktreeNames: Props['worktreeNames']): string {
+    const link = links[worktree.path];
+    return [worktreeLabel(worktree, worktreeNames), worktree.branch, basename(worktree.path), link?.key, link?.title].filter(Boolean).join('\n').toLowerCase();
 }
 
 /** The project name at the top of the sidebar. Its menu switches, creates, renames and deletes projects. */
@@ -317,6 +315,7 @@ function ProjectSwitcher(props: Props) {
     const menuItems = () => [...(root.current?.querySelectorAll<HTMLElement>('.project-menu [role="menuitem"]:not(:disabled)') ?? [])];
     useMenuClose(open, root, close);
     // The first item gets the focus, so the arrow keys work at once.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect must run only when the menu opens. menuItems reads a ref, so an old copy is correct.
     useEffect(() => {
         if (open) menuItems()[0]?.focus();
     }, [open]);
@@ -733,19 +732,20 @@ export function Sidebar(outerProps: Props) {
      * The repositories to show, each with its sorted worktrees. A search keeps a repository when its name or one of its
      * worktrees matches. A search also finds hidden worktrees. Without a search, the hidden worktrees go to `hidden`.
      */
+    const { repos, worktreesByRepo, worktreeSort, worktreeNames, hiddenWorktrees, links, repoLabel } = props;
     const groups = useMemo(
         () =>
-            props.repos.flatMap(repo => {
-                const all = sortWorktrees(props.worktreesByRepo[repo] ?? [], props.worktreeSort, props.worktreeNames);
+            repos.flatMap(repo => {
+                const all = sortWorktrees(worktreesByRepo[repo] ?? [], worktreeSort, worktreeNames);
                 if (!search) {
-                    const isHidden = (worktree: Worktree) => isHiddenAt(props.hiddenWorktrees?.[worktree.path], now);
+                    const isHidden = (worktree: Worktree) => isHiddenAt(hiddenWorktrees?.[worktree.path], now);
                     return [{ repo, worktrees: all.filter(worktree => !isHidden(worktree)), hidden: all.filter(isHidden), total: all.length }];
                 }
-                const repoMatches = `${props.repoLabel(repo)}\n${basename(repo)}`.toLowerCase().includes(search);
-                const worktrees = repoMatches ? all : all.filter(worktree => worktreeSearchText(worktree, props).includes(search));
+                const repoMatches = `${repoLabel(repo)}\n${basename(repo)}`.toLowerCase().includes(search);
+                const worktrees = repoMatches ? all : all.filter(worktree => worktreeSearchText(worktree, links, worktreeNames).includes(search));
                 return repoMatches || worktrees.length > 0 ? [{ repo, worktrees, hidden: [], total: all.length }] : [];
             }),
-        [props.repos, props.worktreesByRepo, props.worktreeSort, props.worktreeNames, props.hiddenWorktrees, now, props.links, props.repoLabel, search]
+        [repos, worktreesByRepo, worktreeSort, worktreeNames, hiddenWorktrees, now, links, repoLabel, search]
     );
     /** The agents of all projects that still run, and the state that needs the user most. */
     const runningAgents = props.sessions.filter(session => runsAgent(session)).length;

@@ -73,12 +73,11 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
     // FileBody is memoized, so it gets one function for the life of the stream.
     const goToRef = useRef(onGoToDefinition);
     goToRef.current = onGoToDefinition;
-    const goTo = useMemo(
-        () => (onGoToDefinition ? (path: string, line: number, column: number) => goToRef.current?.(path, line, column) : undefined),
-        [!!onGoToDefinition]
-    );
+    const canGoTo = !!onGoToDefinition;
+    const goTo = useMemo(() => (canGoTo ? (path: string, line: number, column: number) => goToRef.current?.(path, line, column) : undefined), [canGoTo]);
 
     // A different pull request starts with the default open state, and with its saved answers.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The state resets only for a new pull request or repository. A new repo object with the same name must not reset it.
     useEffect(() => {
         setOpen({});
         setComposer(undefined);
@@ -98,7 +97,6 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
         return () => {
             active = false;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pr.number, repo?.owner, repo?.name]);
 
     const changeQuestion = (id: string, change: Partial<AgentQuestion>) => setQuestions(list => changeQuestionIn(list, id, change));
@@ -209,10 +207,10 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
     };
 
     // A new search text goes to the first match.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Only a new search text or case option moves to the first match. A file refresh must not move it.
     useEffect(() => {
         setMatchIndex(0);
         if (matches[0]) reveal(matches[0]);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, caseSensitive]);
 
     const moveMatch = (step: 1 | -1) => {
@@ -222,6 +220,7 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
         reveal(matches[next]);
     };
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Each new nonce is one scroll request. A new object with the same nonce must not scroll again.
     useEffect(() => {
         if (!scrollTo) return;
         setOpen(map => ({ ...map, [scrollTo.path]: true }));

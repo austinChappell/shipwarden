@@ -61,6 +61,7 @@ export function CopyPreview({ repo, copy }: { repo: string | undefined; copy: Co
     const [matches, setMatches] = useState<string[]>();
     const [error, setError] = useState<string>();
     const key = JSON.stringify(copy);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: key holds the content of copy. The copy object can change identity without a change in content.
     useEffect(() => {
         if (!repo) return;
         let current = true;
@@ -73,7 +74,6 @@ export function CopyPreview({ repo, copy }: { repo: string | undefined; copy: Co
         return () => {
             current = false;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [repo, key]);
     if (!repo) return null;
     if (error) return <div className="form-error">{error}</div>;
@@ -103,8 +103,9 @@ export function PatternsField({
     placeholder?: string[];
     onSave(patterns: string[]): void;
 }) {
-    const [text, setText] = useState(patterns.join('\n'));
-    useEffect(() => setText(patterns.join('\n')), [patterns.join('\n')]);
+    const joined = patterns.join('\n');
+    const [text, setText] = useState(joined);
+    useEffect(() => setText(joined), [joined]);
     return (
         <textarea
             className="settings-input mono patterns-field"

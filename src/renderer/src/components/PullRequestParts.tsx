@@ -121,6 +121,7 @@ export function PullRequestDescription({ pr, overview, onEdit }: { pr: PullReque
     const body = pr.body.trim();
 
     // Measure the closed text. The button shows only when the text is longer than the closed height.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new description text has a new height. Thus the effect measures it again.
     useLayoutEffect(() => {
         const element = box.current;
         if (!element || open || overview) return;

@@ -367,11 +367,8 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
 
     const pullRequests = state.pullRequests;
     const hiddenKey = JSON.stringify(filter);
-    const prComments = useMemo(
-        () => (state.prComments ?? []).filter(item => !isHiddenComment(item.author, item.text, filter)),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [state.prComments, hiddenKey]
-    );
+    // biome-ignore lint/correctness/useExhaustiveDependencies: hiddenKey holds the content of filter. The filter object can change identity without a change in content.
+    const prComments = useMemo(() => (state.prComments ?? []).filter(item => !isHiddenComment(item.author, item.text, filter)), [state.prComments, hiddenKey]);
     const unseenPr = prComments.filter(item => !seenStore.has(gitHubSeenKey(item.id)));
     const shownPrComments = prComments
         .filter(item => visible(gitHubSeenKey(item.id)))

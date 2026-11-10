@@ -19,6 +19,7 @@ export function FileView(props: Props) {
     const version = useFolderVersion(root, () => [parentPath(path)]);
     const loaded = useRef(false);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new folder version reads the file information again.
     useEffect(() => {
         let current = true;
         window.shipwarden.files.info(root, path).then(

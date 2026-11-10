@@ -33,6 +33,7 @@ export function useTaskList({ projectId, connectionId, connectionState, source, 
     const [moving, setMoving] = useState<Set<string>>(new Set());
 
     // A task manager that is not ready has no tasks.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new project must run this check again. The body does not read projectId.
     useEffect(() => {
         if (connectionState !== 'ready' || !connectionId) {
             setTasks(undefined);
@@ -40,12 +41,14 @@ export function useTaskList({ projectId, connectionId, connectionState, source, 
     }, [connectionState, connectionId, projectId]);
 
     // A new collection or filter shows its cached tasks, or nothing. Tasks of the old collection must not show.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: setListError is a state setter from TasksView. It is stable, but Biome cannot see that.
     useEffect(() => {
         setTasks(connectionId && collection ? cached(tasksKey(connectionId, projectId, collection, filter)) : undefined);
         setStatusOrder(connectionId && collection ? cached(statusOrderKey(connectionId, projectId, collection)) : undefined);
         setListError(undefined);
     }, [connectionId, projectId, collection, filter]);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: setListError is a state setter from TasksView. It is stable, but Biome cannot see that.
     const loadTasks = useCallback(async () => {
         // After a switch, the old source is still in state for one render. Load only for the selected connection.
         if (!source || !collection || source.connectionId !== connectionId) return;

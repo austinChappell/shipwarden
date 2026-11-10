@@ -62,6 +62,7 @@ export function ImageView({ root, path, info, version, onError }: FileProps) {
     const [failed, setFailed] = useState(false);
 
     // A new version of the file can load when the old version did not.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new version clears the old failure.
     useEffect(() => setFailed(false), [version]);
 
     useEffect(() => {
@@ -165,6 +166,7 @@ export function MediaPlayerView({ root, path, info, version, onError }: FileProp
     const [failed, setFailed] = useState(false);
     const source = fileUrl(root, path, version);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new version clears the old failure.
     useEffect(() => setFailed(false), [version]);
     return (
         <div className="viewer">

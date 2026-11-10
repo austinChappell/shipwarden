@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { locateCode } from '@shared/ask-agent';
 import { codeNotePrompt, type NoteTarget } from '@shared/code-note';
 import type { AgentDefinition } from '@shared/settings';
@@ -63,7 +63,8 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
     const [textVersion, setTextVersion] = useState(0);
     const onErrorRef = useRef(onError);
     onErrorRef.current = onError;
-    const reportError = (message: string) => onErrorRef.current(message);
+    // The function reads the newest onError through the ref. Its identity does not change.
+    const reportError = useCallback((message: string) => onErrorRef.current(message), []);
     // The box reads the newest values, so that a new render of the app does not open the box again.
     const noteRef = useRef({ agents, defaultAgentId, onSendNote });
     noteRef.current = { agents, defaultAgentId, onSendNote };
@@ -71,7 +72,7 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
     const revealLineRef = useRef(revealLine);
     revealLineRef.current = revealLine;
 
-    useEffect(() => codeQuestions.load(root, path, reportError), [root, path]);
+    useEffect(() => codeQuestions.load(root, path, reportError), [root, path, reportError]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -154,7 +155,7 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
         });
         editor.onMouseLeave(() => hover.clear());
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-            documents.save(root, path).catch(error => onError(error instanceof Error ? error.message : String(error)));
+            documents.save(root, path).catch(error => reportError(error instanceof Error ? error.message : String(error)));
         });
 
         documents.open(root, path).then(
@@ -213,7 +214,7 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
             editor.dispose();
             editorRef.current = undefined;
         };
-    }, [root, path]);
+    }, [root, path, reportError]);
 
     /**
      * The questions to show, each at its last line. A saved answer shows only where the file has the text of its lines.
@@ -221,6 +222,7 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
      */
     const placedKey = useRef('');
     const placedRef = useRef<{ question: AgentQuestion; line: number; changed: boolean }[]>([]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The model text changes without a new model object. textVersion tells the memo to place the questions again.
     const placed = useMemo(() => {
         const model = ready ? editorRef.current?.getModel() : undefined;
         if (!model) return [];
@@ -261,7 +263,7 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
             );
         });
         return () => removeReviewZones(handles);
-    }, [ready, placed, root, path]);
+    }, [ready, placed, root, path, reportError]);
 
     // The "Ask agent" box has its own zone, so a new answer does not remove the text that the user types.
     useEffect(() => {
@@ -315,8 +317,9 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
             { focus: true }
         );
         return () => removeReviewZones([handle]);
-    }, [ready, asking, root, path]);
+    }, [ready, asking, root, path, reportError]);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new revealNonce shows the same line again. The user can scroll away and ask for the line again.
     useEffect(() => {
         const editor = editorRef.current;
         if (ready && editor && revealLine) {

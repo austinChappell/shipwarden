@@ -47,6 +47,7 @@ export function MarkdownFileView(props: Props) {
     };
 
     // A search result or a definition must show its line, so the source must show.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new revealNonce shows the source again for the same line.
     useEffect(() => {
         if (revealLine) {
             setModeState(current => (current === 'preview' ? 'split' : current));
@@ -106,6 +107,9 @@ function MarkdownPreview({ root, path, onOpenFile, onError }: PreviewProps) {
     const imageFolders = useRef(new Set<string>());
     // Images load again when a file in one of their folders changes.
     const imageVersion = useFolderVersion(root, () => imageFolders.current);
+    // The load reads the newest onError through this ref. A new onError must not open the file again.
+    const onErrorRef = useRef(onError);
+    onErrorRef.current = onError;
 
     useEffect(() => {
         let disposed = false;
@@ -120,7 +124,7 @@ function MarkdownPreview({ root, path, onOpenFile, onError }: PreviewProps) {
                     timer = setTimeout(() => setText(model.getValue()), PREVIEW_DELAY_MS);
                 });
             },
-            error => onError(error instanceof Error ? error.message : String(error))
+            error => onErrorRef.current(error instanceof Error ? error.message : String(error))
         );
         return () => {
             disposed = true;

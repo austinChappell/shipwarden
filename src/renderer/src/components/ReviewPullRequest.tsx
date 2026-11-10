@@ -200,15 +200,16 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
         }
     };
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Each new nonce is one tab request. selectTab uses only state setters, so an old copy is correct.
     useEffect(() => {
         if (tabRequest && tabRequest.nonce !== appliedTabRequest) {
             appliedTabRequest = tabRequest.nonce;
             selectTab(tabRequest.tab);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tabRequest?.nonce]);
 
     // ⌘F searches the changed files. The capture phase gets the key before a comment box can stop it.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The listener attaches one time. selectTab uses only state setters, so the first copy is correct.
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
             if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
@@ -219,10 +220,10 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // A different pull request starts with no file and no log.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect clears the state when the repository or the pull request changes.
     useEffect(() => {
         setFile(undefined);
         setCheck(undefined);
@@ -232,10 +233,9 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
     }, [repo.owner, repo.name, pr?.number]);
 
     // The list of all files needs the copy. A new head commit updates the copy.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The copy state is not a dependency. Else a copy that the user refused starts again at once.
     useEffect(() => {
         if (tab === 'files' && fileSide === 'all' && checkout.status !== 'working') ensureCheckout();
-        // The state of the copy is not a dependency. Else a copy that the user refused starts again at once.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tab, fileSide, repo.owner, repo.name, pr?.number, pr?.headRefOid]);
 
     // The language servers get the copy as a root. "Go to definition" into another file opens it in the code pane.
@@ -250,11 +250,13 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
         };
     }, [checkoutRoot]);
 
+    const prNumber = pr?.number;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new head commit loads the file list again.
     useEffect(() => {
-        if (pr) {
-            reviewStore.loadFiles(repo, pr.number).catch(err => setFileError(errorText(err)));
+        if (prNumber !== undefined) {
+            reviewStore.loadFiles(repo, prNumber).catch(err => setFileError(errorText(err)));
         }
-    }, [repo, pr?.number, pr?.headRefOid]);
+    }, [repo, prNumber, pr?.headRefOid]);
 
     const files = review.files;
     const agentReview = review.agentReview;

@@ -101,13 +101,16 @@ export function PullRequestPanel({
     const [editing, setEditing] = useState(false);
 
     // A different pull request closes the editor.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect closes the editor when the pull request changes.
     useEffect(() => setEditing(false), [pr?.number, pr?.url]);
 
+    const prNumber = pr?.number;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new head commit loads the file list again.
     useEffect(() => {
-        if (pr) {
-            reviewStore.loadFiles(target, pr.number).catch(err => setActionError(errorText(err)));
+        if (prNumber !== undefined) {
+            reviewStore.loadFiles(target, prNumber).catch(err => setActionError(errorText(err)));
         }
-    }, [target, pr?.number, pr?.headRefOid]);
+    }, [target, prNumber, pr?.headRefOid]);
 
     // The comments that the panel shows count as seen on the Dashboard.
     useEffect(() => {

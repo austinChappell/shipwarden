@@ -79,12 +79,15 @@ const FileBody = memo(function FileBody({ change, side, loaded, highlight, diffS
         [diffStyle, mode]
     );
 
+    // The parent makes a new highlight object on each render. The memo uses the fields, so it keeps the same value.
+    const highlightLine = highlight?.line;
+    const highlightSide = highlight?.side;
     const selectedLines = useMemo(
         () =>
-            highlight
-                ? { start: highlight.line, end: highlight.line, side: highlight.side === 'LEFT' ? ('deletions' as const) : ('additions' as const) }
+            highlightLine !== undefined && highlightSide !== undefined
+                ? { start: highlightLine, end: highlightLine, side: highlightSide === 'LEFT' ? ('deletions' as const) : ('additions' as const) }
                 : null,
-        [highlight?.line, highlight?.side]
+        [highlightLine, highlightSide]
     );
 
     const contents = loaded?.contents;
@@ -239,10 +242,10 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
     };
 
     // A new search text goes to the first match.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Only a new search text goes to the first match. A new diff load must not move the view.
     useEffect(() => {
         setMatchIndex(0);
         if (matches[0]) reveal(matches[0]);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, caseSensitive]);
 
     const moveMatch = (step: 1 | -1) => {

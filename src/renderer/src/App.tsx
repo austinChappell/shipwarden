@@ -241,6 +241,7 @@ export function App() {
     sessionExitedRef.current = tabs.sessionExited;
     const notifyAgentRef = useRef(notifyAgent);
     notifyAgentRef.current = notifyAgent;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The start-up effect runs one time. project.setProjects and showSettingsPage only set state, so old copies are correct.
     useEffect(() => {
         (async () => {
             const [state, terminalSettings, existing] = await Promise.all([api.projects.get(), api.terminals.settings(), api.terminals.list()]);
@@ -276,7 +277,6 @@ export function App() {
             offAgentState();
             offAgentProgram();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showProject]);
 
     const { terminalSettings, colorsKey: terminalColorsKey } = useTerminalColors(settings, appSettings.appearance.terminalColors === 'theme', palette, mode);
