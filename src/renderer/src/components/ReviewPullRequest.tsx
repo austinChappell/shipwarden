@@ -12,6 +12,7 @@ import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
 import { CopyButton } from './CopyButton';
+import { SeaLoader } from './SeaLoader';
 import { FileExplorer } from './FileExplorer';
 import { ErrorBanner } from './ErrorBanner';
 import { CheckoutMessage, ReviewCodeView, type CodeLocation } from './ReviewCodeView';
@@ -253,7 +254,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
         return (
             <div className="review-pr">
                 <header className="review-pr-header">{back}</header>
-                <div className="review-placeholder panel-message">{error ?? (loading ? 'Loading the pull request…' : '')}</div>
+                {!error && loading ? <SeaLoader label="Loading the pull request" /> : <div className="review-placeholder panel-message">{error ?? ''}</div>}
             </div>
         );
     }

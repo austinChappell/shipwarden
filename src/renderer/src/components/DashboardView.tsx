@@ -26,6 +26,7 @@ import { openLink } from '../links';
 import type { ClickModifiers } from '@shared/browser';
 import { Markdown } from './Markdown';
 import { MERGE_LABELS } from './MergeButton';
+import { SeaLoader } from './SeaLoader';
 import { confirmDialog } from './ConfirmDialog';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 
@@ -438,7 +439,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                         <div className="dash-column">
                             <h2 className="dash-heading">Your pull requests · {query ? `${shownYourCount} of ${yourCount}` : yourCount}</h2>
                             {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
-                            {!pullRequests && !state.pullRequestsError && <div className="dash-card dash-line">Loading…</div>}
+                            {!pullRequests && !state.pullRequestsError && <div className="dash-card"><SeaLoader compact /></div>}
                             {loaded && yourCount === 0 && <div className="dash-card"><Empty text="None of your pull requests needs an action." /></div>}
                             {loaded && yourCount > 0 && shownYourCount === 0 && <div className="dash-card"><Empty text="No pull requests match the filter." /></div>}
 
@@ -539,7 +540,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                     ))}
                                 </div>
                                 {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
-                                {!pullRequests && !state.pullRequestsError && <div className="panel-note">Loading…</div>}
+                                {!pullRequests && !state.pullRequestsError && <SeaLoader compact />}
                                 {loaded && reviewRequests.length === 0 && <Empty text="No pull requests wait for your review." />}
                                 {loaded && reviewRequests.length > 0 && shownReviews.length === 0 && <Empty text="No review requests match the filter." />}
                                 {reviewGroups.map(group => (
@@ -564,7 +565,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                             </section>
 
                             {!commentsLoaded && !state.prCommentsError && (
-                                <div className="dash-card dash-line">Loading comments… The first load can take some seconds.</div>
+                                <div className="dash-card"><SeaLoader compact hint="The first load can take some seconds." /></div>
                             )}
                             {noComments && (
                                 <div className="dash-card dash-line">
