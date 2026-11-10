@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { hasExplorerFocusRequest, onExplorerFocusRequest } from '../files/explorer-focus';
 import { CircleCheck, Files, GitCommitVertical, GitPullRequest, Plug, Workflow } from 'lucide-react';
-import type { CheckRun, PullRequest, PullRequestFile } from '@shared/github';
+import type { CheckRun, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
 import type { BranchStatusState } from '../github/use-branch-status';
 import { ChecksPanel } from './ChecksPanel';
 import { FileExplorer } from './FileExplorer';
@@ -29,6 +29,8 @@ interface Props {
     onShowTerminal(sessionId: string): void;
     onOpenChange(change: FileChange, side: ChangeSide): void;
     onOpenAllChanges(): void;
+    /** Opens the pull request of the branch in the Review view. Without it, the PR tab has no "Open in Review" button. */
+    onOpenInReview?(repo: RepoRef, pr: PullRequest): void;
 }
 
 function readTab(): PanelTab {
@@ -44,7 +46,9 @@ function readTab(): PanelTab {
 export function RightPanel(props: Props) {
     // ⇧⌘E can show the panel. The panel then starts on the Files tab.
     const [tab, setTab] = useState<PanelTab>(() => (hasExplorerFocusRequest() ? 'files' : readTab()));
-    const pr = props.github.status?.pullRequest;
+    const status = props.github.status;
+    const pr = status?.pullRequest;
+    const openInReview = props.onOpenInReview;
     const unresolved = pr?.threads.filter(thread => !thread.isResolved).length ?? 0;
     // The changes load while the panel shows, also on other tabs, for the count on the Changes tab.
     const git = useGitChanges(props.root);
@@ -118,6 +122,7 @@ export function RightPanel(props: Props) {
                     onOpenDiff={props.onOpenDiff}
                     onSendToAgent={props.onSendToAgent}
                     onSendChecksToAgent={props.onSendChecksToAgent}
+                    onOpenInReview={openInReview && status ? pr => openInReview(status.repo, pr) : undefined}
                 />
             )}
             {tab === 'changes' && (

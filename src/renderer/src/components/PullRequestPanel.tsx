@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bot, ChevronRight, CircleX, ExternalLink, GitPullRequest, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Bot, ChevronRight, CircleX, ExternalLink, GitPullRequest, Maximize2, RefreshCw, TriangleAlert } from 'lucide-react';
 import {
     hostLabel,
     undecidedCount,
@@ -72,6 +72,8 @@ interface Props {
     checks?: CheckCounts;
     /** Starts an agent review. Without it, the review card has no link for an agent review. */
     agentReview?: { running: boolean; run(): void };
+    /** Opens the pull request in the Review view. Without it, the header has no "Open in Review" button. */
+    onOpenInReview?(pr: PullRequest): void;
 }
 
 export function PullRequestPanel({
@@ -85,7 +87,8 @@ export function PullRequestPanel({
     onSendChecksToAgent,
     variant = 'panel',
     checks: givenChecks,
-    agentReview
+    agentReview,
+    onOpenInReview
 }: Props) {
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
@@ -281,6 +284,11 @@ export function PullRequestPanel({
                             <button className="link-button" title={`Open on ${hostLabel(pr.host)}`} onClick={event => openLink(pr.url, event)}>
                                 #{pr.number} <ExternalLink size={12} strokeWidth={1.6} />
                             </button>
+                            {onOpenInReview && pr.host !== 'azure' && (
+                                <button className="icon-button" title="Open in Review" onClick={() => onOpenInReview(pr)}>
+                                    <Maximize2 size={14} strokeWidth={1.6} />
+                                </button>
+                            )}
                             <button className="icon-button pr-refresh" title="Refresh" onClick={() => onRefresh()}>
                                 <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
                             </button>

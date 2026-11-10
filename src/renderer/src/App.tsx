@@ -737,6 +737,8 @@ export function App() {
                             onShowTerminal={id => activate(selectedPath, `t:${id}`)}
                             onOpenChange={openChange}
                             onOpenAllChanges={openAllChanges}
+                            // The Review view shows GitHub pull requests only, so the button needs a GitHub provider.
+                            onOpenInReview={githubKey ? (repo, pr) => openPullRequest(repo, pr.number, 'overview') : undefined}
                         />
                     )}
                     {newWorktree && (
