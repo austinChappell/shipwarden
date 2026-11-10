@@ -30,8 +30,15 @@ and run Claude Code or a shell in each worktree. The terminals use Ghostty's ter
 engine (ghostty-web) and your Ghostty config. A Files panel shows the worktree, filters
 file names, searches file contents and opens files in a Monaco editor. Language servers
 give go to definition, find references, hover, completion, diagnostics, rename and quick
-fixes (code actions). TypeScript works
-with no setup. Rust, Python and Go need their language server in your PATH.
+fixes (code actions). TypeScript works with no setup. For Rust, Python and Go, ShipWarden
+uses the language server in your PATH. When the server is missing, the editor offers to
+install it into the app's data folder. ShipWarden asks you before each download:
+
+- Rust: the `rust-analyzer` binary of the latest GitHub release, for the CPU of your Mac.
+- Python: the `basedpyright` package from the npm registry. Node is not necessary.
+- Go: `go install golang.org/x/tools/gopls@latest`. Go must be in your PATH.
+
+The downloads use the CA certificates of Settings › Network.
 
 The right panel also shows the pull request of the worktree's branch and its GitHub Actions
 checks. You can review diffs with inline comments, approve, request changes, merge, read job

@@ -4,7 +4,8 @@ import { pathToFileURL } from 'url';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter, type MessageConnection } from 'vscode-jsonrpc/node';
 import type { ClientCapabilities, InitializeResult } from 'vscode-languageserver-protocol';
 import type { LspMissingServer, LspServerInfo, LspServerMessage } from '@shared/lsp';
-import { installCommand, serverForLanguage } from './servers';
+import type { ServerInstaller } from './server-install';
+import { serverForLanguage } from './servers';
 
 interface RunningServer {
     info: LspServerInfo;
@@ -79,8 +80,13 @@ export class LspManager {
     /**
      * @param send Sends a server message to the UI.
      * @param ready Resolves when the environment is ready, for example when the login shell PATH is known.
+     * @param installer Installs missing servers into the folder of the app.
      */
-    constructor(private readonly send: (message: LspServerMessage) => void, private readonly ready: Promise<void>) {}
+    constructor(
+        private readonly send: (message: LspServerMessage) => void,
+        private readonly ready: Promise<void>,
+        private readonly installer: ServerInstaller
+    ) {}
 
     /** Starts the server for the language in the worktree, if necessary. Returns undefined when no server is available. */
     async ensure(root: string, languageId: string): Promise<LspServerInfo | undefined> {
@@ -107,19 +113,14 @@ export class LspManager {
      */
     async missing(root: string, languageId: string): Promise<LspMissingServer | undefined> {
         const definition = serverForLanguage(languageId);
-        if (!definition || definition.install.length === 0) {
+        if (!definition || !definition.installable) {
             return undefined;
         }
         await this.ready;
         if (await definition.resolve(root)) {
             return undefined;
         }
-        return {
-            serverId: definition.id,
-            name: definition.name,
-            installCommand: await installCommand(definition),
-            tools: definition.install.map(option => option.tool)
-        };
+        return { serverId: definition.id, name: definition.name, ...await this.installer.plan(definition.id) };
     }
 
     request(key: string, method: string, params: unknown): Promise<unknown> {

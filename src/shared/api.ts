@@ -7,7 +7,7 @@ import type { ContentSearchResult, FileEntry, FilesChangedEvent } from './files'
 import type { FileInfo } from './file-types';
 import type { BranchStatus, BranchSummary, CheckRun, FileVersions, GitHubOwner, JobProgress, GitHubRepoInfo, MergeMethod, NewPullRequest, PendingComment, PullRequest, PullRequestCandidates, PullRequestChange, PullRequestFile, PullRequestFilter, PullRequestSummary, RepoRef, RepoTarget, ReviewEvent, Workflow } from './github';
 import type { ReviewProviderChange, ReviewProviderInfo, ReviewProviderKind, ReviewTokenSource } from './review-providers';
-import type { LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
+import type { LspInstallState, LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentUpdate } from './agents';
 import type { AgentProgram } from './agent-programs';
@@ -382,6 +382,12 @@ export interface ShipWardenApi {
         ensure(root: string, languageId: string): Promise<LspServerInfo | undefined>;
         /** Returns the server that the language needs in the worktree, when the server is not installed. */
         missing(root: string, languageId: string): Promise<LspMissingServer | undefined>;
+        /**
+         * Installs a missing server into the folder of the app. Call it only after the user agrees.
+         * Rejects when the install fails. `onInstallState` gets the progress.
+         */
+        install(serverId: string): Promise<void>;
+        onInstallState(listener: (state: LspInstallState) => void): () => void;
         request(key: string, method: string, params: unknown): Promise<unknown>;
         notify(key: string, method: string, params: unknown): void;
         /** Sends the result of a server request that has an `id`, for example "workspace/applyEdit". */
@@ -568,6 +574,8 @@ export const IpcChannels = {
     lspNotify: 'lsp:notify',
     lspRespond: 'lsp:respond',
     lspMessage: 'lsp:message',
+    lspInstall: 'lsp:install',
+    lspInstallState: 'lsp:installState',
     terminalsSettings: 'terminals:settings',
     terminalsList: 'terminals:list',
     terminalsCreate: 'terminals:create',

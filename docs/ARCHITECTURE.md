@@ -548,7 +548,16 @@ Done:
   It sends `workspace/applyEdit` requests to the UI with an `id` and waits up to 30 seconds for `lsp.respond`.
 - Servers:
   - TypeScript and JavaScript: `tsc --lsp --stdio` from TypeScript 7. ShipWarden uses the worktree's own TypeScript if it is version 7 or later. If not, it uses the TypeScript 7 that ShipWarden includes.
-  - Rust: `rust-analyzer`. Python: `basedpyright-langserver` or `pyright-langserver`. Go: `gopls`. These must be in the PATH.
+  - Rust: `rust-analyzer`. Python: `basedpyright-langserver` or `pyright-langserver`. Go: `gopls`.
+  - The launcher looks first in `<userData>/language-servers`, and then in the PATH.
+- Install of a missing server (`main/lsp/server-install.ts`):
+  - The editor banner shows an Install button. A dialog shows the source and the folder. ShipWarden installs nothing without consent.
+  - Rust: the `rust-analyzer-<target>.gz` file of the latest GitHub release. The installer checks its size and the SHA-256 that the GitHub API gives.
+  - Python: the `basedpyright` npm package, with a check of its `integrity` value. Electron runs `langserver.index.js` with `ELECTRON_RUN_AS_NODE=1`.
+  - Go: `go install golang.org/x/tools/gopls@latest` with `GOBIN` in the folder. Without `go` in the PATH, the banner tells the user to install Go.
+  - Each install writes to a staging folder first, and then moves it into place.
+  - Downloads wait for `networkReady`, so the CA certificates of Settings › Network apply. `go install` gets `NODE_EXTRA_CA_CERTS` and `SSL_CERT_FILE`.
+  - The banner shows the step, the download progress and the error.
 - The main process reads the PATH of the login shell at start. An app that starts from Finder does not get it.
 - `LspBridge` (renderer) syncs each Monaco model in a worktree with incremental changes.
   It registers Monaco providers for definition, type definition, implementation, references, hover, document highlights,
@@ -570,7 +579,6 @@ Next:
 
 - Signature help from the servers.
 - File operations in workspace edits. An error message in the editor when a code action fails.
-- Downloads of language servers that are not installed.
 
 ### GitHub (goals 3 and 4)
 

@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download } from 'lucide-react';
 import { locateCode } from '@shared/ask-agent';
 import { codeNotePrompt, type NoteTarget } from '@shared/code-note';
 import type { AgentDefinition } from '@shared/settings';
-import type { LspMissingServer } from '@shared/lsp';
 import { codeQuestions, useCodeQuestions } from '../editor/code-questions';
 import { documents } from '../editor/documents';
 import { clampPosition, editorPositions } from '../editor/editor-positions';
 import { monaco } from '../editor/monaco';
 import { addReviewZone, ComposerZone, QuestionZone, removeReviewZones, type AgentQuestion, type NoteOptions, type QuestionAction, type ZoneHandle } from './DiffView';
-import { missingServers, useMissingServer } from '../lsp/missing-servers';
+import { useMissingServer } from '../lsp/missing-servers';
+import { MissingServerBanner } from './MissingServerBanner';
 
 interface Props {
     root: string;
@@ -22,8 +21,6 @@ interface Props {
     /** When this value changes, the editor gets the keyboard focus. */
     focusNonce?: number;
     onError(message: string): void;
-    /** Runs the install command of a missing language server. */
-    onInstallServer(server: LspMissingServer): void;
     /** The agent definitions, for the "New" choices of a note. */
     agents?: AgentDefinition[];
     /** The agent of the repository. */
@@ -45,7 +42,7 @@ interface AskRange {
  * A click in the gutter, the context menu or Cmd+Shift+A opens an "Ask agent" box for the line or the selected lines.
  * The answer shows under the lines. The box can also send a note about the lines to an agent tab of the worktree, or to a new agent. A saved answer shows only while the lines have the same text as when the user asked.
  */
-export function EditorView({ root, path, revealLine, revealColumn, revealNonce, focusNonce, onError, onInstallServer, agents, defaultAgentId, onSendNote }: Props) {
+export function EditorView({ root, path, revealLine, revealColumn, revealNonce, focusNonce, onError, agents, defaultAgentId, onSendNote }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | undefined>(undefined);
     const [ready, setReady] = useState(false);
@@ -308,36 +305,8 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
     return (
         <div className="editor">
             {failure && <div className="editor-failure">{failure}</div>}
-            {missing && <MissingServerBanner {...missing} onInstall={() => onInstallServer(missing.server)} />}
+            {missing && <MissingServerBanner {...missing} features="go to definition, hover and errors" />}
             <div className="editor-monaco" ref={containerRef} />
-        </div>
-    );
-}
-
-interface BannerProps {
-    server: LspMissingServer;
-    installing: boolean;
-    onInstall(): void;
-}
-
-/** Tells the user that the file needs a language server that is not installed. */
-function MissingServerBanner({ server, installing, onInstall }: BannerProps) {
-    let text;
-    if (installing) {
-        text = <>ShipWarden waits for the install of <strong>{server.name}</strong> to complete. Then it starts the server.</>;
-    } else if (server.installCommand) {
-        text = <>Install <strong>{server.name}</strong> to get go to definition, hover and errors in this file.</>;
-    } else {
-        text = <>Install <strong>{server.name}</strong> to get go to definition, hover and errors. ShipWarden did not find {server.tools.join(', ')} in the PATH.</>;
-    }
-    return (
-        <div className="editor-server-banner" role="status">
-            <Download size={14} strokeWidth={1.8} />
-            <span className="editor-server-text">{text}</span>
-            {!installing && server.installCommand && (
-                <button className="button primary" title={server.installCommand} onClick={onInstall}>Install</button>
-            )}
-            <button className="button" onClick={() => missingServers.dismiss(server.serverId)}>Not now</button>
         </div>
     );
 }

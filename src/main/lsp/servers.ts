@@ -12,12 +12,6 @@ export interface ServerCommand {
     initializationOptions?: unknown;
 }
 
-/** A command that installs a language server. ShipWarden uses it only when `tool` is in the PATH. */
-export interface InstallOption {
-    tool: string;
-    command: string;
-}
-
 /** A language server that ShipWarden can start. */
 export interface ServerDefinition {
     id: string;
@@ -27,8 +21,8 @@ export interface ServerDefinition {
     languages: string[];
     /** Returns the command that starts the server for the worktree, or undefined when the server is not installed. */
     resolve(root: string): Promise<ServerCommand | undefined>;
-    /** The commands that install the server, in order of preference. Empty when ShipWarden includes the server. */
-    install: InstallOption[];
+    /** True when ShipWarden can install the server into its own folder. False when ShipWarden includes the server. */
+    installable: boolean;
 }
 
 async function isExecutable(file: string): Promise<boolean> {
@@ -204,7 +198,7 @@ function runsWithoutError(command: string, args: string[]): Promise<boolean> {
 }
 
 /** Returns a resolver that uses the first command that is in the PATH and that passes its check. */
-function fromPath(...candidates: Candidate[]): (root: string) => Promise<ServerCommand | undefined> {
+function fromPath(...candidates: Candidate[]): () => Promise<ServerCommand | undefined> {
     return async () => {
         for (const candidate of candidates) {
             const command = await which(candidate.command);
@@ -216,13 +210,76 @@ function fromPath(...candidates: Candidate[]): (root: string) => Promise<ServerC
     };
 }
 
+/** The folder of the servers that ShipWarden installs. Undefined until the main process sets it. */
+let managedFolder: string | undefined;
+
+/** Sets the folder of the servers that ShipWarden installs. The resolvers look there before they look in the PATH. */
+export function setManagedFolder(folder: string | undefined): void {
+    managedFolder = folder;
+}
+
+/** The files that an install into the managed folder makes, for each server. */
+export interface ManagedPaths {
+    /** The rust-analyzer binary. */
+    rustAnalyzer: string;
+    /** The folder of the basedpyright npm package. */
+    basedpyrightPackage: string;
+    /** The language server script of the basedpyright npm package. */
+    basedpyright: string;
+    /** The folder that `go install` writes gopls to (GOBIN). */
+    goBin: string;
+    /** The gopls binary. */
+    gopls: string;
+}
+
+/** Returns the paths of the servers in the managed folder. */
+export function managedPaths(folder: string): ManagedPaths {
+    const basedpyrightPackage = path.join(folder, 'basedpyright', 'package');
+    const goBin = path.join(folder, 'gopls', 'bin');
+    return {
+        rustAnalyzer: path.join(folder, 'rust-analyzer', 'rust-analyzer'),
+        basedpyrightPackage,
+        basedpyright: path.join(basedpyrightPackage, 'langserver.index.js'),
+        goBin,
+        gopls: path.join(goBin, 'gopls')
+    };
+}
+
+/**
+ * Returns the command of the server in the managed folder, or undefined when it is not there.
+ * Electron runs basedpyright as a Node program (ELECTRON_RUN_AS_NODE=1). Then Node is not necessary.
+ */
+export async function resolveManaged(serverId: string, folder: string | undefined = managedFolder): Promise<ServerCommand | undefined> {
+    if (!folder) {
+        return undefined;
+    }
+    const paths = managedPaths(folder);
+    switch (serverId) {
+        case 'rust-analyzer':
+            return await isExecutable(paths.rustAnalyzer) ? { command: paths.rustAnalyzer, args: [] } : undefined;
+        case 'python':
+            return await isFile(paths.basedpyright)
+                ? { command: process.execPath, args: [paths.basedpyright, '--stdio'], env: { ELECTRON_RUN_AS_NODE: '1' } }
+                : undefined;
+        case 'gopls':
+            return await isExecutable(paths.gopls) ? { command: paths.gopls, args: [] } : undefined;
+        default:
+            return undefined;
+    }
+}
+
+/** Returns a resolver that uses the server in the managed folder first, and then the PATH. */
+function managedOrPath(serverId: string, fromPathResolver: () => Promise<ServerCommand | undefined>): () => Promise<ServerCommand | undefined> {
+    return async () => await resolveManaged(serverId) ?? await fromPathResolver();
+}
+
 export const SERVER_DEFINITIONS: readonly ServerDefinition[] = [
     {
         id: 'typescript',
         name: 'TypeScript',
         languages: ['typescript', 'typescriptreact', 'javascript', 'javascriptreact'],
         resolve: resolveTypeScript,
-        install: []
+        installable: false
     },
     {
         id: 'rust-analyzer',
@@ -230,51 +287,31 @@ export const SERVER_DEFINITIONS: readonly ServerDefinition[] = [
         languages: ['rust'],
         // rustup and cargo install to ~/.cargo/bin. That folder is not always in the PATH of the app.
         // rustup adds a rust-analyzer proxy also when the component is not installed. The check finds that case.
-        resolve: fromPath(
+        resolve: managedOrPath('rust-analyzer', fromPath(
             { command: 'rust-analyzer', args: [], check: ['--version'] },
             { command: '~/.cargo/bin/rust-analyzer', args: [], check: ['--version'] }
-        ),
-        install: [
-            { tool: 'rustup', command: 'rustup component add rust-analyzer' },
-            { tool: 'brew', command: 'brew install rust-analyzer' }
-        ]
+        )),
+        installable: true
     },
     {
         id: 'python',
         name: 'basedpyright',
         languages: ['python'],
-        resolve: fromPath(
+        resolve: managedOrPath('python', fromPath(
             { command: 'basedpyright-langserver', args: ['--stdio'] },
             { command: 'pyright-langserver', args: ['--stdio'] }
-        ),
-        install: [
-            { tool: 'npm', command: 'npm install --global basedpyright' },
-            { tool: 'pipx', command: 'pipx install basedpyright' },
-            { tool: 'brew', command: 'brew install basedpyright' }
-        ]
+        )),
+        installable: true
     },
     {
         id: 'gopls',
         name: 'gopls',
         languages: ['go'],
         // "go install" writes to ~/go/bin. That folder is not always in the PATH of the app.
-        resolve: fromPath({ command: 'gopls', args: [] }, { command: '~/go/bin/gopls', args: [] }),
-        install: [
-            { tool: 'go', command: 'go install golang.org/x/tools/gopls@latest' },
-            { tool: 'brew', command: 'brew install gopls' }
-        ]
+        resolve: managedOrPath('gopls', fromPath({ command: 'gopls', args: [] }, { command: '~/go/bin/gopls', args: [] })),
+        installable: true
     }
 ];
-
-/** Returns the first install command whose tool is in the PATH, or undefined when no tool is available. */
-export async function installCommand(definition: ServerDefinition): Promise<string | undefined> {
-    for (const option of definition.install) {
-        if (await which(option.tool)) {
-            return option.command;
-        }
-    }
-    return undefined;
-}
 
 export function serverForLanguage(languageId: string): ServerDefinition | undefined {
     return SERVER_DEFINITIONS.find(definition => definition.languages.includes(languageId));

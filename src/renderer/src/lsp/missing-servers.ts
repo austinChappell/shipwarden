@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { lspLanguageId, type LspMissingServer } from '@shared/lsp';
+import { lspLanguageId, type LspInstallState, type LspMissingServer } from '@shared/lsp';
 
 interface Entry {
     root: string;
@@ -10,8 +10,8 @@ interface Entry {
 /** The state of a missing server for one file. */
 export interface MissingServerState {
     server: LspMissingServer;
-    /** True while ShipWarden waits for an install command to complete. */
-    installing: boolean;
+    /** The state of the last install of the server. Undefined when no install started. */
+    install?: LspInstallState;
 }
 
 function entryKey(root: string, languageId: string): string {
@@ -24,7 +24,7 @@ function entryKey(root: string, languageId: string): string {
  */
 export class MissingServerStore {
     private readonly entries = new Map<string, Entry>();
-    private readonly installing = new Set<string>();
+    private readonly installs = new Map<string, LspInstallState>();
     private readonly dismissed = new Set<string>();
     private readonly listeners = new Set<() => void>();
     private version = 0;
@@ -46,7 +46,7 @@ export class MissingServerStore {
         if (!entry || this.dismissed.has(entry.server.serverId)) {
             return undefined;
         }
-        return { server: entry.server, installing: this.installing.has(entry.server.serverId) };
+        return { server: entry.server, install: this.installs.get(entry.server.serverId) };
     }
 
     set(root: string, languageId: string, server: LspMissingServer): void {
@@ -76,14 +76,15 @@ export class MissingServerStore {
     }
 
     isInstalling(serverId: string): boolean {
-        return this.installing.has(serverId);
+        return this.installs.get(serverId)?.status === 'running';
     }
 
-    setInstalling(serverId: string, installing: boolean): void {
-        if (installing) {
-            this.installing.add(serverId);
+    /** Sets the install state of the server. Undefined removes the state, for example after a successful install. */
+    setInstallState(serverId: string, state: LspInstallState | undefined): void {
+        if (state) {
+            this.installs.set(serverId, state);
         } else {
-            this.installing.delete(serverId);
+            this.installs.delete(serverId);
         }
         this.changed();
     }
