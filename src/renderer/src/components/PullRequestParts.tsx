@@ -10,7 +10,7 @@ import {
     TriangleAlert
 } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
-import { hostLabel, type PullRequest, type PullRequestFile, type RepoTarget } from '@shared/github';
+import { hostLabel, type PullRequest, type PullRequestCommit, type PullRequestFile, type RepoTarget } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { hasConflicts } from '../github/merge-state';
@@ -77,8 +77,11 @@ export function ConflictBadge({ pr }: { pr: PullRequest }) {
     );
 }
 
-/** The commits of a pull request, the newest first, with a link to each commit on the host. */
-export function PullRequestCommitList({ pr }: { pr: PullRequest }) {
+/**
+ * The commits of a pull request, the newest first. With `onOpen`, a click on a commit shows its diff in ShipWarden,
+ * and the commit view has the link to the host. Without `onOpen`, the SHA is a link to the commit on the host.
+ */
+export function PullRequestCommitList({ pr, onOpen }: { pr: PullRequest; onOpen?(commit: PullRequestCommit): void }) {
     return (
         <>
             {pr.commitCount > pr.commits.length && (
@@ -87,26 +90,42 @@ export function PullRequestCommitList({ pr }: { pr: PullRequest }) {
                 </div>
             )}
             <div className="pr-commit-list">
-                {[...pr.commits].reverse().map(commit => (
-                    <div key={commit.oid} className="pr-commit">
-                        <GitCommitHorizontal size={15} strokeWidth={1.6} className="pr-commit-icon" />
-                        <div className="pr-commit-main">
-                            <div className="pr-commit-title" title={commit.messageHeadline}>
-                                {commit.messageHeadline}
+                {[...pr.commits].reverse().map(commit => {
+                    const content = (
+                        <>
+                            <GitCommitHorizontal size={15} strokeWidth={1.6} className="pr-commit-icon" />
+                            <div className="pr-commit-main">
+                                <div className="pr-commit-title" title={commit.messageHeadline}>
+                                    {commit.messageHeadline}
+                                </div>
+                                <div className="pr-commit-meta">
+                                    {commit.author ?? 'unknown'} committed {timeAgo(commit.committedDate)}
+                                </div>
                             </div>
-                            <div className="pr-commit-meta">
-                                {commit.author ?? 'unknown'} committed {timeAgo(commit.committedDate)}
-                            </div>
+                        </>
+                    );
+                    if (onOpen) {
+                        return (
+                            <button key={commit.oid} className="pr-commit openable" title="Show the changes of this commit" onClick={() => onOpen(commit)}>
+                                {content}
+                                <code className="pr-commit-sha">{commit.abbreviatedOid}</code>
+                                <ChevronRight size={14} strokeWidth={1.8} className="pr-commit-chevron" />
+                            </button>
+                        );
+                    }
+                    return (
+                        <div key={commit.oid} className="pr-commit">
+                            {content}
+                            <button
+                                className="link-button pr-commit-sha"
+                                title={`Open the commit on ${hostLabel(pr.host)}`}
+                                onClick={event => openLink(commit.url, event)}
+                            >
+                                {commit.abbreviatedOid}
+                            </button>
                         </div>
-                        <button
-                            className="link-button pr-commit-sha"
-                            title={`Open the commit on ${hostLabel(pr.host)}`}
-                            onClick={event => openLink(commit.url, event)}
-                        >
-                            {commit.abbreviatedOid}
-                        </button>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </>
     );

@@ -13,7 +13,8 @@ import {
     type PullRequestFile,
     type RepoTarget,
     type ReviewEvent,
-    type ReviewThread
+    type ReviewThread,
+    type PullRequestCommit
 } from '@shared/github';
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
@@ -78,6 +79,8 @@ interface Props {
     agentReview?: { running: boolean; run(): void };
     /** Opens the pull request in the Review view. Without it, the header has no "Open in Review" button. */
     onOpenInReview?(pr: PullRequest): void;
+    /** Shows the diff of one commit. Without it, a commit in the timeline is a link to the host. */
+    onOpenCommit?(commit: PullRequestCommit): void;
 }
 
 export function PullRequestPanel({
@@ -92,7 +95,8 @@ export function PullRequestPanel({
     variant = 'panel',
     checks: givenChecks,
     agentReview,
-    onOpenInReview
+    onOpenInReview,
+    onOpenCommit
 }: Props) {
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
@@ -347,7 +351,7 @@ export function PullRequestPanel({
                         <div className="pr-overview-main">
                             {descriptionPart}
                             {changeError}
-                            <PullRequestTimeline pr={pr} />
+                            <PullRequestTimeline pr={pr} onOpenCommit={onOpenCommit} />
                             {threadsPart}
                         </div>
                         <aside className="pr-overview-aside">

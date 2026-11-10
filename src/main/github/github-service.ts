@@ -19,7 +19,8 @@ import {
     type RepoRef,
     type ReviewEvent,
     type Workflow,
-    type JobProgress
+    type JobProgress,
+    type CommitFiles
 } from '@shared/github';
 import type { DashboardPullRequests, PullRequestCommentItem } from '@shared/dashboard';
 import type { WorkflowRun } from '@shared/pipelines';
@@ -127,6 +128,11 @@ export class GitHubService {
 
     async pullRequestFiles(repo: RepoRef, number: number): Promise<PullRequestFile[]> {
         return pulls.fetchPullRequestFiles(this.client, repo, number);
+    }
+
+    /** Returns the changed files of one commit and its first parent. */
+    async commitFiles(repo: RepoRef, sha: string): Promise<CommitFiles> {
+        return pulls.fetchCommitFiles(this.client, repo, sha);
     }
 
     /** Marks a file of a pull request as viewed or not viewed, as the "Viewed" box on GitHub does. `pullRequestId` is the node ID. */

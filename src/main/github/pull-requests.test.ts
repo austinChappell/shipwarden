@@ -5,6 +5,7 @@ import { fakeClient, graphQlPullRequest, queryHas } from './fake-client';
 import {
     createPullRequest,
     fetchBranches,
+    fetchCommitFiles,
     fetchFileVersions,
     fetchPullRequest,
     fetchPullRequestFiles,
@@ -70,6 +71,25 @@ describe('createPullRequest', () => {
         await createPullRequest(client, repo, 'feature', { title: 'T', body: '', base: 'release', draft: false });
         expect(calls).toHaveLength(1);
         expect(calls[0].body).toMatchObject({ base: 'release' });
+    });
+});
+
+describe('fetchCommitFiles', () => {
+    it('returns the files of the commit and its first parent', async () => {
+        const { client, calls } = fakeClient(() => ({
+            parents: [{ sha: 'p1' }, { sha: 'p2' }],
+            files: [{ filename: 'src/a.ts', status: 'modified', additions: 2, deletions: 1, patch: '@@ -1 +1,2 @@' }]
+        }));
+        expect(await fetchCommitFiles(client, repo, 'abc123')).toEqual({
+            parentSha: 'p1',
+            files: [{ path: 'src/a.ts', previousPath: undefined, status: 'modified', additions: 2, deletions: 1, patch: '@@ -1 +1,2 @@' }]
+        });
+        expect(calls[0].path).toBe('/repos/acme/api/commits/abc123');
+    });
+
+    it('gives no parent for the first commit of a repository', async () => {
+        const { client } = fakeClient(() => ({ parents: [], files: [] }));
+        expect(await fetchCommitFiles(client, repo, 'abc123')).toEqual({ parentSha: null, files: [] });
     });
 });
 

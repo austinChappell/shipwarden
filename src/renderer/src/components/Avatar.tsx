@@ -13,7 +13,8 @@ interface Props {
 function sizedUrl(url: string, size: number): string {
     try {
         const parsed = new URL(url);
-        parsed.searchParams.set('s', String(size * 2));
+        // "github.com/<login>.png" takes "size". The avatar host takes "s".
+        parsed.searchParams.set(parsed.hostname === 'github.com' ? 'size' : 's', String(size * 2));
         return parsed.toString();
     } catch {
         return url;

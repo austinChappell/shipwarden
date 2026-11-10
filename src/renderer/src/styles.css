@@ -5445,20 +5445,42 @@ button:focus-visible,
 }
 
 /*
- * On a wide screen, the Overview tab caps the width of its content and puts it in the center.
- * The header and the tabs use the same width, so that their left edges align with the content.
- * The scroll area stays full width, so that the scroll bar stays at the edge of the window.
+ * On a wide screen, the pull request page caps the width of its content and puts it in the center.
+ * The header, the tabs and the tab body use the same width, so that their left edges align.
+ * The Overview tab keeps its scroll area full width, so that the scroll bar stays at the edge of the window.
+ * The other tabs cap the tab body itself, because their panels and diffs scroll on their own.
  */
-.review-pr.overview {
-    --pr-page-width: 1320px;
+.review-pr {
+    --pr-page-width: 1776px;
 }
 
-.review-pr.overview .review-pr-header {
+.review-pr .review-pr-header {
     padding-inline: max(20px, calc((100% - var(--pr-page-width)) / 2));
 }
 
-.review-pr.overview .pr-tabs {
+.review-pr .pr-tabs {
     margin-inline: max(20px, calc((100% - var(--pr-page-width)) / 2));
+}
+
+.review-pr:not(.overview) .pr-tab-body {
+    width: 100%;
+    max-width: var(--pr-page-width);
+    margin-inline: auto;
+}
+
+/*
+ * When the page is wider than the cap, a border shows the edges of the panels and the diffs.
+ * The commit list has its own border, so its tab body has none.
+ */
+@container (min-width: 1816px) {
+    .review-pr:not(.overview) .pr-tab-body:not(:has(> .pr-commits)) {
+        border-inline: 1px solid var(--border);
+    }
+
+    /* The commit list aligns with the header and the tabs. */
+    .review-pr .pr-commits {
+        padding-inline: 0;
+    }
 }
 
 /*
@@ -5709,6 +5731,17 @@ button:focus-visible,
     padding: 14px 16px;
 }
 
+/* The small avatar before the name of the actor of an event. */
+.pr-timeline-actor-avatar {
+    display: inline-grid;
+    margin-right: 6px;
+    vertical-align: -5px;
+}
+
+.pr-timeline-actor-avatar.avatar-initials {
+    font-size: 8.5px;
+}
+
 .pr-timeline-bot {
     margin-left: 6px;
     padding: 0 6px;
@@ -5742,6 +5775,53 @@ button:focus-visible,
 
 .pr-overview .pr-timeline-commit-title {
     font-size: 13.5px;
+}
+
+/* A commit in the activity timeline that shows the diff of the commit in ShipWarden. */
+.pr-timeline-commit-open {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pr-timeline-commit-open:hover .pr-timeline-commit-title {
+    color: var(--text-strong);
+    text-decoration: underline;
+}
+
+.pr-timeline-commit-sha {
+    flex: none;
+    font-size: 11.5px;
+}
+
+/* In the Overview card, the button fills the row, so that the full row takes the click and shows the hover color. */
+.pr-overview .pr-timeline-commits li:has(> .pr-timeline-commit-open) {
+    padding: 0;
+}
+
+.pr-overview .pr-timeline-commits .pr-timeline-commit-open {
+    padding: 10px 16px;
+}
+
+.pr-overview .pr-timeline-commits .pr-timeline-commit-open:hover {
+    background: var(--hover);
+}
+
+.pr-overview .pr-timeline-commit-sha {
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg);
+    color: var(--muted);
 }
 
 .pr-overview .pr-timeline-commits .link-button.mono {
@@ -6123,6 +6203,127 @@ button:focus-visible,
         12px "JetBrains Mono",
         Menlo,
         monospace;
+}
+
+/* A commit row that shows the diff of the commit in ShipWarden. */
+.pr-commit.openable {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pr-commit.openable + .pr-commit.openable {
+    border-top: 1px solid var(--border);
+}
+
+.pr-commit.openable:hover {
+    background: var(--hover);
+}
+
+.pr-commit.openable .pr-commit-title {
+    user-select: none;
+}
+
+.pr-commit.openable .pr-commit-sha {
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg);
+    color: var(--muted);
+}
+
+.pr-commit-chevron {
+    flex: none;
+    color: var(--muted);
+}
+
+/* The diff of one commit in the Commits tab. */
+.commit-view {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.commit-view-header {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 20px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.commit-view-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+}
+
+.commit-view-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.commit-view-position {
+    margin-right: 4px;
+    color: var(--muted);
+}
+
+.commit-view-title {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: 16px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    user-select: text;
+}
+
+.commit-view-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.commit-view-meta strong {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.commit-view-sha {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.commit-view-sha code {
+    font-size: 12px;
+    user-select: text;
+}
+
+.commit-view-external {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.commit-view-error {
+    margin: 10px 12px 0;
+}
+
+.commit-view .review-stream {
+    display: flex;
+    flex-direction: column;
 }
 
 .pr-side {

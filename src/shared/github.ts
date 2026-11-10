@@ -385,6 +385,13 @@ export interface PullRequestFile {
     patch?: string;
 }
 
+/** The changed files of one commit, and the commit before it. */
+export interface CommitFiles {
+    /** The first parent of the commit. Null for the first commit of a repository. */
+    parentSha: string | null;
+    files: PullRequestFile[];
+}
+
 /** The two versions of a file in a pull request. */
 export interface FileVersions {
     base: string;

@@ -16,7 +16,7 @@ import {
     UserPlus,
     type LucideIcon
 } from 'lucide-react';
-import { hostLabel, type GitHubLabel, type GitHubUser, type PullRequest, type TimelineEvent } from '@shared/github';
+import { hostLabel, type GitHubLabel, type GitHubUser, type PullRequest, type PullRequestCommit, type TimelineEvent } from '@shared/github';
 import { timeAgo } from '../util';
 import { openLink } from '../links';
 import { Markdown } from './Markdown';
@@ -40,6 +40,24 @@ function When({ iso }: { iso: string }) {
             {timeAgo(iso)}
         </time>
     );
+}
+
+/**
+ * Finds the avatar URL of a login. The pull request data has the avatars of the author, the commenters, the reviewers
+ * and the assignees. For another GitHub login, the URL "github.com/<login>.png" sends the avatar. Azure DevOps has no such URL.
+ */
+function avatarUrlOf(pr: PullRequest, login: string): string | undefined {
+    const users = [pr.author, ...pr.assignees, ...pr.issueComments.map(comment => comment.author), ...pr.reviews.map(review => review.author)];
+    const known = users.find(user => user?.login === login && user.avatarUrl)?.avatarUrl;
+    if (known) return known;
+    if (pr.host === 'azure' || !/^[A-Za-z0-9-]+$/.test(login)) return undefined;
+    return `https://github.com/${login}.png`;
+}
+
+/** The small avatar before the name of the actor of an event. */
+function ActorAvatar({ pr, login }: { pr: PullRequest; login: string | null }) {
+    if (!login) return null;
+    return <Avatar login={login} url={avatarUrlOf(pr, login)} size={20} className="pr-timeline-actor-avatar" />;
 }
 
 /** A bot login on GitHub ends with "[bot]", for example "codecov[bot]". */
@@ -253,13 +271,14 @@ function EventRow({ event, pr }: { event: TimelineEvent; pr: PullRequest }) {
                 <Icon size={14} strokeWidth={1.8} />
             </span>
             <div className="pr-timeline-text">
+                <ActorAvatar pr={pr} login={event.actor} />
                 <strong>{event.actor ?? 'unknown'}</strong> {text} <When iso={event.createdAt} />
             </div>
         </li>
     );
 }
 
-function Row({ item, pr }: { item: TimelineItem; pr: PullRequest }) {
+function Row({ item, pr, onOpenCommit }: { item: TimelineItem; pr: PullRequest; onOpenCommit?(commit: PullRequestCommit): void }) {
     switch (item.type) {
         case 'comment':
             return (
@@ -299,21 +318,35 @@ function Row({ item, pr }: { item: TimelineItem; pr: PullRequest }) {
                         <GitCommitHorizontal size={14} strokeWidth={1.8} />
                     </span>
                     <div className="pr-timeline-text">
+                        <ActorAvatar pr={pr} login={authors[0] ?? null} />
                         <strong>{authors.join(', ')}</strong> added {item.commits.length} commit{item.commits.length === 1 ? '' : 's'}{' '}
                         <When iso={item.createdAt} />
                         <ul className="pr-timeline-commits">
                             {item.commits.map(commit => (
                                 <li key={commit.oid}>
-                                    <span className="pr-timeline-commit-title" title={commit.messageHeadline}>
-                                        {commit.messageHeadline}
-                                    </span>
-                                    <button
-                                        className="link-button mono"
-                                        title={`Open the commit on ${hostLabel(pr.host)}`}
-                                        onClick={event => openLink(commit.url, event)}
-                                    >
-                                        {commit.abbreviatedOid}
-                                    </button>
+                                    {onOpenCommit ? (
+                                        <button
+                                            className="pr-timeline-commit-open"
+                                            title="Show the changes of this commit"
+                                            onClick={() => onOpenCommit(commit)}
+                                        >
+                                            <span className="pr-timeline-commit-title">{commit.messageHeadline}</span>
+                                            <code className="pr-timeline-commit-sha">{commit.abbreviatedOid}</code>
+                                        </button>
+                                    ) : (
+                                        <>
+                                            <span className="pr-timeline-commit-title" title={commit.messageHeadline}>
+                                                {commit.messageHeadline}
+                                            </span>
+                                            <button
+                                                className="link-button mono"
+                                                title={`Open the commit on ${hostLabel(pr.host)}`}
+                                                onClick={event => openLink(commit.url, event)}
+                                            >
+                                                {commit.abbreviatedOid}
+                                            </button>
+                                        </>
+                                    )}
                                 </li>
                             ))}
                         </ul>
@@ -327,7 +360,8 @@ function Row({ item, pr }: { item: TimelineItem; pr: PullRequest }) {
 }
 
 /** The activity of a pull request on the Overview tab: comments, reviews, commits and events in one timeline, the oldest first. */
-export function PullRequestTimeline({ pr }: { pr: PullRequest }) {
+/** With `onOpenCommit`, a click on a commit shows its diff in ShipWarden. Without it, the SHA is a link to the host. */
+export function PullRequestTimeline({ pr, onOpenCommit }: { pr: PullRequest; onOpenCommit?(commit: PullRequestCommit): void }) {
     const items = buildTimeline(pr);
     return (
         <section className="pr-section">
@@ -337,7 +371,7 @@ export function PullRequestTimeline({ pr }: { pr: PullRequest }) {
             ) : (
                 <ol className="pr-timeline">
                     {items.map(item => (
-                        <Row key={`${item.type}:${item.id}`} item={item} pr={pr} />
+                        <Row key={`${item.type}:${item.id}`} item={item} pr={pr} onOpenCommit={onOpenCommit} />
                     ))}
                 </ol>
             )}

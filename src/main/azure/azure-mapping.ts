@@ -135,6 +135,15 @@ export interface AzChangeEntry {
     originalPath?: string;
 }
 
+/** A change of the commit changes API. A folder has the object type "tree". */
+export interface AzCommitChange {
+    changeType: string;
+    item?: { path: string; isFolder?: boolean; gitObjectType?: string };
+    originalPath?: string;
+    /** The old path of a renamed file in some API versions. */
+    sourceServerItem?: string;
+}
+
 export interface AzBuild {
     id: number;
     buildNumber: string;
