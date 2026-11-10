@@ -41,7 +41,6 @@ async function mtime(file: string): Promise<number | undefined> {
 
 /** Lists, creates and removes git worktrees with the git command line. */
 export class GitWorktreeService {
-
     /** Returns all worktrees of the repository. The main worktree is first. */
     async list(repoPath: string): Promise<Worktree[]> {
         const output = await this.git(repoPath, ['worktree', 'list', '--porcelain']);
@@ -53,13 +52,19 @@ export class GitWorktreeService {
      * undefined. The function reads only file dates, so it is fast.
      */
     async withDates(worktrees: Worktree[]): Promise<Worktree[]> {
-        return Promise.all(worktrees.map(async worktree => {
-            const gitDir = await this.gitDir(worktree.path);
-            const created = await birthtime(gitDir ?? worktree.path);
-            const changes = gitDir ? (await Promise.all([mtime(path.join(gitDir, 'logs', 'HEAD')), mtime(path.join(gitDir, 'index'))])).filter((time): time is number => time !== undefined) : [];
-            const updated = changes.length > 0 ? Math.max(...changes) : created;
-            return { ...worktree, ...(created !== undefined ? { createdAt: created } : {}), ...(updated !== undefined ? { updatedAt: updated } : {}) };
-        }));
+        return Promise.all(
+            worktrees.map(async worktree => {
+                const gitDir = await this.gitDir(worktree.path);
+                const created = await birthtime(gitDir ?? worktree.path);
+                const changes = gitDir
+                    ? (await Promise.all([mtime(path.join(gitDir, 'logs', 'HEAD')), mtime(path.join(gitDir, 'index'))])).filter(
+                          (time): time is number => time !== undefined
+                      )
+                    : [];
+                const updated = changes.length > 0 ? Math.max(...changes) : created;
+                return { ...worktree, ...(created !== undefined ? { createdAt: created } : {}), ...(updated !== undefined ? { updatedAt: updated } : {}) };
+            })
+        );
     }
 
     /**
@@ -103,14 +108,14 @@ export class GitWorktreeService {
             throw new Error(`The remote branch "${trackRef}" does not exist. Fetch the remote and try again.`);
         }
         // A new branch starts from the newest default branch of "origin", not from a local branch that can be old.
-        const base = branchExists || trackRef ? undefined : options.baseRef ?? await this.remoteDefaultBranch(main.path);
+        const base = branchExists || trackRef ? undefined : (options.baseRef ?? (await this.remoteDefaultBranch(main.path)));
         // --no-track: the new branch must not push to the default branch by mistake.
         // --track: a checkout of a remote branch pulls from and pushes to that remote branch.
         const args = branchExists
             ? ['worktree', 'add', target, branch]
             : trackRef
-                ? ['worktree', 'add', '--track', '-b', branch, target, trackRef]
-                : ['worktree', 'add', '--no-track', '-b', branch, target, ...(base ? [base] : [])];
+              ? ['worktree', 'add', '--track', '-b', branch, target, trackRef]
+              : ['worktree', 'add', '--no-track', '-b', branch, target, ...(base ? [base] : [])];
         await this.git(main.path, args);
 
         const created = await this.find(main.path, target);
@@ -137,7 +142,10 @@ export class GitWorktreeService {
             if (full.startsWith('refs/heads/')) local.push(short);
             else remote.push(short);
         }
-        const remotes = (await this.git(root, ['remote'])).split('\n').map(name => name.trim()).filter(Boolean);
+        const remotes = (await this.git(root, ['remote']))
+            .split('\n')
+            .map(name => name.trim())
+            .filter(Boolean);
         return { local, remote, remotes, ...(defaultBase ? { defaultBase } : {}) };
     }
 
@@ -194,7 +202,10 @@ export class GitWorktreeService {
             }
             if (!base) return [];
 
-            const remotes = (await this.git(repoPath, ['remote'])).split('\n').map(name => name.trim()).filter(Boolean);
+            const remotes = (await this.git(repoPath, ['remote']))
+                .split('\n')
+                .map(name => name.trim())
+                .filter(Boolean);
             let local: string | undefined;
             let remoteRef: string | undefined;
             if (await this.branchExists(repoPath, base)) {
@@ -204,7 +215,7 @@ export class GitWorktreeService {
                 remoteRef = base;
                 const remote = remotes.filter(name => base!.startsWith(`${name}/`)).sort((a, b) => b.length - a.length)[0];
                 const name = remote ? base.slice(remote.length + 1) : undefined;
-                local = name && await this.branchExists(repoPath, name) ? name : undefined;
+                local = name && (await this.branchExists(repoPath, name)) ? name : undefined;
             } else {
                 // The start point is a tag or a commit. There is nothing to pull.
                 return [];
@@ -213,12 +224,14 @@ export class GitWorktreeService {
             if (remoteRef) {
                 const remote = remotes.filter(name => remoteRef!.startsWith(`${name}/`)).sort((a, b) => b.length - a.length)[0];
                 if (remote && remote !== fetched) {
-                    await this.git(repoPath, ['fetch', '--quiet', remote], FETCH_TIMEOUT_MS)
-                        .catch(error => console.warn(`[worktrees] The fetch from ${remote} failed. ${errorMessage(error)}`));
+                    await this.git(repoPath, ['fetch', '--quiet', remote], FETCH_TIMEOUT_MS).catch(error =>
+                        console.warn(`[worktrees] The fetch from ${remote} failed. ${errorMessage(error)}`)
+                    );
                 }
                 if (local) {
-                    await this.fastForward(repoPath, local, remoteRef)
-                        .catch(error => console.warn(`[worktrees] Git cannot fast-forward "${local}" to "${remoteRef}". ${errorMessage(error)}`));
+                    await this.fastForward(repoPath, local, remoteRef).catch(error =>
+                        console.warn(`[worktrees] Git cannot fast-forward "${local}" to "${remoteRef}". ${errorMessage(error)}`)
+                    );
                 }
             }
             return [local, remoteRef].filter((ref): ref is string => !!ref);
@@ -261,7 +274,7 @@ export class GitWorktreeService {
     protected async upstreamOf(repoPath: string, branch: string): Promise<string | undefined> {
         try {
             const upstream = (await this.git(repoPath, ['for-each-ref', '--format=%(upstream:short)', `refs/heads/${branch}`])).trim();
-            return upstream && await this.remoteBranchExists(repoPath, upstream) ? upstream : undefined;
+            return upstream && (await this.remoteBranchExists(repoPath, upstream)) ? upstream : undefined;
         } catch {
             return undefined;
         }
@@ -317,7 +330,7 @@ export class GitWorktreeService {
     protected async find(repoPath: string, worktreePath: string): Promise<Worktree | undefined> {
         const wanted = await this.realpath(worktreePath);
         for (const worktree of await this.list(repoPath)) {
-            if (await this.realpath(worktree.path) === wanted) {
+            if ((await this.realpath(worktree.path)) === wanted) {
                 return worktree;
             }
         }

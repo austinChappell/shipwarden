@@ -29,8 +29,14 @@ function LoaderCaption({ label, hint }: { label?: string; hint?: string }) {
     return (
         <>
             <div className="sea-loader-text">
-                <span key={text} className="sea-loader-label">{text}</span>
-                <span className="sea-loader-dots" aria-hidden="true"><i /><i /><i /></span>
+                <span key={text} className="sea-loader-label">
+                    {text}
+                </span>
+                <span className="sea-loader-dots" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                </span>
             </div>
             {hint && <div className="sea-loader-hint">{hint}</div>}
         </>

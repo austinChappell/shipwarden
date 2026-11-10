@@ -45,7 +45,16 @@ describe('parseAgentReview', () => {
 });
 
 describe('reviewPrompt', () => {
-    const pr = { number: 7, title: 'T', body: 'Body', url: 'https://github.com/o/r/pull/7', baseRefName: 'main', headRefName: 'f', baseRefOid: 'b'.repeat(40), headRefOid: 'h'.repeat(40) };
+    const pr = {
+        number: 7,
+        title: 'T',
+        body: 'Body',
+        url: 'https://github.com/o/r/pull/7',
+        baseRefName: 'main',
+        headRefName: 'f',
+        baseRefOid: 'b'.repeat(40),
+        headRefOid: 'h'.repeat(40)
+    };
 
     it('has the diff, the files without a patch and the answer format', () => {
         const prompt = reviewPrompt({ pr, repo: { owner: 'o', name: 'r' }, files: [...FILES, { path: 'img.png', status: 'added' }] });
@@ -59,10 +68,6 @@ describe('reviewPrompt', () => {
 describe('undecidedCount', () => {
     it('counts only the agent comments that the user did not accept', () => {
         const base = { path: 'src/x.ts', line: 2, side: 'RIGHT' as const, body: 'B' };
-        expect(undecidedCount([
-            { ...base, fromAgent: true, needsDecision: true },
-            { ...base, fromAgent: true },
-            base
-        ])).toBe(1);
+        expect(undecidedCount([{ ...base, fromAgent: true, needsDecision: true }, { ...base, fromAgent: true }, base])).toBe(1);
     });
 });

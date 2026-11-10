@@ -23,7 +23,11 @@ export const HEADING_ID_PREFIX = 'user-content-';
 
 /** Makes an anchor name from a heading, like GitHub: lower case, no punctuation, spaces become "-". */
 export function headingSlug(text: string): string {
-    return text.trim().toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s/g, '-');
+    return text
+        .trim()
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+        .replace(/\s/g, '-');
 }
 
 /**
@@ -80,5 +84,6 @@ export function Markdown({ text, className, html: rendered }: Props) {
         }
     };
 
+    // biome-ignore lint/security/noDangerouslySetInnerHtml: renderMarkdown and sanitizeHtml clean the HTML with DOMPurify.
     return <div className={`markdown${className ? ` ${className}` : ''}`} onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />;
 }

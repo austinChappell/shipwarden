@@ -13,17 +13,16 @@ describe('shellIntegrationEnv', () => {
     });
 
     it('keeps the ZDOTDIR of the user', () => {
-        expect(shellIntegrationEnv({ SHELL: '/bin/zsh', ZDOTDIR: '/home/me/.config/zsh' }, integration).SHIPWARDEN_USER_ZDOTDIR)
-            .toBe('/home/me/.config/zsh');
+        expect(shellIntegrationEnv({ SHELL: '/bin/zsh', ZDOTDIR: '/home/me/.config/zsh' }, integration).SHIPWARDEN_USER_ZDOTDIR).toBe('/home/me/.config/zsh');
         // The app started from a ShipWarden terminal: ZDOTDIR is the folder of ShipWarden.
-        expect(shellIntegrationEnv({ SHELL: '/bin/zsh', ZDOTDIR: integration.zshFolder }, integration).SHIPWARDEN_USER_ZDOTDIR)
-            .toBeUndefined();
+        expect(shellIntegrationEnv({ SHELL: '/bin/zsh', ZDOTDIR: integration.zshFolder }, integration).SHIPWARDEN_USER_ZDOTDIR).toBeUndefined();
     });
 
     it('does not change ZDOTDIR for other shells or without the folder', () => {
         expect(shellIntegrationEnv({ SHELL: '/bin/bash' }, integration)).toEqual({ SHIPWARDEN_HOOK_SETTINGS: '/data/claude-hooks.json' });
-        expect(shellIntegrationEnv({ SHELL: '/bin/zsh' }, { hookSettingsPath: '/data/claude-hooks.json' }))
-            .toEqual({ SHIPWARDEN_HOOK_SETTINGS: '/data/claude-hooks.json' });
+        expect(shellIntegrationEnv({ SHELL: '/bin/zsh' }, { hookSettingsPath: '/data/claude-hooks.json' })).toEqual({
+            SHIPWARDEN_HOOK_SETTINGS: '/data/claude-hooks.json'
+        });
     });
 });
 

@@ -21,13 +21,27 @@ export const DEFAULT_TERMINAL_SETTINGS: TerminalSettings = {
 };
 
 const PALETTE_NAMES: (keyof TerminalColors)[] = [
-    'black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white',
-    'brightBlack', 'brightRed', 'brightGreen', 'brightYellow', 'brightBlue', 'brightMagenta', 'brightCyan', 'brightWhite'
+    'black',
+    'red',
+    'green',
+    'yellow',
+    'blue',
+    'magenta',
+    'cyan',
+    'white',
+    'brightBlack',
+    'brightRed',
+    'brightGreen',
+    'brightYellow',
+    'brightBlue',
+    'brightMagenta',
+    'brightCyan',
+    'brightWhite'
 ];
 
 const SIMPLE_COLORS: Record<string, keyof TerminalColors> = {
-    'background': 'background',
-    'foreground': 'foreground',
+    background: 'background',
+    foreground: 'foreground',
     'cursor-color': 'cursor',
     'cursor-text': 'cursorAccent',
     'selection-background': 'selectionBackground',
@@ -88,12 +102,24 @@ export function decodeZigEscapes(value: string): string {
         }
         const next = value[++i];
         switch (next) {
-            case 'n': result += '\n'; break;
-            case 'r': result += '\r'; break;
-            case 't': result += '\t'; break;
-            case '\\': result += '\\'; break;
-            case '\'': result += '\''; break;
-            case '"': result += '"'; break;
+            case 'n':
+                result += '\n';
+                break;
+            case 'r':
+                result += '\r';
+                break;
+            case 't':
+                result += '\t';
+                break;
+            case '\\':
+                result += '\\';
+                break;
+            case "'":
+                result += "'";
+                break;
+            case '"':
+                result += '"';
+                break;
             case 'x': {
                 const hex = value.slice(i + 1, i + 3);
                 if (/^[0-9a-f]{2}$/i.test(hex)) {
@@ -133,10 +159,7 @@ const MODIFIERS: Record<string, 'shift' | 'ctrl' | 'alt' | 'meta'> = {
     command: 'meta'
 };
 
-type KeybindChange =
-    | { kind: 'clear' }
-    | { kind: 'set'; keybind: TextKeybind }
-    | { kind: 'unset'; trigger: Omit<TextKeybind, 'text'> };
+type KeybindChange = { kind: 'clear' } | { kind: 'set'; keybind: TextKeybind } | { kind: 'unset'; trigger: Omit<TextKeybind, 'text'> };
 
 /**
  * Parses one `keybind` value, for example `shift+enter=text:\n`.

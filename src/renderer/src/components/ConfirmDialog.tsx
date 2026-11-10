@@ -88,6 +88,7 @@ export function DialogHost() {
     const previousFocus = useRef<Element | null>(null);
     const [text, setText] = useState('');
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect must run one time for each dialog. The id identifies the dialog.
     useEffect(() => {
         if (!current) return;
         previousFocus.current = document.activeElement;
@@ -110,7 +111,11 @@ export function DialogHost() {
         if (current.input) current.input.value = text;
         answer(current, true);
     };
-    const paragraphs = current.message?.split(/\n\s*\n/).map(text => text.trim()).filter(Boolean) ?? [];
+    const paragraphs =
+        current.message
+            ?.split(/\n\s*\n/)
+            .map(text => text.trim())
+            .filter(Boolean) ?? [];
 
     return (
         <div className="modal-backdrop confirm-backdrop" onMouseDown={event => event.target === event.currentTarget && answer(current, false)}>
@@ -133,7 +138,9 @@ export function DialogHost() {
                     <Icon size={20} strokeWidth={1.8} className={`confirm-icon${current.danger ? ' danger' : ''}`} />
                     <div className="confirm-text">
                         <h2 id="confirm-title">{current.title}</h2>
-                        {paragraphs.map((text, index) => <p key={index}>{text}</p>)}
+                        {paragraphs.map((text, index) => (
+                            <p key={index}>{text}</p>
+                        ))}
                         {current.detail && <pre className="confirm-detail">{current.detail}</pre>}
                         {current.input && (
                             <input
@@ -154,13 +161,11 @@ export function DialogHost() {
                 </div>
                 <footer className="modal-footer confirm-footer">
                     {!current.notice && (
-                        <button className="button" onClick={() => answer(current, false)}>{current.cancelLabel ?? 'Cancel'}</button>
+                        <button className="button" onClick={() => answer(current, false)}>
+                            {current.cancelLabel ?? 'Cancel'}
+                        </button>
                     )}
-                    <button
-                        ref={confirmButton}
-                        className={`button ${current.danger ? 'danger' : 'primary'}`}
-                        onClick={confirm}
-                    >
+                    <button ref={confirmButton} className={`button ${current.danger ? 'danger' : 'primary'}`} onClick={confirm}>
                         {current.confirmLabel ?? 'OK'}
                     </button>
                 </footer>

@@ -14,11 +14,7 @@ const SHIFT_KEY_STEP = 0.2;
 export function splitKeyRatio(ratio: number, direction: 'row' | 'column', key: string, shiftKey: boolean): number | undefined {
     const [less, more] = direction === 'row' ? ['ArrowLeft', 'ArrowRight'] : ['ArrowUp', 'ArrowDown'];
     const step = shiftKey ? SHIFT_KEY_STEP : KEY_STEP;
-    const next = key === less ? ratio - step
-        : key === more ? ratio + step
-        : key === 'Home' ? MIN_SPLIT_RATIO
-        : key === 'End' ? MAX_SPLIT_RATIO
-        : undefined;
+    const next = key === less ? ratio - step : key === more ? ratio + step : key === 'Home' ? MIN_SPLIT_RATIO : key === 'End' ? MAX_SPLIT_RATIO : undefined;
     return next === undefined ? undefined : Math.min(MAX_SPLIT_RATIO, Math.max(MIN_SPLIT_RATIO, next));
 }
 
@@ -41,9 +37,7 @@ export function SplitDivider({ direction, ratio, onResize }: Props) {
         if (!container) return;
         const rect = container.getBoundingClientRect();
         const move = (moveEvent: MouseEvent) => {
-            const ratio = direction === 'row'
-                ? (moveEvent.clientX - rect.left) / rect.width
-                : (moveEvent.clientY - rect.top) / rect.height;
+            const ratio = direction === 'row' ? (moveEvent.clientX - rect.left) / rect.width : (moveEvent.clientY - rect.top) / rect.height;
             onResize(ratio);
         };
         const stop = () => {

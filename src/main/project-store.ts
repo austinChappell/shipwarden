@@ -25,7 +25,10 @@ export class ProjectStore {
     private readonly store: JsonStore<Partial<ProjectsState>>;
     private state: ProjectsState | undefined;
 
-    constructor(private readonly file: string, private readonly legacyStateFile: string) {
+    constructor(
+        private readonly file: string,
+        private readonly legacyStateFile: string
+    ) {
         this.store = new JsonStore<Partial<ProjectsState>>(file, () => ({}));
     }
 

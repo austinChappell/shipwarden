@@ -29,8 +29,32 @@ const PS = [
 ].join('\n');
 
 const LISTEN = ['p302', 'f22', 'n*:5173', 'f23', 'n[::1]:5173', 'p500', 'f3', 'n*:8000', 'p101', 'n127.0.0.1:9229'].join('\n');
-const CWD = ['p300', 'fcwd', 'n/wt/a', 'p301', 'fcwd', 'n/wt/a', 'p400', 'fcwd', 'n/wt/b/src', 'p500', 'fcwd', 'n/wt/b',
-    'p501', 'fcwd', 'n/wt/b', 'p600', 'fcwd', 'n/wt/b', 'p700', 'fcwd', 'n/other', 'p101', 'fcwd', 'n/wt/a'].join('\n');
+const CWD = [
+    'p300',
+    'fcwd',
+    'n/wt/a',
+    'p301',
+    'fcwd',
+    'n/wt/a',
+    'p400',
+    'fcwd',
+    'n/wt/b/src',
+    'p500',
+    'fcwd',
+    'n/wt/b',
+    'p501',
+    'fcwd',
+    'n/wt/b',
+    'p600',
+    'fcwd',
+    'n/wt/b',
+    'p700',
+    'fcwd',
+    'n/other',
+    'p101',
+    'fcwd',
+    'n/wt/a'
+].join('\n');
 
 function input(change: Partial<ScanInput> = {}): ScanInput {
     return {

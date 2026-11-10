@@ -41,7 +41,7 @@ async function isExecutable(file: string): Promise<boolean> {
 export async function which(command: string): Promise<string | undefined> {
     if (command.includes('/')) {
         const file = command.startsWith('~/') ? path.join(os.homedir(), command.slice(2)) : command;
-        return path.isAbsolute(file) && await isExecutable(file) ? file : undefined;
+        return path.isAbsolute(file) && (await isExecutable(file)) ? file : undefined;
     }
     for (const folder of (process.env.PATH ?? '').split(':').filter(Boolean)) {
         const candidate = path.join(folder, command);
@@ -122,7 +122,7 @@ export async function findLegacyTsserver(root: string): Promise<string | undefin
         return undefined;
     }
     const tsserver = path.join(path.dirname(packageJson), 'lib', 'tsserver.js');
-    return await isFile(tsserver) ? tsserver : undefined;
+    return (await isFile(tsserver)) ? tsserver : undefined;
 }
 
 /**
@@ -202,7 +202,7 @@ function fromPath(...candidates: Candidate[]): () => Promise<ServerCommand | und
     return async () => {
         for (const candidate of candidates) {
             const command = await which(candidate.command);
-            if (command && (!candidate.check || await runsWithoutError(command, candidate.check))) {
+            if (command && (!candidate.check || (await runsWithoutError(command, candidate.check)))) {
                 return { command, args: candidate.args };
             }
         }
@@ -256,13 +256,13 @@ export async function resolveManaged(serverId: string, folder: string | undefine
     const paths = managedPaths(folder);
     switch (serverId) {
         case 'rust-analyzer':
-            return await isExecutable(paths.rustAnalyzer) ? { command: paths.rustAnalyzer, args: [] } : undefined;
+            return (await isExecutable(paths.rustAnalyzer)) ? { command: paths.rustAnalyzer, args: [] } : undefined;
         case 'python':
-            return await isFile(paths.basedpyright)
+            return (await isFile(paths.basedpyright))
                 ? { command: process.execPath, args: [paths.basedpyright, '--stdio'], env: { ELECTRON_RUN_AS_NODE: '1' } }
                 : undefined;
         case 'gopls':
-            return await isExecutable(paths.gopls) ? { command: paths.gopls, args: [] } : undefined;
+            return (await isExecutable(paths.gopls)) ? { command: paths.gopls, args: [] } : undefined;
         default:
             return undefined;
     }
@@ -270,7 +270,7 @@ export async function resolveManaged(serverId: string, folder: string | undefine
 
 /** Returns a resolver that uses the server in the managed folder first, and then the PATH. */
 function managedOrPath(serverId: string, fromPathResolver: () => Promise<ServerCommand | undefined>): () => Promise<ServerCommand | undefined> {
-    return async () => await resolveManaged(serverId) ?? await fromPathResolver();
+    return async () => (await resolveManaged(serverId)) ?? (await fromPathResolver());
 }
 
 export const SERVER_DEFINITIONS: readonly ServerDefinition[] = [
@@ -287,20 +287,20 @@ export const SERVER_DEFINITIONS: readonly ServerDefinition[] = [
         languages: ['rust'],
         // rustup and cargo install to ~/.cargo/bin. That folder is not always in the PATH of the app.
         // rustup adds a rust-analyzer proxy also when the component is not installed. The check finds that case.
-        resolve: managedOrPath('rust-analyzer', fromPath(
-            { command: 'rust-analyzer', args: [], check: ['--version'] },
-            { command: '~/.cargo/bin/rust-analyzer', args: [], check: ['--version'] }
-        )),
+        resolve: managedOrPath(
+            'rust-analyzer',
+            fromPath({ command: 'rust-analyzer', args: [], check: ['--version'] }, { command: '~/.cargo/bin/rust-analyzer', args: [], check: ['--version'] })
+        ),
         installable: true
     },
     {
         id: 'python',
         name: 'basedpyright',
         languages: ['python'],
-        resolve: managedOrPath('python', fromPath(
-            { command: 'basedpyright-langserver', args: ['--stdio'] },
-            { command: 'pyright-langserver', args: ['--stdio'] }
-        )),
+        resolve: managedOrPath(
+            'python',
+            fromPath({ command: 'basedpyright-langserver', args: ['--stdio'] }, { command: 'pyright-langserver', args: ['--stdio'] })
+        ),
         installable: true
     },
     {

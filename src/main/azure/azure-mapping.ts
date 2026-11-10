@@ -199,19 +199,25 @@ export function pullRequestState(status: string): PullRequestState {
 /** Converts a merge strategy of Azure DevOps to the merge method of the UI. */
 export function mergeMethodOf(strategy: string | undefined): MergeMethod {
     switch (strategy) {
-        case 'squash': return 'squash';
+        case 'squash':
+            return 'squash';
         case 'rebase':
-        case 'rebaseMerge': return 'rebase';
-        default: return 'merge';
+        case 'rebaseMerge':
+            return 'rebase';
+        default:
+            return 'merge';
     }
 }
 
 /** Converts a merge method of the UI to the merge strategy of Azure DevOps. */
 export function mergeStrategyOf(method: MergeMethod): string {
     switch (method) {
-        case 'squash': return 'squash';
-        case 'rebase': return 'rebase';
-        default: return 'noFastForward';
+        case 'squash':
+            return 'squash';
+        case 'rebase':
+            return 'rebase';
+        default:
+            return 'noFastForward';
     }
 }
 
@@ -234,7 +240,11 @@ function repoPath(path: string): string {
  * Splits the threads of a pull request: threads on a file become review threads, and threads without a file become
  * comments of the conversation. System threads (for example "X voted") and deleted comments stay out.
  */
-export function mapThreads(repo: AzureRepoRef, pullRequestId: number, threads: readonly AzThread[]): { threads: ReviewThread[]; issueComments: IssueComment[] } {
+export function mapThreads(
+    repo: AzureRepoRef,
+    pullRequestId: number,
+    threads: readonly AzThread[]
+): { threads: ReviewThread[]; issueComments: IssueComment[] } {
     const web = pullRequestUrl(repo, pullRequestId);
     const reviewThreads: ReviewThread[] = [];
     const issueComments: IssueComment[] = [];
@@ -279,14 +289,17 @@ export function mapThreads(repo: AzureRepoRef, pullRequestId: number, threads: r
 
 /** Converts the commits of a pull request (newest first from Azure) to the UI model (oldest first). */
 export function mapCommits(repo: AzureRepoRef, commits: readonly AzCommit[]): PullRequestCommit[] {
-    return commits.slice(0, 100).reverse().map(commit => ({
-        oid: commit.commitId,
-        abbreviatedOid: commit.commitId.slice(0, 7),
-        messageHeadline: (commit.comment ?? '').split('\n')[0],
-        committedDate: commit.committer?.date ?? commit.author?.date ?? '',
-        url: `${azureRepoWebUrl(repo)}/commit/${commit.commitId}`,
-        author: commit.author?.name ?? null
-    }));
+    return commits
+        .slice(0, 100)
+        .reverse()
+        .map(commit => ({
+            oid: commit.commitId,
+            abbreviatedOid: commit.commitId.slice(0, 7),
+            messageHeadline: (commit.comment ?? '').split('\n')[0],
+            committedDate: commit.committer?.date ?? commit.author?.date ?? '',
+            url: `${azureRepoWebUrl(repo)}/commit/${commit.commitId}`,
+            author: commit.author?.name ?? null
+        }));
 }
 
 export interface PullRequestParts {
@@ -310,17 +323,18 @@ export function mapPullRequest(parts: PullRequestParts): PullRequest {
     const url = pullRequestUrl(repo, pr.pullRequestId);
     const reviews: Review[] = reviewers.flatMap(reviewer => {
         const state = reviewStateForVote(reviewer.vote);
-        return state ? [{ id: `${encodeAzureId(repo, pr.pullRequestId)}#vote:${reviewer.id}`, author: userOf(reviewer), state, body: '', submittedAt: null, url }] : [];
+        return state
+            ? [{ id: `${encodeAzureId(repo, pr.pullRequestId)}#vote:${reviewer.id}`, author: userOf(reviewer), state, body: '', submittedAt: null, url }]
+            : [];
     });
     const reviewRequests: RequestedReviewer[] = reviewers
         .filter(reviewer => reviewer.vote === 0 && !reviewer.hasDeclined)
-        .map(reviewer => reviewer.isContainer
-            ? { kind: 'team', login: loginOf(reviewer), name: reviewer.displayName }
-            : { kind: 'user', login: loginOf(reviewer) });
+        .map(reviewer =>
+            reviewer.isContainer ? { kind: 'team', login: loginOf(reviewer), name: reviewer.displayName } : { kind: 'user', login: loginOf(reviewer) }
+        );
     const mergeable = pr.mergeStatus === 'conflicts' ? 'CONFLICTING' : pr.mergeStatus === 'succeeded' ? 'MERGEABLE' : 'UNKNOWN';
-    const mergeStateStatus = pr.mergeStatus === 'rejectedByPolicy' ? 'BLOCKED'
-        : pr.mergeStatus === 'conflicts' ? 'DIRTY'
-            : pr.mergeStatus === 'succeeded' ? 'CLEAN' : 'UNKNOWN';
+    const mergeStateStatus =
+        pr.mergeStatus === 'rejectedByPolicy' ? 'BLOCKED' : pr.mergeStatus === 'conflicts' ? 'DIRTY' : pr.mergeStatus === 'succeeded' ? 'CLEAN' : 'UNKNOWN';
     const commits = mapCommits(repo, parts.commits);
     const headRefOid = pr.lastMergeSourceCommit?.commitId ?? parts.iteration?.sourceRefCommit?.commitId ?? '';
     const baseRefOid = parts.iteration?.commonRefCommit?.commitId ?? pr.lastMergeTargetCommit?.commitId ?? '';
@@ -361,9 +375,7 @@ export function mapPullRequest(parts: PullRequestParts): PullRequest {
         labels: (pr.labels ?? []).filter(label => label.active !== false).map(label => ({ name: label.name, color: '8b949e' })),
         viewerCanUpdate: true,
         viewerCanManage: true,
-        autoMerge: pr.autoCompleteSetBy
-            ? { method: mergeMethodOf(pr.completionOptions?.mergeStrategy), enabledBy: loginOf(pr.autoCompleteSetBy) }
-            : null,
+        autoMerge: pr.autoCompleteSetBy ? { method: mergeMethodOf(pr.completionOptions?.mergeStrategy), enabledBy: loginOf(pr.autoCompleteSetBy) } : null,
         viewerCanEnableAutoMerge: state === 'OPEN' && !pr.autoCompleteSetBy,
         viewerCanDisableAutoMerge: !!pr.autoCompleteSetBy,
         viewerCanMerge: true,
@@ -379,9 +391,7 @@ export function mapChanges(entries: readonly AzChangeEntry[]): PullRequestFile[]
     for (const entry of entries) {
         if (!entry.item?.path || entry.item.isFolder) continue;
         const type = entry.changeType.toLowerCase();
-        const status = type.includes('delete') ? 'removed'
-            : type.includes('add') ? 'added'
-                : type.includes('rename') ? 'renamed' : 'modified';
+        const status = type.includes('delete') ? 'removed' : type.includes('add') ? 'added' : type.includes('rename') ? 'renamed' : 'modified';
         files.push({
             path: repoPath(entry.item.path),
             ...(entry.originalPath ? { previousPath: repoPath(entry.originalPath) } : {}),
@@ -418,7 +428,7 @@ export function gitStatusToCheckRun(status: AzGitStatus): CheckRun {
         status: mapped.status,
         conclusion: mapped.conclusion,
         startedAt: status.creationDate ?? null,
-        completedAt: mapped.status === 'completed' ? status.updatedDate ?? status.creationDate ?? null : null,
+        completedAt: mapped.status === 'completed' ? (status.updatedDate ?? status.creationDate ?? null) : null,
         url: status.targetUrl ?? null,
         isActions: false,
         isStatus: true
@@ -488,7 +498,9 @@ export function orderedRecords(records: readonly AzTimelineRecord[], type: strin
         }
         return 0;
     };
-    return records.filter(record => record.type === type).map(record => ({ record, path: path(record) }))
+    return records
+        .filter(record => record.type === type)
+        .map(record => ({ record, path: path(record) }))
         .sort((a, b) => compare(a.path, b.path))
         .map(item => item.record);
 }
@@ -529,16 +541,25 @@ export function rollupState(checks: readonly Pick<CheckRun, 'status' | 'conclusi
  * Returns the active pull requests by source branch, with the CI state of their newest builds.
  * The viewer ID sets the viewer role: "author" for the creator, "involved" for a reviewer.
  */
-export function branchSummaries(repo: AzureRepoRef, prs: readonly AzPullRequest[], builds: readonly AzBuild[], viewerId?: string): Record<string, BranchSummary> {
+export function branchSummaries(
+    repo: AzureRepoRef,
+    prs: readonly AzPullRequest[],
+    builds: readonly AzBuild[],
+    viewerId?: string
+): Record<string, BranchSummary> {
     const summaries: Record<string, BranchSummary> = {};
     for (const pr of prs) {
         if (pr.status !== 'active' || !pr.sourceRefName.startsWith('refs/heads/')) continue;
         const branch = fromRefName(pr.sourceRefName);
         if (summaries[branch]) continue;
         const headSha = pr.lastMergeSourceCommit?.commitId;
-        const prBuilds = latestBuilds(builds.filter(build =>
-            (build.sourceBranch === `refs/pull/${pr.pullRequestId}/merge` || build.triggerInfo?.['pr.number'] === String(pr.pullRequestId))
-            && (!headSha || !build.triggerInfo?.['pr.sourceSha'] || build.triggerInfo['pr.sourceSha'] === headSha)));
+        const prBuilds = latestBuilds(
+            builds.filter(
+                build =>
+                    (build.sourceBranch === `refs/pull/${pr.pullRequestId}/merge` || build.triggerInfo?.['pr.number'] === String(pr.pullRequestId)) &&
+                    (!headSha || !build.triggerInfo?.['pr.sourceSha'] || build.triggerInfo['pr.sourceSha'] === headSha)
+            )
+        );
         summaries[branch] = {
             number: pr.pullRequestId,
             title: pr.title,
@@ -547,9 +568,13 @@ export function branchSummaries(repo: AzureRepoRef, prs: readonly AzPullRequest[
             isDraft: pr.isDraft ?? false,
             reviewDecision: reviewDecisionFromVotes(pr.reviewers ?? []),
             checks: rollupState(prBuilds.map(build => buildToCheck(repo, build))),
-            viewerRole: !viewerId ? undefined
-                : pr.createdBy.id === viewerId ? 'author'
-                    : (pr.reviewers ?? []).some(reviewer => reviewer.id === viewerId) ? 'involved' : undefined
+            viewerRole: !viewerId
+                ? undefined
+                : pr.createdBy.id === viewerId
+                  ? 'author'
+                  : (pr.reviewers ?? []).some(reviewer => reviewer.id === viewerId)
+                    ? 'involved'
+                    : undefined
         };
     }
     return summaries;

@@ -111,12 +111,15 @@ export class PtyHostServer {
         this.clients.add(connection);
         clearTimeout(this.idleTimer);
 
-        connection.onRequest(HostMethods.hello, (): PtyHostHello => ({
-            protocol: PTY_HOST_PROTOCOL,
-            buildId: this.options.buildId,
-            pid: process.pid,
-            liveSessions: this.terminals.liveCount()
-        }));
+        connection.onRequest(
+            HostMethods.hello,
+            (): PtyHostHello => ({
+                protocol: PTY_HOST_PROTOCOL,
+                buildId: this.options.buildId,
+                pid: process.pid,
+                liveSessions: this.terminals.liveCount()
+            })
+        );
         connection.onRequest(HostMethods.create, ({ options, env }: PtyHostCreateParams) => this.terminals.create(options as CreateTerminalOptions, env));
         connection.onRequest(HostMethods.list, () => this.terminals.list());
         connection.onRequest(HostMethods.replay, (id: string) => this.terminals.replay(id));

@@ -21,7 +21,7 @@ export function isLiveAgent(session: TerminalSession): boolean {
 
 /** Returns the label of an agent tab, for example "Claude Code · Working · fix the login test". */
 function sessionLabel(session: TerminalSession): string {
-    const name = session.isAgent ? session.title : DEFAULT_AGENTS.find(agent => agent.id === session.agentProgram)?.name ?? session.title;
+    const name = session.isAgent ? session.title : (DEFAULT_AGENTS.find(agent => agent.id === session.agentProgram)?.name ?? session.title);
     const parts = [name];
     if (session.agentState) parts.push(AGENT_STATE_LABELS[session.agentState]);
     if (session.agentPrompt) parts.push(session.agentPrompt.length > 40 ? `${session.agentPrompt.slice(0, 40)}…` : session.agentPrompt);
@@ -33,17 +33,21 @@ function sessionLabel(session: TerminalSession): string {
  * `defaultAgentId` is the agent of the repository. Its "New" choice comes first.
  */
 export function noteTargetOptions(sessions: readonly TerminalSession[], agents: readonly AgentDefinition[], defaultAgentId?: string): NoteTargetOption[] {
-    const running = sessions.filter(isLiveAgent).map((session): NoteTargetOption => ({
-        key: `s:${session.id}`,
-        label: sessionLabel(session),
-        target: { kind: 'session', id: session.id }
-    }));
+    const running = sessions.filter(isLiveAgent).map(
+        (session): NoteTargetOption => ({
+            key: `s:${session.id}`,
+            label: sessionLabel(session),
+            target: { kind: 'session', id: session.id }
+        })
+    );
     const ordered = [...agents].sort((a, b) => Number(b.id === defaultAgentId) - Number(a.id === defaultAgentId));
-    const fresh = ordered.map((agent): NoteTargetOption => ({
-        key: `n:${agent.id}`,
-        label: `New ${agent.name}`,
-        target: { kind: 'new', agentId: agent.id }
-    }));
+    const fresh = ordered.map(
+        (agent): NoteTargetOption => ({
+            key: `n:${agent.id}`,
+            label: `New ${agent.name}`,
+            target: { kind: 'new', agentId: agent.id }
+        })
+    );
     return [...running, ...fresh];
 }
 

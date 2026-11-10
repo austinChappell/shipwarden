@@ -33,12 +33,9 @@ function ProviderView({ usage, now }: { usage: ProviderUsage; now: number }) {
     const name = PROVIDER_NAMES[usage.provider];
     const top = highestWindow(usage.windows);
     const updated = usage.updatedAt ? `Updated ${new Date(usage.updatedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.` : '';
-    const title = [
-        `${name}${usage.plan ? ` (${usage.plan})` : ''}`,
-        ...usage.windows.map(window => windowLine(window, now)),
-        usage.error ?? '',
-        updated
-    ].filter(Boolean).join('\n');
+    const title = [`${name}${usage.plan ? ` (${usage.plan})` : ''}`, ...usage.windows.map(window => windowLine(window, now)), usage.error ?? '', updated]
+        .filter(Boolean)
+        .join('\n');
 
     return (
         <span className={`usage-provider${usage.status === 'error' ? ' stale' : ''}`} title={title}>
@@ -102,9 +99,13 @@ export function StatusBar() {
         <footer className="status-bar">
             <span className="usage-label">Used</span>
             {shown.length === 0 && (
-                <span className="usage-value muted" title="ShipWarden found no Claude Code or Codex sign-in on this Mac.">No agent sign-in</span>
+                <span className="usage-value muted" title="ShipWarden found no Claude Code or Codex sign-in on this Mac.">
+                    No agent sign-in
+                </span>
             )}
-            {shown.map(item => <ProviderView key={item.provider} usage={item} now={now} />)}
+            {shown.map(item => (
+                <ProviderView key={item.provider} usage={item} now={now} />
+            ))}
             <span className="status-bar-spacer" />
             <button className="icon-button status-bar-refresh" title="Refresh usage" disabled={refreshing} onClick={refresh}>
                 <RefreshCw size={13} strokeWidth={1.75} className={refreshing ? 'spin' : undefined} />

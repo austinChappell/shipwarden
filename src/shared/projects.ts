@@ -30,7 +30,7 @@ export function cleanProjectName(name: string): string {
 
 /** Converts stored JSON to a valid state. There is always at least one project, and the active ID is valid. */
 export function normalizeProjects(value: unknown, newId: () => string): ProjectsState {
-    const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
     const projects: Project[] = [];
     if (Array.isArray(raw.projects)) {
         for (const item of raw.projects) {
@@ -62,7 +62,7 @@ function findProject(state: ProjectsState, id: string): Project {
 }
 
 function replaceProject(state: ProjectsState, project: Project): ProjectsState {
-    return { ...state, projects: state.projects.map(item => item.id === project.id ? project : item) };
+    return { ...state, projects: state.projects.map(item => (item.id === project.id ? project : item)) };
 }
 
 /** Adds a project and makes it active. */

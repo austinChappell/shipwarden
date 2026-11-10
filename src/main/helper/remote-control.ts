@@ -97,11 +97,11 @@ export class RemoteControl {
 
     async status(): Promise<RemoteStatus> {
         if (this.helper && this.owner === 'helper') {
-            return { ...await this.helper.status(), owner: 'helper' };
+            return { ...(await this.helper.status()), owner: 'helper' };
         }
         const status = this.local ? await this.local.status() : undefined;
         const helperError = this.settings?.keepRunning
-            ? this.helperError ?? 'The background helper does not answer. ShipWarden runs the phone connection until the helper answers.'
+            ? (this.helperError ?? 'The background helper does not answer. ShipWarden runs the phone connection until the helper answers.')
             : undefined;
         return {
             enabled: this.settings?.enabled ?? false,
@@ -202,12 +202,14 @@ export class RemoteControl {
     private watchHelper(): void {
         if (this.stopped || this.helper || this.retryTimer || !this.settings?.keepRunning) return;
         this.retryTimer = setInterval(() => {
-            void this.connect().then(connected => {
-                if (!connected) return;
-                clearInterval(this.retryTimer);
-                this.retryTimer = undefined;
-                return this.serial(() => this.route());
-            }).catch(error => console.warn(`[helper] ${message(error)}`));
+            void this.connect()
+                .then(connected => {
+                    if (!connected) return;
+                    clearInterval(this.retryTimer);
+                    this.retryTimer = undefined;
+                    return this.serial(() => this.route());
+                })
+                .catch(error => console.warn(`[helper] ${message(error)}`));
         }, this.options.retryMs ?? 3000);
     }
 

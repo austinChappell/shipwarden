@@ -526,6 +526,6 @@ export function withEmoji(text: string): string {
     }
     return text
         .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/)
-        .map((part, index) => index % 2 === 1 ? part : part.replace(/:([a-z0-9_+-]+):/gi, (code, name: string) => EMOJI_SHORTCODES[name] ?? code))
+        .map((part, index) => (index % 2 === 1 ? part : part.replace(/:([a-z0-9_+-]+):/gi, (code, name: string) => EMOJI_SHORTCODES[name] ?? code)))
         .join('');
 }

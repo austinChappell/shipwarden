@@ -22,14 +22,28 @@ export function CommentBody({ body, original, outdated, onApply }: Props) {
     }
     return (
         <div className="comment-body">
-            {parts.map((part, index) => part.kind === 'text'
-                ? part.text.trim() && <Markdown key={index} text={part.text} />
-                : <SuggestionDiff key={index} lines={part.lines} original={original} outdated={outdated} onApply={onApply} />)}
+            {parts.map((part, index) =>
+                part.kind === 'text' ? (
+                    part.text.trim() && <Markdown key={index} text={part.text} />
+                ) : (
+                    <SuggestionDiff key={index} lines={part.lines} original={original} outdated={outdated} onApply={onApply} />
+                )
+            )}
         </div>
     );
 }
 
-function SuggestionDiff({ lines, original, outdated, onApply }: { lines: string[]; original?: string[]; outdated?: boolean; onApply?(lines: string[]): Promise<string> }) {
+function SuggestionDiff({
+    lines,
+    original,
+    outdated,
+    onApply
+}: {
+    lines: string[];
+    original?: string[];
+    outdated?: boolean;
+    onApply?(lines: string[]): Promise<string>;
+}) {
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState<{ ok: boolean; text: string }>();
     const apply = async () => {
@@ -58,10 +72,20 @@ function SuggestionDiff({ lines, original, outdated, onApply }: { lines: string[
             </div>
             <div className="suggestion-lines">
                 {original?.map((line, index) => (
-                    <div key={`o${index}`} className="suggestion-line removed"><span className="suggestion-sign" title="Old line">−</span>{line || ' '}</div>
+                    <div key={`o${index}`} className="suggestion-line removed">
+                        <span className="suggestion-sign" title="Old line">
+                            −
+                        </span>
+                        {line || ' '}
+                    </div>
                 ))}
                 {lines.map((line, index) => (
-                    <div key={`n${index}`} className="suggestion-line added"><span className="suggestion-sign" title="New line">+</span>{line || ' '}</div>
+                    <div key={`n${index}`} className="suggestion-line added">
+                        <span className="suggestion-sign" title="New line">
+                            +
+                        </span>
+                        {line || ' '}
+                    </div>
                 ))}
                 {lines.length === 0 && <div className="suggestion-note">The suggestion removes the lines.</div>}
             </div>

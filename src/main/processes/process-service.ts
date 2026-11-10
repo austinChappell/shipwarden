@@ -117,7 +117,7 @@ export class ProcessService {
     async terminate(pids: number[], rows?: ProcessRow[]): Promise<void> {
         const unique = [...new Set(pids)].filter(pid => pid > 1 && pid !== process.pid);
         if (!unique.length) return;
-        const before = new Map((rows ?? await this.table()).map(row => [row.pid, row.command]));
+        const before = new Map((rows ?? (await this.table())).map(row => [row.pid, row.command]));
         const targets = unique.filter(pid => before.has(pid));
         targets.forEach(pid => signal(pid, 'SIGTERM'));
         const deadline = Date.now() + STOP_GRACE_MS;

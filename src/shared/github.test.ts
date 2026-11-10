@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { cleanActionsLog, latestChecks, parseActionsRunId, parseGitHubRemote, pullRequestSearch, signedImageUrls, summarizeChecks, tailLines, targetKey, withEmoji, withSignedImages, type CheckRun } from './github';
+import {
+    cleanActionsLog,
+    latestChecks,
+    parseActionsRunId,
+    parseGitHubRemote,
+    pullRequestSearch,
+    signedImageUrls,
+    summarizeChecks,
+    tailLines,
+    targetKey,
+    withEmoji,
+    withSignedImages,
+    type CheckRun
+} from './github';
 
 describe('parseGitHubRemote', () => {
     it.each([
@@ -25,16 +38,32 @@ describe('parseActionsRunId', () => {
 
 describe('latestChecks', () => {
     it('keeps the newest check run of each name', () => {
-        const run = (id: number, name: string, conclusion: CheckRun['conclusion']): CheckRun =>
-            ({ id, name, status: 'completed', conclusion, startedAt: null, completedAt: null, url: null, isActions: true });
+        const run = (id: number, name: string, conclusion: CheckRun['conclusion']): CheckRun => ({
+            id,
+            name,
+            status: 'completed',
+            conclusion,
+            startedAt: null,
+            completedAt: null,
+            url: null,
+            isActions: true
+        });
         const result = latestChecks([run(1, 'test', 'failure'), run(5, 'test', 'success'), run(2, 'lint', 'success')]);
         expect(result.map(check => `${check.name}:${check.id}`).sort()).toEqual(['lint:2', 'test:5']);
     });
 });
 
 describe('summarizeChecks', () => {
-    const check = (status: CheckRun['status'], conclusion: CheckRun['conclusion']): CheckRun =>
-        ({ id: 1, name: 'x', status, conclusion, startedAt: null, completedAt: null, url: null, isActions: true });
+    const check = (status: CheckRun['status'], conclusion: CheckRun['conclusion']): CheckRun => ({
+        id: 1,
+        name: 'x',
+        status,
+        conclusion,
+        startedAt: null,
+        completedAt: null,
+        url: null,
+        isActions: true
+    });
 
     it('reports failure first, then pending, then success', () => {
         expect(summarizeChecks([])).toBe('none');
@@ -92,8 +121,7 @@ describe('signed images', () => {
 
 describe('emoji shortcodes', () => {
     it('replaces the shortcodes of GitHub emoji', () => {
-        expect(withEmoji(':white_check_mark: All good. :warning: Behind. :umbrella: :loudspeaker: :+1:'))
-            .toBe('✅️ All good. ⚠️ Behind. ☔️ 📢 👍');
+        expect(withEmoji(':white_check_mark: All good. :warning: Behind. :umbrella: :loudspeaker: :+1:')).toBe('✅️ All good. ⚠️ Behind. ☔️ 📢 👍');
     });
 
     it('keeps unknown shortcodes, custom image emoji and times', () => {

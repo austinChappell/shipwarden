@@ -133,11 +133,18 @@ describe('applySuggestion', () => {
     const file = 'one\ntwo\nthree\nfour\n';
 
     it('replaces one line', () => {
-        expect(applySuggestion(file, { startLine: 2, line: 2, original: ['two'] }, ['TWO'])).toEqual({ kind: 'applied', text: 'one\nTWO\nthree\nfour\n', startLine: 2, line: 2 });
+        expect(applySuggestion(file, { startLine: 2, line: 2, original: ['two'] }, ['TWO'])).toEqual({
+            kind: 'applied',
+            text: 'one\nTWO\nthree\nfour\n',
+            startLine: 2,
+            line: 2
+        });
     });
 
     it('replaces a range with more or fewer lines', () => {
-        expect(applySuggestion(file, { startLine: 2, line: 3, original: ['two', 'three'] }, ['2', '2.5', '3'])).toMatchObject({ text: 'one\n2\n2.5\n3\nfour\n' });
+        expect(applySuggestion(file, { startLine: 2, line: 3, original: ['two', 'three'] }, ['2', '2.5', '3'])).toMatchObject({
+            text: 'one\n2\n2.5\n3\nfour\n'
+        });
         expect(applySuggestion(file, { startLine: 2, line: 3, original: ['two', 'three'] }, ['23'])).toMatchObject({ text: 'one\n23\nfour\n' });
     });
 
@@ -147,7 +154,12 @@ describe('applySuggestion', () => {
 
     it('finds lines that moved after the comment', () => {
         const moved = 'zero\nnew\none\ntwo\nthree\nfour\n';
-        expect(applySuggestion(moved, { startLine: 2, line: 2, original: ['two'] }, ['TWO'])).toEqual({ kind: 'applied', text: 'zero\nnew\none\nTWO\nthree\nfour\n', startLine: 4, line: 4 });
+        expect(applySuggestion(moved, { startLine: 2, line: 2, original: ['two'] }, ['TWO'])).toEqual({
+            kind: 'applied',
+            text: 'zero\nnew\none\nTWO\nthree\nfour\n',
+            startLine: 4,
+            line: 4
+        });
     });
 
     it('selects the nearest copy of lines that occur more than one time', () => {

@@ -131,10 +131,11 @@ class ReviewStore {
      * `pullRequestId` is the node ID of the pull request.
      */
     async setViewed(target: RepoTarget, number: number, pullRequestId: string, path: string, viewed: boolean): Promise<void> {
-        const change = (value: boolean) => this.update(target, number, state => ({
-            ...state,
-            files: state.files?.map(file => (file.path === path ? { ...file, viewed: value } : file))
-        }));
+        const change = (value: boolean) =>
+            this.update(target, number, state => ({
+                ...state,
+                files: state.files?.map(file => (file.path === path ? { ...file, viewed: value } : file))
+            }));
         change(viewed);
         try {
             await window.shipwarden.github.setFileViewed(target, pullRequestId, path, viewed);

@@ -34,10 +34,25 @@ let lastInputKey = false;
 // The menu opens at the last pointer position, as a native context menu does.
 // The capture phase records the position before a handler of the page opens the menu.
 if (typeof window !== 'undefined') {
-    const record = (event: MouseEvent) => { pointer = { x: event.clientX, y: event.clientY }; };
-    window.addEventListener('pointerdown', event => { lastInputKey = false; record(event); }, true);
+    const record = (event: MouseEvent) => {
+        pointer = { x: event.clientX, y: event.clientY };
+    };
+    window.addEventListener(
+        'pointerdown',
+        event => {
+            lastInputKey = false;
+            record(event);
+        },
+        true
+    );
     window.addEventListener('contextmenu', record, true);
-    window.addEventListener('keydown', () => { lastInputKey = true; }, true);
+    window.addEventListener(
+        'keydown',
+        () => {
+            lastInputKey = true;
+        },
+        true
+    );
 }
 
 function emit() {
@@ -153,10 +168,16 @@ function MenuPanel({ items, point, anchor, initialActive, onChoose, onBack }: Pa
         const keys: Record<string, () => void> = {
             ArrowDown: () => step(1),
             ArrowUp: () => step(-1),
-            ArrowRight: () => { if (active >= 0 && 'submenu' in items[active]) activate(active, true); },
-            ArrowLeft: () => { if (anchor) onBack(); },
+            ArrowRight: () => {
+                if (active >= 0 && 'submenu' in items[active]) activate(active, true);
+            },
+            ArrowLeft: () => {
+                if (anchor) onBack();
+            },
             Home: () => setActive(firstUsable()),
-            End: () => { if (items.some(usable)) setActive(lastUsable()); },
+            End: () => {
+                if (items.some(usable)) setActive(lastUsable());
+            },
             Escape: onBack,
             // Tab closes all the menus. The focus goes back to the element that had it before.
             Tab: () => close(undefined),
@@ -190,7 +211,9 @@ function MenuPanel({ items, point, anchor, initialActive, onChoose, onBack }: Pa
                 return (
                     <div
                         key={index}
-                        ref={element => { rows.current[index] = element; }}
+                        ref={element => {
+                            rows.current[index] = element;
+                        }}
                         className={`context-menu-item${index === active ? ' active' : ''}${enabled ? '' : ' disabled'}${danger ? ' danger' : ''}`}
                         role="menuitem"
                         aria-disabled={!enabled}
@@ -201,7 +224,9 @@ function MenuPanel({ items, point, anchor, initialActive, onChoose, onBack }: Pa
                             setActive(index);
                             setOpen(hasSubmenu ? { index, fromKey: false } : undefined);
                         }}
-                        onPointerLeave={() => { if (!hasSubmenu || open?.index !== index) setActive(-1); }}
+                        onPointerLeave={() => {
+                            if (!hasSubmenu || open?.index !== index) setActive(-1);
+                        }}
                         onClick={() => activate(index, false)}
                     >
                         <span className="context-menu-label">{item.label}</span>
@@ -246,7 +271,9 @@ export function ContextMenuHost() {
     return (
         <div
             className="context-menu-layer"
-            onPointerDown={event => { if (event.target === event.currentTarget) close(undefined); }}
+            onPointerDown={event => {
+                if (event.target === event.currentTarget) close(undefined);
+            }}
             onContextMenu={event => {
                 event.preventDefault();
                 if (event.target === event.currentTarget) close(undefined);

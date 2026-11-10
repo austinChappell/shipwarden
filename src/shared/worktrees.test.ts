@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { branchFromName, isHiddenAt, nextSnoozeEnd, normalizeWorktreeSort, pruneHiddenWorktrees, snoozeEnd, sortWorktrees, localNameOfRemote, worktreeLabel, type Worktree } from './worktrees';
+import {
+    branchFromName,
+    isHiddenAt,
+    nextSnoozeEnd,
+    normalizeWorktreeSort,
+    pruneHiddenWorktrees,
+    snoozeEnd,
+    sortWorktrees,
+    localNameOfRemote,
+    worktreeLabel,
+    type Worktree
+} from './worktrees';
 
 describe('branchFromName', () => {
     it('makes a branch name from a display name', () => {
@@ -22,8 +33,17 @@ describe('worktreeLabel', () => {
 });
 
 describe('sortWorktrees', () => {
-    const tree = (path: string, branch: string, createdAt?: number, updatedAt?: number, isMain = false): Worktree =>
-        ({ path, branch, head: 'abc', isMain, isBare: false, locked: false, prunable: false, createdAt, updatedAt });
+    const tree = (path: string, branch: string, createdAt?: number, updatedAt?: number, isMain = false): Worktree => ({
+        path,
+        branch,
+        head: 'abc',
+        isMain,
+        isBare: false,
+        locked: false,
+        prunable: false,
+        createdAt,
+        updatedAt
+    });
     const list = [
         tree('/main', 'main', 1, 50, true),
         tree('/b', 'beta', 30, 10),

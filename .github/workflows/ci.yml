@@ -1,0 +1,63 @@
+# Checks each pull request and each push to main: format and lint, types, unit tests, the build,
+# and the contract between the desktop API and the iPhone models.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # macOS, because node-pty and the iPhone contract check (swiftc) need it. The release builds on the same runner.
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # The same Electron cache as release.yml. See the notes there.
+      - name: Restore the Electron download
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
+          restore-keys: |
+            electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-
+            electron-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format and lint
+        run: npm run check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: iPhone API contract
+        run: npm run check:ios-contract
+
+      - name: Build
+        run: npm run build
+
+      - name: Save the Electron download
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}

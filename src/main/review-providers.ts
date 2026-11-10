@@ -208,7 +208,9 @@ export class ReviewProviders {
             throw new Error('Type the name of an organization.');
         }
         const data = await runtime.client.request<{ authenticatedUser?: { providerDisplayName?: string } }>(
-            'GET', `https://dev.azure.com/${encodeURIComponent(name)}/_apis/connectionData`);
+            'GET',
+            `https://dev.azure.com/${encodeURIComponent(name)}/_apis/connectionData`
+        );
         return data.authenticatedUser?.providerDisplayName ?? 'unknown user';
     }
 
@@ -295,15 +297,17 @@ export class ReviewProviders {
      */
     private async eachGitHub<T>(call: (service: GitHubService, provider: StoredReviewProvider) => Promise<T>): Promise<T[]> {
         const providers = (await this.providers()).filter(provider => provider.enabled && provider.kind === 'github');
-        return Promise.all(providers.map(async provider => {
-            const runtime = (await this.runtime(provider)) as GitHubRuntime;
-            try {
-                return await call(runtime.service, provider);
-            } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                throw new Error(providers.length > 1 ? `${provider.name}: ${message}` : message);
-            }
-        }));
+        return Promise.all(
+            providers.map(async provider => {
+                const runtime = (await this.runtime(provider)) as GitHubRuntime;
+                try {
+                    return await call(runtime.service, provider);
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    throw new Error(providers.length > 1 ? `${provider.name}: ${message}` : message);
+                }
+            })
+        );
     }
 
     private async optionalHost(root: string): Promise<SourceHost | undefined> {

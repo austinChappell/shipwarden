@@ -54,62 +54,66 @@ export function RepoSettingsPage({ repo, settings, onSave }: Props) {
 
     return (
         <>
-        <SettingsGroup title={repoDisplayName(settings, repo)} description={<span className="mono">{repo}</span>} card>
-            <SettingsRow
-                label="Name"
-                description="The name in the sidebar and the other views. Empty means the folder name."
-                control={(
-                    <input
-                        className="settings-input"
-                        value={name}
-                        placeholder={folderName(repo)}
-                        onChange={event => setName(event.target.value)}
-                        onBlur={commitName}
-                        onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
-                    />
-                )}
-            />
-            <SettingsRow
-                label="Default agent"
-                description="The agent that the Agent button and Start in worktree start in this repository. Add agents in Settings > Agents."
-                control={(
-                    <select className="tasks-select" value={current.agentId ?? ''} onChange={event => update({ agentId: event.target.value || undefined })}>
-                        <option value="">Global default ({defaultAgent.name})</option>
-                        {settings.agents.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
-                    </select>
-                )}
-            />
-            <SettingsRow
-                label="Color"
-                description="A color marker for the repository in the sidebar and the Agents view."
-                control={(
-                    <div className="color-picker" role="radiogroup" aria-label="Repository color" onKeyDown={radioGroupKeys}>
-                        <button
-                            className={`color-swatch none${current.color ? '' : ' selected'}`}
-                            role="radio"
-                            aria-checked={!current.color}
-                            title="No color"
-                            onClick={() => update({ color: undefined })}
+            <SettingsGroup title={repoDisplayName(settings, repo)} description={<span className="mono">{repo}</span>} card>
+                <SettingsRow
+                    label="Name"
+                    description="The name in the sidebar and the other views. Empty means the folder name."
+                    control={
+                        <input
+                            className="settings-input"
+                            value={name}
+                            placeholder={folderName(repo)}
+                            onChange={event => setName(event.target.value)}
+                            onBlur={commitName}
+                            onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                         />
-                        {(Object.keys(REPO_COLORS) as RepoColor[]).map(color => (
+                    }
+                />
+                <SettingsRow
+                    label="Default agent"
+                    description="The agent that the Agent button and Start in worktree start in this repository. Add agents in Settings > Agents."
+                    control={
+                        <select className="tasks-select" value={current.agentId ?? ''} onChange={event => update({ agentId: event.target.value || undefined })}>
+                            <option value="">Global default ({defaultAgent.name})</option>
+                            {settings.agents.map(agent => (
+                                <option key={agent.id} value={agent.id}>
+                                    {agent.name}
+                                </option>
+                            ))}
+                        </select>
+                    }
+                />
+                <SettingsRow
+                    label="Color"
+                    description="A color marker for the repository in the sidebar and the Agents view."
+                    control={
+                        <div className="color-picker" role="radiogroup" aria-label="Repository color" onKeyDown={radioGroupKeys}>
                             <button
-                                key={color}
-                                className={`color-swatch${current.color === color ? ' selected' : ''}`}
+                                className={`color-swatch none${current.color ? '' : ' selected'}`}
                                 role="radio"
-                                aria-checked={current.color === color}
-                                title={color[0].toUpperCase() + color.slice(1)}
-                                style={{ background: REPO_COLORS[color] }}
-                                onClick={() => update({ color })}
-                            >
-                                {current.color === color && <Check size={12} strokeWidth={3} />}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            />
-            {error && <SettingsRow label={<span className="form-error">{error}</span>} />}
-        </SettingsGroup>
-        <RepoWorktreeGroup repo={repo} settings={settings} current={current.worktrees} onChange={worktrees => update({ worktrees })} />
+                                aria-checked={!current.color}
+                                title="No color"
+                                onClick={() => update({ color: undefined })}
+                            />
+                            {(Object.keys(REPO_COLORS) as RepoColor[]).map(color => (
+                                <button
+                                    key={color}
+                                    className={`color-swatch${current.color === color ? ' selected' : ''}`}
+                                    role="radio"
+                                    aria-checked={current.color === color}
+                                    title={color[0].toUpperCase() + color.slice(1)}
+                                    style={{ background: REPO_COLORS[color] }}
+                                    onClick={() => update({ color })}
+                                >
+                                    {current.color === color && <Check size={12} strokeWidth={3} />}
+                                </button>
+                            ))}
+                        </div>
+                    }
+                />
+                {error && <SettingsRow label={<span className="form-error">{error}</span>} />}
+            </SettingsGroup>
+            <RepoWorktreeGroup repo={repo} settings={settings} current={current.worktrees} onChange={worktrees => update({ worktrees })} />
         </>
     );
 }
@@ -136,7 +140,12 @@ function ScriptField({ value, placeholder, onSave }: { value: string | undefined
 }
 
 /** The worktree settings of one repository: folder, copied files, and the setup and teardown scripts. */
-function RepoWorktreeGroup({ repo, settings, current, onChange }: {
+function RepoWorktreeGroup({
+    repo,
+    settings,
+    current,
+    onChange
+}: {
     repo: string;
     settings: AppSettings;
     current: RepoWorktreeSettings | undefined;
@@ -173,13 +182,17 @@ function RepoWorktreeGroup({ repo, settings, current, onChange }: {
             description="The worktree settings of this repository. An empty value uses the global setting in Settings › Worktrees."
             card
         >
-            <SettingsRow label="Folder" description={<>New worktrees of this repository go to <code>{current?.directory ?? globalFolder}/&lt;branch&gt;</code>.</>}>
+            <SettingsRow
+                label="Folder"
+                description={
+                    <>
+                        New worktrees of this repository go to <code>{current?.directory ?? globalFolder}/&lt;branch&gt;</code>.
+                    </>
+                }
+            >
                 <FolderField value={current?.directory} placeholder={globalFolder} onSave={directory => save({ directory })} />
             </SettingsRow>
-            <SettingsRow
-                label="Copy ignored files"
-                description="Git-ignored files from the main worktree that each new worktree of this repository gets."
-            >
+            <SettingsRow label="Copy ignored files" description="Git-ignored files from the main worktree that each new worktree of this repository gets.">
                 {/* The choice is below the label, so the label and the description keep the full width. */}
                 <div className="segmented compact copy-source" role="radiogroup" aria-label="Copy settings" onKeyDown={radioGroupKeys}>
                     {(['global', 'custom', 'off'] as CopyMode[]).map(item => (
@@ -190,11 +203,23 @@ function RepoWorktreeGroup({ repo, settings, current, onChange }: {
                 </div>
                 {mode === 'global' && (
                     <div className="panel-note copy-summary">
-                        {!global.copyIgnored.enabled
-                            ? 'The global setting is off.'
-                            : global.copyIgnored.mode === 'allExcept'
-                                ? <>Global: all ignored files except {global.copyIgnored.exclude.map(item => <code key={item}>{item}</code>)}</>
-                                : <>Global: only {global.copyIgnored.patterns.map(item => <code key={item}>{item}</code>)}</>}
+                        {!global.copyIgnored.enabled ? (
+                            'The global setting is off.'
+                        ) : global.copyIgnored.mode === 'allExcept' ? (
+                            <>
+                                Global: all ignored files except{' '}
+                                {global.copyIgnored.exclude.map(item => (
+                                    <code key={item}>{item}</code>
+                                ))}
+                            </>
+                        ) : (
+                            <>
+                                Global: only{' '}
+                                {global.copyIgnored.patterns.map(item => (
+                                    <code key={item}>{item}</code>
+                                ))}
+                            </>
+                        )}
                     </div>
                 )}
                 {mode === 'custom' && copy && <CopyEditor copy={copy} repo={repo} onSave={next => save({ copyIgnored: { ...next, enabled: true } })} />}
@@ -202,14 +227,19 @@ function RepoWorktreeGroup({ repo, settings, current, onChange }: {
             </SettingsRow>
             <SettingsRow
                 label="Setup script"
-                description={(
+                description={
                     <>
-                        Runs in a &quot;Setup&quot; terminal tab of each new worktree, for example <code>npm ci</code>. The script gets
-                        {' '}<code>SHIPWARDEN_ROOT_PATH</code> (the main worktree), <code>SHIPWARDEN_WORKTREE_PATH</code>, <code>SHIPWARDEN_BRANCH</code> and <code>SHIPWARDEN_REPO_NAME</code>.
+                        Runs in a &quot;Setup&quot; terminal tab of each new worktree, for example <code>npm ci</code>. The script gets{' '}
+                        <code>SHIPWARDEN_ROOT_PATH</code> (the main worktree), <code>SHIPWARDEN_WORKTREE_PATH</code>, <code>SHIPWARDEN_BRANCH</code> and{' '}
+                        <code>SHIPWARDEN_REPO_NAME</code>.
                     </>
-                )}
+                }
             >
-                <ScriptField value={current?.setupScript} placeholder={'npm ci\ncp "$SHIPWARDEN_ROOT_PATH/.env" .'} onSave={setupScript => save({ setupScript })} />
+                <ScriptField
+                    value={current?.setupScript}
+                    placeholder={'npm ci\ncp "$SHIPWARDEN_ROOT_PATH/.env" .'}
+                    onSave={setupScript => save({ setupScript })}
+                />
             </SettingsRow>
             <SettingsRow
                 label="Teardown script"

@@ -127,10 +127,12 @@ class ReviewOverviewStore {
         const paths = this.paths;
         const fromCache = paths.flatMap(path => cached<string | null>(repoOfKey(path)) ?? []);
         if (fromCache.length) this.setProjects(fromCache);
-        const ids = await Promise.all(paths.map(async path => {
-            const ref = await window.shipwarden.github.repoOf(path).catch(() => null);
-            return remember(repoOfKey(path), ref && `${ref.owner}/${ref.name}`);
-        }));
+        const ids = await Promise.all(
+            paths.map(async path => {
+                const ref = await window.shipwarden.github.repoOf(path).catch(() => null);
+                return remember(repoOfKey(path), ref && `${ref.owner}/${ref.name}`);
+            })
+        );
         if (paths !== this.paths) return;
         this.setProjects(ids.filter((id): id is string => !!id));
     }

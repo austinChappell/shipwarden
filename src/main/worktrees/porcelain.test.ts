@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { branchToFolderName, parseWorktreePorcelain } from './porcelain';
 
 describe('parseWorktreePorcelain', () => {
-
     it('parses the main worktree, a branch worktree and a detached worktree', () => {
         const output = [
             'worktree /repo',
@@ -25,7 +24,15 @@ describe('parseWorktreePorcelain', () => {
 
         expect(worktrees).toEqual([
             { path: '/repo', head: '1111111111111111111111111111111111111111', branch: 'main', isMain: true, isBare: false, locked: false, prunable: false },
-            { path: '/wt/feature-login', head: '2222222222222222222222222222222222222222', branch: 'feature/login', isMain: false, isBare: false, locked: true, prunable: false },
+            {
+                path: '/wt/feature-login',
+                head: '2222222222222222222222222222222222222222',
+                branch: 'feature/login',
+                isMain: false,
+                isBare: false,
+                locked: true,
+                prunable: false
+            },
             { path: '/wt/detached', head: '3333333333333333333333333333333333333333', isMain: false, isBare: false, locked: false, prunable: true }
         ]);
     });
@@ -41,7 +48,6 @@ describe('parseWorktreePorcelain', () => {
 });
 
 describe('branchToFolderName', () => {
-
     it.each([
         ['main', 'main'],
         ['feature/login', 'feature-login'],

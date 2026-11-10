@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, CheckCheck, ChevronRight, CircleCheck, ExternalLink, EyeOff, Filter, LayoutDashboard, MessageSquare, RefreshCw, Search, Settings2 } from 'lucide-react';
+import {
+    Check,
+    CheckCheck,
+    ChevronRight,
+    CircleCheck,
+    ExternalLink,
+    EyeOff,
+    Filter,
+    LayoutDashboard,
+    MessageSquare,
+    RefreshCw,
+    Search,
+    Settings2
+} from 'lucide-react';
 import {
     ageLevel,
     bucketMyPullRequests,
@@ -62,12 +75,21 @@ const REVIEW_SORT_LABELS: Record<ReviewSort, string> = { author: 'By author', ol
 /** True when the key goes to a field that takes text. Then "/" types a slash and does not move the focus to the filter. */
 function isTextTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
-    return target.isContentEditable || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
-        || (target instanceof HTMLInputElement && !['checkbox', 'radio', 'button'].includes(target.type));
+    return (
+        target.isContentEditable ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLInputElement && !['checkbox', 'radio', 'button'].includes(target.type))
+    );
 }
 
 function Empty({ text }: { text: string }) {
-    return <div className="dash-empty"><CircleCheck size={14} strokeWidth={1.8} />{text}</div>;
+    return (
+        <div className="dash-empty">
+            <CircleCheck size={14} strokeWidth={1.8} />
+            {text}
+        </div>
+    );
 }
 
 type Tone = 'review' | 'ready' | 'changes' | 'blocked' | 'stale';
@@ -76,7 +98,10 @@ type Tone = 'review' | 'ready' | 'changes' | 'blocked' | 'stale';
 function StatCard({ tone, label, count, detail, onClick }: { tone: Tone; label: string; count: number | undefined; detail: string; onClick(): void }) {
     return (
         <button className={`dash-stat${count === 0 ? ' zero' : ''}`} onClick={onClick}>
-            <span className="dash-stat-label"><span className={`dash-dot ${tone}`} />{label}</span>
+            <span className="dash-stat-label">
+                <span className={`dash-dot ${tone}`} />
+                {label}
+            </span>
             <span className="dash-stat-count">{count ?? '–'}</span>
             <span className="dash-stat-detail">{detail}</span>
         </button>
@@ -84,7 +109,23 @@ function StatCard({ tone, label, count, detail, onClick }: { tone: Tone; label: 
 }
 
 /** A card of the user's pull requests, for one state. */
-function PrCard({ id, tone, title, count, hint, actions, children }: { id: string; tone: Tone; title: string; count: number; hint?: string; actions?: ReactNode; children: ReactNode }) {
+function PrCard({
+    id,
+    tone,
+    title,
+    count,
+    hint,
+    actions,
+    children
+}: {
+    id: string;
+    tone: Tone;
+    title: string;
+    count: number;
+    hint?: string;
+    actions?: ReactNode;
+    children: ReactNode;
+}) {
     return (
         <section id={id} className="dash-card dash-pr-card">
             <header className="dash-card-head">
@@ -111,19 +152,29 @@ function Title({ title, empty }: { title: string; empty?: string }) {
     return (
         <>
             <Ticket ticket={parsed.ticket} empty={empty} />
-            <span className="dash-title" title={title}>{parsed.text}</span>
+            <span className="dash-title" title={title}>
+                {parsed.text}
+            </span>
         </>
     );
 }
 
 /** The repository and the number. The owner shows on hover. */
 function RepoPill({ repo, number }: { repo: RepoRef; number: number }) {
-    return <span className="dash-repo" title={`${repo.owner}/${repo.name} #${number}`}>{repo.name} #{number}</span>;
+    return (
+        <span className="dash-repo" title={`${repo.owner}/${repo.name} #${number}`}>
+            {repo.name} #{number}
+        </span>
+    );
 }
 
 /** The age column. The color shows how old the item is. */
 function Age({ iso, title }: { iso: string; title: string }) {
-    return <span className={`dash-age ${ageLevel(iso)}`} title={title}>{shortAge(iso)}</span>;
+    return (
+        <span className={`dash-age ${ageLevel(iso)}`} title={title}>
+            {shortAge(iso)}
+        </span>
+    );
 }
 
 /** A row of a pull request. A row is not a button, because it can have a button in it. */
@@ -150,7 +201,18 @@ function ProblemBadges({ pr }: { pr: MyPullRequestItem }) {
 }
 
 /** A comment on the Dashboard. A click shows all of it and records it as seen. */
-function CommentRow({ seenKey, author, createdAt, label, preview, body, onOpen, openTitle, onHideAuthor, onCreateRule }: {
+function CommentRow({
+    seenKey,
+    author,
+    createdAt,
+    label,
+    preview,
+    body,
+    onOpen,
+    openTitle,
+    onHideAuthor,
+    onCreateRule
+}: {
     seenKey: string;
     author: string;
     createdAt: string;
@@ -185,7 +247,9 @@ function CommentRow({ seenKey, author, createdAt, label, preview, body, onOpen, 
                 <strong className="dash-author">{author}</strong>
                 {label && <span className={`dash-tag ${label === 'approved' ? 'approved' : label === 'requested changes' ? 'changes' : ''}`}>{label}</span>}
                 <span className="dash-preview">{open ? '' : preview}</span>
-                <span className="dash-age" title={new Date(createdAt).toLocaleString()}>{shortAge(createdAt)}</span>
+                <span className="dash-age" title={new Date(createdAt).toLocaleString()}>
+                    {shortAge(createdAt)}
+                </span>
                 <span className="dash-actions">
                     <button
                         className="icon-button dash-hide"
@@ -211,11 +275,26 @@ function CommentRow({ seenKey, author, createdAt, label, preview, body, onOpen, 
                     >
                         <EyeOff size={13} strokeWidth={1.7} />
                     </button>
-                    <button className="icon-button" title={openTitle} onClick={event => { event.stopPropagation(); seenStore.mark([seenKey]); onOpen(event); }}>
+                    <button
+                        className="icon-button"
+                        title={openTitle}
+                        onClick={event => {
+                            event.stopPropagation();
+                            seenStore.mark([seenKey]);
+                            onOpen(event);
+                        }}
+                    >
                         <ExternalLink size={13} strokeWidth={1.7} />
                     </button>
                     {!seen && (
-                        <button className="icon-button" title="Mark as seen" onClick={event => { event.stopPropagation(); seenStore.mark([seenKey]); }}>
+                        <button
+                            className="icon-button"
+                            title="Mark as seen"
+                            onClick={event => {
+                                event.stopPropagation();
+                                seenStore.mark([seenKey]);
+                            }}
+                        >
                             <Check size={14} strokeWidth={2} />
                         </button>
                     )}
@@ -232,7 +311,6 @@ function reviewLabel(item: PullRequestCommentItem): string | undefined {
     if (item.path) return item.path.split('/').pop();
     return item.reviewState ? 'review' : undefined;
 }
-
 
 /** Groups items by a key, in the order of their first item. */
 function groupBy<T>(items: T[], key: (item: T) => string): [string, T[]][] {
@@ -290,18 +368,15 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
 
     const pullRequests = state.pullRequests;
     const hiddenKey = JSON.stringify(filter);
-    const prComments = useMemo(
-        () => (state.prComments ?? []).filter(item => !isHiddenComment(item.author, item.text, filter)),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [state.prComments, hiddenKey]
-    );
+    // biome-ignore lint/correctness/useExhaustiveDependencies: hiddenKey holds the content of filter. The filter object can change identity without a change in content.
+    const prComments = useMemo(() => (state.prComments ?? []).filter(item => !isHiddenComment(item.author, item.text, filter)), [state.prComments, hiddenKey]);
     const unseenPr = prComments.filter(item => !seenStore.has(gitHubSeenKey(item.id)));
     const shownPrComments = prComments
         .filter(item => visible(gitHubSeenKey(item.id)))
         .filter(item => matchesDashboardQuery({ title: item.prTitle, repo: item.repo, number: item.number, author: item.author }, query));
-    const taskComments = state.tasks.flatMap(source => (source.comments ?? [])
-        .filter(comment => !isHiddenComment(comment.author, comment.body, filter))
-        .map(comment => ({ source, comment })));
+    const taskComments = state.tasks.flatMap(source =>
+        (source.comments ?? []).filter(comment => !isHiddenComment(comment.author, comment.body, filter)).map(comment => ({ source, comment }))
+    );
     const unseenTask = taskComments.filter(({ source, comment }) => !seenStore.has(taskSeenKey(source.connectionId, comment.id)));
     const taskQuery = query.trim().toLowerCase();
     const shownTaskComments = taskComments
@@ -337,9 +412,10 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
         if (ready.length === 0) return;
         const ok = await confirmDialog({
             title: ready.length === 1 ? `Merge "${parsePullRequestTitle(ready[0].title).text}"?` : `Merge ${ready.length} pull requests?`,
-            message: ready.length === 1
-                ? `${ready[0].repo.owner}/${ready[0].repo.name} #${ready[0].number}`
-                : ready.map(pr => `${pr.repo.name} #${pr.number}: ${parsePullRequestTitle(pr.title).text}`).join('\n'),
+            message:
+                ready.length === 1
+                    ? `${ready[0].repo.owner}/${ready[0].repo.name} #${ready[0].number}`
+                    : ready.map(pr => `${pr.repo.name} #${pr.number}: ${parsePullRequestTitle(pr.title).text}`).join('\n'),
             confirmLabel: 'Merge'
         });
         if (!ok) return;
@@ -361,10 +437,15 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
     // The details of the counts at the top.
     const authorCounts = groupReviewRequests(reviewRequests, 'author');
     const oldestReview = groupReviewRequests(reviewRequests, 'oldest')[0]?.items[0];
-    const reviewDetail = reviewRequests.length === 0
-        ? 'Nothing waits on you'
-        : [authorCounts[0] && authorCounts.length > 1 ? `${authorCounts[0].items.length} from ${authorCounts[0].key}` : `From ${authorCounts[0].key}`,
-            oldestReview && `oldest ${shortAge(oldestReview.createdAt)}`].filter(Boolean).join(' · ');
+    const reviewDetail =
+        reviewRequests.length === 0
+            ? 'Nothing waits on you'
+            : [
+                  authorCounts[0] && authorCounts.length > 1 ? `${authorCounts[0].items.length} from ${authorCounts[0].key}` : `From ${authorCounts[0].key}`,
+                  oldestReview && `oldest ${shortAge(oldestReview.createdAt)}`
+              ]
+                  .filter(Boolean)
+                  .join(' · ');
     const ciCount = all.blocked.filter(pr => pr.reasons.includes('ci-failing')).length;
     const conflictCount = all.blocked.filter(pr => pr.reasons.includes('conflicts')).length;
     const oldestChange = all.changes[all.changes.length - 1];
@@ -374,8 +455,8 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
     const stalePreview = buckets.stale.slice(0, 4).map(pr => parsePullRequestTitle(pr.title).text);
     const oldestStale = buckets.stale[0];
     const commentsLoaded = !!state.prComments;
-    const noComments = commentsLoaded && !state.prCommentsError && shownPrComments.length === 0 && shownTaskComments.length === 0
-        && !state.tasks.some(source => source.error);
+    const noComments =
+        commentsLoaded && !state.prCommentsError && shownPrComments.length === 0 && shownTaskComments.length === 0 && !state.tasks.some(source => source.error);
     // Show the full-page loader only before the first refresh completes.
     // The store keeps its items. Thus a later refresh or a new mount shows the items immediately.
     const firstLoad = !state.updatedAt && !state.pullRequestsError && !state.prCommentsError;
@@ -430,17 +511,47 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
             <div className="dash-scroll" hidden={firstLoad} onKeyDown={moveListFocus}>
                 <div className="dash-page">
                     <div className="dash-stats">
-                        <StatCard tone="review" label="Needs your review" count={pullRequests && reviewRequests.length} detail={loaded ? reviewDetail : 'Loading…'} onClick={() => scrollTo('dash-review')} />
-                        <StatCard tone="ready" label="Ready to merge" count={pullRequests && all.ready.length} detail={all.ready.length ? 'One click each' : 'Nothing to merge'} onClick={() => scrollTo('dash-ready')} />
-                        <StatCard tone="changes" label="Changes requested" count={pullRequests && all.changes.length} detail={oldestChange ? `Oldest ${shortAge(oldestChange.updatedAt)}` : 'No changes asked'} onClick={() => scrollTo('dash-changes')} />
+                        <StatCard
+                            tone="review"
+                            label="Needs your review"
+                            count={pullRequests && reviewRequests.length}
+                            detail={loaded ? reviewDetail : 'Loading…'}
+                            onClick={() => scrollTo('dash-review')}
+                        />
+                        <StatCard
+                            tone="ready"
+                            label="Ready to merge"
+                            count={pullRequests && all.ready.length}
+                            detail={all.ready.length ? 'One click each' : 'Nothing to merge'}
+                            onClick={() => scrollTo('dash-ready')}
+                        />
+                        <StatCard
+                            tone="changes"
+                            label="Changes requested"
+                            count={pullRequests && all.changes.length}
+                            detail={oldestChange ? `Oldest ${shortAge(oldestChange.updatedAt)}` : 'No changes asked'}
+                            onClick={() => scrollTo('dash-changes')}
+                        />
                         <StatCard
                             tone="blocked"
                             label="Blocked"
                             count={pullRequests && all.blocked.length}
-                            detail={all.blocked.length ? [ciCount && `${ciCount} CI failing`, conflictCount && `${conflictCount} conflict${conflictCount === 1 ? '' : 's'}`].filter(Boolean).join(' · ') : 'CI green, no conflicts'}
+                            detail={
+                                all.blocked.length
+                                    ? [ciCount && `${ciCount} CI failing`, conflictCount && `${conflictCount} conflict${conflictCount === 1 ? '' : 's'}`]
+                                          .filter(Boolean)
+                                          .join(' · ')
+                                    : 'CI green, no conflicts'
+                            }
                             onClick={() => scrollTo('dash-blocked')}
                         />
-                        <StatCard tone="stale" label={`Stale ${DASHBOARD_STALE_DAYS}d+`} count={pullRequests && all.stale.length} detail={all.stale.length ? 'Close or revive' : 'None'} onClick={() => scrollTo('dash-stale')} />
+                        <StatCard
+                            tone="stale"
+                            label={`Stale ${DASHBOARD_STALE_DAYS}d+`}
+                            count={pullRequests && all.stale.length}
+                            detail={all.stale.length ? 'Close or revive' : 'None'}
+                            onClick={() => scrollTo('dash-stale')}
+                        />
                     </div>
 
                     <div className="dash-columns">
@@ -448,8 +559,16 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                             <h2 className="dash-heading">Your pull requests · {query ? `${shownYourCount} of ${yourCount}` : yourCount}</h2>
                             {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
                             {!pullRequests && !state.pullRequestsError && <div className="dash-card dash-line">Loading…</div>}
-                            {loaded && yourCount === 0 && <div className="dash-card"><Empty text="None of your pull requests needs an action." /></div>}
-                            {loaded && yourCount > 0 && shownYourCount === 0 && <div className="dash-card"><Empty text="No pull requests match the filter." /></div>}
+                            {loaded && yourCount === 0 && (
+                                <div className="dash-card">
+                                    <Empty text="None of your pull requests needs an action." />
+                                </div>
+                            )}
+                            {loaded && yourCount > 0 && shownYourCount === 0 && (
+                                <div className="dash-card">
+                                    <Empty text="No pull requests match the filter." />
+                                </div>
+                            )}
 
                             {buckets.ready.length > 0 && (
                                 <PrCard
@@ -458,11 +577,13 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                     title="Ready to merge"
                                     count={buckets.ready.length}
                                     hint="Approved, CI green, no conflicts"
-                                    actions={buckets.ready.length > 1 && (
-                                        <button className="button dash-merge" disabled={merging} onClick={() => void merge(buckets.ready)}>
-                                            {buckets.ready.length === 2 ? 'Merge both' : `Merge all ${buckets.ready.length}`}
-                                        </button>
-                                    )}
+                                    actions={
+                                        buckets.ready.length > 1 && (
+                                            <button className="button dash-merge" disabled={merging} onClick={() => void merge(buckets.ready)}>
+                                                {buckets.ready.length === 2 ? 'Merge both' : `Merge all ${buckets.ready.length}`}
+                                            </button>
+                                        )
+                                    }
                                 >
                                     {mergeError && <div className="form-error dash-card-error">{mergeError}</div>}
                                     {buckets.ready.map(pr => (
@@ -470,7 +591,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                             key={pr.url}
                                             pr={pr}
                                             onOpen={() => openMine(pr)}
-                                            action={(
+                                            action={
                                                 <button
                                                     className="button dash-merge dash-row-action"
                                                     disabled={merging || !pr.headSha}
@@ -482,38 +603,58 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                                 >
                                                     Merge
                                                 </button>
-                                            )}
+                                            }
                                         />
                                     ))}
                                 </PrCard>
                             )}
 
                             {buckets.changes.length > 0 && (
-                                <PrCard id="dash-changes" tone="changes" title="Changes requested" count={buckets.changes.length} hint="Waiting on you, not the reviewer">
+                                <PrCard
+                                    id="dash-changes"
+                                    tone="changes"
+                                    title="Changes requested"
+                                    count={buckets.changes.length}
+                                    hint="Waiting on you, not the reviewer"
+                                >
                                     {buckets.changes.map(pr => (
                                         <PrRow
                                             key={pr.url}
                                             pr={pr}
                                             onOpen={() => openMine(pr)}
-                                            badges={(
+                                            badges={
                                                 <>
                                                     {!!pr.unresolvedThreads && <span className="dash-unresolved">{pr.unresolvedThreads} unresolved</span>}
                                                     <ProblemBadges pr={pr} />
                                                 </>
-                                            )}
-                                            action={(
-                                                <button className="button dash-row-action" onClick={event => { event.stopPropagation(); onOpenPullRequest(pr.repo, pr.number, 'overview'); }}>
+                                            }
+                                            action={
+                                                <button
+                                                    className="button dash-row-action"
+                                                    onClick={event => {
+                                                        event.stopPropagation();
+                                                        onOpenPullRequest(pr.repo, pr.number, 'overview');
+                                                    }}
+                                                >
                                                     Open
                                                 </button>
-                                            )}
+                                            }
                                         />
                                     ))}
                                 </PrCard>
                             )}
 
                             {buckets.blocked.length > 0 && (
-                                <PrCard id="dash-blocked" tone="blocked" title="Blocked" count={buckets.blocked.length} hint={`CI failing or merge conflicts, under ${DASHBOARD_STALE_DAYS} days old`}>
-                                    {buckets.blocked.map(pr => <PrRow key={pr.url} pr={pr} onOpen={() => openMine(pr)} badges={<ProblemBadges pr={pr} />} />)}
+                                <PrCard
+                                    id="dash-blocked"
+                                    tone="blocked"
+                                    title="Blocked"
+                                    count={buckets.blocked.length}
+                                    hint={`CI failing or merge conflicts, under ${DASHBOARD_STALE_DAYS} days old`}
+                                >
+                                    {buckets.blocked.map(pr => (
+                                        <PrRow key={pr.url} pr={pr} onOpen={() => openMine(pr)} badges={<ProblemBadges pr={pr} />} />
+                                    ))}
                                 </PrCard>
                             )}
 
@@ -525,24 +666,31 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                         <span className="dash-card-count">{buckets.stale.length}</span>
                                         {oldestStale && <span className="dash-hint">Oldest {shortAge(oldestStale.updatedAt)}.</span>}
                                     </button>
-                                    {staleOpen
-                                        ? buckets.stale.map(pr => <PrRow key={pr.url} pr={pr} onOpen={() => openMine(pr)} badges={<ProblemBadges pr={pr} />} />)
-                                        : (
-                                            <div className="dash-stale-preview">
-                                                {stalePreview.join(' · ')}
-                                                {buckets.stale.length > stalePreview.length && ` · +${buckets.stale.length - stalePreview.length} more`}
-                                            </div>
-                                        )}
+                                    {staleOpen ? (
+                                        buckets.stale.map(pr => <PrRow key={pr.url} pr={pr} onOpen={() => openMine(pr)} badges={<ProblemBadges pr={pr} />} />)
+                                    ) : (
+                                        <div className="dash-stale-preview">
+                                            {stalePreview.join(' · ')}
+                                            {buckets.stale.length > stalePreview.length && ` · +${buckets.stale.length - stalePreview.length} more`}
+                                        </div>
+                                    )}
                                 </section>
                             )}
                         </div>
 
                         <div className="dash-column">
-                            <h2 className="dash-heading">Waiting on your review · {query ? `${shownReviews.length} of ${reviewRequests.length}` : reviewRequests.length}</h2>
+                            <h2 className="dash-heading">
+                                Waiting on your review · {query ? `${shownReviews.length} of ${reviewRequests.length}` : reviewRequests.length}
+                            </h2>
                             <section id="dash-review" className="dash-card dash-review-card">
                                 <div className="dash-chips" role="group" aria-label="Sort the review requests">
                                     {(Object.keys(REVIEW_SORT_LABELS) as ReviewSort[]).map(sort => (
-                                        <button key={sort} className={`dash-chip${reviewSort === sort ? ' on' : ''}`} aria-pressed={reviewSort === sort} onClick={() => setReviewSort(sort)}>
+                                        <button
+                                            key={sort}
+                                            className={`dash-chip${reviewSort === sort ? ' on' : ''}`}
+                                            aria-pressed={reviewSort === sort}
+                                            onClick={() => setReviewSort(sort)}
+                                        >
                                             {REVIEW_SORT_LABELS[sort]}
                                         </button>
                                     ))}
@@ -561,8 +709,15 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                             </div>
                                         )}
                                         {group.items.map(pr => (
-                                            <button key={pr.url} className={`dash-row dash-review-row${group.key ? ' indented' : ''}`} data-nav-item onClick={() => onOpenPullRequest(pr.repo, pr.number, 'files')}>
-                                                <span className="dash-title" title={pr.title}>{parsePullRequestTitle(pr.title).text}</span>
+                                            <button
+                                                key={pr.url}
+                                                className={`dash-row dash-review-row${group.key ? ' indented' : ''}`}
+                                                data-nav-item
+                                                onClick={() => onOpenPullRequest(pr.repo, pr.number, 'files')}
+                                            >
+                                                <span className="dash-title" title={pr.title}>
+                                                    {parsePullRequestTitle(pr.title).text}
+                                                </span>
                                                 {reviewSort !== 'author' && <span className="dash-person">{pr.author ?? 'unknown'}</span>}
                                                 <RepoPill repo={pr.repo} number={pr.number} />
                                                 <Age iso={pr.createdAt} title={`Opened ${timeAgo(pr.createdAt)}`} />
@@ -589,7 +744,11 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                     {state.prCommentsError && <div className="form-error">{state.prCommentsError}</div>}
                                     {groupBy(shownPrComments, item => item.prUrl).map(([url, items]) => (
                                         <div key={url} className="dash-group">
-                                            <button className="dash-row dash-group-head" data-nav-item onClick={() => onOpenPullRequest(items[0].repo, items[0].number, 'overview')}>
+                                            <button
+                                                className="dash-row dash-group-head"
+                                                data-nav-item
+                                                onClick={() => onOpenPullRequest(items[0].repo, items[0].number, 'overview')}
+                                            >
                                                 <Title title={items[0].prTitle} empty="" />
                                                 <RepoPill repo={items[0].repo} number={items[0].number} />
                                             </button>
@@ -615,14 +774,23 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
 
                             {(state.tasks.some(source => source.error) || shownTaskComments.length > 0) && (
                                 <CommentSection title="New task comments" count={unseenTask.length} onMarkAll={markAllTasks}>
-                                    {state.tasks.filter(source => source.error).map(source => (
-                                        <div key={source.connectionId} className="form-error">{source.name}: {source.error}</div>
-                                    ))}
+                                    {state.tasks
+                                        .filter(source => source.error)
+                                        .map(source => (
+                                            <div key={source.connectionId} className="form-error">
+                                                {source.name}: {source.error}
+                                            </div>
+                                        ))}
                                     {groupBy(shownTaskComments, ({ source, comment }) => `${source.connectionId}\0${comment.taskId}`).map(([key, items]) => {
                                         const task: TaskCommentItem = items[0].comment;
                                         return (
                                             <div key={key} className="dash-group">
-                                                <button className="dash-row dash-group-head" data-nav-item onClick={event => openUrl(task.taskUrl, event)} title="Open the task in the browser">
+                                                <button
+                                                    className="dash-row dash-group-head"
+                                                    data-nav-item
+                                                    onClick={event => openUrl(task.taskUrl, event)}
+                                                    title="Open the task in the browser"
+                                                >
                                                     <Ticket ticket={task.taskKey} empty="" />
                                                     <span className="dash-title">{task.taskTitle}</span>
                                                     <span className="dash-repo">{items[0].source.name}</span>
@@ -666,7 +834,11 @@ function CommentSection({ title, count, onMarkAll, children }: { title: string; 
                 <h3>{title}</h3>
                 <span className="dash-card-count">{count}</span>
                 <span className="header-spacer" />
-                {count > 0 && <button className="link-button" onClick={onMarkAll}><CheckCheck size={13} strokeWidth={1.8} /> Mark all as seen</button>}
+                {count > 0 && (
+                    <button className="link-button" onClick={onMarkAll}>
+                        <CheckCheck size={13} strokeWidth={1.8} /> Mark all as seen
+                    </button>
+                )}
             </header>
             {children}
         </section>

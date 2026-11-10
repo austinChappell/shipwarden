@@ -31,10 +31,8 @@ export interface RemoteSettings {
 export const DEFAULT_REMOTE_SETTINGS: RemoteSettings = { enabled: false, port: DEFAULT_REMOTE_PORT, keepRunning: false };
 
 export function normalizeRemoteSettings(raw: unknown): RemoteSettings {
-    const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
-    const port = typeof value.port === 'number' && Number.isInteger(value.port) && value.port >= 1024 && value.port <= 65535
-        ? value.port
-        : DEFAULT_REMOTE_PORT;
+    const value = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const port = typeof value.port === 'number' && Number.isInteger(value.port) && value.port >= 1024 && value.port <= 65535 ? value.port : DEFAULT_REMOTE_PORT;
     return { enabled: value.enabled === true, port, keepRunning: value.keepRunning === true };
 }
 
@@ -107,7 +105,10 @@ export function parsePairingLink(text: string): PairingLink | undefined {
     if (url.protocol !== `${PAIRING_SCHEME}:` || url.hostname !== 'pair') return undefined;
     const params = url.searchParams;
     const port = Number(params.get('p'));
-    const hosts = (params.get('h') ?? '').split(',').map(host => host.trim()).filter(Boolean);
+    const hosts = (params.get('h') ?? '')
+        .split(',')
+        .map(host => host.trim())
+        .filter(Boolean);
     const fingerprint = (params.get('fp') ?? '').toLowerCase();
     const code = params.get('c') ?? '';
     if (!Number.isInteger(port) || port <= 0 || port > 65535 || hosts.length === 0 || !/^[0-9a-f]{64}$/.test(fingerprint) || !code) {
@@ -210,9 +211,22 @@ export interface ScreenSnapshot {
     cursor: { x: number; y: number; visible: boolean };
 }
 
+/** The answer to `POST /v1/pair`. */
+export interface RemotePairResponse {
+    protocol: number;
+    token: string;
+    deviceId: string;
+    mac: { name: string; version: string };
+}
+
+/** The body of each answer with an error status. */
+export interface RemoteErrorBody {
+    error: string;
+}
+
 /** The keys that the phone can send. */
 export const REMOTE_KEYS = ['enter', 'escape', 'tab', 'shiftTab', 'up', 'down', 'left', 'right', 'backspace', 'ctrlC', 'ctrlD'] as const;
-export type RemoteKey = typeof REMOTE_KEYS[number];
+export type RemoteKey = (typeof REMOTE_KEYS)[number];
 
 const KEY_BYTES: Record<RemoteKey, string> = {
     enter: '\r',

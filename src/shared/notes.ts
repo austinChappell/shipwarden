@@ -48,7 +48,11 @@ export const MAX_FOLDER_DEPTH = 10;
 
 /** Cleans a folder path: trims each part and removes empty parts. "a / b/" becomes "a/b". */
 export function normalizeFolderPath(folder: string): string {
-    return folder.split('/').map(part => part.trim()).filter(Boolean).join('/');
+    return folder
+        .split('/')
+        .map(part => part.trim())
+        .filter(Boolean)
+        .join('/');
 }
 
 /** Splits a note path into its folder path (empty at the top level) and its file name. "a/b/c.md" has the folder "a/b". */
@@ -114,7 +118,11 @@ export function normalizeTags(tags: unknown): string[] {
     const result: string[] = [];
     for (const item of tags) {
         if (typeof item !== 'string') continue;
-        const tag = item.trim().replace(/^#+/, '').replace(/[,\s]+/g, '-').slice(0, MAX_TAG_LENGTH);
+        const tag = item
+            .trim()
+            .replace(/^#+/, '')
+            .replace(/[,\s]+/g, '-')
+            .slice(0, MAX_TAG_LENGTH);
         if (tag && !result.some(other => other.toLowerCase() === tag.toLowerCase())) {
             result.push(tag);
         }

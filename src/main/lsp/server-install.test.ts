@@ -103,14 +103,15 @@ describe('command output', () => {
 });
 
 describe('ServerInstaller.plan', () => {
-    const installer = (platform: string, arch: string) => new ServerInstaller({
-        folder: '/data/language-servers',
-        ready: Promise.resolve(),
-        extraCertificateBundle: () => undefined,
-        onState: () => undefined,
-        platform,
-        arch
-    });
+    const installer = (platform: string, arch: string) =>
+        new ServerInstaller({
+            folder: '/data/language-servers',
+            ready: Promise.resolve(),
+            extraCertificateBundle: () => undefined,
+            onState: () => undefined,
+            platform,
+            arch
+        });
 
     it('downloads the rust-analyzer binary for the CPU of the Mac', async () => {
         const plan = await installer('darwin', 'arm64').plan('rust-analyzer');

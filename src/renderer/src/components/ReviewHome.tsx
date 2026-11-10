@@ -41,9 +41,27 @@ function days(iso: string): number {
 
 function RepoChecks({ summary }: { summary: RepoReviewSummary }) {
     const props = { size: 14, strokeWidth: 1.8 };
-    if (summary.failing > 0) return <span className="checks-label failing"><CircleX {...props} />{summary.failing} failing</span>;
-    if (summary.running > 0) return <span className="checks-label running"><Clock {...props} />Running</span>;
-    if (summary.passing > 0) return <span className="checks-label passing"><CircleCheck {...props} />Passing</span>;
+    if (summary.failing > 0)
+        return (
+            <span className="checks-label failing">
+                <CircleX {...props} />
+                {summary.failing} failing
+            </span>
+        );
+    if (summary.running > 0)
+        return (
+            <span className="checks-label running">
+                <Clock {...props} />
+                Running
+            </span>
+        );
+    if (summary.passing > 0)
+        return (
+            <span className="checks-label passing">
+                <CircleCheck {...props} />
+                Passing
+            </span>
+        );
     return <span className="count-pill-none">—</span>;
 }
 
@@ -69,28 +87,33 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
     /** Without project repositories, the page shows all repositories. */
     const all = mode === 'all' || state.projectRepos.length === 0;
 
-    const waiting = useMemo<WaitingRow[]>(() => entries
-        .flatMap(entry => (entry.data ? [{ id: entry.id, summary: summarizeRepo(entry.data) }] : []))
-        .filter(row => isWaiting(row.summary))
-        .sort((a, b) => (a.summary.oldest ?? '').localeCompare(b.summary.oldest ?? '') || a.id.localeCompare(b.id)),
-    [state.repos]); // eslint-disable-line react-hooks/exhaustive-deps
+    const waiting = useMemo<WaitingRow[]>(
+        () =>
+            Object.values(state.repos)
+                .flatMap(entry => (entry.data ? [{ id: entry.id, summary: summarizeRepo(entry.data) }] : []))
+                .filter(row => isWaiting(row.summary))
+                .sort((a, b) => (a.summary.oldest ?? '').localeCompare(b.summary.oldest ?? '') || a.id.localeCompare(b.id)),
+        [state.repos]
+    );
 
     const idle = useMemo<IdleRow[]>(() => {
         const busy = new Set(waiting.map(row => row.id.toLowerCase()));
         const ids = all ? (state.catalog ?? []).map(repo => `${repo.owner}/${repo.name}`) : state.projectRepos;
         const pushed = new Map((state.catalog ?? []).map(repo => [`${repo.owner}/${repo.name}`.toLowerCase(), repo.pushedAt]));
-        return ids.filter(id => !busy.has(id.toLowerCase())).map(id => {
-            const entry = state.repos[id.toLowerCase()];
-            if (entry?.data) {
-                const summary = summarizeRepo(entry.data);
-                const count = summary.openCount;
-                const open = count === 0 ? 'No open PRs' : `${count} open PR${count === 1 ? '' : 's'}`;
-                return { id: entry.id, meta: count > 0 && summary.lastActivity ? `${open} · last activity ${timeAgo(summary.lastActivity)}` : open };
-            }
-            if (entry?.error) return { id, meta: 'Could not load the pull requests' };
-            const push = pushed.get(id.toLowerCase());
-            return { id, meta: push ? `Last push ${timeAgo(push)}` : entry?.loading ? 'Loading…' : '' };
-        });
+        return ids
+            .filter(id => !busy.has(id.toLowerCase()))
+            .map(id => {
+                const entry = state.repos[id.toLowerCase()];
+                if (entry?.data) {
+                    const summary = summarizeRepo(entry.data);
+                    const count = summary.openCount;
+                    const open = count === 0 ? 'No open PRs' : `${count} open PR${count === 1 ? '' : 's'}`;
+                    return { id: entry.id, meta: count > 0 && summary.lastActivity ? `${open} · last activity ${timeAgo(summary.lastActivity)}` : open };
+                }
+                if (entry?.error) return { id, meta: 'Could not load the pull requests' };
+                const push = pushed.get(id.toLowerCase());
+                return { id, meta: push ? `Last push ${timeAgo(push)}` : entry?.loading ? 'Loading…' : '' };
+            });
     }, [all, state.catalog, state.projectRepos, state.repos, waiting]);
 
     const shownWaiting = waiting.filter(row => matches(row.id, words));
@@ -106,17 +129,20 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
     });
     useInitialFocus(listRef, focusRepo ? `[data-repo="${CSS.escape(focusRepo.toLowerCase())}"]` : undefined, anyLoaded || !!state.catalog);
 
-    const title = !anyLoaded && !state.catalog
-        ? 'Loading pull requests…'
-        : queue.length === 0
-            ? 'Nothing waiting on your review'
-            : `${queue.length} pull request${queue.length === 1 ? '' : 's'} waiting on you`;
+    const title =
+        !anyLoaded && !state.catalog
+            ? 'Loading pull requests…'
+            : queue.length === 0
+              ? 'Nothing waiting on your review'
+              : `${queue.length} pull request${queue.length === 1 ? '' : 's'} waiting on you`;
     const subtitle = (
-        <Dotted parts={[
-            queue.length > 0 && `across ${reviewRepos.length} ${reviewRepos.length === 1 ? 'repository' : 'repositories'}`,
-            oldest && `oldest waiting ${days(oldest)} ${days(oldest) === 1 ? 'day' : 'days'}`,
-            yourPrs > 0 && `${yourPrs} of your PRs need${yourPrs === 1 ? 's' : ''} action`
-        ]} />
+        <Dotted
+            parts={[
+                queue.length > 0 && `across ${reviewRepos.length} ${reviewRepos.length === 1 ? 'repository' : 'repositories'}`,
+                oldest && `oldest waiting ${days(oldest)} ${days(oldest) === 1 ? 'day' : 'days'}`,
+                yourPrs > 0 && `${yourPrs} of your PRs need${yourPrs === 1 ? 's' : ''} action`
+            ]}
+        />
     );
 
     return (
@@ -147,8 +173,18 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                     </label>
                     {state.projectRepos.length > 0 && (
                         <div className="segmented compact" role="radiogroup" aria-label="Repositories" onKeyDown={radioGroupKeys}>
-                            <button role="radio" aria-checked={!all} tabIndex={!all ? 0 : -1} className={!all ? 'selected' : ''} onClick={() => setMode('projects')}>In projects</button>
-                            <button role="radio" aria-checked={all} tabIndex={all ? 0 : -1} className={all ? 'selected' : ''} onClick={() => setMode('all')}>All</button>
+                            <button
+                                role="radio"
+                                aria-checked={!all}
+                                tabIndex={!all ? 0 : -1}
+                                className={!all ? 'selected' : ''}
+                                onClick={() => setMode('projects')}
+                            >
+                                In projects
+                            </button>
+                            <button role="radio" aria-checked={all} tabIndex={all ? 0 : -1} className={all ? 'selected' : ''} onClick={() => setMode('all')}>
+                                All
+                            </button>
                         </div>
                     )}
                     <span className="header-spacer" />
@@ -171,7 +207,9 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                 {state.catalog?.length === 0 && (
                     <div className="review-empty">
                         <p>The selected organizations have no repositories that you can access.</p>
-                        <button className="button" onClick={onOpenSettings}>Open Settings › Code review</button>
+                        <button className="button" onClick={onOpenSettings}>
+                            Open Settings › Code review
+                        </button>
                     </div>
                 )}
 
@@ -197,17 +235,29 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                                 <span className="review-repo-name">
                                     <strong>{id}</strong>
                                     <span className="review-repo-meta">
-                                        <Dotted parts={[
-                                            summary.lastActivity && `Last activity ${timeAgo(summary.lastActivity)}`,
-                                            `${summary.openCount} open PR${summary.openCount === 1 ? '' : 's'}`
-                                        ]} />
+                                        <Dotted
+                                            parts={[
+                                                summary.lastActivity && `Last activity ${timeAgo(summary.lastActivity)}`,
+                                                `${summary.openCount} open PR${summary.openCount === 1 ? '' : 's'}`
+                                            ]}
+                                        />
                                     </span>
                                 </span>
-                                <span><CountPill value={summary.toReview} tone="info" /></span>
-                                <span><CountPill value={summary.reReview} tone="accent" /></span>
-                                <span><CountPill value={summary.yourPrs} tone="plain" /></span>
-                                <span className={`review-age ${summary.oldest ? ageLevel(summary.oldest) : ''}`}>{summary.oldest ? shortAge(summary.oldest) : '—'}</span>
-                                <span><RepoChecks summary={summary} /></span>
+                                <span>
+                                    <CountPill value={summary.toReview} tone="info" />
+                                </span>
+                                <span>
+                                    <CountPill value={summary.reReview} tone="accent" />
+                                </span>
+                                <span>
+                                    <CountPill value={summary.yourPrs} tone="plain" />
+                                </span>
+                                <span className={`review-age ${summary.oldest ? ageLevel(summary.oldest) : ''}`}>
+                                    {summary.oldest ? shortAge(summary.oldest) : '—'}
+                                </span>
+                                <span>
+                                    <RepoChecks summary={summary} />
+                                </span>
                             </button>
                         ))}
                     </section>
@@ -225,9 +275,7 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                     </section>
                 )}
 
-                {anyLoaded && shownWaiting.length === 0 && shownIdle.length === 0 && (
-                    <div className="panel-message">No repositories match the filter.</div>
-                )}
+                {anyLoaded && shownWaiting.length === 0 && shownIdle.length === 0 && <div className="panel-message">No repositories match the filter.</div>}
                 {!all && state.catalog && (
                     <div className="review-show-all-row">
                         <button className="button review-show-all" onClick={() => setMode('all')}>
@@ -237,12 +285,14 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                 )}
             </div>
 
-            <KeyLegend items={[
-                { keys: ['j', 'k'], label: 'move' },
-                { keys: ['↵'], label: 'open' },
-                { keys: ['/'], label: 'filter' },
-                { keys: ['r'], label: 'start review queue' }
-            ]} />
+            <KeyLegend
+                items={[
+                    { keys: ['j', 'k'], label: 'move' },
+                    { keys: ['↵'], label: 'open' },
+                    { keys: ['/'], label: 'filter' },
+                    { keys: ['r'], label: 'start review queue' }
+                ]}
+            />
         </div>
     );
 }

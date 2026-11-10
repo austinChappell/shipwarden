@@ -14,7 +14,9 @@ import { appKeyAction } from '@shared/shortcuts';
 /** The page settings of Yardmaster (the old app name) have the prefix "yardmaster.". Copy them one time to the new prefix. */
 function migrateLegacyStorage(): void {
     try {
-        const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key): key is string => !!key?.startsWith('yardmaster.'));
+        const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter(
+            (key): key is string => !!key?.startsWith('yardmaster.')
+        );
         for (const key of keys) {
             const next = `shipwarden.${key.slice('yardmaster.'.length)}`;
             const value = localStorage.getItem(key);
@@ -32,14 +34,26 @@ outputActivity.start(window.shipwarden.terminals);
 
 // The app keys (⌘Q, ⇧⌥⌘Q, ⌘, and ⌘H), in the capture phase, before a terminal takes them. The main process normally
 // reads these keys first (before-input-event). This is the second way, when it does not.
-window.addEventListener('keydown', event => {
-    const action = appKeyAction({ type: 'keyDown', meta: event.metaKey, shift: event.shiftKey, control: event.ctrlKey, alt: event.altKey, key: event.key, code: event.code });
-    if (action) {
-        event.preventDefault();
-        event.stopPropagation();
-        window.shipwarden.app.runKey(action);
-    }
-}, true);
+window.addEventListener(
+    'keydown',
+    event => {
+        const action = appKeyAction({
+            type: 'keyDown',
+            meta: event.metaKey,
+            shift: event.shiftKey,
+            control: event.ctrlKey,
+            alt: event.altKey,
+            key: event.key,
+            code: event.code
+        });
+        if (action) {
+            event.preventDefault();
+            event.stopPropagation();
+            window.shipwarden.app.runKey(action);
+        }
+    },
+    true
+);
 
 // The main process asks some questions (for example "Stop and Quit") in the dialog of the page.
 window.shipwarden.app.onConfirmRequest((id, request) => {

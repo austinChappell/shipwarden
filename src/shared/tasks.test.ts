@@ -1,8 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { applyStartStatus, boardColumns, branchNameForTask, collapsedByDefault, findStartStatus, groupTasksByStatus, linkMatchesTask, normalizeTaskConfig, pickCollection, sortCollections, statusForColumn, taskMatches, taskPrompt, type StatusCategory, type Task, type TaskStatus } from './tasks';
+import {
+    applyStartStatus,
+    boardColumns,
+    branchNameForTask,
+    collapsedByDefault,
+    findStartStatus,
+    groupTasksByStatus,
+    linkMatchesTask,
+    normalizeTaskConfig,
+    pickCollection,
+    sortCollections,
+    statusForColumn,
+    taskMatches,
+    taskPrompt,
+    type StatusCategory,
+    type Task,
+    type TaskStatus
+} from './tasks';
 
-const task = (key: string | undefined, title: string, category: Task['status']['category'] = 'todo'): Task =>
-    ({ id: 'abc', key, title, status: { id: category, name: category, category } });
+const task = (key: string | undefined, title: string, category: Task['status']['category'] = 'todo'): Task => ({
+    id: 'abc',
+    key,
+    title,
+    status: { id: category, name: category, category }
+});
 
 describe('branchNameForTask', () => {
     it.each([
@@ -23,7 +44,11 @@ describe('branchNameForTask', () => {
 
 describe('collections', () => {
     it('picks the saved collection, else the default, else the first one', () => {
-        const collections = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B', default: true }, { id: 'c', name: 'C' }];
+        const collections = [
+            { id: 'a', name: 'A' },
+            { id: 'b', name: 'B', default: true },
+            { id: 'c', name: 'C' }
+        ];
         expect(pickCollection(collections, 'c')).toBe('c');
         expect(pickCollection(collections, 'gone')).toBe('b');
         expect(pickCollection([{ id: 'a', name: 'A' }], undefined)).toBe('a');
@@ -32,24 +57,30 @@ describe('collections', () => {
 
     it('sorts collections without a path first, then by path and name', () => {
         const sorted = sortCollections([
-            { id: '1', name: 'Trello Archive', path: 'Archive' }, { id: '2', name: 'General List' },
-            { id: '3', name: 'ClassLink', path: 'Projects' }, { id: '4', name: 'Completed Work' }
+            { id: '1', name: 'Trello Archive', path: 'Archive' },
+            { id: '2', name: 'General List' },
+            { id: '3', name: 'ClassLink', path: 'Projects' },
+            { id: '4', name: 'Completed Work' }
         ]);
         expect(sorted.map(item => item.name)).toEqual(['Completed Work', 'General List', 'Trello Archive', 'ClassLink']);
     });
 });
 
-
 describe('taskPrompt', () => {
     it('includes the key, the title, the URL, the description and the branch', () => {
         const prompt = taskPrompt({ ...task('#2', 'Fix it'), url: 'https://x/2', description: 'Do the thing.' }, 'issue-2-fix-it');
-        expect(prompt).toBe('Work on this task.\n\n#2: Fix it\nhttps://x/2\n\nDo the thing.\n\nYou are in a new git worktree on the branch "issue-2-fix-it". Make the change, run the tests and commit your work.');
+        expect(prompt).toBe(
+            'Work on this task.\n\n#2: Fix it\nhttps://x/2\n\nDo the thing.\n\nYou are in a new git worktree on the branch "issue-2-fix-it". Make the change, run the tests and commit your work.'
+        );
     });
 });
 
 describe('groupTasksByStatus', () => {
-    const withStatus = (id: string, name: string, category: Task['status']['category'], order?: number): Task =>
-        ({ id, title: id, status: { id: name, name, category, order } });
+    const withStatus = (id: string, name: string, category: Task['status']['category'], order?: number): Task => ({
+        id,
+        title: id,
+        status: { id: name, name, category, order }
+    });
 
     it('makes one group for each status name, in category order and then in status order', () => {
         const groups = groupTasksByStatus([
@@ -74,13 +105,16 @@ describe('groupTasksByStatus', () => {
             { id: 'in review', name: 'In Review', category: 'in_progress' as const },
             { id: 'done', name: 'Done', category: 'done' as const }
         ];
-        const groups = groupTasksByStatus([
-            withStatus('1', 'in review', 'in_progress', 9),
-            withStatus('2', 'Backlog', 'todo', 0),
-            withStatus('3', 'blocked', 'in_progress', 1),
-            withStatus('4', 'Done', 'done'),
-            withStatus('5', 'dev ready', 'in_progress', 2)
-        ], order);
+        const groups = groupTasksByStatus(
+            [
+                withStatus('1', 'in review', 'in_progress', 9),
+                withStatus('2', 'Backlog', 'todo', 0),
+                withStatus('3', 'blocked', 'in_progress', 1),
+                withStatus('4', 'Done', 'done'),
+                withStatus('5', 'dev ready', 'in_progress', 2)
+            ],
+            order
+        );
         expect(groups.map(group => group.name)).toEqual(['Backlog', 'dev ready', 'in review', 'Done', 'blocked']);
     });
 
@@ -90,8 +124,13 @@ describe('groupTasksByStatus', () => {
     });
 
     it('collapses only the done and canceled groups by default', () => {
-        expect(['backlog', 'todo', 'in_progress', 'done', 'canceled'].map(category => collapsedByDefault(category as Task['status']['category'])))
-            .toEqual([false, false, false, true, true]);
+        expect(['backlog', 'todo', 'in_progress', 'done', 'canceled'].map(category => collapsedByDefault(category as Task['status']['category']))).toEqual([
+            false,
+            false,
+            false,
+            true,
+            true
+        ]);
     });
 });
 
@@ -103,7 +142,10 @@ describe('boardColumns', () => {
         const order = [status('to do', 'todo'), status('in progress'), status('in review'), status('complete', 'done')];
         const columns = boardColumns([task('a', 'In Progress'), task('b', 'complete', 'done')], order);
         expect(columns.map(column => [column.key, column.tasks.length])).toEqual([
-            ['to do', 0], ['in progress', 1], ['in review', 0], ['complete', 1]
+            ['to do', 0],
+            ['in progress', 1],
+            ['in review', 0],
+            ['complete', 1]
         ]);
     });
 
@@ -149,7 +191,7 @@ describe('start status', () => {
 
     function fakeRequest(list = statuses) {
         const calls: [string, unknown][] = [];
-        const request = async <T,>(method: string, params: unknown): Promise<T> => {
+        const request = async <T>(method: string, params: unknown): Promise<T> => {
             calls.push([method, params]);
             return (method === 'tasks/statuses' ? list : task) as T;
         };
@@ -165,7 +207,10 @@ describe('start status', () => {
     it('moves the task when its list has the status', async () => {
         const { calls, request } = fakeRequest();
         expect(await applyStartStatus(task, 'in progress', { update: true, statuses: true }, request)).toBe('moved');
-        expect(calls).toEqual([['tasks/statuses', { id: 't1' }], ['tasks/update', { id: 't1', status: 's2' }]]);
+        expect(calls).toEqual([
+            ['tasks/statuses', { id: 't1' }],
+            ['tasks/update', { id: 't1', status: 's2' }]
+        ]);
     });
 
     it('keeps the status when the list has no such status, or the task has it already', async () => {
@@ -185,7 +230,12 @@ describe('start status', () => {
     });
 
     it('keeps a trimmed start status in the connection settings', () => {
-        const config = normalizeTaskConfig({ connections: [{ id: 'c', pluginId: 'clickup', startStatus: ' in progress ' }, { id: 'd', pluginId: 'github-issues', startStatus: '  ' }] });
+        const config = normalizeTaskConfig({
+            connections: [
+                { id: 'c', pluginId: 'clickup', startStatus: ' in progress ' },
+                { id: 'd', pluginId: 'github-issues', startStatus: '  ' }
+            ]
+        });
         expect(config.connections[0].startStatus).toBe('in progress');
         expect(config.connections[1]).not.toHaveProperty('startStatus');
     });

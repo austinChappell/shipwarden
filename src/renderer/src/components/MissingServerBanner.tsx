@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { CircleAlert, Download, LoaderCircle } from 'lucide-react';
 import type { LspMissingServer } from '@shared/lsp';
 import { lspBridge } from '../lsp/bridge';
@@ -33,18 +34,35 @@ export function MissingServerBanner({ server, install, features }: Props) {
     const running = install?.status === 'running';
     const failed = install?.status === 'error';
     let icon = <Download size={14} strokeWidth={1.8} />;
-    let text;
+    let text: ReactNode;
     if (running) {
         icon = <LoaderCircle size={14} strokeWidth={1.8} className="spin" />;
         const percent = install.progress === undefined ? '' : ` (${Math.round(install.progress * 100)}%)`;
-        text = <>Installing <strong>{server.name}</strong>: {install.step ?? 'Starting'}{percent}.</>;
+        text = (
+            <>
+                Installing <strong>{server.name}</strong>: {install.step ?? 'Starting'}
+                {percent}.
+            </>
+        );
     } else if (failed) {
         icon = <CircleAlert size={14} strokeWidth={1.8} />;
-        text = <>The install of <strong>{server.name}</strong> failed. <span className="editor-server-error">{install.error}</span></>;
+        text = (
+            <>
+                The install of <strong>{server.name}</strong> failed. <span className="editor-server-error">{install.error}</span>
+            </>
+        );
     } else if (server.install) {
-        text = <>Install <strong>{server.name}</strong> to get {features} in this file.</>;
+        text = (
+            <>
+                Install <strong>{server.name}</strong> to get {features} in this file.
+            </>
+        );
     } else {
-        text = <>Install <strong>{server.name}</strong> to get {features}. {server.unavailable}</>;
+        text = (
+            <>
+                Install <strong>{server.name}</strong> to get {features}. {server.unavailable}
+            </>
+        );
     }
     return (
         <div className={`editor-server-banner${failed ? ' failed' : ''}`} role="status">
@@ -55,7 +73,11 @@ export function MissingServerBanner({ server, install, features }: Props) {
                     {failed ? 'Try again' : 'Install'}
                 </button>
             )}
-            {!running && <button className="button" onClick={() => missingServers.dismiss(server.serverId)}>Not now</button>}
+            {!running && (
+                <button className="button" onClick={() => missingServers.dismiss(server.serverId)}>
+                    Not now
+                </button>
+            )}
         </div>
     );
 }

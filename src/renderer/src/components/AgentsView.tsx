@@ -107,15 +107,18 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
 
     // The worktrees of all repositories of all projects tell which project and branch each agent belongs to.
     const repoKey = allRepos.join('\0');
+    // biome-ignore lint/correctness/useExhaustiveDependencies: repoKey holds the content of allRepos. A new agent can use a new worktree, so the count reloads the list.
     useEffect(() => {
         let cancelled = false;
-        Promise.all(allRepos.map(async repo => {
-            try {
-                return (await api.worktrees.list(repo)).map(worktree => [worktree.path, { repo, worktree }] as const);
-            } catch {
-                return [];
-            }
-        })).then(lists => {
+        Promise.all(
+            allRepos.map(async repo => {
+                try {
+                    return (await api.worktrees.list(repo)).map(worktree => [worktree.path, { repo, worktree }] as const);
+                } catch {
+                    return [];
+                }
+            })
+        ).then(lists => {
             if (!cancelled) {
                 setPlaces(Object.fromEntries(lists.flat()));
             }
@@ -123,7 +126,6 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
         return () => {
             cancelled = true;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [repoKey, agents.length]);
 
     // Load the pull requests and their CI state for each repository that has an agent. One request covers a repository.
@@ -131,11 +133,15 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
     useEffect(() => {
         const repoList = agentRepoKey ? agentRepoKey.split('\0') : [];
         let cancelled = false;
-        const load = () => repoList.forEach(repo => {
-            api.github.branchSummaries(repo).then(result => {
-                if (!cancelled) setSummaries(map => ({ ...map, [repo]: result }));
-            }, () => undefined);
-        });
+        const load = () =>
+            repoList.forEach(repo => {
+                api.github.branchSummaries(repo).then(
+                    result => {
+                        if (!cancelled) setSummaries(map => ({ ...map, [repo]: result }));
+                    },
+                    () => undefined
+                );
+            });
         load();
         const timer = setInterval(load, SUMMARY_POLL_MS);
         return () => {
@@ -156,22 +162,26 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
         return () => clearInterval(timer);
     }, []);
 
-    const rows = useMemo<Row[]>(() => agents.map(session => {
-        const place = session.worktreePath ? places[session.worktreePath] : undefined;
-        const branch = place?.worktree.branch;
-        const pr = place && branch ? summaries[place.repo]?.[branch] : undefined;
-        const ci = ciStateOf(pr ? pr.checks : undefined);
-        const lastOutputAt = outputActivity.get(session.id);
-        return {
-            session,
-            place,
-            pr,
-            ci,
-            state: overviewState({ agentState: session.agentState, ci, lastOutputAt, now }),
-            lastOutputAt,
-            activityAt: lastActivityAt(lastOutputAt, session.agentStateAt)
-        };
-    }), [agents, places, summaries, now]);
+    const rows = useMemo<Row[]>(
+        () =>
+            agents.map(session => {
+                const place = session.worktreePath ? places[session.worktreePath] : undefined;
+                const branch = place?.worktree.branch;
+                const pr = place && branch ? summaries[place.repo]?.[branch] : undefined;
+                const ci = ciStateOf(pr ? pr.checks : undefined);
+                const lastOutputAt = outputActivity.get(session.id);
+                return {
+                    session,
+                    place,
+                    pr,
+                    ci,
+                    state: overviewState({ agentState: session.agentState, ci, lastOutputAt, now }),
+                    lastOutputAt,
+                    activityAt: lastActivityAt(lastOutputAt, session.agentStateAt)
+                };
+            }),
+        [agents, places, summaries, now]
+    );
 
     /** The groups: one for each project with agents, the active project first, then agents that are in no project. */
     const groups = useMemo(() => {
@@ -202,7 +212,9 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                 {counts.length > 0 && (
                     <span className="agents-states">
                         {counts.map(({ state, count }) => (
-                            <span key={state} className={`agents-state-count ${state}`}>{count} {OVERVIEW_LABELS[state].toLowerCase()}</span>
+                            <span key={state} className={`agents-state-count ${state}`}>
+                                {count} {OVERVIEW_LABELS[state].toLowerCase()}
+                            </span>
                         ))}
                     </span>
                 )}
@@ -228,18 +240,20 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                 {group.name}
                                 {group.id === projects?.activeId && <span className="agents-current">current project</span>}
                             </h2>
+                            {/* biome-ignore lint/a11y/noRedundantRoles: Safari removes the list role when the list has no bullets. */}
                             <ul className="agents-list" role="list">
                                 {group.rows.map(row => {
                                     const { session, place, pr, ci, state } = row;
                                     const link = session.worktreePath ? links[session.worktreePath] : undefined;
                                     const branch = place?.worktree.branch ?? place?.worktree.path.split('/').pop();
-                                    const name = link ? `${link.key ? `${link.key} · ` : ''}${link.title}` : session.agentPrompt ?? branch ?? session.title;
+                                    const name = link ? `${link.key ? `${link.key} · ` : ''}${link.title}` : (session.agentPrompt ?? branch ?? session.title);
                                     const label = OVERVIEW_LABELS[state];
                                     const activity = activityText(row, now);
-                                    const where = place ? `${repoLabel(place.repo)} · ${branch}` : session.cwd.split('/').pop() ?? session.cwd;
+                                    const where = place ? `${repoLabel(place.repo)} · ${branch}` : (session.cwd.split('/').pop() ?? session.cwd);
                                     const prText = pr ? `PR #${pr.number}${ciText(ci) ? ` · ${ciText(ci)}` : ''}` : undefined;
-                                    const message = session.agentMessage
-                                        ?? (session.agentState ? '' : `${session.title} has no status hooks. The state comes from its terminal output.`);
+                                    const message =
+                                        session.agentMessage ??
+                                        (session.agentState ? '' : `${session.title} has no status hooks. The state comes from its terminal output.`);
                                     return (
                                         <li key={session.id}>
                                             <button
@@ -250,8 +264,12 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                             >
                                                 <span className={`status-dot ${DOT_CLASS[state]}`} aria-hidden />
                                                 <span className="agent-main">
-                                                    <span className="agent-name" title={name}>{name}</span>
-                                                    <span className="agent-activity" title={message}>{message}</span>
+                                                    <span className="agent-name" title={name}>
+                                                        {name}
+                                                    </span>
+                                                    <span className="agent-activity" title={message}>
+                                                        {message}
+                                                    </span>
                                                 </span>
                                                 <span className="agent-side">
                                                     <span className="agent-state-line">

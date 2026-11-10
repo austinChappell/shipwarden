@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { agentForRepo, agentTitle, commandProgram, DEFAULT_AGENTS, DEFAULT_SETTINGS, missingDefaultAgents, normalizeScripts, normalizeSettings, repoDisplayName } from './settings';
+import {
+    agentForRepo,
+    agentTitle,
+    commandProgram,
+    DEFAULT_AGENTS,
+    DEFAULT_SETTINGS,
+    missingDefaultAgents,
+    normalizeScripts,
+    normalizeSettings,
+    repoDisplayName
+} from './settings';
 
 describe('normalizeSettings', () => {
     it('gives a new installation the default agents', () => {
@@ -82,8 +92,10 @@ describe('dashboard hidden rules', () => {
 
 describe('network settings', () => {
     it('keeps a trimmed file path and the keychain choice', () => {
-        expect(normalizeSettings({ network: { caCertsFile: ' /certs/ca.pem ', useSystemCertificates: true } }).network)
-            .toEqual({ caCertsFile: '/certs/ca.pem', useSystemCertificates: true });
+        expect(normalizeSettings({ network: { caCertsFile: ' /certs/ca.pem ', useSystemCertificates: true } }).network).toEqual({
+            caCertsFile: '/certs/ca.pem',
+            useSystemCertificates: true
+        });
         expect(normalizeSettings({ network: { caCertsFile: '  ', useSystemCertificates: 'yes' } }).network).toEqual({ useSystemCertificates: false });
         expect(normalizeSettings({}).network).toEqual({ useSystemCertificates: false });
     });
@@ -91,24 +103,30 @@ describe('network settings', () => {
 
 describe('repository scripts', () => {
     it('keeps scripts with an ID, a name and a command, in their order', () => {
-        expect(normalizeScripts([
-            { id: 'a', name: ' Test ', command: 'npm test\n' },
-            { id: 'a', name: 'Duplicate', command: 'x' },
-            { id: 'b', name: '', command: 'x' },
-            { id: 'c', name: 'Empty', command: '  ' },
-            { id: 'd', name: 'Two lines', command: 'npm ci\nnpm run build' }
-        ])).toEqual([
+        expect(
+            normalizeScripts([
+                { id: 'a', name: ' Test ', command: 'npm test\n' },
+                { id: 'a', name: 'Duplicate', command: 'x' },
+                { id: 'b', name: '', command: 'x' },
+                { id: 'c', name: 'Empty', command: '  ' },
+                { id: 'd', name: 'Two lines', command: 'npm ci\nnpm run build' }
+            ])
+        ).toEqual([
             { id: 'a', name: 'Test', command: 'npm test' },
             { id: 'd', name: 'Two lines', command: 'npm ci\nnpm run build' }
         ]);
-        expect(normalizeSettings({ repos: { '/r/api': { scripts: [{ id: 'a', name: 'Lint', command: 'npm run lint' }] } } }).repos['/r/api'].scripts)
-            .toEqual([{ id: 'a', name: 'Lint', command: 'npm run lint' }]);
+        expect(normalizeSettings({ repos: { '/r/api': { scripts: [{ id: 'a', name: 'Lint', command: 'npm run lint' }] } } }).repos['/r/api'].scripts).toEqual([
+            { id: 'a', name: 'Lint', command: 'npm run lint' }
+        ]);
     });
 });
 
 describe('repository helpers', () => {
     const settings = normalizeSettings({
-        agents: [{ id: 'claude', name: 'Claude Code', command: 'claude' }, { id: 'codex', name: 'Codex', command: 'codex' }],
+        agents: [
+            { id: 'claude', name: 'Claude Code', command: 'claude' },
+            { id: 'codex', name: 'Codex', command: 'codex' }
+        ],
         defaultAgentId: 'claude',
         repos: { '/r/api': { name: 'API', agentId: 'codex' } }
     });
@@ -136,29 +154,40 @@ describe('agentTitle', () => {
 
 describe('missingDefaultAgents', () => {
     it('offers the default agents that the list does not have', () => {
-        const agents = [{ id: 'claude', name: 'Claude Code', command: 'claude' }, { id: 'agent-x', name: 'Codex fast', command: '/opt/bin/codex --full-auto' }];
+        const agents = [
+            { id: 'claude', name: 'Claude Code', command: 'claude' },
+            { id: 'agent-x', name: 'Codex fast', command: '/opt/bin/codex --full-auto' }
+        ];
         expect(missingDefaultAgents(agents)).toEqual([
             { id: 'gemini', name: 'Gemini CLI', command: 'gemini' },
             { id: 'opencode', name: 'opencode', command: 'opencode' }
         ]);
         expect(missingDefaultAgents(DEFAULT_AGENTS)).toEqual([]);
         // An agent of the user with the same program counts as present.
-        expect(missingDefaultAgents([...agents, { id: 'g', name: 'Gemini', command: 'gemini --yolo' }, { id: 'o', name: 'OC', command: '~/.opencode/bin/opencode' }])).toEqual([]);
+        expect(
+            missingDefaultAgents([
+                ...agents,
+                { id: 'g', name: 'Gemini', command: 'gemini --yolo' },
+                { id: 'o', name: 'OC', command: '~/.opencode/bin/opencode' }
+            ])
+        ).toEqual([]);
     });
 });
 
 describe('worktree sort and hidden worktrees', () => {
     it('moves the sort of older versions into the worktree settings', () => {
         expect(normalizeSettings({ worktreeSort: { by: 'name', direction: 'desc' } }).worktrees.sort).toEqual({ by: 'name', direction: 'desc' });
-        expect(normalizeSettings({ worktreeSort: { by: 'name', direction: 'desc' }, worktrees: { sort: { by: 'updated', direction: 'asc' } } }).worktrees.sort)
-            .toEqual({ by: 'updated', direction: 'asc' });
+        expect(
+            normalizeSettings({ worktreeSort: { by: 'name', direction: 'desc' }, worktrees: { sort: { by: 'updated', direction: 'asc' } } }).worktrees.sort
+        ).toEqual({ by: 'updated', direction: 'asc' });
         expect(normalizeSettings({}).worktrees.sort).toEqual({ by: 'created', direction: 'asc' });
         expect('worktreeSort' in normalizeSettings({ worktreeSort: { by: 'name', direction: 'asc' } })).toBe(false);
     });
 
     it('keeps the hidden worktrees with an absolute path', () => {
-        expect(normalizeSettings({ hiddenWorktrees: { '/w/a': {}, '/w/b': { until: 5 }, 'rel': {}, '/w/c': 'x', '/w/d': { until: 'soon' } } }).hiddenWorktrees)
-            .toEqual({ '/w/a': {}, '/w/b': { until: 5 }, '/w/d': {} });
+        expect(
+            normalizeSettings({ hiddenWorktrees: { '/w/a': {}, '/w/b': { until: 5 }, rel: {}, '/w/c': 'x', '/w/d': { until: 'soon' } } }).hiddenWorktrees
+        ).toEqual({ '/w/a': {}, '/w/b': { until: 5 }, '/w/d': {} });
         expect(normalizeSettings({ hiddenWorktrees: {} }).hiddenWorktrees).toBeUndefined();
     });
 });

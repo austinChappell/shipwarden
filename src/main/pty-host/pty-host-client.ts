@@ -96,21 +96,23 @@ export class PtyHostClient {
     /** The sessions of all hosts. A session of an outdated host has `hostOutdated`. */
     async list(): Promise<TerminalSession[]> {
         await this.ready();
-        const lists = await Promise.all([...this.links].map(async link => {
-            try {
-                const sessions = await link.connection.sendRequest<TerminalSession[]>(HostMethods.list);
-                for (const session of sessions) {
-                    this.owners.set(session.id, link);
-                    if (!session.exited) {
-                        link.running.add(session.id);
+        const lists = await Promise.all(
+            [...this.links].map(async link => {
+                try {
+                    const sessions = await link.connection.sendRequest<TerminalSession[]>(HostMethods.list);
+                    for (const session of sessions) {
+                        this.owners.set(session.id, link);
+                        if (!session.exited) {
+                            link.running.add(session.id);
+                        }
                     }
+                    return link.outdated ? sessions.map(session => ({ ...session, hostOutdated: true })) : sessions;
+                } catch {
+                    // The host stopped. Its connection closes and reports the exits.
+                    return [];
                 }
-                return link.outdated ? sessions.map(session => ({ ...session, hostOutdated: true })) : sessions;
-            } catch {
-                // The host stopped. Its connection closes and reports the exits.
-                return [];
-            }
-        }));
+            })
+        );
         return lists.flat();
     }
 
@@ -139,11 +141,17 @@ export class PtyHostClient {
     }
 
     write(id: string, data: string): void {
-        this.ownerOf(id).then(link => link.connection.sendNotification(HostMethods.write, id, data), () => undefined);
+        this.ownerOf(id).then(
+            link => link.connection.sendNotification(HostMethods.write, id, data),
+            () => undefined
+        );
     }
 
     resize(id: string, cols: number, rows: number): void {
-        this.ownerOf(id).then(link => link.connection.sendNotification(HostMethods.resize, id, cols, rows), () => undefined);
+        this.ownerOf(id).then(
+            link => link.connection.sendNotification(HostMethods.resize, id, cols, rows),
+            () => undefined
+        );
     }
 
     /** True when the app has a connection to a host. */
@@ -160,10 +168,12 @@ export class PtyHostClient {
         if (links.length === 0) {
             return;
         }
-        await Promise.all(links.map(link => {
-            link.running.clear();
-            return link.connection.sendRequest(HostMethods.shutdown).catch(() => undefined);
-        }));
+        await Promise.all(
+            links.map(link => {
+                link.running.clear();
+                return link.connection.sendRequest(HostMethods.shutdown).catch(() => undefined);
+            })
+        );
         this.dispose();
     }
 
@@ -174,14 +184,16 @@ export class PtyHostClient {
     async shutdownOutdatedHosts(): Promise<number> {
         const outdated = this.links.filter(link => link.outdated);
         let stopped = 0;
-        await Promise.all(outdated.map(async link => {
-            const running = [...link.running];
-            stopped += running.length;
-            link.running.clear();
-            await link.connection.sendRequest(HostMethods.shutdown).catch(() => undefined);
-            this.release(link);
-            running.forEach(id => this.options.events.exit(id, -1));
-        }));
+        await Promise.all(
+            outdated.map(async link => {
+                const running = [...link.running];
+                stopped += running.length;
+                link.running.clear();
+                await link.connection.sendRequest(HostMethods.shutdown).catch(() => undefined);
+                this.release(link);
+                running.forEach(id => this.options.events.exit(id, -1));
+            })
+        );
         return stopped;
     }
 
@@ -271,7 +283,9 @@ export class PtyHostClient {
                 this.release(link);
                 continue;
             }
-            console.log(`[pty-host] The host of build ${link.buildId} on ${path} has ${running.length} running sessions. It keeps them. New sessions use build ${this.buildId}.`);
+            console.log(
+                `[pty-host] The host of build ${link.buildId} on ${path} has ${running.length} running sessions. It keeps them. New sessions use build ${this.buildId}.`
+            );
             sessions.forEach(session => this.owners.set(session.id, link));
             running.forEach(session => link.running.add(session.id));
         }
@@ -314,7 +328,9 @@ export class PtyHostClient {
             this.releaseIfDrained(link);
         });
         // A host of an older build sends no time, so the time of arrival stands in.
-        connection.onNotification(HostEvents.agentState, ({ id, ...update }: AgentStateEvent) => events.agentState(id, { ...update, at: update.at ?? Date.now() }));
+        connection.onNotification(HostEvents.agentState, ({ id, ...update }: AgentStateEvent) =>
+            events.agentState(id, { ...update, at: update.at ?? Date.now() })
+        );
         connection.onClose(() => {
             if (!this.links.includes(link)) {
                 return;

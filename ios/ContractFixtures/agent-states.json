@@ -1,0 +1,8 @@
+[
+  "starting",
+  "idle",
+  "working",
+  "waiting",
+  "done",
+  "exited"
+]

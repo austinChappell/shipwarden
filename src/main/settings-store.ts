@@ -15,7 +15,7 @@ export class SettingsStore {
 
     /** Changes some settings. Returns all settings after the change. */
     async update(change: Partial<AppSettings>): Promise<AppSettings> {
-        const next = normalizeSettings({ ...await this.get(), ...change });
+        const next = normalizeSettings({ ...(await this.get()), ...change });
         await this.store.update(() => next);
         return next;
     }

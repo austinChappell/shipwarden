@@ -28,7 +28,7 @@ const mergedKey = (repo: string, query: string) => cacheKey('review.merged', rep
 function readSort(): PullRequestSort {
     try {
         const value = localStorage.getItem(SORT_KEY);
-        return PULL_REQUEST_SORTS.some(item => item.id === value) ? value as PullRequestSort : 'waiting';
+        return PULL_REQUEST_SORTS.some(item => item.id === value) ? (value as PullRequestSort) : 'waiting';
     } catch {
         return 'waiting';
     }
@@ -92,12 +92,16 @@ function SinceReviewLine({ pr }: { pr: OpenPullRequest }) {
     const changed = !!review.commitOid && review.commitOid !== pr.headRefOid;
     return (
         <span className="pr-row-meta">
-            <span className={`pr-review-state ${review.state.toLowerCase()}`}>{REVIEW_TEXT[review.state] ?? 'You reviewed'} {timeAgo(review.submittedAt)}</span>
+            <span className={`pr-review-state ${review.state.toLowerCase()}`}>
+                {REVIEW_TEXT[review.state] ?? 'You reviewed'} {timeAgo(review.submittedAt)}
+            </span>
             {' · '}
-            <Dotted parts={[
-                commits ? `${commits} new commit${commits === 1 ? '' : 's'}` : changed ? 'New commits' : 'No new commits',
-                since && since.threads > 0 && `${since.resolved} of ${since.threads} of your threads resolved`
-            ]} />
+            <Dotted
+                parts={[
+                    commits ? `${commits} new commit${commits === 1 ? '' : 's'}` : changed ? 'New commits' : 'No new commits',
+                    since && since.threads > 0 && `${since.resolved} of ${since.threads} of your threads resolved`
+                ]}
+            />
         </span>
     );
 }
@@ -112,32 +116,47 @@ function PrRow({ pr, onOpen }: { pr: OpenPullRequest; onOpen(): void }) {
             <span className="pr-row-main">
                 <TitleLine title={pr.title} />
                 <span className="pr-row-meta">
-                    <Dotted parts={[
-                        `#${pr.number}`,
-                        pr.author ?? 'unknown',
-                        <span key="branch">{pr.headRefName} → {pr.baseRefName}</span>,
-                        pr.isDraft && 'draft',
-                        `opened ${timeAgo(pr.createdAt)}`,
-                        pr.updatedAt !== pr.createdAt && `updated ${timeAgo(pr.updatedAt)}`
-                    ]} />
+                    <Dotted
+                        parts={[
+                            `#${pr.number}`,
+                            pr.author ?? 'unknown',
+                            <span key="branch">
+                                {pr.headRefName} → {pr.baseRefName}
+                            </span>,
+                            pr.isDraft && 'draft',
+                            `opened ${timeAgo(pr.createdAt)}`,
+                            pr.updatedAt !== pr.createdAt && `updated ${timeAgo(pr.updatedAt)}`
+                        ]}
+                    />
                 </span>
                 {group === 're-review' && <SinceReviewLine pr={pr} />}
                 {pr.viewerDidAuthor && pr.actions.length > 0 && (
                     <span className="pr-row-meta">
-                        {pr.actions.map(reason => <span key={reason} className={`pr-action ${reason}`}>{MY_PULL_REQUEST_REASON_LABELS[reason]}</span>)}
+                        {pr.actions.map(reason => (
+                            <span key={reason} className={`pr-action ${reason}`}>
+                                {MY_PULL_REQUEST_REASON_LABELS[reason]}
+                            </span>
+                        ))}
                     </span>
                 )}
             </span>
-            <span className="pr-row-checks"><ChecksLabel checks={pr.checks} /></span>
+            <span className="pr-row-checks">
+                <ChecksLabel checks={pr.checks} />
+            </span>
             <span className="pr-row-size">
                 <span>
                     <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>
-                    {' · '}{pr.changedFiles} file{pr.changedFiles === 1 ? '' : 's'}
+                    {' · '}
+                    {pr.changedFiles} file{pr.changedFiles === 1 ? '' : 's'}
                 </span>
-                <span className="diff-bar"><span className={size.size} style={{ width: `${Math.round(size.fill * 100)}%` }} /></span>
+                <span className="diff-bar">
+                    <span className={size.size} style={{ width: `${Math.round(size.fill * 100)}%` }} />
+                </span>
             </span>
             <span className="pr-row-comments">{pr.comments} cmt</span>
-            <span className={`review-age ${ageLevel(waitingSince)}`} title={`Opened ${new Date(waitingSince).toLocaleString()}`}>{shortAge(waitingSince)}</span>
+            <span className={`review-age ${ageLevel(waitingSince)}`} title={`Opened ${new Date(waitingSince).toLocaleString()}`}>
+                {shortAge(waitingSince)}
+            </span>
         </button>
     );
 }
@@ -154,7 +173,9 @@ function MergedRow({ pr, onOpen }: { pr: PullRequestSummary; onOpen(): void }) {
             </span>
             <span />
             <span className="pr-row-size">
-                <span><span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span></span>
+                <span>
+                    <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>
+                </span>
             </span>
             <span className="pr-row-comments">{pr.comments} cmt</span>
             <span />
@@ -217,12 +238,15 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         const key = mergedKey(repo, query.trim());
         const last = cached<PullRequestSummary[]>(key);
         if (last) setMerged(last);
-        const timer = setTimeout(() => {
-            window.shipwarden.github.pullRequests(repoRef, 'merged', query).then(
-                result => !cancelled && (setMerged(remember(key, result)), setMergedError(undefined)),
-                error => !cancelled && setMergedError(errorText(error))
-            );
-        }, query ? 350 : 0);
+        const timer = setTimeout(
+            () => {
+                window.shipwarden.github.pullRequests(repoRef, 'merged', query).then(
+                    result => !cancelled && (setMerged(remember(key, result)), setMergedError(undefined)),
+                    error => !cancelled && setMergedError(errorText(error))
+                );
+            },
+            query ? 350 : 0
+        );
         return () => {
             cancelled = true;
             clearTimeout(timer);
@@ -238,18 +262,23 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         const value = focusedData('pr');
         return value ? data?.pullRequests.find(pr => pr.number === Number(value)) : undefined;
     };
-    usePageKeys(rootRef, listRef, {
-        '/': () => searchRef.current?.focus(),
-        Escape: onBack,
-        c: () => {
-            const pr = focusedPr();
-            if (pr && onCheckout) onCheckout(pr);
+    usePageKeys(
+        rootRef,
+        listRef,
+        {
+            '/': () => searchRef.current?.focus(),
+            Escape: onBack,
+            c: () => {
+                const pr = focusedPr();
+                if (pr && onCheckout) onCheckout(pr);
+            },
+            a: () => {
+                const pr = focusedPr();
+                if (pr) onHandToAgent(pr.number);
+            }
         },
-        a: () => {
-            const pr = focusedPr();
-            if (pr) onHandToAgent(pr.number);
-        }
-    }, !hidden);
+        !hidden
+    );
     useInitialFocus(listRef, focusNumber ? `[data-pr="${focusNumber}"]` : undefined, !!data && !hidden);
 
     const tabs: { id: RepoTab; label: string; count?: number }[] = [
@@ -260,12 +289,15 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
     ];
 
     const rows = (list: OpenPullRequest[]) => list.map(pr => <PrRow key={pr.number} pr={pr} onOpen={() => onOpen(pr.number)} />);
-    const section = (title: string, list: OpenPullRequest[]) => list.length > 0 && (
-        <section aria-label={title}>
-            <h3 className="review-section-title">{title} · {list.length}</h3>
-            {rows(list)}
-        </section>
-    );
+    const section = (title: string, list: OpenPullRequest[]) =>
+        list.length > 0 && (
+            <section aria-label={title}>
+                <h3 className="review-section-title">
+                    {title} · {list.length}
+                </h3>
+                {rows(list)}
+            </section>
+        );
 
     return (
         <div className="review-repo-page" ref={rootRef} hidden={hidden}>
@@ -309,8 +341,18 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                     <button className="icon-button" title="Refresh" onClick={() => void reviewOverviewStore.refresh(repo)}>
                         <RefreshCw size={15} strokeWidth={1.6} className={entry?.loading ? 'spin' : ''} />
                     </button>
-                    <select className="tasks-select" value={sort} title="Sort" aria-label="Sort" onChange={event => setSort(event.target.value as PullRequestSort)}>
-                        {PULL_REQUEST_SORTS.map(item => <option key={item.id} value={item.id}>Sort: {item.label}</option>)}
+                    <select
+                        className="tasks-select"
+                        value={sort}
+                        title="Sort"
+                        aria-label="Sort"
+                        onChange={event => setSort(event.target.value as PullRequestSort)}
+                    >
+                        {PULL_REQUEST_SORTS.map(item => (
+                            <option key={item.id} value={item.id}>
+                                Sort: {item.label}
+                            </option>
+                        ))}
                     </select>
                 </div>
             </header>
@@ -338,45 +380,67 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                     <>
                         {section('New to you', byGroup.new)}
                         {section('Re-review · updated since your review', byGroup['re-review'])}
-                        {needsCount === 0 && <div className="panel-message">{query ? 'No pull requests match the search.' : 'Nothing in this repository needs your review.'}</div>}
-                        {byGroup.waiting.length > 0 && (
-                            showWaiting
-                                ? section('Waiting on authors', byGroup.waiting)
-                                : (
-                                    <p className="review-waiting-note">
-                                        Waiting on authors: {byGroup.waiting.length} PR{byGroup.waiting.length === 1 ? '' : 's'} you reviewed with no changes since ·{' '}
-                                        <button className="link-button" onClick={() => setShowWaiting(true)}>show</button>
-                                    </p>
-                                )
+                        {needsCount === 0 && (
+                            <div className="panel-message">
+                                {query ? 'No pull requests match the search.' : 'Nothing in this repository needs your review.'}
+                            </div>
                         )}
+                        {byGroup.waiting.length > 0 &&
+                            (showWaiting ? (
+                                section('Waiting on authors', byGroup.waiting)
+                            ) : (
+                                <p className="review-waiting-note">
+                                    Waiting on authors: {byGroup.waiting.length} PR{byGroup.waiting.length === 1 ? '' : 's'} you reviewed with no changes since
+                                    ·{' '}
+                                    <button className="link-button" onClick={() => setShowWaiting(true)}>
+                                        show
+                                    </button>
+                                </p>
+                            ))}
                     </>
                 )}
-                {data && current === 'mine' && (
-                    byGroup.mine.length ? rows(byGroup.mine) : <div className="panel-message">{query ? 'No pull requests match the search.' : 'You have no open pull requests in this repository.'}</div>
-                )}
-                {data && current === 'open' && (
-                    sorted.length ? rows(sorted) : <div className="panel-message">{query ? 'No pull requests match the search.' : 'No open pull requests.'}</div>
-                )}
+                {data &&
+                    current === 'mine' &&
+                    (byGroup.mine.length ? (
+                        rows(byGroup.mine)
+                    ) : (
+                        <div className="panel-message">
+                            {query ? 'No pull requests match the search.' : 'You have no open pull requests in this repository.'}
+                        </div>
+                    ))}
+                {data &&
+                    current === 'open' &&
+                    (sorted.length ? (
+                        rows(sorted)
+                    ) : (
+                        <div className="panel-message">{query ? 'No pull requests match the search.' : 'No open pull requests.'}</div>
+                    ))}
                 {data && current === 'open' && data.openCount > data.pullRequests.length && !query && (
-                    <p className="review-waiting-note">The list shows the {data.pullRequests.length} most recently updated of {data.openCount} open pull requests.</p>
+                    <p className="review-waiting-note">
+                        The list shows the {data.pullRequests.length} most recently updated of {data.openCount} open pull requests.
+                    </p>
                 )}
                 {current === 'merged' && (
                     <>
                         {mergedError && <div className="form-error task-list-error">{mergedError}</div>}
                         {!merged && !mergedError && <div className="panel-message">Loading pull requests…</div>}
                         {merged?.length === 0 && <div className="panel-message">No merged pull requests.</div>}
-                        {merged?.map(pr => <MergedRow key={pr.number} pr={pr} onOpen={() => onOpen(pr.number)} />)}
+                        {merged?.map(pr => (
+                            <MergedRow key={pr.number} pr={pr} onOpen={() => onOpen(pr.number)} />
+                        ))}
                     </>
                 )}
             </div>
 
-            <KeyLegend items={[
-                { keys: ['j', 'k'], label: 'move' },
-                { keys: ['↵'], label: 'open' },
-                ...(onCheckout ? [{ keys: ['c'], label: 'checkout worktree' }] : []),
-                { keys: ['a'], label: 'hand to agent' },
-                { keys: ['esc'], label: 'back' }
-            ]} />
+            <KeyLegend
+                items={[
+                    { keys: ['j', 'k'], label: 'move' },
+                    { keys: ['↵'], label: 'open' },
+                    ...(onCheckout ? [{ keys: ['c'], label: 'checkout worktree' }] : []),
+                    { keys: ['a'], label: 'hand to agent' },
+                    { keys: ['esc'], label: 'back' }
+                ]}
+            />
         </div>
     );
 }

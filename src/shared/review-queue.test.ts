@@ -45,7 +45,9 @@ describe('reviewGroup', () => {
     });
 
     it('puts a requested review with an earlier review in "re-review"', () => {
-        expect(reviewGroup(pr({ reviewRequested: true, viewerReview: { state: 'COMMENTED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'head' } }))).toBe('re-review');
+        expect(reviewGroup(pr({ reviewRequested: true, viewerReview: { state: 'COMMENTED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'head' } }))).toBe(
+            're-review'
+        );
     });
 
     it('puts a reviewed pull request with a new head in "re-review"', () => {
@@ -71,7 +73,12 @@ describe('reviewGroup', () => {
 
 describe('checkSummary', () => {
     it('counts the failed and the running checks', () => {
-        const summary = checkSummary('FAILURE', [{ state: 'SUCCESS', count: 3 }, { state: 'FAILURE', count: 1 }, { state: 'TIMED_OUT', count: 1 }, { state: 'IN_PROGRESS', count: 2 }]);
+        const summary = checkSummary('FAILURE', [
+            { state: 'SUCCESS', count: 3 },
+            { state: 'FAILURE', count: 1 },
+            { state: 'TIMED_OUT', count: 1 },
+            { state: 'IN_PROGRESS', count: 2 }
+        ]);
         expect(summary).toEqual({ state: 'FAILURE', failing: 2, pending: 2, total: 7 });
         expect(checkLevel(summary)).toBe('failing');
     });
@@ -103,7 +110,12 @@ describe('summarizeRepo', () => {
             pushedAt: '2026-11-03T00:00:00Z',
             pullRequests: [
                 pr({ number: 1, reviewRequested: true, createdAt: '2026-11-05T00:00:00Z', checks: { state: 'FAILURE', failing: 1, pending: 0, total: 2 } }),
-                pr({ number: 2, reviewRequested: true, viewerReview: { state: 'APPROVED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'x' }, createdAt: '2026-10-30T00:00:00Z' }),
+                pr({
+                    number: 2,
+                    reviewRequested: true,
+                    viewerReview: { state: 'APPROVED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'x' },
+                    createdAt: '2026-10-30T00:00:00Z'
+                }),
                 pr({ number: 3, viewerDidAuthor: true, actions: ['ci-failing'], createdAt: '2026-11-04T00:00:00Z', updatedAt: '2026-11-08T00:00:00Z' }),
                 pr({ number: 4, viewerDidAuthor: true, createdAt: '2026-10-01T00:00:00Z' }),
                 pr({ number: 5, createdAt: '2026-09-01T00:00:00Z' })
@@ -152,7 +164,10 @@ describe('diffSize', () => {
 describe('reviewQueue', () => {
     it('lists the pull requests to review in all repositories, the oldest first', () => {
         const repos = new Map<string, RepoPullRequests>([
-            ['o/a', { viewer: 'me', openCount: 2, pullRequests: [pr({ number: 1, reviewRequested: true, createdAt: '2026-11-05T00:00:00Z' }), pr({ number: 2 })] }],
+            [
+                'o/a',
+                { viewer: 'me', openCount: 2, pullRequests: [pr({ number: 1, reviewRequested: true, createdAt: '2026-11-05T00:00:00Z' }), pr({ number: 2 })] }
+            ],
             ['o/b', { viewer: 'me', openCount: 1, pullRequests: [pr({ number: 7, reviewRequested: true, createdAt: '2026-11-01T00:00:00Z' })] }]
         ]);
         expect(reviewQueue(repos).map(item => `${item.repo}#${item.number}`)).toEqual(['o/b#7', 'o/a#1']);

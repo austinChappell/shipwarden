@@ -169,7 +169,11 @@ export class GitChangesService {
         const count = Math.max(1, Math.min(Math.floor(limit), 5000));
         const refs = scope === 'all' ? ['--branches', '--remotes', '--tags', 'HEAD'] : ['--branches', '--tags', 'HEAD'];
         // One more commit than the limit tells if there are more.
-        const output = await run(worktree, ['log', '--topo-order', '--decorate=full', `--format=${GRAPH_LOG_FORMAT}`, `--max-count=${count + 1}`, ...refs, '--'], { allowFailure: true });
+        const output = await run(
+            worktree,
+            ['log', '--topo-order', '--decorate=full', `--format=${GRAPH_LOG_FORMAT}`, `--max-count=${count + 1}`, ...refs, '--'],
+            { allowFailure: true }
+        );
         if (output === undefined) {
             const head = await run(worktree, ['rev-parse', '--verify', '--quiet', 'HEAD'], { allowFailure: true });
             if (head === undefined) return { commits: [], more: false };
@@ -208,7 +212,10 @@ export class GitChangesService {
                 const source = path.join(worktree, item);
                 const stat = await fs.stat(source).catch(() => undefined);
                 if (!stat?.isFile()) continue;
-                const copy = path.join(backup, `${path.basename(item, path.extname(item))} (discarded ${new Date().toISOString().slice(0, 19).replace(/:/g, '-')})${path.extname(item)}`);
+                const copy = path.join(
+                    backup,
+                    `${path.basename(item, path.extname(item))} (discarded ${new Date().toISOString().slice(0, 19).replace(/:/g, '-')})${path.extname(item)}`
+                );
                 await fs.copyFile(source, copy);
                 await this.trash(copy);
             }
@@ -244,4 +251,3 @@ export class GitChangesService {
         await run(worktree, args, { timeout: 180_000 });
     }
 }
-

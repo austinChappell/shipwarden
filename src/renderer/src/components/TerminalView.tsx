@@ -18,7 +18,8 @@ async function stopOutdatedHosts(): Promise<void> {
     const count = sessions.filter(session => session.hostOutdated && !session.exited).length;
     const ok = await confirmDialog({
         title: `Stop ${count} old ${count === 1 ? 'session' : 'sessions'}?`,
-        message: 'These terminals run on a terminal host from an older ShipWarden build. Their processes stop now, also agents and servers. New tabs use the current build.',
+        message:
+            'These terminals run on a terminal host from an older ShipWarden build. Their processes stop now, also agents and servers. New tabs use the current build.',
         confirmLabel: 'Stop sessions',
         danger: true
     });
@@ -39,7 +40,9 @@ function OutdatedHostNotice() {
             <span className="host-notice-text" title={error}>
                 {error ?? 'This tab runs on a terminal host from an older ShipWarden build. Some features do not work in it. New tabs use the current build.'}
             </span>
-            <button className="button" onClick={() => void stopOutdatedHosts().catch(reason => setError(errorText(reason)))}>Stop old sessions…</button>
+            <button className="button" onClick={() => void stopOutdatedHosts().catch(reason => setError(errorText(reason)))}>
+                Stop old sessions…
+            </button>
         </div>
     );
 }
@@ -51,6 +54,7 @@ function OutdatedHostNotice() {
 export function TerminalView({ session, settings, focused = true }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The session object changes on each update. Only a new session ID or new settings attach the terminal again. Another effect sends the focus.
     useEffect(() => {
         const container = containerRef.current;
         if (!container) {
@@ -66,7 +70,6 @@ export function TerminalView({ session, settings, focused = true }: Props) {
             observer.disconnect();
             terminalPool.detach(session.id, container);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [session.id, settings]);
 
     // A pane that gets the focus gives the keyboard to its terminal.

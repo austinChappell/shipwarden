@@ -31,8 +31,13 @@ describe('matchesCopyPattern', () => {
 describe('worktree settings', () => {
     it('gives defaults and keeps valid values', () => {
         expect(normalizeWorktreeSettings(undefined).copyIgnored).toMatchObject({ enabled: true, mode: 'matching', patterns: ['.env', '.env.*'] });
-        expect(normalizeWorktreeSettings({ directory: ' ~/wt ', copyIgnored: { enabled: false, mode: 'allExcept', patterns: [' a ', 'a', '', 4], exclude: [] } }))
-            .toEqual({ directory: '~/wt', copyIgnored: { enabled: false, mode: 'allExcept', patterns: ['a'], exclude: [] }, sort: { by: 'created', direction: 'asc' } });
+        expect(
+            normalizeWorktreeSettings({ directory: ' ~/wt ', copyIgnored: { enabled: false, mode: 'allExcept', patterns: [' a ', 'a', '', 4], exclude: [] } })
+        ).toEqual({
+            directory: '~/wt',
+            copyIgnored: { enabled: false, mode: 'allExcept', patterns: ['a'], exclude: [] },
+            sort: { by: 'created', direction: 'asc' }
+        });
         // Settings from before the mode keep their patterns and get the default exclusions.
         expect(normalizeWorktreeSettings({ copyIgnored: { enabled: true, patterns: ['.env'] } }).copyIgnored.exclude).toContain('node_modules/');
         expect(normalizeRepoWorktreeSettings({ setupScript: 'npm ci\n\n', teardownScript: '  ' })).toEqual({ setupScript: 'npm ci' });
@@ -52,15 +57,17 @@ describe('worktree settings', () => {
             copyIgnored: off,
             setupScript: 'npm ci'
         });
-        expect(resolveWorktreeSettings(normalizeWorktreeSettings({}), undefined, '/r/api', '/h/.shipwarden/worktrees', '/h').parentFolder)
-            .toBe('/h/.shipwarden/worktrees/api');
+        expect(resolveWorktreeSettings(normalizeWorktreeSettings({}), undefined, '/r/api', '/h/.shipwarden/worktrees', '/h').parentFolder).toBe(
+            '/h/.shipwarden/worktrees/api'
+        );
     });
 
     it('builds the setup command with quoted variables', () => {
         expect(shellQuote("it's")).toBe(`'it'\\''s'`);
-        expect(setupCommand('npm ci', { rootPath: '/r/api', worktreePath: '/w/x', branch: 'feat/a', repoName: 'api' }))
-            .toBe("export SHIPWARDEN_ROOT_PATH='/r/api'; export SHIPWARDEN_WORKTREE_PATH='/w/x'; export SHIPWARDEN_BRANCH='feat/a'; export SHIPWARDEN_REPO_NAME='api'; "
-                + "export YARDMASTER_ROOT_PATH='/r/api'; export YARDMASTER_WORKTREE_PATH='/w/x'; export YARDMASTER_BRANCH='feat/a'; export YARDMASTER_REPO_NAME='api'; npm ci");
+        expect(setupCommand('npm ci', { rootPath: '/r/api', worktreePath: '/w/x', branch: 'feat/a', repoName: 'api' })).toBe(
+            "export SHIPWARDEN_ROOT_PATH='/r/api'; export SHIPWARDEN_WORKTREE_PATH='/w/x'; export SHIPWARDEN_BRANCH='feat/a'; export SHIPWARDEN_REPO_NAME='api'; " +
+                "export YARDMASTER_ROOT_PATH='/r/api'; export YARDMASTER_WORKTREE_PATH='/w/x'; export YARDMASTER_BRANCH='feat/a'; export YARDMASTER_REPO_NAME='api'; npm ci"
+        );
     });
 });
 

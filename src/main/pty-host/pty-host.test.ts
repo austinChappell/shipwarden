@@ -67,7 +67,15 @@ describe('PTY host', () => {
         };
         const makeClient = (clientBuildId = buildId) => {
             const socketPath = buildSocketPath(folder, clientBuildId);
-            const client = new PtyHostClient({ socketPath, olderSocketPaths: [olderSocketPath], hostScript: '', logPath: join(folder, 'log'), events, spawnHost, buildId: clientBuildId });
+            const client = new PtyHostClient({
+                socketPath,
+                olderSocketPaths: [olderSocketPath],
+                hostScript: '',
+                logPath: join(folder, 'log'),
+                events,
+                spawnHost,
+                buildId: clientBuildId
+            });
             clients.push(client);
             return client;
         };
@@ -155,7 +163,10 @@ describe('PTY host', () => {
         const newSession = await client.create({ cwd: tmpdir(), title: 'new shell', cols: 80, rows: 24 }, SHELL_ENV);
         expect(spawned).toEqual(['old', 'new']);
         const all = await client.list();
-        expect(all.map(item => [item.title, !!item.hostOutdated]).sort()).toEqual([['new shell', false], ['old shell', true]]);
+        expect(all.map(item => [item.title, !!item.hostOutdated]).sort()).toEqual([
+            ['new shell', false],
+            ['old shell', true]
+        ]);
         expect(await client.hostPids()).toHaveLength(2);
 
         // The last session of the outdated host ends. The app disconnects, and the outdated host stops.
@@ -167,7 +178,13 @@ describe('PTY host', () => {
     it('finds an outdated host on an older socket', async () => {
         const { olderSocketPath, spawnHost } = setup('new');
         spawnHost(olderSocketPath, 'older');
-        const old = new PtyHostClient({ socketPath: olderSocketPath, hostScript: '', logPath: join(folder, 'log'), events: { data: () => undefined, exit: () => undefined, agentState: () => undefined }, buildId: 'older' });
+        const old = new PtyHostClient({
+            socketPath: olderSocketPath,
+            hostScript: '',
+            logPath: join(folder, 'log'),
+            events: { data: () => undefined, exit: () => undefined, agentState: () => undefined },
+            buildId: 'older'
+        });
         clients.push(old);
         await old.create({ cwd: tmpdir(), title: 'older shell', cols: 80, rows: 24 }, SHELL_ENV);
         old.dispose();

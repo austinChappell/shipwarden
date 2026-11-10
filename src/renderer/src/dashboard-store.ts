@@ -1,5 +1,15 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import { DASHBOARD_WINDOW_DAYS, gitHubSeenKey, isHiddenComment, isMergedApproval, taskSeenKey, type CommentFilter, type DashboardPullRequests, type PullRequestCommentItem, type TaskCommentItem } from '@shared/dashboard';
+import {
+    DASHBOARD_WINDOW_DAYS,
+    gitHubSeenKey,
+    isHiddenComment,
+    isMergedApproval,
+    taskSeenKey,
+    type CommentFilter,
+    type DashboardPullRequests,
+    type PullRequestCommentItem,
+    type TaskCommentItem
+} from '@shared/dashboard';
 import { seenStore, useSeenVersion } from './seen-store';
 import { errorText } from './util';
 
@@ -109,18 +119,20 @@ class DashboardStore {
         }
         const api = window.shipwarden.tasks;
         const connections = await api.enabledConnections().catch(() => []);
-        const results = await Promise.all(connections.map(async (connection): Promise<TaskActivity | undefined> => {
-            try {
-                const source = await api.source(connection.id, projectId);
-                if (!source.capabilities.activity) {
-                    return undefined;
+        const results = await Promise.all(
+            connections.map(async (connection): Promise<TaskActivity | undefined> => {
+                try {
+                    const source = await api.source(connection.id, projectId);
+                    if (!source.capabilities.activity) {
+                        return undefined;
+                    }
+                    const result = (await api.request(connection.id, projectId, 'activity/list', { since })) as { comments: TaskCommentItem[] };
+                    return { connectionId: connection.id, name: connection.name, comments: result.comments };
+                } catch (error) {
+                    return { connectionId: connection.id, name: connection.name, error: errorText(error) };
                 }
-                const result = await api.request(connection.id, projectId, 'activity/list', { since }) as { comments: TaskCommentItem[] };
-                return { connectionId: connection.id, name: connection.name, comments: result.comments };
-            } catch (error) {
-                return { connectionId: connection.id, name: connection.name, error: errorText(error) };
-            }
-        }));
+            })
+        );
         return results.filter((item): item is TaskActivity => !!item);
     }
 
@@ -132,13 +144,18 @@ class DashboardStore {
             reviewRequests: pullRequests.reviewRequests.map(item => ({ key: `r:${item.url}`, item })),
             myPullRequests: pullRequests.myPullRequests.map(item => ({ key: `m:${item.url}:${item.reasons.join(',')}`, item })),
             prComments: prComments.filter(item => !isMergedApproval(item)).map(item => ({ key: `c:${item.id}`, item })),
-            taskComments: tasks.flatMap(source => (source.comments ?? []).map(comment => ({ key: `t:${source.connectionId}:${comment.id}`, item: { connectionId: source.connectionId, comment } })))
+            taskComments: tasks.flatMap(source =>
+                (source.comments ?? []).map(comment => ({
+                    key: `t:${source.connectionId}:${comment.id}`,
+                    item: { connectionId: source.connectionId, comment }
+                }))
+            )
         };
         const keys = [...items.reviewRequests, ...items.myPullRequests, ...items.prComments, ...items.taskComments].map(entry => entry.key);
         const known = this.known;
         this.known = new Set([...(known ?? []), ...keys]);
         if (!known) return;
-        const fresh = <T,>(list: { key: string; item: T }[]) => list.filter(entry => !known.has(entry.key)).map(entry => entry.item);
+        const fresh = <T>(list: { key: string; item: T }[]) => list.filter(entry => !known.has(entry.key)).map(entry => entry.item);
         const news: DashboardNews = {
             reviewRequests: fresh(items.reviewRequests),
             myPullRequests: fresh(items.myPullRequests),
@@ -181,7 +198,12 @@ export function useDashboardCount(filter: CommentFilter): number {
     const state = useDashboard();
     useSeenVersion();
     const prComments = state.prComments?.filter(item => !isHiddenComment(item.author, item.text, filter) && !seenStore.has(gitHubSeenKey(item.id))).length ?? 0;
-    const taskComments = state.tasks.reduce((sum, source) =>
-        sum + (source.comments?.filter(item => !isHiddenComment(item.author, item.body, filter) && !seenStore.has(taskSeenKey(source.connectionId, item.id))).length ?? 0), 0);
+    const taskComments = state.tasks.reduce(
+        (sum, source) =>
+            sum +
+            (source.comments?.filter(item => !isHiddenComment(item.author, item.body, filter) && !seenStore.has(taskSeenKey(source.connectionId, item.id)))
+                .length ?? 0),
+        0
+    );
     return (state.pullRequests?.reviewRequests.length ?? 0) + (state.pullRequests?.myPullRequests.length ?? 0) + prComments + taskComments;
 }

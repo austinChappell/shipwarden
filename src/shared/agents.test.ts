@@ -1,16 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import {
-    agentStateFromHook, describeTool, oneLine, claudeHookSettings, GEMINI_HOOK_EVENTS, GEMINI_HOOK_NAME, geminiHookSettings, HOOK_EVENTS, hookAgentOf,
-    opencodeHookConfig, shellQuote, withAgentHooks, worktreeAgentState
+    agentStateFromHook,
+    describeTool,
+    oneLine,
+    claudeHookSettings,
+    GEMINI_HOOK_EVENTS,
+    GEMINI_HOOK_NAME,
+    geminiHookSettings,
+    HOOK_EVENTS,
+    hookAgentOf,
+    opencodeHookConfig,
+    shellQuote,
+    withAgentHooks,
+    worktreeAgentState
 } from './agents';
 
 describe('agentStateFromHook', () => {
     it('maps the hook events to agent states', () => {
         expect(agentStateFromHook('SessionStart', { source: 'startup' })).toEqual({ state: 'idle' });
-        expect(agentStateFromHook('UserPromptSubmit', { prompt: '  Fix the\nlogin page ' })).toEqual({ state: 'working', message: 'Reading your prompt', prompt: 'Fix the login page' });
-        expect(agentStateFromHook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } })).toEqual({ state: 'working', message: 'Running npm test' });
-        expect(agentStateFromHook('Notification', { message: 'Claude needs your permission to use Bash' }))
-            .toEqual({ state: 'waiting', message: 'Claude needs your permission to use Bash' });
+        expect(agentStateFromHook('UserPromptSubmit', { prompt: '  Fix the\nlogin page ' })).toEqual({
+            state: 'working',
+            message: 'Reading your prompt',
+            prompt: 'Fix the login page'
+        });
+        expect(agentStateFromHook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } })).toEqual({
+            state: 'working',
+            message: 'Running npm test'
+        });
+        expect(agentStateFromHook('Notification', { message: 'Claude needs your permission to use Bash' })).toEqual({
+            state: 'waiting',
+            message: 'Claude needs your permission to use Bash'
+        });
         expect(agentStateFromHook('Notification', {})).toEqual({ state: 'waiting', message: 'The agent needs your input.' });
         expect(agentStateFromHook('Stop', { last_assistant_message: ' I fixed the bug. ' })).toEqual({ state: 'done', message: 'I fixed the bug.' });
         expect(agentStateFromHook('SessionEnd', { reason: 'other' })).toEqual({ state: 'exited' });
@@ -19,17 +39,28 @@ describe('agentStateFromHook', () => {
 
     it('maps the Gemini CLI hook events to agent states', () => {
         expect(agentStateFromHook('SessionStart', { source: 'startup', hook_event_name: 'SessionStart' })).toEqual({ state: 'idle' });
-        expect(agentStateFromHook('BeforeAgent', { prompt: ' Add a\ntest ' }))
-            .toEqual({ state: 'working', message: 'Reading your prompt', prompt: 'Add a test' });
-        expect(agentStateFromHook('BeforeTool', { tool_name: 'run_shell_command', tool_input: { command: 'npm test' } }))
-            .toEqual({ state: 'working', message: 'Running npm test' });
-        expect(agentStateFromHook('Notification', { notification_type: 'ToolPermission', message: 'Allow run_shell_command?' }, 'working'))
-            .toEqual({ state: 'waiting', message: 'Allow run_shell_command?' });
+        expect(agentStateFromHook('BeforeAgent', { prompt: ' Add a\ntest ' })).toEqual({
+            state: 'working',
+            message: 'Reading your prompt',
+            prompt: 'Add a test'
+        });
+        expect(agentStateFromHook('BeforeTool', { tool_name: 'run_shell_command', tool_input: { command: 'npm test' } })).toEqual({
+            state: 'working',
+            message: 'Running npm test'
+        });
+        expect(agentStateFromHook('Notification', { notification_type: 'ToolPermission', message: 'Allow run_shell_command?' }, 'working')).toEqual({
+            state: 'waiting',
+            message: 'Allow run_shell_command?'
+        });
         // The user answered the permission prompt, and the tool ran.
-        expect(agentStateFromHook('AfterTool', { tool_name: 'replace', tool_input: { file_path: '/repo/src/App.tsx' } }, 'waiting'))
-            .toEqual({ state: 'working', message: 'Editing App.tsx' });
-        expect(agentStateFromHook('AfterAgent', { prompt: 'Add a test', prompt_response: ' I added the test. ' }))
-            .toEqual({ state: 'done', message: 'I added the test.' });
+        expect(agentStateFromHook('AfterTool', { tool_name: 'replace', tool_input: { file_path: '/repo/src/App.tsx' } }, 'waiting')).toEqual({
+            state: 'working',
+            message: 'Editing App.tsx'
+        });
+        expect(agentStateFromHook('AfterAgent', { prompt: 'Add a test', prompt_response: ' I added the test. ' })).toEqual({
+            state: 'done',
+            message: 'I added the test.'
+        });
         expect(agentStateFromHook('AfterAgent', {})).toEqual({ state: 'done', message: undefined });
         expect(agentStateFromHook('SessionEnd', { reason: 'exit' })).toEqual({ state: 'exited' });
         expect(agentStateFromHook('BeforeModel', {})).toBeUndefined();
@@ -44,8 +75,9 @@ describe('agentStateFromHook', () => {
         expect(agentStateFromHook('Notification', idle, 'done')).toBeUndefined();
         expect(agentStateFromHook('Notification', idle, 'idle')).toBeUndefined();
         expect(agentStateFromHook('Notification', idle, 'working')).toEqual({ state: 'waiting', message: 'Claude is waiting for your input' });
-        expect(agentStateFromHook('Notification', { notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' }, 'working'))
-            .toEqual({ state: 'waiting', message: 'Claude needs your permission to use Bash' });
+        expect(
+            agentStateFromHook('Notification', { notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' }, 'working')
+        ).toEqual({ state: 'waiting', message: 'Claude needs your permission to use Bash' });
         expect(agentStateFromHook('Notification', { notification_type: 'auth_success' }, 'working')).toBeUndefined();
     });
 });
@@ -64,7 +96,9 @@ describe('claudeHookSettings', () => {
         expect(Object.keys(settings.hooks)).toEqual([...HOOK_EVENTS]);
         const preToolUse = settings.hooks.PreToolUse[0] as { matcher: string; hooks: { command: string }[] };
         expect(preToolUse.matcher).toBe('*');
-        expect(preToolUse.hooks[0].command).toContain('"${SHIPWARDEN_HOOK_URL:-$YARDMASTER_HOOK_URL}/hook/${SHIPWARDEN_SESSION_ID:-$YARDMASTER_SESSION_ID}/PreToolUse"');
+        expect(preToolUse.hooks[0].command).toContain(
+            '"${SHIPWARDEN_HOOK_URL:-$YARDMASTER_HOOK_URL}/hook/${SHIPWARDEN_SESSION_ID:-$YARDMASTER_SESSION_ID}/PreToolUse"'
+        );
         expect(preToolUse.hooks[0].command.endsWith('|| true')).toBe(true);
     });
 });
@@ -83,7 +117,9 @@ describe('geminiHookSettings', () => {
         expect(beforeTool.hooks[0].command).toContain(
             '"${GEMINI_CLI_SHIPWARDEN_HOOK_URL:-${SHIPWARDEN_HOOK_URL:-$YARDMASTER_HOOK_URL}}/hook/${GEMINI_CLI_SHIPWARDEN_SESSION_ID:-${SHIPWARDEN_SESSION_ID:-$YARDMASTER_SESSION_ID}}/BeforeTool"'
         );
-        expect(beforeTool.hooks[0].command).toContain('X-ShipWarden-Token: ${GEMINI_CLI_SHIPWARDEN_HOOK_TOKEN:-${SHIPWARDEN_HOOK_TOKEN:-$YARDMASTER_HOOK_TOKEN}}');
+        expect(beforeTool.hooks[0].command).toContain(
+            'X-ShipWarden-Token: ${GEMINI_CLI_SHIPWARDEN_HOOK_TOKEN:-${SHIPWARDEN_HOOK_TOKEN:-$YARDMASTER_HOOK_TOKEN}}'
+        );
         expect(beforeTool.hooks[0].command.endsWith('|| true')).toBe(true);
     });
 
@@ -101,7 +137,7 @@ describe('geminiHookSettings', () => {
     it('ignores a system defaults file that is not an object', () => {
         expect(Object.keys(geminiHookSettings([1, 2]))).toEqual(['hooks']);
         expect(Object.keys(geminiHookSettings(null))).toEqual(['hooks']);
-        expect(Object.keys((geminiHookSettings({ hooks: 'bad' }).hooks as object))).toEqual([...GEMINI_HOOK_EVENTS]);
+        expect(Object.keys(geminiHookSettings({ hooks: 'bad' }).hooks as object)).toEqual([...GEMINI_HOOK_EVENTS]);
     });
 });
 
@@ -119,13 +155,17 @@ describe('withAgentHooks', () => {
 
     it('gives Gemini CLI the settings as its system defaults file', () => {
         expect(withAgentHooks('gemini', paths)).toBe(`GEMINI_CLI_SYSTEM_DEFAULTS_PATH='${paths.gemini}' gemini`);
-        expect(withAgentHooks(' /opt/homebrew/bin/gemini --yolo ', paths)).toBe(`GEMINI_CLI_SYSTEM_DEFAULTS_PATH='${paths.gemini}' /opt/homebrew/bin/gemini --yolo`);
+        expect(withAgentHooks(' /opt/homebrew/bin/gemini --yolo ', paths)).toBe(
+            `GEMINI_CLI_SYSTEM_DEFAULTS_PATH='${paths.gemini}' /opt/homebrew/bin/gemini --yolo`
+        );
     });
 
     it('gives opencode an inline config that loads the plugin', () => {
         const config = '{"plugin":["file:///Users/me/Library/Application%20Support/shipwarden/opencode/shipwarden-agent-state.js"]}';
         expect(opencodeHookConfig(paths.opencode)).toBe(config);
-        expect(withAgentHooks('opencode --model anthropic/claude-sonnet-4', paths)).toBe(`OPENCODE_CONFIG_CONTENT='${config}' opencode --model anthropic/claude-sonnet-4`);
+        expect(withAgentHooks('opencode --model anthropic/claude-sonnet-4', paths)).toBe(
+            `OPENCODE_CONFIG_CONTENT='${config}' opencode --model anthropic/claude-sonnet-4`
+        );
         expect(hookAgentOf('/Users/me/.opencode/bin/opencode')).toBe('opencode');
     });
 

@@ -25,7 +25,10 @@ function MiniWindow({ palette }: { palette: Palette }) {
                 <span className="mini-line short" style={{ background: palette.border }} />
                 <div className="mini-card" style={{ background: palette.raised, borderColor: palette.border }}>
                     {[palette.ok, palette.accent, palette.danger].map(color => (
-                        <span key={color}><i style={{ background: color }} /><b style={{ background: palette.border }} /></span>
+                        <span key={color}>
+                            <i style={{ background: color }} />
+                            <b style={{ background: palette.border }} />
+                        </span>
                     ))}
                 </div>
                 <div className="mini-input" style={{ background: palette.raised, borderColor: palette.border }}>
@@ -80,7 +83,9 @@ export function AppearanceSettings({ appearance, mode, onChange }: Props) {
                                 {scheme.id === 'system' ? (
                                     <>
                                         <MiniWindow palette={light} />
-                                        <div className="scheme-split"><MiniWindow palette={dark} /></div>
+                                        <div className="scheme-split">
+                                            <MiniWindow palette={dark} />
+                                        </div>
                                     </>
                                 ) : (
                                     <MiniWindow palette={scheme.id === 'light' ? light : dark} />
@@ -94,7 +99,12 @@ export function AppearanceSettings({ appearance, mode, onChange }: Props) {
 
             <SettingsGroup
                 title="Themes"
-                description={<>Select a theme for light mode (<Sun size={11} strokeWidth={2} />) and one for dark mode (<Moon size={11} strokeWidth={2} />). Click a name to use the theme in both modes.</>}
+                description={
+                    <>
+                        Select a theme for light mode (<Sun size={11} strokeWidth={2} />) and one for dark mode (<Moon size={11} strokeWidth={2} />
+                        ). Click a name to use the theme in both modes.
+                    </>
+                }
             >
                 <div className="theme-grid">
                     {THEMES.map(theme => {
@@ -111,38 +121,56 @@ export function AppearanceSettings({ appearance, mode, onChange }: Props) {
                                             <button
                                                 key={swatchMode}
                                                 className={`theme-swatch${selected ? ' selected' : ''}`}
-                                                style={{ '--swatch': swatchGradient(theme[swatchMode], swatchMode), '--ring': theme[swatchMode].accent } as CSSProperties}
+                                                style={
+                                                    {
+                                                        '--swatch': swatchGradient(theme[swatchMode], swatchMode),
+                                                        '--ring': theme[swatchMode].accent
+                                                    } as CSSProperties
+                                                }
                                                 title={`${theme.name}, ${swatchMode} mode`}
                                                 aria-pressed={selected}
                                                 onClick={() => pick(theme.id, swatchMode)}
                                             >
-                                                {selected && <span className="theme-badge"><Badge size={10} strokeWidth={2.2} /></span>}
+                                                {selected && (
+                                                    <span className="theme-badge">
+                                                        <Badge size={10} strokeWidth={2.2} />
+                                                    </span>
+                                                )}
                                             </button>
                                         );
                                     })}
                                 </div>
-                                <button className="theme-name" title={`Use ${theme.name} in light and dark mode`} onClick={() => set({ lightTheme: theme.id, darkTheme: theme.id })}>
+                                <button
+                                    className="theme-name"
+                                    title={`Use ${theme.name} in light and dark mode`}
+                                    onClick={() => set({ lightTheme: theme.id, darkTheme: theme.id })}
+                                >
                                     {theme.name}
                                 </button>
                             </div>
                         );
                     })}
                 </div>
-
             </SettingsGroup>
 
             <SettingsGroup title="Terminal" card>
                 <SettingsRow
                     label="Terminal colors"
-                    description={appearance.terminalColors === 'ghostty'
-                        ? 'The colors of your Ghostty config. With a dark Ghostty theme, terminals stay dark in a light theme.'
-                        : 'The background and text colors of the theme, with ANSI colors for light or dark mode. Open terminals draw again, and their programs continue to run.'}
-                    control={(
+                    description={
+                        appearance.terminalColors === 'ghostty'
+                            ? 'The colors of your Ghostty config. With a dark Ghostty theme, terminals stay dark in a light theme.'
+                            : 'The background and text colors of the theme, with ANSI colors for light or dark mode. Open terminals draw again, and their programs continue to run.'
+                    }
+                    control={
                         <div className="segmented compact">
-                            <button className={appearance.terminalColors === 'ghostty' ? 'selected' : ''} onClick={() => set({ terminalColors: 'ghostty' })}>Ghostty config</button>
-                            <button className={appearance.terminalColors === 'theme' ? 'selected' : ''} onClick={() => set({ terminalColors: 'theme' })}>Match theme</button>
+                            <button className={appearance.terminalColors === 'ghostty' ? 'selected' : ''} onClick={() => set({ terminalColors: 'ghostty' })}>
+                                Ghostty config
+                            </button>
+                            <button className={appearance.terminalColors === 'theme' ? 'selected' : ''} onClick={() => set({ terminalColors: 'theme' })}>
+                                Match theme
+                            </button>
                         </div>
-                    )}
+                    }
                 />
             </SettingsGroup>
         </>

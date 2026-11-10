@@ -12,10 +12,12 @@ export interface LegendItem {
 /** The row of keys at the bottom of a Review page. */
 export function KeyLegend({ items }: { items: LegendItem[] }) {
     return (
-        <footer className="key-legend" aria-label="Keyboard shortcuts">
+        <footer className="key-legend" role="group" aria-label="Keyboard shortcuts">
             {items.map(item => (
                 <span key={item.label} className="key-legend-item">
-                    {item.keys.map(key => <kbd key={key}>{key}</kbd>)}
+                    {item.keys.map(key => (
+                        <kbd key={key}>{key}</kbd>
+                    ))}
                     <span>{item.label}</span>
                 </span>
             ))}
@@ -33,16 +35,43 @@ export function CountPill({ value, tone }: { value: number; tone: 'info' | 'acce
 export function ChecksLabel({ checks }: { checks: CheckSummary }) {
     const level = checkLevel(checks);
     const props = { size: 14, strokeWidth: 1.8 };
-    if (level === 'failing') return <span className="checks-label failing"><CircleX {...props} />{checks.failing || 1} failing</span>;
-    if (level === 'running') return <span className="checks-label running"><Clock {...props} />Running</span>;
-    if (level === 'passing') return <span className="checks-label passing"><CircleCheck {...props} />Checks pass</span>;
+    if (level === 'failing')
+        return (
+            <span className="checks-label failing">
+                <CircleX {...props} />
+                {checks.failing || 1} failing
+            </span>
+        );
+    if (level === 'running')
+        return (
+            <span className="checks-label running">
+                <Clock {...props} />
+                Running
+            </span>
+        );
+    if (level === 'passing')
+        return (
+            <span className="checks-label passing">
+                <CircleCheck {...props} />
+                Checks pass
+            </span>
+        );
     return <span className="checks-label none">No checks</span>;
 }
 
 /** Joins the parts with a middle dot. */
 export function Dotted({ parts }: { parts: React.ReactNode[] }) {
     const shown = parts.filter(part => part !== null && part !== undefined && part !== false && part !== '');
-    return <>{shown.map((part, index) => <Fragment key={index}>{index > 0 && ' · '}{part}</Fragment>)}</>;
+    return (
+        <>
+            {shown.map((part, index) => (
+                <Fragment key={index}>
+                    {index > 0 && ' · '}
+                    {part}
+                </Fragment>
+            ))}
+        </>
+    );
 }
 
 function isEditable(target: EventTarget | null): boolean {

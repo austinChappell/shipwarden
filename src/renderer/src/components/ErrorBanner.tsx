@@ -5,7 +5,12 @@ import { X } from 'lucide-react';
  * An error message with a close button. A screen reader reads the message when it shows.
  * A click on the message also closes it.
  */
-export function ErrorBanner({ className = 'error-banner', title, onClose, children }: {
+export function ErrorBanner({
+    className = 'error-banner',
+    title,
+    onClose,
+    children
+}: {
     className?: string;
     title?: string;
     onClose(): void;

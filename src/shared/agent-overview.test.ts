@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-    ACTIVE_OUTPUT_MS,
-    ciStateOf,
-    ciText,
-    compareOverview,
-    countStates,
-    formatElapsed,
-    lastActivityAt,
-    overviewState
-} from './agent-overview';
+import { ACTIVE_OUTPUT_MS, ciStateOf, ciText, compareOverview, countStates, formatElapsed, lastActivityAt, overviewState } from './agent-overview';
 
 const NOW = 1_000_000_000;
 

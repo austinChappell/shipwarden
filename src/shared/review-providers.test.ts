@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeScope, pickProvider, providerScopeSummary, type StoredReviewProvider } from './review-providers';
 
-const provider = (id: string, kind: StoredReviewProvider['kind'], scope?: string[], enabled = true): StoredReviewProvider =>
-    ({ id, kind, name: id, enabled, scope });
+const provider = (id: string, kind: StoredReviewProvider['kind'], scope?: string[], enabled = true): StoredReviewProvider => ({
+    id,
+    kind,
+    name: id,
+    enabled,
+    scope
+});
 
 describe('pickProvider', () => {
     it('selects the provider whose scope has the organization', () => {

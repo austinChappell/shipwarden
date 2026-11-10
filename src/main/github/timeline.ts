@@ -116,7 +116,7 @@ function mapNode(node: GraphQlTimelineNode): TimelineEvent | null {
         }
         default: {
             const kind = SIMPLE_KINDS[node.__typename];
-            return kind ? { ...base, kind } as TimelineEvent : null;
+            return kind ? ({ ...base, kind } as TimelineEvent) : null;
         }
     }
 }
@@ -131,7 +131,5 @@ export function mapTimeline(nodes: readonly (GraphQlTimelineNode | null)[]): Tim
         return event ? [event] : [];
     });
     const mergedAt = new Set(events.filter(event => event.kind === 'merged').map(event => event.createdAt));
-    return events
-        .filter(event => !(event.kind === 'closed' && mergedAt.has(event.createdAt)))
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return events.filter(event => !(event.kind === 'closed' && mergedAt.has(event.createdAt))).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }

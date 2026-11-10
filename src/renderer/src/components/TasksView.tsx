@@ -1,35 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronRight, ExternalLink, GitBranch, List, LoaderCircle, Pencil, Play, Plus, RefreshCw, Search, Settings, SquareKanban, Trash2, X } from 'lucide-react';
-import {
-    boardColumns,
-    collapsedByDefault,
-    groupTasksByStatus,
-    linkMatchesTask,
-    pickCollection,
-    sortCollections,
-    statusForColumn,
-    statusKey,
-    taskMatches,
-    type TaskCollection,
-    type StatusGroup,
-    type StatusOrder,
-    type ConnectionInfo,
-    type Task,
-    type TaskComment,
-    type TaskLink,
-    type TaskSource,
-    type TaskStatus
-} from '@shared/tasks';
-import { errorText, timeAgo } from '../util';
-import { taskSeenKey } from '@shared/dashboard';
-import { seenStore } from '../seen-store';
-import { Combobox, sortedGroups } from './Combobox';
-import { Markdown } from './Markdown';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { X } from 'lucide-react';
+import { boardColumns, groupTasksByStatus, taskMatches, type StatusGroup, type Task, type TaskLink } from '@shared/tasks';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
-import { alertDialog, confirmDialog, promptDialog } from './ConfirmDialog';
-import { openLink } from '../links';
-import { cacheKey, cached, remember } from '../data-cache';
-import { itemKeys, moveListFocus } from '../keyboard/list-nav';
+import { moveListFocus } from '../keyboard/list-nav';
+import { missingSettingsText, worktreeForTask } from './tasks/task-view-logic';
+import { useTaskSource } from './tasks/use-task-source';
+import { useTaskList } from './tasks/use-task-list';
+import { useTaskDetail } from './tasks/use-task-detail';
+import { useTaskViewPrefs } from './tasks/use-task-view-prefs';
+import { TasksHeader } from './tasks/TasksHeader';
+import { TaskStatusGroups } from './tasks/TaskList';
+import { TaskBoardColumns } from './tasks/TaskBoard';
+import { TaskDetails } from './tasks/TaskDetails';
 
 /** The smallest width of the task details when the user drags the border of the task list. */
 const MIN_DETAIL_WIDTH = 320;
@@ -51,378 +33,37 @@ interface Props {
     openTask?: { connectionId: string; taskId: string; nonce: number };
 }
 
-const api = window.shipwarden.tasks;
-const POLL_MS = 60_000;
-/** The list loads at most this number of pages. ClickUp sends 100 tasks per page. */
-const MAX_PAGES = 5;
-
-/** The groups that the user opened or collapsed, by status key. Each plugin has its own record. */
-type CollapseState = Record<string, boolean>;
-
-function collapseStorageKey(pluginId: string): string {
-    return `shipwarden.collapsedStatuses.${pluginId}`;
-}
-
-type ViewMode = 'list' | 'board';
-const VIEW_STORAGE_KEY = 'shipwarden.tasksView';
-
-
-
-/** The board is the default view. The list shows only when the user selected it. */
-function readViewMode(): ViewMode {
-    try {
-        return localStorage.getItem(VIEW_STORAGE_KEY) === 'list' ? 'list' : 'board';
-    } catch {
-        return 'board';
-    }
-}
-
-function readCollapseState(pluginId: string): CollapseState {
-    try {
-        return JSON.parse(localStorage.getItem(collapseStorageKey(pluginId)) ?? '{}') as CollapseState;
-    } catch {
-        return {};
-    }
-}
-
-function StatusDot({ status }: { status: TaskStatus }) {
-    return <span className={`task-status-dot ${status.category}`} style={status.color ? { background: status.color } : undefined} title={status.name} />;
-}
-
-function formatField(value: string | number | boolean | null | undefined, type: string): string {
-    if (value === null || value === undefined || value === '') return '—';
-    if (type === 'date' && typeof value === 'string') return new Date(value).toLocaleDateString();
-    if (type === 'boolean') return value ? 'Yes' : 'No';
-    return String(value);
-}
-
-/**
- * The cache keys of the view. The view shows cached data immediately and loads new data in the background.
- * Each key starts with the connection and the project, because the same connection can have other data in another project.
- */
-const connectionsKey = (projectId: string) => cacheKey('tasks.connections', projectId);
-const connectionIdKey = (projectId: string) => cacheKey('tasks.connectionId', projectId);
-const sourceKey = (connectionId: string, projectId: string) => cacheKey('tasks.source', connectionId, projectId);
-const filterKey = (connectionId: string, projectId: string) => cacheKey('tasks.filter', connectionId, projectId);
-const collectionsKey = (connectionId: string, projectId: string) => cacheKey('tasks.collections', connectionId, projectId);
-const selectionKey = (connectionId: string, projectId: string) => cacheKey('tasks.selection', connectionId, projectId);
-const tasksKey = (connectionId: string, projectId: string, collection: string, filter: string | undefined) =>
-    cacheKey('tasks.list', connectionId, projectId, collection, filter);
-const statusOrderKey = (connectionId: string, projectId: string, collection: string) => cacheKey('tasks.statusOrder', connectionId, projectId, collection);
-const detailKey = (connectionId: string, projectId: string, taskId: string) => cacheKey('tasks.detail', connectionId, projectId, taskId);
-
-interface CachedDetail {
-    task: Task;
-    statuses: TaskStatus[];
-    comments: TaskComment[];
-}
-
-/** Returns the old value when the new value has the same data, so that effects that use the value do not run again. */
-function same<T>(current: T, next: T): T {
-    return current !== undefined && JSON.stringify(current) === JSON.stringify(next) ? current : next;
-}
-
-/** The repository that "Start in worktree" used last in a project. */
-function startRepoKey(projectId: string): string {
-    return `shipwarden.startRepo:${projectId}`;
-}
-
 /** The tasks of the project's task managers, one collection at a time, with a detail pane for the selected task. */
 export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree, onOpenSettings, repoLabel, openTask }: Props) {
-    /** The task managers (connections) of the project. */
-    const [connections, setConnections] = useState<ConnectionInfo[] | undefined>(() => cached(connectionsKey(projectId)));
-    const [connectionId, setConnectionId] = useState<string | undefined>(() => cached(connectionIdKey(projectId)));
-    const [sourceError, setSourceError] = useState<string>();
-    /** The repository for "Start in worktree", when the project has several. */
-    const [startRepo, setStartRepo] = useState<string>(() => {
-        try {
-            return localStorage.getItem(startRepoKey(projectId)) ?? '';
-        } catch {
-            return '';
-        }
-    });
-    const [filter, setFilter] = useState<string>();
-    const [query, setQuery] = useState('');
-    const [tasks, setTasks] = useState<Task[]>();
-    const [loading, setLoading] = useState(false);
-    const [listError, setListError] = useState<string>();
     const [selectedId, setSelectedId] = useState<string>();
+    const [listError, setListError] = useState<string>();
+    const [query, setQuery] = useState('');
     const listWidth = usePanelWidth('shipwarden.width.taskList', 460, 300, 900);
     const boardDetailWidth = usePanelWidth('shipwarden.width.taskBoardDetail', 420, 320, 800);
-    const [detail, setDetail] = useState<Task>();
-    const [statuses, setStatuses] = useState<TaskStatus[]>([]);
-    const [comments, setComments] = useState<TaskComment[]>([]);
-    const [commentText, setCommentText] = useState('');
-    const [busy, setBusy] = useState(false);
-    const [detailError, setDetailError] = useState<string>();
-    /** The title and the description in the edit form, when the user edits the task. */
-    const [editing, setEditing] = useState<{ title: string; description: string }>();
-    const [collapsed, setCollapsed] = useState<CollapseState>({});
-    /** The workflow order of the statuses from the plugin's status order adapter, if it has one. */
-    const [statusOrder, setStatusOrder] = useState<StatusOrder>();
-    /** The list (grouped) or the board (a column for each status). */
-    const [viewMode, setViewMode] = useState<ViewMode>(readViewMode);
-    /** The task that the user drags on the board. */
-    const [dragging, setDragging] = useState<Task>();
-    /** The board column under the dragged card. */
-    const [dropTarget, setDropTarget] = useState<string>();
-    /** The tasks that move to another status now. */
-    const [moving, setMoving] = useState<Set<string>>(new Set());
-    /** The collections of the task source, for example ClickUp lists or GitHub repositories. */
-    const [collections, setCollections] = useState<TaskCollection[]>();
-    /** The collection that the view shows. */
-    /**
-     * The selected collection, with the connection that it belongs to. During a switch to another connection, the old
-     * collection is still in state for one render. It must not go to the new connection, so it counts only for its own.
-     */
-    const [selection, setSelection] = useState<{ connectionId: string; id: string }>();
-    const [source, setSource] = useState<TaskSource | null>();
-    const collection = source && selection?.connectionId === source.connectionId ? selection.id : undefined;
-    /** Changes when the user asks to load the collections again, for example after a failed request. */
-    const [collectionsReload, setCollectionsReload] = useState(0);
 
-    useEffect(() => {
-        setCollapsed(source ? readCollapseState(source.pluginId) : {});
-    }, [source?.pluginId]);
-
-    const changeViewMode = (value: ViewMode) => {
-        setViewMode(value);
-        try {
-            localStorage.setItem(VIEW_STORAGE_KEY, value);
-        } catch {
-            // The choice stays for this session only.
-        }
-    };
-
-    /** Selects a collection. The main process remembers it for the task source, in all repositories and after a restart. */
-    const selectCollection = (id: string) => {
-        if (source) {
-            setSelection({ connectionId: source.connectionId, id });
-            remember(selectionKey(source.connectionId, projectId), id);
-        }
-        setSelectedId(undefined);
-        if (source) {
-            api.setSelectedCollection(source.connectionId, id).catch(() => undefined);
-        }
-    };
-
-    /** `key` identifies the group: the status key, or "board:<status key>" for a board column. */
-    const isCollapsed = (key: string, byDefault: boolean) => collapsed[key] ?? byDefault;
-
-    const toggleGroup = (key: string, byDefault: boolean) => {
-        if (!source) return;
-        const next = { ...collapsed, [key]: !isCollapsed(key, byDefault) };
-        setCollapsed(next);
-        try {
-            localStorage.setItem(collapseStorageKey(source.pluginId), JSON.stringify(next));
-        } catch {
-            // The state stays for this session only.
-        }
-    };
-
-    const request = useCallback(<T,>(method: string, params: unknown) => {
-        if (!connectionId) {
-            return Promise.reject(new Error('Select a task manager.'));
-        }
-        return api.request(connectionId, projectId, method, params) as Promise<T>;
-    }, [connectionId, projectId]);
-
-    // Load the task managers of the project, and select the last one that the user showed in this project.
-    useEffect(() => {
-        let cancelled = false;
-        setConnections(cached(connectionsKey(projectId)));
-        setConnectionId(cached(connectionIdKey(projectId)));
-        Promise.all([api.enabledConnections(), api.selectedConnection(projectId).catch(() => undefined)]).then(([list, saved]) => {
-            if (cancelled) return;
-            setConnections(current => same(current, remember(connectionsKey(projectId), list)));
-            const usable = list.filter(item => item.configured);
-            setConnectionId(remember(connectionIdKey(projectId), (saved && list.some(item => item.id === saved) ? saved : undefined) ?? usable[0]?.id ?? list[0]?.id));
-        }, err => {
-            if (!cancelled) {
-                setConnections([]);
-                setSourceError(errorText(err));
-            }
-        });
-        return () => {
-            cancelled = true;
-        };
-        // The view opens again after a visit to Settings, so it loads the task managers again then.
-    }, [projectId]);
-
-    /** The state of the selected task manager. The plugin starts again only when this state changes. */
-    const selectedConnection = connections?.find(item => item.id === connectionId);
-    const connectionState = connections === undefined ? 'loading' : !selectedConnection ? 'none' : selectedConnection.configured ? 'ready' : 'unconfigured';
-
-    // Start the plugin of the selected task manager. The cached source shows immediately while the plugin starts.
-    useEffect(() => {
-        let cancelled = false;
-        setSourceError(undefined);
-        setSelectedId(undefined);
-        if (connectionState !== 'ready' || !connectionId) {
-            setSource(connectionState === 'loading' ? undefined : null);
-            setTasks(undefined);
-            return;
-        }
-        // Each source has its own filters. Two sources can use the same filter ID with another meaning.
-        // Thus the view uses the last filter of this source, or the default filter of the source.
-        const pickFilter = (value: TaskSource) => {
-            const last = cached<string>(filterKey(connectionId, projectId));
-            return last && value.filters.some(item => item.id === last) ? last : value.filters.find(item => item.default)?.id ?? value.filters[0]?.id;
-        };
-        const last = cached<TaskSource>(sourceKey(connectionId, projectId));
-        setSource(last);
-        if (last) setFilter(pickFilter(last));
-        api.source(connectionId, projectId).then(started => {
-            if (cancelled) return;
-            remember(sourceKey(connectionId, projectId), started);
-            setSource(current => same(current, started));
-            setFilter(pickFilter(started));
-        }, err => {
-            if (!cancelled) {
-                setSourceError(errorText(err));
-                setSource(null);
-            }
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [connectionState, connectionId, projectId]);
-
-    // Keep the filter of each source for the next visit.
-    useEffect(() => {
-        if (source && filter) remember(filterKey(source.connectionId, projectId), filter);
-    }, [source, filter, projectId]);
-
-    const selectConnection = (id: string) => {
-        setConnectionId(remember(connectionIdKey(projectId), id));
-        api.setSelectedConnection(projectId, id).catch(() => undefined);
-    };
-
-    // Load the collections of the source and select the saved one, the plugin's default or the first one.
-    const sourceConnection = source?.connectionId;
-    useEffect(() => {
-        // After a switch, the old source is still in state for one render. Load only for the selected connection.
-        if (!sourceConnection || sourceConnection !== connectionId) {
-            setCollections(undefined);
-            setSelection(undefined);
-            return;
-        }
-        // The cached collections and selection show immediately while the new ones load.
-        const lastSelection = cached<string>(selectionKey(sourceConnection, projectId));
-        setCollections(cached(collectionsKey(sourceConnection, projectId)));
-        setSelection(lastSelection ? { connectionId: sourceConnection, id: lastSelection } : undefined);
-        let cancelled = false;
-        Promise.all([
-            request<TaskCollection[]>('collections/list', {}),
-            api.selectedCollection(sourceConnection).catch(() => undefined)
-        ]).then(([list, saved]) => {
-            if (cancelled) return;
-            const sorted = remember(collectionsKey(sourceConnection, projectId), sortCollections(list));
-            setCollections(current => same(current, sorted));
-            const picked = pickCollection(sorted, saved);
-            if (picked) remember(selectionKey(sourceConnection, projectId), picked);
-            setSelection(current => (current?.connectionId === sourceConnection && current.id === picked ? current : picked ? { connectionId: sourceConnection, id: picked } : undefined));
-        }, err => {
-            if (!cancelled) {
-                setCollections([]);
-                setListError(errorText(err));
-            }
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [sourceConnection, connectionId, projectId, request, collectionsReload]);
-
-    // A new collection or filter shows its cached tasks, or nothing. Tasks of the old collection must not show.
-    useEffect(() => {
-        setTasks(connectionId && collection ? cached(tasksKey(connectionId, projectId, collection, filter)) : undefined);
-        setStatusOrder(connectionId && collection ? cached(statusOrderKey(connectionId, projectId, collection)) : undefined);
-        setListError(undefined);
-    }, [connectionId, projectId, collection, filter]);
-
-    const loadTasks = useCallback(async () => {
-        // After a switch, the old source is still in state for one render. Load only for the selected connection.
-        if (!source || !collection || source.connectionId !== connectionId) return;
-        setLoading(true);
-        try {
-            const all: Task[] = [];
-            let cursor: string | undefined;
-            for (let page = 0; page < MAX_PAGES; page++) {
-                const result = await request<{ tasks: Task[]; nextCursor?: string }>('tasks/list', { collection, filter, cursor });
-                all.push(...result.tasks);
-                cursor = result.nextCursor;
-                if (!cursor) {
-                    break;
-                }
-            }
-            // A task can be on two pages when it changes during the load. Keep its first copy.
-            const unique = all.filter((task, index) => all.findIndex(other => other.id === task.id) === index);
-            setTasks(remember(tasksKey(connectionId, projectId, collection, filter), unique));
-            if (source.capabilities.statusOrder) {
-                request<StatusOrder>('tasks/statusOrder', { collection }).then(
-                    result => setStatusOrder(remember(statusOrderKey(connectionId, projectId, collection), result)),
-                    () => setStatusOrder(undefined)
-                );
-            }
-            setListError(undefined);
-        } catch (err) {
-            setListError(errorText(err));
-        } finally {
-            setLoading(false);
-        }
-    }, [source, collection, connectionId, projectId, filter, request]);
-
-    // Load the list now, and again on a timer and on change notifications. The search filters the loaded tasks in the renderer.
-    useEffect(() => {
-        loadTasks();
-    }, [loadTasks]);
-    useEffect(() => {
-        const timer = setInterval(loadTasks, POLL_MS);
-        const off = api.onChanged((changedConnection, changedProject) => changedConnection === connectionId && changedProject === projectId && loadTasks());
-        return () => {
-            clearInterval(timer);
-            off();
-        };
-    }, [loadTasks, connectionId, projectId]);
-
-    const loadDetail = useCallback(async (id: string) => {
-        setDetailError(undefined);
-        try {
-            const [task, statusList, commentList] = await Promise.all([
-                request<Task>('tasks/get', { id }),
-                source?.capabilities.statuses ? request<TaskStatus[]>('tasks/statuses', { id }) : Promise.resolve([]),
-                source?.capabilities.comments ? request<TaskComment[]>('comments/list', { taskId: id }) : Promise.resolve([])
-            ]);
-            setDetail(task);
-            setStatuses(statusList);
-            setComments(commentList);
-            if (source) remember(detailKey(source.connectionId, projectId, id), { task, statuses: statusList, comments: commentList });
-            // The comments of an open task count as seen on the Dashboard.
-            if (source) {
-                seenStore.mark(commentList.map(comment => taskSeenKey(source.connectionId, comment.id)));
-            }
-        } catch (err) {
-            setDetailError(errorText(err));
-        }
-    }, [request, source, projectId]);
-
-    // A task shows its cached details immediately, and loads new details in the background.
-    useEffect(() => {
-        const last = source && selectedId ? cached<CachedDetail>(detailKey(source.connectionId, projectId, selectedId)) : undefined;
-        setDetail(last?.task);
-        setComments(last?.comments ?? []);
-        setStatuses(last?.statuses ?? []);
-        setEditing(undefined);
-        if (selectedId) {
-            loadDetail(selectedId);
-        }
-    }, [selectedId, loadDetail]);
+    const sourceState = useTaskSource(projectId, setSelectedId, setListError);
+    const { connections, connectionId, source, sourceError, collection, request } = sourceState;
+    const prefs = useTaskViewPrefs(projectId, source?.pluginId);
+    const list = useTaskList({
+        projectId,
+        connectionId,
+        connectionState: sourceState.connectionState,
+        source,
+        collection,
+        filter: sourceState.filter,
+        request,
+        setListError,
+        setSelectedId
+    });
+    const { tasks, loadTasks } = list;
+    const detailState = useTaskDetail({ projectId, source, selectedId, setSelectedId, request, setTasks: list.setTasks, loadTasks });
 
     /**
      * An open request: select its task manager, then the task when the plugin of that task manager is ready.
      * The task shows in the details also when it is not in the selected collection.
      */
     const pendingOpen = useRef<{ connectionId: string; taskId: string } | undefined>(undefined);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Only a new nonce opens a task. A change of connection must not open the same task again.
     useEffect(() => {
         if (!openTask) return;
         if (openTask.connectionId === connectionId && source?.connectionId === connectionId) {
@@ -431,9 +72,8 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         }
         pendingOpen.current = { connectionId: openTask.connectionId, taskId: openTask.taskId };
         if (openTask.connectionId !== connectionId) {
-            selectConnection(openTask.connectionId);
+            sourceState.selectConnection(openTask.connectionId);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openTask?.nonce]);
     useEffect(() => {
         const pending = pendingOpen.current;
@@ -442,20 +82,6 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
             setSelectedId(pending.taskId);
         }
     }, [source]);
-
-    /** The worktree button of a task card or row. It opens the worktree, not the task. */
-    const worktreeButton = (worktree: string) => (
-        <button
-            className="icon-button task-linked"
-            title="Open the worktree of this task"
-            onClick={event => {
-                event.stopPropagation();
-                onOpenWorktree(worktree);
-            }}
-        >
-            <GitBranch size={13} strokeWidth={1.6} />
-        </button>
-    );
 
     /** The detail panel. A task that the user selects with the keyboard moves the focus into it. */
     const detailRef = useRef<HTMLDivElement>(null);
@@ -470,11 +96,13 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         focusDetail.current = true;
         setSelectedId(id);
     };
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The focus moves after a new task shows. The body does not read selectedId, but a change must run it.
     useEffect(() => {
         if (!focusDetail.current) return;
         focusDetail.current = false;
         detailRef.current?.focus();
     }, [selectedId]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The card gets the focus after the list updates. The body does not read tasks, but a change must run it.
     useEffect(() => {
         const id = focusCard.current;
         if (!id) return;
@@ -482,531 +110,110 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         document.querySelector<HTMLElement>(`.board-card[data-task-id="${CSS.escape(id)}"]`)?.focus();
     }, [tasks]);
 
-    const linkedWorktree = (task: Task) => Object.entries(links).find(([, link]) => linkMatchesTask(link, source?.connectionId, task))?.[0];
-
-    const act = async (action: () => Promise<void>) => {
-        setBusy(true);
-        setDetailError(undefined);
-        try {
-            await action();
-        } catch (err) {
-            setDetailError(errorText(err));
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    const changeStatus = (statusId: string) => detail && act(async () => {
-        const updated = await request<Task>('tasks/update', { id: detail.id, status: statusId });
-        setDetail(updated);
-        setTasks(list => list?.map(task => (task.id === updated.id ? { ...task, status: updated.status } : task)));
-    });
-
-    const addComment = () => detail && commentText.trim() && act(async () => {
-        const created = await request<TaskComment>('comments/create', { taskId: detail.id, body: commentText.trim() });
-        setComments(list => [...list, created]);
-        setCommentText('');
-    });
-
-    const runAction = (actionId: string, confirmText?: string) => detail && act(async () => {
-        if (confirmText && !(await confirmDialog({ title: confirmText }))) return;
-        const result = await request<{ message?: string }>('tasks/action', { taskId: detail.id, actionId });
-        if (result?.message) await alertDialog(result.message);
-        await loadDetail(detail.id);
-        // An action can move the task out of the filter, for example "Archive".
-        await loadTasks();
-    });
-
-    /** Asks for a title and makes a task in the selected collection. Then it opens the task, so the user can add a description. */
-    const createTask = async () => {
-        if (!collection) return;
-        const title = await promptDialog({ title: 'New task', placeholder: 'Title', confirmLabel: 'Create' });
-        if (!title) return;
-        setListError(undefined);
-        try {
-            const created = await request<Task>('tasks/create', { collection, title });
-            setTasks(list => [created, ...(list ?? []).filter(task => task.id !== created.id)]);
-            setSelectedId(created.id);
-        } catch (err) {
-            setListError(errorText(err));
-        }
-    };
-
-    const saveEdit = () => detail && editing && act(async () => {
-        const title = editing.title.trim();
-        if (!title) throw new Error('A task must have a title.');
-        const updated = await request<Task>('tasks/update', { id: detail.id, title, description: editing.description });
-        setDetail(updated);
-        setEditing(undefined);
-        setTasks(list => list?.map(task => (task.id === updated.id ? { ...task, title: updated.title, status: updated.status, updatedAt: updated.updatedAt } : task)));
-    });
-
-    const deleteTask = () => detail && act(async () => {
-        if (!(await confirmDialog({ title: `Delete "${detail.title}"?`, message: 'You cannot undo this.', confirmLabel: 'Delete', danger: true }))) return;
-        await request('tasks/delete', { id: detail.id });
-        setTasks(list => list?.filter(task => task.id !== detail.id));
-        setSelectedId(undefined);
-    });
+    const worktreeFor = (task: Task) => worktreeForTask(links, source?.connectionId, task);
 
     const shown = useMemo(() => (tasks ?? []).filter(task => taskMatches(task, query)), [tasks, query]);
-    const statusGroups = useMemo(() => groupTasksByStatus(shown, statusOrder?.statuses), [shown, statusOrder]);
+    const statusGroups = useMemo(() => groupTasksByStatus(shown, list.statusOrder?.statuses), [shown, list.statusOrder]);
     /** The board has a column for each status of the collection's workflow, also without tasks, so a card can move to it. */
-    const columns = useMemo(() => boardColumns(shown, statusOrder?.statuses), [shown, statusOrder]);
-    const current = collections?.find(item => item.id === collection);
-    /** The picker groups the collections by path, for example a ClickUp space and folder or a GitHub owner. */
-    const pickerGroups = useMemo(() => sortedGroups(collections ?? [], item => item.path ?? '', item => ({ value: item.id, label: item.name })), [collections]);
+    const columns = useMemo(() => boardColumns(shown, list.statusOrder?.statuses), [shown, list.statusOrder]);
     const canMove = !!source?.capabilities.update && !!source?.capabilities.statuses;
-
-    /**
-     * Moves a task to the status of a board column. The status comes from the task's own workflow,
-     * because each ClickUp list can have its own statuses.
-     */
-    const moveTask = async (task: Task, column: StatusGroup) => {
-        if (statusKey(task.status.name) === column.key || moving.has(task.id)) {
-            return;
-        }
-        const setStatus = (status: TaskStatus) => setTasks(list => list?.map(item => (item.id === task.id ? { ...item, status } : item)));
-        setMoving(set => new Set(set).add(task.id));
-        setListError(undefined);
-        // Move the card at once. The request can take a second. A failure moves the card back.
-        setStatus({ id: column.key, name: column.name, color: column.color, category: column.category });
-        try {
-            const target = statusForColumn(column.key, await request<TaskStatus[]>('tasks/statuses', { id: task.id }));
-            if (!target) {
-                throw new Error(`"${task.title}" cannot move to "${column.name}". Its list has no status with that name.`);
-            }
-            const updated = await request<Task>('tasks/update', { id: task.id, status: target.id });
-            setStatus(updated.status);
-            if (detail?.id === updated.id) {
-                setDetail(updated);
-            }
-        } catch (err) {
-            setStatus(task.status);
-            setListError(errorText(err));
-        } finally {
-            setMoving(set => {
-                const next = new Set(set);
-                next.delete(task.id);
-                return next;
-            });
-        }
-    };
-
-    const renderTask = (task: Task) => {
-        const worktree = linkedWorktree(task);
-        return (
-            <div
-                key={task.id}
-                className={`task-row${task.id === selectedId ? ' selected' : ''}`}
-                tabIndex={0}
-                role="button"
-                aria-label={task.key ? `${task.key} ${task.title}` : task.title}
-                aria-pressed={task.id === selectedId}
-                data-nav-item
-                onClick={() => setSelectedId(task.id)}
-                onKeyDown={itemKeys(() => selectFromKeyboard(task.id))}
-            >
-                <StatusDot status={task.status} />
-                {task.key && <span className="task-key">{task.key}</span>}
-                <span className="task-title">{task.title}</span>
-                {worktree && worktreeButton(worktree)}
-                {task.labels?.slice(0, 2).map(label => (
-                    <span key={label.name} className="task-label" style={label.color ? { borderColor: label.color } : undefined}>{label.name}</span>
-                ))}
-            </div>
-        );
-    };
-
-    const renderStatusGroups = (groups: StatusGroup[]) => groups.map(group => {
-        const key = group.key;
-        const closed = isCollapsed(key, collapsedByDefault(group.category));
-        return (
-            <section key={key}>
-                <button className="status-group" data-nav-item aria-expanded={!closed} onClick={() => toggleGroup(key, collapsedByDefault(group.category))}>
-                    <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${closed ? '' : ' open'}`} />
-                    <StatusDot status={{ id: group.key, name: group.name, color: group.color, category: group.category }} />
-                    <span className="status-group-name">{group.name}</span>
-                    <span className="status-group-count">{group.tasks.length}</span>
-                </button>
-                {!closed && group.tasks.map(renderTask)}
-            </section>
-        );
-    });
     const currentConnection = connections?.find(item => item.id === connectionId);
-    /** The repository for "Start in worktree": the last one in this project, else the first. */
-    const targetRepo = repos.includes(startRepo) ? startRepo : repos[0];
-    const chooseStartRepo = (repo: string) => {
-        setStartRepo(repo);
-        try {
-            localStorage.setItem(startRepoKey(projectId), repo);
-        } catch {
-            // The choice stays for this session only.
+
+    /** Moves a task to a board column. After a move with the keyboard, the card gets the focus again. */
+    const moveTask = (task: Task, column: StatusGroup, fromKeyboard: boolean) => {
+        if (fromKeyboard) {
+            focusCard.current = task.id;
         }
+        void list.moveTask(task, column, detailState.showIfOpen);
     };
 
-    /**
-     * Moves a task to the previous or next board column from the keyboard.
-     * It uses the same path as a drop on the column.
-     */
-    const moveTaskBy = (task: Task, step: -1 | 1) => {
-        const index = columns.findIndex(column => column.tasks.some(item => item.id === task.id));
-        const column = index === -1 ? undefined : columns[index + step];
-        if (!canMove || !column || moving.has(task.id)) return;
-        focusCard.current = task.id;
-        void moveTask(task, column);
-    };
-
-    const renderCard = (task: Task) => {
-        const worktree = linkedWorktree(task);
-        const isMoving = moving.has(task.id);
-        const select = itemKeys(() => selectFromKeyboard(task.id));
-        return (
-            <div
-                key={task.id}
-                tabIndex={0}
-                role="button"
-                aria-label={task.key ? `${task.key} ${task.title}` : task.title}
-                aria-pressed={task.id === selectedId}
-                aria-keyshortcuts={canMove ? 'Alt+ArrowLeft Alt+ArrowRight' : undefined}
-                data-nav-item
-                data-task-id={task.id}
-                className={`board-card${task.id === selectedId ? ' selected' : ''}${isMoving ? ' moving' : ''}${dragging?.id === task.id ? ' dragging' : ''}`}
-                draggable={canMove && !isMoving}
-                title={canMove ? 'Drag to another column to change the status. Or press ⌥← or ⌥→.' : undefined}
-                onDragStart={event => {
-                    event.dataTransfer.setData('text/plain', task.id);
-                    event.dataTransfer.effectAllowed = 'move';
-                    setDragging(task);
-                }}
-                onDragEnd={() => {
-                    setDragging(undefined);
-                    setDropTarget(undefined);
-                }}
-                onClick={() => setSelectedId(task.id)}
-                onKeyDown={event => {
-                    if (event.target === event.currentTarget && event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
-                        event.preventDefault();
-                        moveTaskBy(task, event.key === 'ArrowLeft' ? -1 : 1);
-                    } else {
-                        select(event);
-                    }
-                }}
-            >
-                <div className="board-card-top">
-                    {task.key && <span className="task-key">{task.key}</span>}
-                    <span className="header-spacer" />
-                    {isMoving && <LoaderCircle size={12} className="spin" />}
-                    {worktree && worktreeButton(worktree)}
-                </div>
-                <div className="board-card-title">{task.title}</div>
-                {!!task.labels?.length && (
-                    <div className="board-card-meta">
-                        {task.labels?.slice(0, 2).map(label => (
-                            <span key={label.name} className="task-label" style={label.color ? { borderColor: label.color } : undefined}>{label.name}</span>
-                        ))}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const renderColumn = (column: StatusGroup) => {
-        const key = `board:${column.key}`;
-        const closed = isCollapsed(key, collapsedByDefault(column.category));
-        const accepts = canMove && !!dragging && statusKey(dragging.status.name) !== column.key;
-        return (
-            <section
-                key={column.key}
-                className={`board-column${closed ? ' collapsed' : ''}${accepts && dropTarget === column.key ? ' drop-target' : ''}`}
-                onDragOver={event => {
-                    if (accepts) {
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = 'move';
-                        setDropTarget(column.key);
-                    }
-                }}
-                onDragLeave={event => {
-                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                        setDropTarget(target => (target === column.key ? undefined : target));
-                    }
-                }}
-                onDrop={event => {
-                    event.preventDefault();
-                    setDropTarget(undefined);
-                    if (dragging && accepts) {
-                        moveTask(dragging, column);
-                    }
-                    setDragging(undefined);
-                }}
-            >
-                <button
-                    className="board-column-header"
-                    aria-expanded={!closed}
-                    title={closed ? `Show ${column.name}` : `Collapse ${column.name}`}
-                    onClick={() => toggleGroup(key, collapsedByDefault(column.category))}
-                >
-                    <StatusDot status={{ id: column.key, name: column.name, color: column.color, category: column.category }} />
-                    <span className="board-column-name">{column.name}</span>
-                    <span className="status-group-count">{column.tasks.length}</span>
-                </button>
-                {!closed && (
-                    <div className="board-cards" onKeyDown={moveListFocus}>
-                        {column.tasks.map(renderCard)}
-                        {column.tasks.length === 0 && <div className="board-empty">{accepts ? 'Drop here' : 'No tasks'}</div>}
-                    </div>
-                )}
-            </section>
-        );
-    };
-
-    /** The detail panel of the selected task. The list and the board both show it at the right. */
     const detailContent = source && (
-        <>
-            {!selectedId && <div className="panel-message">Select a task.</div>}
-            {selectedId && !detail && !detailError && <div className="panel-message"><LoaderCircle size={14} className="spin" /> Loading…</div>}
-            {detailError && <div className="form-error task-detail-error">{detailError}</div>}
-            {detail && (
-                <div className="task-detail-scroll">
-                    <div className="task-detail-top">
-                        {detail.key && <span className="task-key">{detail.key}</span>}
-                        {detail.url && (
-                            <button className="link-button" onClick={event => openLink(detail.url!, event)}>
-                                Open <ExternalLink size={12} strokeWidth={1.6} />
-                            </button>
-                        )}
-                        <span className="header-spacer" />
-                        {source.capabilities.edit && !editing && (
-                            <button
-                                className="icon-button"
-                                title="Edit the title and the description"
-                                disabled={busy}
-                                onClick={() => setEditing({ title: detail.title, description: detail.description ?? '' })}
-                            >
-                                <Pencil size={14} strokeWidth={1.6} />
-                            </button>
-                        )}
-                        {source.capabilities.delete && (
-                            <button className="icon-button" title="Delete the task" disabled={busy} onClick={deleteTask}>
-                                <Trash2 size={14} strokeWidth={1.6} />
-                            </button>
-                        )}
-                    </div>
-                    {editing ? (
-                        <div className="task-edit">
-                            <input
-                                className="pr-title-input"
-                                value={editing.title}
-                                placeholder="Title"
-                                aria-label="Title"
-                                autoFocus
-                                onChange={event => setEditing({ ...editing, title: event.target.value })}
-                                onKeyDown={event => event.key === 'Enter' && saveEdit()}
-                            />
-                            <textarea
-                                className="review-body task-edit-description"
-                                value={editing.description}
-                                placeholder="Description (Markdown)"
-                                aria-label="Description"
-                                onChange={event => setEditing({ ...editing, description: event.target.value })}
-                            />
-                            <div className="row-buttons">
-                                <button className="button" disabled={busy} onClick={() => setEditing(undefined)}>Cancel</button>
-                                <button className="button primary" disabled={busy || !editing.title.trim()} onClick={saveEdit}>Save</button>
-                            </div>
-                        </div>
-                    ) : (
-                        <h2 className="task-detail-title">{detail.title}</h2>
-                    )}
-
-                    <div className="task-start">
-                        {linkedWorktree(detail) ? (
-                            <button className="button primary" onClick={() => onOpenWorktree(linkedWorktree(detail)!)}>
-                                <GitBranch size={14} strokeWidth={1.8} />Open worktree
-                            </button>
-                        ) : (
-                            <>
-                                <button
-                                    className="button primary"
-                                    disabled={busy || !targetRepo || !source}
-                                    title={targetRepo ? `Make a worktree in ${repoLabel(targetRepo)} and start an agent on the task` : 'Add a repository to the project first'}
-                                    onClick={() => source && targetRepo && act(() => onStartTask(detail, source.connectionId, source.pluginId, targetRepo))}
-                                >
-                                    <Play size={14} strokeWidth={1.8} />Start in worktree
-                                </button>
-                                {repos.length > 1 && (
-                                    <select className="tasks-select" value={targetRepo} title="The repository of the new worktree" onChange={event => chooseStartRepo(event.target.value)}>
-                                        {repos.map(repo => <option key={repo} value={repo}>{repoLabel(repo)}</option>)}
-                                    </select>
-                                )}
-                            </>
-                        )}
-                        {source.actions.map(action => (
-                            <button key={action.id} className="button" disabled={busy} onClick={() => runAction(action.id, action.confirm)}>{action.label}</button>
-                        ))}
-                    </div>
-
-                    <div className="task-meta">
-                        <span className="task-meta-label">Status</span>
-                        {source.capabilities.update && statuses.length > 0 ? (
-                            <select className="tasks-select" value={detail.status.id} disabled={busy} onChange={event => changeStatus(event.target.value)}>
-                                {statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}
-                            </select>
-                        ) : (
-                            <span><StatusDot status={detail.status} /> {detail.status.name}</span>
-                        )}
-                        <span className="task-meta-label">Assignees</span>
-                        <span>{detail.assignees?.length ? detail.assignees.map(person => person.name).join(', ') : '—'}</span>
-                        {detail.priority && (
-                            <>
-                                <span className="task-meta-label">Priority</span>
-                                <span>{detail.priority.name}</span>
-                            </>
-                        )}
-                        {detail.labels && detail.labels.length > 0 && (
-                            <>
-                                <span className="task-meta-label">Labels</span>
-                                <span className="task-labels">{detail.labels.map(label => (
-                                    <span key={label.name} className="task-label" style={label.color ? { borderColor: label.color } : undefined}>{label.name}</span>
-                                ))}</span>
-                            </>
-                        )}
-                        {source.fields.map(field => (
-                            <FieldRow key={field.id} label={field.label} value={formatField(detail.fields?.[field.id], field.type)} />
-                        ))}
-                        {detail.updatedAt && (
-                            <>
-                                <span className="task-meta-label">Updated</span>
-                                <span>{timeAgo(detail.updatedAt)}</span>
-                            </>
-                        )}
-                    </div>
-
-                    {!editing && (detail.description?.trim()
-                        ? <Markdown className="task-description" text={detail.description} />
-                        : <div className="task-description">No description.</div>)}
-
-                    {source.capabilities.comments && (
-                        <section className="task-comments">
-                            <div className="section-title">Comments <span>{comments.length}</span></div>
-                            {comments.map(comment => (
-                                <div key={comment.id} className="thread-comment">
-                                    <div className="comment-author">{comment.author?.name ?? 'unknown'} {comment.createdAt && <span>{timeAgo(comment.createdAt)}</span>}</div>
-                                    <Markdown className="comment-body" text={comment.body} />
-                                </div>
-                            ))}
-                            <textarea className="review-body" value={commentText} placeholder="Add a comment" onChange={event => setCommentText(event.target.value)} />
-                            <div className="row-buttons">
-                                <button className="button" disabled={busy || !commentText.trim()} onClick={addComment}>Comment</button>
-                            </div>
-                        </section>
-                    )}
-                </div>
-            )}
-        </>
+        <TaskDetails
+            source={source}
+            selectedId={selectedId}
+            state={detailState}
+            worktreeFor={worktreeFor}
+            repos={repos}
+            startRepo={prefs.startRepo}
+            chooseStartRepo={prefs.chooseStartRepo}
+            repoLabel={repoLabel}
+            onOpenWorktree={onOpenWorktree}
+            onStartTask={onStartTask}
+        />
     );
+
+    const itemProps = {
+        selectedId,
+        isCollapsed: prefs.isCollapsed,
+        toggleGroup: prefs.toggleGroup,
+        worktreeFor,
+        onSelect: setSelectedId,
+        onSelectFromKeyboard: selectFromKeyboard,
+        onOpenWorktree
+    };
 
     return (
         <div className="tasks-view">
-            <header className="tasks-header">
-                {/* Two groups: where the tasks come from, and how they show. A narrow window puts the second group on its own row. */}
-                <div className="tasks-header-group where">
-                    {connections && connections.length > 0 && (
-                        <select className="tasks-select" value={connectionId ?? ''} onChange={event => selectConnection(event.target.value)} title="Task manager">
-                            {connections.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-                        </select>
-                    )}
-                    {source && (
-                        <div className="collection-picker">
-                            <Combobox
-                                className="collection-select"
-                                value={collection}
-                                groups={pickerGroups}
-                                placeholder={!collections ? 'Loading collections…' : collections.length === 0 ? 'No collections' : 'Select a collection'}
-                                searchPlaceholder="Search collections"
-                                disabled={!collections?.length}
-                                title={current ? `Collection: ${current.path ? `${current.path} / ` : ''}${current.name}` : 'Collection'}
-                                onChange={selectCollection}
-                            />
-                            {current?.url && (
-                                <button className="icon-button collection-open" title="Open the collection in the browser" onClick={event => openLink(current.url!, event)}>
-                                    <ExternalLink size={14} strokeWidth={1.6} />
-                                </button>
-                            )}
-                        </div>
-                    )}
-                </div>
-                <div className="tasks-header-group how">
-                    {source && source.filters.length > 0 && (
-                        <select className="tasks-select" value={filter} onChange={event => setFilter(event.target.value)} title="Filter">
-                            {source.filters.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-                        </select>
-                    )}
-                    {source && (
-                        <div className="segmented compact view-switch" role="group" aria-label="View">
-                            <button className={viewMode === 'board' ? 'selected' : ''} title="Board" aria-label="Board" aria-pressed={viewMode === 'board'} onClick={() => changeViewMode('board')}>
-                                <SquareKanban size={15} strokeWidth={1.8} />
-                            </button>
-                            <button className={viewMode === 'list' ? 'selected' : ''} title="List" aria-label="List" aria-pressed={viewMode === 'list'} onClick={() => changeViewMode('list')}>
-                                <List size={15} strokeWidth={1.8} />
-                            </button>
-                        </div>
-                    )}
-                    {source && (
-                        <label className="tasks-search">
-                            <Search size={14} strokeWidth={1.6} />
-                            <input value={query} placeholder="Search tasks" spellCheck={false} onChange={event => setQuery(event.target.value)} />
-                        </label>
-                    )}
-                    <span className="header-spacer" />
-                    {source?.capabilities.create && (
-                        <button className="icon-button" title="New task" disabled={!collection} onClick={createTask}>
-                            <Plus size={15} strokeWidth={1.6} />
-                        </button>
-                    )}
-                    {source && (
-                        <button
-                            className="icon-button"
-                            title="Refresh"
-                            onClick={() => (collections?.length ? loadTasks() : setCollectionsReload(key => key + 1))}
-                        >
-                            <RefreshCw size={15} strokeWidth={1.6} className={loading ? 'spin' : ''} />
-                        </button>
-                    )}
-                    {currentConnection && (
-                        <button className="icon-button" title="Task manager settings" onClick={onOpenSettings}>
-                            <Settings size={15} strokeWidth={1.6} />
-                        </button>
-                    )}
-                </div>
-            </header>
+            <TasksHeader
+                connections={connections}
+                connectionId={connectionId}
+                selectConnection={sourceState.selectConnection}
+                currentConnection={currentConnection}
+                source={source}
+                collections={sourceState.collections}
+                collection={collection}
+                selectCollection={sourceState.selectCollection}
+                filter={sourceState.filter}
+                setFilter={sourceState.setFilter}
+                viewMode={prefs.viewMode}
+                changeViewMode={prefs.changeViewMode}
+                query={query}
+                setQuery={setQuery}
+                loading={list.loading}
+                createTask={list.createTask}
+                refresh={() => (sourceState.collections?.length ? loadTasks() : sourceState.reloadCollections())}
+                onOpenSettings={onOpenSettings}
+            />
 
             {connections === undefined && !sourceError && <div className="panel-message">Loading the task managers…</div>}
             {connections?.length === 0 && !sourceError && (
                 <div className="panel-message">
                     <p>This project has no task managers.</p>
-                    <button className="button primary" onClick={onOpenSettings}>Set up task managers</button>
+                    <button className="button primary" onClick={onOpenSettings}>
+                        Set up task managers
+                    </button>
                 </div>
             )}
             {currentConnection && !currentConnection.configured && (
                 <div className="panel-message">
-                    <p>{currentConnection.name} needs its {currentConnection.settings.filter(setting => setting.required).map(setting => setting.label.toLowerCase()).join(' and ') || 'settings'}.</p>
-                    <button className="button primary" onClick={onOpenSettings}>Open the settings</button>
+                    <p>
+                        {currentConnection.name} needs its {missingSettingsText(currentConnection)}.
+                    </p>
+                    <button className="button primary" onClick={onOpenSettings}>
+                        Open the settings
+                    </button>
                 </div>
             )}
             {currentConnection?.configured && source === undefined && !sourceError && <div className="panel-message">Starting {currentConnection.name}…</div>}
             {sourceError && (
                 <div className="panel-message">
                     <div className="form-error">{sourceError}</div>
-                    <button className="button" onClick={onOpenSettings}>Open the settings</button>
+                    <button className="button" onClick={onOpenSettings}>
+                        Open the settings
+                    </button>
                 </div>
             )}
 
-            {source && viewMode === 'board' && (
+            {source && prefs.viewMode === 'board' && (
                 <div className="tasks-body board-mode">
                     <div className="task-board">
                         {listError && <div className="form-error task-list-error">{listError}</div>}
                         {tasks === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
-                        {tasks !== undefined && <div className="board-columns">{columns.map(renderColumn)}</div>}
+                        {tasks !== undefined && (
+                            <div className="board-columns">
+                                <TaskBoardColumns {...itemProps} columns={columns} canMove={canMove} moving={list.moving} onMove={moveTask} />
+                            </div>
+                        )}
                     </div>
                     {selectedId && (
                         <>
@@ -1027,14 +234,14 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                 </div>
             )}
 
-            {source && viewMode === 'list' && (
+            {source && prefs.viewMode === 'list' && (
                 <div className="tasks-body" style={{ '--task-list-width': `${listWidth.width}px` } as CSSProperties}>
                     <div className="task-list" onKeyDown={moveListFocus}>
                         {listError && <div className="form-error task-list-error">{listError}</div>}
                         {tasks === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
                         {tasks?.length === 0 && <div className="panel-message">No tasks in this collection.</div>}
                         {!!tasks?.length && shown.length === 0 && <div className="panel-message">No tasks match “{query.trim()}”.</div>}
-                        {renderStatusGroups(statusGroups)}
+                        <TaskStatusGroups {...itemProps} groups={statusGroups} />
                     </div>
                     <ResizeHandle
                         panel={listWidth}
@@ -1048,14 +255,5 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                 </div>
             )}
         </div>
-    );
-}
-
-function FieldRow({ label, value }: { label: string; value: string }) {
-    return (
-        <>
-            <span className="task-meta-label">{label}</span>
-            <span>{value}</span>
-        </>
     );
 }

@@ -16,7 +16,10 @@ function useCommandCheck(command: string): CommandCheck | undefined {
     useEffect(() => {
         let current = true;
         const timer = setTimeout(() => {
-            api.settings.checkCommand(command).then(result => current && setCheck(result), () => current && setCheck(undefined));
+            api.settings.checkCommand(command).then(
+                result => current && setCheck(result),
+                () => current && setCheck(undefined)
+            );
         }, CHECK_DELAY_MS);
         return () => {
             current = false;
@@ -30,15 +33,22 @@ function CommandCheckLine({ command }: { command: string }) {
     const check = useCommandCheck(command);
     if (!check) return null;
     const agent = hookAgentOf(commandProgram(command));
-    const hooks = agent === 'claude' ? ' ShipWarden shows its state from Claude Code hooks.'
-        : agent === 'gemini' ? ' ShipWarden shows its state from Gemini CLI hooks.'
-        : agent === 'opencode' ? ' ShipWarden shows its state from an opencode plugin.'
-        : ' ShipWarden shows only that it runs.';
+    const hooks =
+        agent === 'claude'
+            ? ' ShipWarden shows its state from Claude Code hooks.'
+            : agent === 'gemini'
+              ? ' ShipWarden shows its state from Gemini CLI hooks.'
+              : agent === 'opencode'
+                ? ' ShipWarden shows its state from an opencode plugin.'
+                : ' ShipWarden shows only that it runs.';
     return check.path ? (
-        <span className="settings-check ok"><CircleCheck size={13} strokeWidth={2} /> {check.path}.{hooks}</span>
+        <span className="settings-check ok">
+            <CircleCheck size={13} strokeWidth={2} /> {check.path}.{hooks}
+        </span>
     ) : (
         <span className="settings-check warn">
-            <CircleAlert size={13} strokeWidth={2} /> "{check.program}" is not in the PATH of your login shell. It can still work if it is a shell alias or function.
+            <CircleAlert size={13} strokeWidth={2} /> "{check.program}" is not in the PATH of your login shell. It can still work if it is a shell alias or
+            function.
         </span>
     );
 }
@@ -96,7 +106,12 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                     onBlur={commit}
                     onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                 />
-                <button className="icon-button" title={canRemove ? 'Remove this agent' : 'ShipWarden needs at least one agent'} disabled={!canRemove} onClick={onRemove}>
+                <button
+                    className="icon-button"
+                    title={canRemove ? 'Remove this agent' : 'ShipWarden needs at least one agent'}
+                    disabled={!canRemove}
+                    onClick={onRemove}
+                >
                     <Trash2 size={14} strokeWidth={1.6} />
                 </button>
             </div>
@@ -164,7 +179,13 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                 }}
             >
                 <span className="agent-add-label">Add</span>
-                <input className="agent-name-input" placeholder="Name" aria-label="New agent name" value={newName} onChange={event => setNewName(event.target.value)} />
+                <input
+                    className="agent-name-input"
+                    placeholder="Name"
+                    aria-label="New agent name"
+                    value={newName}
+                    onChange={event => setNewName(event.target.value)}
+                />
                 <input
                     className="agent-command-input mono"
                     placeholder="Command, for example aider"
@@ -174,7 +195,10 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                     value={newCommand}
                     onChange={event => setNewCommand(event.target.value)}
                 />
-                <button type="submit" className="button" disabled={!newCommand.trim()}><Plus size={13} strokeWidth={1.8} />Add</button>
+                <button type="submit" className="button" disabled={!newCommand.trim()}>
+                    <Plus size={13} strokeWidth={1.8} />
+                    Add
+                </button>
             </form>
             {missingDefaultAgents(settings.agents).length > 0 && (
                 <div className="settings-row agent-add">
@@ -187,12 +211,17 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                             title={`Add ${agent.name} (${agent.command}) to the list`}
                             onClick={() => save({ agents: [...settings.agents, agent] })}
                         >
-                            <Plus size={13} strokeWidth={1.8} />{agent.name}
+                            <Plus size={13} strokeWidth={1.8} />
+                            {agent.name}
                         </button>
                     ))}
                 </div>
             )}
-            {error && <div className="settings-row"><div className="form-error">{error}</div></div>}
+            {error && (
+                <div className="settings-row">
+                    <div className="form-error">{error}</div>
+                </div>
+            )}
         </SettingsGroup>
     );
 }

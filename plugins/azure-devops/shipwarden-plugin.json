@@ -5,9 +5,7 @@
   "protocolVersion": 3,
   "description": "Azure DevOps work items (Azure Boards). Each Azure DevOps project is a collection. Restrict the connection to some projects in the settings.",
   "command": "node",
-  "args": [
-    "index.js"
-  ],
+  "args": ["index.js"],
   "settings": [
     {
       "key": "organization",

@@ -1,0 +1,281 @@
+import type { Dispatch, SetStateAction } from 'react';
+import type { PullRequest, RepoRef } from '@shared/github';
+import type { AppSettings, AgentDefinition, RepoScript } from '@shared/settings';
+import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
+import type { TerminalSession } from '@shared/terminal';
+import { snoozeEnd, type CreatedWorktree, type HiddenWorktree, type Worktree } from '@shared/worktrees';
+import { confirmDialog, promptDialog } from '../components/ConfirmDialog';
+import { showContextMenu } from '../components/ContextMenu';
+import type { GraphWorktreeStart } from '../components/GitGraphView';
+import type { NewWorktreeRequest } from '../components/NewWorktreeDialog';
+import { documents } from '../editor/documents';
+import { agentStateStore } from '../terminal/agent-state-store';
+import { terminalPool } from '../terminal/terminal-pool';
+import { withoutKey, type ExtraTab } from './tabs';
+import type { MainView } from './views';
+import {
+    errorText,
+    removeWorktreeDialog,
+    sameRepoRef,
+    snoozeChoice,
+    teardownFailure,
+    withHiddenWorktree,
+    withRepoScripts,
+    withWorktreeName,
+    worktreeMenuItems
+} from './worktree-edits';
+import { editorPositions } from '../editor/editor-positions';
+import { outputActivity } from '../terminal/output-activity';
+
+const api = window.shipwarden;
+
+/** A request for the New worktree dialog: the repository, and an optional start point. */
+export interface NewWorktreeTarget {
+    repo: string;
+    start?: GraphWorktreeStart;
+}
+
+interface Options {
+    appSettings: AppSettings;
+    setAppSettings: (settings: AppSettings) => void;
+    activeProjectId: string | undefined;
+    repos: string[];
+    worktreesByRepo: Record<string, Worktree[]>;
+    worktrees: Worktree[];
+    refreshWorktrees: (repo: string) => Promise<Worktree[]>;
+    sessions: TerminalSession[];
+    setSessions: Dispatch<SetStateAction<TerminalSession[]>>;
+    links: Record<string, TaskLink>;
+    setLinks: Dispatch<SetStateAction<Record<string, TaskLink>>>;
+    openFiles: Record<string, string[]>;
+    setOpenFiles: Dispatch<SetStateAction<Record<string, string[]>>>;
+    setExtraTabs: Dispatch<SetStateAction<Record<string, ExtraTab[]>>>;
+    selectedPath: string | undefined;
+    setSelectedPath: (path: string | undefined) => void;
+    setMainView: (view: MainView) => void;
+    setNewWorktree: (target: NewWorktreeTarget) => void;
+    setTaskOpen: (request: { connectionId: string; taskId: string; nonce: number }) => void;
+    startTerminal: (worktree: Worktree, target: 'shell' | 'agent' | AgentDefinition) => Promise<TerminalSession | undefined>;
+    sendToAgent: (prompt: string, worktree?: Worktree) => Promise<void>;
+    prepareWorktree: (repoPath: string, worktree: CreatedWorktree) => Promise<void>;
+    setError: (error: string | undefined) => void;
+}
+
+/** The actions that create, change and remove worktrees, and that start work on a task. */
+export function useWorktreeActions(options: Options) {
+    const { appSettings, setAppSettings, links, selectedPath, setSelectedPath, setMainView, refreshWorktrees, setError } = options;
+
+    /** Sets or removes (with an empty name) the display name of a worktree. */
+    const setWorktreeName = async (path: string, name: string | undefined) => {
+        setAppSettings(await api.settings.update({ worktreeNames: withWorktreeName(appSettings.worktreeNames, path, name) }));
+    };
+
+    /**
+     * Hides a worktree in the sidebar, or shows it again with `undefined`. With `until`, the worktree is snoozed and
+     * shows again at that time. The worktree stays on disk. The update also removes the snoozes that ended.
+     */
+    const setWorktreeHidden = async (path: string, hidden: HiddenWorktree | undefined) => {
+        setAppSettings(await api.settings.update({ hiddenWorktrees: withHiddenWorktree(appSettings.hiddenWorktrees, path, hidden, Date.now()) }));
+    };
+
+    /** Saves the scripts of a repository. An empty list removes the scripts from its settings. */
+    const saveScripts = async (repoPath: string, scripts: RepoScript[]) => {
+        setAppSettings(await api.settings.update({ repos: withRepoScripts(appSettings.repos, repoPath, scripts) }));
+    };
+
+    /**
+     * Moves a task to the start status of its connection (Settings › Task managers), for example "in progress".
+     * The worktree and the agent do not wait for it. A failure shows as an error, and the task keeps its status.
+     */
+    const moveTaskToStartStatus = async (task: Task, connectionId: string) => {
+        const projectId = options.activeProjectId;
+        if (!projectId) return;
+        let wanted: string | undefined;
+        try {
+            wanted = (await api.tasks.connections()).find(item => item.id === connectionId)?.startStatus;
+            if (!wanted) return;
+            const source = await api.tasks.source(connectionId, projectId);
+            await applyStartStatus(
+                task,
+                wanted,
+                source.capabilities,
+                <T>(method: string, params: unknown) => api.tasks.request(connectionId, projectId, method, params) as Promise<T>
+            );
+        } catch (err) {
+            setError(`${task.key ?? task.title} did not move to "${wanted}": ${errorText(err)}`);
+        }
+    };
+
+    /**
+     * Starts work on a task: creates a worktree with a branch for the task, links the worktree to the task
+     * and sends the task to a new agent in the worktree.
+     */
+    const startTask = async (task: Task, connectionId: string, pluginId: string, repoPath: string) => {
+        const branch = branchNameForTask(task);
+        const worktree = await api.worktrees.create({ repoPath, branch });
+        await options.prepareWorktree(repoPath, worktree);
+        const link: TaskLink = { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
+        await api.tasks.setLink(worktree.path, link);
+        options.setLinks(map => ({ ...map, [worktree.path]: link }));
+        await refreshWorktrees(repoPath);
+        setSelectedPath(worktree.path);
+        setMainView('worktree');
+        void moveTaskToStartStatus(task, connectionId);
+        await options.sendToAgent(taskPrompt(task, branch), worktree);
+    };
+
+    /**
+     * Opens a worktree for the head branch of a pull request from the Review view. A worktree that has the branch opens.
+     * Else the New worktree dialog opens on the remote branch. The repository must be in the active project.
+     */
+    const openPullRequestWorktree = async (repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>) => {
+        let repoPath: string | undefined;
+        for (const path of options.repos) {
+            if (sameRepoRef(await api.github.repoOf(path).catch(() => null), repo)) {
+                repoPath = path;
+                break;
+            }
+        }
+        if (!repoPath) {
+            setError(`No repository of this project has ${repo.owner}/${repo.name} as its "origin" remote. Add a clone of it to the project.`);
+            return;
+        }
+        const existing = options.worktreesByRepo[repoPath]?.find(worktree => worktree.branch === pr.headRefName);
+        if (existing) {
+            setSelectedPath(existing.path);
+            setMainView('worktree');
+            return;
+        }
+        options.setNewWorktree({ repo: repoPath, start: { remote: `origin/${pr.headRefName}` } });
+    };
+
+    /** Creates a worktree from the New worktree dialog: its branch, start point, display name and agent. */
+    const createWorktree = async (repoPath: string, request: NewWorktreeRequest) => {
+        const worktree = await api.worktrees.create({
+            repoPath,
+            branch: request.branch,
+            ...(request.baseRef ? { baseRef: request.baseRef } : {}),
+            ...(request.trackRef ? { trackRef: request.trackRef } : {})
+        });
+        if (request.name) await setWorktreeName(worktree.path, request.name);
+        await refreshWorktrees(repoPath);
+        setSelectedPath(worktree.path);
+        // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
+        setMainView('worktree');
+        await options.prepareWorktree(repoPath, worktree);
+        if (request.startAgent) await options.startTerminal(worktree, 'agent');
+    };
+
+    const renameWorktree = async (worktree: Worktree) => {
+        const name = await promptDialog({
+            title: 'Rename the worktree',
+            message: `The sidebar shows this name. The branch "${worktree.branch ?? worktree.head.slice(0, 7)}" does not change. An empty name shows the branch again.`,
+            value: appSettings.worktreeNames?.[worktree.path] ?? '',
+            placeholder: worktree.branch ?? 'Name',
+            confirmLabel: 'Rename'
+        });
+        if (name === undefined) return;
+        try {
+            await setWorktreeName(worktree.path, name);
+        } catch (err) {
+            setError(errorText(err));
+        }
+    };
+
+    /**
+     * Removes a worktree. With `deleteBranch`, the local branch is deleted after the worktree. Git refuses a branch with
+     * commits that are not merged, so ShipWarden asks before it forces the delete. The remote branch stays.
+     */
+    const removeWorktree = async (repoPath: string, worktree: Worktree, removeOptions: { deleteBranch?: boolean } = {}) => {
+        const name = appSettings.worktreeNames?.[worktree.path] ?? worktree.branch ?? worktree.path;
+        const branch = removeOptions.deleteBranch ? worktree.branch : undefined;
+        const hasTeardown = !!appSettings.repos[repoPath]?.worktrees?.teardownScript;
+        if (!(await confirmDialog({ ...removeWorktreeDialog(name, branch, hasTeardown), danger: true }))) {
+            return;
+        }
+        try {
+            const result = await api.worktrees.remove(repoPath, worktree.path);
+            if (result.teardownFailed) {
+                const { title, tail } = teardownFailure(result.teardownFailed);
+                if (
+                    !(await confirmDialog({
+                        title,
+                        message: 'Remove the worktree anyway?',
+                        detail: tail,
+                        confirmLabel: 'Remove anyway',
+                        danger: true
+                    }))
+                ) {
+                    return;
+                }
+                await api.worktrees.remove(repoPath, worktree.path, { skipTeardown: true });
+            }
+            options.sessions
+                .filter(session => session.worktreePath === worktree.path)
+                .forEach(session => {
+                    terminalPool.dispose(session.id);
+                    agentStateStore.delete(session.id);
+                    outputActivity.delete(session.id);
+                });
+            options.setSessions(list => list.filter(session => session.worktreePath !== worktree.path));
+            (options.openFiles[worktree.path] ?? []).forEach(path => documents.close(worktree.path, path));
+            editorPositions.forget(worktree.path);
+            options.setExtraTabs(map => withoutKey(map, worktree.path));
+            if (links[worktree.path]) {
+                await api.tasks.setLink(worktree.path, null);
+                options.setLinks(map => withoutKey(map, worktree.path));
+            }
+            options.setOpenFiles(map => withoutKey(map, worktree.path));
+            if (appSettings.worktreeNames?.[worktree.path]) await setWorktreeName(worktree.path, undefined);
+            if (appSettings.hiddenWorktrees?.[worktree.path]) await setWorktreeHidden(worktree.path, undefined);
+            const list = await refreshWorktrees(repoPath);
+            if (selectedPath === worktree.path) {
+                setSelectedPath(list[0]?.path ?? options.worktrees.find(item => item.path !== worktree.path)?.path);
+            }
+            if (branch) {
+                const deleted = await api.worktrees.deleteBranch(repoPath, branch);
+                if (
+                    deleted.notMerged &&
+                    (await confirmDialog({
+                        title: `The branch "${branch}" has commits that are not merged into another branch.`,
+                        message: 'Delete the branch anyway? The commits are then lost, unless the remote branch has them.',
+                        confirmLabel: 'Delete branch',
+                        danger: true
+                    }))
+                ) {
+                    await api.worktrees.deleteBranch(repoPath, branch, true);
+                }
+            }
+        } catch (err) {
+            setError(errorText(err));
+        }
+    };
+
+    /** Opens the task of a worktree in the Tasks view, with the task manager of the task selected. */
+    const openLinkedTask = (worktreePath: string) => {
+        const link = links[worktreePath];
+        if (!link) return;
+        options.setTaskOpen({ connectionId: link.connectionId ?? link.pluginId, taskId: link.taskId, nonce: Date.now() });
+        setMainView('tasks');
+    };
+
+    /** The context menu of a worktree in the sidebar. */
+    const worktreeMenu = async (repoPath: string, worktree: Worktree) => {
+        const link = links[worktree.path];
+        const choice = await showContextMenu(worktreeMenuItems(worktree, link?.key, !!link, appSettings.hiddenWorktrees?.[worktree.path], Date.now()));
+        if (choice === 'task') openLinkedTask(worktree.path);
+        if (choice === 'rename') await renameWorktree(worktree);
+        try {
+            if (choice === 'show') await setWorktreeHidden(worktree.path, undefined);
+            if (choice === 'hide') await setWorktreeHidden(worktree.path, {});
+            const option = snoozeChoice(choice);
+            if (option) await setWorktreeHidden(worktree.path, { until: snoozeEnd(option, new Date()) });
+        } catch (err) {
+            setError(errorText(err));
+        }
+        if (choice === 'remove') await removeWorktree(repoPath, worktree);
+        if (choice === 'removeBranch') await removeWorktree(repoPath, worktree, { deleteBranch: true });
+    };
+
+    return { startTask, createWorktree, openPullRequestWorktree, removeWorktree, saveScripts, openLinkedTask, worktreeMenu };
+}

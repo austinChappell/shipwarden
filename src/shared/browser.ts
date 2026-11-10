@@ -44,15 +44,17 @@ export function isBrowsableUrl(url: string): boolean {
 /** True for a host that is on this computer or on a local network. Such a host gets http, not https. */
 function isLocalHost(host: string): boolean {
     const name = host.replace(/:\d+$/, '').toLowerCase();
-    return name === 'localhost'
-        || name.endsWith('.localhost')
-        || name.endsWith('.local')
-        || name === '[::1]'
-        || /^127(\.\d{1,3}){3}$/.test(name)
-        || /^0\.0\.0\.0$/.test(name)
-        || /^10(\.\d{1,3}){3}$/.test(name)
-        || /^192\.168(\.\d{1,3}){2}$/.test(name)
-        || /^172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}$/.test(name);
+    return (
+        name === 'localhost' ||
+        name.endsWith('.localhost') ||
+        name.endsWith('.local') ||
+        name === '[::1]' ||
+        /^127(\.\d{1,3}){3}$/.test(name) ||
+        /^0\.0\.0\.0$/.test(name) ||
+        /^10(\.\d{1,3}){3}$/.test(name) ||
+        /^192\.168(\.\d{1,3}){2}$/.test(name) ||
+        /^172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}$/.test(name)
+    );
 }
 
 /**

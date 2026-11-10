@@ -51,23 +51,21 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
 };
 
 export function normalizeNotificationSettings(value: unknown): NotificationSettings {
-    const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
-    const rawEvents = raw.events && typeof raw.events === 'object' ? raw.events as Record<string, unknown> : {};
+    const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+    const rawEvents = raw.events && typeof raw.events === 'object' ? (raw.events as Record<string, unknown>) : {};
     const events = {} as Record<NotificationEvent, NotificationEventSettings>;
     for (const { id } of NOTIFICATION_EVENTS) {
-        const item = rawEvents[id] && typeof rawEvents[id] === 'object' ? rawEvents[id] as Record<string, unknown> : undefined;
+        const item = rawEvents[id] && typeof rawEvents[id] === 'object' ? (rawEvents[id] as Record<string, unknown>) : undefined;
         const fallback = DEFAULT_NOTIFICATION_SETTINGS.events[id];
         events[id] = {
             enabled: typeof item?.enabled === 'boolean' ? item.enabled : fallback.enabled,
-            sound: item && 'sound' in item
-                ? (typeof item.sound === 'string' && NOTIFICATION_SOUNDS.includes(item.sound) ? item.sound : null)
-                : fallback.sound
+            sound: item && 'sound' in item ? (typeof item.sound === 'string' && NOTIFICATION_SOUNDS.includes(item.sound) ? item.sound : null) : fallback.sound
         };
     }
     return {
         enabled: raw.enabled !== false,
         whenFocused: raw.whenFocused !== false,
-        ciScope: CI_SCOPES.some(scope => scope.id === raw.ciScope) ? raw.ciScope as CiScope : DEFAULT_NOTIFICATION_SETTINGS.ciScope,
+        ciScope: CI_SCOPES.some(scope => scope.id === raw.ciScope) ? (raw.ciScope as CiScope) : DEFAULT_NOTIFICATION_SETTINGS.ciScope,
         events
     };
 }

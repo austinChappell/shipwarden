@@ -39,7 +39,10 @@ describe('GitChangesService', () => {
         expect(all.more).toBe(false);
         expect(all.commits.map(commit => commit.subject).sort()).toEqual(['one', 'side work', 'two']);
         const two = all.commits.find(commit => commit.subject === 'two');
-        expect(two?.refs).toEqual([{ name: 'main', kind: 'local', current: true }, { name: 'v1', kind: 'tag' }]);
+        expect(two?.refs).toEqual([
+            { name: 'main', kind: 'local', current: true },
+            { name: 'v1', kind: 'tag' }
+        ]);
         expect(two?.parents).toHaveLength(1);
 
         // A remote branch with a commit that no local branch has.
@@ -125,7 +128,8 @@ describe('GitChangesService', () => {
 
             // Another clone pushes a commit.
             execFileSync('git', ['clone', '-q', remote, other]);
-            const inOther = (...args: string[]) => execFileSync('git', ['-c', 'user.name=O', '-c', 'user.email=o@example.com', ...args], { cwd: other, stdio: 'pipe' });
+            const inOther = (...args: string[]) =>
+                execFileSync('git', ['-c', 'user.name=O', '-c', 'user.email=o@example.com', ...args], { cwd: other, stdio: 'pipe' });
             writeFileSync(join(other, 'b.txt'), 'bee\n');
             inOther('add', 'b.txt');
             inOther('commit', '-q', '-m', 'Add b');

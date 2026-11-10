@@ -36,11 +36,13 @@ export function normalizeKeyName(key: string): string {
 
 /** Returns true when the key press matches the keybind. */
 export function matchesKeybind(keybind: TextKeybind, press: KeyPress): boolean {
-    return normalizeKeyName(press.key) === keybind.key
-        && press.shiftKey === keybind.shift
-        && press.ctrlKey === keybind.ctrl
-        && press.altKey === keybind.alt
-        && press.metaKey === keybind.meta;
+    return (
+        normalizeKeyName(press.key) === keybind.key &&
+        press.shiftKey === keybind.shift &&
+        press.ctrlKey === keybind.ctrl &&
+        press.altKey === keybind.alt &&
+        press.metaKey === keybind.meta
+    );
 }
 
 /** Returns the first keybind that matches the key press, or undefined. */

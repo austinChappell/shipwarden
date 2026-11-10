@@ -166,11 +166,16 @@ function stringList(value: unknown): string[] | undefined {
  * Files from before can have project overrides. Projects now use the global connections, so they are ignored.
  */
 export function normalizeTaskConfig(value: unknown): TaskConfig {
-    const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
     const connections: TaskConnection[] = [];
     for (const item of Array.isArray(raw.connections) ? raw.connections : []) {
         const connection = item as Record<string, unknown> | null;
-        if (!connection || typeof connection.id !== 'string' || typeof connection.pluginId !== 'string' || connections.some(existing => existing.id === connection.id)) {
+        if (
+            !connection ||
+            typeof connection.id !== 'string' ||
+            typeof connection.pluginId !== 'string' ||
+            connections.some(existing => existing.id === connection.id)
+        ) {
             continue;
         }
         connections.push({
@@ -246,7 +251,7 @@ function slug(text: string): string {
  * The name has at most `maxLength` characters and does not end in a hyphen.
  */
 export function branchNameForTask(task: Pick<Task, 'key' | 'id' | 'title'>, maxLength = 60): string {
-    const key = task.key?.startsWith('#') ? `issue-${task.key.slice(1)}` : task.key ?? '';
+    const key = task.key?.startsWith('#') ? `issue-${task.key.slice(1)}` : (task.key ?? '');
     const prefix = slug(key);
     const title = slug(task.title);
     const name = [prefix, title].filter(Boolean).join('-') || slug(task.id) || 'task';
@@ -314,11 +319,13 @@ export function groupTasksByStatus(tasks: readonly Task[], statusOrder?: readonl
         }
     }
     return [...groups.values()]
-        .sort((a, b) =>
-            compareRanks(rank(a.key), rank(b.key))
-            || STATUS_CATEGORY_ORDER.indexOf(a.category) - STATUS_CATEGORY_ORDER.indexOf(b.category)
-            || a.order - b.order
-            || a.name.localeCompare(b.name))
+        .sort(
+            (a, b) =>
+                compareRanks(rank(a.key), rank(b.key)) ||
+                STATUS_CATEGORY_ORDER.indexOf(a.category) - STATUS_CATEGORY_ORDER.indexOf(b.category) ||
+                a.order - b.order ||
+                a.name.localeCompare(b.name)
+        )
         .map(({ order: _order, ...group }) => group);
 }
 
@@ -351,10 +358,12 @@ export function statusForColumn(columnKey: string, options: readonly TaskStatus[
  * The path and the name compare separately, because collation ignores control characters in one joined string.
  */
 export function sortCollections<T extends TaskCollection>(collections: readonly T[]): T[] {
-    return [...collections].sort((a, b) =>
-        (a.path ? 1 : 0) - (b.path ? 1 : 0)
-        || (a.path ?? '').localeCompare(b.path ?? '', undefined, { sensitivity: 'base' })
-        || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    return [...collections].sort(
+        (a, b) =>
+            (a.path ? 1 : 0) - (b.path ? 1 : 0) ||
+            (a.path ?? '').localeCompare(b.path ?? '', undefined, { sensitivity: 'base' }) ||
+            a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
 }
 
 /** Selects the collection to show: the saved choice if it still exists, else the plugin's default, else the first collection. */

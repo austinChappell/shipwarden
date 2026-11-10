@@ -29,6 +29,7 @@ export function countChecks(checks: readonly CheckRun[]): CheckCounts {
 export function useCheckCounts(target: RepoTarget, sha: string | undefined, refresh: unknown): CheckCounts | undefined {
     const [counts, setCounts] = useState<{ sha: string; counts: CheckCounts }>();
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new refresh value tells the hook to load the checks again.
     useEffect(() => {
         if (!sha) return;
         let stopped = false;

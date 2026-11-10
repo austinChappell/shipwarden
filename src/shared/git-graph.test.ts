@@ -13,7 +13,10 @@ describe('parseGraphRefs', () => {
     });
 
     it('reads a detached HEAD', () => {
-        expect(parseGraphRefs('HEAD, refs/heads/feature/a')).toEqual([{ name: 'HEAD', kind: 'head' }, { name: 'feature/a', kind: 'local' }]);
+        expect(parseGraphRefs('HEAD, refs/heads/feature/a')).toEqual([
+            { name: 'HEAD', kind: 'head' },
+            { name: 'feature/a', kind: 'local' }
+        ]);
     });
 
     it('returns an empty list for an empty text', () => {

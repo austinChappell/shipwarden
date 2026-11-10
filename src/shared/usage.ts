@@ -118,8 +118,15 @@ function codexWindow(value: unknown): UsageWindow | undefined {
     const seconds = finite(raw.limit_window_seconds);
     // A window of one day or less is the session limit. Codex uses 5 hours.
     const session = seconds === undefined || seconds <= 24 * 3600;
-    const resetsAt = resetTime(raw.reset_at) ?? (finite(raw.reset_after_seconds) !== undefined ? new Date(Date.now() + finite(raw.reset_after_seconds)! * 1000).toISOString() : undefined);
-    return { kind: session ? 'session' : 'weekly', label: session ? (seconds ? `${Math.round(seconds / 3600)}h` : 'Session') : 'Weekly', usedPercent: percent(used), resetsAt };
+    const resetsAt =
+        resetTime(raw.reset_at) ??
+        (finite(raw.reset_after_seconds) !== undefined ? new Date(Date.now() + finite(raw.reset_after_seconds)! * 1000).toISOString() : undefined);
+    return {
+        kind: session ? 'session' : 'weekly',
+        label: session ? (seconds ? `${Math.round(seconds / 3600)}h` : 'Session') : 'Weekly',
+        usedPercent: percent(used),
+        resetsAt
+    };
 }
 
 /** Reads the response of the ChatGPT usage endpoint (`/backend-api/wham/usage`) that Codex uses. */

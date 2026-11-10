@@ -37,8 +37,8 @@ async function github(method, path, body) {
         response = await fetch(`${API}${path}`, {
             method,
             headers: {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/vnd.github+json',
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/vnd.github+json',
                 'X-GitHub-Api-Version': '2022-11-28',
                 'User-Agent': 'ShipWarden-GitHub-Issues-Plugin',
                 ...(body ? { 'Content-Type': 'application/json' } : {})
@@ -71,7 +71,7 @@ runPlugin({
         projectRepos = (context?.repositories ?? []).filter(repo => repo.github).map(repo => `${repo.github.owner}/${repo.github.name}`);
         owners = scope ? scope.map(owner => owner.toLowerCase()) : undefined;
         const ownToken = typeof settings.token === 'string' ? settings.token.trim() : '';
-        token = ownToken || await getToken();
+        token = ownToken || (await getToken());
         login = (await github('GET', '/user')).login;
         log(`GitHub Issues plugin ready as ${login}.`);
         return {
@@ -91,10 +91,7 @@ runPlugin({
     /** The user and the organizations of the token. The settings page lets the user restrict the connection to some of them. */
     async listScopes() {
         const orgs = await github('GET', '/user/orgs?per_page=100');
-        return [
-            { id: login, name: login, detail: 'your account' },
-            ...orgs.map(org => ({ id: org.login, name: org.login }))
-        ];
+        return [{ id: login, name: login, detail: 'your account' }, ...orgs.map(org => ({ id: org.login, name: org.login }))];
     },
 
     /** Each repository with issues in the scope is a collection. The first GitHub repository of the project is the default. */

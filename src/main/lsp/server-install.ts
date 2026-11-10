@@ -104,7 +104,12 @@ export function goInstallEnv(base: NodeJS.ProcessEnv, goBin: string, certificate
 
 /** Returns the last lines of a text that are not empty. */
 export function lastLines(text: string, count: number): string {
-    return text.split('\n').map(line => line.trimEnd()).filter(Boolean).slice(-count).join('\n');
+    return text
+        .split('\n')
+        .map(line => line.trimEnd())
+        .filter(Boolean)
+        .slice(-count)
+        .join('\n');
 }
 
 /** Adds the certificate hint to the output of a command when the output shows a certificate error. */
@@ -169,7 +174,7 @@ export class ServerInstaller {
                     }
                 };
             case 'gopls':
-                if (!await which('go')) {
+                if (!(await which('go'))) {
                     return { unavailable: 'Go is not in the PATH. Install Go from https://go.dev/dl, then restart ShipWarden.' };
                 }
                 return {
@@ -240,7 +245,7 @@ export class ServerInstaller {
     private async installRustAnalyzer(staging: string, report: (step: string, progress?: number) => void): Promise<void> {
         const target = rustAnalyzerTarget(this.platform, this.arch)!;
         report('Reading the latest rust-analyzer release');
-        const release = await (await request(RUST_ANALYZER_RELEASE_API, 'application/vnd.github+json')).json() as { assets?: ReleaseAsset[] };
+        const release = (await (await request(RUST_ANALYZER_RELEASE_API, 'application/vnd.github+json')).json()) as { assets?: ReleaseAsset[] };
         const asset = selectReleaseAsset(release.assets ?? [], rustAnalyzerAssetName(target));
         const gzip = path.join(staging, 'rust-analyzer.gz');
         const digest = await download(asset.url, gzip, 'sha256', asset.size, progress => report('Downloading rust-analyzer', progress));
@@ -256,7 +261,7 @@ export class ServerInstaller {
 
     private async installBasedpyright(staging: string, report: (step: string, progress?: number) => void): Promise<void> {
         report('Reading the latest basedpyright version');
-        const metadata = await (await request(BASEDPYRIGHT_REGISTRY_URL, 'application/json')).json() as {
+        const metadata = (await (await request(BASEDPYRIGHT_REGISTRY_URL, 'application/json')).json()) as {
             version?: string;
             dist?: { tarball?: string; integrity?: string };
         };
@@ -266,7 +271,9 @@ export class ServerInstaller {
             throw new Error('The npm registry sent no download URL or integrity value for basedpyright.');
         }
         const archive = path.join(staging, 'basedpyright.tgz');
-        const digest = await download(tarball, archive, integrity.algorithm, undefined, progress => report(`Downloading basedpyright ${metadata.version ?? ''}`.trim(), progress));
+        const digest = await download(tarball, archive, integrity.algorithm, undefined, progress =>
+            report(`Downloading basedpyright ${metadata.version ?? ''}`.trim(), progress)
+        );
         if (digest.toString('base64') !== integrity.base64) {
             throw new Error('The integrity value of the basedpyright download is not correct. ShipWarden did not install it.');
         }
@@ -275,7 +282,12 @@ export class ServerInstaller {
         await run('tar', ['-xzf', archive, '-C', staging], { cwd: staging, env: process.env, timeout: 5 * 60 * 1000 });
         await fs.rm(archive);
         const script = path.join(staging, 'package', 'langserver.index.js');
-        if (!await fs.stat(script).then(stat => stat.isFile(), () => false)) {
+        if (
+            !(await fs.stat(script).then(
+                stat => stat.isFile(),
+                () => false
+            ))
+        ) {
             throw new Error('The basedpyright package has no langserver.index.js file.');
         }
     }
@@ -292,7 +304,12 @@ export class ServerInstaller {
         } catch (error) {
             throw new Error(`"go install" failed.\n${withCertificateHint(error instanceof Error ? error.message : String(error))}`);
         }
-        if (!await fs.stat(path.join(staging, 'bin', 'gopls')).then(stat => stat.isFile(), () => false)) {
+        if (
+            !(await fs.stat(path.join(staging, 'bin', 'gopls')).then(
+                stat => stat.isFile(),
+                () => false
+            ))
+        ) {
             throw new Error('"go install" made no gopls file.');
         }
     }
@@ -315,7 +332,7 @@ async function request(url: string, accept: string): Promise<Response> {
     const host = new URL(url).host;
     let response: Response;
     try {
-        response = await fetch(url, { headers: { 'Accept': accept, 'User-Agent': 'ShipWarden' }, redirect: 'follow' });
+        response = await fetch(url, { headers: { Accept: accept, 'User-Agent': 'ShipWarden' }, redirect: 'follow' });
     } catch (error) {
         throw new Error(`ShipWarden cannot connect to ${host}: ${networkErrorDetail(error)}`);
     }

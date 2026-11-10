@@ -87,11 +87,12 @@ interface RefChipProps {
 
 function RefChip({ gitRef, worktree, onCheckout, onOpenWorktree }: RefChipProps) {
     const className = `gg-ref ${gitRef.kind}${gitRef.current ? ' current' : ''}${worktree ? ' in-worktree' : ''}`;
-    const action = gitRef.kind === 'remote'
-        ? { title: `Check out ${gitRef.name} in a new worktree`, run: () => onCheckout(gitRef.name) }
-        : worktree
-            ? { title: `Open the worktree of ${gitRef.name}`, run: () => onOpenWorktree(worktree) }
-            : undefined;
+    const action =
+        gitRef.kind === 'remote'
+            ? { title: `Check out ${gitRef.name} in a new worktree`, run: () => onCheckout(gitRef.name) }
+            : worktree
+              ? { title: `Open the worktree of ${gitRef.name}`, run: () => onOpenWorktree(worktree) }
+              : undefined;
     if (action) {
         return (
             <button
@@ -107,7 +108,11 @@ function RefChip({ gitRef, worktree, onCheckout, onOpenWorktree }: RefChipProps)
         );
     }
     const title = gitRef.kind === 'tag' ? `Tag ${gitRef.name}` : gitRef.kind === 'head' ? 'Detached HEAD' : `Local branch ${gitRef.name}`;
-    return <span className={className} title={title}>{gitRef.name}</span>;
+    return (
+        <span className={className} title={title}>
+            {gitRef.name}
+        </span>
+    );
 }
 
 /**
@@ -124,23 +129,28 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
 
     const reload = useCallback(() => setReloads(value => value + 1), []);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A different repository clears the old log and the page limit.
     useEffect(() => {
         setLog(undefined);
         setError(undefined);
         setLimit(PAGE);
     }, [repo]);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A change of reloads loads the log again.
     useEffect(() => {
         let current = true;
         setLoading(true);
-        window.shipwarden.git.log(repo, scope, limit).then(
-            result => {
-                if (!current) return;
-                setLog(result);
-                setError(undefined);
-            },
-            err => current && setError(errorText(err))
-        ).finally(() => current && setLoading(false));
+        window.shipwarden.git
+            .log(repo, scope, limit)
+            .then(
+                result => {
+                    if (!current) return;
+                    setLog(result);
+                    setError(undefined);
+                },
+                err => current && setError(errorText(err))
+            )
+            .finally(() => current && setLoading(false));
         return () => {
             current = false;
         };
@@ -175,7 +185,12 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
                 <div className="tasks-header-group where">
                     <GitGraph size={15} strokeWidth={1.7} />
                     <span className="gg-title">{repoName}</span>
-                    {log && <span className="gg-count">{log.commits.length}{log.more ? '+' : ''} commits</span>}
+                    {log && (
+                        <span className="gg-count">
+                            {log.commits.length}
+                            {log.more ? '+' : ''} commits
+                        </span>
+                    )}
                 </div>
                 <span className="header-spacer" />
                 <div className="tasks-header-group">
@@ -198,14 +213,26 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
                 </div>
             </header>
             {error && <div className="form-error pp-error">{error}</div>}
-            {!log && !error && <div className="panel-note pp-note"><LoaderCircle size={12} className="spin" /> Reading the history…</div>}
+            {!log && !error && (
+                <div className="panel-note pp-note">
+                    <LoaderCircle size={12} className="spin" /> Reading the history…
+                </div>
+            )}
             {log?.commits.length === 0 && <div className="panel-note pp-note">The repository has no commits.</div>}
             <div className="gg-rows" onKeyDown={moveListFocus}>
                 {layout.rows.map(row => {
                     const { commit } = row;
                     const short = commit.hash.slice(0, 7);
                     return (
-                        <div key={commit.hash} className="gg-row" style={{ height: ROW_HEIGHT }} tabIndex={0} aria-label={`${short} ${commit.subject}`} data-nav-item>
+                        <div
+                            key={commit.hash}
+                            className="gg-row"
+                            style={{ height: ROW_HEIGHT }}
+                            tabIndex={0}
+                            role="group"
+                            aria-label={`${short} ${commit.subject}`}
+                            data-nav-item
+                        >
                             <RowGraph row={row} lanes={lanes} />
                             <div className="gg-subject" title={commit.subject}>
                                 {commit.refs.map(gitRef => (
@@ -219,9 +246,15 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
                                 ))}
                                 <span className="gg-subject-text">{commit.subject}</span>
                             </div>
-                            <span className="gg-author" title={commit.author}>{commit.author}</span>
-                            <span className="gg-date" title={new Date(commit.date).toLocaleString()}>{formatDate(commit.date)}</span>
-                            <span className="gg-hash mono" title={commit.hash}>{short}</span>
+                            <span className="gg-author" title={commit.author}>
+                                {commit.author}
+                            </span>
+                            <span className="gg-date" title={new Date(commit.date).toLocaleString()}>
+                                {formatDate(commit.date)}
+                            </span>
+                            <span className="gg-hash mono" title={commit.hash}>
+                                {short}
+                            </span>
                             <button
                                 className="icon-button gg-action"
                                 title={`New worktree from ${short}`}

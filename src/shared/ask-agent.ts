@@ -83,7 +83,10 @@ export function lineLabel(startLine: number, endLine: number): string {
 
 /** Returns the lines `startLine` to `endLine` (1-based, inclusive) of a text. */
 export function sliceLines(text: string, startLine: number, endLine: number): string {
-    return text.split('\n').slice(Math.max(0, startLine - 1), endLine).join('\n');
+    return text
+        .split('\n')
+        .slice(Math.max(0, startLine - 1), endLine)
+        .join('\n');
 }
 
 /** Returns a code fence that is longer than all backtick runs in the text, so the text cannot close it. */
@@ -95,7 +98,10 @@ export function fence(text: string): string {
 /** Returns the prompt for a question about lines of a pull request. */
 export function askPrompt(input: AskPromptInput): string {
     const { pr, repo } = input;
-    const version = input.side === 'LEFT' ? `the old version (${pr.baseRefName}, ${pr.baseRefOid.slice(0, 7)})` : `the new version (${pr.headRefName}, ${pr.headRefOid.slice(0, 7)})`;
+    const version =
+        input.side === 'LEFT'
+            ? `the old version (${pr.baseRefName}, ${pr.baseRefOid.slice(0, 7)})`
+            : `the new version (${pr.headRefName}, ${pr.headRefOid.slice(0, 7)})`;
     const parts = [
         `I review pull request #${pr.number} "${pr.title}" in ${repo.owner}/${repo.name}: ${pr.url}`,
         `It merges ${pr.headRefName} (${pr.headRefOid}) into ${pr.baseRefName} (${pr.baseRefOid}).`,
@@ -110,10 +116,7 @@ export function askPrompt(input: AskPromptInput): string {
         const marker = fence(patch);
         parts.push(`The diff of the file in the pull request:\n\n${marker}diff\n${patch}\n${marker}`);
     }
-    parts.push(
-        'Answer the question. Read more of the code if it helps you. Do not change files. Write the answer in Markdown.',
-        `Question: ${input.question}`
-    );
+    parts.push('Answer the question. Read more of the code if it helps you. Do not change files. Write the answer in Markdown.', `Question: ${input.question}`);
     return parts.join('\n\n');
 }
 
@@ -220,9 +223,9 @@ export function parseSavedAnswer(value: unknown): SavedAnswer | undefined {
 
 /** Returns true when the saved answer is about the pull request `number` of `repo`. The owner and name ignore case, as on GitHub. */
 export function isAnswerFor(answer: SavedAnswer, repo: RepoRef, number: number): boolean {
-    return answer.number === number
-        && answer.repo.owner.toLowerCase() === repo.owner.toLowerCase()
-        && answer.repo.name.toLowerCase() === repo.name.toLowerCase();
+    return (
+        answer.number === number && answer.repo.owner.toLowerCase() === repo.owner.toLowerCase() && answer.repo.name.toLowerCase() === repo.name.toLowerCase()
+    );
 }
 
 /** A question to the agent about lines of a worktree file, and its answer, kept on disk. */
@@ -279,7 +282,10 @@ export function canSaveCode(code: string): boolean {
  * Returns the old place when the lines are still there, else the nearest place with the same text.
  * Returns undefined when no lines of the file have the text.
  */
-export function locateCode(lines: readonly string[], question: { startLine: number; line: number; code: string }): { startLine: number; line: number } | undefined {
+export function locateCode(
+    lines: readonly string[],
+    question: { startLine: number; line: number; code: string }
+): { startLine: number; line: number } | undefined {
     const wanted = question.code.split('\n');
     const count = wanted.length;
     const matchesAt = (start: number) => start >= 1 && start + count - 1 <= lines.length && wanted.every((text, index) => lines[start - 1 + index] === text);

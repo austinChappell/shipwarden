@@ -15,7 +15,10 @@ function status(running: boolean): RemoteStatus {
 function fakeLocal(events: string[]): LocalRemote {
     let running = false;
     return {
-        apply: vi.fn(async () => { running = true; events.push('local.apply'); }),
+        apply: vi.fn(async () => {
+            running = true;
+            events.push('local.apply');
+        }),
         status: vi.fn(async () => status(running)),
         startPairing: vi.fn(() => ({ link: 'local', expiresAt: 1 })),
         cancelPairing: vi.fn(),
@@ -24,7 +27,10 @@ function fakeLocal(events: string[]): LocalRemote {
         terminalData: vi.fn(),
         terminalResized: vi.fn(),
         terminalExited: vi.fn(),
-        stop: vi.fn(async () => { running = false; events.push('local.stop'); })
+        stop: vi.fn(async () => {
+            running = false;
+            events.push('local.stop');
+        })
     };
 }
 
@@ -32,7 +38,9 @@ function fakeHelper(events: string[], buildId = 'build-1') {
     const closeListeners: (() => void)[] = [];
     const connection: HelperConnection = {
         hello: async () => ({ protocol: HELPER_PROTOCOL, buildId, pid: 42 }),
-        apply: vi.fn(async () => { events.push('helper.apply'); }),
+        apply: vi.fn(async () => {
+            events.push('helper.apply');
+        }),
         status: async () => status(true),
         startPairing: async () => ({ link: 'helper', expiresAt: 2 }),
         cancelPairing: async () => undefined,
@@ -54,8 +62,12 @@ function setup(options: { helperRuns: boolean; buildId?: string; installFails?: 
             if (options.installFails) throw new Error('launchctl failed');
             events.push('install');
         }),
-        remove: vi.fn(async () => { events.push('remove'); }),
-        restart: vi.fn(async () => { events.push('restart'); })
+        remove: vi.fn(async () => {
+            events.push('remove');
+        }),
+        restart: vi.fn(async () => {
+            events.push('restart');
+        })
     };
     const control = new RemoteControl({
         createLocal: () => {
@@ -80,8 +92,13 @@ function setup(options: { helperRuns: boolean; buildId?: string; installFails?: 
         agent,
         locals,
         helper: () => helper,
-        startHelper: () => { helperRuns = true; },
-        stopHelper: () => { helperRuns = false; helper?.close(); }
+        startHelper: () => {
+            helperRuns = true;
+        },
+        stopHelper: () => {
+            helperRuns = false;
+            helper?.close();
+        }
     };
 }
 

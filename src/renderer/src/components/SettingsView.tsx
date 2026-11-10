@@ -1,5 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Bell, Bot, FolderTree, GitPullRequest, Info, LayoutDashboard, ListTodo, Network, Palette, Smartphone, SquareTerminal, X, type LucideIcon } from 'lucide-react';
+import {
+    Bell,
+    Bot,
+    FolderTree,
+    GitPullRequest,
+    Info,
+    LayoutDashboard,
+    ListTodo,
+    Network,
+    Palette,
+    Smartphone,
+    SquareTerminal,
+    X,
+    type LucideIcon
+} from 'lucide-react';
 import type { AppInfo } from '@shared/api';
 import { repoDisplayName, type AppSettings } from '@shared/settings';
 import { RepoIcon } from './RepoIcon';
@@ -43,7 +57,7 @@ const SECTION_STORAGE_KEY = 'shipwarden.settingsSection';
 function readSection(): SectionId {
     try {
         const value = localStorage.getItem(SECTION_STORAGE_KEY);
-        return SECTIONS.some(item => item.id === value) ? value as SectionId : 'appearance';
+        return SECTIONS.some(item => item.id === value) ? (value as SectionId) : 'appearance';
     } catch {
         return 'appearance';
     }
@@ -96,7 +110,8 @@ export function SettingsView({ settings, mode, terminal, repos, initialSection, 
         const onKey = (event: KeyboardEvent) => {
             // Escape in a field only leaves the field. The page closes on Escape elsewhere.
             const target = event.target as HTMLElement;
-            const field = target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
+            const field =
+                target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
             if (event.key === 'Escape' && !field) {
                 onClose();
             }
@@ -113,9 +128,27 @@ export function SettingsView({ settings, mode, terminal, repos, initialSection, 
         >
             {terminal ? (
                 <>
-                    <SettingsRow label="Source" control={<span className="settings-value mono">{terminal.source ?? 'ShipWarden defaults (no Ghostty config found)'}</span>} />
-                    <SettingsRow label="Font" control={<span className="settings-value">{terminal.fontFamily.split(',')[0].replace(/["']/g, '')}, {terminal.fontSize} pt</span>} />
-                    <SettingsRow label="Cursor" control={<span className="settings-value">{terminal.cursorStyle}{terminal.cursorBlink ? ', blinks' : ''}</span>} />
+                    <SettingsRow
+                        label="Source"
+                        control={<span className="settings-value mono">{terminal.source ?? 'ShipWarden defaults (no Ghostty config found)'}</span>}
+                    />
+                    <SettingsRow
+                        label="Font"
+                        control={
+                            <span className="settings-value">
+                                {terminal.fontFamily.split(',')[0].replace(/["']/g, '')}, {terminal.fontSize} pt
+                            </span>
+                        }
+                    />
+                    <SettingsRow
+                        label="Cursor"
+                        control={
+                            <span className="settings-value">
+                                {terminal.cursorStyle}
+                                {terminal.cursorBlink ? ', blinks' : ''}
+                            </span>
+                        }
+                    />
                     <SettingsRow label="Text keybinds" control={<span className="settings-value">{terminal.keybinds.length}</span>} />
                 </>
             ) : (
@@ -129,7 +162,11 @@ export function SettingsView({ settings, mode, terminal, repos, initialSection, 
             {info && (
                 <>
                     <SettingsRow label="Version" control={<span className="settings-value">{info.version}</span>} />
-                    <SettingsRow label="Updates" description="New versions come from the releases of the GitHub repository austinChappell/shipwarden." control={<UpdateSettings />} />
+                    <SettingsRow
+                        label="Updates"
+                        description="New versions come from the releases of the GitHub repository austinChappell/shipwarden."
+                        control={<UpdateSettings />}
+                    />
                     <SettingsRow label="Data folder" control={<span className="settings-value mono">{info.dataFolder}</span>} />
                     <SettingsRow label="Terminal host log" control={<span className="settings-value mono">{info.ptyHostLog}</span>} />
                 </>
@@ -139,9 +176,10 @@ export function SettingsView({ settings, mode, terminal, repos, initialSection, 
 
     const repoSection = section.startsWith('repo:') ? section.slice('repo:'.length) : undefined;
     // A repository section only applies while the repository is in the active project.
-    const current = repoSection && repos.includes(repoSection)
-        ? { id: section, label: repoDisplayName(settings, repoSection) }
-        : SECTIONS.find(item => item.id === section) ?? SECTIONS[0];
+    const current =
+        repoSection && repos.includes(repoSection)
+            ? { id: section, label: repoDisplayName(settings, repoSection) }
+            : (SECTIONS.find(item => item.id === section) ?? SECTIONS[0]);
 
     return (
         <div className="settings-view">

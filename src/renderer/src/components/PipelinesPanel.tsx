@@ -24,7 +24,13 @@ interface Props {
 }
 
 /** One run: a row that opens its jobs, with Cancel or Run again, and a link to GitHub. */
-function RunRow({ root, run, ownBranch, onOpenLog, onChanged }: {
+function RunRow({
+    root,
+    run,
+    ownBranch,
+    onOpenLog,
+    onChanged
+}: {
     root: string;
     run: WorkflowRun;
     /** True when the run is of the branch of the worktree. Its branch name shows as a tag. */
@@ -47,6 +53,7 @@ function RunRow({ root, run, ownBranch, onOpenLog, onChanged }: {
     }, [root, run.id]);
 
     // The jobs load when the row opens, and again when the run changes (for example a new status).
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The run status and update time do not show in the body. A change to them must reload the jobs.
     useEffect(() => {
         if (open) void loadJobs();
     }, [open, run.status, run.updatedAt, loadJobs]);
@@ -71,25 +78,54 @@ function RunRow({ root, run, ownBranch, onOpenLog, onChanged }: {
                         <span className="pp-run-title">{run.title}</span>
                         <span className="pp-run-meta">
                             {run.workflowName} #{run.runNumber}
-                            {run.branch && (ownBranch
-                                ? <> · <span className="pp-own-branch" title="The branch of this worktree">{run.branch}</span></>
-                                : ` · ${run.branch}`)}
+                            {run.branch &&
+                                (ownBranch ? (
+                                    <>
+                                        {' '}
+                                        ·{' '}
+                                        <span className="pp-own-branch" title="The branch of this worktree">
+                                            {run.branch}
+                                        </span>
+                                    </>
+                                ) : (
+                                    ` · ${run.branch}`
+                                ))}
                             {` · ${timeAgo(run.createdAt)}`}
                             {run.startedAt ? ` · ${formatDuration(run.startedAt, active ? null : run.updatedAt)}` : ''}
                         </span>
                     </span>
                 </button>
                 <span className="pp-run-actions" onClick={event => event.stopPropagation()}>
-                    {active
-                        ? <button className="icon-button" title="Cancel the run" onClick={() => void act(`Cancel the run "${run.title}"?`, 'Cancel run', () => github.cancelRun(root, run.id))}><Square size={12} strokeWidth={2} /></button>
-                        : <button className="icon-button" title="Run all jobs again" onClick={() => void act(`Run "${run.title}" again?`, 'Run again', () => github.rerunRun(root, run.id))}><RotateCw size={13} strokeWidth={1.8} /></button>}
-                    <button className="icon-button" title="Open on GitHub" onClick={event => openLink(run.url, event)}><ExternalLink size={13} strokeWidth={1.7} /></button>
+                    {active ? (
+                        <button
+                            className="icon-button"
+                            title="Cancel the run"
+                            onClick={() => void act(`Cancel the run "${run.title}"?`, 'Cancel run', () => github.cancelRun(root, run.id))}
+                        >
+                            <Square size={12} strokeWidth={2} />
+                        </button>
+                    ) : (
+                        <button
+                            className="icon-button"
+                            title="Run all jobs again"
+                            onClick={() => void act(`Run "${run.title}" again?`, 'Run again', () => github.rerunRun(root, run.id))}
+                        >
+                            <RotateCw size={13} strokeWidth={1.8} />
+                        </button>
+                    )}
+                    <button className="icon-button" title="Open on GitHub" onClick={event => openLink(run.url, event)}>
+                        <ExternalLink size={13} strokeWidth={1.7} />
+                    </button>
                 </span>
             </div>
             {open && (
                 <div className="pp-jobs">
                     {error && <div className="form-error">{error}</div>}
-                    {!jobs && !error && <div className="panel-note pp-note"><LoaderCircle size={12} className="spin" /> Loading the jobs…</div>}
+                    {!jobs && !error && (
+                        <div className="panel-note pp-note">
+                            <LoaderCircle size={12} className="spin" /> Loading the jobs…
+                        </div>
+                    )}
                     {jobs?.length === 0 && <div className="panel-note pp-note">The run has no jobs yet.</div>}
                     {jobs?.map(job => (
                         <button key={job.id} className="pp-job" data-nav-item title={`Open the log of ${job.name}`} onClick={() => onOpenLog(job)}>
@@ -170,14 +206,18 @@ export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
 
     const startRun = (workflow: Workflow) => setRunning(workflow);
 
-
     return (
         <div className="pipelines-panel">
             <div className="pp-header">
                 <span className="pp-title">Newest runs</span>
                 <span className="header-spacer" />
-                <button className={`button pp-run-button${showWorkflows ? ' on' : ''}`} title="Run a workflow" onClick={() => setShowWorkflows(value => !value)}>
-                    <Play size={13} strokeWidth={1.8} /><span className="pp-run-label">Run</span>
+                <button
+                    className={`button pp-run-button${showWorkflows ? ' on' : ''}`}
+                    title="Run a workflow"
+                    onClick={() => setShowWorkflows(value => !value)}
+                >
+                    <Play size={13} strokeWidth={1.8} />
+                    <span className="pp-run-label">Run</span>
                 </button>
                 <button className="icon-button" title="Refresh" onClick={() => void load()}>
                     <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
@@ -186,29 +226,50 @@ export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
 
             {showWorkflows && (
                 <div className="pp-workflows">
-                    {!workflows && !error && <div className="panel-note pp-note"><LoaderCircle size={12} className="spin" /> Loading the workflows…</div>}
+                    {!workflows && !error && (
+                        <div className="panel-note pp-note">
+                            <LoaderCircle size={12} className="spin" /> Loading the workflows…
+                        </div>
+                    )}
                     {workflows && workflowRef && workflowRef !== branch && workflows.some(item => item.dispatchable) && (
-                        <div className="panel-note pp-note">The workflows of {workflowRef}. {branch ? `${branch} is not on GitHub, or it has no workflow to start.` : ''}</div>
+                        <div className="panel-note pp-note">
+                            The workflows of {workflowRef}. {branch ? `${branch} is not on GitHub, or it has no workflow to start.` : ''}
+                        </div>
                     )}
                     {workflows?.filter(item => item.dispatchable).length === 0 && (
-                        <div className="panel-note pp-note">No workflow of this branch can start by hand. A workflow needs a <code>workflow_dispatch</code> trigger.</div>
+                        <div className="panel-note pp-note">
+                            No workflow of this branch can start by hand. A workflow needs a <code>workflow_dispatch</code> trigger.
+                        </div>
                     )}
-                    {workflows?.filter(item => item.dispatchable).map(workflow => (
-                        <button key={workflow.id} className="pp-workflow" title={workflow.path} onClick={() => startRun(workflow)}>
-                            <Play size={12} strokeWidth={1.8} />
-                            <span className="pp-workflow-name">{workflow.name}</span>
-                            <span className="pp-workflow-path">{workflow.path.replace('.github/workflows/', '')}</span>
-                        </button>
-                    ))}
+                    {workflows
+                        ?.filter(item => item.dispatchable)
+                        .map(workflow => (
+                            <button key={workflow.id} className="pp-workflow" title={workflow.path} onClick={() => startRun(workflow)}>
+                                <Play size={12} strokeWidth={1.8} />
+                                <span className="pp-workflow-name">{workflow.name}</span>
+                                <span className="pp-workflow-path">{workflow.path.replace('.github/workflows/', '')}</span>
+                            </button>
+                        ))}
                 </div>
             )}
 
             {error && <div className="form-error pp-error">{error}</div>}
             <div className="pp-runs" onKeyDown={moveListFocus}>
-                {!runs && !error && <div className="panel-message"><LoaderCircle size={14} className="spin" /> Loading the runs…</div>}
+                {!runs && !error && (
+                    <div className="panel-message">
+                        <LoaderCircle size={14} className="spin" /> Loading the runs…
+                    </div>
+                )}
                 {runs?.length === 0 && <div className="panel-note pp-note">The repository has no workflow runs.</div>}
                 {runs?.map(run => (
-                    <RunRow key={run.id} root={root} run={run} ownBranch={!!branch && run.branch === branch} onOpenLog={onOpenLog} onChanged={() => void load()} />
+                    <RunRow
+                        key={run.id}
+                        root={root}
+                        run={run}
+                        ownBranch={!!branch && run.branch === branch}
+                        onOpenLog={onOpenLog}
+                        onChanged={() => void load()}
+                    />
                 ))}
             </div>
 

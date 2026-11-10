@@ -13,8 +13,12 @@ function fake(files: Record<string, string>) {
             if (!(file in files)) throw new Error('ENOENT: no such file');
             return files[file];
         },
-        writeFile: async (file, text) => { written[file] = text; },
-        removeFile: async file => { written[file] = null; },
+        writeFile: async (file, text) => {
+            written[file] = text;
+        },
+        removeFile: async file => {
+            written[file] = null;
+        },
         defaultCertificates: () => ['DEFAULT'],
         systemCertificates: () => [SYSTEM],
         setDefaultCertificates: certs => void calls.push(certs)

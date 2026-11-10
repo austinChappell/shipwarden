@@ -16,9 +16,11 @@ const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['
 const previous = previousTag(git('tag', '--list', 'v[0-9]*').split('\n').filter(Boolean), version);
 const range = previous ? `${previous}..HEAD` : 'HEAD';
 const log = git('log', '--no-merges', '--format=%H%x09%s', range);
-const commits = log ? log.split('\n').map(line => {
-    const [hash, ...subject] = line.split('\t');
-    return { hash, subject: subject.join('\t') };
-}) : [];
+const commits = log
+    ? log.split('\n').map(line => {
+          const [hash, ...subject] = line.split('\t');
+          return { hash, subject: subject.join('\t') };
+      })
+    : [];
 writeFileSync(output, releaseNotes(version, commits, previous));
 console.log(`Release notes for ${version}: ${commits.length} commits since ${previous ?? 'the start'}.`);

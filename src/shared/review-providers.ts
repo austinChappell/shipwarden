@@ -49,9 +49,11 @@ export type ReviewTokenSource = 'saved' | 'env' | 'cli';
 export function pickProvider<T extends StoredReviewProvider>(providers: T[], kind: ReviewProviderKind, organization: string | undefined): T | undefined {
     const candidates = providers.filter(provider => provider.enabled && provider.kind === kind);
     const wanted = organization?.toLowerCase();
-    return (wanted ? candidates.find(provider => provider.scope?.some(item => item.toLowerCase() === wanted)) : undefined)
-        ?? candidates.find(provider => !provider.scope)
-        ?? candidates[0];
+    return (
+        (wanted ? candidates.find(provider => provider.scope?.some(item => item.toLowerCase() === wanted)) : undefined) ??
+        candidates.find(provider => !provider.scope) ??
+        candidates[0]
+    );
 }
 
 /** A short text for the scope of a provider, for example "All organizations" or "2 organizations". */

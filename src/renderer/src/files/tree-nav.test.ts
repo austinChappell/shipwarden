@@ -9,7 +9,7 @@ const rows: TreeRow[] = [
     { path: 'src', isDirectory: true, open: true, parent: '' },
     { path: 'src/main.ts', isDirectory: false, open: false, parent: 'src' },
     { path: 'src/lib', isDirectory: true, open: false, parent: 'src' },
-    { path: 'README.md', isDirectory: false, open: false, parent: '' },
+    { path: 'README.md', isDirectory: false, open: false, parent: '' }
 ];
 
 describe('treeKeyAction', () => {
@@ -38,7 +38,7 @@ describe('treeKeyAction', () => {
     it('does not move out of an open folder with no child rows', () => {
         const empty: TreeRow[] = [
             { path: 'a', isDirectory: true, open: true, parent: '' },
-            { path: 'b', isDirectory: false, open: false, parent: '' },
+            { path: 'b', isDirectory: false, open: false, parent: '' }
         ];
         expect(treeKeyAction(empty, 'a', 'ArrowRight')).toBeUndefined();
     });

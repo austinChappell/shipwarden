@@ -69,12 +69,15 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
 
     /** Opens a pull request, also in another repository. */
     const pendingOpen = useRef<{ repo: string; number: number } | undefined>(undefined);
-    const openPr = useCallback((target: string, number: number) => {
-        // The selection effect below runs only when the repository changes.
-        pendingOpen.current = target !== repo ? { repo: target, number } : undefined;
-        setRepo(target);
-        setSelected(number);
-    }, [repo]);
+    const openPr = useCallback(
+        (target: string, number: number) => {
+            // The selection effect below runs only when the repository changes.
+            pendingOpen.current = target !== repo ? { repo: target, number } : undefined;
+            setRepo(target);
+            setSelected(number);
+        },
+        [repo]
+    );
 
     // A new repository starts with no selection, or with the pull request of an open request.
     useEffect(() => {
@@ -84,11 +87,11 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
     }, [repo]);
 
     // An open request selects its repository and pull request.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect runs one time for each open request. A new nonce is a new request.
     useEffect(() => {
         if (!open) return;
         setQueue(undefined);
         openPr(open.repo, open.number);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open?.nonce]);
 
     /** Each pull request request gets a number, so that a slow response for another pull request cannot show. */
@@ -114,7 +117,7 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
         setPr(repoRef && selected ? cached<PullRequest>(prKey(`${repoRef.owner}/${repoRef.name}`, selected)) : undefined);
         setPrError(undefined);
         void loadPr();
-    }, [loadPr]);
+    }, [loadPr, repoRef, selected]);
 
     const refresh = async () => {
         await Promise.all([loadPr(), repo ? reviewOverviewStore.refresh(repo) : undefined]);
@@ -125,7 +128,12 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
 
     /** The repositories by owner, for the groups of the picker. */
     const groups = useMemo(
-        () => sortedGroups(overview.catalog ?? [], item => item.owner, item => ({ value: `${item.owner}/${item.name}`, label: item.name })),
+        () =>
+            sortedGroups(
+                overview.catalog ?? [],
+                item => item.owner,
+                item => ({ value: `${item.owner}/${item.name}`, label: item.name })
+            ),
         [overview.catalog]
     );
 
@@ -165,7 +173,7 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
         if (!repoRef || !repo) return;
         setSelected(number);
         try {
-            const full = cached<PullRequest>(prKey(repo, number)) ?? await api.pullRequest(repoRef, number);
+            const full = cached<PullRequest>(prKey(repo, number)) ?? (await api.pullRequest(repoRef, number));
             void reviewStore.runAgentReview(repoRef, full);
         } catch (err) {
             setPrError(errorText(err));
@@ -182,7 +190,9 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
                     <GitPullRequest size={30} strokeWidth={1.3} />
                     <h2>Review pull requests</h2>
                     <p>Add a GitHub provider to see its pull requests here.</p>
-                    <button className="button primary" onClick={onOpenSettings}>Open Settings › Code review</button>
+                    <button className="button primary" onClick={onOpenSettings}>
+                        Open Settings › Code review
+                    </button>
                 </div>
             </div>
         );
@@ -223,7 +233,9 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
                 <div className="review-body review-pr-wrap">
                     {queue && (
                         <div className="review-queue-bar" role="status">
-                            <span>Review queue · {queue.index + 1} of {queue.items.length}</span>
+                            <span>
+                                Review queue · {queue.index + 1} of {queue.items.length}
+                            </span>
                             <span className="header-spacer" />
                             <button className="button" onClick={stepQueue}>
                                 {queue.index + 1 < queue.items.length ? 'Next pull request' : 'Finish queue'}

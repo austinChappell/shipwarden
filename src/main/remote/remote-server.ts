@@ -8,7 +8,9 @@ import {
     type PairingOffer,
     type RemoteAgent,
     type RemoteDevice,
+    type RemoteErrorBody,
     type RemoteInput,
+    type RemotePairResponse,
     type RemoteSettings,
     type RemoteSnapshot,
     type RemoteStatus
@@ -56,7 +58,10 @@ const DEFAULT_SIZE = { cols: 120, rows: 36 };
 
 /** An error with an HTTP status. The server sends the status and the message to the phone. */
 export class HttpError extends Error {
-    constructor(readonly status: number, message: string) {
+    constructor(
+        readonly status: number,
+        message: string
+    ) {
         super(message);
     }
 }
@@ -257,9 +262,10 @@ export class RemoteServer {
             });
         } catch (error) {
             const code = (error as NodeJS.ErrnoException).code;
-            this.error = code === 'EADDRINUSE'
-                ? `Port ${port} is in use by another app. Select a different port.`
-                : `ShipWarden cannot listen on port ${port}: ${error instanceof Error ? error.message : String(error)}`;
+            this.error =
+                code === 'EADDRINUSE'
+                    ? `Port ${port} is in use by another app. Select a different port.`
+                    : `ShipWarden cannot listen on port ${port}: ${error instanceof Error ? error.message : String(error)}`;
             server.close();
             return;
         }
@@ -294,11 +300,11 @@ export class RemoteServer {
             }
             const input = /^\/v1\/sessions\/([\w-]+)\/input$/.exec(path);
             if (request.method === 'POST' && input) {
-                await this.input(input[1], await readJson(request) as RemoteInput);
+                await this.input(input[1], (await readJson(request)) as RemoteInput);
                 return sendJson(response, 200, {});
             }
             if (request.method === 'POST' && path === '/v1/pull-requests/approve') {
-                const body = await readJson(request) as Record<string, unknown>;
+                const body = (await readJson(request)) as Record<string, unknown>;
                 if (typeof body.worktreePath !== 'string' || typeof body.number !== 'number' || typeof body.headSha !== 'string') {
                     throw new HttpError(400, 'The request needs a worktree, a pull request number and a head commit.');
                 }
@@ -314,12 +320,12 @@ export class RemoteServer {
             const status = error instanceof HttpError ? error.status : 500;
             const message = error instanceof Error ? error.message : String(error);
             if (status === 500) console.error('[remote] Request failed:', error);
-            sendJson(response, status, { error: message });
+            sendJson(response, status, { error: message } satisfies RemoteErrorBody);
         }
     }
 
     private async pair(request: IncomingMessage, response: ServerResponse): Promise<void> {
-        const body = await readJson(request) as Record<string, unknown>;
+        const body = (await readJson(request)) as Record<string, unknown>;
         const result = await this.options.devices.pair(body.code, body.name);
         if (!result) {
             throw new HttpError(403, 'The pairing code is not valid. It is possibly old or used. Show a new code in ShipWarden › Settings › Mobile.');
@@ -330,14 +336,14 @@ export class RemoteServer {
             token: result.token,
             deviceId: result.device.id,
             mac: { name: this.options.backend.macName(), version: this.options.backend.version }
-        });
+        } satisfies RemotePairResponse);
     }
 
     private async snapshot(): Promise<RemoteSnapshot> {
         return {
             protocol: REMOTE_PROTOCOL,
             mac: { name: this.options.backend.macName(), version: this.options.backend.version },
-            ...await this.options.backend.snapshot()
+            ...(await this.options.backend.snapshot())
         };
     }
 

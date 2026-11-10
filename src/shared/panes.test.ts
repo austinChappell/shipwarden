@@ -105,7 +105,14 @@ describe('panes', () => {
         // a above b, and c at the right of both. The middle of c is beside a, because a takes 80% of the height.
         const leaf = (tab: string) => ({ kind: 'leaf' as const, id: tab, tab });
         const column = (ratio: number): PaneLayout => ({
-            root: { kind: 'split', id: 'row', direction: 'row', ratio: 0.5, first: { kind: 'split', id: 'col', direction: 'column', ratio, first: leaf('t:a'), second: leaf('t:b') }, second: leaf('t:c') },
+            root: {
+                kind: 'split',
+                id: 'row',
+                direction: 'row',
+                ratio: 0.5,
+                first: { kind: 'split', id: 'col', direction: 'column', ratio, first: leaf('t:a'), second: leaf('t:b') },
+                second: leaf('t:c')
+            },
             focused: 't:c'
         });
         expect(focusedTab(focusSide(column(0.8), 'left'))).toBe('t:a');

@@ -90,7 +90,7 @@ export function toTask(issue, { withDescription = false } = {}) {
         // Linear priorities: 0 no priority, 1 urgent, 2 high, 3 medium, 4 low.
         priority: issue.priority ? { name: issue.priorityLabel, level: Number(issue.priority) } : undefined,
         updatedAt: issue.updatedAt,
-        description: withDescription ? issue.description ?? '' : undefined,
+        description: withDescription ? (issue.description ?? '') : undefined,
         fields: {
             branchName: issue.branchName ?? null,
             project: issue.project?.name ?? null,
@@ -165,9 +165,7 @@ export function issueFilter(teamId, filter, query) {
     const text = query?.trim();
     if (text) {
         const match = /^(?:[A-Za-z][A-Za-z0-9_]*-)?(\d+)$/.exec(text);
-        parts.push(match
-            ? { or: [{ number: { eq: Number(match[1]) } }, { title: { containsIgnoreCase: text } }] }
-            : { title: { containsIgnoreCase: text } });
+        parts.push(match ? { or: [{ number: { eq: Number(match[1]) } }, { title: { containsIgnoreCase: text } }] } : { title: { containsIgnoreCase: text } });
     }
     return { and: parts };
 }

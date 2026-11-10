@@ -1,4 +1,4 @@
-import { Worktree } from '@shared/worktrees';
+import type { Worktree } from '@shared/worktrees';
 
 const BRANCH_PREFIX = 'refs/heads/';
 
@@ -9,7 +9,10 @@ const BRANCH_PREFIX = 'refs/heads/';
  */
 export function parseWorktreePorcelain(output: string): Worktree[] {
     const worktrees: Worktree[] = [];
-    const blocks = output.split(/\r?\n\r?\n/).map(block => block.trim()).filter(block => block.length > 0);
+    const blocks = output
+        .split(/\r?\n\r?\n/)
+        .map(block => block.trim())
+        .filter(block => block.length > 0);
     for (const block of blocks) {
         const worktree: Worktree = {
             path: '',
@@ -57,7 +60,7 @@ export function parseWorktreePorcelain(output: string): Worktree[] {
  */
 export function branchToFolderName(branch: string): string {
     const name = branch
-        .replace(/[\/\\]+/g, '-')
+        .replace(/[/\\]+/g, '-')
         .replace(/[^A-Za-z0-9._-]+/g, '-')
         .replace(/-{2,}/g, '-')
         .replace(/^[-.]+|[-.]+$/g, '');

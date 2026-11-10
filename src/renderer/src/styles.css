@@ -20,7 +20,7 @@
     color-scheme: dark;
 }
 
-:root[data-mode='light'] {
+:root[data-mode="light"] {
     --shadow: rgba(40, 30, 20, 0.16);
     color-scheme: light;
 }
@@ -39,7 +39,12 @@ body,
 body {
     background: var(--bg);
     color: var(--text);
-    font: 13px/1.4 -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    font:
+        13px / 1.4 -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        system-ui,
+        sans-serif;
     -webkit-font-smoothing: antialiased;
     user-select: none;
     overflow: hidden;
@@ -164,7 +169,10 @@ button {
     outline: none;
     background: var(--bg);
     color: var(--text-strong);
-    font: 12px 'JetBrains Mono', Menlo, monospace;
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 .new-worktree input:focus {
@@ -253,12 +261,24 @@ button {
     font-weight: 600;
 }
 
-.agent-state.working { color: var(--accent); }
-.agent-state.waiting { color: var(--danger); }
-.agent-state.done { color: var(--ok); }
-.agent-state.starting { color: var(--muted); }
-.agent-state.blocked-ci { color: var(--purple); }
-.agent-state.quiet { color: var(--muted); }
+.agent-state.working {
+    color: var(--accent);
+}
+.agent-state.waiting {
+    color: var(--danger);
+}
+.agent-state.done {
+    color: var(--ok);
+}
+.agent-state.starting {
+    color: var(--muted);
+}
+.agent-state.blocked-ci {
+    color: var(--purple);
+}
+.agent-state.quiet {
+    color: var(--muted);
+}
 
 .status-dot.blocked-ci {
     background: var(--purple);
@@ -270,12 +290,21 @@ button {
     align-items: center;
     gap: 3px;
     color: var(--muted);
-    font: 11px 'JetBrains Mono', Menlo, monospace;
+    font:
+        11px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
-.worktree-pr .ci.success { color: var(--ok); }
-.worktree-pr .ci.failure { color: var(--danger); }
-.worktree-pr .ci.pending { color: var(--accent); }
+.worktree-pr .ci.success {
+    color: var(--ok);
+}
+.worktree-pr .ci.failure {
+    color: var(--danger);
+}
+.worktree-pr .ci.pending {
+    color: var(--accent);
+}
 
 .worktree-text {
     flex: 1;
@@ -623,7 +652,10 @@ button {
     white-space: nowrap;
     margin-bottom: 10px;
     color: var(--muted);
-    font: 12px 'JetBrains Mono', Menlo, monospace;
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 /* Editor */
@@ -947,7 +979,9 @@ button {
 .search-mode button.selected {
     background: color-mix(in srgb, var(--accent) 28%, var(--raised));
     color: var(--text-strong);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 1px 2px var(--shadow);
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent),
+        0 1px 2px var(--shadow);
 }
 
 .search-summary {
@@ -1031,7 +1065,10 @@ button {
 
 .search-line {
     gap: 10px;
-    font: 12.5px 'JetBrains Mono', Menlo, monospace;
+    font:
+        12.5px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 .search-line-number {
@@ -1159,7 +1196,10 @@ button {
     outline: none;
     background: var(--panel);
     color: var(--text-strong);
-    font: 12px/1.45 -apple-system, BlinkMacSystemFont, sans-serif;
+    font:
+        12px / 1.45 -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .pr-create-form input:not([type]):focus {
@@ -1173,7 +1213,10 @@ button {
 }
 
 code {
-    font: 12px 'JetBrains Mono', Menlo, monospace;
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
     color: var(--text);
 }
 
@@ -1235,12 +1278,18 @@ code {
 
 .additions {
     color: var(--ok);
-    font: 11px 'JetBrains Mono', Menlo, monospace;
+    font:
+        11px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 .deletions {
     color: var(--danger);
-    font: 11px 'JetBrains Mono', Menlo, monospace;
+    font:
+        11px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 .dot-separator {
@@ -1468,7 +1517,10 @@ code {
 .file-status {
     width: 14px;
     flex-shrink: 0;
-    font: 600 11px 'JetBrains Mono', Menlo, monospace;
+    font:
+        600 11px "JetBrains Mono",
+        Menlo,
+        monospace;
     text-align: center;
 }
 
@@ -1521,7 +1573,10 @@ code {
     border: 0;
     background: transparent;
     color: var(--info);
-    font: 11px 'JetBrains Mono', Menlo, monospace;
+    font:
+        11px "JetBrains Mono",
+        Menlo,
+        monospace;
     text-align: left;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1572,7 +1627,10 @@ code {
 
 .suggestion-lines {
     overflow-x: auto;
-    font: 12px/1.5 'JetBrains Mono', Menlo, monospace;
+    font:
+        12px / 1.5 "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 .suggestion-line {
@@ -1653,7 +1711,10 @@ textarea.review-body {
     outline: none;
     background: var(--panel);
     color: var(--text-strong);
-    font: 12px/1.45 -apple-system, BlinkMacSystemFont, sans-serif;
+    font:
+        12px / 1.45 -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .reply-box textarea:focus,
@@ -1746,7 +1807,10 @@ textarea.review-body {
     outline: none;
     background: var(--panel);
     color: var(--text-strong);
-    font: 600 13px -apple-system, BlinkMacSystemFont, sans-serif;
+    font:
+        600 13px -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .pr-title-input:focus {
@@ -1758,7 +1822,7 @@ textarea.review-body {
     flex: none;
     height: 520px;
     min-height: 520px;
-    font-family: 'JetBrains Mono', Menlo, monospace;
+    font-family: "JetBrains Mono", Menlo, monospace;
 }
 
 .pr-meta-section {
@@ -1892,7 +1956,7 @@ textarea.review-body {
 }
 
 .comment-glyph::after {
-    content: '+';
+    content: "+";
     display: block;
     color: var(--bg);
     font-weight: 700;
@@ -1916,7 +1980,10 @@ textarea.review-body {
     min-width: 0;
     overflow: hidden;
     color: var(--text-strong);
-    font: 12px 'JetBrains Mono', Menlo, monospace;
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -2062,7 +2129,10 @@ textarea.review-body {
 
 .check-duration {
     color: var(--muted);
-    font: 11px 'JetBrains Mono', Menlo, monospace;
+    font:
+        11px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 .check-actions {
@@ -2362,15 +2432,26 @@ button.task-linked {
     background: var(--muted);
 }
 
-.task-status-dot.in_progress { background: var(--accent); }
-.task-status-dot.todo { background: var(--info); }
-.task-status-dot.done { background: var(--ok); }
-.task-status-dot.canceled { background: var(--border); }
+.task-status-dot.in_progress {
+    background: var(--accent);
+}
+.task-status-dot.todo {
+    background: var(--info);
+}
+.task-status-dot.done {
+    background: var(--ok);
+}
+.task-status-dot.canceled {
+    background: var(--border);
+}
 
 .task-key {
     flex-shrink: 0;
     color: var(--muted);
-    font: 12px 'JetBrains Mono', Menlo, monospace;
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 .task-title {
@@ -2545,8 +2626,8 @@ button.task-linked {
     font-weight: 600;
 }
 
-.setting-row input[type='text'],
-.setting-row input[type='password'],
+.setting-row input[type="text"],
+.setting-row input[type="password"],
 .setting-row input:not([type]) {
     padding: 6px 8px;
     border: 1px solid var(--border);
@@ -2554,7 +2635,10 @@ button.task-linked {
     outline: none;
     background: var(--bg);
     color: var(--text-strong);
-    font: 12px 'JetBrains Mono', Menlo, monospace;
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 .setting-row input:focus {
@@ -2815,12 +2899,14 @@ button.task-linked {
     --check: color-mix(in srgb, var(--text) 14%, transparent);
     background-color: color-mix(in srgb, var(--text) 4%, var(--bg));
     background-image:
-        linear-gradient(45deg, var(--check) 25%, transparent 25%),
-        linear-gradient(-45deg, var(--check) 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, var(--check) 75%),
-        linear-gradient(-45deg, transparent 75%, var(--check) 75%);
+        linear-gradient(45deg, var(--check) 25%, transparent 25%), linear-gradient(-45deg, var(--check) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, var(--check) 75%), linear-gradient(-45deg, transparent 75%, var(--check) 75%);
     background-size: 16px 16px;
-    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-position:
+        0 0,
+        0 8px,
+        8px -8px,
+        -8px 0;
 }
 
 .pdf-frame {
@@ -2941,7 +3027,7 @@ button.task-linked {
 
 /* The hit area is wider than the border line under it. */
 .resize-handle::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     bottom: 0;
@@ -2951,7 +3037,7 @@ button.task-linked {
 }
 
 .resize-handle::after {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     bottom: 0;
@@ -3069,7 +3155,7 @@ body.resizing * {
 }
 
 .mono {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 12px;
 }
 
@@ -3232,7 +3318,7 @@ body.resizing * {
 }
 
 .repo-group.colored::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 4px;
     bottom: 4px;
@@ -3639,7 +3725,9 @@ body.resizing * {
     border: 0;
     border-radius: 50%;
     background: var(--swatch);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-strong) 12%, transparent), 0 2px 6px var(--shadow);
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--text-strong) 12%, transparent),
+        0 2px 6px var(--shadow);
     cursor: pointer;
     transition: transform 120ms ease;
 }
@@ -3649,7 +3737,10 @@ body.resizing * {
 }
 
 .theme-swatch.selected {
-    box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--ring), 0 2px 6px var(--shadow);
+    box-shadow:
+        0 0 0 2px var(--panel),
+        0 0 0 4px var(--ring),
+        0 2px 6px var(--shadow);
 }
 
 .theme-badge {
@@ -3724,7 +3815,9 @@ body.resizing * {
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--panel);
-    transition: border-color 100ms ease, background 100ms ease;
+    transition:
+        border-color 100ms ease,
+        background 100ms ease;
 }
 
 .board-column.drop-target {
@@ -3790,7 +3883,7 @@ body.resizing * {
     cursor: pointer;
 }
 
-.board-card[draggable='true'] {
+.board-card[draggable="true"] {
     cursor: grab;
 }
 
@@ -3946,7 +4039,7 @@ body.resizing * {
 }
 
 .switch span::after {
-    content: '';
+    content: "";
     position: absolute;
     top: 2px;
     left: 2px;
@@ -3954,7 +4047,9 @@ body.resizing * {
     height: 11px;
     border-radius: 50%;
     background: var(--muted);
-    transition: transform 120ms ease, background 120ms ease;
+    transition:
+        transform 120ms ease,
+        background 120ms ease;
 }
 
 .switch input:checked + span {
@@ -4474,11 +4569,21 @@ button:focus-visible,
     font-size: 12px;
 }
 
-.agents-state-count { color: var(--muted); }
-.agents-state-count.waiting { color: var(--danger); }
-.agents-state-count.blocked-ci { color: var(--purple); }
-.agents-state-count.working { color: var(--accent); }
-.agents-state-count.done { color: var(--ok); }
+.agents-state-count {
+    color: var(--muted);
+}
+.agents-state-count.waiting {
+    color: var(--danger);
+}
+.agents-state-count.blocked-ci {
+    color: var(--purple);
+}
+.agents-state-count.working {
+    color: var(--accent);
+}
+.agents-state-count.done {
+    color: var(--ok);
+}
 
 .agents-usage {
     margin-left: auto;
@@ -4570,9 +4675,15 @@ button:focus-visible,
     color: var(--muted);
 }
 
-.agent-pr.failed { color: var(--danger); }
-.agent-pr.running { color: var(--accent); }
-.agent-pr.passed { color: var(--ok); }
+.agent-pr.failed {
+    color: var(--danger);
+}
+.agent-pr.running {
+    color: var(--accent);
+}
+.agent-pr.passed {
+    color: var(--ok);
+}
 
 .agent-where-text {
     overflow: hidden;
@@ -4740,7 +4851,9 @@ button:focus-visible,
 }
 
 .color-swatch.selected {
-    box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent);
+    box-shadow:
+        0 0 0 2px var(--panel),
+        0 0 0 4px var(--accent);
 }
 
 .settings-nav-heading {
@@ -4941,9 +5054,15 @@ button:focus-visible,
     color: var(--text);
 }
 
-.review-decision.approved { color: var(--ok); }
-.review-decision.changes_requested { color: var(--danger); }
-.review-decision.review_required { color: var(--accent); }
+.review-decision.approved {
+    color: var(--ok);
+}
+.review-decision.changes_requested {
+    color: var(--danger);
+}
+.review-decision.review_required {
+    color: var(--accent);
+}
 
 .review-panel-switch .segmented button {
     flex: 1;
@@ -5260,7 +5379,7 @@ button:focus-visible,
 }
 
 .pr-tab.selected::after {
-    content: '';
+    content: "";
     position: absolute;
     right: 0;
     bottom: -1px;
@@ -5282,7 +5401,6 @@ button:focus-visible,
 .pr-tabs-spacer {
     flex: 1;
 }
-
 
 .pr-finish {
     align-self: center;
@@ -5422,7 +5540,7 @@ button:focus-visible,
 }
 
 .pr-timeline::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 4px;
     bottom: 4px;
@@ -5578,7 +5696,10 @@ button:focus-visible,
 }
 
 .link-button.mono {
-    font: 12px 'JetBrains Mono', Menlo, monospace;
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 /* The merge button with its menu of merge methods, as on GitHub. */
@@ -5725,7 +5846,10 @@ button:focus-visible,
 
 .pr-commit-sha {
     flex: none;
-    font: 12px 'JetBrains Mono', Menlo, monospace;
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
 }
 
 .pr-side {
@@ -5792,7 +5916,7 @@ button:focus-visible,
     min-width: 0;
     overflow: hidden;
     color: var(--text-strong);
-    font-family: 'JetBrains Mono', Menlo, monospace;
+    font-family: "JetBrains Mono", Menlo, monospace;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -5856,7 +5980,7 @@ button:focus-visible,
     min-height: 0;
 }
 
-:root[data-mode='light'] .dashboard-view {
+:root[data-mode="light"] .dashboard-view {
     --dash-warning: #a8670f;
 }
 
@@ -5886,7 +6010,7 @@ button:focus-visible,
     border: 1px solid var(--border);
     border-radius: 4px;
     color: var(--muted);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 10.5px;
 }
 
@@ -5978,10 +6102,18 @@ button:focus-visible,
     background: var(--muted);
 }
 
-.dash-dot.review { background: var(--info); }
-.dash-dot.ready { background: var(--ok); }
-.dash-dot.changes { background: var(--purple); }
-.dash-dot.blocked { background: var(--danger); }
+.dash-dot.review {
+    background: var(--info);
+}
+.dash-dot.ready {
+    background: var(--ok);
+}
+.dash-dot.changes {
+    background: var(--purple);
+}
+.dash-dot.blocked {
+    background: var(--danger);
+}
 
 /* The user's pull requests on the left. The review requests and the comments on the right. One column when narrow. */
 .dash-columns {
@@ -6133,7 +6265,7 @@ button:focus-visible,
     width: 96px;
     overflow: hidden;
     color: var(--muted);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -6208,7 +6340,7 @@ button:focus-visible,
     border-radius: 4px;
     background: var(--raised);
     color: var(--muted);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -6651,7 +6783,7 @@ button:focus-visible,
 
 .note-row-name {
     overflow: hidden;
-    font-family: 'JetBrains Mono', Menlo, monospace;
+    font-family: "JetBrains Mono", Menlo, monospace;
     font-size: 12.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -6698,7 +6830,10 @@ button:focus-visible,
     border-radius: 4px;
     background: transparent;
     color: var(--text-strong);
-    font: 600 14px 'JetBrains Mono', Menlo, monospace;
+    font:
+        600 14px "JetBrains Mono",
+        Menlo,
+        monospace;
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: text;
@@ -6936,7 +7071,7 @@ button:focus-visible,
 }
 
 .split-divider::after {
-    content: '';
+    content: "";
     position: absolute;
     background: var(--border);
 }
@@ -6991,7 +7126,7 @@ body.resizing-column * {
 /* The pane with the focus has a thin accent line. The other panes are a little darker, as in Ghostty. */
 .pane.focused::after,
 .pane.unfocused::after {
-    content: '';
+    content: "";
     position: absolute;
     inset: 0;
     z-index: 5;
@@ -7008,7 +7143,7 @@ body.resizing-column * {
 
 /* Outside a split, a faint accent line shows that the pane has the focus. */
 .pane:not(.focused):not(.unfocused):focus-within::after {
-    content: '';
+    content: "";
     position: absolute;
     inset: 0;
     z-index: 5;
@@ -7031,10 +7166,30 @@ body.resizing-column * {
     transition: all 80ms ease-out;
 }
 
-.pane-drop-zone.left { top: 4px; bottom: 4px; left: 4px; width: calc(50% - 6px); }
-.pane-drop-zone.right { top: 4px; bottom: 4px; right: 4px; width: calc(50% - 6px); }
-.pane-drop-zone.up { left: 4px; right: 4px; top: 4px; height: calc(50% - 6px); }
-.pane-drop-zone.down { left: 4px; right: 4px; bottom: 4px; height: calc(50% - 6px); }
+.pane-drop-zone.left {
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc(50% - 6px);
+}
+.pane-drop-zone.right {
+    top: 4px;
+    bottom: 4px;
+    right: 4px;
+    width: calc(50% - 6px);
+}
+.pane-drop-zone.up {
+    left: 4px;
+    right: 4px;
+    top: 4px;
+    height: calc(50% - 6px);
+}
+.pane-drop-zone.down {
+    left: 4px;
+    right: 4px;
+    bottom: 4px;
+    height: calc(50% - 6px);
+}
 
 /* A tab with a split view: the number of its panes. */
 .tab-count {
@@ -7497,7 +7652,7 @@ body.resizing-column * {
 
 .stream-file {
     /* The diff uses the code font of the app. */
-    --diffs-font-family: 'JetBrains Mono', ui-monospace, monospace;
+    --diffs-font-family: "JetBrains Mono", ui-monospace, monospace;
     margin-bottom: 10px;
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -7669,7 +7824,7 @@ body.resizing-column * {
     min-width: 0;
     overflow: hidden;
     color: var(--muted);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -7697,7 +7852,7 @@ body.resizing-column * {
     border-radius: 9px;
     background: color-mix(in srgb, var(--info) 10%, transparent);
     color: var(--info);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px;
     cursor: pointer;
 }
@@ -7715,7 +7870,7 @@ body.resizing-column * {
     border: 0;
     background: none;
     color: var(--info);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 12px;
     cursor: pointer;
 }
@@ -7795,7 +7950,7 @@ body.resizing-column * {
     border-radius: 6px;
     background: var(--bg);
     color: var(--text);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px;
     line-height: 1.5;
     white-space: pre-wrap;
@@ -8167,7 +8322,7 @@ body.resizing-column * {
     min-width: 0;
     overflow: hidden;
     color: var(--text-strong);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -8307,7 +8462,7 @@ body.resizing-column * {
 .change-letter {
     flex: none;
     width: 12px;
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px;
     font-weight: 700;
     text-align: center;
@@ -8430,7 +8585,7 @@ body.resizing-column * {
 }
 
 .change-diff-body {
-    --diffs-font-family: 'JetBrains Mono', ui-monospace, monospace;
+    --diffs-font-family: "JetBrains Mono", ui-monospace, monospace;
     flex: 1;
     min-height: 0;
     overflow: auto;
@@ -9118,8 +9273,12 @@ button.gg-ref:hover {
 }
 
 @keyframes browser-progress {
-    from { background-position: -50% 0; }
-    to { background-position: 150% 0; }
+    from {
+        background-position: -50% 0;
+    }
+    to {
+        background-position: 150% 0;
+    }
 }
 
 .browser-content {
@@ -9157,7 +9316,6 @@ button.gg-ref:hover {
 .stream-file-copy.copied {
     opacity: 1;
 }
-
 
 .agent-review-status {
     display: flex;
@@ -9387,7 +9545,10 @@ button.gg-ref:hover {
     outline: none;
     background: var(--bg);
     color: var(--text-strong);
-    font: 12px -apple-system, BlinkMacSystemFont, sans-serif;
+    font:
+        12px -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
 }
 
 .find-bar input:focus {
@@ -9513,7 +9674,9 @@ button.gg-ref:hover {
 }
 
 @keyframes context-menu-in {
-    from { opacity: 0; }
+    from {
+        opacity: 0;
+    }
 }
 
 .context-menu-item {
@@ -9648,12 +9811,22 @@ button.pr-summary-cell:hover {
     background: currentColor;
 }
 
-.tone-ok { color: var(--ok); }
-.tone-fail { color: var(--danger); }
+.tone-ok {
+    color: var(--ok);
+}
+.tone-fail {
+    color: var(--danger);
+}
 .tone-wait,
-.tone-mine { color: var(--accent); }
-.tone-muted { color: var(--muted); }
-.tone-merged { color: var(--purple); }
+.tone-mine {
+    color: var(--accent);
+}
+.tone-muted {
+    color: var(--muted);
+}
+.tone-merged {
+    color: var(--purple);
+}
 
 @container (max-width: 760px) {
     .pr-summary {
@@ -9836,9 +10009,15 @@ button.pr-summary-cell:hover {
     flex: none;
 }
 
-.merge-condition.ok svg { color: var(--ok); }
-.merge-condition.fail svg { color: var(--danger); }
-.merge-condition.wait { color: var(--accent); }
+.merge-condition.ok svg {
+    color: var(--ok);
+}
+.merge-condition.fail svg {
+    color: var(--danger);
+}
+.merge-condition.wait {
+    color: var(--accent);
+}
 
 .side-card.merge-card .merge-row {
     display: flex;
@@ -9918,7 +10097,7 @@ button.pr-summary-cell:hover {
 }
 
 .ask-glyph::after {
-    content: '?';
+    content: "?";
     display: block;
     color: var(--bg);
     font-weight: 700;
@@ -10263,10 +10442,18 @@ button.pr-summary-cell:hover {
     white-space: nowrap;
 }
 
-.checks-label.failing { color: var(--danger); }
-.checks-label.running { color: var(--muted); }
-.checks-label.passing { color: var(--ok); }
-.checks-label.none { color: var(--muted); }
+.checks-label.failing {
+    color: var(--danger);
+}
+.checks-label.running {
+    color: var(--muted);
+}
+.checks-label.passing {
+    color: var(--ok);
+}
+.checks-label.none {
+    color: var(--muted);
+}
 
 .review-queue-button {
     flex: none;
@@ -10398,12 +10585,24 @@ button.pr-summary-cell:hover {
 }
 
 .pr-row-icon.new,
-.pr-row-icon.other { color: var(--ok); }
-.pr-row-icon.re-review { color: var(--accent); }
-.pr-row-icon.waiting { color: var(--muted); }
-.pr-row-icon.mine { color: var(--info); }
-.pr-row-icon.draft { color: var(--muted); }
-.pr-row-icon.merged { color: var(--purple); }
+.pr-row-icon.other {
+    color: var(--ok);
+}
+.pr-row-icon.re-review {
+    color: var(--accent);
+}
+.pr-row-icon.waiting {
+    color: var(--muted);
+}
+.pr-row-icon.mine {
+    color: var(--info);
+}
+.pr-row-icon.draft {
+    color: var(--muted);
+}
+.pr-row-icon.merged {
+    color: var(--purple);
+}
 
 .pr-row-main {
     display: flex;
@@ -10432,7 +10631,7 @@ button.pr-summary-cell:hover {
     border: 1px solid var(--border);
     border-radius: 4px;
     color: var(--text);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px;
 }
 
@@ -10445,8 +10644,12 @@ button.pr-summary-cell:hover {
     font-size: 12px;
 }
 
-.pr-review-state.changes_requested { color: var(--accent); }
-.pr-review-state.approved { color: var(--ok); }
+.pr-review-state.changes_requested {
+    color: var(--accent);
+}
+.pr-review-state.approved {
+    color: var(--ok);
+}
 
 .pr-action {
     padding: 0 6px;
@@ -10457,8 +10660,12 @@ button.pr-summary-cell:hover {
 
 .pr-action.changes-requested,
 .pr-action.ci-failing,
-.pr-action.conflicts { color: var(--danger); }
-.pr-action.ready-to-merge { color: var(--ok); }
+.pr-action.conflicts {
+    color: var(--danger);
+}
+.pr-action.ready-to-merge {
+    color: var(--ok);
+}
 
 .pr-row-checks,
 .pr-row-comments,
@@ -10492,9 +10699,15 @@ button.pr-summary-cell:hover {
     height: 100%;
 }
 
-.diff-bar > .small { background: var(--info); }
-.diff-bar > .medium { background: var(--accent); }
-.diff-bar > .large { background: var(--danger); }
+.diff-bar > .small {
+    background: var(--info);
+}
+.diff-bar > .medium {
+    background: var(--accent);
+}
+.diff-bar > .large {
+    background: var(--danger);
+}
 
 .review-waiting-note {
     margin: 0;

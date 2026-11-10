@@ -19,7 +19,9 @@ describe('helperPlist', () => {
     it('runs the helper script with the Node runtime of Electron', () => {
         const plist = helperPlist(options);
         expect(plist).toContain('<key>Label</key>\n    <string>dev.shipwarden.helper</string>');
-        expect(plist).toContain(`<string>${options.execPath}</string>\n        <string>${options.helperScript}</string>\n        <string>${options.userData}</string>\n        <string>0.1.6</string>`);
+        expect(plist).toContain(
+            `<string>${options.execPath}</string>\n        <string>${options.helperScript}</string>\n        <string>${options.userData}</string>\n        <string>0.1.6</string>`
+        );
         expect(plist).toContain('<key>ELECTRON_RUN_AS_NODE</key>\n        <string>1</string>');
         expect(plist).toContain('<key>SHELL</key>\n        <string>/bin/zsh</string>');
     });

@@ -52,8 +52,12 @@ describe('isBrowsableUrl', () => {
 });
 
 describe('linkTarget', () => {
-    const click = (keys: Partial<{ metaKey: boolean; ctrlKey: boolean; shiftKey: boolean }> = {}) =>
-        ({ metaKey: false, ctrlKey: false, shiftKey: false, ...keys });
+    const click = (keys: Partial<{ metaKey: boolean; ctrlKey: boolean; shiftKey: boolean }> = {}) => ({
+        metaKey: false,
+        ctrlKey: false,
+        shiftKey: false,
+        ...keys
+    });
 
     it('opens the in-app browser for ⇧⌘-click', () => {
         expect(linkTarget(click({ metaKey: true, shiftKey: true }))).toBe('app');

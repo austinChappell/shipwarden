@@ -138,17 +138,11 @@ export function formatElapsed(from: number | undefined, now: number): string | u
  * Compares two agents for a list. The state that needs the user most comes first.
  * In one state, the agent with the oldest activity comes first, because it waited longest.
  */
-export function compareOverview(
-    a: { state: OverviewState; activityAt?: number },
-    b: { state: OverviewState; activityAt?: number }
-): number {
-    return OVERVIEW_ORDER.indexOf(a.state) - OVERVIEW_ORDER.indexOf(b.state)
-        || (a.activityAt ?? 0) - (b.activityAt ?? 0);
+export function compareOverview(a: { state: OverviewState; activityAt?: number }, b: { state: OverviewState; activityAt?: number }): number {
+    return OVERVIEW_ORDER.indexOf(a.state) - OVERVIEW_ORDER.indexOf(b.state) || (a.activityAt ?? 0) - (b.activityAt ?? 0);
 }
 
 /** Counts the agents in each state. The list has only the states that have agents, in list order. */
 export function countStates(states: readonly OverviewState[]): { state: OverviewState; count: number }[] {
-    return OVERVIEW_ORDER
-        .map(state => ({ state, count: states.filter(item => item === state).length }))
-        .filter(item => item.count > 0);
+    return OVERVIEW_ORDER.map(state => ({ state, count: states.filter(item => item === state).length })).filter(item => item.count > 0);
 }

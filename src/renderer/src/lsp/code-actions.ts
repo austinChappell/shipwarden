@@ -19,11 +19,13 @@ function diagnosticMessage(diagnostic: Diagnostic): string {
 
 function matches(marker: MarkerKey, diagnostic: Diagnostic): boolean {
     const range = toMonacoRange(diagnostic.range);
-    return marker.startLineNumber === range.startLineNumber
-        && marker.startColumn === range.startColumn
-        && marker.endLineNumber === range.endLineNumber
-        && marker.endColumn === range.endColumn
-        && marker.message === diagnosticMessage(diagnostic);
+    return (
+        marker.startLineNumber === range.startLineNumber &&
+        marker.startColumn === range.startColumn &&
+        marker.endLineNumber === range.endLineNumber &&
+        marker.endColumn === range.endColumn &&
+        marker.message === diagnosticMessage(diagnostic)
+    );
 }
 
 /**

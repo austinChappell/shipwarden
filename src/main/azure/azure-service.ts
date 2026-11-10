@@ -34,7 +34,7 @@ import {
 } from '@shared/github';
 import type { WorkflowRun } from '@shared/pipelines';
 import type { SourceHost } from '../source-host';
-import { AzureDevOpsClient, AzureError } from './azure-client';
+import { type AzureDevOpsClient, AzureError } from './azure-client';
 import {
     branchSummaries,
     buildsForCommit,
@@ -107,7 +107,10 @@ export class AzureDevOpsService implements SourceHost {
      */
     private readonly viewed = new Map<string, Set<string>>();
 
-    constructor(private readonly client: AzureDevOpsClient, private readonly readRemote: (root: string) => Promise<string> = root => git(root, ['remote', 'get-url', 'origin'])) {}
+    constructor(
+        private readonly client: AzureDevOpsClient,
+        private readonly readRemote: (root: string) => Promise<string> = root => git(root, ['remote', 'get-url', 'origin'])
+    ) {}
 
     /** Returns the Azure repository of a worktree from its "origin" remote. Returns null for other remotes. */
     async repoFor(root: string): Promise<AzureRepoRef | null> {
@@ -153,7 +156,8 @@ export class AzureDevOpsService implements SourceHost {
     private viewerId(ref: AzureRepoRef): Promise<string> {
         let viewer = this.viewers.get(ref.organization);
         if (!viewer) {
-            viewer = this.client.request<{ authenticatedUser: { id: string } }>('GET', `${azureOrgUrl(ref)}/_apis/connectionData`)
+            viewer = this.client
+                .request<{ authenticatedUser: { id: string } }>('GET', `${azureOrgUrl(ref)}/_apis/connectionData`)
                 .then(data => data.authenticatedUser.id);
             this.viewers.set(ref.organization, viewer);
             viewer.catch(() => this.viewers.delete(ref.organization));
@@ -173,8 +177,10 @@ export class AzureDevOpsService implements SourceHost {
         const localSha = await git(root, ['rev-parse', 'HEAD']);
         let pullRequest: PullRequest | null = null;
         if (branch !== 'HEAD') {
-            const list = await this.client.request<AzList<AzPullRequest>>('GET',
-                `${repo.api}/pullrequests?searchCriteria.sourceRefName=${encodeURIComponent(toRefName(branch))}&searchCriteria.status=all&$top=20`);
+            const list = await this.client.request<AzList<AzPullRequest>>(
+                'GET',
+                `${repo.api}/pullrequests?searchCriteria.sourceRefName=${encodeURIComponent(toRefName(branch))}&searchCriteria.status=all&$top=20`
+            );
             const newest = [...list.value].sort((a, b) => b.creationDate.localeCompare(a.creationDate));
             const pick = newest.find(pr => pr.status === 'active') ?? newest[0];
             if (pick) pullRequest = await this.pullRequest(root, pick.pullRequestId);
@@ -245,8 +251,10 @@ export class AzureDevOpsService implements SourceHost {
         let skip = 0;
         // Azure DevOps returns at most 2000 changes in one page.
         for (let page = 0; page < 5; page++) {
-            const data = await this.client.request<{ changeEntries: AzChangeEntry[]; nextSkip?: number; nextTop?: number }>('GET',
-                `${this.prApi(repo, number)}/iterations/${iterationId}/changes?$compareTo=0&$top=2000&$skip=${skip}`);
+            const data = await this.client.request<{ changeEntries: AzChangeEntry[]; nextSkip?: number; nextTop?: number }>(
+                'GET',
+                `${this.prApi(repo, number)}/iterations/${iterationId}/changes?$compareTo=0&$top=2000&$skip=${skip}`
+            );
             entries.push(...data.changeEntries);
             if (!data.nextSkip || !data.nextTop) break;
             skip = data.nextSkip;
@@ -272,7 +280,8 @@ export class AzureDevOpsService implements SourceHost {
         if (!decoded) throw new AzureError('The pull request ID is not an Azure DevOps ID.', 0);
         const key = this.viewedKey(decoded.repo, decoded.pullRequestId);
         const set = this.viewed.get(key) ?? new Set<string>();
-        if (viewed) set.add(filePath); else set.delete(filePath);
+        if (viewed) set.add(filePath);
+        else set.delete(filePath);
         this.viewed.set(key, set);
     }
 
@@ -309,9 +318,10 @@ export class AzureDevOpsService implements SourceHost {
         for (const comment of comments) {
             const start = { line: Math.min(comment.startLine ?? comment.line, comment.line), offset: 1 };
             const end = { line: comment.line, offset: 1 };
-            const context = comment.side === 'LEFT'
-                ? { filePath: `/${comment.path}`, leftFileStart: start, leftFileEnd: end }
-                : { filePath: `/${comment.path}`, rightFileStart: start, rightFileEnd: end };
+            const context =
+                comment.side === 'LEFT'
+                    ? { filePath: `/${comment.path}`, leftFileStart: start, leftFileEnd: end }
+                    : { filePath: `/${comment.path}`, rightFileStart: start, rightFileEnd: end };
             await this.client.request('POST', `${base}/threads`, {
                 comments: [{ parentCommentId: 0, content: comment.body, commentType: 'text' }],
                 status: 'active',
@@ -413,8 +423,10 @@ export class AzureDevOpsService implements SourceHost {
         const known = [...(pr.reviewers ?? []), ...(this.members.get(this.membersKey(repo.ref)) ?? [])];
         const found = known.find(identity => loginOf(identity) === login);
         if (found) return found.id;
-        const search = await this.client.request<AzList<{ id: string }>>('GET',
-            `https://vssps.dev.azure.com/${encodeURIComponent(repo.ref.organization)}/_apis/identities?searchFilter=General&filterValue=${encodeURIComponent(login)}&queryMembership=None`);
+        const search = await this.client.request<AzList<{ id: string }>>(
+            'GET',
+            `https://vssps.dev.azure.com/${encodeURIComponent(repo.ref.organization)}/_apis/identities?searchFilter=General&filterValue=${encodeURIComponent(login)}&queryMembership=None`
+        );
         if (!search.value[0]) throw new AzureError(`Azure DevOps has no user "${login}".`, 404);
         return search.value[0].id;
     }
@@ -426,10 +438,15 @@ export class AzureDevOpsService implements SourceHost {
     /** The members of the default team of the project, for the reviewer picker. Azure DevOps has no label list for a repository. */
     async pullRequestCandidates(target: RepoTarget): Promise<PullRequestCandidates> {
         const repo = await this.resolve(target);
-        const project = await this.client.request<{ defaultTeam?: { id: string } }>('GET', `${azureOrgUrl(repo.ref)}/_apis/projects/${encodeURIComponent(repo.ref.project)}`);
+        const project = await this.client.request<{ defaultTeam?: { id: string } }>(
+            'GET',
+            `${azureOrgUrl(repo.ref)}/_apis/projects/${encodeURIComponent(repo.ref.project)}`
+        );
         if (!project.defaultTeam) return { users: [], labels: [] };
-        const members = await this.client.request<AzList<{ identity: AzIdentity }>>('GET',
-            `${azureOrgUrl(repo.ref)}/_apis/projects/${encodeURIComponent(repo.ref.project)}/teams/${project.defaultTeam.id}/members?$top=200`);
+        const members = await this.client.request<AzList<{ identity: AzIdentity }>>(
+            'GET',
+            `${azureOrgUrl(repo.ref)}/_apis/projects/${encodeURIComponent(repo.ref.project)}/teams/${project.defaultTeam.id}/members?$top=200`
+        );
         const identities = members.value.map(member => member.identity).filter(identity => !identity.isContainer);
         this.members.set(this.membersKey(repo.ref), identities);
         return { users: identities.map(userOf).filter((user): user is GitHubUser => !!user), labels: [] };
@@ -438,8 +455,10 @@ export class AzureDevOpsService implements SourceHost {
     /** The newest builds of the repository, newest first. */
     private async recentBuilds(repo: ResolvedRepo, top: number, definitionId?: number): Promise<AzBuild[]> {
         const definition = definitionId ? `&definitions=${definitionId}` : '';
-        const data = await this.client.request<AzList<AzBuild>>('GET',
-            `${azureProjectApi(repo.ref)}/build/builds?repositoryId=${repo.id}&repositoryType=TfsGit&queryOrder=queueTimeDescending&$top=${top}${definition}`);
+        const data = await this.client.request<AzList<AzBuild>>(
+            'GET',
+            `${azureProjectApi(repo.ref)}/build/builds?repositoryId=${repo.id}&repositoryType=TfsGit&queryOrder=queueTimeDescending&$top=${top}${definition}`
+        );
         return data.value;
     }
 
@@ -448,12 +467,14 @@ export class AzureDevOpsService implements SourceHost {
         const repo = await this.resolve(target);
         const [builds, statuses] = await Promise.all([
             this.recentBuilds(repo, 100),
-            this.client.request<AzList<AzGitStatus>>('GET', `${repo.api}/commits/${sha}/statuses?latestOnly=true`).then(data => data.value, () => [] as AzGitStatus[])
+            this.client.request<AzList<AzGitStatus>>('GET', `${repo.api}/commits/${sha}/statuses?latestOnly=true`).then(
+                data => data.value,
+                () => [] as AzGitStatus[]
+            )
         ]);
-        return [
-            ...buildsForCommit(builds, sha).map(build => buildToCheck(repo.ref, build)),
-            ...statuses.map(gitStatusToCheckRun)
-        ].sort((a, b) => a.name.localeCompare(b.name));
+        return [...buildsForCommit(builds, sha).map(build => buildToCheck(repo.ref, build)), ...statuses.map(gitStatusToCheckRun)].sort((a, b) =>
+            a.name.localeCompare(b.name)
+        );
     }
 
     private build(repo: ResolvedRepo, buildId: number): Promise<AzBuild> {
@@ -461,7 +482,10 @@ export class AzureDevOpsService implements SourceHost {
     }
 
     private async timeline(repo: ResolvedRepo, buildId: number): Promise<AzTimelineRecord[]> {
-        const data = await this.client.request<{ records?: AzTimelineRecord[] } | undefined>('GET', `${azureProjectApi(repo.ref)}/build/builds/${buildId}/timeline`);
+        const data = await this.client.request<{ records?: AzTimelineRecord[] } | undefined>(
+            'GET',
+            `${azureProjectApi(repo.ref)}/build/builds/${buildId}/timeline`
+        );
         return data?.records ?? [];
     }
 
@@ -483,11 +507,13 @@ export class AzureDevOpsService implements SourceHost {
         const jobNames = new Map(orderedRecords(records, 'Job').map(job => [job.id, job.name]));
         const tasks = orderedRecords(records, 'Task').filter(task => task.log);
         if (tasks.length > 0) {
-            const parts = await Promise.all(tasks.map(async task => {
-                const job = task.parentId ? jobNames.get(task.parentId) : undefined;
-                const title = job && jobNames.size > 1 ? `${job} › ${task.name}` : task.name;
-                return `##[section]${title}\n${await this.client.text(`${logs}/${task.log!.id}`)}`;
-            }));
+            const parts = await Promise.all(
+                tasks.map(async task => {
+                    const job = task.parentId ? jobNames.get(task.parentId) : undefined;
+                    const title = job && jobNames.size > 1 ? `${job} › ${task.name}` : task.name;
+                    return `##[section]${title}\n${await this.client.text(`${logs}/${task.log!.id}`)}`;
+                })
+            );
             return cleanActionsLog(parts.join('\n'));
         }
         // A classic pipeline can have no job records with a log. Then all logs of the build go in the result.
@@ -519,8 +545,10 @@ export class AzureDevOpsService implements SourceHost {
     /** The pipelines (build definitions) of the repository. Each one can start by hand, except a disabled one. */
     async workflows(target: RepoTarget, _ref: string): Promise<Workflow[]> {
         const repo = await this.resolve(target);
-        const data = await this.client.request<AzList<AzBuildDefinition>>('GET',
-            `${azureProjectApi(repo.ref)}/build/definitions?repositoryId=${repo.id}&repositoryType=TfsGit`);
+        const data = await this.client.request<AzList<AzBuildDefinition>>(
+            'GET',
+            `${azureProjectApi(repo.ref)}/build/definitions?repositoryId=${repo.id}&repositoryType=TfsGit`
+        );
         return data.value.map(definition => ({
             id: definition.id,
             name: definition.name,

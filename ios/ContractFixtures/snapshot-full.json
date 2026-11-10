@@ -1,0 +1,55 @@
+{
+  "protocol": 1,
+  "mac": {
+    "name": "Studio",
+    "version": "0.1.5"
+  },
+  "projects": [
+    {
+      "id": "project-1",
+      "name": "Work",
+      "repos": [
+        {
+          "path": "/Users/ana/api",
+          "name": "api",
+          "color": "#4a8fe7",
+          "worktrees": [
+            {
+              "path": "/Users/ana/.shipwarden/worktrees/api/fix-login",
+              "branch": "eng-12-fix-login",
+              "name": "Fix login",
+              "isMain": false,
+              "task": {
+                "title": "Fix the login page",
+                "key": "ENG-12",
+                "url": "https://example.com/t/12"
+              },
+              "pullRequest": {
+                "number": 7,
+                "title": "Fix the login page",
+                "url": "https://github.com/acme/api/pull/7",
+                "isDraft": false,
+                "reviewDecision": "APPROVED",
+                "checks": "SUCCESS",
+                "headSha": "0123456789abcdef0123456789abcdef01234567"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "id": "session-1",
+      "title": "Claude Code",
+      "worktreePath": "/Users/ana/.shipwarden/worktrees/api/fix-login",
+      "cwd": "/Users/ana/.shipwarden/worktrees/api/fix-login",
+      "state": "waiting",
+      "message": "Claude needs your permission to use Bash",
+      "prompt": "Fix the login page",
+      "stateAt": 1767225600000,
+      "exited": false
+    }
+  ]
+}

@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { afterMarker, askPrompt, codeAskPrompt, isWorktreeAsk, lineLabel, locateCode, parseSavedAnswer, parseSavedCodeAnswer, printCommand, sliceLines, stripTerminalCodes } from './ask-agent';
+import {
+    afterMarker,
+    askPrompt,
+    codeAskPrompt,
+    isWorktreeAsk,
+    lineLabel,
+    locateCode,
+    parseSavedAnswer,
+    parseSavedCodeAnswer,
+    printCommand,
+    sliceLines,
+    stripTerminalCodes
+} from './ask-agent';
 
 describe('printCommand', () => {
     it('runs each known agent in print mode', () => {
@@ -18,7 +30,16 @@ describe('askPrompt', () => {
     const pr = { number: 3, title: 'T', url: 'u', baseRefName: 'main', headRefName: 'f', baseRefOid: 'b'.repeat(40), headRefOid: 'h'.repeat(40) };
 
     it('fences code that contains backticks with a longer fence', () => {
-        const prompt = askPrompt({ pr, repo: { owner: 'o', name: 'r' }, path: 'a.md', side: 'RIGHT', startLine: 2, endLine: 4, code: '```js\nx\n```', question: 'Why?' });
+        const prompt = askPrompt({
+            pr,
+            repo: { owner: 'o', name: 'r' },
+            path: 'a.md',
+            side: 'RIGHT',
+            startLine: 2,
+            endLine: 4,
+            code: '```js\nx\n```',
+            question: 'Why?'
+        });
         expect(prompt).toContain('lines 2–4 of the new version');
         expect(prompt).toContain('````\n```js\nx\n```\n````');
         expect(prompt.endsWith('Question: Why?')).toBe(true);
@@ -70,14 +91,35 @@ describe('helpers', () => {
 
 describe('parseSavedAnswer', () => {
     const valid = {
-        id: 'q1', repo: { owner: 'o', name: 'r', extra: 1 }, number: 2, path: 'a.ts', side: 'LEFT', startLine: 1, line: 1,
-        question: 'Q', agent: 'Codex', answer: 'A', commit: 'abc', answeredAt: 5, unknown: true
+        id: 'q1',
+        repo: { owner: 'o', name: 'r', extra: 1 },
+        number: 2,
+        path: 'a.ts',
+        side: 'LEFT',
+        startLine: 1,
+        line: 1,
+        question: 'Q',
+        agent: 'Codex',
+        answer: 'A',
+        commit: 'abc',
+        answeredAt: 5,
+        unknown: true
     };
 
     it('keeps only the known fields', () => {
         expect(parseSavedAnswer(valid)).toEqual({
-            id: 'q1', repo: { owner: 'o', name: 'r' }, number: 2, path: 'a.ts', side: 'LEFT', startLine: 1, line: 1,
-            question: 'Q', agent: 'Codex', answer: 'A', commit: 'abc', answeredAt: 5
+            id: 'q1',
+            repo: { owner: 'o', name: 'r' },
+            number: 2,
+            path: 'a.ts',
+            side: 'LEFT',
+            startLine: 1,
+            line: 1,
+            question: 'Q',
+            agent: 'Codex',
+            answer: 'A',
+            commit: 'abc',
+            answeredAt: 5
         });
     });
 
@@ -112,7 +154,18 @@ describe('locateCode', () => {
 });
 
 describe('parseSavedCodeAnswer', () => {
-    const valid = { id: 'q', worktree: '/w', path: 'a.ts', startLine: 1, line: 2, code: '', question: 'Why?', agent: 'Claude Code', answer: 'Because.', answeredAt: 5 };
+    const valid = {
+        id: 'q',
+        worktree: '/w',
+        path: 'a.ts',
+        startLine: 1,
+        line: 2,
+        code: '',
+        question: 'Why?',
+        agent: 'Claude Code',
+        answer: 'Because.',
+        answeredAt: 5
+    };
 
     it('accepts a correct answer, also with empty code', () => {
         expect(parseSavedCodeAnswer(valid)).toEqual(valid);

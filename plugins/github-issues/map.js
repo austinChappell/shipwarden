@@ -56,9 +56,11 @@ export function toTask(issue, { withDescription = false } = {}) {
         url: issue.html_url,
         status: issueStatus(issue),
         assignees: (issue.assignees ?? []).map(user => ({ name: user.login, avatarUrl: user.avatar_url })),
-        labels: (issue.labels ?? []).map(label => (typeof label === 'string' ? { name: label } : { name: label.name, color: label.color ? `#${label.color}` : undefined })),
+        labels: (issue.labels ?? []).map(label =>
+            typeof label === 'string' ? { name: label } : { name: label.name, color: label.color ? `#${label.color}` : undefined }
+        ),
         updatedAt: issue.updated_at,
-        description: withDescription ? issue.body ?? '' : undefined,
+        description: withDescription ? (issue.body ?? '') : undefined,
         fields: {
             author: issue.user?.login ?? null,
             comments: issue.comments ?? 0,

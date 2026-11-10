@@ -37,7 +37,11 @@ export class AskAgentRunner {
             let stdout = '';
             let stderr = '';
             let stopped: 'timeout' | 'cancel' | undefined;
-            const child = spawn(shell, ['-l', '-i', '-c', script], { cwd: options.cwd, env: { ...process.env, ...options.env }, stdio: ['pipe', 'pipe', 'pipe'] });
+            const child = spawn(shell, ['-l', '-i', '-c', script], {
+                cwd: options.cwd,
+                env: { ...process.env, ...options.env },
+                stdio: ['pipe', 'pipe', 'pipe']
+            });
             const stop = (reason: 'timeout' | 'cancel') => {
                 stopped = reason;
                 child.kill('SIGTERM');

@@ -2,8 +2,21 @@
 // The plugin uses the Linear GraphQL API with fetch. It has no dependencies.
 import { log, networkDetail, runPlugin } from '../sdk/index.js';
 import {
-    activityComments, busiestTeam, COMMENT_FIELDS, errorCode, errorText, ISSUE_FIELDS, issueFilter, oldestFirst,
-    retryDelay, STATE_FIELDS, teamStatusOrder, toCollections, toComment, toStatus, toTask
+    activityComments,
+    busiestTeam,
+    COMMENT_FIELDS,
+    errorCode,
+    errorText,
+    ISSUE_FIELDS,
+    issueFilter,
+    oldestFirst,
+    retryDelay,
+    STATE_FIELDS,
+    teamStatusOrder,
+    toCollections,
+    toComment,
+    toStatus,
+    toTask
 } from './map.js';
 
 const API = 'https://api.linear.app/graphql';
@@ -42,9 +55,9 @@ async function linear(query, variables = {}, attempt = 0) {
             method: 'POST',
             headers: {
                 // A personal API key has no "Bearer" prefix.
-                'Authorization': apiKey,
+                Authorization: apiKey,
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                Accept: 'application/json'
             },
             body: JSON.stringify({ query, variables }),
             signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
@@ -267,10 +280,9 @@ runPlugin({
     },
 
     async createComment({ taskId, body }) {
-        const data = await linear(
-            `mutation Comment($input: CommentCreateInput!) { commentCreate(input: $input) { success comment { ${COMMENT_FIELDS} } } }`,
-            { input: { issueId: taskId, body } }
-        );
+        const data = await linear(`mutation Comment($input: CommentCreateInput!) { commentCreate(input: $input) { success comment { ${COMMENT_FIELDS} } } }`, {
+            input: { issueId: taskId, body }
+        });
         if (!data.commentCreate.success || !data.commentCreate.comment) {
             throw new Error('Linear did not add the comment.');
         }

@@ -5,9 +5,7 @@
   "protocolVersion": 3,
   "description": "GitHub issues. Each repository is a collection. Restrict the connection to some organizations in the settings.",
   "command": "node",
-  "args": [
-    "index.js"
-  ],
+  "args": ["index.js"],
   "settings": [
     {
       "key": "token",

@@ -1,5 +1,11 @@
 import { DEFAULT_NOTIFICATION_SETTINGS, normalizeNotificationSettings, type NotificationSettings } from './notifications';
-import { DEFAULT_WORKTREE_SETTINGS, normalizeRepoWorktreeSettings, normalizeWorktreeSettings, type RepoWorktreeSettings, type WorktreeSettings } from './worktree-settings';
+import {
+    DEFAULT_WORKTREE_SETTINGS,
+    normalizeRepoWorktreeSettings,
+    normalizeWorktreeSettings,
+    type RepoWorktreeSettings,
+    type WorktreeSettings
+} from './worktree-settings';
 import { DEFAULT_APPEARANCE, normalizeAppearance, type Appearance } from './themes';
 import { normalizeHiddenWorktrees, type HiddenWorktree } from './worktrees';
 import { DEFAULT_REMOTE_SETTINGS, normalizeRemoteSettings, type RemoteSettings } from './remote';
@@ -54,7 +60,7 @@ export function normalizeScripts(value: unknown): RepoScript[] {
     if (!Array.isArray(value)) return [];
     const scripts: RepoScript[] = [];
     for (const item of value) {
-        const raw = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+        const raw = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
         const name = typeof raw.name === 'string' ? raw.name.trim() : '';
         const command = typeof raw.command === 'string' ? raw.command.replace(/\s+$/, '') : '';
         if (typeof raw.id !== 'string' || !raw.id || !name || !command.trim() || scripts.some(script => script.id === raw.id)) continue;
@@ -118,7 +124,7 @@ export interface NetworkSettings {
 }
 
 function normalizeNetwork(raw: unknown): NetworkSettings {
-    const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+    const value = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
     const file = typeof value.caCertsFile === 'string' ? value.caCertsFile.trim() : '';
     return { ...(file ? { caCertsFile: file } : {}), useSystemCertificates: value.useSystemCertificates === true };
 }
@@ -146,7 +152,7 @@ function normalizeRules(raw: unknown): HiddenCommentRule[] | undefined {
         if (!item || typeof item !== 'object') continue;
         const rule = item as Record<string, unknown>;
         const text = typeof rule.text === 'string' ? rule.text : '';
-        const match = MATCHES.includes(rule.match as HiddenCommentMatch) ? rule.match as HiddenCommentMatch : undefined;
+        const match = MATCHES.includes(rule.match as HiddenCommentMatch) ? (rule.match as HiddenCommentMatch) : undefined;
         if (!text.trim() || !match || typeof rule.id !== 'string' || !rule.id || rules.some(other => other.id === rule.id)) continue;
         const author = typeof rule.author === 'string' && rule.author.trim() ? rule.author.trim() : undefined;
         rules.push({ id: rule.id, ...(author ? { author } : {}), match, text });
@@ -215,7 +221,7 @@ function normalizeAgents(raw: Record<string, unknown>): { agents: AgentDefinitio
 
 function normalizeRepos(value: unknown, agents: AgentDefinition[]): Record<string, RepoSettings> {
     const repos: Record<string, RepoSettings> = {};
-    const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
     for (const [repo, item] of Object.entries(raw)) {
         const entry = item as Record<string, unknown> | null;
         if (!repo.startsWith('/') || !entry || typeof entry !== 'object') {
@@ -238,7 +244,7 @@ function normalizeRepos(value: unknown, agents: AgentDefinition[]): Record<strin
 
 /** Converts stored or received values to valid settings. A value with a wrong type gets its default. */
 export function normalizeSettings(value: unknown): AppSettings {
-    const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
     const { agents, defaultAgentId } = normalizeAgents(raw);
     return {
         appearance: normalizeAppearance(raw.appearance),
@@ -255,10 +261,18 @@ export function normalizeSettings(value: unknown): AppSettings {
         ...(raw.reviewOwners === 'all'
             ? { reviewOwners: 'all' as const }
             : Array.isArray(raw.reviewOwners)
-                ? { reviewOwners: [...new Set(raw.reviewOwners.filter((owner): owner is string => typeof owner === 'string' && owner.length > 0))] }
-                : {}),
+              ? { reviewOwners: [...new Set(raw.reviewOwners.filter((owner): owner is string => typeof owner === 'string' && owner.length > 0))] }
+              : {}),
         ...(Array.isArray(raw.dashboardHiddenAuthors)
-            ? { dashboardHiddenAuthors: [...new Set(raw.dashboardHiddenAuthors.filter((name): name is string => typeof name === 'string' && name.trim().length > 0).map(name => name.trim()))] }
+            ? {
+                  dashboardHiddenAuthors: [
+                      ...new Set(
+                          raw.dashboardHiddenAuthors
+                              .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+                              .map(name => name.trim())
+                      )
+                  ]
+              }
             : {}),
         ...(normalizeRules(raw.dashboardHiddenRules) ? { dashboardHiddenRules: normalizeRules(raw.dashboardHiddenRules) } : {})
     };
@@ -267,10 +281,12 @@ export function normalizeSettings(value: unknown): AppSettings {
 /** Returns the agent that the Agent button starts in a repository: its own choice, else the default agent. */
 export function agentForRepo(settings: AppSettings, repo: string | undefined): AgentDefinition {
     const own = repo ? settings.repos[repo]?.agentId : undefined;
-    return settings.agents.find(agent => agent.id === own)
-        ?? settings.agents.find(agent => agent.id === settings.defaultAgentId)
-        ?? settings.agents[0]
-        ?? DEFAULT_AGENTS[0];
+    return (
+        settings.agents.find(agent => agent.id === own) ??
+        settings.agents.find(agent => agent.id === settings.defaultAgentId) ??
+        settings.agents[0] ??
+        DEFAULT_AGENTS[0]
+    );
 }
 
 /** Returns the name of a repository: its own name from the settings, else its folder name. */

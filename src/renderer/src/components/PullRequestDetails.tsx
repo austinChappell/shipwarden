@@ -30,7 +30,16 @@ interface PickerOption {
  * A list with a search field. Each click adds or removes one item. The list stays open, so the user can change
  * more than one item.
  */
-function MultiPicker({ title, options, selected, loading, error, onOpen, onToggle, textTrigger }: {
+function MultiPicker({
+    title,
+    options,
+    selected,
+    loading,
+    error,
+    onOpen,
+    onToggle,
+    textTrigger
+}: {
     title: string;
     /** True shows "Add" or "Edit" as the trigger, not an icon. */
     textTrigger?: boolean;
@@ -57,12 +66,13 @@ function MultiPicker({ title, options, selected, loading, error, onOpen, onToggl
     }, [open]);
 
     // The selected items come first. Each word of the search must be in the label.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The order changes only when the popover opens. Thus an item does not move when the user selects it.
     const shown = useMemo(() => {
         const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
         return options
             .filter(option => words.every(word => option.label.toLowerCase().includes(word)))
             .sort((a, b) => Number(selected.has(b.value)) - Number(selected.has(a.value)));
-    }, [options, query, open]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [options, query, open]);
 
     const onKey = (event: KeyboardEvent) => {
         if (event.key === 'ArrowDown') {
@@ -108,7 +118,18 @@ function MultiPicker({ title, options, selected, loading, error, onOpen, onToggl
                     setOpen(!open);
                 }}
             >
-                {textTrigger ? (selected.size > 0 ? 'Edit' : <><Plus size={12} strokeWidth={2} />Add</>) : <Settings2 size={13} strokeWidth={1.7} />}
+                {textTrigger ? (
+                    selected.size > 0 ? (
+                        'Edit'
+                    ) : (
+                        <>
+                            <Plus size={12} strokeWidth={2} />
+                            Add
+                        </>
+                    )
+                ) : (
+                    <Settings2 size={13} strokeWidth={1.7} />
+                )}
             </button>
             {open && (
                 <div className="combobox-popover tag-picker-popover align-right">
@@ -174,15 +195,13 @@ function MetaRow({ title, picker, empty, card, children }: { title: string; pick
                 <span>{title}</span>
                 {picker}
             </div>
-            <div className="pr-meta-values">
-                {children.length > 0 ? children : <span className="panel-note">{empty}</span>}
-            </div>
+            <div className="pr-meta-values">{children.length > 0 ? children : <span className="panel-note">{empty}</span>}</div>
         </div>
     );
 }
 
 function Chip({ children, color, onRemove, title }: { children: ReactNode; color?: string; onRemove?(): void; title?: string }) {
-    const style = color ? { '--label-color': `#${color}` } as React.CSSProperties : undefined;
+    const style = color ? ({ '--label-color': `#${color}` } as React.CSSProperties) : undefined;
     return (
         <span className={`pr-chip${color ? ' label' : ''}`} style={style} title={title}>
             {children}
@@ -255,9 +274,11 @@ function usePendingMetaChanges(target: RepoTarget, pr: PullRequest, onRefresh: (
         setError(undefined);
         update(list => [...list, { id, change, sent: false }]);
         open.current++;
-        const request = (queues.current.get(key) ?? Promise.resolve())
-            .then(() => window.shipwarden.github.changePullRequest(target, pr.number, change));
-        queues.current.set(key, request.catch(() => undefined));
+        const request = (queues.current.get(key) ?? Promise.resolve()).then(() => window.shipwarden.github.changePullRequest(target, pr.number, change));
+        queues.current.set(
+            key,
+            request.catch(() => undefined)
+        );
         request
             .then(
                 () => update(list => list.map(item => (item.id === id ? { ...item, sent: true } : item))),
@@ -288,7 +309,12 @@ function usePendingMetaChanges(target: RepoTarget, pr: PullRequest, onRefresh: (
  * The reviewers, the assignees and the labels of a pull request, as on the GitHub sidebar.
  * A user with triage access or more can change them. The sidebar shows each change at once, before GitHub confirms it.
  */
-export function PullRequestMeta({ target, pr, onRefresh, card }: {
+export function PullRequestMeta({
+    target,
+    pr,
+    onRefresh,
+    card
+}: {
     target: RepoTarget;
     pr: PullRequest;
     onRefresh(): Promise<void>;
@@ -308,9 +334,11 @@ export function PullRequestMeta({ target, pr, onRefresh, card }: {
     };
 
     // A different repository has different users and labels.
+    const repoKey = targetKey(target);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect clears the candidates when the repository changes.
     useEffect(() => {
         setCandidates(undefined);
-    }, [targetKey(target)]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [repoKey]);
 
     const reviewed = reviewedBy(pr);
     const requestedUsers = new Set(shown.reviewRequests.filter(item => item.kind === 'user').map(item => item.login));
@@ -326,8 +354,10 @@ export function PullRequestMeta({ target, pr, onRefresh, card }: {
         return [...options, ...[...current].filter(value => !known.has(value)).map(value => ({ value, label: value }))];
     };
     const labelOptions = (labels: GitHubLabel[]): PickerOption[] =>
-        withCurrent(labels.map(label => ({ value: label.name, label: label.name, color: label.color })), labelled)
-            .map(option => ({ ...option, color: option.color ?? shown.labels.find(label => label.name === option.value)?.color }));
+        withCurrent(
+            labels.map(label => ({ value: label.name, label: label.name, color: label.color })),
+            labelled
+        ).map(option => ({ ...option, color: option.color ?? shown.labels.find(label => label.name === option.value)?.color }));
 
     return (
         <section className={card ? 'side-card pr-meta-card' : 'pr-section pr-meta-section'}>
@@ -335,25 +365,30 @@ export function PullRequestMeta({ target, pr, onRefresh, card }: {
             {card && (
                 <div className="pr-meta-row card-row">
                     <span className="pr-meta-card-title">Author</span>
-                    <div className="pr-meta-values"><span className="pr-meta-author">{pr.author?.login ?? 'unknown'}</span></div>
+                    <div className="pr-meta-values">
+                        <span className="pr-meta-author">{pr.author?.login ?? 'unknown'}</span>
+                    </div>
                 </div>
             )}
             <MetaRow
                 title="Reviewers"
                 card={card}
                 empty="No reviewers"
-                picker={manage && pr.state === 'OPEN' && (
-                    <MultiPicker
-                        textTrigger={card}
-                        title="Ask for a review"
-                        options={withCurrent(userOptions(pr.author?.login), requestedUsers)}
-                        selected={requestedUsers}
-                        loading={!candidates}
-                        error={loadError}
-                        onOpen={load}
-                        onToggle={(login, add) => onChange({ kind: 'reviewer', reviewer: { kind: 'user', login }, add })}
-                    />
-                )}
+                picker={
+                    manage &&
+                    pr.state === 'OPEN' && (
+                        <MultiPicker
+                            textTrigger={card}
+                            title="Ask for a review"
+                            options={withCurrent(userOptions(pr.author?.login), requestedUsers)}
+                            selected={requestedUsers}
+                            loading={!candidates}
+                            error={loadError}
+                            onOpen={load}
+                            onToggle={(login, add) => onChange({ kind: 'reviewer', reviewer: { kind: 'user', login }, add })}
+                        />
+                    )
+                }
             >
                 {[
                     ...shown.reviewRequests.map(reviewer => (
@@ -363,7 +398,7 @@ export function PullRequestMeta({ target, pr, onRefresh, card }: {
                             onRemove={manage && pr.state === 'OPEN' ? () => onChange({ kind: 'reviewer', reviewer, add: false }) : undefined}
                         >
                             {reviewer.kind === 'team' && <Users size={11} strokeWidth={1.8} />}
-                            {reviewer.kind === 'team' ? reviewer.name ?? reviewer.login : reviewer.login}
+                            {reviewer.kind === 'team' ? (reviewer.name ?? reviewer.login) : reviewer.login}
                             <span className="pr-chip-state pending">pending</span>
                         </Chip>
                     )),
@@ -378,46 +413,52 @@ export function PullRequestMeta({ target, pr, onRefresh, card }: {
                 ]}
             </MetaRow>
 
-            {pr.hasAssignees !== false && <MetaRow
-                title="Assignees"
-                card={card}
-                empty="No one is assigned"
-                picker={manage && (
-                    <MultiPicker
-                        textTrigger={card}
-                        title="Assign users"
-                        options={withCurrent(userOptions(), assigned)}
-                        selected={assigned}
-                        loading={!candidates}
-                        error={loadError}
-                        onOpen={load}
-                        onToggle={(login, add) => onChange({ kind: 'assignee', login, add })}
-                    />
-                )}
-            >
-                {shown.assignees.map(user => (
-                    <Chip key={user.login} onRemove={manage ? () => onChange({ kind: 'assignee', login: user.login, add: false }) : undefined}>
-                        {user.login}
-                    </Chip>
-                ))}
-            </MetaRow>}
+            {pr.hasAssignees !== false && (
+                <MetaRow
+                    title="Assignees"
+                    card={card}
+                    empty="No one is assigned"
+                    picker={
+                        manage && (
+                            <MultiPicker
+                                textTrigger={card}
+                                title="Assign users"
+                                options={withCurrent(userOptions(), assigned)}
+                                selected={assigned}
+                                loading={!candidates}
+                                error={loadError}
+                                onOpen={load}
+                                onToggle={(login, add) => onChange({ kind: 'assignee', login, add })}
+                            />
+                        )
+                    }
+                >
+                    {shown.assignees.map(user => (
+                        <Chip key={user.login} onRemove={manage ? () => onChange({ kind: 'assignee', login: user.login, add: false }) : undefined}>
+                            {user.login}
+                        </Chip>
+                    ))}
+                </MetaRow>
+            )}
 
             <MetaRow
                 title="Labels"
                 card={card}
                 empty="No labels"
-                picker={manage && (
-                    <MultiPicker
-                        textTrigger={card}
-                        title="Change the labels"
-                        options={labelOptions(candidates?.labels ?? [])}
-                        selected={labelled}
-                        loading={!candidates}
-                        error={loadError}
-                        onOpen={load}
-                        onToggle={(name, add) => onChange({ kind: 'label', name, add })}
-                    />
-                )}
+                picker={
+                    manage && (
+                        <MultiPicker
+                            textTrigger={card}
+                            title="Change the labels"
+                            options={labelOptions(candidates?.labels ?? [])}
+                            selected={labelled}
+                            loading={!candidates}
+                            error={loadError}
+                            onOpen={load}
+                            onToggle={(name, add) => onChange({ kind: 'label', name, add })}
+                        />
+                    )
+                }
             >
                 {shown.labels.map(label => (
                     <Chip
@@ -435,7 +476,12 @@ export function PullRequestMeta({ target, pr, onRefresh, card }: {
 }
 
 /** The form that changes the title and the description of a pull request. */
-export function DescriptionEditor({ pr, busy, onSave, onCancel }: {
+export function DescriptionEditor({
+    pr,
+    busy,
+    onSave,
+    onCancel
+}: {
     pr: PullRequest;
     busy: boolean;
     onSave(title: string, body: string): void;
@@ -456,10 +502,20 @@ export function DescriptionEditor({ pr, busy, onSave, onCancel }: {
             }}
         >
             <input className="pr-title-input" value={title} placeholder="Title" onChange={event => setTitle(event.target.value)} />
-            <textarea autoFocus className="review-body pr-body-input" value={body} placeholder="Description (Markdown)" onChange={event => setBody(event.target.value)} />
+            <textarea
+                autoFocus
+                className="review-body pr-body-input"
+                value={body}
+                placeholder="Description (Markdown)"
+                onChange={event => setBody(event.target.value)}
+            />
             <div className="row-buttons">
-                <button className="button" onClick={onCancel}>Cancel</button>
-                <button className="button primary" disabled={busy || !title.trim() || !changed} onClick={save}>Save</button>
+                <button className="button" onClick={onCancel}>
+                    Cancel
+                </button>
+                <button className="button primary" disabled={busy || !title.trim() || !changed} onClick={save}>
+                    Save
+                </button>
             </div>
         </div>
     );
@@ -468,7 +524,14 @@ export function DescriptionEditor({ pr, busy, onSave, onCancel }: {
 /** The button that opens the description editor. */
 export function EditDescriptionButton({ onClick }: { onClick(): void }) {
     return (
-        <button className="icon-button pr-meta-edit" title="Edit the title and the description" onClick={event => { event.stopPropagation(); onClick(); }}>
+        <button
+            className="icon-button pr-meta-edit"
+            title="Edit the title and the description"
+            onClick={event => {
+                event.stopPropagation();
+                onClick();
+            }}
+        >
             <Pencil size={12} strokeWidth={1.7} />
         </button>
     );

@@ -8,8 +8,9 @@ export const CERTIFICATE_ERROR_CODES = new Set([
     'CERT_UNTRUSTED'
 ]);
 
-export const CERTIFICATE_HINT = 'The network possibly inspects TLS traffic, for example a company VPN. '
-    + 'In Settings › Network, set the CA certificates file of your company, or trust the macOS keychain.';
+export const CERTIFICATE_HINT =
+    'The network possibly inspects TLS traffic, for example a company VPN. ' +
+    'In Settings › Network, set the CA certificates file of your company, or trust the macOS keychain.';
 
 const PEM_BLOCK = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g;
 

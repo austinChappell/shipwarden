@@ -61,6 +61,7 @@ export function RightPanel(props: Props) {
     };
 
     // ⇧⌘E shows the Files tab. The explorer then takes the focus request when it mounts.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The listener registers one time. select only sets state and storage, so an old copy is correct.
     useEffect(() => onExplorerFocusRequest(() => select('files')), []);
 
     // ← and → move the focus to the previous or the next tab. That tab then shows.
@@ -93,7 +94,12 @@ export function RightPanel(props: Props) {
                 )}
                 {tabButton(
                     'pr',
-                    [pr ? `Pull request #${pr.number}` : 'Pull request', unresolved ? `${unresolved} unresolved ${unresolved === 1 ? 'thread' : 'threads'}` : ''].filter(Boolean).join(' · '),
+                    [
+                        pr ? `Pull request #${pr.number}` : 'Pull request',
+                        unresolved ? `${unresolved} unresolved ${unresolved === 1 ? 'thread' : 'threads'}` : ''
+                    ]
+                        .filter(Boolean)
+                        .join(' · '),
                     <GitPullRequest size={17} strokeWidth={1.5} />,
                     unresolved > 0 ? <span className="panel-badge" aria-hidden="true" /> : undefined
                 )}
@@ -101,9 +107,7 @@ export function RightPanel(props: Props) {
                 {tabButton('pipelines', 'Pipelines of this repository', <Workflow size={17} strokeWidth={1.5} />)}
                 {tabButton('processes', 'Processes and ports', <Plug size={17} strokeWidth={1.5} />)}
             </div>
-            {tab === 'files' && (
-                <FileExplorer key={props.root} root={props.root} activePath={props.activeFile} onOpenFile={props.onOpenFile} />
-            )}
+            {tab === 'files' && <FileExplorer key={props.root} root={props.root} activePath={props.activeFile} onOpenFile={props.onOpenFile} />}
             {tab === 'pr' && (
                 <PullRequestPanel
                     target={props.root}
@@ -129,9 +133,7 @@ export function RightPanel(props: Props) {
                     onOpenFile={path => props.onOpenFile(path)}
                 />
             )}
-            {tab === 'pipelines' && (
-                <PipelinesPanel key={props.root} root={props.root} branch={git.changes?.branch} onOpenLog={props.onOpenLog} />
-            )}
+            {tab === 'pipelines' && <PipelinesPanel key={props.root} root={props.root} branch={git.changes?.branch} onOpenLog={props.onOpenLog} />}
             {tab === 'processes' && <ProcessesPanel key={props.root} worktreePath={props.root} onShowTerminal={props.onShowTerminal} />}
             {tab === 'checks' && (
                 <ChecksPanel

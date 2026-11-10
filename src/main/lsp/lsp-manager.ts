@@ -21,8 +21,15 @@ const APPLY_EDIT_TIMEOUT_MS = 30_000;
 
 /** The code action kinds that the UI can show. */
 const CODE_ACTION_KINDS = [
-    '', 'quickfix', 'refactor', 'refactor.extract', 'refactor.inline', 'refactor.rewrite',
-    'source', 'source.organizeImports', 'source.fixAll'
+    '',
+    'quickfix',
+    'refactor',
+    'refactor.extract',
+    'refactor.inline',
+    'refactor.rewrite',
+    'source',
+    'source.organizeImports',
+    'source.fixAll'
 ];
 
 const CLIENT_CAPABILITIES: ClientCapabilities = {
@@ -120,7 +127,7 @@ export class LspManager {
         if (await definition.resolve(root)) {
             return undefined;
         }
-        return { serverId: definition.id, name: definition.name, ...await this.installer.plan(definition.id) };
+        return { serverId: definition.id, name: definition.name, ...(await this.installer.plan(definition.id)) };
     }
 
     request(key: string, method: string, params: unknown): Promise<unknown> {

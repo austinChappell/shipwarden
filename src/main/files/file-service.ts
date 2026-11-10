@@ -19,9 +19,12 @@ interface GitResult {
 function git(cwd: string, args: string[], input?: string): Promise<GitResult> {
     return new Promise((resolve, reject) => {
         const child = execFile('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
-            const code = error && typeof (error as NodeJS.ErrnoException & { code?: unknown }).code === 'number'
-                ? (error as unknown as { code: number }).code
-                : error ? -1 : 0;
+            const code =
+                error && typeof (error as NodeJS.ErrnoException & { code?: unknown }).code === 'number'
+                    ? (error as unknown as { code: number }).code
+                    : error
+                      ? -1
+                      : 0;
             if (code === -1) {
                 reject(new Error(`The command "git ${args.join(' ')}" failed: ${(stderr || error?.message || '').trim()}`));
             } else {
@@ -119,7 +122,10 @@ export class FileService {
             }
             let isDirectory = dirent.isDirectory();
             if (dirent.isSymbolicLink()) {
-                isDirectory = await fs.stat(path.join(absolute, dirent.name)).then(stat => stat.isDirectory(), () => false);
+                isDirectory = await fs.stat(path.join(absolute, dirent.name)).then(
+                    stat => stat.isDirectory(),
+                    () => false
+                );
             }
             const relative = directory ? `${directory}/${dirent.name}` : dirent.name;
             entries.push({ name: dirent.name, path: relative, isDirectory, ignored: false });
@@ -149,8 +155,18 @@ export class FileService {
             return { matches: [], truncated: false };
         }
         const { stdout, code } = await git(root, [
-            'grep', '--untracked', '-I', ...(caseSensitive ? [] : ['-i']), '--fixed-strings', '--null', '--line-number', '--no-color',
-            '-e', query, '--', '.'
+            'grep',
+            '--untracked',
+            '-I',
+            ...(caseSensitive ? [] : ['-i']),
+            '--fixed-strings',
+            '--null',
+            '--line-number',
+            '--no-color',
+            '-e',
+            query,
+            '--',
+            '.'
         ]);
         // git grep exits with code 1 when there are no matches.
         if (code !== 0 && code !== 1) {
@@ -200,10 +216,15 @@ export class FileService {
             return new Set();
         }
         // A trailing "/" lets patterns such as "build/" match folders.
-        const input = entries.map(entry => entry.isDirectory ? `${entry.path}/` : entry.path).join('\0') + '\0';
+        const input = entries.map(entry => (entry.isDirectory ? `${entry.path}/` : entry.path)).join('\0') + '\0';
         try {
             const { stdout } = await git(root, ['check-ignore', '--stdin', '-z'], input);
-            return new Set(stdout.split('\0').filter(Boolean).map(value => toPosix(value).replace(/\/$/, '')));
+            return new Set(
+                stdout
+                    .split('\0')
+                    .filter(Boolean)
+                    .map(value => toPosix(value).replace(/\/$/, ''))
+            );
         } catch {
             return new Set();
         }

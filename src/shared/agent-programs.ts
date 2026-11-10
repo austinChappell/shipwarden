@@ -85,4 +85,3 @@ export function agentProcessesBelow(rows: readonly ProcessRow[], rootPid: number
     }
     return result;
 }
-

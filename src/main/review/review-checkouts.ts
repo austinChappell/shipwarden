@@ -42,15 +42,16 @@ interface IndexFile {
 const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_LFS_SKIP_SMUDGE: '1' };
 const NO_HOOKS = ['-c', 'core.hooksPath=/dev/null'];
 
-export const runGit: GitRunner = (cwd, args, options = {}) => new Promise((resolve, reject) => {
-    execFile('git', [...NO_HOOKS, ...args], { cwd, env: GIT_ENV, maxBuffer: 16 * 1024 * 1024, timeout: options.timeout ?? 0 }, (error, stdout, stderr) => {
-        if (error) {
-            reject(new Error(`git ${args[0]} failed: ${(stderr || error.message).trim()}`));
-        } else {
-            resolve(stdout);
-        }
+export const runGit: GitRunner = (cwd, args, options = {}) =>
+    new Promise((resolve, reject) => {
+        execFile('git', [...NO_HOOKS, ...args], { cwd, env: GIT_ENV, maxBuffer: 16 * 1024 * 1024, timeout: options.timeout ?? 0 }, (error, stdout, stderr) => {
+            if (error) {
+                reject(new Error(`git ${args[0]} failed: ${(stderr || error.message).trim()}`));
+            } else {
+                resolve(stdout);
+            }
+        });
     });
-});
 
 export interface ReviewCheckoutsOptions {
     /** The folder for the checkouts and for the clones of ShipWarden, for example ~/.shipwarden/review. */
@@ -100,7 +101,7 @@ export class ReviewCheckouts {
 
     async status(repo: RepoRef, number: number): Promise<ReviewCheckoutStatus> {
         const entry = this.entries(await this.index.get())[reviewCheckoutKey(repo, number)];
-        const checkout = entry && await this.exists(entry.root) ? { root: entry.root, sha: entry.sha } : undefined;
+        const checkout = entry && (await this.exists(entry.root)) ? { root: entry.root, sha: entry.sha } : undefined;
         const needsClone = !checkout && !(await this.options.findClone(repo)) && !(await this.exists(this.clonePath(repo)));
         return { ...(checkout ? { checkout } : {}), needsClone };
     }
@@ -136,7 +137,7 @@ export class ReviewCheckouts {
         const remaining = Object.values(this.entries(await this.index.get()));
         for (const [, entry] of old) {
             const clone = this.clonePath(entry);
-            if (entry.repoPath === clone && !remaining.some(other => other.repoPath === clone) && await this.exists(clone)) {
+            if (entry.repoPath === clone && !remaining.some(other => other.repoPath === clone) && (await this.exists(clone))) {
                 await fs.rm(clone, { recursive: true, force: true });
                 removed.push(clone);
             }
@@ -149,9 +150,9 @@ export class ReviewCheckouts {
         const root = this.checkoutPath(repo, number);
         const old = this.entries(await this.index.get())[key];
         // A checkout stays in the repository that has its worktree, also when a project adds a clone later.
-        let repoPath = old && old.root === root && await this.isWorktreeOf(old.repoPath, root) ? old.repoPath : undefined;
+        let repoPath = old && old.root === root && (await this.isWorktreeOf(old.repoPath, root)) ? old.repoPath : undefined;
         repoPath ??= await this.options.findClone(repo);
-        if (!repoPath && await this.exists(path.join(this.clonePath(repo), '.git'))) {
+        if (!repoPath && (await this.exists(path.join(this.clonePath(repo), '.git')))) {
             repoPath = this.clonePath(repo);
         }
         if (!repoPath) {
@@ -246,7 +247,7 @@ export class ReviewCheckouts {
             const output = await this.git(repoPath, ['worktree', 'list', '--porcelain']);
             const wanted = await this.realpath(root);
             for (const line of output.split('\n')) {
-                if (line.startsWith('worktree ') && await this.realpath(line.slice('worktree '.length)) === wanted) return true;
+                if (line.startsWith('worktree ') && (await this.realpath(line.slice('worktree '.length))) === wanted) return true;
             }
             return false;
         } catch {

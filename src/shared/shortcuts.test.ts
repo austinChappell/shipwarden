@@ -156,8 +156,16 @@ describe('newWorktree', () => {
 });
 
 describe('appKeyAction', () => {
-    const key = (code: string, mods: Partial<{ meta: boolean; shift: boolean; alt: boolean; control: boolean }> = {}) =>
-        ({ type: 'keyDown', meta: true, shift: false, alt: false, control: false, key: code.replace('Key', '').toLowerCase(), code, ...mods });
+    const key = (code: string, mods: Partial<{ meta: boolean; shift: boolean; alt: boolean; control: boolean }> = {}) => ({
+        type: 'keyDown',
+        meta: true,
+        shift: false,
+        alt: false,
+        control: false,
+        key: code.replace('Key', '').toLowerCase(),
+        code,
+        ...mods
+    });
 
     it('finds the quit, settings and hide keys', () => {
         expect(appKeyAction(key('KeyQ'))).toBe('quit');

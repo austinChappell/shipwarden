@@ -27,10 +27,17 @@ const ACTIVITY_TASKS = 40;
 /** Returns the comments of a task with the replies of each comment. */
 async function commentsWithReplies(taskId) {
     const { comments } = await clickup('GET', `/task/${taskId}/comment`);
-    const replies = await Promise.all(comments
-        .filter(comment => Number(comment.reply_count) > 0)
-        .slice(0, 10)
-        .map(comment => clickup('GET', `/comment/${comment.id}/reply`).then(result => result.comments ?? [], () => [])));
+    const replies = await Promise.all(
+        comments
+            .filter(comment => Number(comment.reply_count) > 0)
+            .slice(0, 10)
+            .map(comment =>
+                clickup('GET', `/comment/${comment.id}/reply`).then(
+                    result => result.comments ?? [],
+                    () => []
+                )
+            )
+    );
     return [...comments, ...replies.flat()];
 }
 
@@ -38,12 +45,14 @@ async function commentsWithReplies(taskId) {
 async function eachLimited(items, limit, work) {
     const results = [];
     let next = 0;
-    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
-        while (next < items.length) {
-            const index = next++;
-            results[index] = await work(items[index]);
-        }
-    }));
+    await Promise.all(
+        Array.from({ length: Math.min(limit, items.length) }, async () => {
+            while (next < items.length) {
+                const index = next++;
+                results[index] = await work(items[index]);
+            }
+        })
+    );
     return results;
 }
 
@@ -64,8 +73,8 @@ async function clickup(method, path, body) {
         response = await fetch(`${API}${path}`, {
             method,
             headers: {
-                'Authorization': token,
-                'Accept': 'application/json',
+                Authorization: token,
+                Accept: 'application/json',
                 ...(body ? { 'Content-Type': 'application/json' } : {})
             },
             body: body ? JSON.stringify(body) : undefined
@@ -106,9 +115,7 @@ runPlugin({
         }
         log(`ClickUp plugin ready for ${teams.map(team => `"${team.name}"`).join(', ')}.`);
         return {
-            fields: [
-                { id: 'dueDate', label: 'Due', type: 'date' }
-            ],
+            fields: [{ id: 'dueDate', label: 'Due', type: 'date' }],
             filters: [
                 { id: 'assigned', label: 'Assigned to me', default: true },
                 { id: 'open', label: 'All open tasks' },
@@ -131,24 +138,27 @@ runPlugin({
             return collectionsCache.collections;
         }
         const assignedTasks = [];
-        const perTeam = await Promise.all(teams.map(async team => {
-            const [{ spaces }, assigned] = await Promise.all([
-                clickup('GET', `/team/${team.id}/space?archived=false`),
-                clickup('GET', `/team/${team.id}/task?assignees[]=${userId}&order_by=updated&subtasks=true`).catch(() => ({ tasks: [] }))
-            ]);
-            assignedTasks.push(...assigned.tasks);
-            const hierarchy = await Promise.all(spaces.map(async space => {
-                const [folders, lists] = await Promise.all([
-                    clickup('GET', `/space/${space.id}/folder?archived=false`),
-                    clickup('GET', `/space/${space.id}/list?archived=false`)
+        const perTeam = await Promise.all(
+            teams.map(async team => {
+                const [{ spaces }, assigned] = await Promise.all([
+                    clickup('GET', `/team/${team.id}/space?archived=false`),
+                    clickup('GET', `/team/${team.id}/task?assignees[]=${userId}&order_by=updated&subtasks=true`).catch(() => ({ tasks: [] }))
                 ]);
-                return { space, folders: folders.folders, lists: lists.lists };
-            }));
-            return { team, hierarchy };
-        }));
+                assignedTasks.push(...assigned.tasks);
+                const hierarchy = await Promise.all(
+                    spaces.map(async space => {
+                        const [folders, lists] = await Promise.all([
+                            clickup('GET', `/space/${space.id}/folder?archived=false`),
+                            clickup('GET', `/space/${space.id}/list?archived=false`)
+                        ]);
+                        return { space, folders: folders.folders, lists: lists.lists };
+                    })
+                );
+                return { team, hierarchy };
+            })
+        );
         const busiest = busiestList(assignedTasks);
-        const collections = perTeam.flatMap(({ team, hierarchy }) =>
-            toCollections(team.id, hierarchy, busiest, teams.length > 1 ? team.name : undefined));
+        const collections = perTeam.flatMap(({ team, hierarchy }) => toCollections(team.id, hierarchy, busiest, teams.length > 1 ? team.name : undefined));
         collectionsCache = { collections, at: Date.now() };
         return collections;
     },
@@ -207,9 +217,14 @@ runPlugin({
         if (!Number.isFinite(sinceMs)) {
             throw new Error('activity/list needs "since" as an ISO time.');
         }
-        const perTeam = await Promise.all(teams.map(team =>
-            clickup('GET', `/team/${team.id}/task?assignees[]=${userId}&date_updated_gt=${sinceMs}&order_by=updated&subtasks=true&include_closed=true`)
-                .then(result => result.tasks.slice(0, ACTIVITY_TASKS))));
+        const perTeam = await Promise.all(
+            teams.map(team =>
+                clickup(
+                    'GET',
+                    `/team/${team.id}/task?assignees[]=${userId}&date_updated_gt=${sinceMs}&order_by=updated&subtasks=true&include_closed=true`
+                ).then(result => result.tasks.slice(0, ACTIVITY_TASKS))
+            )
+        );
         const tasks = perTeam.flat();
         const perTask = await eachLimited(tasks, 4, async task => {
             const cached = commentCache.get(task.id);

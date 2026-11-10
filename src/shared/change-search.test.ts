@@ -4,7 +4,11 @@ import { searchPatches } from './pr-search';
 
 /** Searches local changes as the Changes tab does: the patch of each file, then the PR search. */
 const searchChanges = (files: { key: string; original: string; modified: string }[], query: string, caseSensitive = false) =>
-    searchPatches(files.map(file => ({ path: file.key, patch: changePatch(file.original, file.modified) })), query, caseSensitive);
+    searchPatches(
+        files.map(file => ({ path: file.key, patch: changePatch(file.original, file.modified) })),
+        query,
+        caseSensitive
+    );
 
 const lines = (count: number, change?: { at: number; text: string }) =>
     Array.from({ length: count }, (_, index) => (change && index + 1 === change.at ? change.text : `line ${index + 1}`)).join('\n') + '\n';

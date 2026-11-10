@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { addRepo, cleanProjectName, createProject, deleteProject, moveProject, moveRepo, normalizeProjects, removeRepo, renameProject, repoName, setActiveProject, type ProjectsState } from './projects';
+import {
+    addRepo,
+    cleanProjectName,
+    createProject,
+    deleteProject,
+    moveProject,
+    moveRepo,
+    normalizeProjects,
+    removeRepo,
+    renameProject,
+    repoName,
+    setActiveProject,
+    type ProjectsState
+} from './projects';
 
 const ids = () => {
     let next = 0;
@@ -31,7 +44,10 @@ describe('normalizeProjects', () => {
             activeId: 'missing'
         };
         expect(normalizeProjects(value, ids())).toEqual({
-            projects: [{ id: 'a', name: 'Work', repos: ['/r/api'] }, { id: 'b', name: 'Untitled', repos: [] }],
+            projects: [
+                { id: 'a', name: 'Work', repos: ['/r/api'] },
+                { id: 'b', name: 'Untitled', repos: [] }
+            ],
             activeId: 'a'
         });
     });

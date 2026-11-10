@@ -41,7 +41,16 @@ describe('Linear mapping', () => {
     });
 
     it('leaves out the description in a list, and the priority and the assignee when they are not set', () => {
-        const task = linear.toTask({ ...issue, priority: 0, priorityLabel: 'No priority', assignee: null, project: null, cycle: null, estimate: null, dueDate: null });
+        const task = linear.toTask({
+            ...issue,
+            priority: 0,
+            priorityLabel: 'No priority',
+            assignee: null,
+            project: null,
+            cycle: null,
+            estimate: null,
+            dueDate: null
+        });
         expect(task.description).toBeUndefined();
         expect(task.priority).toBeUndefined();
         expect(task.assignees).toEqual([]);
@@ -49,8 +58,14 @@ describe('Linear mapping', () => {
     });
 
     it('maps the workflow state types to categories', () => {
-        expect(['triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled'].map(linear.statusCategory))
-            .toEqual(['backlog', 'backlog', 'todo', 'in_progress', 'done', 'canceled']);
+        expect(['triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled'].map(linear.statusCategory)).toEqual([
+            'backlog',
+            'backlog',
+            'todo',
+            'in_progress',
+            'done',
+            'canceled'
+        ]);
     });
 
     it('returns the states of a team in workflow order: first the type, then the position', () => {
@@ -68,14 +83,26 @@ describe('Linear mapping', () => {
     });
 
     it('maps the comment authors: users, integrations and people outside Linear', () => {
-        expect(linear.toComment({ id: 'c1', body: 'Hi', createdAt: '2026-11-07T00:00:00.000Z', user: { id: 'u2', name: 'Bob Ray', displayName: '', avatarUrl: null } }))
-            .toEqual({ id: 'c1', author: { name: 'Bob Ray', avatarUrl: undefined }, body: 'Hi', createdAt: '2026-11-07T00:00:00.000Z' });
+        expect(
+            linear.toComment({
+                id: 'c1',
+                body: 'Hi',
+                createdAt: '2026-11-07T00:00:00.000Z',
+                user: { id: 'u2', name: 'Bob Ray', displayName: '', avatarUrl: null }
+            })
+        ).toEqual({ id: 'c1', author: { name: 'Bob Ray', avatarUrl: undefined }, body: 'Hi', createdAt: '2026-11-07T00:00:00.000Z' });
         expect(linear.commentAuthor({ user: null, botActor: { name: 'GitHub', avatarUrl: 'gh.png' } })).toEqual({ name: 'GitHub', avatarUrl: 'gh.png' });
-        expect(linear.commentAuthor({ user: null, botActor: null, externalUser: { name: 'Slack user' } })).toEqual({ name: 'Slack user', avatarUrl: undefined });
+        expect(linear.commentAuthor({ user: null, botActor: null, externalUser: { name: 'Slack user' } })).toEqual({
+            name: 'Slack user',
+            avatarUrl: undefined
+        });
     });
 
     it('maps the teams to collections and marks the default team', () => {
-        const teams = [{ id: 't1', key: 'ENG', name: 'Engineering' }, { id: 't2', key: 'DES', name: 'Design' }];
+        const teams = [
+            { id: 't1', key: 'ENG', name: 'Engineering' },
+            { id: 't2', key: 'DES', name: 'Design' }
+        ];
         expect(linear.toCollections(teams, { name: 'Acme', urlKey: 'acme' }, 't2')).toEqual([
             { id: 't1', name: 'Engineering', path: 'Acme', url: 'https://linear.app/acme/team/ENG/active' },
             { id: 't2', name: 'Design', path: 'Acme', url: 'https://linear.app/acme/team/DES/active', default: true }
@@ -104,18 +131,29 @@ describe('Linear mapping', () => {
 
     it('returns the Dashboard comments from other people after the own last comment', () => {
         const comment = (id, userId, createdAt) => ({ id, body: id, createdAt, user: { id: userId, name: userId, displayName: userId } });
-        const issues = [{
-            id: 'i1', identifier: 'ENG-1', title: 'One', url: 'u1',
-            comments: { nodes: [
-                comment('late', 'bob', '2026-11-07T12:00:00.000Z'),
-                comment('mine', 'me', '2026-11-07T11:00:00.000Z'),
-                comment('seen', 'bob', '2026-11-07T10:30:00.000Z'),
-                comment('old', 'bob', '2026-11-06T00:00:00.000Z')
-            ] }
-        }, {
-            id: 'i2', identifier: 'ENG-2', title: 'Two', url: 'u2',
-            comments: { nodes: [comment('new', 'cat', '2026-11-07T09:00:00.000Z')] }
-        }];
+        const issues = [
+            {
+                id: 'i1',
+                identifier: 'ENG-1',
+                title: 'One',
+                url: 'u1',
+                comments: {
+                    nodes: [
+                        comment('late', 'bob', '2026-11-07T12:00:00.000Z'),
+                        comment('mine', 'me', '2026-11-07T11:00:00.000Z'),
+                        comment('seen', 'bob', '2026-11-07T10:30:00.000Z'),
+                        comment('old', 'bob', '2026-11-06T00:00:00.000Z')
+                    ]
+                }
+            },
+            {
+                id: 'i2',
+                identifier: 'ENG-2',
+                title: 'Two',
+                url: 'u2',
+                comments: { nodes: [comment('new', 'cat', '2026-11-07T09:00:00.000Z')] }
+            }
+        ];
         expect(linear.activityComments(issues, 'me', Date.parse('2026-11-07T00:00:00.000Z'))).toEqual([
             { id: 'late', taskId: 'i1', taskKey: 'ENG-1', taskTitle: 'One', taskUrl: 'u1', author: 'bob', body: 'late', createdAt: '2026-11-07T12:00:00.000Z' },
             { id: 'new', taskId: 'i2', taskKey: 'ENG-2', taskTitle: 'Two', taskUrl: 'u2', author: 'cat', body: 'new', createdAt: '2026-11-07T09:00:00.000Z' }

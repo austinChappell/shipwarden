@@ -23,7 +23,10 @@ const MIN_FORCED_INTERVAL_MS = 30_000;
 
 /** A failed request. The message goes to the UI, so it never contains a token. */
 class UsageError extends Error {
-    constructor(message: string, readonly waitMs?: number) {
+    constructor(
+        message: string,
+        readonly waitMs?: number
+    ) {
         super(message);
     }
 }
@@ -127,7 +130,10 @@ export class UsageService {
     private readonly running = new Set<UsageProvider>();
     private timer: ReturnType<typeof setInterval> | undefined;
 
-    constructor(private readonly userAgent: string, private readonly onChange: (usage: ProviderUsage[]) => void) {}
+    constructor(
+        private readonly userAgent: string,
+        private readonly onChange: (usage: ProviderUsage[]) => void
+    ) {}
 
     start(): void {
         this.refresh();
@@ -194,11 +200,15 @@ export class UsageService {
             return undefined;
         }
         this.lastRequestAt.claude = Date.now();
-        const body = await getJson(CLAUDE_USAGE_URL, {
-            Authorization: `Bearer ${token}`,
-            'anthropic-beta': 'oauth-2025-04-20',
-            'User-Agent': this.userAgent
-        }, 'Claude did not accept the sign-in. Start Claude Code one time to renew it.');
+        const body = await getJson(
+            CLAUDE_USAGE_URL,
+            {
+                Authorization: `Bearer ${token}`,
+                'anthropic-beta': 'oauth-2025-04-20',
+                'User-Agent': this.userAgent
+            },
+            'Claude did not accept the sign-in. Start Claude Code one time to renew it.'
+        );
         return { windows: parseClaudeUsage(body) };
     }
 
@@ -208,11 +218,15 @@ export class UsageService {
             return undefined;
         }
         this.lastRequestAt.codex = Date.now();
-        const body = await getJson(CODEX_USAGE_URL, {
-            Authorization: `Bearer ${auth.token}`,
-            ...(auth.accountId ? { 'ChatGPT-Account-Id': auth.accountId } : {}),
-            'User-Agent': this.userAgent
-        }, 'ChatGPT did not accept the Codex sign-in. Start Codex one time to renew it.');
+        const body = await getJson(
+            CODEX_USAGE_URL,
+            {
+                Authorization: `Bearer ${auth.token}`,
+                ...(auth.accountId ? { 'ChatGPT-Account-Id': auth.accountId } : {}),
+                'User-Agent': this.userAgent
+            },
+            'ChatGPT did not accept the Codex sign-in. Start Codex one time to renew it.'
+        );
         return parseCodexUsage(body);
     }
 }

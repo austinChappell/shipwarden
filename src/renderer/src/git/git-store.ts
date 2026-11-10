@@ -40,6 +40,7 @@ export function useGitChanges(worktree: string | undefined): {
     const [version, setVersion] = useState(0);
     const [forceFetch, setForceFetch] = useState(0);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A different worktree clears the old changes, the old error and the old fetch result.
     useEffect(() => {
         setChanges(undefined);
         setError(undefined);
@@ -78,6 +79,7 @@ export function useGitChanges(worktree: string | undefined): {
         };
     }, [worktree, forceFetch]);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A change of version from reload reads the changes again.
     useEffect(() => {
         if (!worktree) return;
         let current = true;

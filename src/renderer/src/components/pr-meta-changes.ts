@@ -16,9 +16,12 @@ export interface MetaValues {
  */
 export function metaChangeKey(change: MetaChange): string {
     switch (change.kind) {
-        case 'assignee': return `assignee:${change.login}`;
-        case 'reviewer': return `reviewer:${change.reviewer.kind}:${change.reviewer.login}`;
-        case 'label': return `label:${change.name}`;
+        case 'assignee':
+            return `assignee:${change.login}`;
+        case 'reviewer':
+            return `reviewer:${change.reviewer.kind}:${change.reviewer.login}`;
+        case 'label':
+            return `label:${change.name}`;
     }
 }
 

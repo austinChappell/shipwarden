@@ -1,13 +1,4 @@
-import type {
-    CompletionItem,
-    Diagnostic,
-    DocumentHighlight,
-    Hover,
-    Location,
-    LocationLink,
-    MarkedString,
-    MarkupContent
-} from 'vscode-languageserver-protocol';
+import type { CompletionItem, Diagnostic, DocumentHighlight, Hover, Location, LocationLink, MarkedString, MarkupContent } from 'vscode-languageserver-protocol';
 import { monaco } from '../editor/monaco';
 import { toMonacoRange } from './ranges';
 
@@ -107,9 +98,31 @@ export function toMarkers(diagnostics: Diagnostic[]): monaco.editor.IMarkerData[
 
 /** The names of the LSP completion item kinds, in LSP order. The first kind has the value 1. */
 const COMPLETION_KIND_NAMES = [
-    'Text', 'Method', 'Function', 'Constructor', 'Field', 'Variable', 'Class', 'Interface', 'Module', 'Property',
-    'Unit', 'Value', 'Enum', 'Keyword', 'Snippet', 'Color', 'File', 'Reference', 'Folder', 'EnumMember', 'Constant',
-    'Struct', 'Event', 'Operator', 'TypeParameter'
+    'Text',
+    'Method',
+    'Function',
+    'Constructor',
+    'Field',
+    'Variable',
+    'Class',
+    'Interface',
+    'Module',
+    'Property',
+    'Unit',
+    'Value',
+    'Enum',
+    'Keyword',
+    'Snippet',
+    'Color',
+    'File',
+    'Reference',
+    'Folder',
+    'EnumMember',
+    'Constant',
+    'Struct',
+    'Event',
+    'Operator',
+    'TypeParameter'
 ] as const;
 
 function toCompletionKind(kind: number | undefined): monaco.languages.CompletionItemKind {
@@ -129,9 +142,10 @@ export function toCompletionItem(item: CompletionItem, defaultRange: monaco.IRan
     let insertText = item.insertText ?? item.label;
     if (item.textEdit) {
         insertText = item.textEdit.newText;
-        range = 'range' in item.textEdit
-            ? toMonacoRange(item.textEdit.range)
-            : { insert: toMonacoRange(item.textEdit.insert), replace: toMonacoRange(item.textEdit.replace) };
+        range =
+            'range' in item.textEdit
+                ? toMonacoRange(item.textEdit.range)
+                : { insert: toMonacoRange(item.textEdit.insert), replace: toMonacoRange(item.textEdit.replace) };
     }
     const documentation = item.documentation ? toMarkdown(item.documentation)[0] : undefined;
     return {

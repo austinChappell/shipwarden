@@ -41,7 +41,15 @@ export function parseLayout(text: string | null): SavedLayout {
     if (typeof raw.selectedPath === 'string') {
         layout.selectedPath = raw.selectedPath;
     }
-    if (raw.mainView === 'dashboard' || raw.mainView === 'worktree' || raw.mainView === 'tasks' || raw.mainView === 'agents' || raw.mainView === 'review' || raw.mainView === 'pipelines' || raw.mainView === 'notes') {
+    if (
+        raw.mainView === 'dashboard' ||
+        raw.mainView === 'worktree' ||
+        raw.mainView === 'tasks' ||
+        raw.mainView === 'agents' ||
+        raw.mainView === 'review' ||
+        raw.mainView === 'pipelines' ||
+        raw.mainView === 'notes'
+    ) {
         layout.mainView = raw.mainView;
     }
     if (raw.openFiles && typeof raw.openFiles === 'object') {
@@ -87,8 +95,7 @@ export function pruneLayout(layout: SavedLayout, worktreePaths: readonly string[
         if (!worktrees.has(root)) {
             continue;
         }
-        const restorable = (tab.startsWith('f:') && openFiles[root]?.includes(tab.slice(2)))
-            || (tab.startsWith('t:') && sessions.has(tab.slice(2)));
+        const restorable = (tab.startsWith('f:') && openFiles[root]?.includes(tab.slice(2))) || (tab.startsWith('t:') && sessions.has(tab.slice(2)));
         if (restorable) {
             activeTabs[root] = tab;
         }

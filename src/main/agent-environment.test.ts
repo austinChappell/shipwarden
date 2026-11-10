@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { removeAgentSessionVariables } from './agent-environment';
 
 describe('removeAgentSessionVariables', () => {
-
     it('removes the session markers and keeps the user settings', () => {
         const env: NodeJS.ProcessEnv = {
             CLAUDECODE: '1',

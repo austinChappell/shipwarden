@@ -8,14 +8,20 @@ export class JsonStore<T extends object> {
     private loading: Promise<T> | undefined;
     private writing: Promise<void> = Promise.resolve();
 
-    constructor(private readonly file: string, private readonly initial: () => T) {}
+    constructor(
+        private readonly file: string,
+        private readonly initial: () => T
+    ) {}
 
     async get(): Promise<T> {
         // All callers wait for one read. Two reads at the same time can each set the value, and a change can go missing.
-        this.loading ??= fs.readFile(this.file, 'utf8').then(
-            text => JSON.parse(text) as T,
-            () => this.initial()
-        ).catch(() => this.initial());
+        this.loading ??= fs
+            .readFile(this.file, 'utf8')
+            .then(
+                text => JSON.parse(text) as T,
+                () => this.initial()
+            )
+            .catch(() => this.initial());
         const loaded = await this.loading;
         this.value ??= loaded;
         return this.value;

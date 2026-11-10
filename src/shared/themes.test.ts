@@ -36,8 +36,10 @@ describe('themes', () => {
 
 describe('appearance', () => {
     it('replaces unknown values with defaults', () => {
-        expect(normalizeAppearance({ scheme: 'neon', lightTheme: 'nope', darkTheme: 'nightwatch', terminalColors: 'x' }))
-            .toEqual({ ...DEFAULT_APPEARANCE, darkTheme: 'nightwatch' });
+        expect(normalizeAppearance({ scheme: 'neon', lightTheme: 'nope', darkTheme: 'nightwatch', terminalColors: 'x' })).toEqual({
+            ...DEFAULT_APPEARANCE,
+            darkTheme: 'nightwatch'
+        });
         expect(normalizeAppearance(undefined)).toEqual(DEFAULT_APPEARANCE);
     });
 

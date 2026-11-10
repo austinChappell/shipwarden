@@ -66,29 +66,38 @@ describe('TaskHost', () => {
     let host: TaskHost;
     let settings: MemorySettings;
 
-    const makeHost = () => new TaskHost({
-        pluginFolders: [{ path: path.join(dir, 'plugins'), builtIn: true }],
-        settings,
-        repoFor: async () => null,
-        projectRepos: async projectId => (projectId === 'work' ? ['/repos/api', '/repos/web'] : ['/repos/side']),
-        configFile: path.join(dir, 'task-managers.json'),
-        legacySourcesFile: path.join(dir, 'task-sources.json'),
-        linksFile: path.join(dir, 'links.json'),
-        collectionsFile: path.join(dir, 'collections.json'),
-        selectedConnectionsFile: path.join(dir, 'selected.json'),
-        onChanged: () => undefined
-    });
+    const makeHost = () =>
+        new TaskHost({
+            pluginFolders: [{ path: path.join(dir, 'plugins'), builtIn: true }],
+            settings,
+            repoFor: async () => null,
+            projectRepos: async projectId => (projectId === 'work' ? ['/repos/api', '/repos/web'] : ['/repos/side']),
+            configFile: path.join(dir, 'task-managers.json'),
+            legacySourcesFile: path.join(dir, 'task-sources.json'),
+            linksFile: path.join(dir, 'links.json'),
+            collectionsFile: path.join(dir, 'collections.json'),
+            selectedConnectionsFile: path.join(dir, 'selected.json'),
+            onChanged: () => undefined
+        });
 
     beforeEach(async () => {
         dir = await fs.mkdtemp(path.join(os.tmpdir(), 'shipwarden-plugins-'));
         const pluginDir = path.join(dir, 'plugins', 'test-tracker');
         await fs.mkdir(pluginDir, { recursive: true });
         await fs.writeFile(path.join(pluginDir, 'index.mjs'), testPlugin());
-        await fs.writeFile(path.join(pluginDir, 'shipwarden-plugin.json'), JSON.stringify({
-            id: 'test-tracker', name: 'Test tracker', version: '1.0.0', protocolVersion: 3, command: 'node', args: ['index.mjs'],
-            scopeLabel: 'workspace',
-            settings: [{ key: 'token', label: 'Token', type: 'secret', required: true }]
-        }));
+        await fs.writeFile(
+            path.join(pluginDir, 'shipwarden-plugin.json'),
+            JSON.stringify({
+                id: 'test-tracker',
+                name: 'Test tracker',
+                version: '1.0.0',
+                protocolVersion: 3,
+                command: 'node',
+                args: ['index.mjs'],
+                scopeLabel: 'workspace',
+                settings: [{ key: 'token', label: 'Token', type: 'secret', required: true }]
+            })
+        );
         await fs.mkdir(path.join(dir, 'plugins', 'no-manifest'));
         settings = new MemorySettings();
         host = makeHost();
@@ -118,19 +127,29 @@ describe('TaskHost', () => {
         expect((await host.connections())[0].configured).toBe(true);
 
         const source = await host.source(connection.id, 'work');
-        expect(source).toMatchObject({ connectionId: connection.id, pluginId: 'test-tracker', name: 'Tracker', filters: [{ id: 'all', label: 'All', default: true }] });
+        expect(source).toMatchObject({
+            connectionId: connection.id,
+            pluginId: 'test-tracker',
+            name: 'Tracker',
+            filters: [{ id: 'all', label: 'All', default: true }]
+        });
         expect(source.capabilities).toMatchObject({ scopes: true, update: false });
-        expect(await host.scopes(connection.id)).toEqual([{ id: 'w1', name: 'Workspace 1' }, { id: 'w2', name: 'Workspace 2' }]);
+        expect(await host.scopes(connection.id)).toEqual([
+            { id: 'w1', name: 'Workspace 1' },
+            { id: 'w2', name: 'Workspace 2' }
+        ]);
 
-        const collections = await host.request(connection.id, 'work', 'collections/list', {}) as { name: string }[];
+        const collections = (await host.request(connection.id, 'work', 'collections/list', {})) as { name: string }[];
         expect(collections[0].name).toBe('Inbox in all for /repos/api,/repos/web');
-        const result = await host.request(connection.id, 'work', 'tasks/list', { collection: 'inbox', filter: 'all' }) as { tasks: { title: string }[] };
+        const result = (await host.request(connection.id, 'work', 'tasks/list', { collection: 'inbox', filter: 'all' })) as { tasks: { title: string }[] };
         expect(result.tasks[0].title).toBe('Task in inbox with abc and all');
         await expect(host.request(connection.id, 'work', 'tasks/get', { id: '9' })).rejects.toThrow('Task 9 is not here.');
 
         // A new global scope restarts the plugin with the scope.
         await host.updateConnection(connection.id, { scope: ['w2'] });
-        expect((await host.request(connection.id, 'work', 'collections/list', {}) as { name: string }[])[0].name).toBe('Inbox in w2 for /repos/api,/repos/web');
+        expect(((await host.request(connection.id, 'work', 'collections/list', {})) as { name: string }[])[0].name).toBe(
+            'Inbox in w2 for /repos/api,/repos/web'
+        );
     });
 
     it('lists only the connections that are on, and removes a connection with its settings', async () => {
@@ -142,7 +161,7 @@ describe('TaskHost', () => {
 
         // Each project gets its own process with its own repositories, and the connection's scope.
         await host.updateConnection(b.id, { enabled: true, scope: ['w1'] });
-        expect((await host.request(b.id, 'side', 'collections/list', {}) as { name: string }[])[0].name).toBe('Inbox in w1 for /repos/side');
+        expect(((await host.request(b.id, 'side', 'collections/list', {})) as { name: string }[])[0].name).toBe('Inbox in w1 for /repos/side');
 
         await host.removeConnection(b.id);
         expect(settings.data[b.id]).toBeUndefined();
@@ -154,7 +173,10 @@ describe('TaskHost', () => {
         for (const id of ['clickup', 'github-issues']) {
             const folder = path.join(dir, 'plugins', id);
             await fs.mkdir(folder, { recursive: true });
-            await fs.writeFile(path.join(folder, 'shipwarden-plugin.json'), JSON.stringify({ id, name: id, version: '1.0.0', protocolVersion: 3, command: 'node' }));
+            await fs.writeFile(
+                path.join(folder, 'shipwarden-plugin.json'),
+                JSON.stringify({ id, name: id, version: '1.0.0', protocolVersion: 3, command: 'node' })
+            );
         }
         settings.data.clickup = { apiToken: 'pk_1', teamId: '9013' };
         await fs.writeFile(path.join(dir, 'task-sources.json'), JSON.stringify({ '/repos/side': 'clickup' }));

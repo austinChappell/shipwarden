@@ -87,29 +87,35 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     const childrenRef = useRef(children);
     childrenRef.current = children;
 
-    const loadDirectory = useCallback(async (directory: string) => {
-        try {
-            const entries = await api.listDirectory(root, directory);
-            setChildren(map => new Map(map).set(directory, entries));
-        } catch (err) {
-            // A folder that was deleted cannot load. Remove it from the cache.
-            setChildren(map => {
-                const next = new Map(map);
-                next.delete(directory);
-                return next;
-            });
-            if (directory === '') {
-                setError(errorText(err));
+    const loadDirectory = useCallback(
+        async (directory: string) => {
+            try {
+                const entries = await api.listDirectory(root, directory);
+                setChildren(map => new Map(map).set(directory, entries));
+            } catch (err) {
+                // A folder that was deleted cannot load. Remove it from the cache.
+                setChildren(map => {
+                    const next = new Map(map);
+                    next.delete(directory);
+                    return next;
+                });
+                if (directory === '') {
+                    setError(errorText(err));
+                }
             }
-        }
-    }, [root]);
+        },
+        [root]
+    );
 
-    const reloadLoaded = useCallback((directories?: string[]) => {
-        const loaded = [...childrenRef.current.keys()];
-        for (const directory of directories ? loaded.filter(dir => directories.includes(dir)) : loaded) {
-            loadDirectory(directory);
-        }
-    }, [loadDirectory]);
+    const reloadLoaded = useCallback(
+        (directories?: string[]) => {
+            const loaded = [...childrenRef.current.keys()];
+            for (const directory of directories ? loaded.filter(dir => directories.includes(dir)) : loaded) {
+                loadDirectory(directory);
+            }
+        },
+        [loadDirectory]
+    );
 
     // Load the root and watch the worktree for changes.
     useEffect(() => {
@@ -147,10 +153,12 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
         let cancelled = false;
         setSearching(true);
         const timer = setTimeout(() => {
-            api.searchContents(root, query, caseSensitive).then(
-                result => !cancelled && setContentResults({ query, caseSensitive, ...result }),
-                err => !cancelled && setError(errorText(err))
-            ).finally(() => !cancelled && setSearching(false));
+            api.searchContents(root, query, caseSensitive)
+                .then(
+                    result => !cancelled && setContentResults({ query, caseSensitive, ...result }),
+                    err => !cancelled && setError(errorText(err))
+                )
+                .finally(() => !cancelled && setSearching(false));
         }, 250);
         return () => {
             cancelled = true;
@@ -200,6 +208,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     }, [children, expanded]);
 
     // Scroll to the cursor row when the cursor moves. The row can show later, after its folder loads.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A change of treeRows can show the cursor row. Then the effect scrolls to it.
     useEffect(() => {
         if (cursor === scrolledTo.current) {
             return;
@@ -282,15 +291,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     };
 
     const renderTree = () => (
-        <div
-            ref={treeRef}
-            className="explorer-tree"
-            role="tree"
-            aria-label="Files"
-            tabIndex={0}
-            onFocus={onTreeFocus}
-            onKeyDown={onTreeKey}
-        >
+        <div ref={treeRef} className="explorer-tree" role="tree" aria-label="Files" tabIndex={0} onFocus={onTreeFocus} onKeyDown={onTreeKey}>
             {treeRows.map(({ entry, depth, open }) => {
                 const Icon = entry.isDirectory ? folderIcon(open) : fileIcon(entry.name);
                 return (
@@ -331,20 +332,27 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
         }
         return [...groups.entries()];
     }, [contentResults]);
-    const results: { path: string; line?: number }[] = useMemo(() => (mode === 'names'
-        ? nameMatches.map(({ path }) => ({ path }))
-        : contentGroups.flatMap(([path, matches]) => matches.map(match => ({ path, line: match.line })))), [mode, nameMatches, contentGroups]);
+    const results: { path: string; line?: number }[] = useMemo(
+        () =>
+            mode === 'names'
+                ? nameMatches.map(({ path }) => ({ path }))
+                : contentGroups.flatMap(([path, matches]) => matches.map(match => ({ path, line: match.line }))),
+        [mode, nameMatches, contentGroups]
+    );
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: New results select the first result again.
     useEffect(() => setActive(0), [results]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The selected row changes when active changes. Then the effect scrolls to it.
     useEffect(() => {
         bodyRef.current?.querySelector('.search-result.selected')?.scrollIntoView({ block: 'nearest' });
     }, [active]);
 
     const flipMode = () => setMode(current => (current === 'names' ? 'contents' : 'names'));
-    const toggleCase = () => setCaseSensitive(current => {
-        saveCaseSensitive(!current);
-        return !current;
-    });
+    const toggleCase = () =>
+        setCaseSensitive(current => {
+            saveCaseSensitive(!current);
+            return !current;
+        });
     const onSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Tab' && event.altKey) {
             // ⌥Tab changes between names and contents. The query stays.
@@ -370,7 +378,10 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     };
 
     const summary = (count: number, more = false) => (
-        <div className="search-summary">{mode === 'names' ? 'Files' : 'Contents'} · {count}{more ? '+' : ''} {count === 1 ? 'match' : 'matches'}</div>
+        <div className="search-summary">
+            {mode === 'names' ? 'Files' : 'Contents'} · {count}
+            {more ? '+' : ''} {count === 1 ? 'match' : 'matches'}
+        </div>
     );
 
     const renderNameMatches = () => {
@@ -432,7 +443,13 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                                     onClick={() => onOpenFile(path, match.line)}
                                 >
                                     <span className="search-line-number">{match.line}</span>
-                                    <span className="search-text" title={match.text.trim()}>{highlight(matchLine(match.text, contentResults.query, contentResults.caseSensitive), contentResults.query, contentResults.caseSensitive)}</span>
+                                    <span className="search-text" title={match.text.trim()}>
+                                        {highlight(
+                                            matchLine(match.text, contentResults.query, contentResults.caseSensitive),
+                                            contentResults.query,
+                                            contentResults.caseSensitive
+                                        )}
+                                    </span>
                                 </div>
                             );
                         })}
@@ -446,11 +463,20 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     return (
         <div className="panel-body">
             <div className="explorer-header">
-                <span className="explorer-title" title={root}>{title ?? baseName(root)}</span>
+                <span className="explorer-title" title={root}>
+                    {title ?? baseName(root)}
+                </span>
                 <button className="icon-button" title="Collapse all folders" onClick={() => setExpanded(new Set())}>
                     <ListCollapse size={ICON_SIZE} strokeWidth={ICON_STROKE} />
                 </button>
-                <button className="icon-button" title="Refresh" onClick={() => { reloadLoaded(); setAllFiles(undefined); }}>
+                <button
+                    className="icon-button"
+                    title="Refresh"
+                    onClick={() => {
+                        reloadLoaded();
+                        setAllFiles(undefined);
+                    }}
+                >
                     <RefreshCw size={ICON_SIZE - 1} strokeWidth={ICON_STROKE} />
                 </button>
             </div>
@@ -501,7 +527,11 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
             </div>
 
             <div className="explorer-body" ref={bodyRef}>
-                {error && <ErrorBanner className="explorer-message error" onClose={() => setError(undefined)}>{error}</ErrorBanner>}
+                {error && (
+                    <ErrorBanner className="explorer-message error" onClose={() => setError(undefined)}>
+                        {error}
+                    </ErrorBanner>
+                )}
                 {!query && renderTree()}
                 {query && mode === 'names' && renderNameMatches()}
                 {mode === 'contents' && query && renderContentMatches()}

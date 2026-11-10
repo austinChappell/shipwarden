@@ -48,6 +48,7 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
     const rules = settings.dashboardHiddenRules ?? [];
     const dashboard = useDashboard();
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The form fills only for a new nonce. Other prefill changes must not overwrite the user's edits.
     useEffect(() => {
         if (prefill && prefill.nonce !== appliedPrefill) {
             appliedPrefill = prefill.nonce;
@@ -67,9 +68,11 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
     };
 
     const regexError = match === 'regex' && text.trim() ? ruleRegex(text) : undefined;
-    const draft: HiddenCommentRule | undefined = text.trim() && typeof regexError !== 'string'
-        ? { id: 'draft', author: author.trim() || undefined, match, text }
-        : undefined;
+    const regexValid = typeof regexError !== 'string';
+    const draft = useMemo<HiddenCommentRule | undefined>(
+        () => (text.trim() && regexValid ? { id: 'draft', author: author.trim() || undefined, match, text } : undefined),
+        [author, match, text, regexValid]
+    );
 
     /** The comments on the Dashboard now that the draft rule hides, so the user can check the rule before adding it. */
     const matches = useMemo(() => {
@@ -79,7 +82,7 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
             ...dashboard.tasks.flatMap(source => (source.comments ?? []).map(item => ({ author: item.author, text: item.body })))
         ];
         return comments.filter(comment => matchesRule(draft, comment.author, comment.text));
-    }, [dashboard, draft?.author, draft?.match, draft?.text]);
+    }, [dashboard, draft]);
 
     const addRule = async () => {
         if (!draft) return;
@@ -106,12 +109,13 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
         <>
             <SettingsGroup
                 title="What the Dashboard shows"
-                description={(
+                description={
                     <>
-                        Pull requests that wait for your review, your pull requests that need an action, and new comments from the last {DASHBOARD_WINDOW_DAYS} days
-                        on your pull requests and tasks. A comment stays new until you open it in ShipWarden. ShipWarden keeps this record on this computer only.
+                        Pull requests that wait for your review, your pull requests that need an action, and new comments from the last {DASHBOARD_WINDOW_DAYS}{' '}
+                        days on your pull requests and tasks. A comment stays new until you open it in ShipWarden. ShipWarden keeps this record on this computer
+                        only.
                     </>
-                )}
+                }
             >
                 {null}
             </SettingsGroup>
@@ -125,25 +129,39 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                 {rules.map(rule => (
                     <SettingsRow
                         key={rule.id}
-                        label={(
+                        label={
                             <span className="rule-summary">
                                 <span className="rule-author">{rule.author ?? 'Any author'}</span>
                                 <span className="rule-match">{MATCH_LABELS[rule.match].toLowerCase()}</span>
                                 <code>{rule.text}</code>
                             </span>
-                        )}
-                        control={(
-                            <button className="icon-button" title="Remove the rule" onClick={() => save({ dashboardHiddenRules: rules.filter(other => other.id !== rule.id) })}>
+                        }
+                        control={
+                            <button
+                                className="icon-button"
+                                title="Remove the rule"
+                                onClick={() => save({ dashboardHiddenRules: rules.filter(other => other.id !== rule.id) })}
+                            >
                                 <X size={14} strokeWidth={1.8} />
                             </button>
-                        )}
+                        }
                     />
                 ))}
                 <SettingsRow label="New rule" description="Tip: the filter button on a Dashboard comment fills in this form from that comment.">
                     <div className="rule-form">
-                        <input className="settings-input" value={author} placeholder="Author (optional)" spellCheck={false} onChange={event => setAuthor(event.target.value)} />
+                        <input
+                            className="settings-input"
+                            value={author}
+                            placeholder="Author (optional)"
+                            spellCheck={false}
+                            onChange={event => setAuthor(event.target.value)}
+                        />
                         <select className="settings-input" value={match} onChange={event => setMatch(event.target.value as HiddenCommentMatch)}>
-                            {Object.entries(MATCH_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                            {Object.entries(MATCH_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>
+                                    {label}
+                                </option>
+                            ))}
                         </select>
                         <input
                             className={`settings-input rule-text${match === 'regex' ? ' mono' : ''}`}
@@ -153,7 +171,9 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                             onChange={event => setText(event.target.value)}
                             onKeyDown={event => event.key === 'Enter' && void addRule()}
                         />
-                        <button className="button primary" disabled={!draft} onClick={() => void addRule()}>Add rule</button>
+                        <button className="button primary" disabled={!draft} onClick={() => void addRule()}>
+                            Add rule
+                        </button>
                     </div>
                     {error && <div className="form-error">{error}</div>}
                     {typeof regexError === 'string' && <div className="form-error">The regular expression is not valid: {regexError}</div>}
@@ -163,7 +183,9 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                                 ? 'The rule hides no comment on the Dashboard now.'
                                 : `The rule hides ${matches.length} comment${matches.length === 1 ? '' : 's'} on the Dashboard now, for example:`}
                             {matches.slice(0, 3).map((comment, index) => (
-                                <div key={index} className="rule-example"><strong>{comment.author ?? 'unknown'}</strong> {firstLine(comment.text)}</div>
+                                <div key={index} className="rule-example">
+                                    <strong>{comment.author ?? 'unknown'}</strong> {firstLine(comment.text)}
+                                </div>
                             ))}
                         </div>
                     )}
@@ -180,15 +202,19 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                     <SettingsRow
                         key={item}
                         label={item}
-                        control={(
-                            <button className="icon-button" title={`Show comments from ${item} again`} onClick={() => save({ dashboardHiddenAuthors: hidden.filter(other => other !== item) })}>
+                        control={
+                            <button
+                                className="icon-button"
+                                title={`Show comments from ${item} again`}
+                                onClick={() => save({ dashboardHiddenAuthors: hidden.filter(other => other !== item) })}
+                            >
                                 <X size={14} strokeWidth={1.8} />
                             </button>
-                        )}
+                        }
                     />
                 ))}
                 <SettingsRow
-                    label={(
+                    label={
                         <input
                             className="settings-input"
                             value={name}
@@ -196,8 +222,12 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                             onChange={event => setName(event.target.value)}
                             onKeyDown={event => event.key === 'Enter' && addAuthor()}
                         />
-                    )}
-                    control={<button className="button" disabled={!name.trim()} onClick={addAuthor}>Hide</button>}
+                    }
+                    control={
+                        <button className="button" disabled={!name.trim()} onClick={addAuthor}>
+                            Hide
+                        </button>
+                    }
                 />
             </SettingsGroup>
         </>

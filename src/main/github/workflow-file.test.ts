@@ -52,7 +52,9 @@ describe('dispatchInputs', () => {
     ];
 
     it('uses the form values, else the defaults', () => {
-        expect(dispatchInputs(inputs, { ticket: 'ENG-1', dry_run: 'false' })).toEqual({ inputs: { environment: 'staging', dry_run: 'false', ticket: 'ENG-1' } });
+        expect(dispatchInputs(inputs, { ticket: 'ENG-1', dry_run: 'false' })).toEqual({
+            inputs: { environment: 'staging', dry_run: 'false', ticket: 'ENG-1' }
+        });
     });
 
     it('refuses an empty required input', () => {

@@ -52,15 +52,16 @@ function scutil(key: string): Promise<string | undefined> {
 
 let computerName = hostname().replace(/\.local$/, '');
 let localHostName: string | undefined;
-void scutil('ComputerName').then(name => { if (name) computerName = name; });
-void scutil('LocalHostName').then(name => { localHostName = name; });
+void scutil('ComputerName').then(name => {
+    if (name) computerName = name;
+});
+void scutil('LocalHostName').then(name => {
+    localHostName = name;
+});
 
 const terminals = new PtyHostClient({
     socketPath: buildSocketPath(ptyHostSocketFolder(userData), hostBuildId(ptyHostScript)),
-    olderSocketPaths: [
-        ptyHostSocketPath(userData),
-        ...LEGACY_NAMES.map(name => ptyHostSocketPath(join(dirname(userData), name)))
-    ],
+    olderSocketPaths: [ptyHostSocketPath(userData), ...LEGACY_NAMES.map(name => ptyHostSocketPath(join(dirname(userData), name)))],
     hostScript: ptyHostScript,
     logPath: join(userData, 'pty-host.log'),
     events: {
@@ -77,7 +78,7 @@ const processes = new ProcessService({ sessions: () => terminals.list(), hostPid
 
 /** Finds the agents in shell tabs, as the app does. The helper has its own scan, because the app can be closed. */
 const shellAgents = new ShellAgents({
-    sessions: () => terminals.isConnected() ? terminals.list() : Promise.resolve([]),
+    sessions: () => (terminals.isConnected() ? terminals.list() : Promise.resolve([])),
     hostPids: () => terminals.hostPids(),
     processTable: () => processes.table(),
     onState: () => remote.agentsChanged(),
@@ -113,12 +114,13 @@ const remote: RemoteServer = new RemoteServer({
         macName: () => computerName,
         version,
         // While the app is open, it makes the snapshot with the pull requests.
-        snapshot: () => control.hasApp()
-            ? control.appSnapshot().catch(error => {
-                log(`The app did not send the snapshot: ${error instanceof Error ? error.message : String(error)}`);
-                return ownSnapshot.build();
-            })
-            : ownSnapshot.build(),
+        snapshot: () =>
+            control.hasApp()
+                ? control.appSnapshot().catch(error => {
+                      log(`The app did not send the snapshot: ${error instanceof Error ? error.message : String(error)}`);
+                      return ownSnapshot.build();
+                  })
+                : ownSnapshot.build(),
         sessions: async () => (await sessions()).map(session => ({ ...session, ...terminalSizes.get(session.id) })),
         replay: id => terminals.replay(id),
         write: (id, data) => terminals.write(id, data),

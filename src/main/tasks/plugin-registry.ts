@@ -56,7 +56,8 @@ export async function discoverPlugins(folders: { path: string; builtIn: boolean 
             const pluginFolder = path.join(folder.path, name);
             let manifest: unknown;
             try {
-                const text = await fs.readFile(path.join(pluginFolder, MANIFEST_FILE), 'utf8')
+                const text = await fs
+                    .readFile(path.join(pluginFolder, MANIFEST_FILE), 'utf8')
                     .catch(() => fs.readFile(path.join(pluginFolder, LEGACY_MANIFEST_FILE), 'utf8'));
                 manifest = JSON.parse(text);
             } catch {

@@ -47,6 +47,7 @@ export function useBranchStatus(root: string | undefined, active: boolean): Bran
         }
     }, []);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect clears the old status when the worktree changes.
     useEffect(() => {
         setStatus(undefined);
         setError(undefined);

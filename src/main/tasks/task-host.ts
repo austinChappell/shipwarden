@@ -117,7 +117,12 @@ export class TaskHost {
     /** Adds a connection of a plugin. It is on and includes all scopes. */
     async addConnection(pluginId: string, name: string): Promise<ConnectionInfo> {
         const plugin = await this.find(pluginId);
-        const connection: TaskConnection = { id: `${pluginId}-${randomUUID().slice(0, 8)}`, pluginId, name: name.trim() || plugin.manifest.name, enabled: true };
+        const connection: TaskConnection = {
+            id: `${pluginId}-${randomUUID().slice(0, 8)}`,
+            pluginId,
+            name: name.trim() || plugin.manifest.name,
+            enabled: true
+        };
         await this.updateConfig(config => ({ ...config, connections: [...config.connections, connection] }));
         return this.info(connection);
     }
@@ -272,7 +277,9 @@ export class TaskHost {
         const plugin = (await this.discover()).find(item => item.manifest.id === connection.pluginId);
         const definitions = plugin?.manifest.settings ?? [];
         const values = await this.options.settings.values(connection.id);
-        const withValue = definitions.filter(definition => values[definition.key] !== undefined && values[definition.key] !== '').map(definition => definition.key);
+        const withValue = definitions
+            .filter(definition => values[definition.key] !== undefined && values[definition.key] !== '')
+            .map(definition => definition.key);
         const publicSettings: Record<string, string | boolean> = {};
         for (const definition of definitions) {
             if (definition.type !== 'secret' && values[definition.key] !== undefined) {
@@ -298,7 +305,8 @@ export class TaskHost {
     }
 
     private async find(pluginId: string): Promise<DiscoveredPlugin> {
-        const plugin = (await this.discover()).find(item => item.manifest.id === pluginId) ?? (await this.discover(true)).find(item => item.manifest.id === pluginId);
+        const plugin =
+            (await this.discover()).find(item => item.manifest.id === pluginId) ?? (await this.discover(true)).find(item => item.manifest.id === pluginId);
         if (!plugin) {
             throw new Error(`The task plugin "${pluginId}" is not installed.`);
         }
@@ -331,7 +339,7 @@ export class TaskHost {
         const { manifest } = plugin;
         // "node" means ShipWarden's own Node runtime, so the user does not need Node.
         const useOwnNode = manifest.command === 'node';
-        const extraEnv = await this.options.pluginEnv?.() ?? {};
+        const extraEnv = (await this.options.pluginEnv?.()) ?? {};
         const child = spawn(useOwnNode ? process.execPath : manifest.command, manifest.args ?? [], {
             cwd: plugin.folder,
             env: { ...process.env, ...extraEnv, ...(useOwnNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}) },
@@ -350,10 +358,12 @@ export class TaskHost {
 
         try {
             const roots = projectId === NO_PROJECT ? [] : await this.options.projectRepos(projectId);
-            const repositories = await Promise.all(roots.map(async root => {
-                const github = await this.options.repoFor(root);
-                return { root, ...(github ? { github } : {}) };
-            }));
+            const repositories = await Promise.all(
+                roots.map(async root => {
+                    const github = await this.options.repoFor(root);
+                    return { root, ...(github ? { github } : {}) };
+                })
+            );
             const initialize = messages.sendRequest<{
                 name?: string;
                 capabilities?: TaskSource['capabilities'];
@@ -367,7 +377,11 @@ export class TaskHost {
                 context: { repositories }
             });
             const timeout = new Promise<never>((_resolve, reject) =>
-                setTimeout(() => reject(new Error(`The plugin "${manifest.name}" did not answer in ${INITIALIZE_TIMEOUT_MS / 1000} seconds.`)), INITIALIZE_TIMEOUT_MS));
+                setTimeout(
+                    () => reject(new Error(`The plugin "${manifest.name}" did not answer in ${INITIALIZE_TIMEOUT_MS / 1000} seconds.`)),
+                    INITIALIZE_TIMEOUT_MS
+                )
+            );
             const result = await Promise.race([initialize, exited, timeout]);
             const key = `${connectionId}\0${projectId}`;
             const running: RunningPlugin = {

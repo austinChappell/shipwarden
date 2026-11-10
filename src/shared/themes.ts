@@ -32,72 +32,216 @@ export const THEMES: readonly Theme[] = [
         id: 'beacon',
         name: 'Beacon',
         dark: {
-            bg: '#0b0e14', panel: '#0d1017', raised: '#131721', hover: '#161b25', selected: '#1a2130', border: '#1c212b',
-            text: '#bfbdb6', textStrong: '#e6e1cf', muted: '#6c7380', accent: '#e6b450', ok: '#7fd962', danger: '#f07178', info: '#59c2ff', purple: '#d2a6ff'
+            bg: '#0b0e14',
+            panel: '#0d1017',
+            raised: '#131721',
+            hover: '#161b25',
+            selected: '#1a2130',
+            border: '#1c212b',
+            text: '#bfbdb6',
+            textStrong: '#e6e1cf',
+            muted: '#6c7380',
+            accent: '#e6b450',
+            ok: '#7fd962',
+            danger: '#f07178',
+            info: '#59c2ff',
+            purple: '#d2a6ff'
         },
         light: {
-            bg: '#fbf8f1', panel: '#f4efe4', raised: '#fffdf8', hover: '#ece5d6', selected: '#e6dcc6', border: '#e0d7c3',
-            text: '#4a4237', textStrong: '#2a241b', muted: '#857a69', accent: '#b0731a', ok: '#4f8a2f', danger: '#c4453c', info: '#2f7bbf', purple: '#8a5cc4'
+            bg: '#fbf8f1',
+            panel: '#f4efe4',
+            raised: '#fffdf8',
+            hover: '#ece5d6',
+            selected: '#e6dcc6',
+            border: '#e0d7c3',
+            text: '#4a4237',
+            textStrong: '#2a241b',
+            muted: '#857a69',
+            accent: '#b0731a',
+            ok: '#4f8a2f',
+            danger: '#c4453c',
+            info: '#2f7bbf',
+            purple: '#8a5cc4'
         }
     },
     {
         id: 'starboard',
         name: 'Starboard',
         dark: {
-            bg: '#0c1210', panel: '#0e1513', raised: '#131c19', hover: '#17221e', selected: '#1b2a24', border: '#1e2a25',
-            text: '#bccbc3', textStrong: '#e4efe9', muted: '#6b7d75', accent: '#5fc28a', ok: '#8bd46a', danger: '#f0767a', info: '#5bb8d8', purple: '#b79cf0'
+            bg: '#0c1210',
+            panel: '#0e1513',
+            raised: '#131c19',
+            hover: '#17221e',
+            selected: '#1b2a24',
+            border: '#1e2a25',
+            text: '#bccbc3',
+            textStrong: '#e4efe9',
+            muted: '#6b7d75',
+            accent: '#5fc28a',
+            ok: '#8bd46a',
+            danger: '#f0767a',
+            info: '#5bb8d8',
+            purple: '#b79cf0'
         },
         light: {
-            bg: '#f5f9f6', panel: '#ebf3ee', raised: '#fbfdfc', hover: '#e0ebe4', selected: '#d3e6da', border: '#d5e3da',
-            text: '#34463d', textStrong: '#1c2a23', muted: '#6d8076', accent: '#2a8655', ok: '#3f8a2a', danger: '#c4453c', info: '#2a7fa8', purple: '#7a55b8'
+            bg: '#f5f9f6',
+            panel: '#ebf3ee',
+            raised: '#fbfdfc',
+            hover: '#e0ebe4',
+            selected: '#d3e6da',
+            border: '#d5e3da',
+            text: '#34463d',
+            textStrong: '#1c2a23',
+            muted: '#6d8076',
+            accent: '#2a8655',
+            ok: '#3f8a2a',
+            danger: '#c4453c',
+            info: '#2a7fa8',
+            purple: '#7a55b8'
         }
     },
     {
         id: 'harbor',
         name: 'Harbor',
         dark: {
-            bg: '#0b0f17', panel: '#0d121b', raised: '#121927', hover: '#161e2d', selected: '#1a2438', border: '#1d2638',
-            text: '#bcc6d8', textStrong: '#e3e9f5', muted: '#6a768c', accent: '#5aa9f5', ok: '#7fd18a', danger: '#f07a86', info: '#7cc4ff', purple: '#b39cf5'
+            bg: '#0b0f17',
+            panel: '#0d121b',
+            raised: '#121927',
+            hover: '#161e2d',
+            selected: '#1a2438',
+            border: '#1d2638',
+            text: '#bcc6d8',
+            textStrong: '#e3e9f5',
+            muted: '#6a768c',
+            accent: '#5aa9f5',
+            ok: '#7fd18a',
+            danger: '#f07a86',
+            info: '#7cc4ff',
+            purple: '#b39cf5'
         },
         light: {
-            bg: '#f5f8fc', panel: '#eaf0f8', raised: '#fcfdff', hover: '#dfe8f4', selected: '#d2e0f2', border: '#d4deec',
-            text: '#35435a', textStrong: '#1b2537', muted: '#6c7a94', accent: '#2a6dc2', ok: '#3a8a3f', danger: '#c94452', info: '#1f7fbf', purple: '#6d55c0'
+            bg: '#f5f8fc',
+            panel: '#eaf0f8',
+            raised: '#fcfdff',
+            hover: '#dfe8f4',
+            selected: '#d2e0f2',
+            border: '#d4deec',
+            text: '#35435a',
+            textStrong: '#1b2537',
+            muted: '#6c7a94',
+            accent: '#2a6dc2',
+            ok: '#3a8a3f',
+            danger: '#c94452',
+            info: '#1f7fbf',
+            purple: '#6d55c0'
         }
     },
     {
         id: 'flare',
         name: 'Flare',
         dark: {
-            bg: '#120d0c', panel: '#150f0e', raised: '#1d1614', hover: '#231a18', selected: '#2c201d', border: '#2a201d',
-            text: '#d4c4bd', textStrong: '#f2e6e0', muted: '#8a7770', accent: '#e5734f', ok: '#9ccf6a', danger: '#f2667a', info: '#6cb4d9', purple: '#c9a0e8'
+            bg: '#120d0c',
+            panel: '#150f0e',
+            raised: '#1d1614',
+            hover: '#231a18',
+            selected: '#2c201d',
+            border: '#2a201d',
+            text: '#d4c4bd',
+            textStrong: '#f2e6e0',
+            muted: '#8a7770',
+            accent: '#e5734f',
+            ok: '#9ccf6a',
+            danger: '#f2667a',
+            info: '#6cb4d9',
+            purple: '#c9a0e8'
         },
         light: {
-            bg: '#fcf7f5', panel: '#f6ece8', raised: '#fffcfb', hover: '#efe1db', selected: '#ead3ca', border: '#e8d9d2',
-            text: '#4d3a33', textStrong: '#2b1c16', muted: '#8c746b', accent: '#bb4e2b', ok: '#4a8a2e', danger: '#c23b4f', info: '#2c7aa8', purple: '#8d56b0'
+            bg: '#fcf7f5',
+            panel: '#f6ece8',
+            raised: '#fffcfb',
+            hover: '#efe1db',
+            selected: '#ead3ca',
+            border: '#e8d9d2',
+            text: '#4d3a33',
+            textStrong: '#2b1c16',
+            muted: '#8c746b',
+            accent: '#bb4e2b',
+            ok: '#4a8a2e',
+            danger: '#c23b4f',
+            info: '#2c7aa8',
+            purple: '#8d56b0'
         }
     },
     {
         id: 'anchor',
         name: 'Anchor',
         dark: {
-            bg: '#0e0f11', panel: '#111214', raised: '#17191c', hover: '#1c1e22', selected: '#23262b', border: '#24272c',
-            text: '#c4c7cc', textStrong: '#eceef1', muted: '#747a83', accent: '#9fb4c8', ok: '#86c97a', danger: '#ec7a7a', info: '#7fb3e0', purple: '#b5a2e3'
+            bg: '#0e0f11',
+            panel: '#111214',
+            raised: '#17191c',
+            hover: '#1c1e22',
+            selected: '#23262b',
+            border: '#24272c',
+            text: '#c4c7cc',
+            textStrong: '#eceef1',
+            muted: '#747a83',
+            accent: '#9fb4c8',
+            ok: '#86c97a',
+            danger: '#ec7a7a',
+            info: '#7fb3e0',
+            purple: '#b5a2e3'
         },
         light: {
-            bg: '#f7f7f8', panel: '#eeeff1', raised: '#ffffff', hover: '#e5e7ea', selected: '#dcdfe4', border: '#dfe1e5',
-            text: '#3c4047', textStrong: '#1d2025', muted: '#757b84', accent: '#46658a', ok: '#3f8a3a', danger: '#c4424a', info: '#2b74b5', purple: '#6f58b5'
+            bg: '#f7f7f8',
+            panel: '#eeeff1',
+            raised: '#ffffff',
+            hover: '#e5e7ea',
+            selected: '#dcdfe4',
+            border: '#dfe1e5',
+            text: '#3c4047',
+            textStrong: '#1d2025',
+            muted: '#757b84',
+            accent: '#46658a',
+            ok: '#3f8a3a',
+            danger: '#c4424a',
+            info: '#2b74b5',
+            purple: '#6f58b5'
         }
     },
     {
         id: 'nightwatch',
         name: 'Nightwatch',
         dark: {
-            bg: '#110d16', panel: '#140f1a', raised: '#1b1523', hover: '#211a2b', selected: '#2a2036', border: '#281f33',
-            text: '#cfc3dc', textStrong: '#f0e8f8', muted: '#857a94', accent: '#c78bf0', ok: '#8fd48a', danger: '#f27a9a', info: '#8ab4f8', purple: '#e08ad8'
+            bg: '#110d16',
+            panel: '#140f1a',
+            raised: '#1b1523',
+            hover: '#211a2b',
+            selected: '#2a2036',
+            border: '#281f33',
+            text: '#cfc3dc',
+            textStrong: '#f0e8f8',
+            muted: '#857a94',
+            accent: '#c78bf0',
+            ok: '#8fd48a',
+            danger: '#f27a9a',
+            info: '#8ab4f8',
+            purple: '#e08ad8'
         },
         light: {
-            bg: '#fbf7fd', panel: '#f3ebf7', raised: '#fffcff', hover: '#ebdff1', selected: '#e2d0ec', border: '#e4d8eb',
-            text: '#47394f', textStrong: '#261a2e', muted: '#85768f', accent: '#9248c9', ok: '#44873a', danger: '#c33f6a', info: '#3b6fc4', purple: '#b04aa6'
+            bg: '#fbf7fd',
+            panel: '#f3ebf7',
+            raised: '#fffcff',
+            hover: '#ebdff1',
+            selected: '#e2d0ec',
+            border: '#e4d8eb',
+            text: '#47394f',
+            textStrong: '#261a2e',
+            muted: '#85768f',
+            accent: '#9248c9',
+            ok: '#44873a',
+            danger: '#c33f6a',
+            info: '#3b6fc4',
+            purple: '#b04aa6'
         }
     }
 ];
@@ -136,8 +280,9 @@ export function themeById(id: string): Theme {
 
 /** Converts stored values to a valid appearance. An unknown theme or scheme gets its default. */
 export function normalizeAppearance(value: unknown): Appearance {
-    const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
-    const known = (id: unknown, fallback: string) => typeof id === 'string' && THEMES.some(theme => theme.id === currentThemeId(id)) ? currentThemeId(id) : fallback;
+    const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+    const known = (id: unknown, fallback: string) =>
+        typeof id === 'string' && THEMES.some(theme => theme.id === currentThemeId(id)) ? currentThemeId(id) : fallback;
     return {
         scheme: raw.scheme === 'system' || raw.scheme === 'light' || raw.scheme === 'dark' ? raw.scheme : DEFAULT_APPEARANCE.scheme,
         lightTheme: known(raw.lightTheme, DEFAULT_APPEARANCE.lightTheme),
@@ -177,13 +322,62 @@ export function swatchGradient(palette: Palette, mode: Mode): string {
 
 /** ANSI colors for a terminal that matches the theme. The 16 colors depend only on the mode. */
 export function terminalTheme(palette: Palette, mode: Mode): Record<string, string> {
-    const ansi = mode === 'dark'
-        ? ['#1b1f27', '#f07178', '#aad94c', '#e6b450', '#59c2ff', '#d2a6ff', '#95e6cb', '#c7c7c7',
-            '#686868', '#f07178', '#aad94c', '#ffb454', '#73b8ff', '#d2a6ff', '#95e6cb', '#ffffff']
-        : ['#3b3f45', '#c4453c', '#4f8a2f', '#a96a12', '#2f6fb0', '#8a4fc0', '#2a8a80', '#a0a4ab',
-            '#6c7179', '#d4554a', '#5a9a38', '#b8791f', '#3b7ec4', '#9a5cd0', '#339a8f', '#cfd2d7'];
-    const names = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white',
-        'brightBlack', 'brightRed', 'brightGreen', 'brightYellow', 'brightBlue', 'brightMagenta', 'brightCyan', 'brightWhite'];
+    const ansi =
+        mode === 'dark'
+            ? [
+                  '#1b1f27',
+                  '#f07178',
+                  '#aad94c',
+                  '#e6b450',
+                  '#59c2ff',
+                  '#d2a6ff',
+                  '#95e6cb',
+                  '#c7c7c7',
+                  '#686868',
+                  '#f07178',
+                  '#aad94c',
+                  '#ffb454',
+                  '#73b8ff',
+                  '#d2a6ff',
+                  '#95e6cb',
+                  '#ffffff'
+              ]
+            : [
+                  '#3b3f45',
+                  '#c4453c',
+                  '#4f8a2f',
+                  '#a96a12',
+                  '#2f6fb0',
+                  '#8a4fc0',
+                  '#2a8a80',
+                  '#a0a4ab',
+                  '#6c7179',
+                  '#d4554a',
+                  '#5a9a38',
+                  '#b8791f',
+                  '#3b7ec4',
+                  '#9a5cd0',
+                  '#339a8f',
+                  '#cfd2d7'
+              ];
+    const names = [
+        'black',
+        'red',
+        'green',
+        'yellow',
+        'blue',
+        'magenta',
+        'cyan',
+        'white',
+        'brightBlack',
+        'brightRed',
+        'brightGreen',
+        'brightYellow',
+        'brightBlue',
+        'brightMagenta',
+        'brightCyan',
+        'brightWhite'
+    ];
     return {
         ...Object.fromEntries(names.map((name, index) => [name, ansi[index]])),
         background: palette.bg,

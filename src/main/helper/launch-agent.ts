@@ -32,7 +32,9 @@ const str = (value: string) => `<string>${escapeXml(value)}</string>`;
 export function helperPlist(options: HelperPlistOptions): string {
     const env: Record<string, string> = { ELECTRON_RUN_AS_NODE: '1' };
     if (options.shell) env.SHELL = options.shell;
-    const envLines = Object.entries(env).map(([key, value]) => `        <key>${escapeXml(key)}</key>\n        ${str(value)}`).join('\n');
+    const envLines = Object.entries(env)
+        .map(([key, value]) => `        <key>${escapeXml(key)}</key>\n        ${str(value)}`)
+        .join('\n');
     const args = [options.execPath, options.helperScript, options.userData, options.version].map(arg => `        ${str(arg)}`).join('\n');
     return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -79,14 +81,15 @@ export interface LaunchctlResult {
 
 export type RunLaunchctl = (args: string[]) => Promise<LaunchctlResult>;
 
-const runLaunchctl: RunLaunchctl = args => new Promise(resolve => {
-    execFile('/bin/launchctl', args, { timeout: 15_000 }, (error, stdout, stderr) => {
-        // For a program that ran, `code` is its exit code. Else it is a string, for example "ENOENT".
-        const exit = (error as { code?: unknown } | null)?.code;
-        const code = !error ? 0 : typeof exit === 'number' ? exit : 1;
-        resolve({ code, output: `${stdout}${stderr}`.trim() });
+const runLaunchctl: RunLaunchctl = args =>
+    new Promise(resolve => {
+        execFile('/bin/launchctl', args, { timeout: 15_000 }, (error, stdout, stderr) => {
+            // For a program that ran, `code` is its exit code. Else it is a string, for example "ENOENT".
+            const exit = (error as { code?: unknown } | null)?.code;
+            const code = !error ? 0 : typeof exit === 'number' ? exit : 1;
+            resolve({ code, output: `${stdout}${stderr}`.trim() });
+        });
     });
-});
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

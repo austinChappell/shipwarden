@@ -125,10 +125,7 @@ export function threadSuggestionTarget(thread: ReviewThread): SuggestionTarget |
  * - "already": the file already has the new lines. Nothing changes.
  * - "stale": the old lines are not in the file. They changed after the comment.
  */
-export type ApplyResult =
-    | { kind: 'applied'; text: string; startLine: number; line: number }
-    | { kind: 'already' }
-    | { kind: 'stale' };
+export type ApplyResult = { kind: 'applied'; text: string; startLine: number; line: number } | { kind: 'already' } | { kind: 'stale' };
 
 /**
  * Replaces the old lines of a suggestion with the new lines in the text of a file.

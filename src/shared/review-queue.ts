@@ -204,11 +204,14 @@ export const PULL_REQUEST_SORTS: { id: PullRequestSort; label: string }[] = [
 ];
 
 /** Returns a sorted copy of the pull requests. Equal items keep the newest number first. */
-export function sortPullRequests<T extends Pick<OpenPullRequest, 'number' | 'createdAt' | 'updatedAt' | 'additions' | 'deletions'>>(prs: T[], sort: PullRequestSort): T[] {
+export function sortPullRequests<T extends Pick<OpenPullRequest, 'number' | 'createdAt' | 'updatedAt' | 'additions' | 'deletions'>>(
+    prs: T[],
+    sort: PullRequestSort
+): T[] {
     const compare: Record<PullRequestSort, (a: T, b: T) => number> = {
         waiting: (a, b) => a.createdAt.localeCompare(b.createdAt),
         updated: (a, b) => b.updatedAt.localeCompare(a.updatedAt),
-        smallest: (a, b) => (a.additions + a.deletions) - (b.additions + b.deletions)
+        smallest: (a, b) => a.additions + a.deletions - (b.additions + b.deletions)
     };
     return [...prs].sort((a, b) => compare[sort](a, b) || b.number - a.number);
 }

@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { folderBaseName, folderMoveTargets, folderNameError, folderPathError, joinNotePath, parentFolder, noteMatches, noteNameError, normalizeTags, notePathError, splitNotePath, tagOptions, uniqueNoteName, type NoteInfo } from './notes';
+import {
+    folderBaseName,
+    folderMoveTargets,
+    folderNameError,
+    folderPathError,
+    joinNotePath,
+    parentFolder,
+    noteMatches,
+    noteNameError,
+    normalizeTags,
+    notePathError,
+    splitNotePath,
+    tagOptions,
+    uniqueNoteName,
+    type NoteInfo
+} from './notes';
 
 describe('noteNameError', () => {
     it('accepts a file name with any extension', () => {
@@ -48,11 +63,18 @@ describe('tagOptions', () => {
     const all = ['ops', 'SQL', 'work'];
 
     it('lists the tags that the note does not have, also with no search text', () => {
-        expect(tagOptions('', ['work'], all)).toEqual([{ tag: 'ops', create: false }, { tag: 'SQL', create: false }]);
+        expect(tagOptions('', ['work'], all)).toEqual([
+            { tag: 'ops', create: false },
+            { tag: 'SQL', create: false }
+        ]);
     });
 
     it('filters by the search text and offers to create a new tag', () => {
-        expect(tagOptions('#s', [], all)).toEqual([{ tag: 'ops', create: false }, { tag: 'SQL', create: false }, { tag: 's', create: true }]);
+        expect(tagOptions('#s', [], all)).toEqual([
+            { tag: 'ops', create: false },
+            { tag: 'SQL', create: false },
+            { tag: 's', create: true }
+        ]);
         expect(tagOptions('release notes', [], all)).toEqual([{ tag: 'release-notes', create: true }]);
     });
 

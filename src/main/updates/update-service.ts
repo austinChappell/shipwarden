@@ -99,10 +99,10 @@ export class UpdateService {
         try {
             response = await fetch(url, {
                 headers: {
-                    'Accept': accept,
+                    Accept: accept,
                     'X-GitHub-Api-Version': '2022-11-28',
                     'User-Agent': 'ShipWarden',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
                 },
                 redirect: 'follow'
             });
@@ -131,7 +131,7 @@ export class UpdateService {
     private async runCheck(): Promise<UpdateState> {
         this.set({ status: 'checking', error: undefined });
         try {
-            const release = await (await this.request(`${API}/repos/${RELEASE_REPO.owner}/${RELEASE_REPO.name}/releases/latest`)).json() as Release;
+            const release = (await (await this.request(`${API}/repos/${RELEASE_REPO.owner}/${RELEASE_REPO.name}/releases/latest`)).json()) as Release;
             const version = release.tag_name.replace(/^v/, '');
             if (release.draft || release.prerelease || compareVersions(version, this.options.version) <= 0) {
                 this.set({ status: 'none', update: undefined, checkedAt: Date.now() });

@@ -11,12 +11,24 @@ import { RemoteServer } from './remote-server';
 import { ensureTlsIdentity, type TlsIdentity } from './tls-identity';
 
 const agent: TerminalSession = {
-    id: 'agent-1', title: 'Claude', cwd: '/repo', worktreePath: '/repo', isAgent: true, exited: false,
-    cols: 20, rows: 3, agentState: 'waiting', agentMessage: 'Claude needs your permission to use Bash'
+    id: 'agent-1',
+    title: 'Claude',
+    cwd: '/repo',
+    worktreePath: '/repo',
+    isAgent: true,
+    exited: false,
+    cols: 20,
+    rows: 3,
+    agentState: 'waiting',
+    agentMessage: 'Claude needs your permission to use Bash'
 };
 const shell: TerminalSession = { id: 'shell-1', title: 'zsh', cwd: '/repo', isAgent: false, exited: false };
 
-interface Response { status: number; body: string; fingerprint: string }
+interface Response {
+    status: number;
+    body: string;
+    fingerprint: string;
+}
 
 describe('RemoteServer', () => {
     let folder: string;
@@ -29,22 +41,29 @@ describe('RemoteServer', () => {
     function send(method: string, path: string, options: { token?: string; body?: unknown; stream?: (text: string) => boolean } = {}): Promise<Response> {
         return new Promise((resolve, reject) => {
             const body = options.body === undefined ? undefined : JSON.stringify(options.body);
-            const req = request({
-                host: '127.0.0.1', port: server.port, method, path, rejectUnauthorized: false,
-                headers: { ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }
-            }, res => {
-                const fingerprint = ((res.socket as TLSSocket).getPeerCertificate().fingerprint256 ?? '').replace(/:/g, '').toLowerCase();
-                let text = '';
-                res.setEncoding('utf8');
-                res.on('data', chunk => {
-                    text += chunk;
-                    if (options.stream?.(text)) {
-                        req.destroy();
-                        resolve({ status: res.statusCode ?? 0, body: text, fingerprint });
-                    }
-                });
-                res.on('end', () => resolve({ status: res.statusCode ?? 0, body: text, fingerprint }));
-            });
+            const req = request(
+                {
+                    host: '127.0.0.1',
+                    port: server.port,
+                    method,
+                    path,
+                    rejectUnauthorized: false,
+                    headers: { ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }
+                },
+                res => {
+                    const fingerprint = ((res.socket as TLSSocket).getPeerCertificate().fingerprint256 ?? '').replace(/:/g, '').toLowerCase();
+                    let text = '';
+                    res.setEncoding('utf8');
+                    res.on('data', chunk => {
+                        text += chunk;
+                        if (options.stream?.(text)) {
+                            req.destroy();
+                            resolve({ status: res.statusCode ?? 0, body: text, fingerprint });
+                        }
+                    });
+                    res.on('end', () => resolve({ status: res.statusCode ?? 0, body: text, fingerprint }));
+                }
+            );
             req.on('error', error => (options.stream ? undefined : reject(error)));
             req.end(body);
         });
@@ -117,7 +136,10 @@ describe('RemoteServer', () => {
 
         // Text and Enter are separate writes.
         expect((await send('POST', '/v1/sessions/agent-1/input', { token, body: { text: 'yes', submit: true } })).status).toBe(200);
-        expect(writes).toEqual([['agent-1', 'yes'], ['agent-1', '\r']]);
+        expect(writes).toEqual([
+            ['agent-1', 'yes'],
+            ['agent-1', '\r']
+        ]);
 
         // The phone cannot type in a shell.
         expect((await send('POST', '/v1/sessions/shell-1/input', { token, body: { text: 'ls', submit: true } })).status).toBe(404);

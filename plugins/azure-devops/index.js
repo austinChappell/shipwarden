@@ -3,8 +3,18 @@
 import { execFile } from 'node:child_process';
 import { log, networkDetail, runPlugin } from '../sdk/index.js';
 import {
-    activityQuery, closedStateNames, LIST_FIELDS, listQuery, mergeStates, newComments, parseOrganization, projectOfRemote,
-    sortComments, toComment, toTask, visibleTypes
+    activityQuery,
+    closedStateNames,
+    LIST_FIELDS,
+    listQuery,
+    mergeStates,
+    newComments,
+    parseOrganization,
+    projectOfRemote,
+    sortComments,
+    toComment,
+    toTask,
+    visibleTypes
 } from './map.js';
 
 const API_VERSION = '7.1';
@@ -48,8 +58,8 @@ async function azure(method, path, body, { contentType = 'application/json', wit
         response = await fetch(`${baseUrl}${path}`, {
             method,
             headers: {
-                'Authorization': authorization,
-                'Accept': 'application/json',
+                Authorization: authorization,
+                Accept: 'application/json',
                 ...(body !== undefined ? { 'Content-Type': contentType } : {})
             },
             body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -61,8 +71,15 @@ async function azure(method, path, body, { contentType = 'application/json', wit
     }
     const isJson = (response.headers.get('content-type') ?? '').includes('json');
     // Azure DevOps answers 203 with an HTML sign-in page for a token that is not valid.
-    if (response.status === 401 || response.status === 203 || (response.status >= 300 && response.status < 400) || (response.ok && !isJson && response.status !== 204)) {
-        throw new Error('Azure DevOps did not accept the personal access token. Make sure that the token is for this organization, that it did not expire, and that it has the scope "Work Items (Read & write)".');
+    if (
+        response.status === 401 ||
+        response.status === 203 ||
+        (response.status >= 300 && response.status < 400) ||
+        (response.ok && !isJson && response.status !== 204)
+    ) {
+        throw new Error(
+            'Azure DevOps did not accept the personal access token. Make sure that the token is for this organization, that it did not expire, and that it has the scope "Work Items (Read & write)".'
+        );
     }
     if (!response.ok) {
         let detail = '';
@@ -88,12 +105,14 @@ function project(name) {
 async function eachLimited(items, limit, work) {
     const results = [];
     let next = 0;
-    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
-        while (next < items.length) {
-            const index = next++;
-            results[index] = await work(items[index]);
-        }
-    }));
+    await Promise.all(
+        Array.from({ length: Math.min(limit, items.length) }, async () => {
+            while (next < items.length) {
+                const index = next++;
+                results[index] = await work(items[index]);
+            }
+        })
+    );
     return results;
 }
 
@@ -106,7 +125,9 @@ async function allProjects() {
     let token;
     for (let page = 0; page < 10; page++) {
         const continuation = token ? `&continuationToken=${encodeURIComponent(token)}` : '';
-        const { result, headers } = await azure('GET', `/_apis/projects?stateFilter=wellFormed&$top=500${continuation}&api-version=${API_VERSION}`, undefined, { withHeaders: true });
+        const { result, headers } = await azure('GET', `/_apis/projects?stateFilter=wellFormed&$top=500${continuation}&api-version=${API_VERSION}`, undefined, {
+            withHeaders: true
+        });
         projects.push(...(result.value ?? []));
         token = headers.get('x-ms-continuationtoken');
         if (!token) {
@@ -149,8 +170,11 @@ async function metadata(projectKey) {
     ]);
     const names = visibleTypes(types.value, categories.value);
     const typeStates = await eachLimited(names, 4, name =>
-        azure('GET', `/${project(projectKey)}/_apis/wit/workitemtypes/${encodeURIComponent(name)}/states?api-version=${API_VERSION}`)
-            .then(result => result.value ?? [], () => []));
+        azure('GET', `/${project(projectKey)}/_apis/wit/workitemtypes/${encodeURIComponent(name)}/states?api-version=${API_VERSION}`).then(
+            result => result.value ?? [],
+            () => []
+        )
+    );
     const meta = {
         types: names,
         states: new Map(names.map((name, index) => [name.toLowerCase(), typeStates[index]])),
@@ -179,9 +203,8 @@ async function workItemTask(item, withDescription) {
     if (projectName) {
         projectOfItem.set(String(item.id), projectName);
     }
-    const states = projectName && fields['System.WorkItemType']
-        ? await statesOfType(projectName, fields['System.WorkItemType']).catch(() => undefined)
-        : undefined;
+    const states =
+        projectName && fields['System.WorkItemType'] ? await statesOfType(projectName, fields['System.WorkItemType']).catch(() => undefined) : undefined;
     return toTask(item, { baseUrl, states, withDescription });
 }
 
@@ -275,9 +298,7 @@ connection = runPlugin({
                 { id: 'area', label: 'Area', type: 'text' },
                 { id: 'iteration', label: 'Iteration', type: 'text' }
             ],
-            actions: [
-                { id: 'assign-me', label: 'Assign to me' }
-            ],
+            actions: [{ id: 'assign-me', label: 'Assign to me' }],
             filters: [
                 { id: 'assigned', label: 'Assigned to me', default: true },
                 { id: 'open', label: 'All open work items' },
@@ -329,7 +350,9 @@ connection = runPlugin({
     /** The status ID is the state name. */
     async updateTask({ id, status }) {
         const number = workItemId(id);
-        const item = status ? await patchWorkItem(number, { 'System.State': status }) : await azure('GET', `/_apis/wit/workitems/${number}?api-version=${API_VERSION}`);
+        const item = status
+            ? await patchWorkItem(number, { 'System.State': status })
+            : await azure('GET', `/_apis/wit/workitems/${number}?api-version=${API_VERSION}`);
         return workItemTask(item, true);
     },
 
@@ -356,7 +379,11 @@ connection = runPlugin({
 
     async createComment({ taskId, body }) {
         const number = workItemId(taskId);
-        const created = await azure('POST', `/${project(await projectOf(number))}/_apis/wit/workItems/${number}/comments?format=markdown&api-version=${COMMENTS_API_VERSION}`, { text: body });
+        const created = await azure(
+            'POST',
+            `/${project(await projectOf(number))}/_apis/wit/workItems/${number}/comments?format=markdown&api-version=${COMMENTS_API_VERSION}`,
+            { text: body }
+        );
         return toComment({ format: 'markdown', ...created, text: created.text ?? body });
     },
 
@@ -382,7 +409,9 @@ connection = runPlugin({
             throw new Error('activity/list needs "since" as an ISO time.');
         }
         const projectNames = scope ? (await scopedProjects()).map(item => item.name) : undefined;
-        const result = await azure('POST', `/_apis/wit/wiql?timePrecision=true&$top=${ACTIVITY_TASKS}&api-version=${API_VERSION}`, { query: activityQuery(since, projectNames) });
+        const result = await azure('POST', `/_apis/wit/wiql?timePrecision=true&$top=${ACTIVITY_TASKS}&api-version=${API_VERSION}`, {
+            query: activityQuery(since, projectNames)
+        });
         const items = await workItems((result.workItems ?? []).map(item => item.id).slice(0, ACTIVITY_TASKS));
         const perItem = await eachLimited(items, 4, async item => {
             const fields = item.fields;

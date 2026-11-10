@@ -91,7 +91,6 @@ export function worktreeLabel(worktree: Worktree, names: Record<string, string> 
     return names?.[worktree.path] || worktree.branch || `detached ${worktree.head.slice(0, 7)}`;
 }
 
-
 /** The ways to sort the worktrees of a repository in the sidebar. */
 export type WorktreeSortKey = 'name' | 'created' | 'updated';
 
@@ -110,7 +109,7 @@ export const WORKTREE_SORT_LABELS: Record<WorktreeSortKey, string> = {
 
 /** Converts a stored value to a valid sort. A wrong value gets the default. */
 export function normalizeWorktreeSort(value: unknown): WorktreeSort {
-    const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
     const by = raw.by === 'name' || raw.by === 'created' || raw.by === 'updated' ? raw.by : DEFAULT_WORKTREE_SORT.by;
     const direction = raw.direction === 'desc' ? 'desc' : raw.direction === 'asc' ? 'asc' : DEFAULT_WORKTREE_SORT.direction;
     return { by, direction };
@@ -173,7 +172,9 @@ export function pruneHiddenWorktrees(hidden: Record<string, HiddenWorktree> | un
 
 /** Returns the time of the next snooze end after `now`, or undefined when no snooze is active. */
 export function nextSnoozeEnd(hidden: Record<string, HiddenWorktree> | undefined, now: number): number | undefined {
-    const ends = Object.values(hidden ?? {}).map(entry => entry.until).filter((until): until is number => until !== undefined && until > now);
+    const ends = Object.values(hidden ?? {})
+        .map(entry => entry.until)
+        .filter((until): until is number => until !== undefined && until > now);
     return ends.length ? Math.min(...ends) : undefined;
 }
 
@@ -196,7 +197,7 @@ export function snoozeEnd(option: SnoozeOption, now: Date): number {
     if (option === 'fourHours') return now.getTime() + 4 * 60 * 60 * 1000;
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), SNOOZE_MORNING_HOUR);
     // getDay() is 0 on Sunday and 1 on Monday. The next Monday is 1 to 7 days later.
-    const days = option === 'tomorrow' ? 1 : ((8 - now.getDay()) % 7 || 7);
+    const days = option === 'tomorrow' ? 1 : (8 - now.getDay()) % 7 || 7;
     end.setDate(end.getDate() + days);
     return end.getTime();
 }

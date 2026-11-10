@@ -53,7 +53,9 @@ export function parseFileUrl(url: string): { root: string; path: string } | unde
         return undefined;
     }
     // A decoded segment must not add a separator or go up a folder.
-    if (segments.some(segment => !segment || segment === '.' || segment === '..' || segment.includes('/') || segment.includes('\\') || segment.includes('\0'))) {
+    if (
+        segments.some(segment => !segment || segment === '.' || segment === '..' || segment.includes('/') || segment.includes('\\') || segment.includes('\0'))
+    ) {
         return undefined;
     }
     return { root, path: segments.join('/') };

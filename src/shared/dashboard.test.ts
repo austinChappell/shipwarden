@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { ageLevel, bucketMyPullRequests, groupReviewRequests, isHiddenComment, isStalePullRequest, matchesDashboardQuery, isMergedApproval, matchesRule, myPullRequestGroup, myPullRequestReasons, newComments, ownerQualifiers, parsePullRequestTitle, ruleRegex, shortAge, type MyPullRequestItem } from './dashboard';
+import {
+    ageLevel,
+    bucketMyPullRequests,
+    groupReviewRequests,
+    isHiddenComment,
+    isStalePullRequest,
+    matchesDashboardQuery,
+    isMergedApproval,
+    matchesRule,
+    myPullRequestGroup,
+    myPullRequestReasons,
+    newComments,
+    ownerQualifiers,
+    parsePullRequestTitle,
+    ruleRegex,
+    shortAge,
+    type MyPullRequestItem
+} from './dashboard';
 
 describe('myPullRequestReasons', () => {
     const base = { isDraft: false, reviewDecision: null, mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', checks: 'SUCCESS' };
@@ -10,8 +27,11 @@ describe('myPullRequestReasons', () => {
     });
 
     it('finds the problems that the author must fix', () => {
-        expect(myPullRequestReasons({ ...base, reviewDecision: 'CHANGES_REQUESTED', checks: 'FAILURE', mergeable: 'CONFLICTING' }))
-            .toEqual(['changes-requested', 'ci-failing', 'conflicts']);
+        expect(myPullRequestReasons({ ...base, reviewDecision: 'CHANGES_REQUESTED', checks: 'FAILURE', mergeable: 'CONFLICTING' })).toEqual([
+            'changes-requested',
+            'ci-failing',
+            'conflicts'
+        ]);
     });
 
     it('shows an approved pull request with passing checks as ready to merge, but not a draft', () => {
@@ -26,22 +46,26 @@ describe('newComments', () => {
     const comment = (id: string, author: string | null, createdAt: string, isBot = false) => ({ id, author, createdAt, isBot });
 
     it('keeps comments from other people after the window start', () => {
-        const result = newComments([
-            comment('old', 'ann', '2026-10-30T00:00:00Z'),
-            comment('new', 'ann', '2026-11-02T00:00:00Z'),
-            comment('bot', 'codecov', '2026-11-02T00:00:00Z', true),
-            comment('ghost', null, '2026-11-02T00:00:00Z'),
-            comment('mine', 'Me', '2026-11-01T12:00:00Z')
-        ], 'me', since);
+        const result = newComments(
+            [
+                comment('old', 'ann', '2026-10-30T00:00:00Z'),
+                comment('new', 'ann', '2026-11-02T00:00:00Z'),
+                comment('bot', 'codecov', '2026-11-02T00:00:00Z', true),
+                comment('ghost', null, '2026-11-02T00:00:00Z'),
+                comment('mine', 'Me', '2026-11-01T12:00:00Z')
+            ],
+            'me',
+            since
+        );
         expect(result.map(item => item.id)).toEqual(['new']);
     });
 
     it('treats comments before the last reply of the viewer as seen', () => {
-        const result = newComments([
-            comment('a', 'ann', '2026-11-02T00:00:00Z'),
-            comment('reply', 'me', '2026-11-03T00:00:00Z'),
-            comment('b', 'bob', '2026-11-04T00:00:00Z')
-        ], 'me', since);
+        const result = newComments(
+            [comment('a', 'ann', '2026-11-02T00:00:00Z'), comment('reply', 'me', '2026-11-03T00:00:00Z'), comment('b', 'bob', '2026-11-04T00:00:00Z')],
+            'me',
+            since
+        );
         expect(result.map(item => item.id)).toEqual(['b']);
     });
 });
@@ -95,7 +119,10 @@ describe('hidden comment rules', () => {
 
 describe('parsePullRequestTitle', () => {
     it('takes the ticket from the start and removes the commit type', () => {
-        expect(parsePullRequestTitle('fix: ABC-1201 — show the empty state on the home page')).toEqual({ ticket: 'ABC-1201', text: 'show the empty state on the home page' });
+        expect(parsePullRequestTitle('fix: ABC-1201 — show the empty state on the home page')).toEqual({
+            ticket: 'ABC-1201',
+            text: 'show the empty state on the home page'
+        });
         expect(parsePullRequestTitle('feat: abc-987 — add a dark mode toggle')).toEqual({ ticket: 'ABC-987', text: 'add a dark mode toggle' });
         expect(parsePullRequestTitle('ABC-1023: Sort the list by name')).toEqual({ ticket: 'ABC-1023', text: 'Sort the list by name' });
         expect(parsePullRequestTitle('feat: abc-1328 - upload UI')).toEqual({ ticket: 'ABC-1328', text: 'upload UI' });
@@ -103,10 +130,11 @@ describe('parsePullRequestTitle', () => {
     });
 
     it('takes a ticket in brackets anywhere', () => {
-        expect(parsePullRequestTitle('Faster pages: Phase 2 — Cache the user query (ABC-1040)'))
-            .toEqual({ ticket: 'ABC-1040', text: 'Faster pages: Phase 2 — Cache the user query' });
-        expect(parsePullRequestTitle('feat: add a settings page [CU-12abc3x]'))
-            .toEqual({ ticket: 'CU-12ABC3X', text: 'add a settings page' });
+        expect(parsePullRequestTitle('Faster pages: Phase 2 — Cache the user query (ABC-1040)')).toEqual({
+            ticket: 'ABC-1040',
+            text: 'Faster pages: Phase 2 — Cache the user query'
+        });
+        expect(parsePullRequestTitle('feat: add a settings page [CU-12abc3x]')).toEqual({ ticket: 'CU-12ABC3X', text: 'add a settings page' });
     });
 
     it('keeps a title without a ticket, and a ticket in the middle', () => {
@@ -153,12 +181,10 @@ describe('Dashboard cards', () => {
     });
 
     it('puts each active pull request in the card of its most urgent reason', () => {
-        const buckets = bucketMyPullRequests([
-            pr(1, 1, ['changes-requested', 'ci-failing']),
-            pr(2, 1, ['ci-failing']),
-            pr(3, 3, ['conflicts']),
-            pr(4, 1, ['ready-to-merge'])
-        ], now);
+        const buckets = bucketMyPullRequests(
+            [pr(1, 1, ['changes-requested', 'ci-failing']), pr(2, 1, ['ci-failing']), pr(3, 3, ['conflicts']), pr(4, 1, ['ready-to-merge'])],
+            now
+        );
         expect(buckets.changes.map(item => item.number)).toEqual([1]);
         // The newest blocked pull request first.
         expect(buckets.blocked.map(item => item.number)).toEqual([2, 3]);

@@ -54,10 +54,12 @@ export function createHandlers({ home, author = async () => undefined }) {
         async initialize({ settings = {}, context }) {
             statuses = parseStatuses(typeof settings.statuses === 'string' ? settings.statuses : '');
             const inRepository = settings.inRepository === true || settings.inRepository === 'true';
-            collections = new Map((context?.repositories ?? []).map(repo => [
-                repo.root,
-                { name: path.basename(repo.root), file: new TaskFile(taskFilePath(repo.root, { inRepository, home })) }
-            ]));
+            collections = new Map(
+                (context?.repositories ?? []).map(repo => [
+                    repo.root,
+                    { name: path.basename(repo.root), file: new TaskFile(taskFilePath(repo.root, { inRepository, home })) }
+                ])
+            );
             return {
                 capabilities: { edit: true },
                 fields: [
