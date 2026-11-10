@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, GitMerge } from 'lucide-react';
 import type { MergeMethod } from '@shared/github';
+import { useMenuClose } from './use-menu';
 
 export const MERGE_LABELS: Record<MergeMethod, string> = { merge: 'Create a merge commit', squash: 'Squash and merge', rebase: 'Rebase and merge' };
 
@@ -33,21 +34,9 @@ export function MergeButton({ methods, method, label, disabled, title, onSelect,
     const [open, setOpen] = useState(false);
     const root = useRef<HTMLDivElement>(null);
 
+    useMenuClose(open, root, () => setOpen(false));
     useEffect(() => {
-        if (!open) return;
-        const onPointer = (event: PointerEvent) => {
-            if (!root.current?.contains(event.target as Node)) setOpen(false);
-        };
-        const onKey = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setOpen(false);
-        };
-        window.addEventListener('pointerdown', onPointer);
-        window.addEventListener('keydown', onKey);
-        root.current?.querySelector<HTMLButtonElement>('.merge-menu-item.selected')?.focus();
-        return () => {
-            window.removeEventListener('pointerdown', onPointer);
-            window.removeEventListener('keydown', onKey);
-        };
+        if (open) root.current?.querySelector<HTMLButtonElement>('.merge-menu-item.selected')?.focus();
     }, [open]);
 
     /** Moves the focus between the methods with the arrow keys. */

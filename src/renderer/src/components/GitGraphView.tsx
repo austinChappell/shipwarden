@@ -4,6 +4,7 @@ import { layoutGraph, type GraphLog, type GraphRef, type GraphRow, type GraphSco
 import type { Worktree } from '@shared/worktrees';
 import { onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
+import { radioGroupKeys } from './keyboard';
 
 /** The number of commits in each load. "Load more" adds this number. */
 const PAGE = 500;
@@ -177,7 +178,7 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
                 </div>
                 <span className="header-spacer" />
                 <div className="tasks-header-group">
-                    <div className="segmented compact gg-scope" role="radiogroup" aria-label="Commits to show">
+                    <div className="segmented compact gg-scope" role="radiogroup" aria-label="Commits to show" onKeyDown={radioGroupKeys}>
                         {(['all', 'local'] as const).map(value => (
                             <button
                                 key={value}

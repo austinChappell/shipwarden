@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
 
 export interface ComboboxItem {
@@ -45,6 +45,8 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
     const [active, setActive] = useState(0);
     const root = useRef<HTMLDivElement>(null);
     const list = useRef<HTMLDivElement>(null);
+    const trigger = useRef<HTMLButtonElement>(null);
+    const id = useId();
 
     const selected = useMemo(() => {
         for (const group of groups) {
@@ -103,8 +105,14 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
         setOpen(true);
     };
 
-    const choose = (item: ComboboxItem) => {
+    /** Closes the popover. The focus goes back to the button. */
+    const hide = () => {
         setOpen(false);
+        trigger.current?.focus();
+    };
+
+    const choose = (item: ComboboxItem) => {
+        hide();
         if (item.value !== value) {
             onChange(item.value);
         }
@@ -123,15 +131,29 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
                 choose(flat[active]);
             }
         } else if (event.key === 'Escape') {
+            // Escape closes only the popover. A dialog around the combobox stays open.
             event.preventDefault();
-            setOpen(false);
+            event.stopPropagation();
+            hide();
+        } else if (event.key === 'Tab' && event.shiftKey) {
+            // Shift+Tab moves the focus to the button and closes the popover. After Tab, `onBlur` closes the popover.
+            event.preventDefault();
+            hide();
         }
     };
 
     let index = -1;
     return (
-        <div className={`combobox${className ? ` ${className}` : ''}`} ref={root}>
+        <div
+            className={`combobox${className ? ` ${className}` : ''}`}
+            ref={root}
+            onBlur={event => {
+                // A click on an option gives no new focus. Only a focus outside the combobox closes the popover.
+                if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+            }}
+        >
             <button
+                ref={trigger}
                 type="button"
                 className={`tasks-select combobox-button${open ? ' on' : ''}`}
                 disabled={disabled}
@@ -159,6 +181,10 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
                             value={query}
                             placeholder={searchPlaceholder}
                             spellCheck={false}
+                            role="combobox"
+                            aria-expanded="true"
+                            aria-controls={`${id}-list`}
+                            aria-activedescendant={flat[active] ? `${id}-option-${active}` : undefined}
                             onChange={event => {
                                 setQuery(event.target.value);
                                 setActive(0);
@@ -166,7 +192,7 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
                             onKeyDown={onKey}
                         />
                     </label>
-                    <div className="combobox-list" role="listbox" ref={list}>
+                    <div className="combobox-list" role="listbox" id={`${id}-list`} ref={list}>
                         {flat.length === 0 && <div className="combobox-empty">No matches</div>}
                         {shown.map(group => (
                             <div key={group.label} role="group" aria-label={group.label || undefined}>
@@ -177,6 +203,7 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
                                     return (
                                         <div
                                             key={item.value}
+                                            id={`${id}-option-${position}`}
                                             role="option"
                                             aria-selected={item.value === value}
                                             className={`combobox-option${position === active ? ' active' : ''}`}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { CircleAlert, Info, Pencil, TriangleAlert } from 'lucide-react';
+import { modalOpen, trapTab } from './use-modal';
 
 export interface ConfirmOptions {
     /** The question, in one short sentence. */
@@ -61,9 +62,9 @@ export async function promptDialog(options: ConfirmOptions & { value?: string; p
     return ok ? input.value.trim() : undefined;
 }
 
-/** True while a dialog shows. The shortcuts of the app do nothing then. */
+/** True while a dialog of this file or a modal dialog of `useModal` shows. The shortcuts of the app do nothing then. */
 export function dialogOpen(): boolean {
-    return queue.length > 0;
+    return queue.length > 0 || modalOpen();
 }
 
 function answer(request: Request, value: boolean) {
@@ -121,6 +122,7 @@ export function DialogHost() {
                 onKeyDown={event => {
                     // The keys must not reach the shortcuts of the app or a terminal.
                     event.stopPropagation();
+                    trapTab(event, event.currentTarget);
                     if (event.key === 'Escape') {
                         event.preventDefault();
                         answer(current, false);

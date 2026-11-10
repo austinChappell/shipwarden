@@ -37,6 +37,7 @@ import { errorText } from '../util';
 import { Logo } from './Logo';
 import { confirmDialog } from './ConfirmDialog';
 import { NewWorktreeDialog, type NewWorktreeRequest } from './NewWorktreeDialog';
+import { moveMenuFocus, useMenuClose } from './use-menu';
 import { worktreeLabel } from '@shared/worktrees';
 import { useAgentSessions } from '../terminal/agent-state-store';
 import { onSidebarFocusRequest, takeSidebarFocusRequest } from '../sidebar-focus';
@@ -269,26 +270,11 @@ function ProjectSwitcher(props: Props) {
         setError(undefined);
     };
 
+    const menuItems = () => [...(root.current?.querySelectorAll<HTMLElement>('.project-menu [role="menuitem"]:not(:disabled)') ?? [])];
+    useMenuClose(open, root, close);
+    // The first item gets the focus, so the arrow keys work at once.
     useEffect(() => {
-        if (!open) {
-            return;
-        }
-        const onPointer = (event: PointerEvent) => {
-            if (!root.current?.contains(event.target as Node)) {
-                close();
-            }
-        };
-        const onKey = (event: globalThis.KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                close();
-            }
-        };
-        window.addEventListener('pointerdown', onPointer);
-        window.addEventListener('keydown', onKey);
-        return () => {
-            window.removeEventListener('pointerdown', onPointer);
-            window.removeEventListener('keydown', onKey);
-        };
+        if (open) menuItems()[0]?.focus();
     }, [open]);
 
     const run = async (action: () => Promise<void>) => {
@@ -330,12 +316,12 @@ function ProjectSwitcher(props: Props) {
 
     return (
         <div className="project-switcher" ref={root}>
-            <button data-sidebar-item className="project-button" title="Switch the project. The project decides the repositories below." onClick={() => (open ? close() : setOpen(true))}>
+            <button data-sidebar-item className="project-button" aria-haspopup="menu" aria-expanded={open} title="Switch the project. The project decides the repositories below." onClick={() => (open ? close() : setOpen(true))}>
                 <span className="project-button-name">{active?.name ?? 'Loading…'}</span>
                 <ChevronDown className="repo-chevron" size={13} strokeWidth={1.75} />
             </button>
             {open && projects && (
-                <div className="project-menu" role="menu">
+                <div className="project-menu" role="menu" onKeyDown={event => moveMenuFocus(event, menuItems())}>
                     <div className="project-menu-label">Projects</div>
                     {projects.projects.map(project => (
                         <button

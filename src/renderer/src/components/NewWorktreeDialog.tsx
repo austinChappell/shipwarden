@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderGit2, LoaderCircle, X } from 'lucide-react';
 import { branchFromName, localNameOfRemote, type BranchList } from '@shared/worktrees';
 import { errorText } from '../util';
 import { Combobox, type ComboboxGroup } from './Combobox';
+import { radioGroupKeys } from './keyboard';
+import { useModal } from './use-modal';
 
 export interface NewWorktreeRequest {
     /** The display name. Empty: the worktree shows its branch. */
@@ -38,6 +40,8 @@ interface Props {
  */
 export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initialBase, initialRemote }: Props) {
     const [mode, setMode] = useState<Mode>(initialRemote ? 'remote' : 'new');
+    const dialog = useRef<HTMLDivElement>(null);
+    useModal(dialog);
     const [remoteRef, setRemoteRef] = useState<string | undefined>(initialRemote);
     const [name, setName] = useState('');
     const [branch, setBranch] = useState('');
@@ -131,8 +135,10 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
     return (
         <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && !busy && onClose()}>
             <div
+                ref={dialog}
                 className="modal new-worktree-dialog"
                 role="dialog"
+                aria-modal="true"
                 aria-label="New worktree"
                 onKeyDown={event => {
                     if (event.key === 'Escape' && !busy) onClose();
@@ -146,7 +152,7 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                     <button className="icon-button" title="Close (Esc)" disabled={busy} onClick={onClose}><X size={15} strokeWidth={1.8} /></button>
                 </header>
                 <form className="modal-body" onSubmit={event => { event.preventDefault(); void submit(); }}>
-                    <div className="segmented new-worktree-mode" role="radiogroup" aria-label="Branch source">
+                    <div className="segmented new-worktree-mode" role="radiogroup" aria-label="Branch source" onKeyDown={radioGroupKeys}>
                         {(['new', 'remote'] as const).map(value => (
                             <button
                                 key={value}

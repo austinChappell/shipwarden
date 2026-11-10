@@ -8,6 +8,7 @@ import { reviewStore, useReviewState } from '../github/review-store';
 import { seenStore } from '../seen-store';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
+import { radioGroupKeys } from './keyboard';
 
 interface Props {
     target: RepoTarget;
@@ -248,9 +249,9 @@ export function ComposerZone({ line, startLine = line, onAdd, onAsk, onCancel, c
     return (
         <div className={`zone-card composer${mode === 'ask' ? ' ask' : ''}`}>
             {onAsk && canComment && (
-                <div className="segmented compact composer-mode" role="radiogroup" aria-label="Comment or question">
-                    <button className={mode === 'comment' ? 'selected' : ''} onClick={() => setMode('comment')}>Comment</button>
-                    <button className={mode === 'ask' ? 'selected' : ''} onClick={() => setMode('ask')}><Bot size={12} strokeWidth={1.6} /> Ask agent</button>
+                <div className="segmented compact composer-mode" role="radiogroup" aria-label="Comment or question" onKeyDown={radioGroupKeys}>
+                    <button role="radio" aria-checked={mode === 'comment'} className={mode === 'comment' ? 'selected' : ''} onClick={() => setMode('comment')}>Comment</button>
+                    <button role="radio" aria-checked={mode === 'ask'} className={mode === 'ask' ? 'selected' : ''} onClick={() => setMode('ask')}><Bot size={12} strokeWidth={1.6} /> Ask agent</button>
                 </div>
             )}
             <textarea
