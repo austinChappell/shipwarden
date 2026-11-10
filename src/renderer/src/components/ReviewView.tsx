@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GitPullRequest, X } from 'lucide-react';
-import type { BranchStatus, PullRequest, RepoRef } from '@shared/github';
+import type { BranchStatus, CheckRun, PullRequest, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { QueueItem } from '@shared/review-queue';
 import { errorText } from '../util';
@@ -25,6 +25,12 @@ interface Props {
     open?: ReviewOpenRequest;
     /** Opens the New worktree dialog on the head branch of a pull request. */
     onNewWorktree?(repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>): void;
+    /** Sends a prompt to the agent of the worktree of the head branch of a pull request. */
+    onSendToAgent?(repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>, prompt: string): void;
+    /** Sends the log of a check of a pull request to the agent of the worktree of its head branch. */
+    onSendLogToAgent?(repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>, check: CheckRun): void;
+    /** Sends the failed checks of a pull request to the agent of the worktree of its head branch. */
+    onSendChecksToAgent?(repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>, checks: CheckRun[]): void;
     /** The projects. Undefined while they load. */
     projects?: ProjectsState;
     /** Adds the repository to a project, with a clone when necessary. Resolves false when the user cancels. */
@@ -57,7 +63,7 @@ function toRef(repo: string): RepoRef {
  * The data of the first two pages comes from the review overview store, which loads at app start.
  * The review queue opens the pull requests to review one after the other, the oldest first.
  */
-export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree, projects, onPullRepo }: Props) {
+export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree, onSendToAgent, onSendLogToAgent, onSendChecksToAgent, projects, onPullRepo }: Props) {
     const overview = useReviewOverview();
     const queueItems = useReviewQueue();
     const [repo, setRepo] = useState<string>();
@@ -261,6 +267,9 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree, pro
                         onRefresh={refresh}
                         onBack={backToList}
                         onNewWorktree={onNewWorktree && (target => onNewWorktree(repoRef, target))}
+                        onSendToAgent={onSendToAgent && ((target, prompt) => onSendToAgent(repoRef, target, prompt))}
+                        onSendLogToAgent={onSendLogToAgent && ((target, check) => onSendLogToAgent(repoRef, target, check))}
+                        onSendChecksToAgent={onSendChecksToAgent && ((target, checks) => onSendChecksToAgent(repoRef, target, checks))}
                         projects={projects}
                         onPullRepo={onPullRepo && (target => onPullRepo(repoRef, target))}
                     />

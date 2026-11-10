@@ -250,13 +250,13 @@ export function useProjects(options: Options) {
         }
     };
 
-    /** Shows another project: its repositories, worktrees and saved tabs. */
-    const switchProject = async (id: string) => {
+    /** Shows another project: its repositories, worktrees and saved tabs. With `keepView`, the main view does not change. */
+    const switchProject = async (id: string, keepView = false) => {
         try {
             const state = await api.projects.setActive(id);
             setProjects(state);
             setMainView(view => (view === 'settings' ? viewBeforeSettings.current : view));
-            await showProject(state, options.sessionIds());
+            await showProject(state, options.sessionIds(), keepView);
         } catch (err) {
             setError(errorText(err));
         }

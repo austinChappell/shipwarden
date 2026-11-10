@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { NoteTarget } from '@shared/code-note';
-import type { CheckRun } from '@shared/github';
+import type { CheckRun, RepoTarget } from '@shared/github';
 import { agentForRepo, type AgentDefinition, type AppSettings, type RepoScript } from '@shared/settings';
 import type { TerminalSession } from '@shared/terminal';
 import { setupCommand } from '@shared/worktree-settings';
@@ -179,13 +179,22 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
         setTimeout(() => api.terminals.write(session.id, '\r'), 200);
     };
 
-    const sendLogToAgent = async (check: CheckRun) => {
-        if (!selectedPath) {
+    /**
+     * Saves the log of a GitHub Actions job and sends its path to an agent.
+     * The default target is the selected worktree, and the default `send` sends the prompt to its agent.
+     * The Review view gives the repository and a `send` that goes to the worktree of the head branch.
+     */
+    const sendLogToAgent = async (
+        check: CheckRun,
+        target: RepoTarget | undefined = selectedPath,
+        send: (prompt: string) => Promise<void> = prompt => sendToAgent(prompt)
+    ) => {
+        if (!target) {
             return;
         }
         try {
-            const logPath = await api.github.saveJobLog(selectedPath, check.id);
-            await sendToAgent(logPrompt(check.name, logPath));
+            const logPath = await api.github.saveJobLog(target, check.id);
+            await send(logPrompt(check.name, logPath));
         } catch (err) {
             setError(errorText(err));
         }
@@ -194,17 +203,22 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
     /**
      * Sends all the failed checks of the pull request to the agent in one prompt.
      * For a GitHub Actions job, the prompt has the path of the saved log. For other checks, it has the link.
+     * The default target is the selected worktree, and the default `send` sends the prompt to its agent.
+     * The Review view gives the repository and a `send` that goes to the worktree of the head branch.
      */
-    const sendChecksToAgent = async (checks: CheckRun[]) => {
-        const root = selectedPath;
-        if (!root || checks.length === 0) {
+    const sendChecksToAgent = async (
+        checks: CheckRun[],
+        target: RepoTarget | undefined = selectedPath,
+        send: (prompt: string) => Promise<void> = prompt => sendToAgent(prompt)
+    ) => {
+        if (!target || checks.length === 0) {
             return;
         }
         try {
             const lines = await Promise.all(
-                checks.map(async check => checkLine(check, check.isActions ? await api.github.saveJobLog(root, check.id) : undefined))
+                checks.map(async check => checkLine(check, check.isActions ? await api.github.saveJobLog(target, check.id) : undefined))
             );
-            await sendToAgent(checksPrompt(lines));
+            await send(checksPrompt(lines));
         } catch (err) {
             setError(errorText(err));
         }
