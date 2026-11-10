@@ -2,13 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 import type { LspMissingServer } from '@shared/lsp';
 import { MissingServerStore } from './missing-servers';
 
-const gopls: LspMissingServer = { serverId: 'gopls', name: 'gopls', installCommand: 'go install golang.org/x/tools/gopls@latest', tools: ['go', 'brew'] };
+const gopls: LspMissingServer = {
+    serverId: 'gopls',
+    name: 'gopls',
+    install: { description: 'Runs go install.', source: 'go install golang.org/x/tools/gopls@latest', folder: '/data/language-servers/gopls/bin' }
+};
 
 describe('MissingServerStore', () => {
     it('returns the missing server of a worktree and language', () => {
         const store = new MissingServerStore();
         store.set('/r', 'go', gopls);
-        expect(store.get('/r', 'go')).toEqual({ server: gopls, installing: false });
+        expect(store.get('/r', 'go')).toEqual({ server: gopls, install: undefined });
         expect(store.get('/other', 'go')).toBeUndefined();
     });
 
@@ -26,8 +30,12 @@ describe('MissingServerStore', () => {
         const store = new MissingServerStore();
         store.set('/a', 'go', gopls);
         store.set('/b', 'go', gopls);
-        store.setInstalling('gopls', true);
-        expect(store.get('/a', 'go')?.installing).toBe(true);
+        store.setInstallState('gopls', { serverId: 'gopls', status: 'running', step: 'Downloading', progress: 0.5 });
+        expect(store.isInstalling('gopls')).toBe(true);
+        expect(store.get('/a', 'go')?.install?.progress).toBe(0.5);
+        store.setInstallState('gopls', { serverId: 'gopls', status: 'error', error: 'No network.' });
+        expect(store.isInstalling('gopls')).toBe(false);
+        expect(store.get('/b', 'go')?.install?.error).toBe('No network.');
         expect(store.anyEntryOf('gopls')).toEqual({ root: '/a', languageId: 'go', server: gopls });
         store.deleteServer('gopls');
         expect(store.anyEntryOf('gopls')).toBeUndefined();

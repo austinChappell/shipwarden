@@ -33,10 +33,6 @@ const DIAGNOSTICS_DEBOUNCE_MS = 300;
 /** Peek views need a model for each file in the results. ShipWarden loads at most this number of files. */
 const MAX_PRELOADED_MODELS = 50;
 const TRIGGER_CHARACTERS = ['.', ':', '"', '\'', '/', '@', '<', '#', '`'];
-/** After an install command starts, ShipWarden looks for the server at this interval. */
-const INSTALL_POLL_MS = 3000;
-/** ShipWarden stops to look for the server after this time. Then the banner shows the Install button again. */
-const INSTALL_TIMEOUT_MS = 15 * 60 * 1000;
 
 /** One Monaco model that a language server knows about. */
 interface SyncedDocument {
@@ -95,6 +91,7 @@ export class LspBridge {
         this.registerProviders();
         this.registerOpener();
         this.api.lsp.onMessage(message => this.onServerMessage(message));
+        this.api.lsp.onInstallState(state => missingServers.setInstallState(state.serverId, state));
         monaco.editor.getModels().forEach(model => this.track(model));
         monaco.editor.onDidCreateModel(model => this.track(model));
     }
@@ -136,32 +133,35 @@ export class LspBridge {
     }
 
     /**
-     * Looks for the server at an interval after an install command starts.
-     * When the server starts, the open files of all worktrees connect to it.
+     * Installs a missing server into the folder of the app. Call it only after the user agrees.
+     * After the install, the open files of all worktrees connect to the server.
+     * The install state (progress and errors) goes to `missingServers`.
      */
-    async watchInstall(serverId: string): Promise<void> {
+    async install(serverId: string): Promise<void> {
         if (missingServers.isInstalling(serverId)) {
             return;
         }
-        missingServers.setInstalling(serverId, true);
-        const deadline = Date.now() + INSTALL_TIMEOUT_MS;
+        missingServers.setInstallState(serverId, { serverId, status: 'running', step: 'Starting' });
         try {
-            while (Date.now() < deadline) {
-                await new Promise(resolve => setTimeout(resolve, INSTALL_POLL_MS));
-                const entry = missingServers.anyEntryOf(serverId);
-                if (!entry) {
-                    return;
-                }
-                const server = await this.api.lsp.ensure(entry.root, entry.languageId).catch(() => undefined);
-                if (server) {
-                    missingServers.deleteServer(serverId);
-                    monaco.editor.getModels().forEach(model => this.track(model));
-                    return;
-                }
-            }
-        } finally {
-            missingServers.setInstalling(serverId, false);
+            await this.api.lsp.install(serverId);
+        } catch (error) {
+            const message = (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+            missingServers.setInstallState(serverId, { serverId, status: 'error', error: message });
+            return;
         }
+        const entry = missingServers.anyEntryOf(serverId);
+        const server = entry ? await this.api.lsp.ensure(entry.root, entry.languageId).catch(() => undefined) : undefined;
+        if (entry && !server) {
+            missingServers.setInstallState(serverId, {
+                serverId,
+                status: 'error',
+                error: 'The install is complete, but the server did not start. Look at the log for the reason.'
+            });
+            return;
+        }
+        missingServers.setInstallState(serverId, undefined);
+        missingServers.deleteServer(serverId);
+        monaco.editor.getModels().forEach(model => this.track(model));
     }
 
     /** Asks the main process if the worktree needs a server that is not installed. */

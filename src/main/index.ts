@@ -49,7 +49,8 @@ import { AnswersStore, CodeAnswersStore } from './answers-store';
 import { ReviewCheckouts } from './review/review-checkouts';
 import { checkCommitSha, checkPullNumber, checkRepoRef } from '@shared/review-checkout';
 import { UsageService } from './usage/usage-service';
-import { which } from './lsp/servers';
+import { setManagedFolder, which } from './lsp/servers';
+import { ServerInstaller } from './lsp/server-install';
 import { agentForRepo, commandProgram, type AppSettings, type CommandCheck } from '@shared/settings';
 import { activePalette, DEFAULT_APPEARANCE, type Appearance } from '@shared/themes';
 import { execFile } from 'child_process';
@@ -87,7 +88,6 @@ protocol.registerSchemesAsPrivileged([
 const fileWatcher = new FileWatcher(event => mainWindow?.webContents.send(IpcChannels.filesChanged, event));
 // Language servers need the PATH of the login shell. Load it in the background.
 const shellReady = loadLoginShellPath();
-const lsp = new LspManager(message => mainWindow?.webContents.send(IpcChannels.lspMessage, message), shellReady);
 const certificates = new TrustedCertificates(join(app.getPath('userData'), 'trusted-ca.pem'));
 /**
  * The extra CA certificates apply before the first network request. The settings store comes later in this file,
@@ -96,6 +96,17 @@ const certificates = new TrustedCertificates(join(app.getPath('userData'), 'trus
 const networkReady: Promise<void> = shellReady
     .then(async () => { await certificates.apply((await settings.get()).network, loginShellCaFile()); })
     .catch(error => console.warn(`[network] The trusted certificates were not applied: ${error instanceof Error ? error.message : String(error)}`));
+/** The language servers that ShipWarden installs go here. The LSP launcher looks here before it looks in the PATH. */
+const languageServersFolder = join(app.getPath('userData'), 'language-servers');
+setManagedFolder(languageServersFolder);
+const serverInstaller = new ServerInstaller({
+    folder: languageServersFolder,
+    // The downloads need the extra certificates of Settings › Network on a network that inspects TLS traffic.
+    ready: networkReady,
+    extraCertificateBundle: () => certificates.status().bundlePath,
+    onState: state => mainWindow?.webContents.send(IpcChannels.lspInstallState, state)
+});
+const lsp = new LspManager(message => mainWindow?.webContents.send(IpcChannels.lspMessage, message), shellReady, serverInstaller);
 /** The in-app browser. Each browser tab of the page has a WebContentsView in the main window. */
 const browserViews = new BrowserViews(() => mainWindow, () => certificates.extraCertificates(), {
     onState: state => mainWindow?.webContents.send(IpcChannels.browserStateChanged, state),
@@ -676,6 +687,8 @@ function registerIpc(): void {
 
     ipcMain.handle(IpcChannels.lspEnsure, (_event, root: string, languageId: string) => lsp.ensure(root, languageId));
     ipcMain.handle(IpcChannels.lspMissing, (_event, root: string, languageId: string) => lsp.missing(root, languageId));
+    // The renderer calls this only after the user agrees to the install.
+    ipcMain.handle(IpcChannels.lspInstall, async (_event, serverId: string) => { await shellReady; await serverInstaller.install(String(serverId)); });
     ipcMain.handle(IpcChannels.lspRequest, (_event, key: string, method: string, params: unknown) => lsp.request(key, method, params));
     ipcMain.on(IpcChannels.lspNotify, (_event, key: string, method: string, params: unknown) => lsp.notify(key, method, params));
 

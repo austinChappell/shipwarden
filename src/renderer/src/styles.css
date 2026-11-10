@@ -671,6 +671,15 @@ button {
     flex: none;
 }
 
+.editor-server-banner.failed > svg {
+    color: var(--danger);
+}
+
+.editor-server-error {
+    white-space: pre-wrap;
+    color: var(--text);
+}
+
 /* File explorer */
 
 .explorer {

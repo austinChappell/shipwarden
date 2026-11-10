@@ -51,7 +51,6 @@ import { SplitDivider } from './components/SplitDivider';
 import { shortcutAction, type ShortcutAction, type ViewAction } from '@shared/shortcuts';
 import { EMPTY_NAV_HISTORY, recordLocation, stepHistory, type NavLocation } from '@shared/nav-history';
 import { lspBridge } from './lsp/bridge';
-import type { LspMissingServer } from '@shared/lsp';
 import { terminalPool } from './terminal/terminal-pool';
 import { agentStateStore } from './terminal/agent-state-store';
 import { sessionListStore } from './terminal/session-list-store';
@@ -1491,27 +1490,6 @@ export function App() {
             setError(`The script "${script.name}" did not start: ${errorText(err)}`);
         }
     };
-    /**
-     * Runs the install command of a missing language server in a new terminal tab of the worktree.
-     * ShipWarden then looks for the server, and starts it when the install completes.
-     */
-    const installServer = async (worktreePath: string, server: LspMissingServer) => {
-        if (!server.installCommand) return;
-        try {
-            const session = await api.terminals.create({
-                cwd: worktreePath,
-                worktreePath,
-                title: `Install ${server.name}`,
-                command: server.installCommand,
-                cols: 120,
-                rows: 32
-            });
-            showSession(session);
-            void lspBridge.watchInstall(server.serverId);
-        } catch (err) {
-            setError(`The install of ${server.name} did not start: ${errorText(err)}`);
-        }
-    };
     /** Saves the scripts of a repository. An empty list removes the scripts from its settings. */
     const saveScripts = async (repoPath: string, scripts: RepoScript[]) => {
         const { scripts: _old, ...rest } = appSettings.repos[repoPath] ?? {};
@@ -1613,7 +1591,6 @@ export function App() {
                     revealNonce={reveal?.nonce}
                     focusNonce={focusRequest && focusRequest.root === selectedPath && focusRequest.path === path ? focusRequest.nonce : undefined}
                     onError={setError}
-                    onInstallServer={server => void installServer(selectedPath, server)}
                     onOpenFile={file => openFile(file)}
                     agents={appSettings.agents}
                     defaultAgentId={agentForRepo(appSettings, repoOfWorktree(selectedPath)).id}

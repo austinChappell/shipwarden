@@ -9,15 +9,37 @@ export interface LspServerInfo {
     capabilities: ServerCapabilities;
 }
 
+/** How ShipWarden can install a missing language server into its own folder. */
+export interface LspInstallPlan {
+    /** What the install does, for the dialog that asks the user. */
+    description: string;
+    /** The URL of the download, or the command that ShipWarden runs. */
+    source: string;
+    /** The folder that receives the server. */
+    folder: string;
+}
+
 /** A language server that a worktree needs, but that is not installed. */
 export interface LspMissingServer {
     serverId: string;
     /** The name that the UI shows, for example "rust-analyzer". */
     name: string;
-    /** The shell command that installs the server. Undefined when no install tool is in the PATH. */
-    installCommand?: string;
-    /** The install tools that ShipWarden knows, for the case that `installCommand` is undefined. */
-    tools: string[];
+    /** The install that ShipWarden can do. Undefined when ShipWarden cannot install the server. */
+    install?: LspInstallPlan;
+    /** Why ShipWarden cannot install the server, for example "Go is not in the PATH". */
+    unavailable?: string;
+}
+
+/** The state of an install of a language server. */
+export interface LspInstallState {
+    serverId: string;
+    status: 'running' | 'done' | 'error';
+    /** The current step, for example "Downloading". */
+    step?: string;
+    /** The part of the download that is complete, from 0 to 1. Undefined when the size is not known. */
+    progress?: number;
+    /** The error text when the status is "error". */
+    error?: string;
 }
 
 /** A notification or request from a language server that the UI must handle. */
