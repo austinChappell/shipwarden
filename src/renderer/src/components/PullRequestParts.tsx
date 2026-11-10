@@ -17,6 +17,8 @@ import { hasConflicts } from '../github/merge-state';
 import { openCommentCount } from '../github/review-state';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
+import { splitFooter } from './pr-description';
+import { Avatar } from './Avatar';
 import { EditDescriptionButton } from './PullRequestDetails';
 import { openLink } from '../links';
 import { CopyButton } from './CopyButton';
@@ -133,7 +135,29 @@ export function PullRequestDescription({ pr, overview, onEdit }: { pr: PullReque
     }, [pr.body, open, overview]);
 
     const editButton = pr.viewerCanUpdate && <EditDescriptionButton onClick={onEdit} />;
-    if (overview || !body) {
+    if (overview) {
+        const { text, footer } = splitFooter(body);
+        const author = pr.author?.login ?? 'unknown';
+        return (
+            <section className="pr-section">
+                <div className="pr-description-card">
+                    <div className="pr-description-card-header">
+                        <Avatar login={author} url={pr.author?.avatarUrl} size={24} className="pr-description-avatar" />
+                        <span className="pr-description-card-title">
+                            <strong>{author}</strong> opened this <span className="dot-separator">·</span>{' '}
+                            <time dateTime={pr.createdAt} title={new Date(pr.createdAt).toLocaleString()}>
+                                {timeAgo(pr.createdAt)}
+                            </time>
+                        </span>
+                        {editButton}
+                    </div>
+                    {text ? <Markdown className="pr-description open" text={text} /> : <div className="panel-note pr-description-empty">No description.</div>}
+                    {footer && <Markdown className="pr-description-card-footer" text={footer} />}
+                </div>
+            </section>
+        );
+    }
+    if (!body) {
         return (
             <section className="pr-section">
                 <div className="section-title">Description{editButton}</div>

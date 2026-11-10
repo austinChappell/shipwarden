@@ -16,11 +16,12 @@ import {
     UserPlus,
     type LucideIcon
 } from 'lucide-react';
-import { hostLabel, type GitHubLabel, type PullRequest, type TimelineEvent } from '@shared/github';
+import { hostLabel, type GitHubLabel, type GitHubUser, type PullRequest, type TimelineEvent } from '@shared/github';
 import { timeAgo } from '../util';
 import { openLink } from '../links';
 import { Markdown } from './Markdown';
 import { buildTimeline, type TimelineItem } from './pr-timeline';
+import { Avatar } from './Avatar';
 
 export const REVIEW_STATE_TEXT: Record<string, string> = {
     APPROVED: 'approved',
@@ -38,6 +39,30 @@ function When({ iso }: { iso: string }) {
         <time className="pr-timeline-time" dateTime={iso} title={new Date(iso).toLocaleString()}>
             {timeAgo(iso)}
         </time>
+    );
+}
+
+/** A bot login on GitHub ends with "[bot]", for example "codecov[bot]". */
+function authorName(login: string | undefined | null): { name: string; bot: boolean } {
+    if (!login) return { name: 'unknown', bot: false };
+    const bot = login.endsWith('[bot]');
+    return { name: bot ? login.slice(0, -'[bot]'.length) : login, bot };
+}
+
+/** A comment or a review: the avatar of the author on the line, and a card at its right. */
+function CardRow({ author, className, header, children }: { author: GitHubUser | null; className?: string; header: ReactNode; children?: ReactNode }) {
+    const { name, bot } = authorName(author?.login);
+    return (
+        <li className="pr-timeline-item pr-timeline-event">
+            <Avatar login={name} url={author?.avatarUrl} size={34} className={`pr-timeline-badge${bot ? ' bot' : ''}`} />
+            <div className={`pr-timeline-card${className ? ` ${className}` : ''}`}>
+                <div className="pr-timeline-card-header">
+                    <strong>{name}</strong>
+                    {bot && <span className="tag pr-timeline-bot">bot</span>} {header}
+                </div>
+                {children}
+            </div>
+        </li>
     );
 }
 
@@ -238,28 +263,32 @@ function Row({ item, pr }: { item: TimelineItem; pr: PullRequest }) {
     switch (item.type) {
         case 'comment':
             return (
-                <li className="pr-timeline-item">
-                    <div className="pr-timeline-card">
-                        <div className="pr-timeline-card-header">
-                            <strong>{item.comment.author?.login ?? 'unknown'}</strong> commented <When iso={item.createdAt} />
-                        </div>
-                        <Markdown className="pr-timeline-body" text={item.comment.body} />
-                    </div>
-                </li>
+                <CardRow
+                    author={item.comment.author}
+                    header={
+                        <>
+                            commented <When iso={item.createdAt} />
+                        </>
+                    }
+                >
+                    <Markdown className="pr-timeline-body" text={item.comment.body} />
+                </CardRow>
             );
         case 'review': {
             const { review } = item;
             return (
-                <li className="pr-timeline-item">
-                    <div className={`pr-timeline-card review-${review.state.toLowerCase()}`}>
-                        <div className="pr-timeline-card-header">
-                            <strong>{review.author?.login ?? 'unknown'}</strong>{' '}
+                <CardRow
+                    author={review.author}
+                    className={`review-${review.state.toLowerCase()}`}
+                    header={
+                        <>
                             <span className={`tag review-${review.state.toLowerCase()}`}>{REVIEW_STATE_TEXT[review.state] ?? review.state.toLowerCase()}</span>{' '}
                             <When iso={item.createdAt} />
-                        </div>
-                        {review.body.trim() && <Markdown className="pr-timeline-body" text={review.body} />}
-                    </div>
-                </li>
+                        </>
+                    }
+                >
+                    {review.body.trim() && <Markdown className="pr-timeline-body" text={review.body} />}
+                </CardRow>
             );
         }
         case 'commits': {

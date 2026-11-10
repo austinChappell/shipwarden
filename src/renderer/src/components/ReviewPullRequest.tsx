@@ -322,7 +322,7 @@ export function ReviewPullRequest({
 
     if (!pr) {
         return (
-            <div className="review-pr">
+            <div className={`review-pr${tab === 'overview' ? ' overview' : ''}`}>
                 <header className="review-pr-header">{back}</header>
                 {!error && loading ? <HelmLoader label="Loading the pull request" /> : <div className="review-placeholder panel-message">{error ?? ''}</div>}
             </div>
@@ -343,7 +343,7 @@ export function ReviewPullRequest({
     const codeMax = () => (document.querySelector<HTMLElement>('.pr-tab-body')?.offsetWidth ?? Infinity) - (fileListOpen ? sideWidth.width : 0) - 320;
 
     return (
-        <div className="review-pr">
+        <div className={`review-pr${tab === 'overview' ? ' overview' : ''}`}>
             <header className="review-pr-header">
                 {back}
                 <div className="review-pr-title">
