@@ -7,7 +7,9 @@ import {
     parsePs,
     programName,
     worktreeOf,
+    portUrl,
     worktreePids,
+    worktreePortOwners,
     worktreeSummary,
     type ScanInput
 } from './processes';
@@ -123,5 +125,18 @@ describe('groupProcesses', () => {
         expect(worktreePids(b, { includeOthers: true })).toEqual([500, 501]);
         expect(worktreePids(b, { includeOthers: false })).toEqual([]);
         expect(worktreeSummary(b)).toEqual({ processes: 1, ports: [8000] });
+    });
+
+    it('gives each port the top process of its tree', () => {
+        const [a, b] = groupProcesses(input());
+        expect(worktreePortOwners(a).map(({ port, pid }) => ({ port, pid }))).toEqual([{ port: 5173, pid: 301 }]);
+        expect(worktreePortOwners(b).map(({ port, pid }) => ({ port, pid }))).toEqual([{ port: 8000, pid: 500 }]);
+    });
+
+    it('opens local ports as localhost', () => {
+        expect(portUrl({ port: 5173, address: '*' })).toBe('http://localhost:5173');
+        expect(portUrl({ port: 3000, address: '::1' })).toBe('http://localhost:3000');
+        expect(portUrl({ port: 8080, address: '192.168.1.5' })).toBe('http://192.168.1.5:8080');
+        expect(portUrl({ port: 8080, address: 'fe80::1' })).toBe('http://[fe80::1]:8080');
     });
 });
