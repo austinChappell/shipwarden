@@ -30,6 +30,16 @@ interface Entry {
     bindings: { dispose(): void }[];
     /** The timer of the second fit. See fit(). */
     fitTimer?: ReturnType<typeof setTimeout>;
+    /** The last size that the pool sent to the PTY. It is undefined until the terminal is visible one time. */
+    ptySize?: { cols: number; rows: number };
+}
+
+/** A terminal that the pool makes now. */
+interface Creation {
+    /** Gives the new entry, or undefined when the pool disposed the terminal before it was ready. */
+    promise: Promise<Entry | undefined>;
+    /** True when the pool disposed the terminal before it was ready. */
+    cancelled: boolean;
 }
 
 /**
@@ -38,7 +48,7 @@ interface Entry {
  */
 export class TerminalPool {
     private readonly entries = new Map<string, Entry>();
-    private readonly creating = new Map<string, Promise<Entry>>();
+    private readonly creating = new Map<string, Creation>();
     private readonly api = window.shipwarden.terminals;
     /**
      * Stops the draw loop of a terminal that is not visible, and starts it again when the terminal is visible.
@@ -105,13 +115,13 @@ export class TerminalPool {
     async attach(session: TerminalSession, settings: TerminalSettings, container: HTMLElement, focus = true): Promise<void> {
         let entry = this.entries.get(session.id);
         if (!entry) {
-            let promise = this.creating.get(session.id);
-            if (!promise) {
-                promise = this.create(session, settings, container);
-                this.creating.set(session.id, promise);
-            }
-            entry = await promise;
-            this.creating.delete(session.id);
+            const creation = this.creating.get(session.id) ?? this.startCreate(session, settings, container);
+            entry = await creation.promise;
+        }
+        // The pool can dispose the terminal before it is ready, for example when the colors change. Do not show a
+        // disposed terminal, because its canvas does not change again. The new view of the session makes a new terminal.
+        if (!entry || this.entries.get(session.id) !== entry) {
+            return;
         }
         if (entry.host.parentElement !== container) {
             container.appendChild(entry.host);
@@ -141,7 +151,8 @@ export class TerminalPool {
      * The sessions continue to run in the PTY host. A new view gets their recent output again from the replay.
      */
     resetAll(): void {
-        for (const sessionId of [...this.entries.keys()]) {
+        // Also stop the terminals that are not ready. Their colors are old.
+        for (const sessionId of new Set([...this.entries.keys(), ...this.creating.keys()])) {
             this.dispose(sessionId);
         }
     }
@@ -169,9 +180,31 @@ export class TerminalPool {
         }, TRAILING_FIT_MS);
     }
 
+    /**
+     * Fits the terminal and sends its size to the PTY. The function does nothing when the terminal is not visible.
+     *
+     * FitAddon does nothing when the terminal already has the correct size. But the PTY can have a different size,
+     * for example when a resize did not get to the PTY. Thus the function also compares the size of the PTY.
+     */
     private fitNow(entry: Entry): void {
-        if (entry.host.isConnected && entry.host.clientWidth > 0 && entry.host.clientHeight > 0) {
+        if (isVisible(entry)) {
             entry.fit.fit();
+            this.sendSize(entry);
+        }
+    }
+
+    /**
+     * Sends the size of the terminal to the PTY when the PTY does not have this size.
+     * The function does nothing when the terminal is not visible, because then its size is not correct.
+     */
+    private sendSize(entry: Entry): void {
+        if (!isVisible(entry)) {
+            return;
+        }
+        const { cols, rows } = entry.terminal;
+        if (entry.ptySize?.cols !== cols || entry.ptySize?.rows !== rows) {
+            entry.ptySize = { cols, rows };
+            this.api.resize(entry.session.id, cols, rows);
         }
     }
 
@@ -180,6 +213,12 @@ export class TerminalPool {
      * A change of the colors also uses this, because a new terminal is necessary for new colors.
      */
     dispose(sessionId: string): void {
+        // A terminal that is not ready stops at its next step. The next attach makes a new terminal.
+        const creation = this.creating.get(sessionId);
+        if (creation) {
+            creation.cancelled = true;
+            this.creating.delete(sessionId);
+        }
         const entry = this.entries.get(sessionId);
         if (!entry) {
             return;
@@ -191,9 +230,25 @@ export class TerminalPool {
         entry.terminal.dispose();
     }
 
-    private async create(session: TerminalSession, settings: TerminalSettings, container: HTMLElement): Promise<Entry> {
+    /** Starts to make the terminal of a session. Each attach of the session uses this creation until it is ready. */
+    private startCreate(session: TerminalSession, settings: TerminalSettings, container: HTMLElement): Creation {
+        const creation: Creation = { promise: Promise.resolve(undefined), cancelled: false };
+        creation.promise = this.create(session, settings, container, creation).finally(() => {
+            if (this.creating.get(session.id) === creation) {
+                this.creating.delete(session.id);
+            }
+        });
+        this.creating.set(session.id, creation);
+        return creation;
+    }
+
+    /** Makes the terminal of a session. Gives undefined when dispose() cancels the creation. */
+    private async create(session: TerminalSession, settings: TerminalSettings, container: HTMLElement, creation: Creation): Promise<Entry | undefined> {
         // Each terminal has its own Ghostty instance, so it cannot show the memory of another terminal.
         const [ghostty] = await Promise.all([loadGhostty(), prepareFonts(settings)]);
+        if (creation.cancelled) {
+            return undefined;
+        }
 
         const host = document.createElement('div');
         host.className = 'terminal-host';
@@ -264,11 +319,15 @@ export class TerminalPool {
                 terminal.scrollToBottom();
                 this.api.write(session.id, data);
             }),
-            terminal.onResize(({ cols, rows }) => this.api.resize(session.id, cols, rows))
+            terminal.onResize(() => this.sendSize(entry))
         );
 
         // Show the recent output, then the live chunks that arrived after it.
         const replay = await this.api.replay(session.id);
+        // dispose() already destroyed the terminal. Do not write to it.
+        if (creation.cancelled) {
+            return undefined;
+        }
         this.write(entry, replay.data);
         entry.shownSeq = replay.seq;
         for (const [data, seq] of entry.pending) {
@@ -278,7 +337,9 @@ export class TerminalPool {
             }
         }
         entry.pending = [];
-        this.api.resize(session.id, terminal.cols, terminal.rows);
+        // A terminal that opens in a container without a size keeps the default size of ghostty-web (80 x 24).
+        // fitNow sends the size only when the terminal is visible. The first visible fit sends the correct size.
+        this.fitNow(entry);
         return entry;
     }
 
@@ -288,6 +349,11 @@ export class TerminalPool {
             writeKeepingScroll(entry.terminal, data);
         }
     }
+}
+
+/** Returns true when the host of the terminal is in the document and has a size. */
+function isVisible(entry: Entry): boolean {
+    return entry.host.isConnected && entry.host.clientWidth > 0 && entry.host.clientHeight > 0;
 }
 
 /**
