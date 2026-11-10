@@ -186,7 +186,8 @@ export interface ShipWardenApi {
         listDirectory(root: string, directory: string): Promise<FileEntry[]>;
         /** Lists all files that git does not ignore, relative to the root. */
         listFiles(root: string): Promise<string[]>;
-        searchContents(root: string, query: string): Promise<ContentSearchResult>;
+        /** Searches the file contents. The search ignores case when `caseSensitive` is false or not given. */
+        searchContents(root: string, query: string, caseSensitive?: boolean): Promise<ContentSearchResult>;
         read(root: string, file: string): Promise<string>;
         /** Returns the size and the kind of a file. The page uses the kind to select a view. */
         info(root: string, file: string): Promise<FileInfo>;

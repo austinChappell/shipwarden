@@ -10,4 +10,10 @@ describe('matchLine', () => {
         const line = '      - run: node --check src/some/long/folder/path/greeting.js';
         expect(matchLine(line, 'greeting')).toBe('…ong/folder/path/greeting.js');
     });
+
+    it('finds the first match with the same case when caseSensitive is true', () => {
+        const line = 'const Greeting = 1; // some long comment that pushes greeting along';
+        expect(matchLine(line, 'greeting', true)).toBe('…ent that pushes greeting along');
+        expect(matchLine(line, 'greeting')).toBe(line);
+    });
 });

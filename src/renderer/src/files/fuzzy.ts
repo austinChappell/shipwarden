@@ -7,10 +7,11 @@ export interface FuzzyMatch {
  * Scores a path against a query. The query characters must occur in order in the path.
  * Returns undefined when the path does not match.
  * Higher scores are better: matches in the file name, consecutive matches and matches at word starts.
+ * The match ignores case when `caseSensitive` is false.
  */
-export function fuzzyScore(path: string, query: string): number | undefined {
-    const text = path.toLowerCase();
-    const needle = query.toLowerCase().replace(/\s+/g, '');
+export function fuzzyScore(path: string, query: string, caseSensitive = false): number | undefined {
+    const text = caseSensitive ? path : path.toLowerCase();
+    const needle = (caseSensitive ? query : query.toLowerCase()).replace(/\s+/g, '');
     if (!needle) {
         return 0;
     }
@@ -45,10 +46,10 @@ export function fuzzyScore(path: string, query: string): number | undefined {
 }
 
 /** Returns the best matches, best first. */
-export function fuzzyFilter(paths: readonly string[], query: string, limit = 200): FuzzyMatch[] {
+export function fuzzyFilter(paths: readonly string[], query: string, limit = 200, caseSensitive = false): FuzzyMatch[] {
     const matches: FuzzyMatch[] = [];
     for (const path of paths) {
-        const score = fuzzyScore(path, query);
+        const score = fuzzyScore(path, query, caseSensitive);
         if (score !== undefined) {
             matches.push({ path, score });
         }

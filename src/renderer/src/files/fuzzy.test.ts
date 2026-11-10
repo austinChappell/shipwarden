@@ -11,6 +11,11 @@ describe('fuzzyScore', () => {
     it('ignores case and spaces', () => {
         expect(fuzzyScore('README.md', 'read me')).toBeDefined();
     });
+
+    it('matches case when caseSensitive is true', () => {
+        expect(fuzzyScore('README.md', 'READ', true)).toBeDefined();
+        expect(fuzzyScore('README.md', 'read', true)).toBeUndefined();
+    });
 });
 
 describe('fuzzyFilter', () => {

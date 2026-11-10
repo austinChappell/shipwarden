@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Ban, ChevronRight, File, ListCollapse, RefreshCw, Search, TextAlignStart } from 'lucide-react';
+import { Ban, CaseSensitive, ChevronRight, File, ListCollapse, RefreshCw, Search, TextAlignStart } from 'lucide-react';
 import { baseName, matchLine, parentPath, type ContentMatch, type FileEntry } from '@shared/files';
 import { fileIcon, folderIcon } from '../files/file-icons';
 import { fuzzyFilter } from '../files/fuzzy';
@@ -21,18 +21,36 @@ const api = window.shipwarden.files;
 const ICON_SIZE = 16;
 const ICON_STROKE = 1.5;
 const INDENT = 14;
+const CASE_SENSITIVE_KEY = 'shipwarden.explorerCaseSensitive';
+
+/** Reads the saved case setting. The default is a search that ignores case. */
+function readCaseSensitive(): boolean {
+    try {
+        return localStorage.getItem(CASE_SENSITIVE_KEY) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+function saveCaseSensitive(value: boolean): void {
+    try {
+        localStorage.setItem(CASE_SENSITIVE_KEY, String(value));
+    } catch {
+        // The setting stays only for this session.
+    }
+}
 
 function errorText(error: unknown): string {
     return (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 }
 
-/** Splits text around each case-insensitive match of the query, so that the matches can show in bold. */
-function highlight(text: string, query: string): ReactNode {
+/** Splits text around each match of the query, so that the matches can show in bold. The match ignores case when `caseSensitive` is false. */
+function highlight(text: string, query: string, caseSensitive: boolean): ReactNode {
     if (!query) {
         return text;
     }
-    const lower = text.toLowerCase();
-    const needle = query.toLowerCase();
+    const lower = caseSensitive ? text : text.toLowerCase();
+    const needle = caseSensitive ? query : query.toLowerCase();
     const parts: ReactNode[] = [];
     let start = 0;
     let index = lower.indexOf(needle);
@@ -49,10 +67,11 @@ function highlight(text: string, query: string): ReactNode {
 export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     const [mode, setMode] = useState<Mode>('names');
     const [query, setQuery] = useState('');
+    const [caseSensitive, setCaseSensitive] = useState(readCaseSensitive);
     const [children, setChildren] = useState<Map<string, FileEntry[]>>(new Map());
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
     const [allFiles, setAllFiles] = useState<string[]>();
-    const [contentResults, setContentResults] = useState<{ query: string; matches: ContentMatch[]; truncated: boolean }>();
+    const [contentResults, setContentResults] = useState<{ query: string; caseSensitive: boolean; matches: ContentMatch[]; truncated: boolean }>();
     const [searching, setSearching] = useState(false);
     const [error, setError] = useState<string>();
     /** The result that Enter opens. The arrow keys move it. */
@@ -127,8 +146,8 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
         let cancelled = false;
         setSearching(true);
         const timer = setTimeout(() => {
-            api.searchContents(root, query).then(
-                result => !cancelled && setContentResults({ query, ...result }),
+            api.searchContents(root, query, caseSensitive).then(
+                result => !cancelled && setContentResults({ query, caseSensitive, ...result }),
                 err => !cancelled && setError(errorText(err))
             ).finally(() => !cancelled && setSearching(false));
         }, 250);
@@ -136,7 +155,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [mode, query, root]);
+    }, [mode, query, caseSensitive, root]);
 
     /** Expands or collapses a folder. Without `open`, the folder changes to the other state. */
     const setFolderOpen = (path: string, open?: boolean) => {
@@ -159,8 +178,8 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     };
 
     const nameMatches = useMemo(
-        () => (mode === 'names' && query && allFiles ? fuzzyFilter(allFiles, query) : []),
-        [mode, query, allFiles]
+        () => (mode === 'names' && query && allFiles ? fuzzyFilter(allFiles, query, undefined, caseSensitive) : []),
+        [mode, query, allFiles, caseSensitive]
     );
 
     /** The visible tree rows, in the order of the tree. The rows of a collapsed folder are not in the list. */
@@ -321,11 +340,19 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     }, [active]);
 
     const flipMode = () => setMode(current => (current === 'names' ? 'contents' : 'names'));
+    const toggleCase = () => setCaseSensitive(current => {
+        saveCaseSensitive(!current);
+        return !current;
+    });
     const onSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Tab' && event.altKey) {
             // ⌥Tab changes between names and contents. The query stays.
             event.preventDefault();
             flipMode();
+        } else if (event.code === 'KeyC' && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
+            // ⌥C turns case sensitivity on or off. Without preventDefault, macOS types "ç".
+            event.preventDefault();
+            toggleCase();
         } else if (event.key === 'Escape') {
             setQuery('');
         } else if (event.key === 'ArrowDown' && !query) {
@@ -404,7 +431,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                                     onClick={() => onOpenFile(path, match.line)}
                                 >
                                     <span className="search-line-number">{match.line}</span>
-                                    <span className="search-text" title={match.text.trim()}>{highlight(matchLine(match.text, contentResults.query), contentResults.query)}</span>
+                                    <span className="search-text" title={match.text.trim()}>{highlight(matchLine(match.text, contentResults.query, contentResults.caseSensitive), contentResults.query, contentResults.caseSensitive)}</span>
                                 </div>
                             );
                         })}
@@ -438,6 +465,15 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                         onChange={event => setQuery(event.target.value)}
                         onKeyDown={onSearchKey}
                     />
+                    <button
+                        type="button"
+                        className={`search-case${caseSensitive ? ' selected' : ''}`}
+                        aria-pressed={caseSensitive}
+                        title={caseSensitive ? 'Match case: on (⌥C)' : 'Match case: off (⌥C)'}
+                        onClick={toggleCase}
+                    >
+                        <CaseSensitive size={16} strokeWidth={1.6} />
+                    </button>
                     <span className="search-mode" role="radiogroup" aria-label="Search">
                         <button
                             type="button"
