@@ -1,4 +1,4 @@
-import type { NavLocation } from '@shared/nav-history';
+import type { NavLocation, ViewRoute } from '@shared/nav-history';
 import type { ViewAction } from '@shared/shortcuts';
 
 /** A view of the center area. */
@@ -35,19 +35,19 @@ export function viewAfterProjectSwitch(view: MainView): MainView {
 }
 
 /**
- * Returns the history entry of the current place in the app. The settings page has no entry.
- * The worktree view has an entry only when a worktree is selected.
+ * Returns the history entry of the current place in the app. Each section of the settings page is a page. The worktree view has an entry only when a worktree is selected. `route` is the page and the query of the current view.
  */
 export function navLocationOf(
     mainView: MainView,
     selectedPath: string | undefined,
     activeTab: string | undefined,
-    graphRepo: string | undefined
+    graphRepo: string | undefined,
+    route: ViewRoute = {}
 ): NavLocation | undefined {
-    if (mainView === 'settings') return undefined;
-    if (mainView === 'worktree') return selectedPath ? { view: mainView, worktree: selectedPath, tab: activeTab } : undefined;
+    if (mainView === 'settings') return { view: mainView, page: route.page };
+    if (mainView === 'worktree') return selectedPath ? { view: mainView, worktree: selectedPath, tab: activeTab, query: route.query } : undefined;
     if (mainView === 'graph') return { view: mainView, repo: graphRepo };
-    return { view: mainView };
+    return { view: mainView, page: route.page, query: route.query };
 }
 
 /**

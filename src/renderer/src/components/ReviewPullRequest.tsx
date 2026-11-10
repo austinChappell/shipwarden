@@ -57,8 +57,10 @@ interface Props {
     onRefresh(): Promise<void>;
     /** Shows the list of pull requests again. */
     onBack(): void;
-    /** A tab to show, for example from the Dashboard. A new `nonce` shows it again. */
-    tabRequest?: { tab: ReviewTab; nonce: number };
+    /** The tab of the history entry. Undefined shows the tab that the user selected last. */
+    tab?: ReviewTab;
+    /** Tells the history entry that a different tab shows. */
+    onSelectTab?(tab: ReviewTab): void;
     /** Opens the New worktree dialog on the head branch of the pull request. Without it, the button does not show. */
     onNewWorktree?(pr: PullRequest): void;
     /**
@@ -96,13 +98,15 @@ function useRepoInProject(repo: RepoRef, projects: ProjectsState | undefined): b
     return inProject;
 }
 
-/** The last tab request that the view applied. A remount must not apply an old request again. */
-let appliedTabRequest = 0;
+/** True when the text is the name of a tab of a pull request. */
+export function isReviewTab(value: string | undefined): value is ReviewTab {
+    return value === 'overview' || value === 'commits' || value === 'checks' || value === 'files';
+}
 
 function readTab(): ReviewTab {
     try {
-        const value = localStorage.getItem(TAB_KEY);
-        return value === 'commits' || value === 'checks' || value === 'files' ? value : 'overview';
+        const value = localStorage.getItem(TAB_KEY) ?? undefined;
+        return isReviewTab(value) ? value : 'overview';
     } catch {
         return 'overview';
     }
@@ -168,7 +172,8 @@ export function ReviewPullRequest({
     error,
     onRefresh,
     onBack,
-    tabRequest,
+    tab: routeTab,
+    onSelectTab,
     onNewWorktree,
     onSendToAgent,
     onSendLogToAgent,
@@ -176,7 +181,14 @@ export function ReviewPullRequest({
     projects,
     onPullRepo
 }: Props) {
-    const [tab, setTab] = useState<ReviewTab>(readTab);
+    const [storedTab, setTab] = useState<ReviewTab>(readTab);
+    const tab = routeTab ?? storedTab;
+    const onSelectTabRef = useRef(onSelectTab);
+    onSelectTabRef.current = onSelectTab;
+    // The tab of the history entry stays when the user opens a different pull request without a tab.
+    useEffect(() => {
+        if (routeTab) setTab(routeTab);
+    }, [routeTab]);
     // The commit that the Commits tab shows. Undefined shows the commit list.
     const [commitSha, setCommitSha] = useState<string>();
     const openCommit = (commit: PullRequestCommit) => {
@@ -253,6 +265,7 @@ export function ReviewPullRequest({
         // A click on the Commits tab while it shows a commit goes back to the commit list.
         if (value === 'commits' && tab === 'commits') setCommitSha(undefined);
         setTab(value);
+        onSelectTabRef.current?.(value);
         // The Files changed tab opens the search bar again only after a new ⌘F.
         if (value !== 'files') setFindRequest(undefined);
         try {
@@ -262,16 +275,8 @@ export function ReviewPullRequest({
         }
     };
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: Each new nonce is one tab request. selectTab uses only state setters, so an old copy is correct.
-    useEffect(() => {
-        if (tabRequest && tabRequest.nonce !== appliedTabRequest) {
-            appliedTabRequest = tabRequest.nonce;
-            selectTab(tabRequest.tab);
-        }
-    }, [tabRequest?.nonce]);
-
     // ⌘F searches the changed files. The capture phase gets the key before a comment box can stop it.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: The listener attaches one time. selectTab uses only state setters, so the first copy is correct.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The listener attaches one time. selectTab uses only state setters and a ref, so the first copy is correct.
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
             if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {

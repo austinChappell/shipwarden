@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ViewRoute } from '@shared/nav-history';
 import {
     assigneeOptions,
     boardColumns,
@@ -39,15 +40,30 @@ interface Props {
     onOpenSettings(): void;
     /** A task to open, for example from the task link of a worktree. A new `nonce` opens it again. */
     openTask?: { connectionId: string; taskId: string; nonce: number };
+    /** The selected task in the query: `task`, and the task manager of the task in `connection`. */
+    route: ViewRoute;
+    /** Changes the selected task. The change replaces the current history entry. */
+    onRoute(route: ViewRoute): void;
 }
 
 /** The tasks of the project's task managers, one collection at a time, with a dialog for the details of the selected task. */
-export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree, onOpenSettings, repoLabel, openTask }: Props) {
-    const [selectedId, setSelectedId] = useState<string>();
+export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree, onOpenSettings, repoLabel, openTask, route, onRoute }: Props) {
+    const selectedId = route.query?.task;
     const [query, setQuery] = useState('');
+    /** The task manager of the selected task. The setter reads it, so it is set before the hooks below. */
+    const connectionRef = useRef<string | undefined>(undefined);
+    const setSelectedId = (id: string | undefined) => onRoute({ query: id ? { task: id, connection: connectionRef.current } : {} });
 
     const sourceState = useTaskSource(setSelectedId);
     const { connections, connectionId, source, sourceError, collection, request } = sourceState;
+    connectionRef.current = connectionId;
+    /** The task of the history entry when the view opens. It opens as an open request, because its task manager can be a different one. */
+    const [restore] = useState(() => {
+        const task = route.query?.task;
+        const connection = route.query?.connection;
+        return task && connection ? { connectionId: connection, taskId: task, nonce: -1 } : undefined;
+    });
+    const openRequest = openTask ?? restore;
     const prefs = useTaskViewPrefs(projectId, source?.pluginId);
     const assigneeFilter = useAssigneeFilter({ source, collection, request });
     const assignee = assigneeFilter.filter;
@@ -63,16 +79,17 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
     const pendingOpen = useRef<{ connectionId: string; taskId: string } | undefined>(undefined);
     // biome-ignore lint/correctness/useExhaustiveDependencies: Only a new nonce opens a task. A change of connection must not open the same task again.
     useEffect(() => {
-        if (!openTask) return;
-        if (openTask.connectionId === connectionId && source?.connectionId === connectionId) {
-            setSelectedId(openTask.taskId);
+        if (!openRequest) return;
+        if (openRequest.connectionId === connectionId && source?.connectionId === connectionId) {
+            setSelectedId(openRequest.taskId);
             return;
         }
-        pendingOpen.current = { connectionId: openTask.connectionId, taskId: openTask.taskId };
-        if (openTask.connectionId !== connectionId) {
-            sourceState.selectConnection(openTask.connectionId);
+        pendingOpen.current = { connectionId: openRequest.connectionId, taskId: openRequest.taskId };
+        if (openRequest.connectionId !== connectionId) {
+            sourceState.selectConnection(openRequest.connectionId);
         }
-    }, [openTask?.nonce]);
+    }, [openRequest?.nonce]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Only a new source opens the waiting task. setSelectedId is new on each render, but each copy sets the same route.
     useEffect(() => {
         const pending = pendingOpen.current;
         if (pending && source && source.connectionId === pending.connectionId) {

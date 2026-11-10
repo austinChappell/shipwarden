@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ListTodo, PanelRight } from 'lucide-react';
 import type { CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
-import { RightPanel } from './components/RightPanel';
+import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } from './components/RightPanel';
 import { requestExplorerFocus } from './files/explorer-focus';
 import { dialogOpen } from './components/ConfirmDialog';
 import { NewWorktreeDialog } from './components/NewWorktreeDialog';
@@ -11,10 +11,11 @@ import { TasksView } from './components/TasksView';
 import { Sidebar } from './components/Sidebar';
 import { useBranchStatus } from './github/use-branch-status';
 import { ResizeHandle, usePanelWidth } from './components/ResizeHandle';
-import { SettingsView } from './components/SettingsView';
+import { readSettingsSection, SettingsView } from './components/SettingsView';
 import { AgentsView } from './components/AgentsView';
 import { NewTabMenu } from './components/NewTabMenu';
-import { ReviewView, type ReviewOpenRequest } from './components/ReviewView';
+import { ReviewView } from './components/ReviewView';
+import { reviewPage } from './app/review-page';
 import { DashboardView, type ReviewTabRequest } from './components/DashboardView';
 import { NotesView } from './components/NotesView';
 import { PipelinesView } from './components/PipelinesView';
@@ -23,6 +24,7 @@ import { useDashboardCount, useDashboardLoader } from './dashboard-store';
 import { useReviewOverviewLoader, useReviewQueue } from './github/review-overview-store';
 import { reviewScopeKey, useReviewProviders } from './review-providers-store';
 import type { NotificationTarget } from '@shared/api';
+import type { NavLocation, ViewRoute } from '@shared/nav-history';
 import { pullRequestWebUrl, repoId, type RepoRef } from '@shared/github';
 import { useAppearance } from './theme/appearance';
 import { StatusBar } from './components/StatusBar';
@@ -86,12 +88,31 @@ export function App() {
     const [graphRepo, setGraphRepo] = useState<string>();
     /** The task that the Tasks view opens next, for example from the task link of a worktree. */
     const [taskOpen, setTaskOpen] = useState<{ connectionId: string; taskId: string; nonce: number }>();
-    /** The pull request that the Review view opens next, for example from the Dashboard. */
-    const [reviewOpen, setReviewOpen] = useState<ReviewOpenRequest>();
+    /**
+     * The page and the query of each view, as the path and the query of a web address. The history entries keep them,
+     * so a step back shows the same page with the same selections. The worktree view keeps the tab of the right panel
+     * in its query. The page of the settings page is its section.
+     */
+    const [routes, setRoutes] = useState<Partial<Record<MainView, ViewRoute>>>({});
+    const routeOf = (view: MainView): ViewRoute => routes[view] ?? {};
+    /** Sets the page and the query of a view. A different page adds a history entry. A different query replaces the entry. */
+    const setRoute = (view: MainView, route: ViewRoute) => setRoutes(current => ({ ...current, [view]: route }));
+    /** The tab of the right panel that the user selected last. A worktree page without a tab in its query shows it. */
+    const [lastPanelTab, setLastPanelTab] = useState<PanelTab>(readPanelTab);
+    const routePanelTab = routes.worktree?.query?.panel;
+    const panelTab = isPanelTab(routePanelTab) ? routePanelTab : lastPanelTab;
+    const selectPanelTab = (tab: PanelTab) => {
+        setLastPanelTab(tab);
+        writePanelTab(tab);
+        setRoute('worktree', { query: { ...routes.worktree?.query, panel: tab } });
+    };
     /** A new value starts the views again on their entry page, for example the pull request list of Review. */
     const [viewEntry, setViewEntry] = useState(0);
-    /** The view that the settings page goes back to when it closes. */
+    /** The last view before the settings page. The saved layout keeps it in place of the settings page. */
     const viewBeforeSettings = useRef<ContentView>('dashboard');
+    useEffect(() => {
+        if (mainView !== 'settings') viewBeforeSettings.current = mainView;
+    }, [mainView]);
     const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
     /** False until the settings load. The appearance waits for them, so the start does not show the default theme. */
     const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -101,11 +122,6 @@ export function App() {
     const [error, setError] = useState<string>();
     const sidebarWidth = usePanelWidth('shipwarden.width.sidebar', 260, 180, 480);
     const explorerWidth = usePanelWidth('shipwarden.width.explorer', 300, 220, 720);
-    /**
-     * The section that the settings page opens on, for example the settings of one repository. Each request is a new
-     * object, so the page selects the section again when the user selected another section after the last request.
-     */
-    const [settingsSection, setSettingsSection] = useState<{ id: string }>();
     /** A new hiding rule from a Dashboard comment, for Settings > Dashboard to fill in. */
     const [rulePrefill, setRulePrefill] = useState<{ author: string; text: string; nonce: number }>();
     /**
@@ -166,25 +182,28 @@ export function App() {
     });
     const { openLinkedTask, removeWorktree } = worktreeActions;
 
-    /** Shows the settings page, and keeps the view that it goes back to. */
-    const showSettingsPage = () =>
-        setMainView(view => {
-            if (view !== 'settings') {
-                viewBeforeSettings.current = view;
-            }
-            return 'settings';
-        });
+    /**
+     * Shows the settings page on a section, for example "repo:<path>" for the settings of one repository. Each section is
+     * a page of the history. Without a section, the page shows the section that the user selected last. When the
+     * settings page shows already, it stays on its section.
+     */
     const openSettings = (section?: string) => {
-        setSettingsSection(section ? { id: section } : undefined);
-        showSettingsPage();
+        if (!section && mainView === 'settings') return;
+        setRoute('settings', { page: section ?? readSettingsSection() });
+        setMainView('settings');
     };
-    const closeSettings = useCallback(() => setMainView(viewBeforeSettings.current), []);
+    // The IPC listener registers one time. The ref gives it the function of the newest render.
+    const openSettingsRef = useRef(openSettings);
+    openSettingsRef.current = openSettings;
+    /** The close button and Escape go back past the settings pages, to the page before them. See `navigate`. */
+    const closeSettingsRef = useRef<() => void>(() => undefined);
+    const closeSettings = useCallback(() => closeSettingsRef.current(), []);
     /**
      * Shows a view on its entry page. The sidebar and the view shortcuts use it. An open pull request or task closes, also
      * when the view shows already.
      */
-    const enterView = (view: MainView) => {
-        setReviewOpen(undefined);
+    const enterView = (view: ContentView) => {
+        setRoute(view, {});
         setTaskOpen(undefined);
         setViewEntry(value => value + 1);
         setMainView(view);
@@ -226,7 +245,7 @@ export function App() {
             openLink(pullRequestWebUrl(repo, number));
             return;
         }
-        setReviewOpen({ repo: repoId(repo), number, tab, nonce: Date.now() });
+        setRoute('review', { page: reviewPage(repoId(repo), number), query: { tab } });
         setMainView('review');
     };
 
@@ -260,7 +279,7 @@ export function App() {
     sessionExitedRef.current = tabs.sessionExited;
     const notifyAgentRef = useRef(notifyAgent);
     notifyAgentRef.current = notifyAgent;
-    // biome-ignore lint/correctness/useExhaustiveDependencies: The start-up effect runs one time. project.setProjects and showSettingsPage only set state, so old copies are correct.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The start-up effect runs one time. project.setProjects only sets state, so an old copy is correct.
     useEffect(() => {
         (async () => {
             const [state, terminalSettings, existing] = await Promise.all([api.projects.get(), api.terminals.settings(), api.terminals.list()]);
@@ -288,10 +307,7 @@ export function App() {
         // An agent that the user started in a shell tab, for example with `claude` or `codex`.
         const offAgentProgram = api.terminals.onAgentProgram((id, program) => agentStateStore.setProgram(id, program));
         // The "Settings…" menu item (⌘,) opens the settings page.
-        const offOpenSettings = api.app.onOpenSettings(section => {
-            if (section) setSettingsSection({ id: section });
-            showSettingsPage();
-        });
+        const offOpenSettings = api.app.onOpenSettings(section => openSettingsRef.current(section));
         return () => {
             offOpenSettings();
             offExit();
@@ -335,27 +351,47 @@ export function App() {
     });
 
     /**
-     * The back and forward history (⌘[ and ⌘]). Each change of the view, the worktree or the active tab adds an entry.
-     * A focus change in a split also adds one, because the tab of the focused pane is the active tab.
-     * The settings page has no entry. It has its own close button.
+     * The back and forward history (⌘[ and ⌘]). Each change of the view, the worktree, the active tab or the page of a
+     * view adds an entry. A focus change in a split also adds one, because the tab of the focused pane is the active tab.
+     * A change of the selections in a page (the query), for example the tab of the right panel, replaces the current entry.
+     * Each section of the settings page is a page.
      */
-    const stepHistory = useNavHistory(navLocationOf(mainView, selectedPath, activeTab, graphRepo));
-    const navigate = (step: 1 | -1) => {
-        const location = stepHistory(step, item =>
-            isNavValid(
-                item,
-                repos,
-                worktrees.map(worktree => worktree.path),
-                tabs.tabKeysOf
-            )
+    const currentRoute: ViewRoute = mainView === 'worktree' ? { query: { panel: panelTab } } : routeOf(mainView);
+    const stepHistory = useNavHistory(navLocationOf(mainView, selectedPath, activeTab, graphRepo, currentRoute));
+    /**
+     * Moves one step back (-1) or forward (1) in the history. `skip` rejects more entries. Returns false when no entry
+     * is in that direction.
+     */
+    const navigate = (step: 1 | -1, skip?: (location: NavLocation) => boolean): boolean => {
+        const location = stepHistory(
+            step,
+            item =>
+                !skip?.(item) &&
+                isNavValid(
+                    item,
+                    repos,
+                    worktrees.map(worktree => worktree.path),
+                    tabs.tabKeysOf
+                )
         );
-        if (!location) return;
+        if (!location) return false;
+        const view = location.view as MainView;
+        // The entry has the page and the selections. An old open request must not change them when the view opens.
+        setTaskOpen(undefined);
+        if (view !== 'graph') setRoute(view, { page: location.page, query: location.query });
+        if (view === 'worktree' && isPanelTab(location.query?.panel)) setLastPanelTab(location.query.panel);
         if (location.view === 'worktree' && location.worktree) {
             setSelectedPath(location.worktree);
             if (location.tab) activate(location.worktree, location.tab);
         }
         if (location.view === 'graph') setGraphRepo(location.repo);
-        setMainView(location.view as MainView);
+        setMainView(view);
+        return true;
+    };
+    // The close button of the settings page goes back to the last page before the settings pages. Without one, it
+    // shows the last view before the settings page.
+    closeSettingsRef.current = () => {
+        if (!navigate(-1, item => item.view === 'settings')) setMainView(viewBeforeSettings.current);
     };
 
     const focusWorkspace = () => tabs.focusWorkspace(mainView === 'worktree');
@@ -388,6 +424,7 @@ export function App() {
         if (action === 'focusExplorer') {
             if (mainView !== 'worktree' || !selectedPath) return;
             if (!explorerOpen) toggleExplorer();
+            selectPanelTab('files');
             requestExplorerFocus();
             return;
         }
@@ -526,6 +563,8 @@ export function App() {
                                 onStartTask={worktreeActions.startTask}
                                 onOpenSettings={() => openSettings('tasks')}
                                 openTask={taskOpen}
+                                route={routeOf('tasks')}
+                                onRoute={route => setRoute('tasks', route)}
                                 repoLabel={repoLabel}
                                 onOpenWorktree={showWorktree}
                             />
@@ -537,7 +576,8 @@ export function App() {
                                 key={viewEntry}
                                 reviewKey={reviewKey}
                                 onOpenSettings={() => openSettings('review')}
-                                open={reviewOpen}
+                                route={routeOf('review')}
+                                onRoute={route => setRoute('review', route)}
                                 onNewWorktree={(repo, pr) => void worktreeActions.openPullRequestWorktree(repo, pr)}
                                 onSendToAgent={(repo, pr, prompt) => void worktreeActions.openPullRequestWorktree(repo, pr, prompt)}
                                 onSendLogToAgent={(repo, pr, check) =>
@@ -553,7 +593,13 @@ export function App() {
                     )}
                     {mainView === 'pipelines' && (
                         <main className="workspace">
-                            <PipelinesView key={viewEntry} reviewKey={reviewKey} onOpenSettings={() => openSettings('review')} />
+                            <PipelinesView
+                                key={viewEntry}
+                                reviewKey={reviewKey}
+                                onOpenSettings={() => openSettings('review')}
+                                route={routeOf('pipelines')}
+                                onRoute={route => setRoute('pipelines', route)}
+                            />
                         </main>
                     )}
                     {mainView === 'graph' && graphRepo && (
@@ -569,7 +615,7 @@ export function App() {
                     )}
                     {mainView === 'notes' && (
                         <main className="workspace">
-                            <NotesView key={viewEntry} />
+                            <NotesView key={viewEntry} route={routeOf('notes')} onRoute={route => setRoute('notes', route)} />
                         </main>
                     )}
                     {mainView === 'dashboard' && (
@@ -610,7 +656,8 @@ export function App() {
                                 mode={mode}
                                 terminal={settings}
                                 repos={repos}
-                                initialSection={settingsSection}
+                                section={routeOf('settings').page ?? readSettingsSection()}
+                                onSelectSection={section => setRoute('settings', { page: section })}
                                 rulePrefill={rulePrefill}
                                 onSave={async change => setAppSettings(await api.settings.update(change))}
                                 onClose={closeSettings}
@@ -730,6 +777,8 @@ export function App() {
                     {rightPanelShown && selectedPath && (
                         <RightPanel
                             root={selectedPath}
+                            tab={panelTab}
+                            onSelectTab={selectPanelTab}
                             activeFile={tabs.activeFile}
                             github={github}
                             onOpenFile={(path, line) => openFile(path, line)}

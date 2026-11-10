@@ -27,6 +27,25 @@ describe('recordLocation', () => {
         expect(history.index).toBe(NAV_HISTORY_LIMIT - 1);
     });
 
+    it('replaces the current entry when only the query changes', () => {
+        const ports = recordLocation(build('a'), { ...at('b'), query: { panel: 'processes' } });
+        const history = recordLocation(ports, { ...at('b'), query: { panel: 'checks' } });
+        expect(history.entries).toHaveLength(2);
+        expect(history.entries[1].query).toEqual({ panel: 'checks' });
+        expect(history.index).toBe(1);
+    });
+
+    it('adds an entry for a different page of the same view', () => {
+        const list = recordLocation(EMPTY_NAV_HISTORY, { view: 'review' });
+        const repo = recordLocation(list, { view: 'review', page: 'owner/repo' });
+        expect(repo.entries.map(entry => entry.page)).toEqual([undefined, 'owner/repo']);
+    });
+
+    it('ignores empty query values', () => {
+        const history = recordLocation(build('a'), { ...at('a'), query: { panel: undefined, run: '' } });
+        expect(history).toEqual(build('a'));
+    });
+
     it('records other views without a worktree', () => {
         const history = recordLocation(build('a'), { view: 'dashboard' });
         expect(history.entries[1]).toEqual({ view: 'dashboard' });
@@ -53,6 +72,17 @@ describe('stepHistory', () => {
         const back = stepHistory(build('a', 'closed', 'c'), -1, location => location.tab !== 'closed')!;
         expect(back.location.tab).toBe('a');
         expect(back.history.index).toBe(0);
+    });
+
+    it('goes back to a page with its last query, not to an older query', () => {
+        // Worktree "b": the user selects Ports, then Checks, then opens the Dashboard.
+        let history = recordLocation(build('a'), { ...at('b'), query: { panel: 'processes' } });
+        history = recordLocation(history, { ...at('b'), query: { panel: 'checks' } });
+        history = recordLocation(history, { view: 'dashboard' });
+        const back = stepHistory(history, -1, always)!;
+        expect(back.location).toEqual({ ...at('b'), query: { panel: 'checks' } });
+        const again = stepHistory(back.history, -1, always)!;
+        expect(again.location).toEqual(at('a'));
     });
 
     it('skips entries that are the same as the current location', () => {
