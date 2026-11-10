@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { shellIntegrationEnv, ZSHENV } from './shell-integration';
+import { execFileSync } from 'child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { shellIntegrationEnv, writeBashIntegration, ZSHENV } from './shell-integration';
 
 const integration = { hookSettingsPath: '/data/claude-hooks.json', zshFolder: '/data/shell-integration/zsh' };
 
@@ -49,5 +53,63 @@ describe('opencode shell integration', () => {
         expect(ZSHENV).toContain('if (( ! $+functions[opencode] )); then');
         expect(ZSHENV).toContain('-z "${OPENCODE_CONFIG_CONTENT-}"');
         expect(ZSHENV).toContain('OPENCODE_CONFIG_CONTENT="$SHIPWARDEN_OPENCODE_CONFIG_CONTENT" command opencode "$@"');
+    });
+});
+
+describe('bash shell integration', () => {
+    it('gives bash the path of the startup file, and no ZDOTDIR', () => {
+        const env = shellIntegrationEnv({ SHELL: '/bin/bash' }, { ...integration, bashInitFile: '/data/shell-integration/init.bash' });
+        expect(env).toEqual({ SHIPWARDEN_HOOK_SETTINGS: '/data/claude-hooks.json', SHIPWARDEN_BASH_INIT: '/data/shell-integration/init.bash' });
+        expect(
+            shellIntegrationEnv({ SHELL: '/bin/zsh' }, { ...integration, bashInitFile: '/data/shell-integration/init.bash' }).SHIPWARDEN_BASH_INIT
+        ).toBeUndefined();
+    });
+
+    describe.runIf(existsSync('/bin/bash'))('the startup file', () => {
+        let folder: string;
+        let home: string;
+        let bin: string;
+        let init: string;
+        let settings: string;
+
+        beforeEach(() => {
+            folder = mkdtempSync(join(tmpdir(), 'sw-bash-'));
+            home = join(folder, 'home');
+            bin = join(folder, 'bin');
+            settings = join(folder, 'claude-hooks.json');
+            mkdirSync(home);
+            mkdirSync(bin);
+            writeFileSync(settings, '{}');
+            // A claude program that prints its arguments.
+            writeFileSync(join(bin, 'claude'), '#!/bin/sh\necho "args: $*"\n');
+            chmodSync(join(bin, 'claude'), 0o755);
+            init = writeBashIntegration(join(folder, 'shell-integration', 'init.bash'));
+        });
+
+        afterEach(() => rmSync(folder, { recursive: true, force: true }));
+
+        function run(script: string): string {
+            // A pipe is not a terminal, so bash needs -i to read the startup file.
+            return execFileSync('/bin/bash', ['--init-file', init, '-i', '-c', script], {
+                env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, SHIPWARDEN_HOOK_SETTINGS: settings },
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore']
+            });
+        }
+
+        it('reads the login file of the user and adds the hook settings to claude', () => {
+            writeFileSync(join(home, '.bash_profile'), 'export FROM_PROFILE=yes\n');
+            const output = run('echo "profile=$FROM_PROFILE"; claude fix the bug; claude --settings mine.json');
+            expect(output).toContain('profile=yes');
+            expect(output).toContain(`args: --settings ${settings} fix the bug`);
+            expect(output).toContain('args: --settings mine.json\n');
+        });
+
+        it('keeps a claude function and a claude alias of the user', () => {
+            writeFileSync(join(home, '.bash_profile'), 'function claude { echo mine; }\n');
+            expect(run('claude hi')).toContain('mine');
+            writeFileSync(join(home, '.bash_profile'), "shopt -s expand_aliases\nalias claude='echo alias'\n");
+            expect(run('claude hi')).toContain('alias hi');
+        });
     });
 });

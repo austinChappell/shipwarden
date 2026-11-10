@@ -3,7 +3,7 @@ import { writeFileSync } from 'fs';
 import { claudeHookSettings, opencodeHookConfig, type HookSettingsPaths } from '@shared/agents';
 import { writeGeminiHookSettings } from './gemini-settings';
 import { writeOpencodePlugin } from './opencode-plugin';
-import { writeZshIntegration, type ShellIntegration } from './shell-integration';
+import { writeBashIntegration, writeZshIntegration, type ShellIntegration } from './shell-integration';
 
 /**
  * The hook settings files of the agents. They are the same for each session.
@@ -24,10 +24,10 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * Writes the hook settings files and the zsh integration. It adds the opencode config and the zsh folder to `shellIntegration`.
- * A file that fails gives a warning only.
+ * Writes the hook settings files and the shell integration into `shellFolder`: the `zsh` folder and `init.bash`.
+ * It adds the opencode config, the zsh folder and the bash file to `shellIntegration`. A file that fails gives a warning only.
  */
-export function writeAgentHookFiles(paths: HookSettingsPaths, shellIntegration: ShellIntegration, zshFolder: string): void {
+export function writeAgentHookFiles(paths: HookSettingsPaths, shellIntegration: ShellIntegration, shellFolder: string): void {
     try {
         writeFileSync(paths.claude, JSON.stringify(claudeHookSettings(), null, 2));
     } catch (error) {
@@ -48,9 +48,15 @@ export function writeAgentHookFiles(paths: HookSettingsPaths, shellIntegration: 
         console.warn(`[agents] The opencode plugin was not written: ${messageOf(error)}`);
     }
     try {
-        shellIntegration.zshFolder = writeZshIntegration(zshFolder);
+        shellIntegration.zshFolder = writeZshIntegration(join(shellFolder, 'zsh'));
     } catch (error) {
         // Without the zsh folder, shells start as usual. A `claude` that the user types then shows no agent state.
         console.warn(`[agents] The zsh integration was not written: ${messageOf(error)}`);
+    }
+    try {
+        shellIntegration.bashInitFile = writeBashIntegration(join(shellFolder, 'init.bash'));
+    } catch (error) {
+        // Without the file, bash starts as usual. A `claude` that the user types then shows no agent state.
+        console.warn(`[agents] The bash integration was not written: ${messageOf(error)}`);
     }
 }

@@ -47,6 +47,14 @@ export function agentProgramOf(command: string): AgentProgram | undefined {
     return undefined;
 }
 
+/**
+ * True when the process is in the foreground process group of its terminal. A job that the user stopped (Ctrl+Z) or
+ * started in the background (`claude &`) is not in the foreground. The shell has the terminal then, not the job.
+ */
+export function inForeground(row: ProcessRow): boolean {
+    return row.tpgid > 0 && row.pgid === row.tpgid;
+}
+
 export interface AgentProcess {
     pid: number;
     program: AgentProgram;

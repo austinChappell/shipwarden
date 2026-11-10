@@ -7,6 +7,7 @@ import {
     parseCwds,
     parseListeningPorts,
     parsePs,
+    PS_FIELDS,
     worktreePids,
     type ProcessRow,
     type ScanSession,
@@ -57,7 +58,7 @@ export class ProcessService {
     constructor(private readonly deps: ProcessServiceDeps) {}
 
     async table(): Promise<ProcessRow[]> {
-        return parsePs(await run('/bin/ps', ['-axww', '-o', 'pid=,ppid=,%cpu=,rss=,etime=,command=']));
+        return parsePs(await run('/bin/ps', ['-axww', '-o', PS_FIELDS]));
     }
 
     /** Returns the processes of each worktree. */

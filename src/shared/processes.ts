@@ -2,6 +2,10 @@
 export interface ProcessRow {
     pid: number;
     ppid: number;
+    /** The process group. */
+    pgid: number;
+    /** The foreground process group of the terminal of the process. It is 0 or less when the process has no terminal. */
+    tpgid: number;
     /** The CPU use in percent. */
     cpu: number;
     /** The resident memory in kilobytes. */
@@ -85,19 +89,24 @@ export interface ScanInput {
 /** Programs that are interactive shells or terminal tools. A process of the worktree folder with this name is the user's own terminal, so the scan does not show it. */
 const SHELLS = new Set(['zsh', 'bash', 'fish', 'sh', 'dash', 'ksh', 'tcsh', 'csh', 'nu', 'tmux', 'screen', 'login']);
 
-/** Parses the output of `ps -axww -o pid=,ppid=,%cpu=,rss=,etime=,command=`. */
+/** The `ps -o` fields that `parsePs` reads. */
+export const PS_FIELDS = 'pid=,ppid=,pgid=,tpgid=,%cpu=,rss=,etime=,command=';
+
+/** Parses the output of `ps -axww -o <PS_FIELDS>`. */
 export function parsePs(text: string): ProcessRow[] {
     const rows: ProcessRow[] = [];
     for (const line of text.split('\n')) {
-        const match = /^\s*(\d+)\s+(\d+)\s+([\d.,]+)\s+(\d+)\s+(\S+)\s+(.*)$/.exec(line);
+        const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+([\d.,]+)\s+(\d+)\s+(\S+)\s+(.*)$/.exec(line);
         if (!match) continue;
         rows.push({
             pid: Number(match[1]),
             ppid: Number(match[2]),
-            cpu: Number(match[3].replace(',', '.')) || 0,
-            rssKb: Number(match[4]),
-            elapsed: match[5],
-            command: match[6].trim()
+            pgid: Number(match[3]),
+            tpgid: Number(match[4]),
+            cpu: Number(match[5].replace(',', '.')) || 0,
+            rssKb: Number(match[6]),
+            elapsed: match[7],
+            command: match[8].trim()
         });
     }
     return rows;

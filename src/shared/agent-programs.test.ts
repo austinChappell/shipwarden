@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { agentProcessesBelow, agentProgramOf } from './agent-programs';
 import type { ProcessRow } from './processes';
 
-const row = (pid: number, ppid: number, command: string): ProcessRow => ({ pid, ppid, cpu: 0, rssKb: 0, elapsed: '00:01', command });
+const row = (pid: number, ppid: number, command: string): ProcessRow => ({ pid, ppid, pgid: pid, tpgid: pid, cpu: 0, rssKb: 0, elapsed: '00:01', command });
 
 describe('agentProgramOf', () => {
     it('finds Claude Code and Codex', () => {

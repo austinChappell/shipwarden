@@ -4,7 +4,7 @@ import type { ProcessRow } from '@shared/processes';
 import type { TerminalSession } from '@shared/terminal';
 import { ShellAgents } from './shell-agents';
 
-const row = (pid: number, ppid: number, command: string): ProcessRow => ({ pid, ppid, cpu: 0, rssKb: 0, elapsed: '00:01', command });
+const row = (pid: number, ppid: number, command: string): ProcessRow => ({ pid, ppid, pgid: pid, tpgid: pid, cpu: 0, rssKb: 0, elapsed: '00:01', command });
 const shell = (id: string, pid?: number): TerminalSession => ({ id, title: id, cwd: '/w', isAgent: false, exited: false, pid });
 
 function setup(sessions: TerminalSession[], rows: ProcessRow[], hostPids = [10]) {
@@ -39,6 +39,23 @@ describe('ShellAgents', () => {
             ['b', 'claude']
         ]);
         expect(test.tracker.annotate([shell('a', 20)])[0].agentProgram).toBe('codex');
+    });
+
+    it('ignores an agent that is not in the foreground of the terminal', async () => {
+        const test = setup(
+            [shell('a', 20), shell('b', 50)],
+            [
+                // Tab "a": the user stopped claude with Ctrl+Z. The shell has the terminal again.
+                { ...row(20, 10, '/bin/zsh -l'), tpgid: 20 },
+                { ...row(21, 20, 'claude'), tpgid: 20 },
+                // Tab "b": codex runs in the background, and vim has the terminal.
+                { ...row(50, 10, '/bin/zsh -l'), tpgid: 52 },
+                { ...row(51, 50, 'codex'), tpgid: 52 },
+                { ...row(52, 50, 'vim notes.md'), tpgid: 52 }
+            ]
+        );
+        await test.tracker.poll();
+        expect(test.programs).toEqual([]);
     });
 
     it('ignores a session without a shell PID', async () => {

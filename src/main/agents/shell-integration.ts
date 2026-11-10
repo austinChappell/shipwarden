@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from 'fs';
-import { basename, join } from 'path';
+import { basename, dirname, join } from 'path';
 
 /**
  * The .zshenv file of ShipWarden's zsh folder. ShipWarden sets ZDOTDIR to this folder, so zsh reads this file first.
@@ -61,11 +61,64 @@ if [[ -o interactive ]]; then
 fi
 `;
 
+/**
+ * The startup file of a bash tab. ShipWarden starts bash with `--init-file <this file>`, so bash reads it in place of
+ * ~/.bashrc. Such a shell is not a login shell, so the file reads the login files as `bash -l` does: /etc/profile, then
+ * the first of ~/.bash_profile, ~/.bash_login and ~/.profile. Then it adds the `claude`, `gemini` and `opencode`
+ * functions of ZSHENV. A function of the user stays. The `function` keyword stops a user alias from changing the name.
+ */
+export const BASH_INIT = `# ShipWarden shell integration. ShipWarden writes this file. Do not edit it.
+if [ -r /etc/profile ]; then
+    . /etc/profile
+fi
+if [ -r "$HOME/.bash_profile" ]; then
+    . "$HOME/.bash_profile"
+elif [ -r "$HOME/.bash_login" ]; then
+    . "$HOME/.bash_login"
+elif [ -r "$HOME/.profile" ]; then
+    . "$HOME/.profile"
+fi
+if ! declare -F claude >/dev/null; then
+    function claude {
+        if [[ -r "\${SHIPWARDEN_HOOK_SETTINGS-}" && " $* " != *" --settings"* ]]; then
+            command claude --settings "$SHIPWARDEN_HOOK_SETTINGS" "$@"
+        else
+            command claude "$@"
+        fi
+    }
+fi
+if ! declare -F gemini >/dev/null; then
+    function gemini {
+        if [[ -r "\${SHIPWARDEN_GEMINI_HOOK_SETTINGS-}" && -z "\${GEMINI_CLI_SYSTEM_DEFAULTS_PATH-}" ]]; then
+            GEMINI_CLI_SYSTEM_DEFAULTS_PATH="$SHIPWARDEN_GEMINI_HOOK_SETTINGS" command gemini "$@"
+        else
+            command gemini "$@"
+        fi
+    }
+fi
+if ! declare -F opencode >/dev/null; then
+    function opencode {
+        if [[ -n "\${SHIPWARDEN_OPENCODE_CONFIG_CONTENT-}" && -z "\${OPENCODE_CONFIG_CONTENT-}" ]]; then
+            OPENCODE_CONFIG_CONTENT="$SHIPWARDEN_OPENCODE_CONFIG_CONTENT" command opencode "$@"
+        else
+            command opencode "$@"
+        fi
+    }
+fi
+`;
+
 /** Writes ShipWarden's zsh folder. Returns the path of the folder. */
 export function writeZshIntegration(folder: string): string {
     mkdirSync(folder, { recursive: true });
     writeFileSync(join(folder, '.zshenv'), ZSHENV);
     return folder;
+}
+
+/** Writes the startup file of bash tabs. Returns the path of the file. */
+export function writeBashIntegration(file: string): string {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, BASH_INIT);
+    return file;
 }
 
 export interface ShellIntegration {
@@ -77,12 +130,14 @@ export interface ShellIntegration {
     opencodeConfigContent?: string;
     /** ShipWarden's zsh folder, or undefined when it was not written. */
     zshFolder?: string;
+    /** The startup file of bash tabs, or undefined when it was not written. */
+    bashInitFile?: string;
 }
 
 /**
  * Returns the variables that a terminal process gets in addition to `env`.
  * A zsh shell gets ZDOTDIR, so it reads ShipWarden's .zshenv first. The user's own ZDOTDIR goes to
- * SHIPWARDEN_USER_ZDOTDIR, and the .zshenv sets it back.
+ * SHIPWARDEN_USER_ZDOTDIR, and the .zshenv sets it back. A bash shell gets SHIPWARDEN_BASH_INIT, the path of BASH_INIT.
  */
 export function shellIntegrationEnv(env: NodeJS.ProcessEnv, integration: ShellIntegration): Record<string, string> {
     const result: Record<string, string> = { SHIPWARDEN_HOOK_SETTINGS: integration.hookSettingsPath };
@@ -93,6 +148,11 @@ export function shellIntegrationEnv(env: NodeJS.ProcessEnv, integration: ShellIn
         result.SHIPWARDEN_OPENCODE_CONFIG_CONTENT = integration.opencodeConfigContent;
     }
     const shell = env.SHELL || '/bin/zsh';
+    if (integration.bashInitFile && basename(shell) === 'bash') {
+        // The terminal manager starts bash with --init-file and this file.
+        result.SHIPWARDEN_BASH_INIT = integration.bashInitFile;
+        return result;
+    }
     if (!integration.zshFolder || basename(shell) !== 'zsh') {
         return result;
     }
