@@ -86,7 +86,7 @@ export interface ShipWardenApi {
         focus(): void;
         /** Facts about the app for the settings page. */
         info(): Promise<AppInfo>;
-        /** Listens for the "Settings…" (⌘,) and "Check for Updates…" (⇧⌘U) menu items. The section is undefined for ⌘,. */
+        /** Listens for the "Settings…" menu item (⌘,). The section is undefined for ⌘,. */
         onOpenSettings(listener: (section?: string) => void): () => void;
         /** The workspace shortcuts, for example ⌘T, ⌘W, ⌘D, ⌘[ and ⌘]. See `shortcutAction`. */
         onShortcut(listener: (action: ShortcutAction) => void): () => void;
@@ -128,6 +128,8 @@ export interface ShipWardenApi {
         /** Downloads the update, checks it, and restarts the app into the new version. The terminals continue to run. */
         install(): Promise<void>;
         onState(listener: (state: UpdateState) => void): () => void;
+        /** Listens for the result of a check from the "Check for Updates…" menu item (⇧⌘U). */
+        onChecked(listener: (state: UpdateState) => void): () => void;
     };
     usage: {
         /** The last known plan usage of the agents. */
@@ -673,6 +675,7 @@ export const IpcChannels = {
     updatesCheck: 'updates:check',
     updatesInstall: 'updates:install',
     updatesChanged: 'updates:changed',
+    updatesChecked: 'updates:checked',
     settingsGet: 'settings:get',
     settingsUpdate: 'settings:update',
     settingsCheckCommand: 'settings:checkCommand'

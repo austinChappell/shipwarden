@@ -8110,6 +8110,14 @@ body.resizing-column * {
     color: var(--accent);
 }
 
+.update-notice.error {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+
+.update-notice.error .update-notice-icon {
+    color: var(--danger);
+}
+
 .update-notice-text {
     display: flex;
     flex: 1;
