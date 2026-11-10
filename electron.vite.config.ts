@@ -31,10 +31,11 @@ export default defineConfig({
         resolve: { alias: { '@shared': resolve('src/shared') } },
         build: {
             rollupOptions: {
-                // The PTY host is a second program. The app starts it as a separate process.
+                // The PTY host and the background helper are other programs. Each runs as a separate process.
                 input: {
                     index: resolve('src/main/index.ts'),
-                    'pty-host': resolve('src/main/pty-host/main.ts')
+                    'pty-host': resolve('src/main/pty-host/main.ts'),
+                    helper: resolve('src/main/helper/main.ts')
                 }
             }
         }

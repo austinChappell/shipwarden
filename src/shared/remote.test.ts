@@ -22,9 +22,10 @@ describe('pairing links', () => {
 
 describe('normalizeRemoteSettings', () => {
     it('is off by default and keeps a valid port only', () => {
-        expect(normalizeRemoteSettings(undefined)).toEqual({ enabled: false, port: DEFAULT_REMOTE_PORT });
-        expect(normalizeRemoteSettings({ enabled: true, port: 8443 })).toEqual({ enabled: true, port: 8443 });
-        expect(normalizeRemoteSettings({ enabled: 'yes', port: 80 })).toEqual({ enabled: false, port: DEFAULT_REMOTE_PORT });
+        expect(normalizeRemoteSettings(undefined)).toEqual({ enabled: false, port: DEFAULT_REMOTE_PORT, keepRunning: false });
+        expect(normalizeRemoteSettings({ enabled: true, port: 8443 })).toEqual({ enabled: true, port: 8443, keepRunning: false });
+        expect(normalizeRemoteSettings({ enabled: true, port: 8443, keepRunning: true })).toEqual({ enabled: true, port: 8443, keepRunning: true });
+        expect(normalizeRemoteSettings({ enabled: 'yes', port: 80 })).toEqual({ enabled: false, port: DEFAULT_REMOTE_PORT, keepRunning: false });
     });
 });
 

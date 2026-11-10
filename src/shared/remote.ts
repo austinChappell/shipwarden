@@ -21,16 +21,21 @@ export interface RemoteSettings {
     /** True when ShipWarden accepts connections from paired phones. */
     enabled: boolean;
     port: number;
+    /**
+     * True when a background helper keeps the phone server running while ShipWarden is closed.
+     * A macOS launch agent starts the helper. Off by default.
+     */
+    keepRunning: boolean;
 }
 
-export const DEFAULT_REMOTE_SETTINGS: RemoteSettings = { enabled: false, port: DEFAULT_REMOTE_PORT };
+export const DEFAULT_REMOTE_SETTINGS: RemoteSettings = { enabled: false, port: DEFAULT_REMOTE_PORT, keepRunning: false };
 
 export function normalizeRemoteSettings(raw: unknown): RemoteSettings {
     const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
     const port = typeof value.port === 'number' && Number.isInteger(value.port) && value.port >= 1024 && value.port <= 65535
         ? value.port
         : DEFAULT_REMOTE_PORT;
-    return { enabled: value.enabled === true, port };
+    return { enabled: value.enabled === true, port, keepRunning: value.keepRunning === true };
 }
 
 /** A phone that the user paired. The token is not here. The main process keeps only a hash of it. */
@@ -56,6 +61,10 @@ export interface RemoteStatus {
     devices: RemoteDevice[];
     /** The IDs of the devices with an open event stream. */
     connected: string[];
+    /** The process that runs the server: the app, or the background helper. */
+    owner?: 'app' | 'helper';
+    /** The reason when the background helper is on but the app cannot use it. */
+    helperError?: string;
 }
 
 /** The data of a pairing QR code. */

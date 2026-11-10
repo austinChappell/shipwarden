@@ -71,7 +71,7 @@ describe('RemoteServer', () => {
                 onStatusChanged: () => undefined
             }
         });
-        await server.apply({ enabled: true, port: 0 });
+        await server.apply({ enabled: true, port: 0, keepRunning: false });
     });
 
     afterAll(async () => {
