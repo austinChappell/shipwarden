@@ -16,6 +16,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-09 | Show PDF files in the built-in PDF viewer of Chromium, in a frame that loads a `shipwarden-file:` URL. | It needs no dependency. pdfjs-dist adds about 3 MB and a worker. The viewer has search, zoom and page thumbnails. |
 | 2026-11-09 | The Review view gets go to definition and a file explorer from a hidden, detached git worktree at the PR head. | A language server needs the files on disk. The GitHub API gives files, but no server can run on them. The worktree uses the existing LspManager, FileExplorer and Monaco. |
 | 2026-11-09 | A background helper (a launch agent) can run the phone server while the app is closed. The setting is off by default. | The agents already run in the PTY host. Only the phone server needed the app. The helper is a second entry of the same build, so it needs no other install. |
+| 2026-11-09 | "Apply suggestion" changes the file in the local worktree. It does not commit with the GitHub API. | An agent works on the branch in the worktree. A commit on GitHub makes the local branch fall behind, and the next push fails. The user can check, test and commit the change with other changes. |
 
 ## The old name (Yardmaster)
 
@@ -192,9 +193,24 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - Each state change carries a message and a time. PreToolUse gives a description of the tool call for people
   (`describeTool`, for example "Editing App.tsx" or "Running npm test"). UserPromptSubmit gives a one-line summary of
   the prompt, which the session keeps.
-- The Agents view (the first row of the sidebar) lists the running agents of all projects, grouped by project. A row
-  shows the state and its time, a name (the linked task, else the last prompt, else the branch), the activity, and the
-  repository and branch. A click switches to the agent's project if necessary and opens its tab.
+- The Agents view (the first row of the sidebar, ⌥⌘2) lists the running agents of all projects, grouped by project. A row
+  shows the state, the time since the last output, a name (the linked task, else the last prompt, else the branch),
+  the activity, the pull request with its CI state, and the repository and branch. A click or Enter switches to the
+  agent's project if necessary and opens its tab. The arrow keys, Home and End move between the rows.
+- `src/shared/agent-overview.ts` gives the state of a row (`overviewState`). The inputs are the hook state, the CI state
+  of the branch's open pull request and the time of the last terminal output:
+  - The hook states "waiting", "working" and "starting" stay as they are.
+  - "done" becomes "Blocked on CI" while the checks of the pull request run or after they fail. Else it stays "done".
+  - "idle" (ready, no prompt) becomes "Needs input", or "Blocked on CI" as above.
+  - An agent without hooks (for example Codex) is "working" while its terminal sent output in the last 10 seconds.
+    Else it is "Blocked on CI" as above, or "Quiet".
+- The CI state comes from `github.branchSummaries` for each repository that has an agent. The view loads it every
+  60 seconds while it is open.
+- The renderer records the time of the last output of each terminal (`OutputActivity`). It starts when the window
+  loads, so after a reload of the window the time is not known until the next output. The row then shows the time of
+  the last state change. A redraw of a TUI agent (for example a spinner) also counts as output.
+- The header shows the number of agents in each state and the plan usage of Claude and Codex from the status bar.
+  ShipWarden has no token or cost data for each agent, so the rows show no usage.
 - The project switcher is the header of the repository list, because only the repositories change with the project.
 - The worktree list also shows the open PR of each branch and its combined CI state. One GraphQL request for all
   open PRs runs every 60 seconds and when the window gets focus.
@@ -501,6 +517,12 @@ Done:
 - The tree updates itself when files change on disk. One recursive watch covers each worktree.
 - Files open in Monaco tabs next to the terminal tabs. Cmd+S saves.
   An open file without unsaved changes reloads when an agent changes it.
+- The open files and the active tab of each worktree stay after a reload or a restart (`layout-store.ts`, in local
+  storage). A file that does not exist now does not get a tab. Each file also keeps its cursor and scroll position
+  (`editor/editor-positions.ts`). A closed tab or a removed worktree removes its positions.
+- A handle on the left edge of the right panel changes its width (`ResizeHandle`). The width stays in local storage.
+  The handle is a `separator` with `aria-valuenow`. Left and Right change the width, Shift makes bigger steps, End sets
+  the largest width, and Enter or Home sets the default width.
 - File viewers (`FileView`). The main process tells the kind of a file (`files.info`): from the extension, else from
   the first bytes (`shared/file-types.ts`).
   - Images (png, jpg, gif, webp, svg, bmp, ico, avif): fit, 100% and zoom (also ⌘ and the scroll wheel), the size in
@@ -523,21 +545,32 @@ Done:
 
 - `LspManager` (main process) starts one server for each worktree and language, with the worktree as `rootUri`.
   It answers the server's requests (configuration, workspace folders) and sends diagnostics to the UI.
+  It sends `workspace/applyEdit` requests to the UI with an `id` and waits up to 30 seconds for `lsp.respond`.
 - Servers:
   - TypeScript and JavaScript: `tsc --lsp --stdio` from TypeScript 7. ShipWarden uses the worktree's own TypeScript if it is version 7 or later. If not, it uses the TypeScript 7 that ShipWarden includes.
   - Rust: `rust-analyzer`. Python: `basedpyright-langserver` or `pyright-langserver`. Go: `gopls`. These must be in the PATH.
 - The main process reads the PATH of the login shell at start. An app that starts from Finder does not get it.
 - `LspBridge` (renderer) syncs each Monaco model in a worktree with incremental changes.
-  It registers Monaco providers for definition, type definition, implementation, references, hover, document highlights and completion.
+  It registers Monaco providers for definition, type definition, implementation, references, hover, document highlights,
+  completion, rename and code actions.
   It routes each request to the server of the worktree that contains the file.
+- Rename: the bridge sends `textDocument/prepareRename` when the server supports it, then `textDocument/rename`.
+- Code actions: the bridge sends `textDocument/codeAction` with the original LSP diagnostics. Each Monaco action runs the
+  command `shipwarden.lsp.applyCodeAction`. This command sends `codeAction/resolve` when the action has no edit,
+  applies the edit and sends `workspace/executeCommand` for the action's command.
+- Workspace edits (`LspBridge.applyWorkspaceEdit`): the bridge checks all files first. Then it changes them.
+  - A file in the document store gets the edit in its Monaco model, so undo works. A model without unsaved changes is saved.
+  - Other files of a worktree get the edit on the disk (`files.read`, then `files.write`).
+  - The bridge refuses the full edit for a file outside the worktrees, a file operation (create, rename, delete),
+    overlapping edits, or a document version that changed.
 - Diagnostics: the bridge pulls them (`textDocument/diagnostic`) after each change and also accepts pushed diagnostics.
 - "Go to definition" into another file opens that file in a ShipWarden tab. Peek views load the models of the result files first.
 
 Next:
 
-- Rename, code actions and signature help from the servers.
+- Signature help from the servers.
+- File operations in workspace edits. An error message in the editor when a code action fails.
 - Downloads of language servers that are not installed.
-- Open files stay open after a reload. The panel width can change.
 
 ### GitHub (goals 3 and 4)
 
@@ -556,6 +589,18 @@ Next:
   worktree (a bracketed paste, then Enter). A review thread goes to the agent as a prompt with the comments.
 - `RepoTarget`: each GitHub call takes a worktree root (the repository of its "origin") or `{owner, name}`.
   The review store keys its state with `targetKey(target)`.
+- Suggested changes (`shared/suggestion.ts`, `CommentBody`):
+  - A "```suggestion" block in a review comment shows as a diff: the old lines in red, the new lines in green.
+    `splitSuggestions` finds the blocks. A suggestion fence in a different code block is text.
+  - The old lines come from the `diffHunk` of the first comment of the thread (`threadSuggestionTarget`).
+    The thread query also gets `startLine` and `originalStartLine`, so a comment on more than one line works.
+  - "Suggest a change" in the comment box puts a suggestion block with the selected lines at the cursor. It shows
+    only on the new side. A selection of more than one line sends `start_line` and `start_side` with the review.
+  - "Apply suggestion" shows only in the worktree panel. It changes the file in the worktree, and the user commits.
+    `applySuggestion` finds the old lines by their text, near the line of the thread, so lines that moved still work.
+    When the old lines are not in the file, the suggestion is stale and the file does not change.
+    A file with unsaved changes in the editor does not change.
+  - The Review view shows suggestions, but it has no "Apply suggestion", because the PR has no worktree there.
 - Viewed files: `viewerViewedState` from GraphQL, changed with `markFileAsViewed` and `unmarkFileAsViewed`.
   The file list shows "x of y viewed". The diff header has a "Viewed" box. The change shows at once and goes back on an error.
 
@@ -673,7 +718,6 @@ Next:
 
 - Markdown for PR descriptions and comments.
 - PR and CI state in the worktree list.
-- Suggested changes in review comments.
 
 ### Mobile (goal 5)
 

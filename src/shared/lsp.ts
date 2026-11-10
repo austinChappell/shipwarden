@@ -25,6 +25,8 @@ export interface LspServerMessage {
     key: string;
     method: string;
     params: unknown;
+    /** Set when the server waits for a result. The UI sends the result with `lsp.respond`. */
+    id?: number;
 }
 
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {

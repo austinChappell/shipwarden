@@ -15,12 +15,25 @@ interface RunningServer {
 /** The notifications that the UI handles. Other notifications only go to the log. */
 const FORWARDED_NOTIFICATIONS = new Set(['textDocument/publishDiagnostics']);
 
+/** The UI must answer a "workspace/applyEdit" request in this time. If not, the server gets "not applied". */
+const APPLY_EDIT_TIMEOUT_MS = 30_000;
+
+/** The code action kinds that the UI can show. */
+const CODE_ACTION_KINDS = [
+    '', 'quickfix', 'refactor', 'refactor.extract', 'refactor.inline', 'refactor.rewrite',
+    'source', 'source.organizeImports', 'source.fixAll'
+];
+
 const CLIENT_CAPABILITIES: ClientCapabilities = {
     general: { positionEncodings: ['utf-16'] },
     workspace: {
         workspaceFolders: true,
         configuration: true,
-        diagnostics: { refreshSupport: true }
+        diagnostics: { refreshSupport: true },
+        applyEdit: true,
+        // The UI applies text edits only. It refuses an edit with file operations (create, rename, delete).
+        workspaceEdit: { documentChanges: true, failureHandling: 'abort' },
+        executeCommand: { dynamicRegistration: false }
     },
     textDocument: {
         synchronization: { didSave: true, dynamicRegistration: false },
@@ -39,6 +52,15 @@ const CLIENT_CAPABILITIES: ClientCapabilities = {
             },
             contextSupport: true
         },
+        rename: { dynamicRegistration: false, prepareSupport: true, prepareSupportDefaultBehavior: 1 },
+        codeAction: {
+            dynamicRegistration: false,
+            codeActionLiteralSupport: { codeActionKind: { valueSet: CODE_ACTION_KINDS } },
+            isPreferredSupport: true,
+            disabledSupport: true,
+            dataSupport: true,
+            resolveSupport: { properties: ['edit'] }
+        },
         publishDiagnostics: { relatedInformation: true },
         diagnostic: { dynamicRegistration: false, relatedDocumentSupport: false }
     }
@@ -50,6 +72,9 @@ const CLIENT_CAPABILITIES: ClientCapabilities = {
 export class LspManager {
     private readonly servers = new Map<string, RunningServer>();
     private readonly starting = new Map<string, Promise<RunningServer | undefined>>();
+    /** The server requests that wait for a result from the UI, by request ID. */
+    private readonly waiting = new Map<number, (result: unknown) => void>();
+    private nextRequestId = 1;
 
     /**
      * @param send Sends a server message to the UI.
@@ -106,6 +131,28 @@ export class LspManager {
         if (server) {
             server.connection.sendNotification(method, params).catch(() => undefined);
         }
+    }
+
+    /** Gives the result of the UI to the server request with the ID. */
+    respond(id: number, result: unknown): void {
+        const resolve = this.waiting.get(id);
+        if (resolve) {
+            this.waiting.delete(id);
+            resolve(result);
+        }
+    }
+
+    /** Sends a server request to the UI and waits for the result. After the timeout, the result is `fallback`. */
+    private askUi(key: string, method: string, params: unknown, fallback: unknown, timeoutMs: number): Promise<unknown> {
+        const id = this.nextRequestId++;
+        return new Promise(resolve => {
+            const timer = setTimeout(() => this.respond(id, fallback), timeoutMs);
+            this.waiting.set(id, result => {
+                clearTimeout(timer);
+                resolve(result);
+            });
+            this.send({ key, method, params, id });
+        });
     }
 
     /** Stops the servers of a worktree, for example when the user removes the worktree. */
@@ -184,6 +231,9 @@ export class LspManager {
             case 'workspace/diagnostic/refresh':
                 this.send({ key, method, params });
                 return null;
+            case 'workspace/applyEdit':
+                // The UI applies the edit to the models and the files. The server can send this during "workspace/executeCommand".
+                return this.askUi(key, method, params, { applied: false, failureReason: 'The UI did not answer.' }, APPLY_EDIT_TIMEOUT_MS);
             default:
                 // client/registerCapability, window/workDoneProgress/create and similar requests need no action.
                 return null;

@@ -6,33 +6,12 @@ import type {
     Location,
     LocationLink,
     MarkedString,
-    MarkupContent,
-    Position,
-    Range
+    MarkupContent
 } from 'vscode-languageserver-protocol';
 import { monaco } from '../editor/monaco';
+import { toMonacoRange } from './ranges';
 
-/** Converts a Monaco position (1-based) to an LSP position (0-based). */
-export function toLspPosition(position: monaco.IPosition): Position {
-    return { line: position.lineNumber - 1, character: position.column - 1 };
-}
-
-/** Converts an LSP range (0-based) to a Monaco range (1-based). */
-export function toMonacoRange(range: Range): monaco.IRange {
-    return {
-        startLineNumber: range.start.line + 1,
-        startColumn: range.start.character + 1,
-        endLineNumber: range.end.line + 1,
-        endColumn: range.end.character + 1
-    };
-}
-
-export function toLspRange(range: monaco.IRange): Range {
-    return {
-        start: { line: range.startLineNumber - 1, character: range.startColumn - 1 },
-        end: { line: range.endLineNumber - 1, character: range.endColumn - 1 }
-    };
-}
+export { toLspPosition, toLspRange, toMonacoRange } from './ranges';
 
 /** Converts the result of a definition request. The result can be a location, a list of locations or a list of links. */
 export function toLocationLinks(result: Location | Location[] | LocationLink[] | null | undefined): monaco.languages.LocationLink[] {
