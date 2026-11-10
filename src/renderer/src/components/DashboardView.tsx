@@ -376,6 +376,9 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
     const commentsLoaded = !!state.prComments;
     const noComments = commentsLoaded && !state.prCommentsError && shownPrComments.length === 0 && shownTaskComments.length === 0
         && !state.tasks.some(source => source.error);
+    // Show the full-page loader only before the first refresh completes.
+    // The store keeps its items. Thus a later refresh or a new mount shows the items immediately.
+    const firstLoad = !state.updatedAt && !state.pullRequestsError && !state.prCommentsError;
 
     return (
         <div className="dashboard-view">
@@ -419,7 +422,12 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                 </div>
             </header>
 
-            <div className="dash-scroll" onKeyDown={moveListFocus}>
+            {firstLoad && (
+                <div className="dash-first-load">
+                    <SeaLoader hint="The first load can take some seconds." />
+                </div>
+            )}
+            <div className="dash-scroll" hidden={firstLoad} onKeyDown={moveListFocus}>
                 <div className="dash-page">
                     <div className="dash-stats">
                         <StatCard tone="review" label="Needs your review" count={pullRequests && reviewRequests.length} detail={loaded ? reviewDetail : 'Loading…'} onClick={() => scrollTo('dash-review')} />
@@ -439,7 +447,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                         <div className="dash-column">
                             <h2 className="dash-heading">Your pull requests · {query ? `${shownYourCount} of ${yourCount}` : yourCount}</h2>
                             {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
-                            {!pullRequests && !state.pullRequestsError && <div className="dash-card"><SeaLoader compact /></div>}
+                            {!pullRequests && !state.pullRequestsError && <div className="dash-card dash-line">Loading…</div>}
                             {loaded && yourCount === 0 && <div className="dash-card"><Empty text="None of your pull requests needs an action." /></div>}
                             {loaded && yourCount > 0 && shownYourCount === 0 && <div className="dash-card"><Empty text="No pull requests match the filter." /></div>}
 
@@ -540,7 +548,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                     ))}
                                 </div>
                                 {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
-                                {!pullRequests && !state.pullRequestsError && <SeaLoader compact />}
+                                {!pullRequests && !state.pullRequestsError && <div className="panel-note">Loading…</div>}
                                 {loaded && reviewRequests.length === 0 && <Empty text="No pull requests wait for your review." />}
                                 {loaded && reviewRequests.length > 0 && shownReviews.length === 0 && <Empty text="No review requests match the filter." />}
                                 {reviewGroups.map(group => (
@@ -565,7 +573,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                             </section>
 
                             {!commentsLoaded && !state.prCommentsError && (
-                                <div className="dash-card"><SeaLoader compact hint="The first load can take some seconds." /></div>
+                                <div className="dash-card dash-line">Loading comments… The first load can take some seconds.</div>
                             )}
                             {noComments && (
                                 <div className="dash-card dash-line">

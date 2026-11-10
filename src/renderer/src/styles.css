@@ -10264,3 +10264,17 @@ button.pr-summary-cell:hover {
     flex: 1;
     justify-content: center;
 }
+
+/* The Dashboard shows one centered loader until the first refresh completes. */
+.dash-first-load {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 48px;
+}
+
+.dash-first-load .sea-loader-art {
+    width: 240px;
+}
