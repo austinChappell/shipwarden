@@ -1,6 +1,6 @@
 import { withAgentHooks, type HookSettingsPaths } from '@shared/agents';
 import type { BrowserBounds } from '@shared/browser';
-import type { NewPullRequest, RepoRef } from '@shared/github';
+import { sameRepoRef, type NewPullRequest, type RepoRef } from '@shared/github';
 import type { CreateTerminalOptions } from '@shared/terminal';
 
 /**
@@ -50,12 +50,13 @@ export function newPullRequestOf(request: Partial<NewPullRequest> | undefined): 
 
 /** Returns a repository reference with string fields. A missing field gives an empty string. */
 export function repoRefOf(repo: Partial<RepoRef> | undefined): RepoRef {
-    return { owner: String(repo?.owner ?? ''), name: String(repo?.name ?? '') };
+    const ref: RepoRef = { owner: String(repo?.owner ?? ''), name: String(repo?.name ?? '') };
+    return repo?.host === 'azure' ? { ...ref, host: 'azure' } : ref;
 }
 
-/** Returns true when two references name the same GitHub repository. GitHub names ignore case. */
+/** Returns true when two references name the same repository on the same host. The names ignore case. */
 export function sameRepo(a: RepoRef, b: RepoRef): boolean {
-    return a.owner.toLowerCase() === b.owner.toLowerCase() && a.name.toLowerCase() === b.name.toLowerCase();
+    return sameRepoRef(a, b);
 }
 
 /** The default number of commits in the git log. */

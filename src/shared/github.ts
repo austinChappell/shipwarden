@@ -1,21 +1,96 @@
 import type { WorkflowInput } from './pipelines';
+import { azureBuildsWebUrl, azureRepoOf, azureRepoWebUrl } from './azure-devops';
 import { EMOJI_SHORTCODES } from './emoji-shortcodes';
 
-/** A GitHub repository. */
+/**
+ * A repository on GitHub or on Azure Repos.
+ * For an Azure Repos repository, `owner` is "organization/project" and `host` is "azure".
+ */
 export interface RepoRef {
     owner: string;
     name: string;
+    /** The host of the repository. Undefined means GitHub. */
+    host?: SourceHostKind;
 }
 
 /**
- * The repository of a GitHub request: a worktree path (ShipWarden finds the repository from its "origin" remote),
+ * The repository of a request: a worktree path (ShipWarden finds the repository from its "origin" remote),
  * or a repository without a local checkout, for example in the Review view.
  */
 export type RepoTarget = string | RepoRef;
 
 /** Returns a text key for a target, for example for a cache. */
 export function targetKey(target: RepoTarget): string {
-    return typeof target === 'string' ? target : `github:${target.owner}/${target.name}`;
+    if (typeof target === 'string') return target;
+    return target.host === 'azure' ? repoId(target) : `github:${target.owner}/${target.name}`;
+}
+
+/** The start of the ID of an Azure Repos repository. */
+const AZURE_REPO_PREFIX = 'azure:';
+
+/**
+ * Returns the ID of a repository for the page, for example for a cache or a list.
+ * A GitHub repository gives "owner/name". An Azure Repos repository gives "azure:organization/project/name".
+ */
+export function repoId(repo: RepoRef): string {
+    return `${repo.host === 'azure' ? AZURE_REPO_PREFIX : ''}${repo.owner}/${repo.name}`;
+}
+
+/** Reads an ID from `repoId`. The name is the text after the last "/". */
+export function parseRepoId(id: string): RepoRef {
+    const azure = id.startsWith(AZURE_REPO_PREFIX);
+    const text = azure ? id.slice(AZURE_REPO_PREFIX.length) : id;
+    const slash = azure ? text.lastIndexOf('/') : text.indexOf('/');
+    const owner = slash < 0 ? text : text.slice(0, slash);
+    const name = slash < 0 ? '' : text.slice(slash + 1);
+    return azure ? { owner, name, host: 'azure' } : { owner, name };
+}
+
+/** Returns the name of a repository for the UI, for example "octo/app" or "contoso/Web/app". */
+export function repoLabel(repo: RepoRef): string {
+    return `${repo.owner}/${repo.name}`;
+}
+
+/** True when two references are the same repository. The match ignores case. */
+export function sameRepoRef(a: RepoRef | null | undefined, b: RepoRef | null | undefined): boolean {
+    return (
+        !!a &&
+        !!b &&
+        (a.host ?? 'github') === (b.host ?? 'github') &&
+        a.owner.toLowerCase() === b.owner.toLowerCase() &&
+        a.name.toLowerCase() === b.name.toLowerCase()
+    );
+}
+
+/** Returns the web page of a repository. */
+export function repoWebUrl(repo: RepoRef): string {
+    const azure = azureRepoOf(repo);
+    return azure ? azureRepoWebUrl(azure) : `https://github.com/${repo.owner}/${repo.name}`;
+}
+
+/** Returns the web page of a pull request. */
+export function pullRequestWebUrl(repo: RepoRef, number: number): string {
+    return azureRepoOf(repo) ? `${repoWebUrl(repo)}/pullrequest/${number}` : `${repoWebUrl(repo)}/pull/${number}`;
+}
+
+/** Returns the web page of the pipelines of a repository: GitHub Actions, or the builds of the Azure DevOps project. */
+export function pipelinesWebUrl(repo: RepoRef): string {
+    const azure = azureRepoOf(repo);
+    return azure ? azureBuildsWebUrl(azure) : `${repoWebUrl(repo)}/actions`;
+}
+
+/** Returns the URL that `git clone` uses for a repository. */
+export function cloneUrl(repo: RepoRef): string {
+    const azure = azureRepoOf(repo);
+    return azure ? azureRepoWebUrl(azure) : `https://github.com/${repo.owner}/${repo.name}.git`;
+}
+
+/**
+ * Returns the ref on the "origin" remote that has the head commit of a pull request.
+ * Azure Repos has only the merge ref. The head commit is the second parent of its commit.
+ */
+export function pullRequestRef(repo: RepoRef, number: number): string {
+    return repo.host === 'azure' ? `refs/pull/${number}/merge` : `refs/pull/${number}/head`;
 }
 
 /** The pull requests that the Review view lists. */
@@ -69,6 +144,8 @@ export interface GitHubOwner {
 export interface GitHubRepoInfo {
     owner: string;
     name: string;
+    /** The host of the repository. Undefined means GitHub. */
+    host?: SourceHostKind;
     /** The time of the last push, for the order of the picker. */
     pushedAt?: string;
 }

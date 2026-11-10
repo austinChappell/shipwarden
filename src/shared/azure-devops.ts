@@ -1,4 +1,4 @@
-import type { CheckConclusion, CheckStatus, ReviewDecision, ReviewEvent } from './github';
+import type { CheckConclusion, CheckStatus, RepoRef, ReviewDecision, ReviewEvent } from './github';
 
 /** The REST API version that ShipWarden sends to Azure DevOps. */
 export const AZURE_API_VERSION = '7.1';
@@ -65,6 +65,27 @@ export function azureProjectApi(repo: AzureRepoRef): string {
 /** The web page of the repository. */
 export function azureRepoWebUrl(repo: AzureRepoRef): string {
     return `${azureOrgUrl(repo)}/${encodeURIComponent(repo.project)}/_git/${encodeURIComponent(repo.repository)}`;
+}
+
+/** The web page of the builds of the project. */
+export function azureBuildsWebUrl(repo: AzureRepoRef): string {
+    return `${azureOrgUrl(repo)}/${encodeURIComponent(repo.project)}/_build`;
+}
+
+/**
+ * Returns the Azure Repos repository of a reference. Returns undefined for a GitHub repository.
+ * The owner of an Azure reference is "organization/project".
+ */
+export function azureRepoOf(repo: RepoRef | null | undefined): AzureRepoRef | undefined {
+    if (repo?.host !== 'azure') return undefined;
+    const slash = repo.owner.indexOf('/');
+    if (slash <= 0 || slash === repo.owner.length - 1 || !repo.name) return undefined;
+    return { organization: repo.owner.slice(0, slash), project: repo.owner.slice(slash + 1), repository: repo.name };
+}
+
+/** Returns the reference of an Azure Repos repository, for the page. */
+export function azureRepoRef(repo: AzureRepoRef): RepoRef {
+    return { owner: `${repo.organization}/${repo.project}`, name: repo.repository, host: 'azure' };
 }
 
 /** The web page that creates a pull request from a branch. */

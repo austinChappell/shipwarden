@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, GitMerge, GitPullRequest, GitPullRequestDraft, RefreshCw, Search } from 'lucide-react';
-import type { PullRequestSummary, RepoRef } from '@shared/github';
+import { parseRepoId, repoLabel, type PullRequestSummary, type RepoRef } from '@shared/github';
 import { MY_PULL_REQUEST_REASON_LABELS, parsePullRequestTitle, shortAge } from '@shared/dashboard';
 import {
     PULL_REQUEST_SORTS,
@@ -310,7 +310,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                         className="review-repo-select"
                         value={repo}
                         groups={groups}
-                        placeholder={repo}
+                        placeholder={repoLabel(parseRepoId(repo))}
                         searchPlaceholder="Search repositories"
                         title="Repository"
                         onChange={onSelectRepo}

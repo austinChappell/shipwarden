@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GitPullRequest, X } from 'lucide-react';
-import type { BranchStatus, CheckRun, PullRequest, RepoRef } from '@shared/github';
+import { parseRepoId, repoId, type BranchStatus, type CheckRun, type PullRequest, type RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { QueueItem } from '@shared/review-queue';
 import { errorText } from '../util';
@@ -17,8 +17,8 @@ const api = window.shipwarden.github;
 const prKey = (repo: string, number: number) => cacheKey('review.pr', repo, number);
 
 interface Props {
-    /** A key for the GitHub providers of Settings › Code review. Undefined: not loaded yet. Null: no GitHub provider is on. */
-    githubKey: string | null | undefined;
+    /** A key for the providers of Settings › Code review. Undefined: not loaded yet. Null: no provider is on. */
+    reviewKey: string | null | undefined;
     /** Opens Settings > Code review. */
     onOpenSettings(): void;
     /** A pull request to open, for example from the Dashboard. A new `nonce` opens it again. */
@@ -38,7 +38,7 @@ interface Props {
 }
 
 export interface ReviewOpenRequest {
-    /** "owner/name". */
+    /** The ID of the repository (see `repoId`). */
     repo: string;
     number: number;
     tab: 'overview' | 'checks' | 'files';
@@ -51,20 +51,15 @@ interface ActiveQueue {
     index: number;
 }
 
-function toRef(repo: string): RepoRef {
-    const [owner, name] = repo.split('/');
-    return { owner, name };
-}
-
 /**
- * The Review view: the pull requests of the GitHub repositories, from the organizations in Settings > Code review.
+ * The Review view: the pull requests of the GitHub and Azure Repos repositories, from the organizations in Settings > Code review.
  * The view has three pages. The entry page shows the repositories with pull requests that wait on the user.
  * The list page shows the pull requests of one repository. The pull request page shows one pull request.
  * The data of the first two pages comes from the review overview store, which loads at app start.
  * The review queue opens the pull requests to review one after the other, the oldest first.
  */
 export function ReviewView({
-    githubKey,
+    reviewKey,
     onOpenSettings,
     open,
     onNewWorktree,
@@ -86,7 +81,7 @@ export function ReviewView({
     const [lastRepo, setLastRepo] = useState<string>();
     const [lastNumber, setLastNumber] = useState<number>();
 
-    const repoRef = useMemo(() => (repo ? toRef(repo) : undefined), [repo]);
+    const repoRef = useMemo(() => (repo ? parseRepoId(repo) : undefined), [repo]);
 
     /** Opens a pull request, also in another repository. */
     const pendingOpen = useRef<{ repo: string; number: number } | undefined>(undefined);
@@ -124,7 +119,7 @@ export function ReviewView({
         try {
             const result = await api.pullRequest(repoRef, selected);
             if (id !== prRequest.current) return;
-            setPr(remember(prKey(`${repoRef.owner}/${repoRef.name}`, selected), result));
+            setPr(remember(prKey(repoId(repoRef), selected), result));
             setPrError(undefined);
         } catch (err) {
             if (id === prRequest.current) setPrError(errorText(err));
@@ -135,7 +130,7 @@ export function ReviewView({
 
     // A pull request shows its cached data immediately, and loads new data in the background.
     useEffect(() => {
-        setPr(repoRef && selected ? cached<PullRequest>(prKey(`${repoRef.owner}/${repoRef.name}`, selected)) : undefined);
+        setPr(repoRef && selected ? cached<PullRequest>(prKey(repoId(repoRef), selected)) : undefined);
         setPrError(undefined);
         void loadPr();
     }, [loadPr, repoRef, selected]);
@@ -145,7 +140,8 @@ export function ReviewView({
     };
 
     /** The panels take a branch status. In the Review view, it comes from the pull request. */
-    const status: BranchStatus | undefined = repoRef && pr ? { repo: repoRef, branch: pr.headRefName, sha: pr.headRefOid, pullRequest: pr } : undefined;
+    const status: BranchStatus | undefined =
+        repoRef && pr ? { repo: repoRef, branch: pr.headRefName, sha: pr.headRefOid, pullRequest: pr, host: repoRef.host } : undefined;
 
     /** The repositories by owner, for the groups of the picker. */
     const groups = useMemo(
@@ -153,7 +149,7 @@ export function ReviewView({
             sortedGroups(
                 overview.catalog ?? [],
                 item => item.owner,
-                item => ({ value: `${item.owner}/${item.name}`, label: item.name })
+                item => ({ value: repoId(item), label: item.name })
             ),
         [overview.catalog]
     );
@@ -201,16 +197,16 @@ export function ReviewView({
         }
     };
 
-    if (githubKey === undefined) {
+    if (reviewKey === undefined) {
         return <div className="review-view" />;
     }
-    if (githubKey === null) {
+    if (reviewKey === null) {
         return (
             <div className="review-view">
                 <div className="review-empty">
                     <GitPullRequest size={30} strokeWidth={1.3} />
                     <h2>Review pull requests</h2>
-                    <p>Add a GitHub provider to see its pull requests here.</p>
+                    <p>Add a GitHub or Azure DevOps provider to see its pull requests here.</p>
                     <button className="button primary" onClick={onOpenSettings}>
                         Open Settings › Code review
                     </button>

@@ -1,4 +1,3 @@
-import type { RepoRef } from '@shared/github';
 import type { RepoScript, RepoSettings } from '@shared/settings';
 import {
     isHiddenAt,
@@ -51,10 +50,8 @@ export function withRepoScripts(repos: Record<string, RepoSettings>, repoPath: s
     return next;
 }
 
-/** True when two GitHub repositories are the same. The compare ignores the case of the letters. */
-export function sameRepoRef(a: RepoRef | null | undefined, b: RepoRef): boolean {
-    return !!a && a.owner.toLowerCase() === b.owner.toLowerCase() && a.name.toLowerCase() === b.name.toLowerCase();
-}
+/** True when two repositories are the same, on the same host. The compare ignores the case of the letters. */
+export { sameRepoRef } from '@shared/github';
 
 /** The text of the dialog that asks the user to agree to the removal of a worktree. */
 export function removeWorktreeDialog(name: string, branch: string | undefined, hasTeardown: boolean): { title: string; message: string; confirmLabel: string } {

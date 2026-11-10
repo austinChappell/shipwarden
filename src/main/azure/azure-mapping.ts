@@ -1,6 +1,7 @@
 import {
     AZURE_REVIEW_EVENTS,
     azureProjectApi,
+    azureRepoRef,
     azureRepoWebUrl,
     buildResultToConclusion,
     buildStatusToCheck,
@@ -14,6 +15,7 @@ import {
     timelineStateToCheck,
     type AzureRepoRef
 } from '@shared/azure-devops';
+import { myPullRequestReasons, type MyPullRequestItem, type ReviewRequestItem } from '@shared/dashboard';
 import type {
     BranchSummary,
     CheckRun,
@@ -25,11 +27,13 @@ import type {
     PullRequestCommit,
     PullRequestFile,
     PullRequestState,
+    PullRequestSummary,
     RequestedReviewer,
     Review,
     ReviewThread
 } from '@shared/github';
 import type { WorkflowRun } from '@shared/pipelines';
+import type { CheckSummary, OpenPullRequest } from '@shared/review-queue';
 
 // The raw shapes of the Azure DevOps REST API 7.1. Only the fields that ShipWarden reads are here.
 // See https://learn.microsoft.com/rest/api/azure/devops/?view=azure-devops-rest-7.1
@@ -54,6 +58,8 @@ export interface AzRepository {
     defaultBranch?: string;
     webUrl?: string;
     project?: { id: string; name: string };
+    /** True when an administrator turned off the repository. Its API calls fail. */
+    isDisabled?: boolean;
 }
 
 export interface AzPullRequest {
@@ -65,6 +71,8 @@ export interface AzPullRequest {
     mergeStatus?: 'notSet' | 'queued' | 'conflicts' | 'succeeded' | 'rejectedByPolicy' | 'failure' | string;
     createdBy: AzIdentity;
     creationDate: string;
+    /** The time of the completion or the abandonment. */
+    closedDate?: string;
     sourceRefName: string;
     targetRefName: string;
     lastMergeSourceCommit?: { commitId: string };
@@ -332,9 +340,7 @@ export function mapPullRequest(parts: PullRequestParts): PullRequest {
         .map(reviewer =>
             reviewer.isContainer ? { kind: 'team', login: loginOf(reviewer), name: reviewer.displayName } : { kind: 'user', login: loginOf(reviewer) }
         );
-    const mergeable = pr.mergeStatus === 'conflicts' ? 'CONFLICTING' : pr.mergeStatus === 'succeeded' ? 'MERGEABLE' : 'UNKNOWN';
-    const mergeStateStatus =
-        pr.mergeStatus === 'rejectedByPolicy' ? 'BLOCKED' : pr.mergeStatus === 'conflicts' ? 'DIRTY' : pr.mergeStatus === 'succeeded' ? 'CLEAN' : 'UNKNOWN';
+    const { mergeable, mergeStateStatus } = mergeStateOf(pr);
     const commits = mapCommits(repo, parts.commits);
     const headRefOid = pr.lastMergeSourceCommit?.commitId ?? parts.iteration?.sourceRefCommit?.commitId ?? '';
     const baseRefOid = parts.iteration?.commonRefCommit?.commitId ?? pr.lastMergeTargetCommit?.commitId ?? '';
@@ -537,6 +543,150 @@ export function rollupState(checks: readonly Pick<CheckRun, 'status' | 'conclusi
     return 'SUCCESS';
 }
 
+/** Returns the newest build of each pipeline for the pull request and its head commit. */
+export function pullRequestBuilds(pr: AzPullRequest, builds: readonly AzBuild[]): AzBuild[] {
+    const headSha = pr.lastMergeSourceCommit?.commitId;
+    return latestBuilds(
+        builds.filter(
+            build =>
+                (build.sourceBranch === `refs/pull/${pr.pullRequestId}/merge` || build.triggerInfo?.['pr.number'] === String(pr.pullRequestId)) &&
+                (!headSha || !build.triggerInfo?.['pr.sourceSha'] || build.triggerInfo['pr.sourceSha'] === headSha)
+        )
+    );
+}
+
+/** Returns the check summary of the builds of a pull request, for the lists of the Review view. */
+export function buildCheckSummary(repo: AzureRepoRef, builds: readonly AzBuild[]): CheckSummary {
+    const checks = builds.map(build => buildToCheck(repo, build));
+    return {
+        state: rollupState(checks),
+        failing: checks.filter(check => ['failure', 'cancelled', 'timed_out', 'error'].includes(check.conclusion ?? '')).length,
+        pending: checks.filter(check => check.status !== 'completed').length,
+        total: checks.length
+    };
+}
+
+/** The user of the token in an organization. */
+export interface AzViewer {
+    id: string;
+    /** The login of the viewer in the UI. It is the same text as `loginOf` gives for the identity of the viewer. */
+    login: string;
+}
+
+/** Returns the vote of the viewer on a pull request. Undefined when the viewer is not a reviewer. */
+function viewerReviewer(pr: AzPullRequest, viewerId: string | undefined): AzReviewer | undefined {
+    return viewerId ? (pr.reviewers ?? []).find(reviewer => reviewer.id === viewerId) : undefined;
+}
+
+/** True when the viewer is a reviewer of the pull request, did not vote and did not decline. A draft asks for no review. */
+export function viewerIsRequested(pr: AzPullRequest, viewerId: string | undefined): boolean {
+    const reviewer = viewerReviewer(pr, viewerId);
+    return !pr.isDraft && !!reviewer && reviewer.vote === 0 && !reviewer.hasDeclined;
+}
+
+/** The merge state of a pull request, in the words of GitHub. `myPullRequestReasons` reads them. */
+function mergeStateOf(pr: AzPullRequest): { mergeable: string; mergeStateStatus: string } {
+    return {
+        mergeable: pr.mergeStatus === 'conflicts' ? 'CONFLICTING' : pr.mergeStatus === 'succeeded' ? 'MERGEABLE' : 'UNKNOWN',
+        mergeStateStatus:
+            pr.mergeStatus === 'rejectedByPolicy' ? 'BLOCKED' : pr.mergeStatus === 'conflicts' ? 'DIRTY' : pr.mergeStatus === 'succeeded' ? 'CLEAN' : 'UNKNOWN'
+    };
+}
+
+/**
+ * Converts an active pull request to the model of the review queue.
+ * Azure DevOps does not keep the commit of a vote, so the review of the viewer has no commit.
+ * Azure DevOps gives no line counts and no comment count in the list, so they are 0.
+ */
+export function openPullRequestOf(repo: AzureRepoRef, pr: AzPullRequest, builds: readonly AzBuild[], viewerId: string | undefined): OpenPullRequest {
+    const reviewers = pr.reviewers ?? [];
+    const checks = buildCheckSummary(repo, pullRequestBuilds(pr, builds));
+    const viewerDidAuthor = !!viewerId && pr.createdBy.id === viewerId;
+    const vote = viewerReviewer(pr, viewerId)?.vote ?? 0;
+    const reviewDecision = reviewDecisionFromVotes(reviewers);
+    return {
+        id: encodeAzureId(repo, pr.pullRequestId),
+        number: pr.pullRequestId,
+        title: pr.title,
+        url: pullRequestUrl(repo, pr.pullRequestId),
+        author: loginOf(pr.createdBy),
+        isDraft: pr.isDraft ?? false,
+        createdAt: pr.creationDate,
+        updatedAt: pr.creationDate,
+        headRefName: fromRefName(pr.sourceRefName),
+        baseRefName: fromRefName(pr.targetRefName),
+        headRefOid: pr.lastMergeSourceCommit?.commitId ?? '',
+        additions: 0,
+        deletions: 0,
+        changedFiles: 0,
+        comments: 0,
+        viewerDidAuthor,
+        reviewRequested: viewerIsRequested(pr, viewerId),
+        reviewDecision,
+        checks,
+        viewerReview: vote !== 0 ? { state: vote > 0 ? 'APPROVED' : 'CHANGES_REQUESTED', submittedAt: pr.creationDate, commitOid: null } : undefined,
+        actions: viewerDidAuthor ? myPullRequestReasons({ isDraft: pr.isDraft ?? false, reviewDecision, ...mergeStateOf(pr), checks: checks.state }) : []
+    };
+}
+
+/** Converts a pull request to a row of the pull request list. A pull request that is not active has no CI state. */
+export function pullRequestSummaryOf(repo: AzureRepoRef, pr: AzPullRequest, builds: readonly AzBuild[], viewerId: string | undefined): PullRequestSummary {
+    const state = pullRequestState(pr.status);
+    return {
+        number: pr.pullRequestId,
+        title: pr.title,
+        author: loginOf(pr.createdBy),
+        isDraft: pr.isDraft ?? false,
+        state,
+        updatedAt: pr.closedDate ?? pr.creationDate,
+        reviewDecision: reviewDecisionFromVotes(pr.reviewers ?? []),
+        checks: state === 'OPEN' ? buildCheckSummary(repo, pullRequestBuilds(pr, builds)).state : null,
+        comments: 0,
+        additions: 0,
+        deletions: 0,
+        viewerDidAuthor: !!viewerId && pr.createdBy.id === viewerId
+    };
+}
+
+/** Returns the repository of a pull request from a list of a project. Returns undefined when the list gives no repository. */
+export function repoOfPullRequest(organization: string, pr: AzPullRequest): AzureRepoRef | undefined {
+    const project = pr.repository?.project?.name;
+    const repository = pr.repository?.name;
+    return project && repository ? { organization, project, repository } : undefined;
+}
+
+/** Converts a pull request that asks the viewer for a review to an item of the Dashboard. */
+export function reviewRequestItemOf(repo: AzureRepoRef, pr: AzPullRequest): ReviewRequestItem {
+    return {
+        repo: azureRepoRef(repo),
+        number: pr.pullRequestId,
+        title: pr.title,
+        url: pullRequestUrl(repo, pr.pullRequestId),
+        author: loginOf(pr.createdBy),
+        updatedAt: pr.creationDate,
+        createdAt: pr.creationDate
+    };
+}
+
+/** Converts a pull request of the viewer to an item of the Dashboard. Returns undefined when the viewer has nothing to do on it. */
+export function myPullRequestItemOf(repo: AzureRepoRef, pr: AzPullRequest, builds: readonly AzBuild[]): MyPullRequestItem | undefined {
+    const reviewDecision = reviewDecisionFromVotes(pr.reviewers ?? []);
+    const checks = buildCheckSummary(repo, pullRequestBuilds(pr, builds)).state;
+    const reasons = myPullRequestReasons({ isDraft: pr.isDraft ?? false, reviewDecision, ...mergeStateOf(pr), checks });
+    if (reasons.length === 0) return undefined;
+    return {
+        repo: azureRepoRef(repo),
+        number: pr.pullRequestId,
+        title: pr.title,
+        url: pullRequestUrl(repo, pr.pullRequestId),
+        updatedAt: pr.creationDate,
+        createdAt: pr.creationDate,
+        reasons,
+        headSha: pr.lastMergeSourceCommit?.commitId,
+        mergeMethod: pr.completionOptions?.mergeStrategy ? mergeMethodOf(pr.completionOptions.mergeStrategy) : undefined
+    };
+}
+
 /**
  * Returns the active pull requests by source branch, with the CI state of their newest builds.
  * The viewer ID sets the viewer role: "author" for the creator, "involved" for a reviewer.
@@ -553,13 +703,7 @@ export function branchSummaries(
         const branch = fromRefName(pr.sourceRefName);
         if (summaries[branch]) continue;
         const headSha = pr.lastMergeSourceCommit?.commitId;
-        const prBuilds = latestBuilds(
-            builds.filter(
-                build =>
-                    (build.sourceBranch === `refs/pull/${pr.pullRequestId}/merge` || build.triggerInfo?.['pr.number'] === String(pr.pullRequestId)) &&
-                    (!headSha || !build.triggerInfo?.['pr.sourceSha'] || build.triggerInfo['pr.sourceSha'] === headSha)
-            )
-        );
+        const prBuilds = pullRequestBuilds(pr, builds);
         summaries[branch] = {
             number: pr.pullRequestId,
             title: pr.title,

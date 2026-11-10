@@ -13,11 +13,12 @@ import type {
 } from '@shared/github';
 import type { ReviewProviderChange, ReviewProviderKind } from '@shared/review-providers';
 import type { Services } from '../services';
-import { isWebUrl, newPullRequestOf, onlyStrings, optionalString } from './args';
+import { isWebUrl, newPullRequestOf, onlyStrings, optionalString, repoRefOf } from './args';
 
 /** Registers the IPC handlers of the pull requests, the pipelines and the review providers (GitHub and Azure DevOps). */
 export function registerGitHubIpc({ reviewProviders, seen }: Pick<Services, 'reviewProviders' | 'seen'>): void {
-    // Each call goes to the provider of its target: Azure DevOps for a worktree with an Azure Repos remote, else GitHub.
+    // Each call goes to the provider of its target: Azure DevOps for a worktree with an Azure Repos remote or for an
+    // Azure reference, else GitHub.
     const host = (target: RepoTarget) => reviewProviders.for(target);
     ipcMain.handle(IpcChannels.githubStatus, (_event, root: string) => reviewProviders.branchStatus(root));
     ipcMain.handle(IpcChannels.githubBranchSummaries, (_event, repoPath: string) => reviewProviders.branchSummaries(repoPath));
@@ -79,16 +80,14 @@ export function registerGitHubIpc({ reviewProviders, seen }: Pick<Services, 'rev
     );
     ipcMain.handle(IpcChannels.reviewProvidersGitHubOwners, (_event, id: string) => reviewProviders.githubOwners(String(id)));
     ipcMain.handle(IpcChannels.githubRepositories, () => reviewProviders.repositories());
-    ipcMain.handle(IpcChannels.githubRepoOf, (_event, root: string) => reviewProviders.githubRepoFor(String(root)).catch(() => null));
+    ipcMain.handle(IpcChannels.githubRepoOf, (_event, root: string) => reviewProviders.repoFor(String(root)).catch(() => null));
     ipcMain.handle(IpcChannels.githubDashboardPullRequests, () => reviewProviders.dashboardPullRequests());
     ipcMain.handle(IpcChannels.githubDashboardComments, () => reviewProviders.dashboardComments());
     ipcMain.handle(IpcChannels.seenKeys, () => seen.keys());
     ipcMain.handle(IpcChannels.seenMark, (_event, keys: unknown) => seen.mark(onlyStrings(keys)));
-    ipcMain.handle(IpcChannels.githubRepoPullRequests, async (_event, repo: RepoRef) =>
-        (await reviewProviders.github(repo)).repoPullRequests({ owner: String(repo?.owner), name: String(repo?.name) })
-    );
-    ipcMain.handle(IpcChannels.githubPullRequests, async (_event, repo: RepoRef, filter: PullRequestFilter, query?: string) =>
-        (await reviewProviders.github(repo)).pullRequests({ owner: String(repo?.owner), name: String(repo?.name) }, filter, query)
+    ipcMain.handle(IpcChannels.githubRepoPullRequests, (_event, repo: RepoRef) => reviewProviders.repoPullRequests(repoRefOf(repo)));
+    ipcMain.handle(IpcChannels.githubPullRequests, (_event, repo: RepoRef, filter: PullRequestFilter, query?: string) =>
+        reviewProviders.pullRequests(repoRefOf(repo), filter, optionalString(query))
     );
     ipcMain.on(IpcChannels.githubOpenInBrowser, (_event, url: string) => {
         // Commit statuses and task descriptions can link to other services, so any web URL is permitted.

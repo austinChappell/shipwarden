@@ -112,7 +112,8 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
         secretsFile: join(userData, 'source-host-secrets.json'),
         ready: networkReady,
         legacyReviewOwners: async () => (await settings.get()).reviewOwners,
-        onChanged: () => window.send(IpcChannels.reviewProvidersChanged)
+        onChanged: () => window.send(IpcChannels.reviewProvidersChanged),
+        projectRepos: async () => (await projects.get()).projects.flatMap(project => project.repos)
     });
 
     const tasks = new TaskHost({
@@ -325,7 +326,7 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
         projectRepos: async () => (await projects.get()).projects.flatMap(project => project.repos),
         worktreePaths: async repo => (await worktrees.list(repo)).map(item => item.path),
         isReviewCheckout: path => reviewCheckouts.has(path),
-        githubRepoFor: root => reviewProviders.githubRepoFor(root)
+        repoFor: root => reviewProviders.repoFor(root)
     });
 
     /**

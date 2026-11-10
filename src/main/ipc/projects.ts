@@ -67,7 +67,7 @@ export function registerProjectIpc({
             if (result.canceled || result.filePaths.length === 0) {
                 return null;
             }
-            root = await cloneRepo(result.filePaths[0], repo, { githubRepoFor: folder => reviewProviders.githubRepoFor(folder) });
+            root = await cloneRepo(result.filePaths[0], repo, { repoFor: folder => reviewProviders.repoFor(folder) });
         }
 
         // The new project comes only after the clone. A failed clone must not leave an empty project.

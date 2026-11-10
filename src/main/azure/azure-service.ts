@@ -6,6 +6,8 @@ import {
     azureCreatePullRequestUrl,
     azureOrgUrl,
     azureProjectApi,
+    azureRepoOf,
+    azureRepoRef,
     decodeAzureId,
     fromRefName,
     parseAzureRemote,
@@ -13,12 +15,14 @@ import {
     voteForEvent,
     type AzureRepoRef
 } from '@shared/azure-devops';
+import type { DashboardPullRequests, MyPullRequestItem, ReviewRequestItem } from '@shared/dashboard';
 import {
     cleanActionsLog,
     type BranchStatus,
     type BranchSummary,
     type CheckRun,
     type FileVersions,
+    type GitHubRepoInfo,
     type GitHubUser,
     type JobProgress,
     type MergeMethod,
@@ -28,11 +32,15 @@ import {
     type PullRequestCandidates,
     type PullRequestChange,
     type PullRequestFile,
+    type PullRequestFilter,
+    type PullRequestSummary,
+    type RepoRef,
     type RepoTarget,
     type ReviewEvent,
     type Workflow
 } from '@shared/github';
 import type { WorkflowRun } from '@shared/pipelines';
+import { matchesSearch, type RepoPullRequests } from '@shared/review-queue';
 import type { SourceHost } from '../source-host';
 import { type AzureDevOpsClient, AzureError } from './azure-client';
 import {
@@ -44,7 +52,13 @@ import {
     mapChanges,
     mapPullRequest,
     mergeStrategyOf,
+    myPullRequestItemOf,
+    openPullRequestOf,
     orderedRecords,
+    pullRequestSummaryOf,
+    repoOfPullRequest,
+    reviewRequestItemOf,
+    viewerIsRequested,
     timelineToProgress,
     userOf,
     loginOf,
@@ -59,7 +73,8 @@ import {
     type AzPullRequest,
     type AzRepository,
     type AzThread,
-    type AzTimelineRecord
+    type AzTimelineRecord,
+    type AzViewer
 } from './azure-mapping';
 
 /** The diff view does not load file versions that are larger than this limit. */
@@ -80,6 +95,47 @@ function git(cwd: string, args: string[]): Promise<string> {
     });
 }
 
+/** The host of the profile and account APIs. They are not in an organization. */
+const VSSPS_URL = 'https://app.vssps.visualstudio.com/_apis';
+
+/** The number of project requests at the same time, for the lists that need a request for each project. */
+const PARALLEL = 4;
+
+/** Calls `work` for each item, with at most `limit` calls at the same time. The results keep the order of the items. */
+async function mapLimit<T, R>(items: readonly T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+    const results = new Array<R>(items.length);
+    let next = 0;
+    const worker = async () => {
+        while (next < items.length) {
+            const index = next++;
+            results[index] = await work(items[index]);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+    return results;
+}
+
+/**
+ * Calls `work` for each organization. A failure in one organization does not stop the others.
+ * When all organizations fail, the function throws the first error.
+ */
+async function eachOrganization<R>(organizations: readonly string[], work: (organization: string) => Promise<R>): Promise<R[]> {
+    const results = await Promise.allSettled(organizations.map(work));
+    const done = results.flatMap(result => (result.status === 'fulfilled' ? [result.value] : []));
+    const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+    if (failed && done.length === 0) {
+        throw failed.reason instanceof Error ? failed.reason : new AzureError(String(failed.reason), 0);
+    }
+    return done;
+}
+
+/** True when the pull request matches the search text of the pull request list: the title, the author, the branch or the number. */
+function matchesQuery(pr: AzPullRequest, query: string | undefined): boolean {
+    const text = query?.trim();
+    if (!text) return true;
+    return matchesSearch({ number: pr.pullRequestId, title: pr.title, author: loginOf(pr.createdBy), headRefName: fromRefName(pr.sourceRefName) }, text);
+}
+
 /** A repository with its ID and default branch from Azure DevOps. */
 interface ResolvedRepo {
     ref: AzureRepoRef;
@@ -91,14 +147,16 @@ interface ResolvedRepo {
 
 /**
  * Reads and changes pull requests and pipelines of Azure Repos (Azure DevOps Services).
- * It takes only worktree paths as targets. The Review view and the Pipelines view list GitHub repositories only.
+ * A target is a worktree path with an Azure Repos remote, or an Azure reference from the Review view or the
+ * Pipelines view (see `azureRepoOf`).
  */
 export class AzureDevOpsService implements SourceHost {
     readonly kind = 'azure' as const;
 
     private readonly remotes = new Map<string, AzureRepoRef | null>();
-    private readonly repositories = new Map<string, Promise<ResolvedRepo>>();
-    private readonly viewers = new Map<string, Promise<string>>();
+    private readonly resolved = new Map<string, Promise<ResolvedRepo>>();
+    private readonly viewers = new Map<string, Promise<AzViewer>>();
+    private organizationList: Promise<string[]> | undefined;
     /** The users of the default team of each project, for the reviewer picker. */
     private readonly members = new Map<string, AzIdentity[]>();
     /**
@@ -121,21 +179,27 @@ export class AzureDevOpsService implements SourceHost {
         return this.remotes.get(root)!;
     }
 
-    /** True when the target is a worktree with an Azure Repos remote. */
+    /** True when the target is a worktree with an Azure Repos remote, or an Azure reference. */
     async owns(target: RepoTarget): Promise<boolean> {
-        return typeof target === 'string' && (await this.repoFor(target)) !== null;
+        if (typeof target !== 'string') return !!azureRepoOf(target);
+        return (await this.repoFor(target)) !== null;
     }
 
     private async resolve(target: RepoTarget): Promise<ResolvedRepo> {
-        if (typeof target !== 'string') {
-            throw new AzureError('Azure DevOps needs a worktree. The Review view supports only GitHub.', 0);
-        }
-        const ref = await this.repoFor(target);
-        if (!ref) {
-            throw new AzureError('The "origin" remote of this worktree is not an Azure Repos repository.', 0);
+        let ref: AzureRepoRef | null | undefined;
+        if (typeof target === 'string') {
+            ref = await this.repoFor(target);
+            if (!ref) {
+                throw new AzureError('The "origin" remote of this worktree is not an Azure Repos repository.', 0);
+            }
+        } else {
+            ref = azureRepoOf(target);
+            if (!ref) {
+                throw new AzureError(`"${target.owner}/${target.name}" is not an Azure Repos repository.`, 0);
+            }
         }
         const key = `${ref.organization}/${ref.project}/${ref.repository}`;
-        let repo = this.repositories.get(key);
+        let repo = this.resolved.get(key);
         if (!repo) {
             repo = (async () => {
                 const data = await this.client.request<AzRepository>('GET', `${azureProjectApi(ref)}/git/repositories/${encodeURIComponent(ref.repository)}`);
@@ -146,23 +210,175 @@ export class AzureDevOpsService implements SourceHost {
                     api: `${azureProjectApi(ref)}/git/repositories/${data.id}`
                 };
             })();
-            this.repositories.set(key, repo);
-            repo.catch(() => this.repositories.delete(key));
+            this.resolved.set(key, repo);
+            repo.catch(() => this.resolved.delete(key));
         }
         return repo;
     }
 
     /** Returns the ID of the user of the token in the organization. */
-    private viewerId(ref: AzureRepoRef): Promise<string> {
-        let viewer = this.viewers.get(ref.organization);
+    private async viewerId(ref: Pick<AzureRepoRef, 'organization'>): Promise<string> {
+        return (await this.viewer(ref.organization)).id;
+    }
+
+    /** Returns the user of the token in the organization. The login is the account name, as in the reviewer lists. */
+    private viewer(organization: string): Promise<AzViewer> {
+        let viewer = this.viewers.get(organization);
         if (!viewer) {
             viewer = this.client
-                .request<{ authenticatedUser: { id: string } }>('GET', `${azureOrgUrl(ref)}/_apis/connectionData`)
-                .then(data => data.authenticatedUser.id);
-            this.viewers.set(ref.organization, viewer);
-            viewer.catch(() => this.viewers.delete(ref.organization));
+                .request<{ authenticatedUser: { id: string; providerDisplayName?: string; properties?: { Account?: { $value?: string } } } }>(
+                    'GET',
+                    `${azureOrgUrl({ organization })}/_apis/connectionData`
+                )
+                .then(data => ({
+                    id: data.authenticatedUser.id,
+                    login: data.authenticatedUser.properties?.Account?.$value || data.authenticatedUser.providerDisplayName || 'unknown'
+                }));
+            this.viewers.set(organization, viewer);
+            viewer.catch(() => this.viewers.delete(organization));
         }
         return viewer;
+    }
+
+    /**
+     * Returns the organizations of the user of the token, from the account API. A personal access token needs
+     * the "All accessible organizations" setting for this API.
+     */
+    private organizations(): Promise<string[]> {
+        if (!this.organizationList) {
+            const list = (async () => {
+                const profile = await this.client.request<{ id: string }>('GET', `${VSSPS_URL}/profile/profiles/me?api-version=7.1-preview.3`);
+                const accounts = await this.client.request<AzList<{ accountName: string }>>(
+                    'GET',
+                    `${VSSPS_URL}/accounts?memberId=${encodeURIComponent(profile.id)}&api-version=7.1-preview.1`
+                );
+                return accounts.value.map(account => account.accountName).filter(Boolean);
+            })();
+            this.organizationList = list;
+            list.catch(() => {
+                this.organizationList = undefined;
+            });
+        }
+        return this.organizationList;
+    }
+
+    /**
+     * Returns the organizations to read: the scope of the provider. Without a scope, the organizations of the account
+     * and of the project remotes (`known`). Throws an error when no organization is known.
+     */
+    private async organizationsFor(scope: string[] | undefined, known: readonly string[]): Promise<string[]> {
+        if (scope) return scope;
+        const fromAccount = await this.organizations().catch((): string[] => []);
+        const unique = new Map([...fromAccount, ...known].map(name => [name.toLowerCase(), name]));
+        if (unique.size === 0) {
+            throw new AzureError(
+                'ShipWarden cannot find your Azure DevOps organizations. Type them in the provider in Settings › Code review, or use a token for all accessible organizations.',
+                0
+            );
+        }
+        return [...unique.values()];
+    }
+
+    /** Returns the names of the projects of an organization. */
+    private async projects(organization: string): Promise<string[]> {
+        const data = await this.client.request<AzList<{ name: string; state?: string }>>('GET', `${azureOrgUrl({ organization })}/_apis/projects?$top=1000`);
+        return data.value.filter(project => !project.state || project.state === 'wellFormed').map(project => project.name);
+    }
+
+    /**
+     * Returns the repositories of the organizations, for the Review view and the Pipelines view.
+     * `known` has the organizations of the project remotes. They count when the scope has all organizations.
+     */
+    async repositories(scope: string[] | undefined, known: readonly string[] = []): Promise<GitHubRepoInfo[]> {
+        const organizations = await this.organizationsFor(scope, known);
+        const lists = await eachOrganization(organizations, async organization => {
+            const data = await this.client.request<AzList<AzRepository>>('GET', `${azureOrgUrl({ organization })}/_apis/git/repositories`);
+            return data.value.flatMap((repo): GitHubRepoInfo[] =>
+                repo.project?.name && !repo.isDisabled ? [azureRepoRef({ organization, project: repo.project.name, repository: repo.name })] : []
+            );
+        });
+        return lists.flat();
+    }
+
+    /** Returns the active pull requests of a repository, for the review queue of the Review view. */
+    async repoPullRequests(target: RepoRef): Promise<RepoPullRequests> {
+        const repo = await this.resolve(target);
+        const [prs, builds, viewer] = await Promise.all([
+            this.client.request<AzList<AzPullRequest>>('GET', `${repo.api}/pullrequests?searchCriteria.status=active&$top=100`),
+            this.recentBuilds(repo, 200).catch(() => [] as AzBuild[]),
+            this.viewer(repo.ref.organization).catch(() => undefined)
+        ]);
+        const pullRequests = prs.value.map(pr => openPullRequestOf(repo.ref, pr, builds, viewer?.id));
+        return { viewer: viewer?.login ?? '', openCount: pullRequests.length, pullRequests };
+    }
+
+    /**
+     * Returns the pull requests of a repository for a filter of the Review view, the newest first.
+     * Azure DevOps has no assignees, so the "assigned" filter gives no pull requests.
+     * The search looks at the title, the author, the branch and the number.
+     */
+    async pullRequests(target: RepoRef, filter: PullRequestFilter, query?: string): Promise<PullRequestSummary[]> {
+        if (filter === 'assigned') return [];
+        const repo = await this.resolve(target);
+        const needsViewer = filter === 'review' || filter === 'mine';
+        const viewer = needsViewer ? await this.viewer(repo.ref.organization) : await this.viewer(repo.ref.organization).catch(() => undefined);
+        const status = filter === 'closed' ? 'abandoned' : filter === 'merged' ? 'completed' : 'active';
+        const person = filter === 'review' ? `&searchCriteria.reviewerId=${viewer?.id}` : filter === 'mine' ? `&searchCriteria.creatorId=${viewer?.id}` : '';
+        const [prs, builds] = await Promise.all([
+            this.client.request<AzList<AzPullRequest>>('GET', `${repo.api}/pullrequests?searchCriteria.status=${status}${person}&$top=100`),
+            status === 'active' ? this.recentBuilds(repo, 200).catch(() => [] as AzBuild[]) : Promise.resolve([] as AzBuild[])
+        ]);
+        return prs.value
+            .filter(pr => filter !== 'review' || viewerIsRequested(pr, viewer?.id))
+            .filter(pr => matchesQuery(pr, query))
+            .map(pr => pullRequestSummaryOf(repo.ref, pr, builds, viewer?.id))
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    }
+
+    /**
+     * Returns the pull requests for the Dashboard: the active pull requests that ask the viewer for a review, and the
+     * active pull requests of the viewer that need an action. Azure DevOps lists pull requests by project, so this
+     * sends requests for each project.
+     */
+    async dashboardPullRequests(scope: string[] | undefined, known: readonly string[] = []): Promise<DashboardPullRequests> {
+        const organizations = await this.organizationsFor(scope, known);
+        const results = await eachOrganization(organizations, async organization => {
+            const [viewer, projects] = await Promise.all([this.viewer(organization), this.projects(organization)]);
+            const reviewRequests: ReviewRequestItem[] = [];
+            const myPullRequests: MyPullRequestItem[] = [];
+            await mapLimit(projects, PARALLEL, async project => {
+                const api = `${azureOrgUrl({ organization })}/${encodeURIComponent(project)}/_apis`;
+                const list = (person: 'reviewerId' | 'creatorId') =>
+                    this.client
+                        .request<AzList<AzPullRequest>>(
+                            'GET',
+                            `${api}/git/pullrequests?searchCriteria.status=active&searchCriteria.${person}=${viewer.id}&$top=100`
+                        )
+                        .then(data => data.value);
+                const [reviewing, mine] = await Promise.all([list('reviewerId'), list('creatorId')]);
+                for (const pr of reviewing) {
+                    const repo = repoOfPullRequest(organization, pr);
+                    if (repo && pr.createdBy.id !== viewer.id && viewerIsRequested(pr, viewer.id)) reviewRequests.push(reviewRequestItemOf(repo, pr));
+                }
+                if (mine.length === 0) return;
+                const builds = await this.client
+                    .request<AzList<AzBuild>>('GET', `${api}/build/builds?reasonFilter=pullRequest&queryOrder=queueTimeDescending&$top=200`)
+                    .then(
+                        data => data.value,
+                        () => [] as AzBuild[]
+                    );
+                for (const pr of mine) {
+                    const repo = repoOfPullRequest(organization, pr);
+                    const item = repo && myPullRequestItemOf(repo, pr, builds);
+                    if (item) myPullRequests.push(item);
+                }
+            });
+            return { reviewRequests, myPullRequests };
+        });
+        return {
+            reviewRequests: results.flatMap(result => result.reviewRequests),
+            myPullRequests: results.flatMap(result => result.myPullRequests)
+        };
     }
 
     private prApi(repo: ResolvedRepo, number: number): string {
@@ -186,7 +402,7 @@ export class AzureDevOpsService implements SourceHost {
             if (pick) pullRequest = await this.pullRequest(root, pick.pullRequestId);
         }
         return {
-            repo: { owner: `${ref.organization}/${ref.project}`, name: ref.repository },
+            repo: azureRepoRef(ref),
             branch,
             sha: pullRequest?.state === 'OPEN' && pullRequest.headRefOid ? pullRequest.headRefOid : localSha,
             pullRequest,

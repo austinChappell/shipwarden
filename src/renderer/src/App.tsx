@@ -22,9 +22,9 @@ import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
 import { useDashboardCount, useDashboardLoader } from './dashboard-store';
 import { useReviewOverviewLoader, useReviewQueue } from './github/review-overview-store';
-import { githubScopeKey, useReviewProviders } from './review-providers-store';
+import { reviewScopeKey, useReviewProviders } from './review-providers-store';
 import type { NotificationTarget } from '@shared/api';
-import type { RepoRef } from '@shared/github';
+import { pullRequestWebUrl, repoId, type RepoRef } from '@shared/github';
 import { useAppearance } from './theme/appearance';
 import { StatusBar } from './components/StatusBar';
 import { ErrorBanner } from './components/ErrorBanner';
@@ -209,22 +209,22 @@ export function App() {
     };
 
     const reviewProviders = useReviewProviders();
-    const githubKey = githubScopeKey(reviewProviders);
-    useDashboardLoader(settingsLoaded, githubKey, activeProject?.id);
-    useReviewOverviewLoader(settingsLoaded, githubKey, project.allRepos);
+    const reviewKey = reviewScopeKey(reviewProviders);
+    useDashboardLoader(settingsLoaded, reviewKey, activeProject?.id);
+    useReviewOverviewLoader(settingsLoaded, reviewKey, project.allRepos);
     const reviewCount = useReviewQueue().length;
     const commentFilter = useMemo(
         () => ({ hiddenAuthors: appSettings.dashboardHiddenAuthors, hiddenRules: appSettings.dashboardHiddenRules }),
         [appSettings.dashboardHiddenAuthors, appSettings.dashboardHiddenRules]
     );
     const dashboardCount = useDashboardCount(commentFilter);
-    /** Opens a pull request in the Review view. Without a GitHub provider, GitHub opens in the browser. */
+    /** Opens a pull request in the Review view. Without a provider, the pull request opens in the browser. */
     const openPullRequest = (repo: RepoRef, number: number, tab: ReviewTabRequest) => {
-        if (!githubKey) {
-            openLink(`https://github.com/${repo.owner}/${repo.name}/pull/${number}`);
+        if (!reviewKey) {
+            openLink(pullRequestWebUrl(repo, number));
             return;
         }
-        setReviewOpen({ repo: `${repo.owner}/${repo.name}`, number, tab, nonce: Date.now() });
+        setReviewOpen({ repo: repoId(repo), number, tab, nonce: Date.now() });
         setMainView('review');
     };
 
@@ -531,7 +531,7 @@ export function App() {
                         <main className="workspace">
                             <ReviewView
                                 key={viewEntry}
-                                githubKey={githubKey}
+                                reviewKey={reviewKey}
                                 onOpenSettings={() => openSettings('review')}
                                 open={reviewOpen}
                                 onNewWorktree={(repo, pr) => void worktreeActions.openPullRequestWorktree(repo, pr)}
@@ -549,7 +549,7 @@ export function App() {
                     )}
                     {mainView === 'pipelines' && (
                         <main className="workspace">
-                            <PipelinesView key={viewEntry} githubKey={githubKey} onOpenSettings={() => openSettings('review')} />
+                            <PipelinesView key={viewEntry} reviewKey={reviewKey} onOpenSettings={() => openSettings('review')} />
                         </main>
                     )}
                     {mainView === 'graph' && graphRepo && (
@@ -737,8 +737,8 @@ export function App() {
                             onShowTerminal={id => activate(selectedPath, `t:${id}`)}
                             onOpenChange={openChange}
                             onOpenAllChanges={openAllChanges}
-                            // The Review view shows GitHub pull requests only, so the button needs a GitHub provider.
-                            onOpenInReview={githubKey ? (repo, pr) => openPullRequest(repo, pr.number, 'overview') : undefined}
+                            // The Review view needs a provider that is on, so the button needs one.
+                            onOpenInReview={reviewKey ? (repo, pr) => openPullRequest(repo, pr.number, 'overview') : undefined}
                         />
                     )}
                     {newWorktree && (
