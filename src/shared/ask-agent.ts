@@ -87,7 +87,7 @@ export function sliceLines(text: string, startLine: number, endLine: number): st
 }
 
 /** Returns a code fence that is longer than all backtick runs in the text, so the text cannot close it. */
-function fence(text: string): string {
+export function fence(text: string): string {
     const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map(run => run.length));
     return '`'.repeat(Math.max(3, longest + 1));
 }

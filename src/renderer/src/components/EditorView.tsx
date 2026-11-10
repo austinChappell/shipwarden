@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
 import { locateCode } from '@shared/ask-agent';
+import { codeNotePrompt, type NoteTarget } from '@shared/code-note';
+import type { AgentDefinition } from '@shared/settings';
 import type { LspMissingServer } from '@shared/lsp';
 import { codeQuestions, useCodeQuestions } from '../editor/code-questions';
 import { documents } from '../editor/documents';
 import { monaco } from '../editor/monaco';
-import { addReviewZone, ComposerZone, QuestionZone, removeReviewZones, type AgentQuestion, type QuestionAction, type ZoneHandle } from './DiffView';
+import { addReviewZone, ComposerZone, QuestionZone, removeReviewZones, type AgentQuestion, type NoteOptions, type QuestionAction, type ZoneHandle } from './DiffView';
 import { missingServers, useMissingServer } from '../lsp/missing-servers';
 
 interface Props {
@@ -21,20 +23,28 @@ interface Props {
     onError(message: string): void;
     /** Runs the install command of a missing language server. */
     onInstallServer(server: LspMissingServer): void;
+    /** The agent definitions, for the "New" choices of a note. */
+    agents?: AgentDefinition[];
+    /** The agent of the repository. */
+    defaultAgentId?: string;
+    /** Sends a note about lines to an agent. Without it, the box has no "Send to agent" mode. */
+    onSendNote?(prompt: string, target: NoteTarget): void;
 }
 
-/** The lines of an open "Ask agent" box. */
+/** The lines of an open "Ask agent" or "Send to agent" box. */
 interface AskRange {
     startLine: number;
     line: number;
+    /** True when the box opens in the "Send to agent" mode. */
+    note?: boolean;
 }
 
 /**
  * Shows one file in Monaco. Cmd+S saves the file.
  * A click in the gutter, the context menu or Cmd+Shift+A opens an "Ask agent" box for the line or the selected lines.
- * The answer shows under the lines. A saved answer shows only while the lines have the same text as when the user asked.
+ * The answer shows under the lines. The box can also send a note about the lines to an agent tab of the worktree, or to a new agent. A saved answer shows only while the lines have the same text as when the user asked.
  */
-export function EditorView({ root, path, revealLine, revealColumn, revealNonce, focusNonce, onError, onInstallServer }: Props) {
+export function EditorView({ root, path, revealLine, revealColumn, revealNonce, focusNonce, onError, onInstallServer, agents, defaultAgentId, onSendNote }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | undefined>(undefined);
     const [ready, setReady] = useState(false);
@@ -47,6 +57,9 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
     const onErrorRef = useRef(onError);
     onErrorRef.current = onError;
     const reportError = (message: string) => onErrorRef.current(message);
+    // The box reads the newest values, so that a new render of the app does not open the box again.
+    const noteRef = useRef({ agents, defaultAgentId, onSendNote });
+    noteRef.current = { agents, defaultAgentId, onSendNote };
 
     useEffect(() => codeQuestions.load(root, path, reportError), [root, path]);
 
@@ -93,6 +106,17 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
             contextMenuOrder: 0,
             run: () => setAsking(rangeAt())
         });
+        editor.addAction({
+            id: 'shipwarden.sendNoteToAgent',
+            label: 'Send Note About These Lines to Agent',
+            contextMenuGroupId: 'navigation',
+            contextMenuOrder: 0.5,
+            // Without a way to send a note, the "Ask agent" box opens.
+            run: () => {
+                const range = rangeAt();
+                setAsking(range && { ...range, note: true });
+            }
+        });
         // A click in the glyph margin opens the box. The editor sends the event before it moves the cursor.
         const hover = editor.createDecorationsCollection();
         editor.onMouseDown(event => {
@@ -104,7 +128,7 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
         editor.onMouseMove(event => {
             const line = event.target.position?.lineNumber;
             hover.set(event.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN && line
-                ? [{ range: new monaco.Range(line, 1, line, 1), options: { glyphMarginClassName: 'ask-glyph', glyphMarginHoverMessage: { value: 'Ask the agent about this line or the selected lines' } } }]
+                ? [{ range: new monaco.Range(line, 1, line, 1), options: { glyphMarginClassName: 'ask-glyph', glyphMarginHoverMessage: { value: 'Ask the agent about this line or the selected lines, or send a note to an agent' } } }]
                 : []);
         });
         editor.onMouseLeave(() => hover.clear());
@@ -198,21 +222,38 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
         if (!ready || !editor || !model || !asking) {
             return;
         }
-        const { startLine, line } = asking;
+        const { startLine, line, note } = asking;
+        /** Returns the last line that the file still has, and the text of the lines. */
+        const linesNow = () => {
+            const end = Math.min(line, model.getLineCount());
+            const range = new monaco.Range(startLine, 1, end, model.getLineMaxColumn(end));
+            // "\n" between the lines, so `locateCode` can compare the text with the lines of the model.
+            return { end, code: model.getValueInRange(range, monaco.editor.EndOfLinePreference.LF) };
+        };
+        const { agents: agentList, defaultAgentId: defaultId, onSendNote: send } = noteRef.current;
+        const noteOptions: NoteOptions | undefined = send && agentList?.length ? {
+            worktree: root,
+            agents: agentList,
+            defaultAgentId: defaultId,
+            onSend: (text, target) => {
+                const { end, code } = linesNow();
+                noteRef.current.onSendNote?.(codeNotePrompt({ path, startLine, endLine: end, code, note: text }), target);
+                setAsking(undefined);
+            }
+        } : undefined;
         const handle = addReviewZone(editor, line, (
             <ComposerZone
                 line={line}
                 startLine={startLine}
                 canComment={false}
+                initialMode={note && noteOptions ? 'note' : 'ask'}
                 onAdd={() => undefined}
                 onAsk={text => {
-                    const end = Math.min(line, model.getLineCount());
-                    const range = new monaco.Range(startLine, 1, end, model.getLineMaxColumn(end));
-                    // "\n" between the lines, so `locateCode` can compare the text with the lines of the model.
-                    const code = model.getValueInRange(range, monaco.editor.EndOfLinePreference.LF);
+                    const { end, code } = linesNow();
                     codeQuestions.ask(root, path, startLine, end, code, text, reportError);
                     setAsking(undefined);
                 }}
+                note={noteOptions}
                 onCancel={() => {
                     setAsking(undefined);
                     editor.focus();
