@@ -268,6 +268,7 @@ export class TerminalPool {
         terminal.open(host);
         fit.fit();
         routeLinkClicks(terminal);
+        stopClickCopy(terminal);
 
         const entry: Entry = { session, terminal, fit, host, shownSeq: -1, pending: [], bindings: [] };
         this.entries.set(session.id, entry);
@@ -349,6 +350,31 @@ export class TerminalPool {
             writeKeepingScroll(entry.terminal, data);
         }
     }
+}
+
+/** The private part of the ghostty-web 0.4 selection manager that stopClickCopy changes. */
+interface SelectionManager {
+    hasSelection(): boolean;
+    copyToClipboard(text: string): Promise<void>;
+}
+
+/**
+ * Stops the copy that a single click causes.
+ * In ghostty-web 0.4, a click without a drag selects one cell. On mouseup, the terminal copies the character in that
+ * cell, for example the "-" or "─" of a border. This copy replaces the clipboard, and an image in the clipboard is
+ * then not available to paste. After this change, the terminal copies only a selection of two or more cells.
+ */
+function stopClickCopy(terminal: Terminal): void {
+    const manager = (terminal as unknown as { selectionManager?: SelectionManager }).selectionManager;
+    if (!manager) {
+        return;
+    }
+    const copy = manager.copyToClipboard.bind(manager);
+    manager.copyToClipboard = async text => {
+        if (manager.hasSelection()) {
+            await copy(text);
+        }
+    };
 }
 
 /** Returns true when the host of the terminal is in the document and has a size. */

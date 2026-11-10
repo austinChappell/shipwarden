@@ -46,8 +46,19 @@ body {
         system-ui,
         sans-serif;
     -webkit-font-smoothing: antialiased;
-    user-select: none;
+    /* The user can select and copy all text in the app. */
+    user-select: text;
     overflow: hidden;
+}
+
+/* Controls do not show a selection when the user clicks or drags them. */
+button,
+label,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+[role="separator"] {
+    user-select: none;
 }
 
 /* The user cannot resize a text box. Each text box has a fixed height. */
