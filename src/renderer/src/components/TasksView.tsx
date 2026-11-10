@@ -43,10 +43,10 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
     const sourceState = useTaskSource(projectId, setSelectedId);
     const { connections, connectionId, source, sourceError, collection, request } = sourceState;
     const prefs = useTaskViewPrefs(projectId, source?.pluginId);
-    const list = useTaskList({ projectId, source, collection, filter: sourceState.filter, request, setSelectedId });
+    const list = useTaskList({ projectKey: sourceState.projectKey, source, collection, filter: sourceState.filter, request, setSelectedId });
     const { tasks, loadTasks } = list;
     const listError = sourceState.collectionsError ?? list.listError;
-    const detailState = useTaskDetail({ projectId, source, selectedId, setSelectedId, request, setTasks: list.setTasks, loadTasks });
+    const detailState = useTaskDetail({ projectKey: sourceState.projectKey, source, selectedId, setSelectedId, request, setTasks: list.setTasks, loadTasks });
 
     /**
      * An open request: select its task manager, then the task when the plugin of that task manager is ready.

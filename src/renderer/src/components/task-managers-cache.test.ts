@@ -18,6 +18,7 @@ function connection(id: string, change: Partial<ConnectionInfo> = {}): Connectio
         name: id,
         enabled: true,
         pluginName: 'ClickUp',
+        projectContext: false,
         settings: [],
         configured: true,
         settingsWithValue: [],

@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { PullRequest, RepoRef } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
 import type { AppSettings, AgentDefinition, RepoScript } from '@shared/settings';
-import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
+import { applyStartStatus, branchNameForTask, taskProjectKey, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
 import { snoozeEnd, type CreatedWorktree, type HiddenWorktree, type Worktree } from '@shared/worktrees';
 import { confirmDialog, promptDialog } from '../components/ConfirmDialog';
@@ -104,10 +104,12 @@ export function useWorktreeActions(options: Options) {
         try {
             // The settings page and the Tasks view use the same cache entries, so a fresh copy does not load again.
             const connections = await queryClient.fetchQuery({ queryKey: taskManagerKeys.allConnections, queryFn: () => api.tasks.connections() });
-            wanted = connections.find(item => item.id === connectionId)?.startStatus;
+            const connection = connections.find(item => item.id === connectionId);
+            wanted = connection?.startStatus;
             if (!wanted) return;
+            const projectKey = taskProjectKey(connection, projectId);
             const source = await queryClient.fetchQuery({
-                queryKey: taskQueryKeys.source(connectionId, projectId),
+                queryKey: taskQueryKeys.source(connectionId, projectKey),
                 queryFn: () => api.tasks.source(connectionId, projectId)
             });
             const result = await applyStartStatus(
@@ -117,9 +119,9 @@ export function useWorktreeActions(options: Options) {
                 <T>(method: string, params: unknown) => api.tasks.request(connectionId, projectId, method, params) as Promise<T>
             );
             if (result === 'moved') {
-                // The task has a new status. The lists and the task details of the project load again when they show.
-                void queryClient.invalidateQueries({ queryKey: [...keyRoots.tasks, 'list', connectionId, projectId] });
-                void queryClient.invalidateQueries({ queryKey: taskQueryKeys.detail(connectionId, projectId, task.id) });
+                // The task has a new status. The lists and the task details of the project key load again when they show.
+                void queryClient.invalidateQueries({ queryKey: [...keyRoots.tasks, 'list', connectionId, projectKey] });
+                void queryClient.invalidateQueries({ queryKey: taskQueryKeys.detail(connectionId, projectKey, task.id) });
             }
         } catch (err) {
             setError(`${task.key ?? task.title} did not move to "${wanted}": ${errorText(err)}`);

@@ -37,17 +37,18 @@ export function rememberFilter(connectionId: string, projectId: string, filter: 
 
 /**
  * The query keys of the view. The query cache keeps the loaded data for the session.
- * Each key contains the connection and the project, because the same connection can have other data in another project.
+ * The task data keys contain the connection and its project key (see `taskProjectKey`). A plugin that uses the project
+ * repositories can have other data in another project. All projects share the data of the other plugins, for example ClickUp.
  */
 export const taskQueryKeys = {
     connections: (projectId: string) => ['tasks', 'connections', projectId] as const,
-    source: (connectionId: string | undefined, projectId: string) => ['tasks', 'source', connectionId, projectId] as const,
-    collections: (connectionId: string | undefined, projectId: string) => ['tasks', 'collections', connectionId, projectId] as const,
-    list: (connectionId: string | undefined, projectId: string, collection: string | undefined, filter: string | undefined) =>
-        ['tasks', 'list', connectionId, projectId, collection, filter] as const,
-    statusOrder: (connectionId: string | undefined, projectId: string, collection: string | undefined) =>
-        ['tasks', 'statusOrder', connectionId, projectId, collection] as const,
-    detail: (connectionId: string | undefined, projectId: string, taskId: string | undefined) => ['tasks', 'detail', connectionId, projectId, taskId] as const
+    source: (connectionId: string | undefined, projectKey: string) => ['tasks', 'source', connectionId, projectKey] as const,
+    collections: (connectionId: string | undefined, projectKey: string) => ['tasks', 'collections', connectionId, projectKey] as const,
+    list: (connectionId: string | undefined, projectKey: string, collection: string | undefined, filter: string | undefined) =>
+        ['tasks', 'list', connectionId, projectKey, collection, filter] as const,
+    statusOrder: (connectionId: string | undefined, projectKey: string, collection: string | undefined) =>
+        ['tasks', 'statusOrder', connectionId, projectKey, collection] as const,
+    detail: (connectionId: string | undefined, projectKey: string, taskId: string | undefined) => ['tasks', 'detail', connectionId, projectKey, taskId] as const
 };
 
 /** The board is the default view. The list shows only when the user selected it. */

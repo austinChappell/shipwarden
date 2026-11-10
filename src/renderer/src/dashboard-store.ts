@@ -12,6 +12,7 @@ import {
     type TaskCommentItem
 } from '@shared/dashboard';
 import { repoId, type RepoRef } from '@shared/github';
+import { taskProjectKey } from '@shared/tasks';
 import { keyRoots, queryClient } from './query-client';
 import { seenStore, useSeenVersion } from './seen-store';
 import { errorText, optionalErrorText } from './util';
@@ -54,7 +55,9 @@ interface Scope {
 export const dashboardKeys = {
     pullRequests: (reviewKey: string | null) => [...keyRoots.dashboard, 'pullRequests', reviewKey] as const,
     comments: (reviewKey: string | null) => [...keyRoots.dashboard, 'comments', reviewKey] as const,
-    tasks: (projectId: string | undefined) => [...keyRoots.dashboard, 'tasks', projectId] as const
+    tasks: (projectId: string | undefined) => [...keyRoots.dashboard, 'tasks', projectId] as const,
+    /** The activity of one connection. All projects share it when the plugin does not use the project (see `taskProjectKey`). */
+    taskActivity: (connectionId: string, projectKey: string) => [...keyRoots.dashboard, 'tasks', 'activity', connectionId, projectKey] as const
 };
 
 /** The query of the pull requests of the Dashboard. The Review view uses it too, to find the repositories of the user. */
@@ -84,23 +87,32 @@ function tasksQuery(projectId: string | undefined) {
     };
 }
 
-/** Asks each task manager with the "activity" capability for new comments. */
+/**
+ * Asks each task manager with the "activity" capability for new comments. The cache keeps the result of each connection,
+ * so a project switch does not ask a shared task manager again while its result is fresh.
+ */
 async function loadTasks(projectId: string | undefined): Promise<TaskActivity[]> {
     if (!projectId) {
         return [];
     }
-    const since = new Date(Date.now() - DASHBOARD_WINDOW_DAYS * 24 * 3600 * 1000).toISOString();
     const api = window.shipwarden.tasks;
     const connections = await api.enabledConnections().catch(() => []);
     const results = await Promise.all(
         connections.map(async (connection): Promise<TaskActivity | undefined> => {
             try {
-                const source = await api.source(connection.id, projectId);
-                if (!source.capabilities.activity) {
-                    return undefined;
-                }
-                const result = (await api.request(connection.id, projectId, 'activity/list', { since })) as { comments: TaskCommentItem[] };
-                return { connectionId: connection.id, name: connection.name, comments: result.comments };
+                const comments = await queryClient.fetchQuery({
+                    queryKey: dashboardKeys.taskActivity(connection.id, taskProjectKey(connection, projectId)),
+                    queryFn: async (): Promise<TaskCommentItem[] | null> => {
+                        const source = await api.source(connection.id, projectId);
+                        if (!source.capabilities.activity) {
+                            return null;
+                        }
+                        const since = new Date(Date.now() - DASHBOARD_WINDOW_DAYS * 24 * 3600 * 1000).toISOString();
+                        const result = (await api.request(connection.id, projectId, 'activity/list', { since })) as { comments: TaskCommentItem[] };
+                        return result.comments;
+                    }
+                });
+                return comments ? { connectionId: connection.id, name: connection.name, comments } : undefined;
             } catch (error) {
                 return { connectionId: connection.id, name: connection.name, error: errorText(error) };
             }

@@ -4,6 +4,7 @@ import { promises as fs } from 'fs';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter, type MessageConnection } from 'vscode-jsonrpc/node';
 import type { RepoRef } from '@shared/github';
 import {
+    ALL_PROJECTS,
     normalizeTaskConfig,
     type ConnectionInfo,
     type PluginInfo,
@@ -12,7 +13,8 @@ import {
     type TaskConnection,
     type TaskLink,
     type TaskScope,
-    type TaskSource
+    type TaskSource,
+    taskProjectKey
 } from '@shared/tasks';
 import { discoverPlugins, SUPPORTED_PROTOCOL_VERSION, type DiscoveredPlugin } from './plugin-registry';
 import { JsonStore } from './json-store';
@@ -44,8 +46,8 @@ export interface TaskHostOptions {
     collectionsFile: string;
     /** The file that keeps the selected connection of each project in the Tasks view. */
     selectedConnectionsFile: string;
-    /** Called when a plugin reports changed tasks. */
-    onChanged(connectionId: string, projectId: string): void;
+    /** Called when a plugin reports changed tasks. `projectKey` is the project, or ALL_PROJECTS for a plugin that all projects use. */
+    onChanged(connectionId: string, projectKey: string): void;
 }
 
 interface RunningPlugin {
@@ -63,7 +65,8 @@ const NO_PROJECT = '';
 /**
  * Runs the task plugins. A connection is a plugin with its own settings and scope. ShipWarden runs one process
  * for each connection and project, because the plugin gets the repositories of the project (for example GitHub
- * uses them to select its default repository).
+ * uses them to select its default repository). A plugin with `"projectContext": false` does not use the repositories.
+ * Then all projects use one process of the connection, so a project switch sends no new requests to the tracker.
  */
 export class TaskHost {
     private discovered: DiscoveredPlugin[] | undefined;
@@ -290,6 +293,7 @@ export class TaskHost {
             ...connection,
             pluginName: plugin?.manifest.name ?? `${connection.pluginId} (not installed)`,
             scopeLabel: plugin?.manifest.scopeLabel,
+            projectContext: plugin?.manifest.projectContext !== false,
             settings: definitions,
             configured: !!plugin && definitions.filter(definition => definition.required).every(definition => withValue.includes(definition.key)),
             settingsWithValue: withValue,
@@ -313,20 +317,30 @@ export class TaskHost {
         return plugin;
     }
 
-    private ensure(connectionId: string, projectId: string): Promise<RunningPlugin> {
-        const key = `${connectionId}\0${projectId}`;
+    /** Returns the running process of the connection for the project. A plugin without project context has one process for all projects. */
+    private async ensure(connectionId: string, projectId: string): Promise<RunningPlugin> {
+        const projectKey = projectId === NO_PROJECT ? NO_PROJECT : await this.projectKey(connectionId, projectId);
+        const key = `${connectionId}\0${projectKey}`;
         const running = this.running.get(key);
         if (running) {
-            return Promise.resolve(running);
+            return running;
         }
         let promise = this.starting.get(key);
         if (!promise) {
-            promise = this.start(connectionId, projectId).finally(() => this.starting.delete(key));
+            promise = this.start(connectionId, projectKey).finally(() => this.starting.delete(key));
             this.starting.set(key, promise);
         }
         return promise;
     }
 
+    /** The project key of the process: the project, or ALL_PROJECTS when the plugin does not use the project. */
+    private async projectKey(connectionId: string, projectId: string): Promise<string> {
+        const connection = (await this.taskConfig()).connections.find(item => item.id === connectionId);
+        const plugin = connection && (await this.discover()).find(item => item.manifest.id === connection.pluginId);
+        return taskProjectKey(plugin && { projectContext: plugin.manifest.projectContext !== false }, projectId);
+    }
+
+    /** Starts a process. `projectId` is a project, NO_PROJECT or ALL_PROJECTS. */
     private async start(connectionId: string, projectId: string): Promise<RunningPlugin> {
         const config = await this.taskConfig();
         const base = config.connections.find(item => item.id === connectionId);
@@ -357,7 +371,7 @@ export class TaskHost {
         exited.catch(() => undefined);
 
         try {
-            const roots = projectId === NO_PROJECT ? [] : await this.options.projectRepos(projectId);
+            const roots = projectId === NO_PROJECT || projectId === ALL_PROJECTS ? [] : await this.options.projectRepos(projectId);
             const repositories = await Promise.all(
                 roots.map(async root => {
                     const github = await this.options.repoFor(root);

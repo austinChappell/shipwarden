@@ -18,6 +18,11 @@ export interface PluginManifest {
     settings?: SettingDefinition[];
     /** The word for a scope in the UI, for example "workspace" (ClickUp) or "organization" (GitHub). */
     scopeLabel?: string;
+    /**
+     * False when the plugin does not use the repositories of the project (for example ClickUp and Linear).
+     * Then all projects use one process of the connection, and the plugin cache stays valid after a project switch. The default is true.
+     */
+    projectContext?: boolean;
 }
 
 export interface DiscoveredPlugin {
@@ -36,6 +41,7 @@ export function validateManifest(value: unknown): string | undefined {
     if (typeof manifest.command !== 'string' || !manifest.command) return 'The "command" is missing.';
     if (manifest.protocolVersion !== SUPPORTED_PROTOCOL_VERSION) return `The "protocolVersion" must be ${SUPPORTED_PROTOCOL_VERSION}.`;
     if (manifest.args !== undefined && !Array.isArray(manifest.args)) return 'The "args" must be a list of strings.';
+    if (manifest.projectContext !== undefined && typeof manifest.projectContext !== 'boolean') return 'The "projectContext" must be true or false.';
     return undefined;
 }
 

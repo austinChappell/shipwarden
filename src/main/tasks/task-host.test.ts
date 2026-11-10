@@ -3,11 +3,14 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { discoverPlugins, validateManifest } from './plugin-registry';
-import { TaskHost, type SettingsProvider } from './task-host';
+import { TaskHost, type SettingsProvider, type TaskHostOptions } from './task-host';
 
 const SDK = path.resolve(__dirname, '../../../plugins/sdk/index.js');
 
-/** A small test plugin that uses the real SDK. It echoes its settings, its scope and the repositories of the project. */
+/**
+ * A small test plugin that uses the real SDK. It echoes its settings, its scope and the repositories of the project.
+ * Its second collection has the process ID as its name, so a test can see which process answers.
+ */
 function testPlugin(): string {
     return `
 import { runPlugin } from ${JSON.stringify(SDK)};
@@ -26,7 +29,10 @@ runPlugin({
         return [{ id: 'w1', name: 'Workspace 1' }, { id: 'w2', name: 'Workspace 2' }];
     },
     async listCollections() {
-        return [{ id: 'inbox', name: 'Inbox in ' + (scope ? scope.join('+') : 'all') + ' for ' + context.repositories.map(repo => repo.root).join(','), default: true }];
+        return [
+            { id: 'inbox', name: 'Inbox in ' + (scope ? scope.join('+') : 'all') + ' for ' + context.repositories.map(repo => repo.root).join(','), default: true },
+            { id: 'pid', name: String(process.pid) }
+        ];
     },
     async listTasks({ collection, filter }) {
         return { tasks: [{ id: '1', key: 'T-1', title: 'Task in ' + collection + ' with ' + settings.token + ' and ' + filter, status: { id: 'todo', name: 'To do', category: 'todo' } }] };
@@ -66,19 +72,19 @@ describe('TaskHost', () => {
     let host: TaskHost;
     let settings: MemorySettings;
 
-    const makeHost = () =>
-        new TaskHost({
-            pluginFolders: [{ path: path.join(dir, 'plugins'), builtIn: true }],
-            settings,
-            repoFor: async () => null,
-            projectRepos: async projectId => (projectId === 'work' ? ['/repos/api', '/repos/web'] : ['/repos/side']),
-            configFile: path.join(dir, 'task-managers.json'),
-            legacySourcesFile: path.join(dir, 'task-sources.json'),
-            linksFile: path.join(dir, 'links.json'),
-            collectionsFile: path.join(dir, 'collections.json'),
-            selectedConnectionsFile: path.join(dir, 'selected.json'),
-            onChanged: () => undefined
-        });
+    const hostOptions = (): TaskHostOptions => ({
+        pluginFolders: [{ path: path.join(dir, 'plugins'), builtIn: true }],
+        settings,
+        repoFor: async () => null,
+        projectRepos: async projectId => (projectId === 'work' ? ['/repos/api', '/repos/web'] : ['/repos/side']),
+        configFile: path.join(dir, 'task-managers.json'),
+        legacySourcesFile: path.join(dir, 'task-sources.json'),
+        linksFile: path.join(dir, 'links.json'),
+        collectionsFile: path.join(dir, 'collections.json'),
+        selectedConnectionsFile: path.join(dir, 'selected.json'),
+        onChanged: () => undefined
+    });
+    const makeHost = () => new TaskHost(hostOptions());
 
     beforeEach(async () => {
         dir = await fs.mkdtemp(path.join(os.tmpdir(), 'shipwarden-plugins-'));
@@ -166,6 +172,30 @@ describe('TaskHost', () => {
         await host.removeConnection(b.id);
         expect(settings.data[b.id]).toBeUndefined();
         expect((await host.enabledConnections()).map(connection => connection.id)).toEqual([a.id]);
+    });
+
+    it('uses one process for all projects when the plugin has no project context', async () => {
+        const folder = path.join(dir, 'plugins', 'shared-tracker');
+        await fs.mkdir(folder, { recursive: true });
+        await fs.copyFile(path.join(dir, 'plugins', 'test-tracker', 'index.mjs'), path.join(folder, 'index.mjs'));
+        await fs.writeFile(
+            path.join(folder, 'shipwarden-plugin.json'),
+            JSON.stringify({ id: 'shared-tracker', name: 'Shared', protocolVersion: 3, command: 'node', args: ['index.mjs'], projectContext: false })
+        );
+        const shared = await host.addConnection('shared-tracker', 'Shared');
+        const local = await host.addConnection('test-tracker', 'Local');
+        await host.saveConnectionSettings(shared.id, { token: 'a' });
+        await host.saveConnectionSettings(local.id, { token: 'b' });
+        expect((await host.connections()).map(connection => connection.projectContext)).toEqual([false, true]);
+
+        const collections = async (id: string, project: string) => (await host.request(id, project, 'collections/list', {})) as { name: string }[];
+        const [work, side] = [await collections(shared.id, 'work'), await collections(shared.id, 'side')];
+        // The shared process gets no repositories, and both projects get the same process.
+        expect(work[0].name).toBe('Inbox in all for ');
+        expect(side[1].name).toBe(work[1].name);
+        // A plugin with project context keeps one process for each project.
+        expect((await collections(local.id, 'side'))[1].name).not.toBe((await collections(local.id, 'work'))[1].name);
+        expect(validateManifest({ id: 'x', name: 'X', command: 'node', protocolVersion: 3, projectContext: 'no' })).toContain('projectContext');
     });
 
     it('makes the first connections from the settings of protocol version 2', async () => {

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { pickCollection, sortCollections, type ConnectionInfo, type TaskCollection, type TaskSource } from '@shared/tasks';
+import { pickCollection, sortCollections, taskProjectKey, type ConnectionInfo, type TaskCollection, type TaskSource } from '@shared/tasks';
 import { optionalErrorText } from '../../util';
 import { connectionStateOf, lastFilter, pickConnection, pickFilter, rememberFilter, taskQueryKeys } from './task-view-logic';
 
@@ -41,6 +41,11 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
     const connections = connectionsQuery.data?.list ?? (connectionsQuery.isError ? [] : undefined);
     const connectionId = connectionsQuery.data ? pickConnection(connectionsQuery.data.list, connectionsQuery.data.saved) : undefined;
     const connectionState = connectionStateOf(connections, connectionId);
+    /** The project key of the task data. All projects share the cached data of a plugin without project context. */
+    const projectKey = taskProjectKey(
+        connections?.find(item => item.id === connectionId),
+        projectId
+    );
 
     const request: TaskRequest = useCallback(
         <T>(method: string, params: unknown) => {
@@ -54,7 +59,7 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
 
     // Start the plugin of the selected task manager. The settings of a plugin can change, so it starts again each time that the view opens.
     const sourceQuery = useQuery({
-        queryKey: taskQueryKeys.source(connectionId, projectId),
+        queryKey: taskQueryKeys.source(connectionId, projectKey),
         queryFn: () => api.source(connectionId as string, projectId),
         enabled: connectionState === 'ready' && !!connectionId,
         staleTime: 0
@@ -88,7 +93,7 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
 
     // Load the collections of the source. The view selects the saved one, the plugin's default or the first one.
     const collectionsQuery = useQuery({
-        queryKey: taskQueryKeys.collections(readySource?.connectionId, projectId),
+        queryKey: taskQueryKeys.collections(readySource?.connectionId, projectKey),
         queryFn: async (): Promise<CollectionsData> => {
             const sourceConnection = readySource?.connectionId as string;
             const [list, saved] = await Promise.all([
@@ -107,7 +112,7 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
     const selectCollection = (id: string) => {
         setSelectedId(undefined);
         if (!readySource) return;
-        queryClient.setQueryData<CollectionsData>(taskQueryKeys.collections(readySource.connectionId, projectId), data => data && { ...data, saved: id });
+        queryClient.setQueryData<CollectionsData>(taskQueryKeys.collections(readySource.connectionId, projectKey), data => data && { ...data, saved: id });
         api.setSelectedCollection(readySource.connectionId, id).catch(() => undefined);
     };
 
@@ -118,6 +123,7 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
         connections,
         connectionId,
         connectionState,
+        projectKey,
         selectConnection,
         source,
         sourceError,

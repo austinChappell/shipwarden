@@ -155,6 +155,22 @@ describe('ClickUp mapping', () => {
     });
 });
 
+describe('ClickUp rate limit', () => {
+    const headers = values => new Headers(values);
+
+    it('waits until the reset time of the rate limit', () => {
+        const now = 1_700_000_000_000;
+        expect(clickup.rateLimitWait(headers({ 'X-RateLimit-Reset': String(now / 1000 + 12) }), now)).toBe(12_500);
+        // A reset time in the past gives the shortest wait.
+        expect(clickup.rateLimitWait(headers({ 'X-RateLimit-Reset': String(now / 1000 - 5) }), now)).toBe(1000);
+    });
+
+    it('prefers Retry-After and has a default wait', () => {
+        expect(clickup.rateLimitWait(headers({ 'Retry-After': '3', 'X-RateLimit-Reset': '1' }))).toBe(3000);
+        expect(clickup.rateLimitWait(headers({}))).toBe(10_000);
+    });
+});
+
 describe('Azure DevOps mapping', () => {
     const states = [
         { name: 'New', color: 'b2b2b2', category: 'Proposed' },
