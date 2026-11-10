@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GitPullRequest, X } from 'lucide-react';
 import type { BranchStatus, PullRequest, RepoRef } from '@shared/github';
+import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { QueueItem } from '@shared/review-queue';
 import { errorText } from '../util';
 import { cacheKey, cached, remember } from '../data-cache';
@@ -24,6 +25,10 @@ interface Props {
     open?: ReviewOpenRequest;
     /** Opens the New worktree dialog on the head branch of a pull request. */
     onNewWorktree?(repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>): void;
+    /** The projects. Undefined while they load. */
+    projects?: ProjectsState;
+    /** Adds the repository to a project, with a clone when necessary. Resolves false when the user cancels. */
+    onPullRepo?(repo: RepoRef, target: PullRepoTarget): Promise<boolean>;
 }
 
 export interface ReviewOpenRequest {
@@ -52,7 +57,7 @@ function toRef(repo: string): RepoRef {
  * The data of the first two pages comes from the review overview store, which loads at app start.
  * The review queue opens the pull requests to review one after the other, the oldest first.
  */
-export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: Props) {
+export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree, projects, onPullRepo }: Props) {
     const overview = useReviewOverview();
     const queueItems = useReviewQueue();
     const [repo, setRepo] = useState<string>();
@@ -256,6 +261,8 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
                         onRefresh={refresh}
                         onBack={backToList}
                         onNewWorktree={onNewWorktree && (target => onNewWorktree(repoRef, target))}
+                        projects={projects}
+                        onPullRepo={onPullRepo && (target => onPullRepo(repoRef, target))}
                     />
                 </div>
             )}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
-import type { BranchSummary } from '@shared/github';
-import type { ProjectsState } from '@shared/projects';
+import type { BranchSummary, RepoRef } from '@shared/github';
+import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { SplitGroups } from '@shared/panes';
 import type { Worktree } from '@shared/worktrees';
 import { confirmDialog } from '../components/ConfirmDialog';
@@ -82,9 +82,10 @@ export function useProjects(options: Options) {
      * Opens the saved tabs of a project again. A file that does not exist now does not get a tab.
      * Terminal sessions that are still running keep their active tab.
      * `fallbackKey` is the key of an older layout (one repository) that a project without its own layout uses.
+     * With `keepView`, the main view does not change.
      */
     const restoreLayout = useCallback(
-        async (key: string, list: Worktree[], sessionIds: string[], fallbackKey?: string) => {
+        async (key: string, list: Worktree[], sessionIds: string[], fallbackKey?: string, keepView = false) => {
             restoredKey.current = undefined;
             let stored = readLayout(key);
             if (!stored.selectedPath && Object.keys(stored.openFiles).length === 0 && fallbackKey) {
@@ -126,7 +127,7 @@ export function useProjects(options: Options) {
             setSelectedPath(saved.selectedPath ?? list[0]?.path);
             if (firstRestore.current) {
                 firstRestore.current = false;
-            } else {
+            } else if (!keepView) {
                 setMainView(saved.mainView ?? 'worktree');
             }
             restoredKey.current = key;
@@ -134,16 +135,16 @@ export function useProjects(options: Options) {
         [setOpenFiles, setActiveTabs, setPanes, setSelectedPath, setMainView]
     );
 
-    /** Loads the worktrees of the active project and opens its saved tabs. */
+    /** Loads the worktrees of the active project and opens its saved tabs. With `keepView`, the main view does not change. */
     const showProject = useCallback(
-        async (state: ProjectsState, sessionIds: string[]) => {
+        async (state: ProjectsState, sessionIds: string[], keepView = false) => {
             const project = state.projects.find(item => item.id === state.activeId);
             if (!project) {
                 return;
             }
             restoredKey.current = undefined;
             const list = await refreshAll(project.repos);
-            await restoreLayout(`project:${project.id}`, list, sessionIds, project.repos[0]);
+            await restoreLayout(`project:${project.id}`, list, sessionIds, project.repos[0], keepView);
         },
         [refreshAll, restoreLayout]
     );
@@ -203,6 +204,26 @@ export function useProjects(options: Options) {
         } catch (err) {
             setError(errorText(err));
         }
+    };
+
+    /**
+     * Adds a GitHub repository to a project, with a clone when no project has one. That project becomes active, and
+     * the main view stays the same. Resolves false when the user cancels the folder dialog. Throws the error of a failed pull.
+     */
+    const pullRepo = async (repo: RepoRef, target: PullRepoTarget): Promise<boolean> => {
+        const result = await api.projects.pullRepo(repo, target);
+        if (!result) {
+            return false;
+        }
+        const switched = result.state.activeId !== projects?.activeId;
+        setProjects(result.state);
+        if (switched) {
+            // The user stays in the view of the pull request.
+            await showProject(result.state, options.sessionIds(), true);
+        } else {
+            await refreshWorktrees(result.repo);
+        }
+        return true;
     };
 
     /** Removes a repository from the active project. Its files, worktrees and terminal sessions stay. */
@@ -277,6 +298,7 @@ export function useProjects(options: Options) {
         refreshWorktrees,
         showProject,
         addRepo,
+        pullRepo,
         removeRepo,
         switchProject,
         changeProjects,

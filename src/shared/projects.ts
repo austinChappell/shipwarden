@@ -14,6 +14,16 @@ export interface ProjectsState {
     activeId: string;
 }
 
+/** The project that gets a repository from the Review view: a project that exists, or a new project with this name. */
+export type PullRepoTarget = { projectId: string } | { newProjectName: string };
+
+/** The result of a pull of a repository into a project. */
+export interface PullRepoResult {
+    state: ProjectsState;
+    /** The root folder of the main worktree of the repository. */
+    repo: string;
+}
+
 const MAX_NAME_LENGTH = 80;
 
 /** Removes extra spaces from a project name. Throws an error when the name is empty or too long. */

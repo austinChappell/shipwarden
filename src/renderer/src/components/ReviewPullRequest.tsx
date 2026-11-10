@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { BranchStatus, CheckRun, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
+import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
@@ -20,6 +21,7 @@ import { reviewCheckouts, useReviewCheckout } from '../github/review-checkout-st
 import { lspBridge } from '../lsp/bridge';
 import { documents } from '../editor/documents';
 import { moveTabFocus } from '../tablist';
+import { PullRepoDialog } from './PullRepoDialog';
 
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
 
@@ -58,6 +60,30 @@ interface Props {
     tabRequest?: { tab: ReviewTab; nonce: number };
     /** Opens the New worktree dialog on the head branch of the pull request. Without it, the button does not show. */
     onNewWorktree?(pr: PullRequest): void;
+    /** The projects. Undefined while they load. */
+    projects?: ProjectsState;
+    /** Adds the repository to a project. Without it, the "Pull into project" button does not show. */
+    onPullRepo?(target: PullRepoTarget): Promise<boolean>;
+}
+
+/**
+ * True when a project has a clone of the repository, false when no project has one. Undefined while the check runs.
+ * The check runs again when the projects change.
+ */
+function useRepoInProject(repo: RepoRef, projects: ProjectsState | undefined): boolean | undefined {
+    const [inProject, setInProject] = useState<boolean>();
+    useEffect(() => {
+        if (!projects) return;
+        let current = true;
+        window.shipwarden.projects.findRepo(repo).then(
+            root => current && setInProject(root !== null),
+            () => current && setInProject(undefined)
+        );
+        return () => {
+            current = false;
+        };
+    }, [repo, projects]);
+    return inProject;
 }
 
 /** The last tab request that the view applied. A remount must not apply an old request again. */
@@ -124,8 +150,10 @@ function CheckTabCount({ total, counts }: { total: number; counts: CheckCounts |
  * A pull request in the Review view, with the tabs of GitHub: Overview, Commits, Checks and Files changed.
  * The tab stays the same when the user opens a different pull request.
  */
-export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh, onBack, tabRequest, onNewWorktree }: Props) {
+export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh, onBack, tabRequest, onNewWorktree, projects, onPullRepo }: Props) {
     const [tab, setTab] = useState<ReviewTab>(readTab);
+    const inProject = useRepoInProject(repo, projects);
+    const [pullOpen, setPullOpen] = useState(false);
     const [file, setFile] = useState<{ file: PullRequestFile; line?: number; nonce: number }>();
     const [check, setCheck] = useState<CheckRun>();
     const [fileError, setFileError] = useState<string>();
@@ -296,6 +324,15 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                         {pr.title} <span className="review-pr-number">#{pr.number}</span>
                     </h2>
                     <div className="review-pr-actions">
+                        {onPullRepo && inProject === false && (
+                            <button
+                                className="button"
+                                title={`No project has a clone of ${repo.owner}/${repo.name}. Clone it and add it to a project.`}
+                                onClick={() => setPullOpen(true)}
+                            >
+                                <FolderInput size={14} strokeWidth={1.6} /> Pull into project
+                            </button>
+                        )}
                         {onNewWorktree && (
                             <button
                                 className="icon-button"
@@ -370,6 +407,9 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                 )}
                 <PullRequestSummary pr={pr} checks={checkCounts} onSelectTab={selectTab} />
             </header>
+            {pullOpen && onPullRepo && projects && (
+                <PullRepoDialog repo={repo} projects={projects.projects} activeId={projects.activeId} onClose={() => setPullOpen(false)} onPull={onPullRepo} />
+            )}
 
             <nav className="pr-tabs" role="tablist">
                 <Tab id="overview" current={tab} onSelect={selectTab} label="Overview" />
