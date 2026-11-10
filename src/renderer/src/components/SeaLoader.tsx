@@ -25,15 +25,8 @@ function wavePath(baseY: number, amplitude: number, period: number, width: numbe
     return `${d} V${height} H0 Z`;
 }
 
-const BACK_WAVE = wavePath(52, 3, 40, 160, 80);
-const FRONT_WAVE = wavePath(58, 4, 56, 160, 80);
-
-/**
- * A loading state: a small boat that rocks on moving waves, with a text that changes. The colors come from the theme.
- * The animation stops when the system asks for reduced motion.
- */
-export function SeaLoader({ label, hint, compact = false }: { label?: string; hint?: string; compact?: boolean }) {
-    const id = useId().replace(/:/g, '');
+/** The text below a loader. Without a label, the text changes every few seconds. */
+export function LoaderCaption({ label, hint }: { label?: string; hint?: string }) {
     const [index, setIndex] = useState(() => Math.floor(Math.random() * PHRASES.length));
 
     useEffect(() => {
@@ -43,6 +36,27 @@ export function SeaLoader({ label, hint, compact = false }: { label?: string; hi
     }, [label]);
 
     const text = label ?? PHRASES[index];
+
+    return (
+        <>
+            <div className="sea-loader-text">
+                <span key={text} className="sea-loader-label">{text}</span>
+                <span className="sea-loader-dots" aria-hidden="true"><i /><i /><i /></span>
+            </div>
+            {hint && <div className="sea-loader-hint">{hint}</div>}
+        </>
+    );
+}
+
+const BACK_WAVE = wavePath(52, 3, 40, 160, 80);
+const FRONT_WAVE = wavePath(58, 4, 56, 160, 80);
+
+/**
+ * A loading state: a small boat that rocks on moving waves, with a text that changes. The colors come from the theme.
+ * The animation stops when the system asks for reduced motion.
+ */
+export function SeaLoader({ label, hint, compact = false }: { label?: string; hint?: string; compact?: boolean }) {
+    const id = useId().replace(/:/g, '');
 
     return (
         <div className={`sea-loader${compact ? ' compact' : ''}`} role="status" aria-live="polite">
@@ -104,11 +118,7 @@ export function SeaLoader({ label, hint, compact = false }: { label?: string; hi
                     </g>
                 </g>
             </svg>
-            <div className="sea-loader-text">
-                <span key={text} className="sea-loader-label">{text}</span>
-                <span className="sea-loader-dots" aria-hidden="true"><i /><i /><i /></span>
-            </div>
-            {hint && <div className="sea-loader-hint">{hint}</div>}
+            <LoaderCaption label={label} hint={hint} />
         </div>
     );
 }

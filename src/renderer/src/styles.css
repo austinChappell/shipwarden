@@ -10278,3 +10278,44 @@ button.pr-summary-cell:hover {
 .dash-first-load .sea-loader-art {
     width: 240px;
 }
+
+/* The helm loader (HelmLoader). It uses the text styles of the sea loader. */
+.helm-loader-art {
+    width: 112px;
+    height: 112px;
+    overflow: visible;
+    filter: drop-shadow(0 8px 18px color-mix(in srgb, var(--accent) 22%, transparent));
+}
+
+/* One swing: a fast start, then a slow stop. A short hold. Then the same swing in the other direction. */
+.helm-spin {
+    transform-box: view-box;
+    transform-origin: 50px 50px;
+    animation: helm-swing 5.6s infinite;
+}
+
+@keyframes helm-swing {
+    0% {
+        transform: rotate(-150deg);
+        animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+    }
+    44% {
+        transform: rotate(150deg);
+    }
+    50% {
+        transform: rotate(150deg);
+        animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+    }
+    94% {
+        transform: rotate(-150deg);
+    }
+    100% {
+        transform: rotate(-150deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .helm-spin {
+        animation: none;
+    }
+}

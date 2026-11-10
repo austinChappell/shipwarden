@@ -26,7 +26,7 @@ import { openLink } from '../links';
 import type { ClickModifiers } from '@shared/browser';
 import { Markdown } from './Markdown';
 import { MERGE_LABELS } from './MergeButton';
-import { SeaLoader } from './SeaLoader';
+import { HelmLoader } from './HelmLoader';
 import { confirmDialog } from './ConfirmDialog';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 
@@ -424,7 +424,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
 
             {firstLoad && (
                 <div className="dash-first-load">
-                    <SeaLoader hint="The first load can take a few seconds." />
+                    <HelmLoader hint="The first load can take a few seconds." />
                 </div>
             )}
             <div className="dash-scroll" hidden={firstLoad} onKeyDown={moveListFocus}>
