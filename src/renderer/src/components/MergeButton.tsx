@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, GitMerge } from 'lucide-react';
 import type { MergeMethod } from '@shared/github';
+import { MERGE_LABELS } from '../github/merge-state';
 import { useMenuClose } from './use-menu';
 
-export const MERGE_LABELS: Record<MergeMethod, string> = { merge: 'Create a merge commit', squash: 'Squash and merge', rebase: 'Rebase and merge' };
+export { MERGE_LABELS };
 
 /** The button text for each method. GitHub shows "Merge pull request" for a merge commit. */
 const BUTTON_LABELS: Record<MergeMethod, string> = { merge: 'Merge pull request', squash: 'Squash and merge', rebase: 'Rebase and merge' };
