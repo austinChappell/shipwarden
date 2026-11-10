@@ -27,9 +27,9 @@ describe('shortcutAction', () => {
         expect(key({ alt: true, shift: true, key: 'ArrowLeft', code: 'ArrowLeft' })).toBeUndefined();
     });
 
-    it('is ⇧⌘E for the focus in the file explorer, and ⌘E is not a shortcut', () => {
+    it('is ⇧⌘E for the focus in the file explorer, and ⌘E for the right panel', () => {
         expect(key({ shift: true, key: 'E', code: 'KeyE' })).toBe('focusExplorer');
-        expect(key({ key: 'e', code: 'KeyE' })).toBeUndefined();
+        expect(key({ key: 'e', code: 'KeyE' })).toBe('toggleRightPanel');
     });
 
     it('ignores other keys, key up, and other modifiers', () => {
@@ -45,14 +45,14 @@ describe('shortcutAction', () => {
 });
 
 describe('toggleSidebar', () => {
-    it('is ⌘B', () => {
+    it('is ⌘B, and ⇧⌘B moves the focus to the sidebar', () => {
         expect(shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: false, key: 'b', code: 'KeyB' })).toBe('toggleSidebar');
-        expect(shortcutAction({ type: 'keyDown', meta: true, shift: true, control: false, alt: false, key: 'b', code: 'KeyB' })).toBeUndefined();
+        expect(shortcutAction({ type: 'keyDown', meta: true, shift: true, control: false, alt: false, key: 'B', code: 'KeyB' })).toBe('focusSidebar');
     });
 
-    it('is ⌥⌘B for the right panel, and other ⌥⌘ keys are not shortcuts', () => {
+    it('is not ⌥⌘B, and other ⌥⌘ keys are not shortcuts', () => {
         // With Option, macOS sends another character in "key" (for example "∫"). The code stays "KeyB".
-        expect(shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: true, key: '∫', code: 'KeyB' })).toBe('toggleRightPanel');
+        expect(shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: true, key: '∫', code: 'KeyB' })).toBeUndefined();
         expect(shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: true, key: '†', code: 'KeyT' })).toBeUndefined();
     });
 });

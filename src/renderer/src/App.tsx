@@ -56,6 +56,7 @@ import { ChangeDiffView } from './components/ChangeDiffView';
 import { WorktreeChangesView } from './components/WorktreeChangesView';
 import type { ChangeSide, FileChange } from '@shared/git';
 import { SidebarContext, SidebarToggle } from './components/SidebarToggle';
+import { requestSidebarFocus } from './sidebar-focus';
 import { BrowserView } from './components/BrowserView';
 import { browserStore, useBrowserStates } from './browser/browser-store';
 import { openLink, setAppBrowserOpener } from './links';
@@ -178,6 +179,8 @@ export function App() {
     const [projects, setProjects] = useState<ProjectsState>();
     const activeProject = projects?.projects.find(project => project.id === projects.activeId);
     const repos = useMemo(() => activeProject?.repos ?? [], [activeProject]);
+    /** The repositories of all projects, in sidebar order. The Review view shows their GitHub repositories first. */
+    const allRepos = useMemo(() => [...new Set(projects?.projects.flatMap(project => project.repos) ?? [])], [projects]);
     /** The worktrees of each repository, by the root of its main worktree. */
     const [worktreesByRepo, setWorktreesByRepo] = useState<Record<string, Worktree[]>>({});
     /** All worktrees of the active project. */
@@ -811,6 +814,12 @@ export function App() {
         }
         if (action === 'toggleSidebar') {
             toggleSidebar();
+            return;
+        }
+        if (action === 'focusSidebar') {
+            // A hidden sidebar shows first. The sidebar takes the request when it mounts.
+            if (sidebarCollapsed) toggleSidebar();
+            requestSidebarFocus();
             return;
         }
         if (action === 'toggleRightPanel') {
@@ -1695,6 +1704,7 @@ export function App() {
                     <main className="workspace">
                         <ReviewView
                             githubKey={githubKey}
+                            localRepos={allRepos}
                             onOpenSettings={() => openSettings('review')}
                             open={reviewOpen}
                             onNewWorktree={(repo, pr) => void openPullRequestWorktree(repo, pr)}
@@ -1909,7 +1919,7 @@ export function App() {
                 <div className="titlebar-controls right">
                     <button
                         className="icon-button panel-toggle"
-                        title={explorerOpen ? 'Hide the right panel (⌥⌘B)' : 'Show the right panel (⌥⌘B)'}
+                        title={explorerOpen ? 'Hide the right panel (⌘E)' : 'Show the right panel (⌘E)'}
                         aria-pressed={explorerOpen}
                         onClick={toggleExplorer}
                     >

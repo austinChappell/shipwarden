@@ -264,7 +264,10 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
   pane; a running agent asks first), ⌘D and ⇧⌘D a new shell pane at the right of or below the focused pane, ⌥⌘ and an
   arrow key move the focus to the pane at that side. ⇧⌘W closes the window. ⌘N opens the New worktree dialog for the repository on the screen: the
   commit graph, else the selected worktree, else the first repository. ⇧⌘E moves the focus to the file explorer. It
-  shows the right panel and the Files tab when necessary. A focused terminal takes all keys, so a menu shortcut alone does not work.
+  shows the right panel and the Files tab when necessary. ⌘B shows or hides the sidebar, and ⇧⌘B moves the focus to
+  it. The sidebar shows first when necessary. In the sidebar, Up and Down move between the items, Enter or Space opens
+  an item, Left and Right collapse and expand a repository, and ⇧F10 opens the context menu of a worktree.
+  ⌘E shows or hides the right panel. A focused terminal takes all keys, so a menu shortcut alone does not work.
   The keys go through two ways: `before-input-event` in the main process (before the page and the menu), and a keydown
   listener of the page in the capture phase. Both send the same action. The File menu lists the keys.
 - Back and forward (`shared/nav-history.ts`): ⌘[ goes back and ⌘] goes forward, as in a web browser. App adds an

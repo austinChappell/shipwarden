@@ -1,6 +1,7 @@
 /**
  * The workspace shortcuts: tabs, splits, the focus between panes and close, as in Ghostty. Also ⌘[ and ⌘] for back and
- * forward, ⌘B for the sidebar, ⌘N for a new worktree and ⇧⌘E for the focus in the file explorer.
+ * forward, ⌘B for the sidebar, ⇧⌘B for the focus in the sidebar, ⌘E for the right panel, ⌘N for a new worktree and
+ * ⇧⌘E for the focus in the file explorer.
  */
 export type ShortcutAction =
     | 'newTab'
@@ -14,6 +15,7 @@ export type ShortcutAction =
     | 'focusUp'
     | 'focusDown'
     | 'toggleSidebar'
+    | 'focusSidebar'
     | 'toggleRightPanel'
     | 'newWorktree'
     | 'focusExplorer';
@@ -28,22 +30,22 @@ const FOCUS_KEYS: Record<string, ShortcutAction> = {
 /**
  * Returns the workspace action of a key: ⌘T (new tab), ⌘W (close the pane, or the tab with one pane),
  * ⌘D (split right), ⇧⌘D (split down), ⌘[ (back), ⌘] (forward), ⌥⌘ and an arrow key (move the focus to the pane at
- * that side), ⌘B (show or hide the sidebar), ⌥⌘B (show or hide the right panel), ⌘N (open the New worktree dialog),
- * ⇧⌘E (move the focus to the file explorer). Other keys return undefined.
+ * that side), ⌘B (show or hide the sidebar), ⇧⌘B (move the focus to the sidebar), ⌘E (show or hide the right panel),
+ * ⌘N (open the New worktree dialog), ⇧⌘E (move the focus to the file explorer). Other keys return undefined.
  */
 export function shortcutAction(input: { type: string; meta: boolean; shift: boolean; control: boolean; alt: boolean; key: string; code?: string }): ShortcutAction | undefined {
     if (input.type !== 'keyDown' || !input.meta || input.control) return undefined;
     const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
     if (input.alt) {
         if (input.shift) return undefined;
-        return key === 'b' ? 'toggleRightPanel' : FOCUS_KEYS[key];
+        return FOCUS_KEYS[key];
     }
     if (key === 'd') return input.shift ? 'down' : 'right';
-    if (key === 'e') return input.shift ? 'focusExplorer' : undefined;
+    if (key === 'e') return input.shift ? 'focusExplorer' : 'toggleRightPanel';
+    if (key === 'b') return input.shift ? 'focusSidebar' : 'toggleSidebar';
     if (input.shift) return undefined;
     if (key === 't') return 'newTab';
     if (key === 'w') return 'close';
-    if (key === 'b') return 'toggleSidebar';
     if (key === 'n') return 'newWorktree';
     if (input.code === 'BracketLeft' || key === '[') return 'back';
     if (input.code === 'BracketRight' || key === ']') return 'forward';

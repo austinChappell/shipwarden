@@ -28,6 +28,7 @@ import { Markdown } from './Markdown';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { alertDialog, confirmDialog, promptDialog } from './ConfirmDialog';
 import { openLink } from '../links';
+import { cacheKey, cached, remember } from '../data-cache';
 
 /** The smallest width of the task details when the user drags the border of the task list. */
 const MIN_DETAIL_WIDTH = 320;
@@ -94,6 +95,32 @@ function formatField(value: string | number | boolean | null | undefined, type: 
     return String(value);
 }
 
+/**
+ * The cache keys of the view. The view shows cached data immediately and loads new data in the background.
+ * Each key starts with the connection and the project, because the same connection can have other data in another project.
+ */
+const connectionsKey = (projectId: string) => cacheKey('tasks.connections', projectId);
+const connectionIdKey = (projectId: string) => cacheKey('tasks.connectionId', projectId);
+const sourceKey = (connectionId: string, projectId: string) => cacheKey('tasks.source', connectionId, projectId);
+const filterKey = (connectionId: string, projectId: string) => cacheKey('tasks.filter', connectionId, projectId);
+const collectionsKey = (connectionId: string, projectId: string) => cacheKey('tasks.collections', connectionId, projectId);
+const selectionKey = (connectionId: string, projectId: string) => cacheKey('tasks.selection', connectionId, projectId);
+const tasksKey = (connectionId: string, projectId: string, collection: string, filter: string | undefined) =>
+    cacheKey('tasks.list', connectionId, projectId, collection, filter);
+const statusOrderKey = (connectionId: string, projectId: string, collection: string) => cacheKey('tasks.statusOrder', connectionId, projectId, collection);
+const detailKey = (connectionId: string, projectId: string, taskId: string) => cacheKey('tasks.detail', connectionId, projectId, taskId);
+
+interface CachedDetail {
+    task: Task;
+    statuses: TaskStatus[];
+    comments: TaskComment[];
+}
+
+/** Returns the old value when the new value has the same data, so that effects that use the value do not run again. */
+function same<T>(current: T, next: T): T {
+    return current !== undefined && JSON.stringify(current) === JSON.stringify(next) ? current : next;
+}
+
 /** The repository that "Start in worktree" used last in a project. */
 function startRepoKey(projectId: string): string {
     return `shipwarden.startRepo:${projectId}`;
@@ -102,8 +129,8 @@ function startRepoKey(projectId: string): string {
 /** The tasks of the project's task managers, one collection at a time, with a detail pane for the selected task. */
 export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree, onOpenSettings, repoLabel, openTask }: Props) {
     /** The task managers (connections) of the project. */
-    const [connections, setConnections] = useState<ConnectionInfo[]>();
-    const [connectionId, setConnectionId] = useState<string>();
+    const [connections, setConnections] = useState<ConnectionInfo[] | undefined>(() => cached(connectionsKey(projectId)));
+    const [connectionId, setConnectionId] = useState<string | undefined>(() => cached(connectionIdKey(projectId)));
     const [sourceError, setSourceError] = useState<string>();
     /** The repository for "Start in worktree", when the project has several. */
     const [startRepo, setStartRepo] = useState<string>(() => {
@@ -151,7 +178,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
     const [source, setSource] = useState<TaskSource | null>();
     const collection = source && selection?.connectionId === source.connectionId ? selection.id : undefined;
     /** Changes when the user asks to load the collections again, for example after a failed request. */
-    const [collectionsKey, setCollectionsKey] = useState(0);
+    const [collectionsReload, setCollectionsReload] = useState(0);
 
     useEffect(() => {
         setCollapsed(source ? readCollapseState(source.pluginId) : {});
@@ -170,6 +197,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
     const selectCollection = (id: string) => {
         if (source) {
             setSelection({ connectionId: source.connectionId, id });
+            remember(selectionKey(source.connectionId, projectId), id);
         }
         setSelectedId(undefined);
         if (source) {
@@ -201,12 +229,13 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
     // Load the task managers of the project, and select the last one that the user showed in this project.
     useEffect(() => {
         let cancelled = false;
-        setConnections(undefined);
+        setConnections(cached(connectionsKey(projectId)));
+        setConnectionId(cached(connectionIdKey(projectId)));
         Promise.all([api.enabledConnections(), api.selectedConnection(projectId).catch(() => undefined)]).then(([list, saved]) => {
             if (cancelled) return;
-            setConnections(list);
+            setConnections(current => same(current, remember(connectionsKey(projectId), list)));
             const usable = list.filter(item => item.configured);
-            setConnectionId((saved && list.some(item => item.id === saved) ? saved : undefined) ?? usable[0]?.id ?? list[0]?.id);
+            setConnectionId(remember(connectionIdKey(projectId), (saved && list.some(item => item.id === saved) ? saved : undefined) ?? usable[0]?.id ?? list[0]?.id));
         }, err => {
             if (!cancelled) {
                 setConnections([]);
@@ -219,27 +248,34 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         // The view opens again after a visit to Settings, so it loads the task managers again then.
     }, [projectId]);
 
-    // Start the plugin of the selected task manager.
+    /** The state of the selected task manager. The plugin starts again only when this state changes. */
+    const selectedConnection = connections?.find(item => item.id === connectionId);
+    const connectionState = connections === undefined ? 'loading' : !selectedConnection ? 'none' : selectedConnection.configured ? 'ready' : 'unconfigured';
+
+    // Start the plugin of the selected task manager. The cached source shows immediately while the plugin starts.
     useEffect(() => {
         let cancelled = false;
-        setSource(undefined);
         setSourceError(undefined);
-        setTasks(undefined);
         setSelectedId(undefined);
-        const connection = connections?.find(item => item.id === connectionId);
-        if (!connection) {
-            setSource(connections ? null : undefined);
+        if (connectionState !== 'ready' || !connectionId) {
+            setSource(connectionState === 'loading' ? undefined : null);
+            setTasks(undefined);
             return;
         }
-        if (!connection.configured) {
-            setSource(null);
-            return;
-        }
-        api.source(connection.id, projectId).then(started => {
+        // Each source has its own filters. Two sources can use the same filter ID with another meaning.
+        // Thus the view uses the last filter of this source, or the default filter of the source.
+        const pickFilter = (value: TaskSource) => {
+            const last = cached<string>(filterKey(connectionId, projectId));
+            return last && value.filters.some(item => item.id === last) ? last : value.filters.find(item => item.default)?.id ?? value.filters[0]?.id;
+        };
+        const last = cached<TaskSource>(sourceKey(connectionId, projectId));
+        setSource(last);
+        if (last) setFilter(pickFilter(last));
+        api.source(connectionId, projectId).then(started => {
             if (cancelled) return;
-            setSource(started);
-            // Each source has its own filters. Two sources can use the same filter ID with another meaning, so start with the default.
-            setFilter(started.filters.find(item => item.default)?.id ?? started.filters[0]?.id);
+            remember(sourceKey(connectionId, projectId), started);
+            setSource(current => same(current, started));
+            setFilter(pickFilter(started));
         }, err => {
             if (!cancelled) {
                 setSourceError(errorText(err));
@@ -249,29 +285,42 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         return () => {
             cancelled = true;
         };
-    }, [connections, connectionId, projectId]);
+    }, [connectionState, connectionId, projectId]);
+
+    // Keep the filter of each source for the next visit.
+    useEffect(() => {
+        if (source && filter) remember(filterKey(source.connectionId, projectId), filter);
+    }, [source, filter, projectId]);
 
     const selectConnection = (id: string) => {
-        setConnectionId(id);
+        setConnectionId(remember(connectionIdKey(projectId), id));
         api.setSelectedConnection(projectId, id).catch(() => undefined);
     };
 
     // Load the collections of the source and select the saved one, the plugin's default or the first one.
+    const sourceConnection = source?.connectionId;
     useEffect(() => {
-        setCollections(undefined);
-        setSelection(undefined);
         // After a switch, the old source is still in state for one render. Load only for the selected connection.
-        if (!source || source.connectionId !== connectionId) return;
+        if (!sourceConnection || sourceConnection !== connectionId) {
+            setCollections(undefined);
+            setSelection(undefined);
+            return;
+        }
+        // The cached collections and selection show immediately while the new ones load.
+        const lastSelection = cached<string>(selectionKey(sourceConnection, projectId));
+        setCollections(cached(collectionsKey(sourceConnection, projectId)));
+        setSelection(lastSelection ? { connectionId: sourceConnection, id: lastSelection } : undefined);
         let cancelled = false;
         Promise.all([
             request<TaskCollection[]>('collections/list', {}),
-            api.selectedCollection(source.connectionId).catch(() => undefined)
+            api.selectedCollection(sourceConnection).catch(() => undefined)
         ]).then(([list, saved]) => {
             if (cancelled) return;
-            const sorted = sortCollections(list);
-            setCollections(sorted);
+            const sorted = remember(collectionsKey(sourceConnection, projectId), sortCollections(list));
+            setCollections(current => same(current, sorted));
             const picked = pickCollection(sorted, saved);
-            setSelection(picked ? { connectionId: source.connectionId, id: picked } : undefined);
+            if (picked) remember(selectionKey(sourceConnection, projectId), picked);
+            setSelection(current => (current?.connectionId === sourceConnection && current.id === picked ? current : picked ? { connectionId: sourceConnection, id: picked } : undefined));
         }, err => {
             if (!cancelled) {
                 setCollections([]);
@@ -281,14 +330,14 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         return () => {
             cancelled = true;
         };
-    }, [source, connectionId, request, collectionsKey]);
+    }, [sourceConnection, connectionId, projectId, request, collectionsReload]);
 
-    // A new collection starts empty, so tasks of the old collection do not show for a moment.
+    // A new collection or filter shows its cached tasks, or nothing. Tasks of the old collection must not show.
     useEffect(() => {
-        setTasks(undefined);
-        setStatusOrder(undefined);
+        setTasks(connectionId && collection ? cached(tasksKey(connectionId, projectId, collection, filter)) : undefined);
+        setStatusOrder(connectionId && collection ? cached(statusOrderKey(connectionId, projectId, collection)) : undefined);
         setListError(undefined);
-    }, [collection]);
+    }, [connectionId, projectId, collection, filter]);
 
     const loadTasks = useCallback(async () => {
         // After a switch, the old source is still in state for one render. Load only for the selected connection.
@@ -306,10 +355,11 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                 }
             }
             // A task can be on two pages when it changes during the load. Keep its first copy.
-            setTasks(all.filter((task, index) => all.findIndex(other => other.id === task.id) === index));
+            const unique = all.filter((task, index) => all.findIndex(other => other.id === task.id) === index);
+            setTasks(remember(tasksKey(connectionId, projectId, collection, filter), unique));
             if (source.capabilities.statusOrder) {
                 request<StatusOrder>('tasks/statusOrder', { collection }).then(
-                    result => setStatusOrder(result),
+                    result => setStatusOrder(remember(statusOrderKey(connectionId, projectId, collection), result)),
                     () => setStatusOrder(undefined)
                 );
             }
@@ -319,7 +369,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         } finally {
             setLoading(false);
         }
-    }, [source, collection, connectionId, filter, request]);
+    }, [source, collection, connectionId, projectId, filter, request]);
 
     // Load the list now, and again on a timer and on change notifications. The search filters the loaded tasks in the renderer.
     useEffect(() => {
@@ -345,6 +395,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
             setDetail(task);
             setStatuses(statusList);
             setComments(commentList);
+            if (source) remember(detailKey(source.connectionId, projectId, id), { task, statuses: statusList, comments: commentList });
             // The comments of an open task count as seen on the Dashboard.
             if (source) {
                 seenStore.mark(commentList.map(comment => taskSeenKey(source.connectionId, comment.id)));
@@ -352,12 +403,14 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
         } catch (err) {
             setDetailError(errorText(err));
         }
-    }, [request, source]);
+    }, [request, source, projectId]);
 
+    // A task shows its cached details immediately, and loads new details in the background.
     useEffect(() => {
-        setDetail(undefined);
-        setComments([]);
-        setStatuses([]);
+        const last = source && selectedId ? cached<CachedDetail>(detailKey(source.connectionId, projectId, selectedId)) : undefined;
+        setDetail(last?.task);
+        setComments(last?.comments ?? []);
+        setStatuses(last?.statuses ?? []);
         setEditing(undefined);
         if (selectedId) {
             loadDetail(selectedId);
@@ -850,7 +903,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                         <button
                             className="icon-button"
                             title="Refresh"
-                            onClick={() => (collections?.length ? loadTasks() : setCollectionsKey(key => key + 1))}
+                            onClick={() => (collections?.length ? loadTasks() : setCollectionsReload(key => key + 1))}
                         >
                             <RefreshCw size={15} strokeWidth={1.6} className={loading ? 'spin' : ''} />
                         </button>
