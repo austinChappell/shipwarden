@@ -44,17 +44,16 @@ export interface DashboardNews {
 interface Scope {
     /** A key for the providers and their scopes (see `reviewScopeKey`). Null: no provider is on. */
     reviewKey: string | null;
-    projectId: string | undefined;
 }
 
 /**
  * The query keys of the Dashboard. The pull requests and the comments depend on the providers.
- * The task activity depends on the task managers of the project.
+ * The keys do not contain the project, because all projects use the same providers and task managers.
  */
 export const dashboardKeys = {
     pullRequests: (reviewKey: string | null) => [...keyRoots.dashboard, 'pullRequests', reviewKey] as const,
     comments: (reviewKey: string | null) => [...keyRoots.dashboard, 'comments', reviewKey] as const,
-    tasks: (projectId: string | undefined) => [...keyRoots.dashboard, 'tasks', projectId] as const
+    tasks: [...keyRoots.dashboard, 'tasks'] as const
 };
 
 /** The query of the pull requests of the Dashboard. The Review view uses it too, to find the repositories of the user. */
@@ -77,29 +76,24 @@ function commentsQuery(reviewKey: string | null) {
     };
 }
 
-function tasksQuery(projectId: string | undefined) {
-    return {
-        queryKey: dashboardKeys.tasks(projectId),
-        queryFn: () => loadTasks(projectId)
-    };
-}
+const tasksQuery = {
+    queryKey: dashboardKeys.tasks,
+    queryFn: () => loadTasks()
+};
 
 /** Asks each task manager with the "activity" capability for new comments. */
-async function loadTasks(projectId: string | undefined): Promise<TaskActivity[]> {
-    if (!projectId) {
-        return [];
-    }
+async function loadTasks(): Promise<TaskActivity[]> {
     const since = new Date(Date.now() - DASHBOARD_WINDOW_DAYS * 24 * 3600 * 1000).toISOString();
     const api = window.shipwarden.tasks;
     const connections = await api.enabledConnections().catch(() => []);
     const results = await Promise.all(
         connections.map(async (connection): Promise<TaskActivity | undefined> => {
             try {
-                const source = await api.source(connection.id, projectId);
+                const source = await api.source(connection.id);
                 if (!source.capabilities.activity) {
                     return undefined;
                 }
-                const result = (await api.request(connection.id, projectId, 'activity/list', { since })) as { comments: TaskCommentItem[] };
+                const result = (await api.request(connection.id, 'activity/list', { since })) as { comments: TaskCommentItem[] };
                 return { connectionId: connection.id, name: connection.name, comments: result.comments };
             } catch (error) {
                 return { connectionId: connection.id, name: connection.name, error: errorText(error) };
@@ -138,7 +132,7 @@ function useDashboardData(scope: Scope | undefined): DashboardState {
     const reviewKey = scope?.reviewKey ?? null;
     const pullRequests = useQuery({ ...dashboardPullRequestsQuery(reviewKey), enabled });
     const comments = useQuery({ ...commentsQuery(reviewKey), enabled });
-    const tasks = useQuery({ ...tasksQuery(scope?.projectId), enabled });
+    const tasks = useQuery({ ...tasksQuery, enabled });
     const queries = [pullRequests, comments, tasks];
     // The Dashboard is up to date when each part has a result: data or an error.
     const settled = queries.every(query => query.status !== 'pending');
@@ -207,14 +201,14 @@ export function onDashboardNews(listener: (news: DashboardNews) => void): () => 
  * The queries stay in use here. Thus the data loads again every few minutes (the default of the query client).
  * After each complete refresh, the loader tells the news listeners about the new items.
  */
-export function useDashboardLoader(ready: boolean, reviewKey: string | null | undefined, projectId: string | undefined): void {
-    const scope = ready && reviewKey !== undefined ? { reviewKey, projectId } : undefined;
+export function useDashboardLoader(ready: boolean, reviewKey: string | null | undefined): void {
+    const scope = ready && reviewKey !== undefined ? { reviewKey } : undefined;
     const scopeId = JSON.stringify(scope);
     // biome-ignore lint/correctness/useExhaustiveDependencies: scopeId holds the content of scope.
     useEffect(() => setScope(scope), [scopeId]);
     const state = useDashboardData(scope);
 
-    // The keys of all items of the earlier refreshes. Another project or other organizations: their items are not news.
+    // The keys of all items of the earlier refreshes. Other organizations: their items are not news.
     const known = useRef<{ scopeId: string; keys?: Set<string> }>({ scopeId });
     if (known.current.scopeId !== scopeId) known.current = { scopeId };
     const { pullRequests, prComments, tasks, loading, updatedAt } = state;

@@ -27,27 +27,26 @@ export function startRepoKey(projectId: string): string {
     return `shipwarden.startRepo:${projectId}`;
 }
 
-/** The last filter of each source in the project, for the session. The view selects it again on the next visit. */
+/** The last filter of each source, for the session. The view selects it again on the next visit, in all projects. */
 const lastFilters = new Map<string, string>();
-const filterKey = (connectionId: string, projectId: string) => `${connectionId}\0${projectId}`;
-export const lastFilter = (connectionId: string, projectId: string) => lastFilters.get(filterKey(connectionId, projectId));
-export function rememberFilter(connectionId: string, projectId: string, filter: string): void {
-    lastFilters.set(filterKey(connectionId, projectId), filter);
+export const lastFilter = (connectionId: string) => lastFilters.get(connectionId);
+export function rememberFilter(connectionId: string, filter: string): void {
+    lastFilters.set(connectionId, filter);
 }
 
 /**
  * The query keys of the view. The query cache keeps the loaded data for the session.
- * Each key contains the connection and the project, because the same connection can have other data in another project.
+ * The keys do not contain the project. All projects use the same task managers and the same task data,
+ * so a project switch shows the cached data and sends no new requests.
  */
 export const taskQueryKeys = {
-    connections: (projectId: string) => ['tasks', 'connections', projectId] as const,
-    source: (connectionId: string | undefined, projectId: string) => ['tasks', 'source', connectionId, projectId] as const,
-    collections: (connectionId: string | undefined, projectId: string) => ['tasks', 'collections', connectionId, projectId] as const,
-    list: (connectionId: string | undefined, projectId: string, collection: string | undefined, filter: string | undefined) =>
-        ['tasks', 'list', connectionId, projectId, collection, filter] as const,
-    statusOrder: (connectionId: string | undefined, projectId: string, collection: string | undefined) =>
-        ['tasks', 'statusOrder', connectionId, projectId, collection] as const,
-    detail: (connectionId: string | undefined, projectId: string, taskId: string | undefined) => ['tasks', 'detail', connectionId, projectId, taskId] as const
+    connections: () => ['tasks', 'connections'] as const,
+    source: (connectionId: string | undefined) => ['tasks', 'source', connectionId] as const,
+    collections: (connectionId: string | undefined) => ['tasks', 'collections', connectionId] as const,
+    list: (connectionId: string | undefined, collection: string | undefined, filter: string | undefined) =>
+        ['tasks', 'list', connectionId, collection, filter] as const,
+    statusOrder: (connectionId: string | undefined, collection: string | undefined) => ['tasks', 'statusOrder', connectionId, collection] as const,
+    detail: (connectionId: string | undefined, taskId: string | undefined) => ['tasks', 'detail', connectionId, taskId] as const
 };
 
 /** The board is the default view. The list shows only when the user selected it. */

@@ -9,7 +9,7 @@ const api = window.shipwarden.tasks;
 /** A request to the plugin of the selected task manager. */
 export type TaskRequest = <T>(method: string, params: unknown) => Promise<T>;
 
-/** The task managers of the project, and the task manager that the user selected last in the project. */
+/** The task managers, and the task manager that the user selected last. */
 interface ConnectionsData {
     list: ConnectionInfo[];
     saved: string | undefined;
@@ -22,18 +22,18 @@ interface CollectionsData {
 }
 
 /**
- * The task managers of the project, the started plugin (the source), its filter and its collections.
+ * The task managers, the started plugin (the source), its filter and its collections. All projects use the same data.
  * The query cache keeps each of them. Cached data shows in the first render, while new data loads in the background.
  * `setSelectedId` clears the selected task when the user selects another connection or collection.
  */
-export function useTaskSource(projectId: string, setSelectedId: (id: string | undefined) => void) {
+export function useTaskSource(setSelectedId: (id: string | undefined) => void) {
     const queryClient = useQueryClient();
 
     // The task managers change in Settings. Thus they load again each time that the view opens.
     const connectionsQuery = useQuery({
-        queryKey: taskQueryKeys.connections(projectId),
+        queryKey: taskQueryKeys.connections(),
         queryFn: async (): Promise<ConnectionsData> => {
-            const [list, saved] = await Promise.all([api.enabledConnections(), api.selectedConnection(projectId).catch(() => undefined)]);
+            const [list, saved] = await Promise.all([api.enabledConnections(), api.selectedConnection().catch(() => undefined)]);
             return { list, saved };
         },
         staleTime: 0
@@ -47,15 +47,15 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
             if (!connectionId) {
                 return Promise.reject(new Error('Select a task manager.'));
             }
-            return api.request(connectionId, projectId, method, params) as Promise<T>;
+            return api.request(connectionId, method, params) as Promise<T>;
         },
-        [connectionId, projectId]
+        [connectionId]
     );
 
     // Start the plugin of the selected task manager. The settings of a plugin can change, so it starts again each time that the view opens.
     const sourceQuery = useQuery({
-        queryKey: taskQueryKeys.source(connectionId, projectId),
-        queryFn: () => api.source(connectionId as string, projectId),
+        queryKey: taskQueryKeys.source(connectionId),
+        queryFn: () => api.source(connectionId as string),
         enabled: connectionState === 'ready' && !!connectionId,
         staleTime: 0
     });
@@ -69,26 +69,23 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
     /** The filter that the user selected in this view. Else the view uses the last filter of the source, or its default filter. */
     const [chosenFilter, setChosenFilter] = useState<{ connectionId: string; id: string }>();
     const filter = readySource
-        ? pickFilter(
-              readySource.filters,
-              chosenFilter?.connectionId === readySource.connectionId ? chosenFilter.id : lastFilter(readySource.connectionId, projectId)
-          )
+        ? pickFilter(readySource.filters, chosenFilter?.connectionId === readySource.connectionId ? chosenFilter.id : lastFilter(readySource.connectionId))
         : undefined;
     const setFilter = (id: string) => {
         if (!readySource) return;
-        rememberFilter(readySource.connectionId, projectId, id);
+        rememberFilter(readySource.connectionId, id);
         setChosenFilter({ connectionId: readySource.connectionId, id });
     };
 
     const selectConnection = (id: string) => {
-        queryClient.setQueryData<ConnectionsData>(taskQueryKeys.connections(projectId), data => data && { ...data, saved: id });
+        queryClient.setQueryData<ConnectionsData>(taskQueryKeys.connections(), data => data && { ...data, saved: id });
         setSelectedId(undefined);
-        api.setSelectedConnection(projectId, id).catch(() => undefined);
+        api.setSelectedConnection(id).catch(() => undefined);
     };
 
     // Load the collections of the source. The view selects the saved one, the plugin's default or the first one.
     const collectionsQuery = useQuery({
-        queryKey: taskQueryKeys.collections(readySource?.connectionId, projectId),
+        queryKey: taskQueryKeys.collections(readySource?.connectionId),
         queryFn: async (): Promise<CollectionsData> => {
             const sourceConnection = readySource?.connectionId as string;
             const [list, saved] = await Promise.all([
@@ -107,7 +104,7 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
     const selectCollection = (id: string) => {
         setSelectedId(undefined);
         if (!readySource) return;
-        queryClient.setQueryData<CollectionsData>(taskQueryKeys.collections(readySource.connectionId, projectId), data => data && { ...data, saved: id });
+        queryClient.setQueryData<CollectionsData>(taskQueryKeys.collections(readySource.connectionId), data => data && { ...data, saved: id });
         api.setSelectedCollection(readySource.connectionId, id).catch(() => undefined);
     };
 

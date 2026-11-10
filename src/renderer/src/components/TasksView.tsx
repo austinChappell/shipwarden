@@ -17,7 +17,7 @@ import { TaskDetails } from './tasks/TaskDetails';
 const MIN_DETAIL_WIDTH = 320;
 
 interface Props {
-    /** The ShipWarden project. Its task managers decide the connections of the view. */
+    /** The ShipWarden project. The view uses it only for the repository of "Start in worktree". */
     projectId: string;
     /** The repositories of the project. "Start in worktree" makes the worktree in one of them. */
     repos: string[];
@@ -40,13 +40,13 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
     const listWidth = usePanelWidth('shipwarden.width.taskList', 460, 300, 900);
     const boardDetailWidth = usePanelWidth('shipwarden.width.taskBoardDetail', 420, 320, 800);
 
-    const sourceState = useTaskSource(projectId, setSelectedId);
+    const sourceState = useTaskSource(setSelectedId);
     const { connections, connectionId, source, sourceError, collection, request } = sourceState;
     const prefs = useTaskViewPrefs(projectId, source?.pluginId);
-    const list = useTaskList({ projectId, source, collection, filter: sourceState.filter, request, setSelectedId });
+    const list = useTaskList({ source, collection, filter: sourceState.filter, request, setSelectedId });
     const { tasks, loadTasks } = list;
     const listError = sourceState.collectionsError ?? list.listError;
-    const detailState = useTaskDetail({ projectId, source, selectedId, setSelectedId, request, setTasks: list.setTasks, loadTasks });
+    const detailState = useTaskDetail({ source, selectedId, setSelectedId, request, setTasks: list.setTasks, loadTasks });
 
     /**
      * An open request: select its task manager, then the task when the plugin of that task manager is ready.

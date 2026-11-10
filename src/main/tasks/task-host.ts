@@ -32,8 +32,8 @@ export interface TaskHostOptions {
     settings: SettingsProvider;
     /** Returns the GitHub repository of a worktree, or null. */
     repoFor(root: string): Promise<RepoRef | null>;
-    /** Returns the repositories of a ShipWarden project. */
-    projectRepos(projectId: string): Promise<string[]>;
+    /** Returns the repositories of all ShipWarden projects. */
+    allRepos(): Promise<string[]>;
     /** The file that keeps the connections. */
     configFile: string;
     /** The file of protocol version 2 with the task source of each repository. ShipWarden reads it once, to make the first connections. */
@@ -42,10 +42,10 @@ export interface TaskHostOptions {
     linksFile: string;
     /** The file that keeps the selected collection of each connection. */
     collectionsFile: string;
-    /** The file that keeps the selected connection of each project in the Tasks view. */
+    /** The file that keeps the selected connection of the Tasks view. */
     selectedConnectionsFile: string;
     /** Called when a plugin reports changed tasks. */
-    onChanged(connectionId: string, projectId: string): void;
+    onChanged(connectionId: string): void;
 }
 
 interface RunningPlugin {
@@ -54,16 +54,26 @@ interface RunningPlugin {
     process: ChildProcess;
     connection: MessageConnection;
     source: TaskSource;
+    /** The repositories that the process received at the start, one on each line. Undefined when the plugin does not use repositories. */
+    repositories: string | undefined;
 }
 
+/**
+ * The kinds of plugin process of a connection.
+ * - "tasks": the process for all views and all projects. It uses the scope of the connection.
+ * - "scopes": the process for the scope list in Settings. It sees all scopes and gets no repositories.
+ */
+type ProcessKind = 'tasks' | 'scopes';
+
 const INITIALIZE_TIMEOUT_MS = 30_000;
-/** The project key of a plugin process without a project, for example for the scope list on the settings page. */
-const NO_PROJECT = '';
+/** The key of the selected connection in its file. Older versions kept one selected connection for each project. */
+const SELECTED_CONNECTION_KEY = '*';
 
 /**
- * Runs the task plugins. A connection is a plugin with its own settings and scope. ShipWarden runs one process
- * for each connection and project, because the plugin gets the repositories of the project (for example GitHub
- * uses them to select its default repository).
+ * Runs the task plugins. A connection is a plugin with its own settings and scope. ShipWarden runs one process for
+ * each connection, and all projects use it. Thus a project switch sends no new requests to the tracker.
+ * A plugin that uses repositories (for example GitHub uses them to select its default repository) gets the
+ * repositories of all projects. When these repositories change, the process starts again at the next request.
  */
 export class TaskHost {
     private discovered: DiscoveredPlugin[] | undefined;
@@ -74,7 +84,7 @@ export class TaskHost {
     private readonly links: JsonStore<Record<string, TaskLink>>;
     /** The selected collection of each connection, by connection ID. */
     private readonly collections: JsonStore<Record<string, string>>;
-    /** The selected connection of each project, by project ID. */
+    /** The selected connection of the Tasks view, at SELECTED_CONNECTION_KEY. */
     private readonly selectedConnections: JsonStore<Record<string, string>>;
 
     constructor(private readonly options: TaskHostOptions) {
@@ -171,21 +181,21 @@ export class TaskHost {
 
     /** The scopes that a connection can include, for example the ClickUp workspaces of its token. */
     async scopes(connectionId: string): Promise<TaskScope[]> {
-        const plugin = await this.ensure(connectionId, NO_PROJECT);
+        const plugin = await this.ensure(connectionId, 'scopes');
         if (!plugin.source.capabilities.scopes) {
             return [];
         }
         return plugin.connection.sendRequest<TaskScope[]>('scopes/list', {});
     }
 
-    /** Starts the plugin of a connection for a project, if necessary, and returns its description. */
-    async source(connectionId: string, projectId: string): Promise<TaskSource> {
-        return (await this.ensure(connectionId, projectId)).source;
+    /** Starts the plugin of a connection, if necessary, and returns its description. */
+    async source(connectionId: string): Promise<TaskSource> {
+        return (await this.ensure(connectionId)).source;
     }
 
-    /** Sends a protocol request, for example "tasks/list", to the plugin of a connection in a project. */
-    async request(connectionId: string, projectId: string, method: string, params: unknown): Promise<unknown> {
-        const plugin = await this.ensure(connectionId, projectId);
+    /** Sends a protocol request, for example "tasks/list", to the plugin of a connection. */
+    async request(connectionId: string, method: string, params: unknown): Promise<unknown> {
+        const plugin = await this.ensure(connectionId);
         return plugin.connection.sendRequest(method, params);
     }
 
@@ -215,13 +225,14 @@ export class TaskHost {
         await this.collections.update(all => ({ ...all, [connectionId]: collectionId }));
     }
 
-    /** Returns the connection that the Tasks view showed last in a project. */
-    async selectedConnection(projectId: string): Promise<string | undefined> {
-        return (await this.selectedConnections.get())[projectId];
+    /** Returns the connection that the Tasks view showed last. A file of an older version gives the connection of one of its projects. */
+    async selectedConnection(): Promise<string | undefined> {
+        const all = await this.selectedConnections.get();
+        return all[SELECTED_CONNECTION_KEY] ?? Object.values(all)[0];
     }
 
-    async setSelectedConnection(projectId: string, connectionId: string): Promise<void> {
-        await this.selectedConnections.update(all => ({ ...all, [projectId]: connectionId }));
+    async setSelectedConnection(connectionId: string): Promise<void> {
+        await this.selectedConnections.update(() => ({ [SELECTED_CONNECTION_KEY]: connectionId }));
     }
 
     async stopAll(): Promise<void> {
@@ -313,28 +324,47 @@ export class TaskHost {
         return plugin;
     }
 
-    private ensure(connectionId: string, projectId: string): Promise<RunningPlugin> {
-        const key = `${connectionId}\0${projectId}`;
+    /**
+     * Returns the running process of a connection. A process that received other repositories than the projects
+     * have now stops, and a new process starts.
+     */
+    private async ensure(connectionId: string, kind: ProcessKind = 'tasks'): Promise<RunningPlugin> {
+        const key = `${connectionId}\0${kind}`;
+        const repositories = kind === 'tasks' ? await this.repositoriesFor(connectionId) : undefined;
         const running = this.running.get(key);
+        if (running && running.repositories === repositories?.join('\n')) {
+            return running;
+        }
         if (running) {
-            return Promise.resolve(running);
+            void this.stop(running);
         }
         let promise = this.starting.get(key);
         if (!promise) {
-            promise = this.start(connectionId, projectId).finally(() => this.starting.delete(key));
+            promise = this.start(connectionId, key, repositories).finally(() => this.starting.delete(key));
             this.starting.set(key, promise);
         }
         return promise;
     }
 
-    private async start(connectionId: string, projectId: string): Promise<RunningPlugin> {
+    /** Returns the repositories of all projects, without duplicates. Undefined when the plugin of the connection does not use repositories. */
+    private async repositoriesFor(connectionId: string): Promise<string[] | undefined> {
+        const connection = (await this.taskConfig()).connections.find(item => item.id === connectionId);
+        const plugin = connection && (await this.discover()).find(item => item.manifest.id === connection.pluginId);
+        if (plugin?.manifest.usesRepositories === false) {
+            return undefined;
+        }
+        return [...new Set(await this.options.allRepos())];
+    }
+
+    /** Starts a process. `repositories` undefined means that the plugin gets no repositories. A "scopes" process sees all scopes. */
+    private async start(connectionId: string, key: string, repositories: string[] | undefined): Promise<RunningPlugin> {
         const config = await this.taskConfig();
         const base = config.connections.find(item => item.id === connectionId);
         if (!base) {
             throw new Error('This task manager does not exist. It was possibly removed in the settings.');
         }
-        // In a project, the connection's scope applies. Without a project (the scope list in Settings), the plugin sees all scopes.
-        const connection = projectId === NO_PROJECT ? { ...base, scope: undefined } : base;
+        // The "tasks" process uses the connection's scope. The "scopes" process (the scope list in Settings) sees all scopes.
+        const connection = key.endsWith('\0scopes') ? { ...base, scope: undefined } : base;
         const plugin = await this.find(connection.pluginId);
         const { manifest } = plugin;
         // "node" means ShipWarden's own Node runtime, so the user does not need Node.
@@ -347,7 +377,7 @@ export class TaskHost {
         });
         child.stderr?.on('data', data => console.log(`[plugin ${connection.name}] ${String(data).trimEnd()}`));
         const messages = createMessageConnection(new StreamMessageReader(child.stdout!), new StreamMessageWriter(child.stdin!));
-        messages.onNotification('tasks/changed', () => this.options.onChanged(connectionId, projectId));
+        messages.onNotification('tasks/changed', () => this.options.onChanged(connectionId));
         messages.listen();
 
         const exited = new Promise<never>((_resolve, reject) => {
@@ -357,9 +387,8 @@ export class TaskHost {
         exited.catch(() => undefined);
 
         try {
-            const roots = projectId === NO_PROJECT ? [] : await this.options.projectRepos(projectId);
-            const repositories = await Promise.all(
-                roots.map(async root => {
+            const contextRepositories = await Promise.all(
+                (repositories ?? []).map(async root => {
                     const github = await this.options.repoFor(root);
                     return { root, ...(github ? { github } : {}) };
                 })
@@ -374,7 +403,7 @@ export class TaskHost {
                 protocolVersion: SUPPORTED_PROTOCOL_VERSION,
                 settings: await this.options.settings.values(connectionId),
                 ...(connection.scope ? { scope: connection.scope } : {}),
-                context: { repositories }
+                context: { repositories: contextRepositories }
             });
             const timeout = new Promise<never>((_resolve, reject) =>
                 setTimeout(
@@ -383,12 +412,12 @@ export class TaskHost {
                 )
             );
             const result = await Promise.race([initialize, exited, timeout]);
-            const key = `${connectionId}\0${projectId}`;
             const running: RunningPlugin = {
                 key,
                 connectionId,
                 process: child,
                 connection: messages,
+                repositories: repositories?.join('\n'),
                 source: {
                     connectionId,
                     pluginId: connection.pluginId,

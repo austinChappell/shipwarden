@@ -1,6 +1,6 @@
 // A ShipWarden task plugin for ClickUp. Each ClickUp list is a collection.
 import { log, networkDetail, runPlugin } from '../sdk/index.js';
-import { busiestList, listStatusOrder, matchesQuery, toCollections, toComment, toStatus, toTask } from './map.js';
+import { busiestList, listStatusOrder, matchesQuery, rateLimitWait, toCollections, toComment, toStatus, toTask } from './map.js';
 
 const API = 'https://api.clickup.com/api/v2';
 
@@ -16,11 +16,21 @@ let teams = [];
  * 100 requests per minute, so the plugin keeps the result for 10 minutes.
  */
 let collectionsCache;
+/** The load of the collections that runs now. A second request at the same time waits for it and sends no requests of its own. */
+let collectionsLoad;
 /** The statuses of each list, with the time of the load. */
 const listStatuses = new Map();
 const LIST_CACHE_MS = 10 * 60 * 1000;
 /** The comments of each task, with the "date_updated" of the task at the load. A task without a change needs no new request. */
 const commentCache = new Map();
+/** The number of times that a request is sent again after a 429 response. */
+const RATE_LIMIT_RETRIES = 2;
+/** The longest wait after a 429 response. If the reset time is later, the request fails. */
+const MAX_RATE_LIMIT_WAIT_MS = 60_000;
+/** The longest wait after a 429 response during "initialize". ShipWarden stops a plugin that does not answer "initialize" in 30 seconds. */
+const MAX_INITIALIZE_WAIT_MS = 20_000;
+/** The number of spaces that the plugin reads at the same time. Each space needs two requests. */
+const SPACE_CONCURRENCY = 3;
 /** The Dashboard reads the comments of this number of recently changed tasks, at most, in each workspace. */
 const ACTIVITY_TASKS = 40;
 
@@ -67,20 +77,36 @@ async function statusesOfList(listId) {
     return list.statuses;
 }
 
-async function clickup(method, path, body) {
+/**
+ * Sends a request to the ClickUp API and returns the JSON body.
+ * After a 429 response, the function waits until the rate limit resets and sends the request again.
+ * It does this at most RATE_LIMIT_RETRIES times, and only when the wait is not longer than `maxWaitMs`.
+ */
+async function clickup(method, path, body, maxWaitMs = MAX_RATE_LIMIT_WAIT_MS) {
     let response;
-    try {
-        response = await fetch(`${API}${path}`, {
-            method,
-            headers: {
-                Authorization: token,
-                Accept: 'application/json',
-                ...(body ? { 'Content-Type': 'application/json' } : {})
-            },
-            body: body ? JSON.stringify(body) : undefined
-        });
-    } catch (error) {
-        throw new Error(`ShipWarden cannot connect to ClickUp: ${networkDetail(error)}`);
+    for (let attempt = 0; ; attempt++) {
+        try {
+            response = await fetch(`${API}${path}`, {
+                method,
+                headers: {
+                    Authorization: token,
+                    Accept: 'application/json',
+                    ...(body ? { 'Content-Type': 'application/json' } : {})
+                },
+                body: body ? JSON.stringify(body) : undefined
+            });
+        } catch (error) {
+            throw new Error(`ShipWarden cannot connect to ClickUp: ${networkDetail(error)}`);
+        }
+        if (response.status !== 429 || attempt >= RATE_LIMIT_RETRIES) {
+            break;
+        }
+        const wait = rateLimitWait(response.headers);
+        if (wait > maxWaitMs) {
+            break;
+        }
+        log(`ClickUp rate limit reached for ${method} ${path}. The plugin sends the request again in ${Math.ceil(wait / 1000)} seconds.`);
+        await new Promise(resolve => setTimeout(resolve, wait));
     }
     if (!response.ok) {
         let detail = '';
@@ -98,14 +124,43 @@ async function clickup(method, path, body) {
     return response.json();
 }
 
+/**
+ * Loads the lists of all spaces in the scope's workspaces as collections. The list with the most tasks of the user is the default.
+ * Stores the result in collectionsCache.
+ */
+async function loadCollections() {
+    const assignedTasks = [];
+    const perTeam = await Promise.all(
+        teams.map(async team => {
+            const [{ spaces }, assigned] = await Promise.all([
+                clickup('GET', `/team/${team.id}/space?archived=false`),
+                clickup('GET', `/team/${team.id}/task?assignees[]=${userId}&order_by=updated&subtasks=true`).catch(() => ({ tasks: [] }))
+            ]);
+            assignedTasks.push(...assigned.tasks);
+            const hierarchy = await eachLimited(spaces, SPACE_CONCURRENCY, async space => {
+                const [folders, lists] = await Promise.all([
+                    clickup('GET', `/space/${space.id}/folder?archived=false`),
+                    clickup('GET', `/space/${space.id}/list?archived=false`)
+                ]);
+                return { space, folders: folders.folders, lists: lists.lists };
+            });
+            return { team, hierarchy };
+        })
+    );
+    const busiest = busiestList(assignedTasks);
+    const collections = perTeam.flatMap(({ team, hierarchy }) => toCollections(team.id, hierarchy, busiest, teams.length > 1 ? team.name : undefined));
+    collectionsCache = { collections, at: Date.now() };
+    return collections;
+}
+
 runPlugin({
     async initialize({ settings, scope }) {
         token = String(settings.apiToken ?? '').trim();
         if (!token) {
             throw new Error('The ClickUp connection needs an API token. Add it in Settings > Task managers.');
         }
-        userId = (await clickup('GET', '/user')).user.id;
-        allTeams = (await clickup('GET', '/team')).teams;
+        userId = (await clickup('GET', '/user', undefined, MAX_INITIALIZE_WAIT_MS)).user.id;
+        allTeams = (await clickup('GET', '/team', undefined, MAX_INITIALIZE_WAIT_MS)).teams;
         if (allTeams.length === 0) {
             throw new Error('This ClickUp account has no workspace.');
         }
@@ -137,30 +192,10 @@ runPlugin({
         if (collectionsCache && Date.now() - collectionsCache.at < LIST_CACHE_MS) {
             return collectionsCache.collections;
         }
-        const assignedTasks = [];
-        const perTeam = await Promise.all(
-            teams.map(async team => {
-                const [{ spaces }, assigned] = await Promise.all([
-                    clickup('GET', `/team/${team.id}/space?archived=false`),
-                    clickup('GET', `/team/${team.id}/task?assignees[]=${userId}&order_by=updated&subtasks=true`).catch(() => ({ tasks: [] }))
-                ]);
-                assignedTasks.push(...assigned.tasks);
-                const hierarchy = await Promise.all(
-                    spaces.map(async space => {
-                        const [folders, lists] = await Promise.all([
-                            clickup('GET', `/space/${space.id}/folder?archived=false`),
-                            clickup('GET', `/space/${space.id}/list?archived=false`)
-                        ]);
-                        return { space, folders: folders.folders, lists: lists.lists };
-                    })
-                );
-                return { team, hierarchy };
-            })
-        );
-        const busiest = busiestList(assignedTasks);
-        const collections = perTeam.flatMap(({ team, hierarchy }) => toCollections(team.id, hierarchy, busiest, teams.length > 1 ? team.name : undefined));
-        collectionsCache = { collections, at: Date.now() };
-        return collections;
+        collectionsLoad ??= loadCollections().finally(() => {
+            collectionsLoad = undefined;
+        });
+        return collectionsLoad;
     },
 
     async listTasks({ collection, filter = 'assigned', query, cursor }) {

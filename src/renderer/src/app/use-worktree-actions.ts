@@ -98,8 +98,6 @@ export function useWorktreeActions(options: Options) {
      * The worktree and the agent do not wait for it. A failure shows as an error, and the task keeps its status.
      */
     const moveTaskToStartStatus = async (task: Task, connectionId: string) => {
-        const projectId = options.activeProjectId;
-        if (!projectId) return;
         let wanted: string | undefined;
         try {
             // The settings page and the Tasks view use the same cache entries, so a fresh copy does not load again.
@@ -107,19 +105,19 @@ export function useWorktreeActions(options: Options) {
             wanted = connections.find(item => item.id === connectionId)?.startStatus;
             if (!wanted) return;
             const source = await queryClient.fetchQuery({
-                queryKey: taskQueryKeys.source(connectionId, projectId),
-                queryFn: () => api.tasks.source(connectionId, projectId)
+                queryKey: taskQueryKeys.source(connectionId),
+                queryFn: () => api.tasks.source(connectionId)
             });
             const result = await applyStartStatus(
                 task,
                 wanted,
                 source.capabilities,
-                <T>(method: string, params: unknown) => api.tasks.request(connectionId, projectId, method, params) as Promise<T>
+                <T>(method: string, params: unknown) => api.tasks.request(connectionId, method, params) as Promise<T>
             );
             if (result === 'moved') {
-                // The task has a new status. The lists and the task details of the project load again when they show.
-                void queryClient.invalidateQueries({ queryKey: [...keyRoots.tasks, 'list', connectionId, projectId] });
-                void queryClient.invalidateQueries({ queryKey: taskQueryKeys.detail(connectionId, projectId, task.id) });
+                // The task has a new status. The lists and the task details of the connection load again when they show.
+                void queryClient.invalidateQueries({ queryKey: [...keyRoots.tasks, 'list', connectionId] });
+                void queryClient.invalidateQueries({ queryKey: taskQueryKeys.detail(connectionId, task.id) });
             }
         } catch (err) {
             setError(`${task.key ?? task.title} did not move to "${wanted}": ${errorText(err)}`);

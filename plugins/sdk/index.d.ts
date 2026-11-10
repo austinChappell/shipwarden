@@ -119,7 +119,7 @@ export interface InitializeParams {
     settings: Record<string, string | boolean>;
     /** The scope IDs that the connection includes in this project, for example ClickUp workspace IDs. Absent means all. */
     scope?: string[];
-    /** The repositories of the ShipWarden project. Empty when ShipWarden starts the plugin for the settings page. */
+    /** The repositories of all ShipWarden projects. Empty when ShipWarden starts the plugin for the settings page. */
     context: { repositories: { root: string; github?: { owner: string; name: string } }[] };
 }
 

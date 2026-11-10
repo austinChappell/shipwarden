@@ -195,15 +195,15 @@ const api: ShipWardenApi = {
         removeConnection: id => ipcRenderer.invoke(IpcChannels.tasksRemoveConnection, id),
         scopes: connectionId => ipcRenderer.invoke(IpcChannels.tasksScopes, connectionId),
         enabledConnections: () => ipcRenderer.invoke(IpcChannels.tasksEnabledConnections),
-        source: (connectionId, projectId) => ipcRenderer.invoke(IpcChannels.tasksSource, connectionId, projectId),
-        request: (connectionId, projectId, method, params) => ipcRenderer.invoke(IpcChannels.tasksRequest, connectionId, projectId, method, params),
+        source: connectionId => ipcRenderer.invoke(IpcChannels.tasksSource, connectionId),
+        request: (connectionId, method, params) => ipcRenderer.invoke(IpcChannels.tasksRequest, connectionId, method, params),
         links: () => ipcRenderer.invoke(IpcChannels.tasksLinks),
         setLink: (worktreePath, link) => ipcRenderer.invoke(IpcChannels.tasksSetLink, worktreePath, link),
         selectedCollection: connectionId => ipcRenderer.invoke(IpcChannels.tasksSelectedCollection, connectionId),
         setSelectedCollection: (connectionId, collectionId) => ipcRenderer.invoke(IpcChannels.tasksSetSelectedCollection, connectionId, collectionId),
-        selectedConnection: projectId => ipcRenderer.invoke(IpcChannels.tasksSelectedConnection, projectId),
-        setSelectedConnection: (projectId, connectionId) => ipcRenderer.invoke(IpcChannels.tasksSetSelectedConnection, projectId, connectionId),
-        onChanged: listener => subscribe<[string, string]>(IpcChannels.tasksChanged, listener)
+        selectedConnection: () => ipcRenderer.invoke(IpcChannels.tasksSelectedConnection),
+        setSelectedConnection: connectionId => ipcRenderer.invoke(IpcChannels.tasksSetSelectedConnection, connectionId),
+        onChanged: listener => subscribe<[string]>(IpcChannels.tasksChanged, listener)
     },
     review: {
         checkoutStatus: (repo, number) => ipcRenderer.invoke(IpcChannels.reviewCheckoutStatus, repo, number),

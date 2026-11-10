@@ -464,7 +464,9 @@ so that the mobile app and a CLI can use the same plugins.
 - `initialize` returns the capabilities and the UI as data: extra fields, actions and list filters.
   The manifest lists the settings. ShipWarden encrypts secret settings with the macOS keychain (Electron safeStorage).
 - `TaskHost` (main process) finds the plugins in `plugins/` (built-in) and `~/.shipwarden/plugins/` (installed by the user).
-  It starts one process for each connection and project. A plugin with `"command": "node"` runs on ShipWarden's own Node runtime.
+  It starts one process for each connection, and all projects use it. The process gets the repositories of all projects
+  and starts again when they change, except for a plugin with `"usesRepositories": false` (ClickUp, Linear).
+  A plugin with `"command": "node"` runs on ShipWarden's own Node runtime.
 - `plugins/sdk` is a JavaScript SDK with no dependencies and TypeScript declarations.
 - Built-in plugins: GitHub Issues (each repository is a collection, the scope is users and organizations, uses the
   GitHub CLI login or its own token) and ClickUp (each list is a collection, the scope is workspaces, needs a personal
@@ -473,9 +475,10 @@ so that the mobile app and a CLI can use the same plugins.
   optional scope, and can be off. All projects use the connections that are on. The main process keeps this in
   `task-managers.json`, and the secrets by connection ID in `plugin-settings.json`.
   At the first start, the ClickUp token and GitHub Issues of version 2 become the connections "ClickUp" and "GitHub".
-- The Tasks view shows the connections of the active project, one collection at a time, with the details, the status,
+- The Tasks view shows the connections that are on, one collection at a time, with the details, the status,
   comments and plugin actions. It has no repository picker: "Start in worktree" asks for the repository when the
-  project has more than one.
+  project has more than one. The query keys of the view do not contain the project, so a project switch shows the
+  cached tasks and sends no requests. The selected task manager is the same in all projects (`task-selected-connections.json`).
 - "Start in worktree" makes a branch from the task (for example `abc-1684-fix-the-login-page`), links the worktree
   to the task and sends the task to a new agent. A new branch starts from the newest default branch of "origin".
 - Next: a Linear plugin, Markdown for descriptions, and an option that moves the task to "in progress" at start.

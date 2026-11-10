@@ -170,7 +170,7 @@ describe('Local tasks handlers', () => {
             { id: '/code/app', name: 'app', path: '/code', default: true },
             { id: '/code/api', name: 'api', path: '/code' }
         ]);
-        await expect(handlers.listTasks({ collection: '/elsewhere' })).rejects.toThrow('not in this ShipWarden project');
+        await expect(handlers.listTasks({ collection: '/elsewhere' })).rejects.toThrow('not in a ShipWarden project');
     });
 
     it('creates, edits, moves, comments on and deletes a task', async () => {

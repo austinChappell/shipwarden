@@ -44,6 +44,7 @@ A plugin is a folder with a manifest file named `shipwarden-plugin.json`:
 | `id` | A unique ID. Use lowercase letters, digits and hyphens. |
 | `command`, `args` | The command that starts the plugin. The working folder is the plugin folder. If `command` is `"node"`, ShipWarden uses its own Node runtime, so the user does not need Node. |
 | `settings` | The settings that the user must or can give. `type` is `"string"`, `"secret"` or `"boolean"`. ShipWarden encrypts `"secret"` values. |
+| `usesRepositories` | Optional. `false` when the plugin does not read `context.repositories`. Then ShipWarden sends no repositories, and it does not start the plugin again when the repositories of the projects change. The plugin keeps its cache. The default is `true`. |
 
 ShipWarden finds plugins in two places:
 
@@ -57,8 +58,11 @@ and an optional **scope** (for example some ClickUp workspaces or GitHub organiz
 Settings > Task managers. A user can add two connections of one plugin, for example two ClickUp accounts.
 All ShipWarden projects use the connections that are on.
 
-ShipWarden starts one plugin process for each connection and project. Without a project (for the scope list on the
-settings page), the process gets no scope and no repositories.
+ShipWarden starts one plugin process for each connection. All projects use this process, so a project switch sends
+no new requests. The process gets the repositories of all projects. When a project gets or loses a repository,
+ShipWarden starts the process again at the next request. A plugin with `"usesRepositories": false` gets no
+repositories and does not start again. For the scope list on the settings page, ShipWarden starts a second process
+that gets no scope and no repositories.
 
 1. ShipWarden sends `initialize`. The plugin answers with its capabilities and its UI description.
 2. ShipWarden sends requests.
@@ -74,7 +78,7 @@ Params:
   settings: Record<string, string | boolean>, // The settings of the connection (the manifest settings).
   scope?: string[],                           // The scope IDs of the connection. Absent means all.
   context: {
-    repositories: {                           // The repositories of the ShipWarden project. Empty without a project.
+    repositories: {                           // The repositories of all ShipWarden projects. Empty for the settings page.
       root: string,                           // The main worktree of the repository.
       github?: { owner: string, name: string }// When the "origin" remote is on GitHub.
     }[]
@@ -269,7 +273,7 @@ the user, so write it for a person to read.
 ## The built-in local plugin
 
 `plugins/local` keeps tasks in JSON files on the computer of the user. It needs no account and no network. Each
-repository of the project is a collection. The setting "Keep the tasks in the repository" selects the file:
+repository of the ShipWarden projects is a collection. The setting "Keep the tasks in the repository" selects the file:
 
 - Off (the default): `~/.shipwarden/tasks/<repository name>-<hash>.json`. Only this computer has the tasks.
 - On: `<main worktree>/.shipwarden/tasks.json`. A team can commit the file.

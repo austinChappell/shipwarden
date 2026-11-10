@@ -117,3 +117,24 @@ export function matchesQuery(task, query) {
     }
     return task.name.toLowerCase().includes(needle) || (task.custom_id ?? '').toLowerCase().includes(needle);
 }
+
+/** The wait after a 429 response when ClickUp sends no reset time. */
+const DEFAULT_RATE_LIMIT_WAIT_MS = 10_000;
+
+/**
+ * Returns the time in milliseconds to wait after a 429 response of ClickUp.
+ * ClickUp sends the reset time of the rate limit in "X-RateLimit-Reset" as Unix seconds.
+ * A "Retry-After" header in seconds has priority.
+ */
+export function rateLimitWait(headers, now = Date.now()) {
+    const retryAfter = Number(headers.get('retry-after'));
+    if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        return retryAfter * 1000;
+    }
+    const reset = Number(headers.get('x-ratelimit-reset'));
+    if (Number.isFinite(reset) && reset > 0) {
+        // Add a half second, because the clocks of ClickUp and of this computer can be different.
+        return Math.max(1000, reset * 1000 - now + 500);
+    }
+    return DEFAULT_RATE_LIMIT_WAIT_MS;
+}

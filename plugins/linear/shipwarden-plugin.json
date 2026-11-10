@@ -15,5 +15,6 @@
       "description": "A personal API key. In Linear, open Settings > Security & access > Personal API keys and make a new key. The key starts with lin_api_."
     }
   ],
+  "usesRepositories": false,
   "scopeLabel": "team"
 }
