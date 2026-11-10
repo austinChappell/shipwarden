@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appKeyAction, isClearKey, isCtrlV, isImageOnlyPaste, shortcutAction } from './shortcuts';
+import { appKeyAction, isClearKey, isCommentKey, isCtrlV, isImageOnlyPaste, shortcutAction } from './shortcuts';
 
 const key = (change: Partial<Parameters<typeof shortcutAction>[0]>) =>
     shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: false, key: 'd', code: 'KeyD', ...change });
@@ -40,7 +40,96 @@ describe('shortcutAction', () => {
         expect(key({ key: 'k', code: 'KeyK' })).toBeUndefined();
         // ⇧⌘W closes the window, so it is not a workspace action.
         expect(key({ shift: true, key: 'W', code: 'KeyW' })).toBeUndefined();
-        expect(key({ shift: true, key: '{', code: 'BracketLeft' })).toBeUndefined();
+        // ⇧⌘M opens the comment box of a diff. It is not a workspace action.
+        expect(key({ shift: true, key: 'M', code: 'KeyM' })).toBeUndefined();
+    });
+});
+
+describe('tab keys', () => {
+    it('is ⌘1 to ⌘8 for a tab, and ⌘9 for the last tab', () => {
+        for (let digit = 1; digit <= 8; digit++) {
+            expect(key({ key: String(digit), code: `Digit${digit}` })).toBe(`selectTab${digit}`);
+        }
+        expect(key({ key: '9', code: 'Digit9' })).toBe('selectLastTab');
+        // Without a code, the key tells the digit.
+        expect(key({ key: '3', code: undefined })).toBe('selectTab3');
+        // The digits of the number pad are not tab keys.
+        expect(key({ key: '1', code: 'Numpad1' })).toBeUndefined();
+    });
+
+    it('leaves ⌘0 to the Actual Size menu item', () => {
+        expect(key({ key: '0', code: 'Digit0' })).toBeUndefined();
+    });
+
+    it('is ⇧⌘[ for the previous tab and ⇧⌘] for the next tab', () => {
+        expect(key({ shift: true, key: '{', code: 'BracketLeft' })).toBe('previousTab');
+        expect(key({ shift: true, key: '}', code: 'BracketRight' })).toBe('nextTab');
+        // A keyboard layout with the brackets on other keys: the character tells the key.
+        expect(key({ shift: true, key: '{', code: 'Digit8' })).toBe('previousTab');
+    });
+
+    it('is ⌃Tab for the next tab and ⌃⇧Tab for the previous tab', () => {
+        const tab = { meta: false, control: true, key: 'Tab', code: 'Tab' };
+        expect(key(tab)).toBe('nextTab');
+        expect(key({ ...tab, shift: true })).toBe('previousTab');
+        expect(key({ ...tab, type: 'keyUp' })).toBeUndefined();
+        // ⌃⌥Tab and ⌃⌘Tab are not tab keys.
+        expect(key({ ...tab, alt: true })).toBeUndefined();
+        expect(key({ ...tab, meta: true })).toBeUndefined();
+        // Tab without Control moves the focus in the page.
+        expect(key({ meta: false, key: 'Tab', code: 'Tab' })).toBeUndefined();
+        expect(key({ key: 'Tab', code: 'Tab' })).toBeUndefined();
+    });
+
+    it('ignores the digit keys with other modifiers', () => {
+        // ⇧⌘1 sends "!". ⌃⌘1 is not a tab key.
+        expect(key({ shift: true, key: '!', code: 'Digit1' })).toBeUndefined();
+        expect(key({ control: true, key: '1', code: 'Digit1' })).toBeUndefined();
+        expect(key({ meta: false, key: '1', code: 'Digit1' })).toBeUndefined();
+    });
+});
+
+describe('view keys', () => {
+    it('is ⌥⌘1 to ⌥⌘6 for the views, from the code of the key', () => {
+        // With Option, macOS sends another character in "key" (for example "¡" for 1). The code stays "Digit1".
+        expect(key({ alt: true, key: '¡', code: 'Digit1' })).toBe('viewDashboard');
+        expect(key({ alt: true, key: '™', code: 'Digit2' })).toBe('viewAgents');
+        expect(key({ alt: true, key: '£', code: 'Digit3' })).toBe('viewTasks');
+        expect(key({ alt: true, key: '¢', code: 'Digit4' })).toBe('viewReview');
+        expect(key({ alt: true, key: '∞', code: 'Digit5' })).toBe('viewPipelines');
+        expect(key({ alt: true, key: '§', code: 'Digit6' })).toBe('viewNotes');
+    });
+
+    it('ignores ⌥⌘7, Shift, Control and a key without a code', () => {
+        expect(key({ alt: true, key: '¶', code: 'Digit7' })).toBeUndefined();
+        expect(key({ alt: true, shift: true, key: '⁄', code: 'Digit1' })).toBeUndefined();
+        expect(key({ alt: true, control: true, key: '1', code: 'Digit1' })).toBeUndefined();
+        expect(key({ alt: true, key: '1', code: undefined })).toBeUndefined();
+    });
+});
+
+describe('focusWorkspace', () => {
+    it('is ⇧⌘0, from the code of the key', () => {
+        expect(key({ shift: true, key: ')', code: 'Digit0' })).toBe('focusWorkspace');
+        expect(key({ shift: true, alt: true, key: '‚', code: 'Digit0' })).toBeUndefined();
+        expect(key({ shift: true, control: true, key: ')', code: 'Digit0' })).toBeUndefined();
+    });
+});
+
+describe('isCommentKey', () => {
+    const press = { key: 'M', code: 'KeyM', metaKey: true, ctrlKey: false, altKey: false, shiftKey: true };
+
+    it('finds ⇧⌘M', () => {
+        expect(isCommentKey(press)).toBe(true);
+        expect(isCommentKey({ ...press, key: 'x' })).toBe(true);
+    });
+
+    it('ignores ⌘M, other keys and other modifiers', () => {
+        expect(isCommentKey({ ...press, shiftKey: false, key: 'm' })).toBe(false);
+        expect(isCommentKey({ ...press, key: 'N', code: 'KeyN' })).toBe(false);
+        expect(isCommentKey({ ...press, metaKey: false })).toBe(false);
+        expect(isCommentKey({ ...press, ctrlKey: true })).toBe(false);
+        expect(isCommentKey({ ...press, altKey: true, key: 'Â' })).toBe(false);
     });
 });
 
