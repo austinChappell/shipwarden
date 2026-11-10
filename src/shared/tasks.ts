@@ -15,6 +15,8 @@ export interface TaskStatus {
 }
 
 export interface TaskPerson {
+    /** The ID of the person in the tracker. Some plugins do not send it. */
+    id?: string;
     name: string;
     avatarUrl?: string;
 }
@@ -31,6 +33,74 @@ export interface Task {
     updatedAt?: string;
     description?: string;
     fields?: Record<string, string | number | boolean | null>;
+    /** More facts for the task details. Only tasks/get sends them. */
+    details?: TaskDetails;
+}
+
+/** A reference to another task, for example a subtask or a dependency. The view shows the ID when the title is absent. */
+export interface TaskRef {
+    id: string;
+    key?: string;
+    title?: string;
+    url?: string;
+    status?: TaskStatus;
+    assignees?: TaskPerson[];
+}
+
+/** The relation of a linked task to this task. "blocks": this task blocks it. "blocked_by": this task waits on it. */
+export type TaskRelation = 'blocks' | 'blocked_by' | 'related';
+
+export interface TaskChecklist {
+    name: string;
+    items: { name: string; done: boolean; assignee?: TaskPerson }[];
+}
+
+export interface TaskAttachment {
+    name: string;
+    url: string;
+    /** The size in bytes. */
+    size?: number;
+    thumbnailUrl?: string;
+    createdAt?: string;
+}
+
+/**
+ * A custom field of the tracker, with its value. The fields can be different for each task, so the task sends them.
+ * An empty field has no `value`, no `people` and no `labels`.
+ */
+export interface TaskCustomField {
+    id: string;
+    label: string;
+    type: 'text' | 'number' | 'date' | 'url' | 'boolean' | 'rating' | 'people' | 'labels' | 'progress';
+    /** "date": an ISO time, or a date as "YYYY-MM-DD". "rating": the number of stars. "progress": a percentage from 0 to 100. */
+    value?: string | number | boolean | null;
+    people?: TaskPerson[];
+    labels?: { name: string; color?: string }[];
+    /** "rating": the highest number of stars. */
+    max?: number;
+}
+
+/** More facts of one task for the task details. Only tasks/get sends them. All parts are optional. */
+export interface TaskDetails {
+    /** The location of the task in the tracker, for example "Engineering / Projects / The Repair Shop". */
+    location?: string;
+    creator?: TaskPerson;
+    createdAt?: string;
+    /** An ISO time, or a date as "YYYY-MM-DD" when the tracker has no time. */
+    startDate?: string;
+    /** An ISO time, or a date as "YYYY-MM-DD" when the tracker has no time. */
+    dueDate?: string;
+    /** The estimate in milliseconds. */
+    timeEstimate?: number;
+    /** The tracked time in milliseconds. */
+    timeSpent?: number;
+    watchers?: TaskPerson[];
+    parent?: TaskRef;
+    subtasks?: TaskRef[];
+    links?: { relation: TaskRelation; task: TaskRef }[];
+    checklists?: TaskChecklist[];
+    attachments?: TaskAttachment[];
+    customFields?: TaskCustomField[];
 }
 
 /**
@@ -209,6 +279,8 @@ export interface TaskSource {
         actions?: boolean;
         scopes?: boolean;
         activity?: boolean;
+        /** "people/list": the assignee filter lists the people of the collection and has "Me". */
+        assignees?: boolean;
     };
     fields: FieldDefinition[];
     actions: ActionDefinition[];
@@ -422,23 +494,50 @@ export function taskMatches(task: Task, query: string): boolean {
     return words.every(word => text.includes(word));
 }
 
-/**
- * The assignee filter of the task view. "all" shows all tasks. "none" shows only the tasks without an assignee.
- * "person:<name>" shows only the tasks of that person. The tasks give only the name of a person, so the name identifies the person.
- */
-export type AssigneeFilter = 'all' | 'none' | `person:${string}`;
-
-/** True when the task agrees with the assignee filter. */
-export function taskHasAssignee(task: Task, filter: AssigneeFilter): boolean {
-    if (filter === 'all') return true;
-    const assignees = task.assignees ?? [];
-    if (filter === 'none') return assignees.length === 0;
-    const name = filter.slice('person:'.length);
-    return assignees.some(person => person.name === name);
+/** The key of a person in the assignee filter: the ID, or the name when the plugin sends no ID. */
+export function personKey(person: TaskPerson): string {
+    return person.id ?? `name:${person.name}`;
 }
 
-/** The names of all assignees of the tasks, one time each, in alphabetical order. */
-export function assigneeNames(tasks: readonly Task[]): string[] {
-    const names = new Set(tasks.flatMap(task => (task.assignees ?? []).map(person => person.name)));
-    return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+/** The key of the user of the connection in the assignee filter. The view finds the user with the "me" of people/list. */
+export const ME = 'me';
+
+/**
+ * The assignee filter of the task view. A task shows when it has one of the `people` (person keys or ME),
+ * or when `unassigned` is true and it has no assignee. With no people and `unassigned` false, all tasks show.
+ */
+export interface AssigneeFilter {
+    people: string[];
+    unassigned: boolean;
+}
+
+export const ALL_ASSIGNEES: AssigneeFilter = { people: [], unassigned: false };
+
+/** True when the filter shows all tasks. */
+export function showsAllAssignees(filter: AssigneeFilter): boolean {
+    return filter.people.length === 0 && !filter.unassigned;
+}
+
+/** True when the task agrees with the assignee filter. `me` is the person key of the user of the connection, if known. */
+export function taskHasAssignee(task: Task, filter: AssigneeFilter, me?: string): boolean {
+    if (showsAllAssignees(filter)) return true;
+    const assignees = task.assignees ?? [];
+    if (filter.unassigned && assignees.length === 0) return true;
+    const wanted = new Set(filter.people.map(key => (key === ME ? me : key)).filter((key): key is string => !!key));
+    return assignees.some(person => wanted.has(personKey(person)));
+}
+
+/**
+ * The people for the assignee filter: the people of the plugin and the assignees of the tasks, one time each,
+ * in alphabetical order by name.
+ */
+export function assigneeOptions(tasks: readonly Task[], people: readonly TaskPerson[] = []): TaskPerson[] {
+    const byKey = new Map<string, TaskPerson>();
+    for (const person of [...people, ...tasks.flatMap(task => task.assignees ?? [])]) {
+        const key = personKey(person);
+        const known = byKey.get(key);
+        // A person from a task can have a picture that the plugin's list does not have.
+        byKey.set(key, known ? { ...known, avatarUrl: known.avatarUrl ?? person.avatarUrl } : person);
+    }
+    return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }

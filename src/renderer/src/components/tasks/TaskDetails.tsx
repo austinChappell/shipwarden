@@ -6,6 +6,7 @@ import { Markdown } from '../Markdown';
 import { formatField } from './task-view-logic';
 import { FieldRow, StatusDot, TaskAvatar, TaskLabels } from './TaskParts';
 import { TaskActions } from './TaskActions';
+import { AttachmentsSection, ChecklistsSection, CustomFieldsSection, DetailMetaRows, RelatedTasksSection } from './TaskDetailSections';
 import type { useTaskDetail } from './use-task-detail';
 
 interface Props {
@@ -20,10 +21,27 @@ interface Props {
     repoLabel(repo: string): string;
     onOpenWorktree(path: string): void;
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
+    /** A loaded task with the ID, for the titles of subtasks and linked tasks. */
+    findTask(id: string): Task | undefined;
+    /** Opens another task in the details, for example a subtask. */
+    onOpenTask(id: string): void;
 }
 
 /** The details of the selected task. The board and the list show them in a large dialog. */
-export function TaskDetails({ source, selectedId, state, worktreeFor, repos, startRepo, chooseStartRepo, repoLabel, onOpenWorktree, onStartTask }: Props) {
+export function TaskDetails({
+    source,
+    selectedId,
+    state,
+    worktreeFor,
+    repos,
+    startRepo,
+    chooseStartRepo,
+    repoLabel,
+    onOpenWorktree,
+    onStartTask,
+    findTask,
+    onOpenTask
+}: Props) {
     const { detail, statuses, comments, commentText, setCommentText, busy, detailError, editing, setEditing } = state;
     return (
         <>
@@ -130,7 +148,7 @@ export function TaskDetails({ source, selectedId, state, worktreeFor, repos, sta
                             {detail.assignees?.length ? (
                                 <span className="task-people">
                                     {detail.assignees.map(person => (
-                                        <span key={person.name} className="task-person">
+                                        <span key={person.id ?? person.name} className="task-person">
                                             <TaskAvatar person={person} size={20} />
                                             {person.name}
                                         </span>
@@ -153,6 +171,7 @@ export function TaskDetails({ source, selectedId, state, worktreeFor, repos, sta
                                     </span>
                                 </>
                             )}
+                            <DetailMetaRows details={detail.details} />
                             {source.fields.map(field => (
                                 <FieldRow key={field.id} label={field.label} value={formatField(detail.fields?.[field.id], field.type)} />
                             ))}
@@ -171,6 +190,11 @@ export function TaskDetails({ source, selectedId, state, worktreeFor, repos, sta
                                 ) : (
                                     <div className="task-description">No description.</div>
                                 ))}
+
+                            <CustomFieldsSection key={detail.id} fields={detail.details?.customFields} />
+                            <RelatedTasksSection details={detail.details} findTask={findTask} onOpenTask={onOpenTask} />
+                            <ChecklistsSection checklists={detail.details?.checklists} />
+                            <AttachmentsSection attachments={detail.details?.attachments} />
 
                             {source.capabilities.comments && (
                                 <section className="task-comments">

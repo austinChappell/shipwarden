@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    assigneeNames,
+    assigneeOptions,
     boardColumns,
     groupTasksByStatus,
     taskHasAssignee,
     taskMatches,
+    showsAllAssignees,
     type AssigneeFilter,
     type StatusGroup,
     type Task,
@@ -16,6 +17,7 @@ import { useTaskSource } from './tasks/use-task-source';
 import { useTaskList } from './tasks/use-task-list';
 import { useTaskDetail } from './tasks/use-task-detail';
 import { useTaskViewPrefs } from './tasks/use-task-view-prefs';
+import { useAssigneeFilter } from './tasks/use-assignee-filter';
 import { TasksHeader } from './tasks/TasksHeader';
 import { TaskStatusGroups } from './tasks/TaskList';
 import { TaskBoardColumns } from './tasks/TaskBoard';
@@ -43,16 +45,14 @@ interface Props {
 export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree, onOpenSettings, repoLabel, openTask }: Props) {
     const [selectedId, setSelectedId] = useState<string>();
     const [query, setQuery] = useState('');
-    const [assignee, setAssignee] = useState<AssigneeFilter>('all');
 
     const sourceState = useTaskSource(setSelectedId);
     const { connections, connectionId, source, sourceError, collection, request } = sourceState;
     const prefs = useTaskViewPrefs(projectId, source?.pluginId);
+    const assigneeFilter = useAssigneeFilter({ source, collection, request });
+    const assignee = assigneeFilter.filter;
     const list = useTaskList({ source, collection, filter: sourceState.filter, request, setSelectedId });
     const { tasks, loadTasks } = list;
-    // The people of one task manager are not the people of another. A new task manager shows all assignees again.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: The body does not read connectionId, but a change must reset the filter.
-    useEffect(() => setAssignee('all'), [connectionId]);
     const listError = sourceState.collectionsError ?? list.listError;
     const detailState = useTaskDetail({ source, selectedId, setSelectedId, request, setTasks: list.setTasks, loadTasks });
 
@@ -110,8 +110,12 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
 
     const worktreeFor = (task: Task) => worktreeForTask(links, source?.connectionId, task);
 
-    const names = useMemo(() => assigneeNames(tasks ?? []), [tasks]);
-    const shown = useMemo(() => (tasks ?? []).filter(task => taskHasAssignee(task, assignee) && taskMatches(task, query)), [tasks, assignee, query]);
+    const people = useMemo(() => assigneeOptions(tasks ?? [], assigneeFilter.people), [tasks, assigneeFilter.people]);
+    // The view selects the tasks of the assignees itself. A change of the filter sends no request.
+    const me = assigneeFilter.me;
+    const shown = useMemo(() => (tasks ?? []).filter(task => taskHasAssignee(task, assignee, me) && taskMatches(task, query)), [tasks, assignee, me, query]);
+    /** The loaded tasks, or undefined while the tasks or the user of the "Me" filter load. */
+    const listed = assigneeFilter.waitingForMe ? undefined : tasks;
     const statusGroups = useMemo(() => groupTasksByStatus(shown, list.statusOrder?.statuses), [shown, list.statusOrder]);
     /** The board has a column for each status of the collection's workflow, also without tasks, so a card can move to it. */
     const columns = useMemo(() => boardColumns(shown, list.statusOrder?.statuses), [shown, list.statusOrder]);
@@ -138,6 +142,8 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
             repoLabel={repoLabel}
             onOpenWorktree={onOpenWorktree}
             onStartTask={onStartTask}
+            findTask={id => tasks?.find(task => task.id === id)}
+            onOpenTask={setSelectedId}
         />
     );
 
@@ -164,9 +170,11 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                 selectCollection={sourceState.selectCollection}
                 filter={sourceState.filter}
                 setFilter={sourceState.setFilter}
-                assigneeNames={names}
+                people={people}
+                me={assigneeFilter.me}
+                assigneesSupported={assigneeFilter.supported}
                 assignee={assignee}
-                setAssignee={setAssignee}
+                setAssignee={assigneeFilter.setFilter}
                 viewMode={prefs.viewMode}
                 changeViewMode={prefs.changeViewMode}
                 query={query}
@@ -210,8 +218,8 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                 <div className="tasks-body board-mode">
                     <div className="task-board">
                         {listError && <div className="form-error task-list-error">{listError}</div>}
-                        {tasks === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
-                        {tasks !== undefined && (
+                        {listed === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
+                        {listed !== undefined && (
                             <div className="board-columns">
                                 <TaskBoardColumns {...itemProps} columns={columns} canMove={canMove} moving={list.moving} onMove={moveTask} />
                             </div>
@@ -224,9 +232,9 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                 <div className="tasks-body">
                     <div className="task-list" onKeyDown={moveListFocus}>
                         {listError && <div className="form-error task-list-error">{listError}</div>}
-                        {tasks === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
-                        {tasks?.length === 0 && <div className="panel-message">No tasks in this collection.</div>}
-                        {!!tasks?.length && shown.length === 0 && <div className="panel-message">{noMatchText(query, assignee)}</div>}
+                        {listed === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
+                        {listed?.length === 0 && <div className="panel-message">No tasks in this collection.</div>}
+                        {!!listed?.length && shown.length === 0 && <div className="panel-message">{noMatchText(query, assignee)}</div>}
                         <TaskStatusGroups {...itemProps} groups={statusGroups} />
                     </div>
                 </div>
@@ -250,8 +258,8 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
 /** The message when the search or the assignee filter hides all tasks. */
 function noMatchText(query: string, assignee: AssigneeFilter): string {
     const text = query.trim();
-    const who = assignee === 'none' ? 'without an assignee' : assignee === 'all' ? '' : `of ${assignee.slice('person:'.length)}`;
-    if (text && who) return `No tasks ${who} match “${text}”.`;
+    const filtered = !showsAllAssignees(assignee);
+    if (text && filtered) return `No tasks of the selected assignees match “${text}”.`;
     if (text) return `No tasks match “${text}”.`;
-    return `No tasks ${who} in this collection.`;
+    return 'No tasks of the selected assignees in this collection.';
 }

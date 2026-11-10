@@ -16,7 +16,8 @@ const HANDLERS = {
     'comments/list': 'listComments',
     'comments/create': 'createComment',
     'tasks/action': 'runAction',
-    'activity/list': 'listActivity'
+    'activity/list': 'listActivity',
+    'people/list': 'listPeople'
 };
 
 /** A JSON-RPC error code for a method that the plugin does not have. */
@@ -109,6 +110,7 @@ export function runPlugin(handlers, { input = process.stdin, output = process.st
                         actions: !!handlers.runAction,
                         scopes: !!handlers.listScopes,
                         activity: !!handlers.listActivity,
+                        assignees: !!handlers.listPeople,
                         ...(result?.capabilities ?? {})
                     }
                 };

@@ -22,7 +22,12 @@ import {
     toggleCollapse,
     uniqueTasks,
     worktreeForTask,
-    personInitials
+    personInitials,
+    formatDuration,
+    formatDay,
+    formatBytes,
+    checklistProgress,
+    customFieldEmpty
 } from './task-view-logic';
 
 const task = (id: string, status = 'to do', extra: Partial<Task> = {}): Task => ({
@@ -256,5 +261,61 @@ describe('personInitials', () => {
         ['  ', '?']
     ])('gives the initials of %j', (name, expected) => {
         expect(personInitials(name)).toBe(expected);
+    });
+});
+
+describe('formatDuration', () => {
+    it.each([
+        [0, '0m'],
+        [45 * 60_000, '45m'],
+        [2 * 3_600_000, '2h'],
+        [2.5 * 3_600_000, '2h 30m']
+    ])('formats %d ms', (ms, expected) => {
+        expect(formatDuration(ms)).toBe(expected);
+    });
+});
+
+describe('formatDay', () => {
+    it('shows a day without a time in the local time zone', () => {
+        expect(formatDay('2026-11-03', 'en-US')).toBe('Nov 3, 2026');
+    });
+
+    it('shows the time of an ISO time', () => {
+        const iso = new Date(2026, 10, 3, 14, 5).toISOString();
+        expect(formatDay(iso, 'en-US')).toBe('Nov 3, 2026, 2:05 PM');
+    });
+
+    it('keeps text that is not a date', () => {
+        expect(formatDay('soon')).toBe('soon');
+    });
+});
+
+describe('formatBytes', () => {
+    it.each([
+        [120, '120 B'],
+        [4300, '4.2 KB'],
+        [3_250_000, '3.1 MB'],
+        [50 * 1024 * 1024, '50 MB']
+    ])('formats %d bytes', (bytes, expected) => {
+        expect(formatBytes(bytes)).toBe(expected);
+    });
+});
+
+describe('checklistProgress', () => {
+    it('counts the done items of all checklists', () => {
+        expect(checklistProgress([{ items: [{ done: true }, { done: false }] }, { items: [{ done: true }] }])).toEqual({ done: 2, total: 3 });
+    });
+});
+
+describe('customFieldEmpty', () => {
+    it.each([
+        [{ type: 'text' }, true],
+        [{ type: 'text', value: '' }, true],
+        [{ type: 'number', value: 0 }, false],
+        [{ type: 'boolean', value: false }, false],
+        [{ type: 'people', people: [] }, true],
+        [{ type: 'labels', labels: [{}] }, false]
+    ])('checks %j', (field, expected) => {
+        expect(customFieldEmpty(field)).toBe(expected);
     });
 });

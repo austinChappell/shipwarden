@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { ExternalLink, List, Plus, RefreshCw, Search, Settings, SquareKanban } from 'lucide-react';
-import type { AssigneeFilter, ConnectionInfo, TaskCollection, TaskSource } from '@shared/tasks';
+import type { AssigneeFilter, ConnectionInfo, TaskCollection, TaskPerson, TaskSource } from '@shared/tasks';
 import { openLink } from '../../links';
-import { Combobox, sortedGroups, type ComboboxGroup } from '../Combobox';
+import { Combobox, sortedGroups } from '../Combobox';
+import { AssigneeFilterPicker } from './AssigneeFilterPicker';
 import { collectionPlaceholder, collectionTitle, type ViewMode } from './task-view-logic';
 
 interface PickerProps {
@@ -46,44 +47,6 @@ export function CollectionPicker({ collections, collection, onSelect }: PickerPr
     );
 }
 
-interface AssigneePickerProps {
-    /** The names of the assignees of the loaded tasks. */
-    names: string[];
-    value: AssigneeFilter;
-    onChange(value: AssigneeFilter): void;
-}
-
-/** The picker of the assignee filter: all tasks, the tasks without an assignee, or the tasks of one person. */
-export function AssigneePicker({ names, value, onChange }: AssigneePickerProps) {
-    const groups = useMemo((): ComboboxGroup[] => {
-        // The selected person stays in the list also when the loaded tasks do not have that person.
-        const selected = value.startsWith('person:') ? value.slice('person:'.length) : undefined;
-        const people = selected && !names.includes(selected) ? [selected, ...names] : names;
-        return [
-            {
-                label: '',
-                items: [
-                    { value: 'all', label: 'All assignees' },
-                    { value: 'none', label: 'Unassigned' }
-                ]
-            },
-            { label: 'People', items: people.map(name => ({ value: `person:${name}`, label: name })) }
-        ].filter(group => group.items.length > 0);
-    }, [names, value]);
-    return (
-        <Combobox
-            className={`assignee-select${value === 'all' ? '' : ' active'}`}
-            value={value}
-            groups={groups}
-            placeholder="All assignees"
-            searchPlaceholder="Search people"
-            title="Assignee"
-            groupPrefix={false}
-            onChange={next => onChange(next as AssigneeFilter)}
-        />
-    );
-}
-
 interface Props {
     connections: ConnectionInfo[] | undefined;
     connectionId: string | undefined;
@@ -96,8 +59,12 @@ interface Props {
     selectCollection(id: string): void;
     filter: string | undefined;
     setFilter(filter: string): void;
-    /** The names of the assignees of the loaded tasks. */
-    assigneeNames: string[];
+    /** The people that the assignee filter lists. */
+    people: TaskPerson[];
+    /** The person key of the user of the connection, if the plugin sends it. */
+    me: string | undefined;
+    /** True when the plugin selects the tasks by assignee. Then the filter has "Me". */
+    assigneesSupported: boolean;
     assignee: AssigneeFilter;
     setAssignee(value: AssigneeFilter): void;
     viewMode: ViewMode;
@@ -144,7 +111,15 @@ export function TasksHeader(props: Props) {
                         ))}
                     </select>
                 )}
-                {source && <AssigneePicker names={props.assigneeNames} value={props.assignee} onChange={props.setAssignee} />}
+                {source && (
+                    <AssigneeFilterPicker
+                        people={props.people}
+                        me={props.me}
+                        showMe={props.assigneesSupported}
+                        value={props.assignee}
+                        onChange={props.setAssignee}
+                    />
+                )}
                 {source && (
                     <div className="segmented compact view-switch" role="group" aria-label="View">
                         <button
