@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpCircle, ExternalLink, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { AlertCircle, ArrowUpCircle, CheckCircle2, ExternalLink, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { UpdateState } from '@shared/updates';
 import { errorText, timeAgo } from '../util';
 import { confirmDialog } from './ConfirmDialog';
@@ -10,6 +10,9 @@ import { useModal } from './use-modal';
 import { keyRoots } from '../query-client';
 
 const DISMISS_KEY = 'shipwarden.updateDismissed';
+
+/** The time that the result of a ⇧⌘U check stays on the screen, in milliseconds. */
+const RESULT_MS = 4000;
 
 /** The query key of the updater state. */
 const stateKey = [...keyRoots.updates, 'state'];
@@ -91,6 +94,35 @@ function NotesDialog({ state, onClose }: { state: UpdateState; onClose(): void }
     );
 }
 
+/** The result of a check from the menu that does not find an update: the newest version or the error. */
+interface CheckResult {
+    ok: boolean;
+    text: string;
+}
+
+/** A notice that shows the result of a ⇧⌘U check and closes after a few seconds. */
+function CheckResultNotice({ result, onClose }: { result: CheckResult; onClose(): void }) {
+    useEffect(() => {
+        const timer = setTimeout(onClose, result.ok ? RESULT_MS : RESULT_MS * 2);
+        return () => clearTimeout(timer);
+    }, [result, onClose]);
+    const Icon = result.ok ? CheckCircle2 : AlertCircle;
+    return (
+        <div className={`update-notice${result.ok ? '' : ' error'}`} role="status">
+            <Icon size={18} strokeWidth={1.8} className="update-notice-icon" />
+            <div className="update-notice-text">
+                <strong>{result.ok ? 'No updates available' : 'The update check failed'}</strong>
+                <span className="update-notice-detail">{result.text}</span>
+            </div>
+            <div className="update-notice-buttons">
+                <button className="icon-button" title="Close" onClick={onClose}>
+                    <X size={14} strokeWidth={1.8} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
 function readDismissed(): string | undefined {
     try {
         return localStorage.getItem(DISMISS_KEY) ?? undefined;
@@ -103,12 +135,34 @@ function readDismissed(): string | undefined {
  * The notice in the corner of the window when a new release is ready: the version, the release notes, and
  * "Update and restart". "Later" hides the notice until the next version. The notice also shows the download
  * progress and an error of the install.
+ *
+ * The "Check for Updates…" menu item (⇧⌘U) does not open the settings page. When the check finds an update, the
+ * notice shows again, also after "Later". When the check finds no update or fails, a notice shows the result for a
+ * few seconds.
  */
 export function UpdateNotice() {
     const state = useUpdateState();
     const [dismissed, setDismissed] = useState(readDismissed);
     const [notes, setNotes] = useState(false);
+    const [result, setResult] = useState<CheckResult>();
+    const closeResult = useCallback(() => setResult(undefined), []);
 
+    useEffect(
+        () =>
+            window.shipwarden.updates.onChecked(checked => {
+                if (checked.status === 'available') {
+                    setResult(undefined);
+                    setDismissed(undefined);
+                } else if (checked.status === 'none') {
+                    setResult({ ok: true, text: `ShipWarden ${checked.current} is the newest version.` });
+                } else if (checked.status === 'error') {
+                    setResult({ ok: false, text: checked.error ?? 'Try again in a few minutes.' });
+                }
+            }),
+        []
+    );
+
+    if (result) return <CheckResultNotice result={result} onClose={closeResult} />;
     if (!state?.update) return null;
     const busy = state.status === 'downloading' || state.status === 'installing';
     const failed = state.status === 'error' && !!state.error;
@@ -217,9 +271,11 @@ export function UpdateSettings() {
                 <button
                     className="button"
                     disabled={state.status === 'checking' || state.status === 'downloading' || state.status === 'installing'}
+                    title="Check for updates (⇧⌘U)"
                     onClick={() => void check()}
                 >
                     <RefreshCw size={13} strokeWidth={1.8} className={state.status === 'checking' ? 'spin' : ''} /> Check for updates
+                    <kbd className="field-key">⇧⌘U</kbd>
                 </button>
             </div>
             {error && <div className="form-error">{error}</div>}

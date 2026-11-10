@@ -287,7 +287,7 @@ export function App() {
         });
         // An agent that the user started in a shell tab, for example with `claude` or `codex`.
         const offAgentProgram = api.terminals.onAgentProgram((id, program) => agentStateStore.setProgram(id, program));
-        // The "Settings…" menu item (⌘,) opens the settings page. "Check for Updates…" (⇧⌘U) opens the About section.
+        // The "Settings…" menu item (⌘,) opens the settings page.
         const offOpenSettings = api.app.onOpenSettings(section => {
             if (section) setSettingsSection({ id: section });
             showSettingsPage();

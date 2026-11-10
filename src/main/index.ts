@@ -76,10 +76,19 @@ function openSettings(section?: string): void {
     mainWindow.send(IpcChannels.appOpenSettings, section);
 }
 
-/** Opens Settings › About and checks for updates. The About section shows the result of the check. */
+/**
+ * Checks for updates and does not change the page. The page shows the result in a notice that closes after a few
+ * seconds. A failed check also goes to the page as a state with the "error" status.
+ */
 function checkForUpdates(): void {
-    openSettings('about');
-    void services.updates.check();
+    if (!mainWindow.get()) {
+        createWindow();
+    }
+    mainWindow.get()?.show();
+    void services.updates.check().then(
+        state => mainWindow.send(IpcChannels.updatesChecked, state),
+        () => undefined
+    );
 }
 
 function sendShortcut(action: ShortcutAction): void {

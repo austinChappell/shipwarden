@@ -42,7 +42,8 @@ const api: ShipWardenApi = {
         state: () => ipcRenderer.invoke(IpcChannels.updatesState),
         check: () => ipcRenderer.invoke(IpcChannels.updatesCheck),
         install: () => ipcRenderer.invoke(IpcChannels.updatesInstall),
-        onState: listener => subscribe<[UpdateState]>(IpcChannels.updatesChanged, listener)
+        onState: listener => subscribe<[UpdateState]>(IpcChannels.updatesChanged, listener),
+        onChecked: listener => subscribe<[UpdateState]>(IpcChannels.updatesChecked, listener)
     },
     usage: {
         get: () => ipcRenderer.invoke(IpcChannels.usageGet),
