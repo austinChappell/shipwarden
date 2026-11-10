@@ -34,7 +34,7 @@ interface Props {
 
 /**
  * The dialog for a new worktree. It has two modes:
- * - New branch: a display name, a branch name (made from the name until the user changes it) and the branch to start from.
+ * - New branch: a branch name, a display name and the branch to start from. The name makes the branch name until the user types one.
  * - Remote branch: a remote branch to check out. The local branch gets the same name and tracks the remote branch.
  * In both modes, the user chooses whether an agent starts in the worktree.
  */
@@ -226,13 +226,30 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                                 ))}
                         </div>
                     )}
+                    {mode === 'new' && (
+                        <label className="run-field">
+                            <span className="setting-label">Branch</span>
+                            <input
+                                className="settings-input mono"
+                                autoFocus
+                                value={branch}
+                                placeholder="login-page-rework"
+                                spellCheck={false}
+                                onChange={event => {
+                                    setBranch(event.target.value);
+                                    setBranchEdited(event.target.value.trim() !== '');
+                                }}
+                            />
+                            {exists && <span className="panel-note">This branch exists. The worktree checks it out.</span>}
+                        </label>
+                    )}
                     <label className="run-field">
                         <span className="setting-label">
                             Name <span className="new-worktree-optional">(optional)</span>
                         </span>
                         <input
                             className="settings-input"
-                            autoFocus
+                            autoFocus={mode === 'remote'}
                             value={name}
                             placeholder={mode === 'remote' ? branchName || 'Login page rework' : 'Login page rework'}
                             onChange={event => changeName(event.target.value)}
@@ -240,43 +257,27 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                         <span className="panel-note">The sidebar shows this name. Without a name, it shows the branch.</span>
                     </label>
                     {mode === 'new' && (
-                        <>
-                            <label className="run-field">
-                                <span className="setting-label">Branch</span>
-                                <input
-                                    className="settings-input mono"
-                                    value={branch}
-                                    placeholder="login-page-rework"
-                                    spellCheck={false}
-                                    onChange={event => {
-                                        setBranch(event.target.value);
-                                        setBranchEdited(event.target.value.trim() !== '');
-                                    }}
-                                />
-                                {exists && <span className="panel-note">This branch exists. The worktree checks it out.</span>}
-                            </label>
-                            <div className="run-field">
-                                <span className="setting-label">Start from</span>
-                                <Combobox
-                                    value={exists ? undefined : base}
-                                    groups={groups}
-                                    onChange={setBase}
-                                    placeholder={exists ? `The branch ${branchName}` : loadError ? 'No branches' : 'Fetching the branches…'}
-                                    searchPlaceholder="Find a branch"
-                                    disabled={exists || !branches}
-                                    className="new-worktree-base"
-                                />
-                                {!branches && !loadError && (
-                                    <span className="panel-note">
-                                        <LoaderCircle size={11} className="spin" /> Fetching origin, so the start point is new.
-                                    </span>
-                                )}
-                                {loadError && <span className="form-error">{loadError}</span>}
-                                {branches && !exists && base === branches.defaultBase && (
-                                    <span className="panel-note">The newest {base} from the remote. The new branch does not track it.</span>
-                                )}
-                            </div>
-                        </>
+                        <div className="run-field">
+                            <span className="setting-label">Start from</span>
+                            <Combobox
+                                value={exists ? undefined : base}
+                                groups={groups}
+                                onChange={setBase}
+                                placeholder={exists ? `The branch ${branchName}` : loadError ? 'No branches' : 'Fetching the branches…'}
+                                searchPlaceholder="Find a branch"
+                                disabled={exists || !branches}
+                                className="new-worktree-base"
+                            />
+                            {!branches && !loadError && (
+                                <span className="panel-note">
+                                    <LoaderCircle size={11} className="spin" /> Fetching origin, so the start point is new.
+                                </span>
+                            )}
+                            {loadError && <span className="form-error">{loadError}</span>}
+                            {branches && !exists && base === branches.defaultBase && (
+                                <span className="panel-note">The newest {base} from the remote. The new branch does not track it.</span>
+                            )}
+                        </div>
                     )}
                     <label className="new-worktree-agent">
                         <input type="checkbox" checked={startAgent} onChange={event => setStartAgent(event.target.checked)} />

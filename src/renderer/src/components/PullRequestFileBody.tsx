@@ -12,6 +12,7 @@ import type { AgentQuestion, QuestionAction } from '../github/agent-questions';
 import { openLink } from '../links';
 import { THEME_CSS, type DiffStyle } from './diff-style';
 import { ComposerZone, PendingZone, QuestionZone, ThreadZone } from './ReviewZones';
+import { reactionActions } from './Reactions';
 
 interface FileBodyProps {
     target: RepoTarget;
@@ -125,6 +126,7 @@ export const FileBody = memo(function FileBody({
                         onSendToAgent={onSendToAgent && (() => onSendToAgent(threadPrompt(pr, thread)))}
                         onReply={body => replyToThread(target, pr, thread, body)}
                         onResolve={() => setThreadResolved(target, pr, thread, !thread.isResolved)}
+                        reactions={reactionActions(target, pr)}
                     />
                 </div>
             );

@@ -24,6 +24,7 @@ import type {
     PullRequestFile,
     PullRequestFilter,
     PullRequestSummary,
+    ReactionContent,
     RepoRef,
     RepoTarget,
     ReviewEvent,
@@ -86,14 +87,14 @@ export interface ShipWardenApi {
         focus(): void;
         /** Facts about the app for the settings page. */
         info(): Promise<AppInfo>;
-        /** Listens for the "Settings…" menu item (⌘,). */
-        onOpenSettings(listener: () => void): () => void;
+        /** Listens for the "Settings…" (⌘,) and "Check for Updates…" (⇧⌘U) menu items. The section is undefined for ⌘,. */
+        onOpenSettings(listener: (section?: string) => void): () => void;
         /** The workspace shortcuts, for example ⌘T, ⌘W, ⌘D, ⌘[ and ⌘]. See `shortcutAction`. */
         onShortcut(listener: (action: ShortcutAction) => void): () => void;
         /** Questions from the main process. The page shows them in its own dialog and sends the answer with `answerConfirm`. */
         onConfirmRequest(listener: (id: number, request: ConfirmRequest) => void): () => void;
         answerConfirm(id: number, confirmed: boolean): void;
-        /** Runs an app key (⌘Q, ⇧⌥⌘Q, ⌘, or ⌘H) that the page got. The main process normally reads these keys first. */
+        /** Runs an app key (⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U or ⌘H) that the page got. The main process normally reads these keys first. */
         runKey(action: AppKeyAction): void;
     };
     git: {
@@ -249,6 +250,8 @@ export interface ShipWardenApi {
         submitReview(target: RepoTarget, number: number, headSha: string, event: ReviewEvent, body: string, comments: PendingComment[]): Promise<void>;
         reply(target: RepoTarget, number: number, commentId: number, body: string): Promise<void>;
         setThreadResolved(target: RepoTarget, threadId: string, resolved: boolean): Promise<void>;
+        /** Adds (`on`) or removes a reaction of the user to a comment or a review. `subjectId` is the `id` of the item. */
+        setReaction(target: RepoTarget, number: number, subjectId: string, content: ReactionContent, on: boolean): Promise<void>;
         merge(target: RepoTarget, number: number, headSha: string, method: MergeMethod): Promise<void>;
         checks(target: RepoTarget, sha: string): Promise<CheckRun[]>;
         jobLog(target: RepoTarget, jobId: number): Promise<string>;
@@ -521,6 +524,7 @@ export const IpcChannels = {
     githubSubmitReview: 'github:submitReview',
     githubReply: 'github:reply',
     githubSetThreadResolved: 'github:setThreadResolved',
+    githubSetReaction: 'github:setReaction',
     githubMerge: 'github:merge',
     githubChecks: 'github:checks',
     githubJobProgress: 'github:jobProgress',

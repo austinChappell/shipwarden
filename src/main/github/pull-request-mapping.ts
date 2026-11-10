@@ -11,10 +11,15 @@ import {
     type PullRequest,
     type PullRequestCommit,
     type PullRequestSummary,
+    type Reaction,
+    type ReactionContent,
     type RepoRef,
     type RequestedReviewer,
     type TimelineEvent
 } from '@shared/github';
+
+/** The GraphQL fields of the reactions of a comment or a review. */
+const REACTION_FIELDS = 'reactionGroups { content viewerHasReacted reactors { totalCount } }';
 
 export const PULL_REQUEST_QUERY = `
 query($owner: String!, $name: String!, $number: Int!) {
@@ -37,12 +42,12 @@ query($owner: String!, $name: String!, $number: Int!) {
       reviewRequests(first: 30) {
         nodes { requestedReviewer { __typename ... on User { login } ... on Team { slug name } ... on Bot { login } ... on Mannequin { login } } }
       }
-      reviews(last: 30) { nodes { id author { login avatarUrl } state body bodyHTML submittedAt url } }
-      comments(last: 50) { nodes { id author { login avatarUrl } body bodyHTML createdAt url } }
+      reviews(last: 30) { nodes { id author { login avatarUrl } state body bodyHTML submittedAt url ${REACTION_FIELDS} } }
+      comments(last: 50) { nodes { id author { login avatarUrl } body bodyHTML createdAt url ${REACTION_FIELDS} } }
       reviewThreads(first: 100) {
         nodes {
           id isResolved isOutdated path line originalLine startLine originalStartLine diffSide
-          comments(first: 50) { nodes { id databaseId author { login avatarUrl } body bodyHTML createdAt url diffHunk } }
+          comments(first: 50) { nodes { id databaseId author { login avatarUrl } body bodyHTML createdAt url diffHunk ${REACTION_FIELDS} } }
         }
       }
       commits(last: 100) {
@@ -53,6 +58,23 @@ query($owner: String!, $name: String!, $number: Int!) {
     }
   }
 }`;
+
+/** One reaction group of GitHub. GitHub gives a group for each reaction, also with no users. */
+export interface GraphQlReactionGroup {
+    content: ReactionContent;
+    viewerHasReacted: boolean;
+    reactors: { totalCount: number };
+}
+
+/** A comment or a review in the GraphQL data: the shared type with the HTML and the reaction groups of GitHub. */
+type GraphQlItem<T> = Omit<T, 'reactions'> & { bodyHTML: string; reactionGroups?: GraphQlReactionGroup[] | null };
+
+/** Changes the reaction groups of GitHub to the reactions with one or more users. */
+export function mapReactions(groups: readonly GraphQlReactionGroup[] | null | undefined): Reaction[] {
+    return (groups ?? [])
+        .filter(group => group.reactors.totalCount > 0)
+        .map(group => ({ content: group.content, count: group.reactors.totalCount, viewerHasReacted: group.viewerHasReacted }));
+}
 
 type GraphQlReviewer = { __typename: string; login?: string; slug?: string; name?: string } | null;
 
@@ -93,12 +115,12 @@ export interface GraphQlPullRequest {
                       nodes: { commit: Omit<PullRequestCommit, 'author'> & { author: { name: string | null; user: { login: string } | null } | null } }[];
                   };
                   headCommit: { nodes: { commit: { statusCheckRollup: { contexts: { totalCount: number } } | null } }[] };
-                  reviews: { nodes: (PullRequest['reviews'][number] & { bodyHTML: string })[] };
-                  comments: { nodes: (PullRequest['issueComments'][number] & { bodyHTML: string })[] };
+                  reviews: { nodes: GraphQlItem<PullRequest['reviews'][number]>[] };
+                  comments: { nodes: GraphQlItem<PullRequest['issueComments'][number]>[] };
                   reviewThreads: {
                       nodes: (Omit<PullRequest['threads'][number], 'comments' | 'side'> & {
                           diffSide: 'LEFT' | 'RIGHT';
-                          comments: { nodes: (PullRequest['threads'][number]['comments'][number] & { bodyHTML: string })[] };
+                          comments: { nodes: GraphQlItem<PullRequest['threads'][number]['comments'][number]>[] };
                       })[];
                   };
               })
@@ -143,7 +165,15 @@ export function mapPullRequest(data: GraphQlPullRequest, repo: RepoRef, number: 
     const images = signedImageUrls(html);
     // The Markdown has emoji shortcodes such as :warning:. GitHub shows them as emoji.
     const render = (body: string) => withEmoji(withSignedImages(body, images));
-    const sign = <T extends { body: string; bodyHTML: string }>({ bodyHTML: _html, ...item }: T): Omit<T, 'bodyHTML'> => ({ ...item, body: render(item.body) });
+    const sign = <T extends { body: string; bodyHTML: string; reactionGroups?: GraphQlReactionGroup[] | null }>({
+        bodyHTML: _html,
+        reactionGroups,
+        ...item
+    }: T): Omit<T, 'bodyHTML' | 'reactionGroups'> & { reactions: Reaction[] } => ({
+        ...item,
+        body: render(item.body),
+        reactions: mapReactions(reactionGroups)
+    });
     return {
         ...rest,
         body: render(pr.body),

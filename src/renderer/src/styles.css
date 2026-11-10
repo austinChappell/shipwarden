@@ -1096,7 +1096,8 @@ button {
     text-overflow: ellipsis;
 }
 
-.search-text mark {
+.search-text mark,
+.search-name mark {
     border-radius: 2px;
     background: color-mix(in srgb, var(--info) 32%, transparent);
     color: var(--text-strong);
@@ -1702,6 +1703,82 @@ code {
     flex-wrap: wrap;
     gap: 12px;
     margin-top: 8px;
+}
+
+/* The reactions of a comment or a review. The picker is in the flow, so a diff zone grows with it. */
+.reactions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.reaction-chip,
+.reaction-add,
+.reaction-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 7px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.reaction-chip:hover:not(:disabled),
+.reaction-add:hover:not(:disabled),
+.reaction-option:hover:not(:disabled) {
+    background: var(--hover);
+    color: var(--text-strong);
+}
+
+.reaction-chip.on,
+.reaction-option.on {
+    border-color: var(--info);
+    color: var(--text-strong);
+    background: color-mix(in srgb, var(--info) 14%, transparent);
+}
+
+.reaction-add.on {
+    background: var(--hover);
+}
+
+.reaction-chip:disabled,
+.reaction-add:disabled,
+.reaction-option:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.reaction-emoji {
+    font-size: 13px;
+    line-height: 1;
+}
+
+.reaction-picker {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--raised);
+}
+
+.reaction-option {
+    border-color: transparent;
+    padding: 0 5px;
+    font-size: 14px;
+}
+
+.reaction-error {
+    flex-basis: 100%;
 }
 
 .reply-box,

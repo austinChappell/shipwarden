@@ -8,6 +8,7 @@ function recordActions() {
     const calls: string[] = [];
     const template = menuTemplate({
         openSettings: () => calls.push('settings'),
+        checkForUpdates: () => calls.push('updates'),
         quitAndStopSessions: () => calls.push('quitAndStop'),
         sendShortcut: (action: ShortcutAction) => calls.push(`shortcut:${action}`)
     });
@@ -45,11 +46,13 @@ describe('menuTemplate', () => {
         expect(new Set(accelerators).size).toBe(accelerators.length);
     });
 
-    it('opens the settings and quits with the app menu items', () => {
+    it('opens the settings, checks for updates and quits with the app menu items', () => {
         const { calls, template } = recordActions();
         click(item(template, 'Settings…'));
+        click(item(template, 'Check for Updates…'));
         click(item(template, 'Quit and Stop All Agents…'));
-        expect(calls).toEqual(['settings', 'quitAndStop']);
+        expect(calls).toEqual(['settings', 'updates', 'quitAndStop']);
+        expect(item(template, 'Check for Updates…').accelerator).toBe('Shift+Command+U');
         expect(item(template, 'Quit and Stop All Agents…').accelerator).toBe('Shift+Alt+Command+Q');
     });
 

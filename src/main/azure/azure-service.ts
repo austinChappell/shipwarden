@@ -35,6 +35,7 @@ import {
     type PullRequestFile,
     type PullRequestFilter,
     type PullRequestSummary,
+    type ReactionContent,
     type RepoRef,
     type RepoTarget,
     type ReviewEvent,
@@ -592,6 +593,20 @@ export class AzureDevOpsService implements SourceHost {
             parentCommentId: 1,
             commentType: 'text'
         });
+    }
+
+    /**
+     * Likes a comment (`on`) or removes the like. Azure DevOps has only likes, so only the thumbs up is accepted.
+     * `subjectId` is the `id` of a comment from `mapThreads`.
+     */
+    async setReaction(target: RepoTarget, number: number, subjectId: string, content: ReactionContent, on: boolean): Promise<void> {
+        if (content !== 'THUMBS_UP') throw new AzureError('Azure DevOps accepts only a like (thumbs up) on a comment.', 0);
+        const [threadPart, commentPart] = subjectId.split('#');
+        const threadId = decodeAzureId(threadPart)?.threadId;
+        const commentId = Number(commentPart);
+        if (threadId === undefined || !Number.isInteger(commentId)) throw new AzureError('The ID is not an Azure DevOps comment ID.', 0);
+        const repo = await this.resolve(target);
+        await this.client.request(on ? 'POST' : 'DELETE', `${this.prApi(repo, number)}/threads/${threadId}/comments/${commentId}/likes`);
     }
 
     async setThreadResolved(threadId: string, resolved: boolean): Promise<void> {

@@ -29,5 +29,5 @@ export function browserViewKey(input: KeyInput): BrowserViewKey | undefined {
 
 /** Returns true when the value is an app key action. The page can send any value, so the main process checks it. */
 export function isAppKeyAction(value: unknown): value is AppKeyAction {
-    return value === 'quit' || value === 'quitAndStop' || value === 'settings' || value === 'hide';
+    return value === 'quit' || value === 'quitAndStop' || value === 'settings' || value === 'checkForUpdates' || value === 'hide';
 }

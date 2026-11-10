@@ -5,6 +5,7 @@ import type {
     PendingComment,
     PullRequest,
     PullRequestChange,
+    ReactionContent,
     RepoRef,
     RepoTarget,
     ReviewEvent,
@@ -19,6 +20,7 @@ import {
     reviewedPullRequest,
     reviewStateOf,
     viewerOf,
+    withReaction,
     withReply,
     withThreadResolved,
     writePullRequest
@@ -90,6 +92,15 @@ export async function replyToThread(target: RepoTarget, pr: PullRequest, thread:
             url: last.url
         })
     );
+}
+
+/**
+ * Adds (`on`) or removes a reaction of the user to a comment or a review. `subjectId` is the `id` of the item.
+ * The cache gets the new count, so the pull request does not load again.
+ */
+export async function setReaction(target: RepoTarget, pr: PullRequest, subjectId: string, content: ReactionContent, on: boolean): Promise<void> {
+    await api().setReaction(target, pr.number, subjectId, content, on);
+    writePullRequest(queryClient, pr, current => withReaction(current, subjectId, content, on));
 }
 
 /** Resolves a review thread, or makes it not resolved. */

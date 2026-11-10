@@ -6,6 +6,8 @@ import {
     buildToCheck,
     buildToRun,
     gitStatusToCheckRun,
+    AZURE_REACTIONS,
+    likesOf,
     mapChanges,
     mapPullRequest,
     mergeMethodOf,
@@ -291,5 +293,23 @@ describe('branchSummaries', () => {
         expect(role(pr.createdBy.id)).toBe('author');
         expect(role('someone-else')).toBeUndefined();
         expect(role('aa1')).toBe('involved');
+    });
+});
+
+describe('likesOf', () => {
+    const user = (id: string) => ({ id, displayName: id });
+
+    it('changes the likes of a comment to a thumbs up', () => {
+        expect(likesOf({ usersLiked: [user('a'), user('me')] }, 'me')).toEqual([{ content: 'THUMBS_UP', count: 2, viewerHasReacted: true }]);
+        expect(likesOf({ usersLiked: [user('a')] }, 'me')).toEqual([{ content: 'THUMBS_UP', count: 1, viewerHasReacted: false }]);
+    });
+
+    it('gives no reactions without likes, and does not mark the viewer when the viewer is not known', () => {
+        expect(likesOf({}, 'me')).toEqual([]);
+        expect(likesOf({ usersLiked: [user('me')] }, undefined)[0].viewerHasReacted).toBe(false);
+    });
+
+    it('tells the page that Azure DevOps has only likes', () => {
+        expect(AZURE_REACTIONS).toEqual(['THUMBS_UP']);
     });
 });

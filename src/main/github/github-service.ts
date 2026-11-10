@@ -16,6 +16,7 @@ import {
     type PullRequestFile,
     type PullRequestFilter,
     type PullRequestSummary,
+    type ReactionContent,
     type RepoRef,
     type ReviewEvent,
     type Workflow,
@@ -198,6 +199,11 @@ export class GitHubService {
 
     async setThreadResolved(threadId: string, resolved: boolean): Promise<void> {
         return reviews.setThreadResolved(this.client, threadId, resolved);
+    }
+
+    /** Adds (`on`) or removes a reaction of the user. `subjectId` is the node ID of a comment or a review. */
+    async setReaction(subjectId: string, content: ReactionContent, on: boolean): Promise<void> {
+        return reviews.setReaction(this.client, subjectId, content, on);
     }
 
     async merge(repo: RepoRef, number: number, headSha: string, method: MergeMethod): Promise<void> {

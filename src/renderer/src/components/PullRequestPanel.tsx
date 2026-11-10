@@ -48,6 +48,7 @@ import { HelmLoader } from './HelmLoader';
 import { PullRequestMergeCard } from './PullRequestMergeCard';
 import { PullRequestReviewCard } from './PullRequestReviewCard';
 import { PullRequestConversation, PullRequestThreads } from './PullRequestThreads';
+import { reactionActions } from './Reactions';
 
 export { BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, StateBadge } from './PullRequestParts';
 export { hasConflicts, reviewText } from '../github/merge-state';
@@ -351,7 +352,7 @@ export function PullRequestPanel({
                         <div className="pr-overview-main">
                             {descriptionPart}
                             {changeError}
-                            <PullRequestTimeline pr={pr} onOpenCommit={onOpenCommit} />
+                            <PullRequestTimeline pr={pr} reactions={reactionActions(target, pr)} onOpenCommit={onOpenCommit} />
                             {threadsPart}
                         </div>
                         <aside className="pr-overview-aside">
@@ -371,7 +372,7 @@ export function PullRequestPanel({
                         {metaPart}
                         {changeError}
 
-                        {conversation.length > 0 && <PullRequestConversation items={conversation} />}
+                        {conversation.length > 0 && <PullRequestConversation items={conversation} reactions={reactionActions(target, pr)} />}
 
                         {!overview && pr.commits.length > 0 && (
                             <section className="pr-section">

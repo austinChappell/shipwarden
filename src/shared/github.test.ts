@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+    GITHUB_REACTIONS,
+    reactionKinds,
+    toggledReactions,
     cleanActionsLog,
     latestChecks,
     parseActionsRunId,
@@ -130,5 +133,38 @@ describe('emoji shortcodes', () => {
 
     it('keeps the shortcodes in code', () => {
         expect(withEmoji('`:warning:` and\n```\n:warning:\n```\n:warning:')).toBe('`:warning:` and\n```\n:warning:\n```\n⚠️');
+    });
+});
+
+describe('toggledReactions', () => {
+    const kinds = GITHUB_REACTIONS;
+
+    it('adds a new reaction of the user in the order of the kinds', () => {
+        const start = [{ content: 'HEART' as const, count: 2, viewerHasReacted: false }];
+        expect(toggledReactions(start, 'THUMBS_UP', true, kinds)).toEqual([
+            { content: 'THUMBS_UP', count: 1, viewerHasReacted: true },
+            { content: 'HEART', count: 2, viewerHasReacted: false }
+        ]);
+    });
+
+    it('adds the user to a reaction of other users', () => {
+        const start = [{ content: 'ROCKET' as const, count: 2, viewerHasReacted: false }];
+        expect(toggledReactions(start, 'ROCKET', true, kinds)).toEqual([{ content: 'ROCKET', count: 3, viewerHasReacted: true }]);
+    });
+
+    it('removes a reaction that has no users after the change', () => {
+        const start = [{ content: 'EYES' as const, count: 1, viewerHasReacted: true }];
+        expect(toggledReactions(start, 'EYES', false, kinds)).toEqual([]);
+    });
+
+    it('does not change the count when the user state is already correct', () => {
+        const start = [{ content: 'LAUGH' as const, count: 4, viewerHasReacted: true }];
+        expect(toggledReactions(start, 'LAUGH', true, kinds)).toEqual(start);
+        expect(toggledReactions(undefined, 'LAUGH', false, kinds)).toEqual([]);
+    });
+
+    it('uses the GitHub reactions when the host gives no kinds', () => {
+        expect(reactionKinds({})).toEqual(GITHUB_REACTIONS);
+        expect(reactionKinds({ reactionKinds: ['THUMBS_UP'] })).toEqual(['THUMBS_UP']);
     });
 });

@@ -1,4 +1,13 @@
-import { hostLabel, undecidedCount, type PendingComment, type PullRequest, type PullRequestFile, type ReviewEvent, type ReviewThread } from '@shared/github';
+import {
+    hostLabel,
+    undecidedCount,
+    type PendingComment,
+    type PullRequest,
+    type PullRequestFile,
+    type Reaction,
+    type ReviewEvent,
+    type ReviewThread
+} from '@shared/github';
 
 /** The review events of GitHub, in the order of the buttons. */
 export const GITHUB_REVIEW_EVENTS: ReviewEvent[] = ['COMMENT', 'REQUEST_CHANGES', 'APPROVE'];
@@ -140,12 +149,20 @@ export interface ConversationItem {
     body: string;
     createdAt: string;
     state?: string;
+    /** The reactions of the comment or the review. Undefined when the host gives no reactions. */
+    reactions?: Reaction[];
 }
 
 /** The comments and reviews of the conversation, the oldest first. A review without text or decision is left out. */
 export function conversationOf(pr: PullRequest): ConversationItem[] {
     return [
-        ...pr.issueComments.map(comment => ({ id: comment.id, author: comment.author?.login ?? null, body: comment.body, createdAt: comment.createdAt })),
+        ...pr.issueComments.map(comment => ({
+            id: comment.id,
+            author: comment.author?.login ?? null,
+            body: comment.body,
+            createdAt: comment.createdAt,
+            reactions: comment.reactions
+        })),
         ...pr.reviews
             .filter(review => review.body.trim() || (review.state !== 'COMMENTED' && review.state !== 'DISMISSED'))
             .map(review => ({
@@ -153,7 +170,8 @@ export function conversationOf(pr: PullRequest): ConversationItem[] {
                 author: review.author?.login ?? null,
                 body: review.body,
                 createdAt: review.submittedAt ?? '',
-                state: review.state
+                state: review.state,
+                reactions: review.reactions
             }))
     ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }

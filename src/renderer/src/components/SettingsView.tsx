@@ -72,8 +72,11 @@ interface Props {
     terminal?: TerminalSettings;
     /** The repositories of the active project. Each one has a section with its settings. */
     repos: string[];
-    /** The section to open, for example "repo:<path>" from the settings button of a repository. */
-    initialSection?: string;
+    /**
+     * The section to open, for example "repo:<path>" from the settings button of a repository. A new object selects the
+     * section again.
+     */
+    initialSection?: { id: string };
     /** A new hiding rule for Settings > Dashboard to fill in, from a comment on the Dashboard. */
     rulePrefill?: { author: string; text: string; nonce: number };
     onSave(change: Partial<AppSettings>): Promise<void>;
@@ -88,9 +91,9 @@ export function SettingsView({ settings, mode, terminal, repos, initialSection, 
     const [status, setStatus] = useState<string>();
     const [info, setInfo] = useState<AppInfo>();
     /** The section that the page shows: the requested section, else the last app section that the user selected. */
-    const [section, setSection] = useState<SectionId>(() => (initialSection as SectionId | undefined) ?? readSection());
+    const [section, setSection] = useState<SectionId>(() => (initialSection?.id as SectionId | undefined) ?? readSection());
     useEffect(() => {
-        if (initialSection) setSection(initialSection as SectionId);
+        if (initialSection) setSection(initialSection.id as SectionId);
     }, [initialSection]);
     const selectSection = (id: SectionId) => {
         setSection(id);

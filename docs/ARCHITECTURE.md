@@ -42,6 +42,9 @@ See [RELEASING.md](RELEASING.md). The Release workflow (`.github/workflows/relea
 and publishes a GitHub release with the notes and `shipwarden-update.json`. `UpdateService` (main) reads the latest
 release, and `UpdateNotice` (page) shows it. The install replaces the app bundle after the app quits.
 
+**ShipWarden → Check for Updates…** (⇧⌘U) opens Settings › About and checks for a new release. The About section
+shows the result.
+
 ## Stack
 
 - **Electron 45** with **electron-vite**. ShipWarden is a macOS app first.
@@ -618,6 +621,17 @@ Next:
     When the old lines are not in the file, the suggestion is stale and the file does not change.
     A file with unsaved changes in the editor does not change.
   - The Review view shows suggestions, but it has no "Apply suggestion", because the PR has no worktree there.
+- Reactions (`Reactions`, page):
+  - Review comments, conversation comments and review texts show their reactions, and a button that adds a reaction.
+    A click on a reaction adds the reaction of the user or removes it.
+  - `PullRequest.reactionKinds` tells the page which reactions the host accepts. Undefined means the 8 reactions of
+    GitHub. The picker shows only these reactions. With one reaction, the button adds it at once.
+  - GitHub: `reactionGroups` in the pull request query, and `addReaction` or `removeReaction` with the node ID.
+  - Azure DevOps: a comment has only likes (`usersLiked`). A like shows as a thumbs up. The like goes to
+    `threads/{thread}/comments/{comment}/likes` (POST adds it, DELETE removes it). A vote has no reactions.
+  - The change goes into the cache (`withReaction`). The pull request does not load again. A comment that exists only
+    in the cache (a new reply) shows no reactions until the next load, because the host does not know its ID yet.
+  - A reaction needs no confirmation. The user can remove it with one more click.
 - Viewed files: `viewerViewedState` from GraphQL, changed with `markFileAsViewed` and `unmarkFileAsViewed`.
   The file list shows "x of y viewed". The diff header has a "Viewed" box. The change shows at once and goes back on an error.
 

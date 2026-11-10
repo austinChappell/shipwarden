@@ -28,6 +28,8 @@ import type {
     PullRequestFile,
     PullRequestState,
     PullRequestSummary,
+    Reaction,
+    ReactionContent,
     RequestedReviewer,
     Review,
     ReviewThread
@@ -92,6 +94,8 @@ export interface AzComment {
     publishedDate: string;
     commentType?: 'text' | 'system' | 'codeChange' | 'unknown' | string;
     isDeleted?: boolean;
+    /** The users that like the comment. */
+    usersLiked?: AzIdentity[] | null;
 }
 
 export interface AzFilePosition {
@@ -253,6 +257,16 @@ function repoPath(path: string): string {
     return path.replace(/^\//, '');
 }
 
+/** The reactions that Azure DevOps accepts on a comment. A like shows as a thumbs up. */
+export const AZURE_REACTIONS: ReactionContent[] = ['THUMBS_UP'];
+
+/** Changes the likes of a comment to a thumbs up reaction. */
+export function likesOf(comment: Pick<AzComment, 'usersLiked'>, viewerId: string | undefined): Reaction[] {
+    const users = comment.usersLiked ?? [];
+    if (users.length === 0) return [];
+    return [{ content: 'THUMBS_UP', count: users.length, viewerHasReacted: !!viewerId && users.some(user => user.id === viewerId) }];
+}
+
 /**
  * Splits the threads of a pull request: threads on a file become review threads, and threads without a file become
  * comments of the conversation. System threads (for example "X voted") and deleted comments stay out.
@@ -260,7 +274,8 @@ function repoPath(path: string): string {
 export function mapThreads(
     repo: AzureRepoRef,
     pullRequestId: number,
-    threads: readonly AzThread[]
+    threads: readonly AzThread[],
+    viewerId?: string
 ): { threads: ReviewThread[]; issueComments: IssueComment[] } {
     const web = pullRequestUrl(repo, pullRequestId);
     const reviewThreads: ReviewThread[] = [];
@@ -278,7 +293,8 @@ export function mapThreads(
                 author: userOf(comment.author),
                 body: comment.content ?? '',
                 createdAt: comment.publishedDate,
-                url
+                url,
+                reactions: likesOf(comment, viewerId)
             }));
         if (comments.length === 0) continue;
         const context = thread.threadContext;
@@ -336,7 +352,7 @@ export interface PullRequestParts {
 export function mapPullRequest(parts: PullRequestParts): PullRequest {
     const { repo, pr, viewerId } = parts;
     const reviewers = pr.reviewers ?? [];
-    const { threads, issueComments } = mapThreads(repo, pr.pullRequestId, parts.threads);
+    const { threads, issueComments } = mapThreads(repo, pr.pullRequestId, parts.threads, viewerId);
     const url = pullRequestUrl(repo, pr.pullRequestId);
     const reviews: Review[] = reviewers.flatMap(reviewer => {
         const state = reviewStateForVote(reviewer.vote);
@@ -396,6 +412,7 @@ export function mapPullRequest(parts: PullRequestParts): PullRequest {
         viewerCanMerge: true,
         host: 'azure',
         reviewEvents: AZURE_REVIEW_EVENTS,
+        reactionKinds: AZURE_REACTIONS,
         hasAssignees: false
     };
 }

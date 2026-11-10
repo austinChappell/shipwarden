@@ -2,6 +2,7 @@ import { join } from 'path';
 import { app, BrowserWindow, Menu, protocol } from 'electron';
 import * as os from 'os';
 import { IpcChannels } from '@shared/api';
+import { AZURE_IMAGE_SCHEME } from '@shared/azure-image-url';
 import { FILE_SCHEME } from '@shared/file-url';
 import { appKeyAction, shortcutAction, type AppKeyAction, type ShortcutAction } from '@shared/shortcuts';
 import { removeAgentSessionVariables } from './agent-environment';
@@ -9,6 +10,7 @@ import { writeAgentHookFiles } from './agents/hook-files';
 import { browserViewKey } from './app/keys';
 import { MainWindow } from './app/main-window';
 import { menuTemplate } from './app/menu';
+import { createAzureImageHandler } from './azure/azure-image-protocol';
 import { quitAndStopSessions } from './app/quit';
 import { createFileProtocolHandler } from './files/file-protocol';
 import { registerIpc } from './ipc';
@@ -30,7 +32,11 @@ if (process.env.SHIPWARDEN_DEBUG_PORT) {
 
 // The viewers of images, PDF, audio and video files get the files through this protocol.
 // The scheme must be privileged before the app is ready. "stream" lets <video> and <audio> read byte ranges.
-protocol.registerSchemesAsPrivileged([{ scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+// The Markdown of Azure DevOps gets its images through the second protocol, because these images require a token.
+protocol.registerSchemesAsPrivileged([
+    { scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+    { scheme: AZURE_IMAGE_SCHEME, privileges: { standard: true, secure: true } }
+]);
 
 const mainWindow = new MainWindow();
 const services = createServices({ window: mainWindow, mainFolder: __dirname, onBrowserInput: (id, input) => browserKey(id, input) });
@@ -61,13 +67,19 @@ function createWindow(): void {
     });
 }
 
-/** Shows the window and opens the settings page. */
-function openSettings(): void {
+/** Shows the window and opens the settings page. A section, for example "about", opens that section. */
+function openSettings(section?: string): void {
     if (!mainWindow.get()) {
         createWindow();
     }
     mainWindow.get()?.show();
-    mainWindow.send(IpcChannels.appOpenSettings);
+    mainWindow.send(IpcChannels.appOpenSettings, section);
+}
+
+/** Opens Settings › About and checks for updates. The About section shows the result of the check. */
+function checkForUpdates(): void {
+    openSettings('about');
+    void services.updates.check();
 }
 
 function sendShortcut(action: ShortcutAction): void {
@@ -84,11 +96,12 @@ function quitAndStop(): Promise<void> {
     });
 }
 
-/** Runs an app key of the macOS menu: ⌘Q, ⇧⌥⌘Q, ⌘, or ⌘H. */
+/** Runs an app key of the macOS menu: ⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U or ⌘H. */
 function runAppKey(action: AppKeyAction): void {
     if (action === 'quit') app.quit();
     else if (action === 'quitAndStop') void quitAndStop();
     else if (action === 'settings') openSettings();
+    else if (action === 'checkForUpdates') checkForUpdates();
     else if (action === 'hide') app.hide();
 }
 
@@ -127,12 +140,20 @@ function browserKey(id: string, input: Electron.Input): boolean {
 app.whenReady().then(async () => {
     await services.projects.load();
     mainWindow.applyAppearance((await settings.get()).appearance);
-    Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate({ openSettings, quitAndStopSessions: () => void quitAndStop(), sendShortcut })));
+    Menu.setApplicationMenu(
+        Menu.buildFromTemplate(
+            menuTemplate({ openSettings: () => openSettings(), checkForUpdates, quitAndStopSessions: () => void quitAndStop(), sendShortcut })
+        )
+    );
     writeAgentHookFiles(services.hookPaths, services.shellIntegration, join(app.getPath('userData'), 'shell-integration'));
     services.shellAgents.start();
     protocol.handle(
         FILE_SCHEME,
         createFileProtocolHandler(worktree => services.projectWorktrees.check(worktree))
+    );
+    protocol.handle(
+        AZURE_IMAGE_SCHEME,
+        createAzureImageHandler((organization, url, accept) => services.reviewProviders.azureFile(organization, url, accept))
     );
     registerIpc(services, runAppKey);
     createWindow();
