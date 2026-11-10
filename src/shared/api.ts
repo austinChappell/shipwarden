@@ -384,6 +384,8 @@ export interface ShipWardenApi {
         missing(root: string, languageId: string): Promise<LspMissingServer | undefined>;
         request(key: string, method: string, params: unknown): Promise<unknown>;
         notify(key: string, method: string, params: unknown): void;
+        /** Sends the result of a server request that has an `id`, for example "workspace/applyEdit". */
+        respond(id: number, result: unknown): void;
         onMessage(listener: (message: LspServerMessage) => void): () => void;
     };
     processes: {
@@ -564,6 +566,7 @@ export const IpcChannels = {
     lspMissing: 'lsp:missing',
     lspRequest: 'lsp:request',
     lspNotify: 'lsp:notify',
+    lspRespond: 'lsp:respond',
     lspMessage: 'lsp:message',
     terminalsSettings: 'terminals:settings',
     terminalsList: 'terminals:list',

@@ -537,19 +537,31 @@ Done:
 
 - `LspManager` (main process) starts one server for each worktree and language, with the worktree as `rootUri`.
   It answers the server's requests (configuration, workspace folders) and sends diagnostics to the UI.
+  It sends `workspace/applyEdit` requests to the UI with an `id` and waits up to 30 seconds for `lsp.respond`.
 - Servers:
   - TypeScript and JavaScript: `tsc --lsp --stdio` from TypeScript 7. ShipWarden uses the worktree's own TypeScript if it is version 7 or later. If not, it uses the TypeScript 7 that ShipWarden includes.
   - Rust: `rust-analyzer`. Python: `basedpyright-langserver` or `pyright-langserver`. Go: `gopls`. These must be in the PATH.
 - The main process reads the PATH of the login shell at start. An app that starts from Finder does not get it.
 - `LspBridge` (renderer) syncs each Monaco model in a worktree with incremental changes.
-  It registers Monaco providers for definition, type definition, implementation, references, hover, document highlights and completion.
+  It registers Monaco providers for definition, type definition, implementation, references, hover, document highlights,
+  completion, rename and code actions.
   It routes each request to the server of the worktree that contains the file.
+- Rename: the bridge sends `textDocument/prepareRename` when the server supports it, then `textDocument/rename`.
+- Code actions: the bridge sends `textDocument/codeAction` with the original LSP diagnostics. Each Monaco action runs the
+  command `shipwarden.lsp.applyCodeAction`. This command sends `codeAction/resolve` when the action has no edit,
+  applies the edit and sends `workspace/executeCommand` for the action's command.
+- Workspace edits (`LspBridge.applyWorkspaceEdit`): the bridge checks all files first. Then it changes them.
+  - A file in the document store gets the edit in its Monaco model, so undo works. A model without unsaved changes is saved.
+  - Other files of a worktree get the edit on the disk (`files.read`, then `files.write`).
+  - The bridge refuses the full edit for a file outside the worktrees, a file operation (create, rename, delete),
+    overlapping edits, or a document version that changed.
 - Diagnostics: the bridge pulls them (`textDocument/diagnostic`) after each change and also accepts pushed diagnostics.
 - "Go to definition" into another file opens that file in a ShipWarden tab. Peek views load the models of the result files first.
 
 Next:
 
-- Rename, code actions and signature help from the servers.
+- Signature help from the servers.
+- File operations in workspace edits. An error message in the editor when a code action fails.
 - Downloads of language servers that are not installed.
 
 ### GitHub (goals 3 and 4)

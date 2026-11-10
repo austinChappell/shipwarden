@@ -29,7 +29,8 @@ ShipWarden is an Electron app. It can open a repository, create and remove workt
 and run Claude Code or a shell in each worktree. The terminals use Ghostty's terminal
 engine (ghostty-web) and your Ghostty config. A Files panel shows the worktree, filters
 file names, searches file contents and opens files in a Monaco editor. Language servers
-give go to definition, find references, hover, completion and diagnostics. TypeScript works
+give go to definition, find references, hover, completion, diagnostics, rename and quick
+fixes (code actions). TypeScript works
 with no setup. Rust, Python and Go need their language server in your PATH.
 
 The right panel also shows the pull request of the worktree's branch and its GitHub Actions
