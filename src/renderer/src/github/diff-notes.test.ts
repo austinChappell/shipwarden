@@ -13,6 +13,7 @@ import {
     isFileOpen,
     lineAnnotations,
     nextMatchIndex,
+    seekDelta,
     selectionLines,
     threadsWithLine,
     toSide,
@@ -164,5 +165,34 @@ describe('composer modes', () => {
         expect(composerPlaceholder('ask', 'lines 3–5')).toBe('Ask the agent about lines 3–5');
         expect(composerPlaceholder('note', 'line 3')).toBe('Tell the agent what to do with line 3');
         expect(['comment', 'ask', 'note'].map(mode => composerSubmitLabel(mode as 'comment'))).toEqual(['Add review comment', 'Ask agent', 'Send to agent']);
+    });
+});
+
+describe('seekDelta', () => {
+    const rendered = [
+        { line: 10, top: 100 },
+        { line: 11, top: 120 },
+        { line: 20, top: 300 }
+    ];
+
+    it('scrolls down to a line after the lines that show', () => {
+        // Line 50 is 30 lines after line 20, at 20 px for each line: 300 + 600 = 900. The center is at 400.
+        expect(seekDelta(50, rendered, 400)).toBe(500);
+    });
+
+    it('scrolls up to a line before the lines that show', () => {
+        expect(seekDelta(5, rendered, 400)).toBe(-400);
+    });
+
+    it('returns undefined for a line between the lines that show', () => {
+        expect(seekDelta(15, rendered, 400)).toBeUndefined();
+    });
+
+    it('returns undefined when no line shows', () => {
+        expect(seekDelta(15, [], 400)).toBeUndefined();
+    });
+
+    it('uses a default line height when only one line shows', () => {
+        expect(seekDelta(12, [{ line: 10, top: 0 }], 0)).toBe(40);
     });
 });

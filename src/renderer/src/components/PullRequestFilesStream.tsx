@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtualizer } from '@pierre/diffs/react';
-import { Bot, ChevronRight, FileCode, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import type { PullRequest, PullRequestFile, RepoTarget } from '@shared/github';
+import { Bot, ChevronDown, ChevronRight, ChevronUp, FileCode, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import type { DiffSide, PullRequest, PullRequestFile, RepoTarget } from '@shared/github';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { CopyButton } from './CopyButton';
 import { radioGroupKeys } from './keyboard';
 import { askPrompt, lineLabel, sliceLines } from '@shared/ask-agent';
 import { searchPatches, type PatchMatch } from '@shared/pr-search';
-import { isCommentKey } from '@shared/shortcuts';
+import { isCommentKey, pendingCommentStep } from '@shared/shortcuts';
 import {
     addLoaded,
     answerQuestion,
@@ -19,10 +19,10 @@ import {
     type AgentQuestion,
     type QuestionAction
 } from '../github/agent-questions';
-import { allFilesOpen, currentMatchIndex, isFileOpen, nextMatchIndex, type Composer } from '../github/diff-notes';
-import { openCommentCount } from '../github/review-state';
+import { allFilesOpen, currentMatchIndex, isFileOpen, nextMatchIndex, seekDelta, type Composer } from '../github/diff-notes';
+import { nextPendingIndex, openCommentCount, pendingOrder } from '../github/review-state';
 import { readStyle, STYLE_KEY, useColorMode, useMetaKey, type DiffStyle } from './diff-style';
-import { FindBar, findLineElement } from './FindBar';
+import { FindBar, findLineElement, renderedLines } from './FindBar';
 import { FileBody } from './PullRequestFileBody';
 
 export { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './diff-style';
@@ -32,8 +32,11 @@ interface Props {
     target: RepoTarget;
     pr: PullRequest;
     files: PullRequestFile[] | undefined;
-    /** A file to show: it opens and scrolls into view. A new `nonce` does it again. */
-    scrollTo?: { path: string; nonce: number };
+    /**
+     * A file to show: it opens and scrolls into view. A new `nonce` does it again.
+     * With `line`, the comment on that line comes into view. Without a comment, the line comes into view.
+     */
+    scrollTo?: { path: string; nonce: number; line?: number; side?: DiffSide };
     onRefresh(): Promise<void>;
     onError(message: string): void;
     /** A request to open the search bar (⌘F). A new value opens it again and selects its text. */
@@ -46,6 +49,17 @@ interface Props {
     onOpenFile?(path: string): void;
     /** Sends a prompt to an agent. Without it, the review threads have no "Send to agent" button. */
     onSendToAgent?(prompt: string): void;
+}
+
+/** Returns true when a key goes to a field that takes text. */
+function isTextField(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return (
+        target.isContentEditable ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLInputElement && !['checkbox', 'radio', 'button'].includes(target.type))
+    );
 }
 
 /**
@@ -77,6 +91,8 @@ export function PullRequestFilesStream({
     const [composer, setComposer] = useState<Composer & { path: string }>();
     const [questions, setQuestions] = useState<AgentQuestion[]>([]);
     const [answersOpen, setAnswersOpen] = useState(false);
+    /** The index of the pending comment that the ↑ and ↓ buttons showed last. Undefined before the first click. */
+    const [pendingIndex, setPendingIndex] = useState<number>();
     const [findOpen, setFindOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [caseSensitive, setCaseSensitive] = useState(false);
@@ -101,6 +117,7 @@ export function PullRequestFilesStream({
         setComposer(undefined);
         setQuestions([]);
         setAnswersOpen(false);
+        setPendingIndex(undefined);
         if (!repo) return;
         let active = true;
         window.shipwarden.ask
@@ -206,23 +223,126 @@ export function PullRequestFilesStream({
         if (findRequest) setFindOpen(true);
     }, [findRequest]);
 
-    /** Opens the file of a match and scrolls its line into view. The line can render some frames later. */
-    const reveal = (match: Pick<PatchMatch, 'path' | 'side' | 'line'>) => {
-        setOpen(map => ({ ...map, [match.path]: true }));
+    /** The number of the last reveal request. A new request stops the loop of the request before it. */
+    const revealRun = useRef(0);
+
+    /**
+     * Opens a file and scrolls a line to the center of the view. The diff renders only the lines near the view.
+     * Each frame, the loop estimates the position of the line from the lines that show, and scrolls to it.
+     * With `note`, the comment zone on the line comes into view and flashes. `nth` selects one of more zones on the same line.
+     */
+    const reveal = (target: { path: string; line: number; side?: DiffSide; note?: { kind?: 'pending' | 'thread'; nth?: number } }) => {
+        setOpen(map => ({ ...map, [target.path]: true }));
+        const run = ++revealRun.current;
+        const side = target.side ?? 'RIGHT';
+        const note = target.note;
+        const selector =
+            note &&
+            `.stream-zone[data-line="${target.line}"]${target.side ? `[data-side="${target.side}"]` : ''}${note.kind ? `[data-note="${note.kind}"]` : ''}`;
         let tries = 0;
+        /** The count of frames to wait after a scroll. The diff renders the new lines in the next frames. */
+        let wait = 0;
+        /** The line or the nearest line that the loop found. The loop stops on it when the zone does not show. */
+        let fallback: HTMLElement | undefined;
+        const finish = (element: HTMLElement, flash: boolean) => {
+            element.scrollIntoView({ block: 'center' });
+            if (!flash) return;
+            element.classList.remove('note-flash');
+            void element.offsetWidth;
+            element.classList.add('note-flash');
+        };
         const step = () => {
-            const section = sections.current.get(match.path);
-            const element = section && findLineElement(section, match.side, match.line);
-            if (element) {
-                element.scrollIntoView({ block: 'center' });
+            if (run !== revealRun.current) return;
+            if (++tries > 90) {
+                if (fallback) finish(fallback, false);
                 return;
             }
-            // The virtual list renders only the files near the view. Scroll to the file, then look for the line again.
-            if (tries === 0) section?.scrollIntoView({ block: 'start' });
-            if (++tries < 30) requestAnimationFrame(step);
+            if (wait > 0) {
+                wait--;
+                requestAnimationFrame(step);
+                return;
+            }
+            const section = sections.current.get(target.path);
+            if (!section) {
+                requestAnimationFrame(step);
+                return;
+            }
+            // A zone is in the DOM before its line renders. It has a box only when its line shows.
+            const zone = selector ? section.querySelectorAll<HTMLElement>(selector)[note?.nth ?? 0] : undefined;
+            if (zone && zone.getClientRects().length > 0) {
+                finish(zone, true);
+                return;
+            }
+            const line = findLineElement(section, side, target.line);
+            if (line) {
+                if (!selector) {
+                    finish(line, false);
+                    return;
+                }
+                // The zone shows in a later frame.
+                fallback = line;
+                line.scrollIntoView({ block: 'center' });
+                requestAnimationFrame(step);
+                return;
+            }
+            const rendered = renderedLines(section);
+            const scroller = section.closest<HTMLElement>('.files-stream-scroll');
+            if (!rendered.length || !scroller) {
+                // The file does not show. Scroll to the file first.
+                section.scrollIntoView({ block: 'start' });
+                wait = 2;
+                requestAnimationFrame(step);
+                return;
+            }
+            const box = scroller.getBoundingClientRect();
+            const delta = seekDelta(target.line, rendered, box.top + box.height / 2);
+            if (delta !== undefined && Math.abs(delta) >= 1) {
+                scroller.scrollBy({ top: delta });
+                wait = 2;
+                requestAnimationFrame(step);
+                return;
+            }
+            // The line is between lines that show, but it is not in the diff (for example, in a collapsed part).
+            // Stop on the nearest line.
+            const nearest = rendered.reduce((best, item) => (Math.abs(item.line - target.line) < Math.abs(best.line - target.line) ? item : best));
+            const element = findLineElement(section, side, nearest.line) ?? findLineElement(section, side === 'LEFT' ? 'RIGHT' : 'LEFT', nearest.line);
+            if (element) finish(element, false);
         };
         requestAnimationFrame(step);
     };
+
+    const pendingStops = pendingOrder(review.pending, files);
+    const pendingCurrent = pendingIndex === undefined || !pendingStops.length ? undefined : Math.min(pendingIndex, pendingStops.length - 1);
+
+    /** Shows the next (↓) or the previous (↑) pending comment, in the order of the files and the lines. */
+    const movePending = (step: 1 | -1) => {
+        if (!pendingStops.length) return;
+        const next = nextPendingIndex(pendingCurrent, pendingStops.length, step);
+        setPendingIndex(next);
+        const { comment, nth } = pendingStops[next];
+        reveal({ path: comment.path, line: comment.line, side: comment.side, note: { kind: 'pending', nth } });
+    };
+    const rootRef = useRef<HTMLDivElement>(null);
+    const movePendingRef = useRef(movePending);
+    movePendingRef.current = movePending;
+
+    // N shows the next pending comment and P shows the previous one. A key in a text field types the letter.
+    // The keys apply when the focus is on the pull request page or on the page body.
+    useEffect(() => {
+        const onKey = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || isTextField(event.target)) return;
+            const step = pendingCommentStep(event);
+            if (!step) return;
+            const target = event.target;
+            const inside = target === document.body || (target instanceof Element && !!target.closest('.review-pr'));
+            // A hidden view keeps the stream. Its root then has no box.
+            if (!inside || !rootRef.current?.getClientRects().length) return;
+            event.preventDefault();
+            movePendingRef.current(step);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
 
     // A new search text goes to the first match.
     // biome-ignore lint/correctness/useExhaustiveDependencies: Only a new search text or case option moves to the first match. A file refresh must not move it.
@@ -241,6 +361,10 @@ export function PullRequestFilesStream({
     // biome-ignore lint/correctness/useExhaustiveDependencies: Each new nonce is one scroll request. A new object with the same nonce must not scroll again.
     useEffect(() => {
         if (!scrollTo) return;
+        if (scrollTo.line !== undefined) {
+            reveal({ path: scrollTo.path, line: scrollTo.line, side: scrollTo.side, note: {} });
+            return;
+        }
         setOpen(map => ({ ...map, [scrollTo.path]: true }));
         requestAnimationFrame(() => sections.current.get(scrollTo.path)?.scrollIntoView({ block: 'start' }));
     }, [scrollTo?.nonce]);
@@ -288,7 +412,7 @@ export function PullRequestFilesStream({
     };
 
     return (
-        <div className={`files-stream${armed ? ' goto-armed' : ''}`} onKeyDown={commentKey}>
+        <div ref={rootRef} className={`files-stream${armed ? ' goto-armed' : ''}`} onKeyDown={commentKey}>
             {findOpen && (
                 <FindBar
                     query={query}
@@ -317,6 +441,20 @@ export function PullRequestFilesStream({
                     {viewedCount} of {files.length} viewed
                 </span>
                 <span className="header-spacer" />
+                {pendingStops.length > 0 && (
+                    <div className="pending-stepper" role="group" aria-label="Pending comments">
+                        <MessageSquare size={12} strokeWidth={1.6} />
+                        <span className="pending-stepper-count">
+                            {pendingCurrent === undefined ? `${pendingStops.length} pending` : `${pendingCurrent + 1} of ${pendingStops.length} pending`}
+                        </span>
+                        <button className="icon-button" title="Go to the previous pending comment (P)" onClick={() => movePending(-1)}>
+                            <ChevronUp size={14} strokeWidth={1.8} />
+                        </button>
+                        <button className="icon-button" title="Go to the next pending comment (N)" onClick={() => movePending(1)}>
+                            <ChevronDown size={14} strokeWidth={1.8} />
+                        </button>
+                    </div>
+                )}
                 {onGoToDefinition && <span className="files-stream-hint">⌘-click a name to go to its definition</span>}
                 {answered.length > 0 && (
                     <div className="answers-menu">

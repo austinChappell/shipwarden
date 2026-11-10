@@ -7654,6 +7654,34 @@ body.resizing-column * {
     color: var(--muted);
 }
 
+/* The ↑ and ↓ buttons that go through the pending comments. */
+.pending-stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: var(--muted);
+}
+
+.pending-stepper-count {
+    margin: 0 4px 0 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* A comment that a reveal scrolled to. */
+.stream-zone.note-flash {
+    animation: note-flash 1.2s ease-out;
+    border-radius: 6px;
+}
+
+@keyframes note-flash {
+    from {
+        box-shadow: 0 0 0 2px var(--accent);
+    }
+    to {
+        box-shadow: 0 0 0 2px transparent;
+    }
+}
+
 .files-stream-scroll {
     flex: 1;
     min-height: 0;

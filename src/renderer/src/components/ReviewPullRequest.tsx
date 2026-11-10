@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, LoaderCircle, RefreshCw, X } from 'lucide-react';
-import type { BranchStatus, CheckRun, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
+import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
@@ -178,7 +178,7 @@ export function ReviewPullRequest({
     const [tab, setTab] = useState<ReviewTab>(readTab);
     const inProject = useRepoInProject(repo, projects);
     const [pullOpen, setPullOpen] = useState(false);
-    const [file, setFile] = useState<{ file: PullRequestFile; line?: number; nonce: number }>();
+    const [file, setFile] = useState<{ file: PullRequestFile; line?: number; side?: DiffSide; nonce: number }>();
     const [check, setCheck] = useState<CheckRun>();
     const [fileError, setFileError] = useState<string>();
     const [findRequest, setFindRequest] = useState<number>();
@@ -329,8 +329,8 @@ export function ReviewPullRequest({
         );
     }
 
-    const openFile = (target: PullRequestFile, line?: number) => {
-        setFile({ file: target, line, nonce: Date.now() });
+    const openFile = (target: PullRequestFile, line?: number, side?: DiffSide) => {
+        setFile({ file: target, line, side, nonce: Date.now() });
         selectTab('files');
     };
     const current = file && files?.find(item => item.path === file.file.path);
@@ -461,7 +461,7 @@ export function ReviewPullRequest({
                             loading={loading}
                             error={error}
                             onRefresh={onRefresh}
-                            onOpenDiff={(_pr, target, line) => openFile(target, line)}
+                            onOpenDiff={(_pr, target, line, side) => openFile(target, line, side)}
                             checks={checkCounts}
                             onSendToAgent={sendToAgent}
                             onSendChecksToAgent={inProject && onSendChecksToAgent ? checks => onSendChecksToAgent(pr, checks) : undefined}
@@ -562,7 +562,7 @@ export function ReviewPullRequest({
                                     target={repo}
                                     pr={pr}
                                     files={files}
-                                    scrollTo={file && { path: file.file.path, nonce: file.nonce }}
+                                    scrollTo={file && { path: file.file.path, line: file.line, side: file.side, nonce: file.nonce }}
                                     findRequest={findRequest}
                                     fileList={{ open: fileListOpen, toggle: toggleFileList }}
                                     onRefresh={onRefresh}

@@ -1,6 +1,6 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Bot, Check, LoaderCircle, MessageSquare } from 'lucide-react';
-import type { PendingComment, PullRequest, PullRequestFile, ReviewEvent } from '@shared/github';
+import type { DiffSide, PendingComment, PullRequest, PullRequestFile, ReviewEvent } from '@shared/github';
 import { decisionEvents, firstUndecided, pendingText, REVIEW_EVENT_TEXT, reviewButtons, reviewEvents, undecidedText } from '../github/review-state';
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
     files: PullRequestFile[] | undefined;
     busy: boolean;
     onSubmit(event: ReviewEvent): void;
-    onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number): void;
+    onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number, side?: DiffSide): void;
     /** Starts an agent review. Without it, the card has no link for an agent review. */
     agentReview?: { running: boolean; run(): void };
 }
@@ -59,7 +59,7 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
             {first && firstFile && (
                 <>
                     {' '}
-                    <button className="link-button" onClick={() => onOpenDiff(pr, firstFile, first.comment.line)}>
+                    <button className="link-button" onClick={() => onOpenDiff(pr, firstFile, first.comment.line, first.comment.side)}>
                         Show the first one
                     </button>
                 </>

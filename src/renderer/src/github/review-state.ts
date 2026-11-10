@@ -65,6 +65,40 @@ export function firstUndecided(
     return comment && { comment, file: files?.find(file => file.path === comment.path) };
 }
 
+/** A pending comment in the list that the ↑ and ↓ buttons go through. */
+export interface PendingStop {
+    comment: PendingComment;
+    /** The count of pending comments before this comment on the same line and side. */
+    nth: number;
+}
+
+/**
+ * Returns the pending comments in the order of the files and then of the lines.
+ * A comment on a file that is not in the list goes to the end.
+ * Comments on the same line keep their order.
+ */
+export function pendingOrder(pending: PendingComment[], files: PullRequestFile[] | undefined): PendingStop[] {
+    const fileIndex = new Map((files ?? []).map((file, index) => [file.path, index]));
+    const position = (comment: PendingComment) => fileIndex.get(comment.path) ?? Number.MAX_SAFE_INTEGER;
+    const sorted = [...pending].sort((a, b) => position(a) - position(b) || a.path.localeCompare(b.path) || a.line - b.line);
+    const seen = new Map<string, number>();
+    return sorted.map(comment => {
+        const key = `${comment.path}\n${comment.side}\n${comment.line}`;
+        const nth = seen.get(key) ?? 0;
+        seen.set(key, nth + 1);
+        return { comment, nth };
+    });
+}
+
+/**
+ * Returns the index of the next or the previous pending comment. The list wraps at the two ends.
+ * Without a current index, ↓ goes to the first comment and ↑ goes to the last comment.
+ */
+export function nextPendingIndex(index: number | undefined, count: number, step: 1 | -1): number {
+    if (index === undefined) return step === 1 ? 0 : count - 1;
+    return (Math.min(index, count - 1) + step + count) % count;
+}
+
 /** The question before the user submits a review. */
 export function reviewConfirmTitle(pr: PullRequest, event: ReviewEvent, pendingCount: number): string {
     const pending = pendingCount ? ` with ${pendingCount} inline comment(s)` : '';
