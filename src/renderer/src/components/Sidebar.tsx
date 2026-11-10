@@ -40,6 +40,7 @@ import { NewWorktreeDialog, type NewWorktreeRequest } from './NewWorktreeDialog'
 import { worktreeLabel } from '@shared/worktrees';
 import { useAgentSessions } from '../terminal/agent-state-store';
 import { onSidebarFocusRequest, takeSidebarFocusRequest } from '../sidebar-focus';
+import { moveIndex, reorderKeyDelta } from './reorder';
 
 /** The selector of the sidebar items. The Up and Down arrow keys move the focus between them. */
 const SIDEBAR_ITEM = '[data-sidebar-item]';
@@ -179,6 +180,7 @@ interface DropTarget {
 /**
  * Drag and drop to change the order of a list. `onMove` gets the key of the dragged item and its new index.
  * The returned `itemProps` go on each item. `dropClass` gives the class that shows the drop line.
+ * The `onKeyDown` handler of each item calls `moveByKey`, so Alt+Up and Alt+Down move the item from the keyboard.
  */
 function useReorder(keys: readonly string[], onMove: (key: string, toIndex: number) => void, enabled = true) {
     const [dragged, setDragged] = useState<string>();
@@ -191,6 +193,7 @@ function useReorder(keys: readonly string[], onMove: (key: string, toIndex: numb
 
     const itemProps = (key: string) => enabled ? {
         draggable: true,
+        'aria-keyshortcuts': 'Alt+ArrowUp Alt+ArrowDown',
         onDragStart: (event: DragEvent) => {
             event.dataTransfer.effectAllowed = 'move';
             event.dataTransfer.setData('text/plain', key);
@@ -223,7 +226,34 @@ function useReorder(keys: readonly string[], onMove: (key: string, toIndex: numb
         return target?.key === key ? (target.after ? ' drop-after' : ' drop-before') : '';
     };
 
-    return { itemProps, dropClass };
+    /** The item that a key moved. It gets the focus again when the list shows the new order. */
+    const moved = useRef<{ element: HTMLElement; key: string; to: number } | undefined>(undefined);
+    useEffect(() => {
+        const item = moved.current;
+        if (!item || keys.indexOf(item.key) !== item.to) return;
+        moved.current = undefined;
+        if (item.element.isConnected && document.activeElement !== item.element) item.element.focus();
+        item.element.scrollIntoView({ block: 'nearest' });
+    }, [keys]);
+
+    /** Alt+Up and Alt+Down move the item one place. Returns true when the handler used the key. */
+    const moveByKey = (event: ReactKeyboardEvent<HTMLElement>, key: string): boolean => {
+        const delta = enabled ? reorderKeyDelta(event) : undefined;
+        if (delta === undefined) return false;
+        event.preventDefault();
+        event.stopPropagation();
+        const to = moveIndex(keys, key, delta);
+        if (to !== undefined) {
+            moved.current = { element: event.currentTarget, key, to };
+            onMove(key, to);
+        }
+        return true;
+    };
+
+    /** The tooltip text that tells how to change the order. Undefined when the order cannot change. */
+    const hint = enabled ? 'Drag, or press ⌥↑ or ⌥↓, to change the order' : undefined;
+
+    return { itemProps, dropClass, moveByKey, hint };
 }
 
 /**
@@ -342,8 +372,9 @@ function ProjectSwitcher(props: Props) {
                             key={project.id}
                             role="menuitem"
                             className={`project-menu-item${reorder.dropClass(project.id)}`}
-                            title={projects.projects.length > 1 ? 'Drag to change the order' : undefined}
+                            title={reorder.hint}
                             {...reorder.itemProps(project.id)}
+                            onKeyDown={event => reorder.moveByKey(event, project.id)}
                             onClick={() => {
                                 close();
                                 if (project.id !== projects.activeId) {
@@ -418,10 +449,14 @@ interface RepoGroupProps {
     /** The drag and drop handlers of the header, and the class that shows the drop line. */
     dragProps: object;
     dropClass: string;
+    /** Moves the repository one place for Alt+Up and Alt+Down. Returns true when it used the key. */
+    moveByKey(event: ReactKeyboardEvent<HTMLElement>): boolean;
+    /** The tooltip text that tells how to change the order. */
+    reorderHint?: string;
 }
 
 /** One repository: a header that collapses, and its worktrees. */
-function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, total, dragProps, dropClass }: RepoGroupProps) {
+function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, total, dragProps, dropClass, moveByKey, reorderHint }: RepoGroupProps) {
     const { sessions, selectedPath } = parent;
     const summaries = parent.summaries[repo] ?? {};
     const [creating, setCreating] = useState(false);
@@ -519,13 +554,14 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
             <div
                 className={`repo-header${holdsSelection ? ' holds-selection' : ''}${dropClass}`}
                 {...dragProps}
-                title={holdsSelection ? `${repo}\nThe selected worktree is in this repository.` : repo}
+                title={[repo, holdsSelection && 'The selected worktree is in this repository.', reorderHint].filter(Boolean).join('\n')}
                 tabIndex={0}
                 role="button"
                 data-sidebar-item
                 aria-expanded={!collapsed}
                 onClick={onToggle}
                 onKeyDown={event => {
+                    if (event.target === event.currentTarget && moveByKey(event)) return;
                     // Left collapses the repository and Right expands it, as in a tree.
                     if (event.target === event.currentTarget && ((event.key === 'ArrowLeft' && !collapsed) || (event.key === 'ArrowRight' && collapsed))) {
                         event.preventDefault();
@@ -777,6 +813,8 @@ export function Sidebar(outerProps: Props) {
                         total={total}
                         dragProps={reorder.itemProps(repo)}
                         dropClass={reorder.dropClass(repo)}
+                        moveByKey={event => reorder.moveByKey(event, repo)}
+                        reorderHint={reorder.hint}
                     />
                 ))}
                 {search && groups.length === 0 && <li className="repo-empty repo-no-match">No repositories or worktrees match “{query.trim()}”.</li>}
