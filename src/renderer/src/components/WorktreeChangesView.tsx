@@ -9,6 +9,7 @@ import { gitChanged, onGitChanged, useGitChanges } from '../git/git-store';
 import { errorText } from '../util';
 import { confirmDiscard } from './ChangesPanel';
 import { FindBar, findLineElement, readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './PullRequestFilesStream';
+import { radioGroupKeys } from './keyboard';
 
 interface Props {
     worktree: string;
@@ -296,9 +297,9 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
                         <button className="link-button" onClick={() => setOpen(Object.fromEntries(entries.map(entry => [entry.key, true])))}>Expand all</button>
                     </>
                 )}
-                <div className="segmented compact" role="radiogroup" aria-label="Diff layout">
-                    <button className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
-                    <button className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
+                <div className="segmented compact" role="radiogroup" aria-label="Diff layout" onKeyDown={radioGroupKeys}>
+                    <button role="radio" aria-checked={diffStyle === 'unified'} className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
+                    <button role="radio" aria-checked={diffStyle === 'split'} className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
                 </div>
                 <button
                     className="icon-button"

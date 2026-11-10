@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { folderBaseName, folderNameError, folderPathError, joinNotePath, parentFolder, noteMatches, noteNameError, normalizeTags, notePathError, splitNotePath, tagOptions, uniqueNoteName, type NoteInfo } from './notes';
+import { folderBaseName, folderMoveTargets, folderNameError, folderPathError, joinNotePath, parentFolder, noteMatches, noteNameError, normalizeTags, notePathError, splitNotePath, tagOptions, uniqueNoteName, type NoteInfo } from './notes';
 
 describe('noteNameError', () => {
     it('accepts a file name with any extension', () => {
@@ -82,5 +82,12 @@ describe('note paths', () => {
         expect(folderPathError('a//b')).toMatch(/Type a folder name/);
         expect(notePathError('.hidden/a.md')).toMatch(/dot/);
         expect(folderNameError('')).toMatch(/Type a folder name/);
+    });
+});
+
+describe('folderMoveTargets', () => {
+    it('removes the folder and the folders in it', () => {
+        expect(folderMoveTargets(['a', 'a/b', 'ab', 'c', 'c/a'], 'a')).toEqual(['ab', 'c', 'c/a']);
+        expect(folderMoveTargets(['a', 'a/b', 'a/b/c'], 'a/b')).toEqual(['a']);
     });
 });

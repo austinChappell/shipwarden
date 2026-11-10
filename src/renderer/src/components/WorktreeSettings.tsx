@@ -5,6 +5,7 @@ import { DEFAULT_COPY_EXCLUDE, DEFAULT_COPY_PATTERNS, type CopyIgnoredSettings, 
 import { WORKTREE_SORT_LABELS, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { radioGroupKeys } from './keyboard';
 
 /** Splits the text of the patterns field into patterns, one on each line. */
 function parsePatterns(text: string): string[] {
@@ -111,9 +112,9 @@ export function CopyEditor({ copy, repo, onSave }: { copy: CopyIgnoredSettings; 
     const setMode = (mode: CopyMode) => onSave({ ...copy, mode });
     return (
         <>
-            <div className="copy-mode segmented compact" role="radiogroup" aria-label="What to copy">
-                <button className={copy.mode === 'matching' ? 'selected' : ''} onClick={() => setMode('matching')} title="Copy only the ignored files that match the patterns">Matching files</button>
-                <button className={copy.mode === 'allExcept' ? 'selected' : ''} onClick={() => setMode('allExcept')} title="Copy all ignored files and folders except the patterns">All except</button>
+            <div className="copy-mode segmented compact" role="radiogroup" aria-label="What to copy" onKeyDown={radioGroupKeys}>
+                <button role="radio" aria-checked={copy.mode === 'matching'} className={copy.mode === 'matching' ? 'selected' : ''} onClick={() => setMode('matching')} title="Copy only the ignored files that match the patterns">Matching files</button>
+                <button role="radio" aria-checked={copy.mode === 'allExcept'} className={copy.mode === 'allExcept' ? 'selected' : ''} onClick={() => setMode('allExcept')} title="Copy all ignored files and folders except the patterns">All except</button>
             </div>
             {copy.mode === 'matching'
                 ? <PatternsField key="patterns" patterns={copy.patterns} onSave={patterns => onSave({ ...copy, patterns })} />
@@ -151,9 +152,9 @@ function SortControl({ sort, onSave }: { sort: WorktreeSort; onSave(sort: Worktr
             <select className="tasks-select" aria-label="Sort worktrees by" value={sort.by} onChange={event => onSave({ ...sort, by: event.target.value as WorktreeSortKey })}>
                 {SORT_KEYS.map(by => <option key={by} value={by}>{WORKTREE_SORT_LABELS[by]}</option>)}
             </select>
-            <div className="segmented compact" role="radiogroup" aria-label="Sort direction">
+            <div className="segmented compact" role="radiogroup" aria-label="Sort direction" onKeyDown={radioGroupKeys}>
                 {(['asc', 'desc'] as const).map(direction => (
-                    <button key={direction} className={sort.direction === direction ? 'selected' : ''} onClick={() => onSave({ ...sort, direction })}>
+                    <button key={direction} role="radio" aria-checked={sort.direction === direction} className={sort.direction === direction ? 'selected' : ''} onClick={() => onSave({ ...sort, direction })}>
                         {directionLabel(sort.by, direction)}
                     </button>
                 ))}

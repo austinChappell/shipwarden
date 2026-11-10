@@ -18,6 +18,7 @@ import { CheckoutMessage, ReviewCodeView, type CodeLocation } from './ReviewCode
 import { reviewCheckouts, useReviewCheckout } from '../github/review-checkout-store';
 import { lspBridge } from '../lsp/bridge';
 import { documents } from '../editor/documents';
+import { moveTabFocus } from '../tablist';
 
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
 
@@ -80,8 +81,16 @@ function readFileListOpen(): boolean {
 }
 
 function Tab({ id, current, label, count, onSelect }: { id: ReviewTab; current: ReviewTab; label: string; count?: ReactNode; onSelect(id: ReviewTab): void }) {
+    // ← and → move the focus to the previous or the next tab. That tab then shows.
     return (
-        <button role="tab" aria-selected={id === current} className={`pr-tab${id === current ? ' selected' : ''}`} onClick={() => onSelect(id)}>
+        <button
+            role="tab"
+            aria-selected={id === current}
+            tabIndex={id === current ? 0 : -1}
+            className={`pr-tab${id === current ? ' selected' : ''}`}
+            onClick={() => onSelect(id)}
+            onKeyDown={event => moveTabFocus(event)?.click()}
+        >
             <span>{label}</span>
             {count}
         </button>

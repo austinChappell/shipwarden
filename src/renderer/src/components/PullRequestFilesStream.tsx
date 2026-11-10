@@ -7,9 +7,11 @@ import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { ComposerZone, PendingZone, QuestionZone, ThreadZone, type AgentQuestion, type QuestionAction } from './DiffView';
 import { CopyButton } from './CopyButton';
+import { radioGroupKeys } from './keyboard';
 import { askPrompt, lineLabel, sliceLines, type SavedAnswer } from '@shared/ask-agent';
 import { searchPatches, type PatchMatch } from '@shared/pr-search';
 import { openLink } from '../links';
+import { isCommentKey } from '@shared/shortcuts';
 
 export const STYLE_KEY = 'shipwarden.diffStyle';
 
@@ -578,8 +580,19 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
     const viewedCount = files.filter(file => file.viewed).length;
     const answered = questions.filter(question => question.status === 'done');
 
+    /**
+     * ⇧⌘M starts a comment from the keyboard, on the line of the current search match (⌘F).
+     * The diff has no cursor, so the search finds the line.
+     */
+    const commentKey = (event: React.KeyboardEvent) => {
+        if (!isCommentKey(event) || !current || (pr.state !== 'OPEN' && !repo)) return;
+        event.preventDefault();
+        setOpen(map => ({ ...map, [current.path]: true }));
+        setComposer({ path: current.path, side: current.side, line: current.line, startLine: current.line });
+    };
+
     return (
-        <div className={`files-stream${armed ? ' goto-armed' : ''}`}>
+        <div className={`files-stream${armed ? ' goto-armed' : ''}`} onKeyDown={commentKey}>
             {findOpen && (
                 <FindBar
                     query={query}
@@ -629,9 +642,9 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                 )}
                 <button className="link-button" onClick={() => setOpen(Object.fromEntries(files.map(file => [file.path, false])))}>Collapse all</button>
                 <button className="link-button" onClick={() => setOpen(Object.fromEntries(files.map(file => [file.path, true])))}>Expand all</button>
-                <div className="segmented compact" role="radiogroup" aria-label="Diff layout">
-                    <button className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
-                    <button className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
+                <div className="segmented compact" role="radiogroup" aria-label="Diff layout" onKeyDown={radioGroupKeys}>
+                    <button role="radio" aria-checked={diffStyle === 'unified'} className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
+                    <button role="radio" aria-checked={diffStyle === 'split'} className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
                 </div>
             </div>
             <Virtualizer className="files-stream-scroll" contentClassName="files-stream-content">

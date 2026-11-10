@@ -366,11 +366,11 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
     };
 
     /** The actions that the user seldom needs: convert to draft and close. They are in a menu, away from the merge button. */
-    const moreActions = async () => {
+    const moreActions = async (button: Element) => {
         const choice = await showContextMenu([
             ...(pr.isDraft ? [] : [{ id: 'draft', label: 'Convert to Draft' }, { type: 'separator' as const }]),
             { id: 'close', label: 'Close Pull Request', danger: true }
-        ]);
+        ], button);
         if (choice === 'draft') await setDraft(true);
         if (choice === 'close') await setState('closed');
     };
@@ -525,7 +525,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
 
     const canAct = !!(pr.autoMerge || pr.viewerCanMerge || pr.viewerCanEnableAutoMerge || pr.viewerCanUpdate);
     const moreButton = pr.viewerCanUpdate && (
-        <button className="icon-button" title="More actions" aria-label="More actions" disabled={busy} onClick={() => void moreActions()}>
+        <button className="icon-button" title="More actions" aria-label="More actions" aria-haspopup="menu" disabled={busy} onClick={event => void moreActions(event.currentTarget)}>
             <Ellipsis size={15} strokeWidth={1.8} />
         </button>
     );

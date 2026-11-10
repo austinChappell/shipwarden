@@ -96,7 +96,8 @@ export function SettingsView({ settings, mode, terminal, repos, initialSection, 
         const onKey = (event: KeyboardEvent) => {
             // Escape in a field only leaves the field. The page closes on Escape elsewhere.
             const target = event.target as HTMLElement;
-            if (event.key === 'Escape' && !(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) {
+            const field = target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
+            if (event.key === 'Escape' && !field) {
                 onClose();
             }
         };

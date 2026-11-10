@@ -47,7 +47,7 @@ import type { ProjectsState } from '@shared/projects';
 import { pruneLayout, readLayout, writeLayout } from './layout-store';
 import { closePane, findLeaf, focusSide, focusedTab, groupOf, insertNode, leafOfTab, leaves, pruneGroups, resizeSplit, setGroup, splitPane, tabLayout, type PaneLayout, type PaneNode, type SplitGroups, type SplitSide } from '@shared/panes';
 import { SplitDivider } from './components/SplitDivider';
-import { shortcutAction, type ShortcutAction } from '@shared/shortcuts';
+import { shortcutAction, type ShortcutAction, type ViewAction } from '@shared/shortcuts';
 import { EMPTY_NAV_HISTORY, recordLocation, stepHistory, type NavLocation } from '@shared/nav-history';
 import { lspBridge } from './lsp/bridge';
 import type { LspMissingServer } from '@shared/lsp';
@@ -62,6 +62,8 @@ import { BrowserView } from './components/BrowserView';
 import { browserStore, useBrowserStates } from './browser/browser-store';
 import { openLink, setAppBrowserOpener } from './links';
 import { BLANK_PAGE, browserTabKey, browserTabTitle } from '@shared/browser';
+import { moveStripEntry, orderTabs } from '@shared/tab-order';
+import { moveTabFocus } from './tablist';
 
 /** The command that starts an agent. A setting will replace this value. */
 const EXPLORER_STORAGE_KEY = 'shipwarden.explorerOpen';
@@ -82,6 +84,16 @@ type ExtraTab =
     | { key: TabKey; kind: 'change'; change: FileChange; side: ChangeSide }
     | { key: TabKey; kind: 'changes' }
     | { key: TabKey; kind: 'browser'; id: string };
+
+/** The view that each view key (⌥⌘1 to ⌥⌘6) opens. */
+const VIEW_OF_ACTION: Record<ViewAction, 'dashboard' | 'agents' | 'tasks' | 'review' | 'pipelines' | 'notes'> = {
+    viewDashboard: 'dashboard',
+    viewAgents: 'agents',
+    viewTasks: 'tasks',
+    viewReview: 'review',
+    viewPipelines: 'pipelines',
+    viewNotes: 'notes'
+};
 
 /** The time that an agent can take to start before ShipWarden sends it a prompt. */
 const AGENT_START_TIMEOUT_MS = 15_000;
@@ -193,6 +205,8 @@ export function App() {
     const [openFiles, setOpenFiles] = useState<Record<string, string[]>>({});
     /** The active tab of each worktree. */
     const [activeTabs, setActiveTabs] = useState<Record<string, TabKey>>({});
+    /** The tab order of each worktree after the user moved a tab (⌃⇧← and ⌃⇧→). */
+    const [tabOrders, setTabOrders] = useState<Record<string, TabKey[]>>({});
     /**
      * The split tabs of each worktree. A split tab is one tab in the tab strip with two or more panes, like a tab
      * of Ghostty with splits. A tab that is in no split shows its view alone.
@@ -553,11 +567,11 @@ export function App() {
     );
     const worktreeFiles = (selectedPath && openFiles[selectedPath]) || [];
     const worktreeExtras = (selectedPath && extraTabs[selectedPath]) || [];
-    const tabKeys: TabKey[] = [
+    const tabKeys: TabKey[] = orderTabs([
         ...worktreeSessions.map(session => `t:${session.id}`),
         ...worktreeFiles.map(path => `f:${path}`),
         ...worktreeExtras.map(tab => tab.key)
-    ];
+    ], selectedPath ? tabOrders[selectedPath] : undefined);
     const requestedTab = selectedPath ? activeTabs[selectedPath] : undefined;
     const activeTab = requestedTab && tabKeys.includes(requestedTab) ? requestedTab : tabKeys[0];
     const tabKeysKey = tabKeys.join('\n');
@@ -699,6 +713,56 @@ export function App() {
         const leaf = layout && leafOfTab(layout, browserTabKey(id));
         if (leaf) focusPane(leaf.id);
     };
+    /**
+     * Moves the keyboard focus to the workspace (⇧⌘0). In the worktree view, the focused pane gets the focus: its
+     * terminal, its editor, its browser page or its first control. In other views, the main area gets the focus.
+     */
+    const focusWorkspace = () => {
+        const leaf = mainView === 'worktree' && layout ? findLeaf(layout, layout.focused) : undefined;
+        if (leaf && selectedPath) {
+            const extra = worktreeExtras.find(item => item.key === leaf.tab);
+            if (leaf.tab.startsWith('t:')) {
+                terminalPool.focus(leaf.tab.slice(2));
+                return;
+            }
+            if (leaf.tab.startsWith('f:')) {
+                setFocusRequest({ root: selectedPath, path: leaf.tab.slice(2), nonce: Date.now() });
+                return;
+            }
+            if (extra?.kind === 'browser') {
+                api.browser.focus(extra.id);
+                return;
+            }
+            const pane = document.querySelector(`.terminal-area [data-pane="${leaf.id}"]`);
+            const target = pane?.querySelector<HTMLElement>('.monaco-editor textarea')
+                ?? pane?.querySelector<HTMLElement>('textarea, input, select, button, a[href], [tabindex]:not([tabindex="-1"])');
+            if (target) {
+                target.focus();
+                return;
+            }
+        }
+        // The views that do not show have "display: none" or are not in the page.
+        const main = [...document.querySelectorAll<HTMLElement>('main.workspace')].find(element => element.offsetParent !== null);
+        if (!main) return;
+        if (!main.hasAttribute('tabindex')) main.tabIndex = -1;
+        main.focus();
+    };
+    const focusWorkspaceRef = useRef(focusWorkspace);
+    focusWorkspaceRef.current = focusWorkspace;
+    // Escape in the sidebar moves the focus back to the workspace. Escape in a field or in an open menu does not.
+    useEffect(() => {
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape' || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+            const target = event.target instanceof HTMLElement ? event.target : undefined;
+            const sidebar = target?.closest('aside.sidebar');
+            if (!target || !sidebar || dialogOpen()) return;
+            if (target.matches('input, textarea, select, [contenteditable="true"]') || sidebar.querySelector('[role="menu"]')) return;
+            event.preventDefault();
+            focusWorkspaceRef.current();
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
     const focusBrowserPaneRef = useRef(focusBrowserPane);
     focusBrowserPaneRef.current = focusBrowserPane;
     useEffect(() => api.browser.onFocus(id => focusBrowserPaneRef.current(id)), []);
@@ -805,7 +869,8 @@ export function App() {
     /**
      * The workspace shortcuts, as in Ghostty. ⌘T: a new shell tab. ⌘W: close the focused pane, or the tab when it has
      * one pane. ⌘D and ⇧⌘D: a new shell pane at the right of, or below, the focused pane. ⌥⌘ and an arrow key: move the focus
-     * to the pane at that side. ⌘[ and ⌘]: back and forward.
+     * to the pane at that side. ⌘[ and ⌘]: back and forward. ⌘1 to ⌘9, ⇧⌘[, ⇧⌘], ⌃Tab and ⌃⇧Tab: select a tab.
+     * ⌥⌘1 to ⌥⌘6: open a view. ⇧⌘0: move the focus to the workspace.
      */
     const shortcut = async (action: ShortcutAction) => {
         if (dialogOpen()) return;
@@ -839,7 +904,28 @@ export function App() {
             if (repo) setNewWorktree({ repo });
             return;
         }
+        if (action in VIEW_OF_ACTION) {
+            const view = VIEW_OF_ACTION[action as ViewAction];
+            // The sidebar shows Tasks only when the project has repositories.
+            if (view === 'tasks' && repos.length === 0) return;
+            setMainView(view);
+            return;
+        }
+        if (action === 'focusWorkspace') {
+            focusWorkspace();
+            return;
+        }
         if (mainView !== 'worktree' || !selected) return;
+        if (action === 'previousTab' || action === 'nextTab' || action === 'selectLastTab' || action.startsWith('selectTab')) {
+            if (!stripItems.length) return;
+            const current = stripItems.findIndex(item => (item.group ? !!activeTab && !!leafOfTab(item.group, activeTab) : item.key === activeTab));
+            const index = action === 'previousTab' ? (current - 1 + stripItems.length) % stripItems.length
+                : action === 'nextTab' ? (current + 1) % stripItems.length
+                    : action === 'selectLastTab' ? stripItems.length - 1
+                        : Number(action.slice('selectTab'.length)) - 1;
+            if (stripItems[index]) activate(selected.path, stripItems[index].key);
+            return;
+        }
         if (action === 'newTab') {
             await startTerminal(selected, 'shell');
             return;
@@ -855,6 +941,7 @@ export function App() {
             if (layout && split && activeTab) commitGroup(activeTab, focusSide(layout, side));
             return;
         }
+        if (action !== 'right' && action !== 'down') return;
         try {
             const session = await api.terminals.create({ cwd: selected.path, worktreePath: selected.path, title: 'shell', cols: 120, rows: 32 });
             setSessions(list => [...list, session]);
@@ -1506,7 +1593,7 @@ export function App() {
             return (
                 <div key={node.id} className={`pane-split ${node.direction}`}>
                     <div className="pane-slot" style={{ flexBasis: `${node.ratio * 100}%` }}>{renderPane(node.first)}</div>
-                    <SplitDivider direction={node.direction} onResize={ratio => layout && activeTab && commitGroup(activeTab, resizeSplit(layout, node.id, ratio))} />
+                    <SplitDivider direction={node.direction} ratio={node.ratio} onResize={ratio => layout && activeTab && commitGroup(activeTab, resizeSplit(layout, node.id, ratio))} />
                     <div className="pane-slot" style={{ flexBasis: `${(1 - node.ratio) * 100}%` }}>{renderPane(node.second)}</div>
                 </div>
             );
@@ -1514,7 +1601,7 @@ export function App() {
         const focused = !split || layout?.focused === node.id;
         const target = dropTarget?.leafId === node.id ? dropTarget.side : undefined;
         return (
-            <div key={node.id} className={`pane${split ? (focused ? ' focused' : ' unfocused') : ''}`} onMouseDownCapture={() => focusPane(node.id)}>
+            <div key={node.id} data-pane={node.id} className={`pane${split ? (focused ? ' focused' : ' unfocused') : ''}`} onMouseDownCapture={() => focusPane(node.id)}>
                 {renderTab(node.tab, focused)}
                 {split && (
                     <div className="pane-actions">
@@ -1610,6 +1697,29 @@ export function App() {
             stripItems.push({ key: shown, group });
         }
     }
+    /** Moves an entry of the tab strip one step to the left or to the right (⌃⇧← and ⌃⇧→). A split tab moves with all its panes. */
+    const moveStripItem = (index: number, step: 1 | -1) => {
+        if (!selectedPath) return;
+        const order = moveStripEntry(stripItems.map(item => (item.group ? leaves(item.group.root).map(leaf => leaf.tab) : [item.key])), index, step);
+        if (order) setTabOrders(map => ({ ...map, [selectedPath]: order }));
+    };
+    /**
+     * The keys of a tab in the tab strip. ← and → move the focus to the previous or the next tab. Enter and Space select
+     * the tab. ⌃⇧← and ⌃⇧→ move the tab.
+     */
+    const tabKeyDown = (event: React.KeyboardEvent<HTMLElement>, index: number, key: TabKey) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.ctrlKey && event.shiftKey && !event.metaKey && !event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+            event.preventDefault();
+            moveStripItem(index, event.key === 'ArrowLeft' ? -1 : 1);
+            return;
+        }
+        if (moveTabFocus(event)) return;
+        if ((event.key === 'Enter' || event.key === ' ') && !event.metaKey && !event.ctrlKey && !event.altKey && selectedPath) {
+            event.preventDefault();
+            activate(selectedPath, key);
+        }
+    };
 
     return (
         <SidebarContext.Provider value={{ collapsed: sidebarCollapsed, toggle: toggleSidebar }}>
@@ -1776,6 +1886,8 @@ export function App() {
                     <header className="workspace-header">
                         <div
                             className="tabs"
+                            role="tablist"
+                            aria-label="Tabs"
                             onWheel={event => {
                                 // The strip has no scroll bar. A mouse wheel scrolls vertically, so turn that into a sideways scroll.
                                 if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
@@ -1783,7 +1895,7 @@ export function App() {
                                 }
                             }}
                         >
-                            {stripItems.map(({ key, group }) => {
+                            {stripItems.map(({ key, group }, index) => {
                                 const info = tabInfo(key);
                                 const count = group ? leaves(group.root).length : 1;
                                 const active = group ? !!activeTab && !!leafOfTab(group, activeTab) : key === activeTab;
@@ -1792,7 +1904,11 @@ export function App() {
                                         key={group ? group.root.id : key}
                                         className={`tab${active ? ' active' : ''}${info.dirty ? ' dirty' : ''}${info.exited ? ' exited' : ''}${group ? ' split-tab' : ''}`}
                                         title={group ? `${count} panes: ${leaves(group.root).map(leaf => tabInfo(leaf.tab).title).join(', ')}` : info.tooltip}
+                                        role="tab"
+                                        aria-selected={active}
+                                        tabIndex={active ? 0 : -1}
                                         onClick={() => selectedPath && activate(selectedPath, key)}
+                                        onKeyDown={event => tabKeyDown(event, index, key)}
                                         {...tabDragProps(key)}
                                     >
                                         {group ? <Columns2 className="tab-icon" size={14} strokeWidth={1.5} /> : info.icon}
@@ -1800,6 +1916,8 @@ export function App() {
                                         {group && <span className="tab-count">{count}</span>}
                                         <button
                                             className="tab-close"
+                                            // Only the close button of the selected tab is in the Tab order.
+                                            tabIndex={active ? 0 : -1}
                                             title={group ? 'Close the tab and all its panes' : info.dirty ? 'Unsaved changes. Close file.' : 'Close'}
                                             onClick={event => {
                                                 event.stopPropagation();

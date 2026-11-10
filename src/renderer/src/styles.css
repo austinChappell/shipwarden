@@ -344,6 +344,16 @@ button {
     flex-direction: column;
 }
 
+/* ⇧⌘0 can move the focus to the main area of a view. The ring then shows inside the area. */
+.workspace:focus {
+    outline: none;
+}
+
+.workspace:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: -2px;
+}
+
 .workspace-header {
     height: var(--titlebar-height);
     flex-shrink: 0;
@@ -432,6 +442,24 @@ button {
 
 .tab.dirty .tab-close:hover svg {
     visibility: visible;
+}
+
+/* A close button with the keyboard focus always shows its icon. */
+.tab .tab-close:focus-visible svg {
+    visibility: visible;
+}
+
+.tab.dirty .tab-close:focus-visible .tab-dirty-dot {
+    display: none;
+}
+
+.tab:focus {
+    outline: none;
+}
+
+.tab:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: -2px;
 }
 
 .tab-close:hover {
@@ -5020,6 +5048,11 @@ button:focus-visible,
     color: var(--muted);
 }
 
+/* The input has no outline. The line below the search field shows the focus. */
+.combobox-search:focus-within {
+    border-color: var(--accent);
+}
+
 .combobox-search input {
     flex: 1;
     min-width: 0;
@@ -6602,8 +6635,24 @@ button:focus-visible,
     height: 1px;
 }
 
-.split-divider:hover::after {
+.split-divider:hover::after,
+.split-divider:focus-visible::after {
     background: var(--accent);
+}
+
+/* The accent line shows the keyboard focus, so the divider has no outline. */
+.split-divider:focus-visible {
+    outline: none;
+}
+
+.split-divider.row:focus-visible::after {
+    left: 1px;
+    width: 3px;
+}
+
+.split-divider.column:focus-visible::after {
+    top: 1px;
+    height: 3px;
 }
 
 body.resizing-split,
@@ -7670,11 +7719,18 @@ body.resizing-column * {
     cursor: pointer;
 }
 
-/* The select is invisible, so the icon shows the keyboard focus. */
+/* The select is invisible, so the label shows the keyboard focus. */
 .note-move:has(select:focus-visible) {
     outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
     outline-offset: 1px;
     color: var(--text);
+}
+
+/* In a folder header, the control has the size of the icon buttons next to it. */
+.note-folder-move {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
 }
 
 .dash-extra {

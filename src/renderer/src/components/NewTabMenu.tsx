@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Globe, Plus, SquareTerminal } from 'lucide-react';
 import type { AgentDefinition } from '@shared/settings';
+import { useMenuClose } from './use-menu';
 
 interface Props {
     agents: AgentDefinition[];
@@ -17,22 +18,11 @@ export function NewTabMenu({ agents, defaultAgentId, onStart }: Props) {
     const [open, setOpen] = useState(false);
     const root = useRef<HTMLDivElement>(null);
 
+    useMenuClose(open, root, () => setOpen(false));
     useEffect(() => {
         if (!open) return;
-        const onPointer = (event: PointerEvent) => {
-            if (!root.current?.contains(event.target as Node)) setOpen(false);
-        };
-        const onKey = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setOpen(false);
-        };
-        window.addEventListener('pointerdown', onPointer);
-        window.addEventListener('keydown', onKey);
         // Focus the first item, so the arrow keys and Enter work at once.
         root.current?.querySelector<HTMLButtonElement>('.new-tab-item')?.focus();
-        return () => {
-            window.removeEventListener('pointerdown', onPointer);
-            window.removeEventListener('keydown', onKey);
-        };
     }, [open]);
 
     const start = (target: AgentDefinition | 'shell' | 'browser') => {

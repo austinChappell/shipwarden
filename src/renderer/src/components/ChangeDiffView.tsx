@@ -6,6 +6,7 @@ import { gitChanged, onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
 import { confirmDiscard } from './ChangesPanel';
 import { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './PullRequestFilesStream';
+import { radioGroupKeys } from './keyboard';
 
 interface Props {
     worktree: string;
@@ -94,9 +95,9 @@ export function ChangeDiffView({ worktree, change, side, onOpenFile }: Props) {
                 <span className={`change-side ${side}`}>{side === 'staged' ? 'Staged' : 'Working tree'}</span>
                 <span className="diff-path" title={change.path}>{change.oldPath ? `${change.oldPath} → ${change.path}` : change.path}</span>
                 <span className="header-spacer" />
-                <div className="segmented compact" role="radiogroup" aria-label="Diff layout">
-                    <button className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
-                    <button className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
+                <div className="segmented compact" role="radiogroup" aria-label="Diff layout" onKeyDown={radioGroupKeys}>
+                    <button role="radio" aria-checked={diffStyle === 'unified'} className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
+                    <button role="radio" aria-checked={diffStyle === 'split'} className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
                 </div>
                 <button className="button change-stage" disabled={busy} onClick={() => void toggleStage()}>
                     {side === 'staged' ? <Minus size={13} strokeWidth={2} /> : <Plus size={13} strokeWidth={2} />}

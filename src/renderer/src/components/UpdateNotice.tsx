@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowUpCircle, ExternalLink, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { UpdateState } from '@shared/updates';
 import { errorText, timeAgo } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { Markdown } from './Markdown';
 import { openLink } from '../links';
+import { useModal } from './use-modal';
 
 const DISMISS_KEY = 'shipwarden.updateDismissed';
 
@@ -36,9 +37,11 @@ async function installUpdate(state: UpdateState): Promise<void> {
 /** The release notes of an update, in a dialog. */
 function NotesDialog({ state, onClose }: { state: UpdateState; onClose(): void }) {
     const update = state.update!;
+    const dialog = useRef<HTMLDivElement>(null);
+    useModal(dialog);
     return (
         <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
-            <div className="modal update-notes" role="dialog" aria-label="Release notes" onKeyDown={event => event.key === 'Escape' && onClose()}>
+            <div ref={dialog} className="modal update-notes" role="dialog" aria-modal="true" aria-label="Release notes" onKeyDown={event => event.key === 'Escape' && onClose()}>
                 <header className="modal-header">
                     <ArrowUpCircle size={16} strokeWidth={1.8} />
                     <h2>ShipWarden {update.version}</h2>

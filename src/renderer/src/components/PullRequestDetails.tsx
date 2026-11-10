@@ -45,6 +45,7 @@ function MultiPicker({ title, options, selected, loading, error, onOpen, onToggl
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
     const root = useRef<HTMLDivElement>(null);
+    const trigger = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         if (!open) return;
@@ -73,15 +74,27 @@ function MultiPicker({ title, options, selected, loading, error, onOpen, onToggl
         } else if (event.key === 'Enter' && shown[active]) {
             event.preventDefault();
             onToggle(shown[active].value, !selected.has(shown[active].value));
-        } else if (event.key === 'Escape') {
+        } else if (event.key === 'Escape' || (event.key === 'Tab' && event.shiftKey)) {
+            // Escape closes only the popover, not a dialog around it. Shift+Tab also closes it.
+            // The focus goes back to the button. After Tab, `onBlur` closes the popover.
             event.preventDefault();
+            event.stopPropagation();
             setOpen(false);
+            trigger.current?.focus();
         }
     };
 
     return (
-        <div className="tag-picker" ref={root}>
+        <div
+            className="tag-picker"
+            ref={root}
+            onBlur={event => {
+                // A click on an option gives no new focus. Only a focus outside the picker closes the popover.
+                if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+            }}
+        >
             <button
+                ref={trigger}
                 className={textTrigger ? `link-button pr-meta-add${open ? ' on' : ''}` : `icon-button pr-meta-edit${open ? ' on' : ''}`}
                 title={title}
                 aria-haspopup="listbox"

@@ -6,6 +6,7 @@ import { documents } from '../editor/documents';
 import { useFolderVersion } from '../files/use-file-changes';
 import { EditorView } from './EditorView';
 import { HEADING_ID_PREFIX, renderMarkdownFile } from './Markdown';
+import { radioGroupKeys } from './keyboard';
 
 export type MarkdownMode = 'source' | 'split' | 'preview';
 
@@ -63,7 +64,7 @@ export function MarkdownFileView(props: Props) {
             <div className="viewer-bar">
                 <span className="viewer-details" />
                 <span className="viewer-actions">
-                    <div className="segmented compact markdown-modes" role="radiogroup" aria-label="Markdown view">
+                    <div className="segmented compact markdown-modes" role="radiogroup" aria-label="Markdown view" onKeyDown={radioGroupKeys}>
                         {modes.map(([value, label, Icon]) => (
                             <button
                                 key={value}

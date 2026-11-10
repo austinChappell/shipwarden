@@ -8,6 +8,7 @@ import { Combobox, sortedGroups } from './Combobox';
 import { LogView } from './LogView';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
+import { useModal } from './use-modal';
 import { openLink } from '../links';
 import { cacheKey, cached, remember } from '../data-cache';
 import { moveListFocus } from '../keyboard/list-nav';
@@ -100,6 +101,8 @@ export function RunDialog({ repo, workflow, branches, onClose, onStarted }: RunD
     const [values, setValues] = useState<Record<string, string>>({});
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>();
+    const dialog = useRef<HTMLDivElement>(null);
+    useModal(dialog);
 
     useEffect(() => {
         if (!branch || branch === branches?.[0]) {
@@ -145,7 +148,7 @@ export function RunDialog({ repo, workflow, branches, onClose, onStarted }: RunD
 
     return (
         <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
-            <div className="modal run-dialog" role="dialog" aria-label={`Run ${workflow.name}`} onKeyDown={event => event.key === 'Escape' && onClose()}>
+            <div ref={dialog} className="modal run-dialog" role="dialog" aria-modal="true" aria-label={`Run ${workflow.name}`} onKeyDown={event => event.key === 'Escape' && onClose()}>
                 <header className="modal-header">
                     <Play size={15} strokeWidth={1.8} />
                     <h2>Run {workflow.name}</h2>

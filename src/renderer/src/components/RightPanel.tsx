@@ -11,6 +11,7 @@ import { PipelinesPanel } from './PipelinesPanel';
 import { changeCount, type ChangeSide, type FileChange } from '@shared/git';
 import { useGitChanges } from '../git/git-store';
 import { PullRequestPanel } from './PullRequestPanel';
+import { moveTabFocus } from '../tablist';
 
 type PanelTab = 'files' | 'changes' | 'pr' | 'checks' | 'pipelines' | 'processes';
 const TAB_STORAGE_KEY = 'shipwarden.rightPanelTab';
@@ -61,8 +62,18 @@ export function RightPanel(props: Props) {
     // ⇧⌘E shows the Files tab. The explorer then takes the focus request when it mounts.
     useEffect(() => onExplorerFocusRequest(() => select('files')), []);
 
+    // ← and → move the focus to the previous or the next tab. That tab then shows.
     const tabButton = (id: PanelTab, title: string, icon: React.ReactNode, badge?: React.ReactNode) => (
-        <button className={`panel-tab${tab === id ? ' selected' : ''}`} title={title} onClick={() => select(id)}>
+        <button
+            className={`panel-tab${tab === id ? ' selected' : ''}`}
+            role="tab"
+            aria-selected={tab === id}
+            aria-label={title}
+            tabIndex={tab === id ? 0 : -1}
+            title={title}
+            onClick={() => select(id)}
+            onKeyDown={event => moveTabFocus(event)?.click()}
+        >
             {icon}
             {badge}
         </button>
@@ -70,7 +81,7 @@ export function RightPanel(props: Props) {
 
     return (
         <aside className="explorer">
-            <div className="panel-tabs">
+            <div className="panel-tabs" role="tablist" aria-label="Right panel">
                 {tabButton('files', 'Files', <Files size={17} strokeWidth={1.5} />)}
                 {tabButton(
                     'changes',

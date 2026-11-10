@@ -3,6 +3,8 @@ import { Pencil, Play, Plus, Trash2, X } from 'lucide-react';
 import type { RepoScript } from '@shared/settings';
 import { errorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
+import { useMenuClose } from './use-menu';
+import { useModal } from './use-modal';
 
 interface Props {
     /** The display name of the repository, for the titles. */
@@ -24,6 +26,8 @@ function ScriptDialog({ repoName, script, onClose, onSubmit }: {
     const [command, setCommand] = useState(script?.command ?? '');
     const [error, setError] = useState<string>();
     const [busy, setBusy] = useState(false);
+    const dialog = useRef<HTMLDivElement>(null);
+    useModal(dialog);
 
     const submit = async () => {
         if (!name.trim() || !command.trim()) {
@@ -41,7 +45,7 @@ function ScriptDialog({ repoName, script, onClose, onSubmit }: {
 
     return (
         <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
-            <div className="modal" role="dialog" aria-label={script ? 'Edit script' : 'Add script'} onKeyDown={event => event.key === 'Escape' && onClose()}>
+            <div ref={dialog} className="modal" role="dialog" aria-modal="true" aria-label={script ? 'Edit script' : 'Add script'} onKeyDown={event => event.key === 'Escape' && onClose()}>
                 <header className="modal-header">
                     <Play size={15} strokeWidth={1.8} />
                     <h2>{script ? `Edit "${script.name}"` : `New script for ${repoName}`}</h2>
@@ -94,22 +98,11 @@ export function ScriptsMenu({ repoName, scripts, onRun, onSave }: Props) {
     const [editing, setEditing] = useState<RepoScript | 'new'>();
     const [error, setError] = useState<string>();
     const root = useRef<HTMLDivElement>(null);
+    const button = useRef<HTMLButtonElement>(null);
 
+    useMenuClose(open, root, () => setOpen(false));
     useEffect(() => {
-        if (!open) return;
-        const onPointer = (event: PointerEvent) => {
-            if (!root.current?.contains(event.target as Node)) setOpen(false);
-        };
-        const onKey = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setOpen(false);
-        };
-        window.addEventListener('pointerdown', onPointer);
-        window.addEventListener('keydown', onKey);
-        root.current?.querySelector<HTMLButtonElement>('.new-tab-item')?.focus();
-        return () => {
-            window.removeEventListener('pointerdown', onPointer);
-            window.removeEventListener('keydown', onKey);
-        };
+        if (open) root.current?.querySelector<HTMLButtonElement>('.new-tab-item')?.focus();
     }, [open]);
 
     /** Moves the focus between the scripts with the arrow keys. */
@@ -140,12 +133,18 @@ export function ScriptsMenu({ repoName, scripts, onRun, onSave }: Props) {
             ? scripts.map(item => (item.id === editing.id ? { ...item, name, command } : item))
             : [...scripts, { id: crypto.randomUUID(), name, command }];
         await save(list);
+        closeDialog();
+    };
+    /** Closes the script dialog. The menu item that opened the dialog is gone, so the focus goes to the ▷ button. */
+    const closeDialog = () => {
         setEditing(undefined);
+        button.current?.focus();
     };
 
     return (
         <div className="new-tab scripts-menu" ref={root}>
             <button
+                ref={button}
                 className={`icon-button scripts-button${open ? ' on' : ''}`}
                 title={`Scripts of ${repoName}`}
                 aria-haspopup="menu"
@@ -192,7 +191,7 @@ export function ScriptsMenu({ repoName, scripts, onRun, onSave }: Props) {
                 <ScriptDialog
                     repoName={repoName}
                     script={editing === 'new' ? undefined : editing}
-                    onClose={() => setEditing(undefined)}
+                    onClose={closeDialog}
                     onSubmit={submit}
                 />
             )}

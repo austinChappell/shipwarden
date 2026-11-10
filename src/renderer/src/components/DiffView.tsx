@@ -8,6 +8,7 @@ import { reviewStore, useReviewState } from '../github/review-store';
 import { seenStore } from '../seen-store';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
+import { radioGroupKeys } from './keyboard';
 
 interface Props {
     target: RepoTarget;
@@ -23,6 +24,20 @@ interface Props {
 interface Composer {
     side: DiffSide;
     line: number;
+    /** The first selected line. The comment goes on `line`. */
+    startLine?: number;
+}
+
+/**
+ * Returns the selected lines of an editor, or the line of the cursor without a selection.
+ * A selection that ends at column 1 does not contain its last line.
+ */
+function selectedLines(editor: monaco.editor.ICodeEditor): { startLine: number; line: number } | undefined {
+    const selection = editor.getSelection();
+    if (!selection) return undefined;
+    if (selection.isEmpty()) return { startLine: selection.positionLineNumber, line: selection.positionLineNumber };
+    const end = selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber ? selection.endLineNumber - 1 : selection.endLineNumber;
+    return { startLine: selection.startLineNumber, line: end };
 }
 
 export interface ZoneHandle {
@@ -248,9 +263,9 @@ export function ComposerZone({ line, startLine = line, onAdd, onAsk, onCancel, c
     return (
         <div className={`zone-card composer${mode === 'ask' ? ' ask' : ''}`}>
             {onAsk && canComment && (
-                <div className="segmented compact composer-mode" role="radiogroup" aria-label="Comment or question">
-                    <button className={mode === 'comment' ? 'selected' : ''} onClick={() => setMode('comment')}>Comment</button>
-                    <button className={mode === 'ask' ? 'selected' : ''} onClick={() => setMode('ask')}><Bot size={12} strokeWidth={1.6} /> Ask agent</button>
+                <div className="segmented compact composer-mode" role="radiogroup" aria-label="Comment or question" onKeyDown={radioGroupKeys}>
+                    <button role="radio" aria-checked={mode === 'comment'} className={mode === 'comment' ? 'selected' : ''} onClick={() => setMode('comment')}>Comment</button>
+                    <button role="radio" aria-checked={mode === 'ask'} className={mode === 'ask' ? 'selected' : ''} onClick={() => setMode('ask')}><Bot size={12} strokeWidth={1.6} /> Ask agent</button>
                 </div>
             )}
             <textarea
@@ -401,7 +416,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
 
         // A click on a line number starts a new comment on that line.
         const hoverDecorations = new Map<monaco.editor.ICodeEditor, monaco.editor.IEditorDecorationsCollection>();
-        const listen = (editor: monaco.editor.ICodeEditor, side: DiffSide) => {
+        const listen = (editor: monaco.editor.IStandaloneCodeEditor, side: DiffSide) => {
             hoverDecorations.set(editor, editor.createDecorationsCollection());
             editor.onMouseDown(event => {
                 const type = event.target.type;
@@ -418,6 +433,18 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                     : []);
             });
             editor.onMouseLeave(() => hoverDecorations.get(editor)!.clear());
+            // ⇧⌘M starts a comment from the keyboard. The comment goes on the line of the cursor, or on the last selected line.
+            editor.addAction({
+                id: 'shipwarden.comment',
+                label: 'Comment on Line or Selection',
+                keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyM],
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 0,
+                run: () => {
+                    const at = selectedLines(editor);
+                    if (at) setComposer({ side, ...at });
+                }
+            });
         };
         listen(diff.getModifiedEditor(), 'RIGHT');
         listen(diff.getOriginalEditor(), 'LEFT');
@@ -500,6 +527,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
             addZone(composer.side, composer.line, (
                 <ComposerZone
                     line={composer.line}
+                    startLine={composer.startLine}
                     onCancel={() => setComposer(undefined)}
                     onAdd={body => {
                         reviewStore.addPending(target, pr.number, { path: file.path, line: composer.line, side: composer.side, body });
