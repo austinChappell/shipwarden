@@ -323,6 +323,18 @@ export class ReviewProviders {
     }
 
     /** Returns a GitHub token for public requests, for example the update check. Undefined when there is none. */
+    /**
+     * Gets a file from Azure DevOps with the token of the provider of the organization.
+     * Throws an error when no Azure DevOps provider is on.
+     */
+    async azureFile(organization: string, url: string, accept?: string): Promise<Response> {
+        const provider = pickProvider(await this.providers(), 'azure', organization);
+        if (!provider) {
+            throw new Error('No Azure DevOps provider is on. Add one in Settings › Code review.');
+        }
+        return ((await this.runtime(provider)) as AzureRuntime).client.file(url, accept);
+    }
+
     async optionalGitHubToken(): Promise<string | undefined> {
         const provider = pickProvider(await this.providers(), 'github', undefined);
         if (!provider) return process.env.GITHUB_TOKEN || undefined;

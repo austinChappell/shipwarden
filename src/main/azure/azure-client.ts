@@ -87,6 +87,14 @@ export class AzureDevOpsClient {
         return response.text();
     }
 
+    /**
+     * Gets a file with the token, for example an image in a pull request description.
+     * The client does not add the API version. The browser URLs of the attachments have no version, and some of these APIs are preview APIs.
+     */
+    file(url: string, accept = '*/*'): Promise<Response> {
+        return this.fetch('GET', url, undefined, accept, 'application/json', false);
+    }
+
     /** Returns where the token comes from, or undefined when no token is available. */
     async tokenSource(): Promise<AzureTokenSource | undefined> {
         try {
@@ -101,9 +109,9 @@ export class AzureDevOpsClient {
         this.auth = undefined;
     }
 
-    private async fetch(method: string, rawUrl: string, body: unknown, accept: string, contentType = 'application/json'): Promise<Response> {
+    private async fetch(method: string, rawUrl: string, body: unknown, accept: string, contentType = 'application/json', versioned = true): Promise<Response> {
         const auth = await this.getAuth();
-        const url = withApiVersion(rawUrl);
+        const url = versioned ? withApiVersion(rawUrl) : rawUrl;
         let response: Response;
         try {
             response = await fetch(url, {

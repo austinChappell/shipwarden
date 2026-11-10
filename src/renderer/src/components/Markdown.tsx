@@ -1,6 +1,7 @@
 import { useMemo, type MouseEvent } from 'react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import { azureImageUrl } from '@shared/azure-image-url';
 import { openLink } from '../links';
 
 interface Props {
@@ -50,16 +51,34 @@ export function renderMarkdownFile(text: string, imageUrl: (src: string) => stri
         used.set(slug, count + 1);
         heading.id = `${HEADING_ID_PREFIX}${count === 0 ? slug : `${slug}-${count}`}`;
     });
+    replaceImageSources(template, imageUrl);
+    return template.innerHTML;
+}
+
+/** Sets the `src` of each image to the result of `imageUrl`. When `imageUrl` returns undefined, the image has no source. */
+function replaceImageSources(template: HTMLTemplateElement, imageUrl: (src: string) => string | undefined): void {
     template.content.querySelectorAll('img').forEach(image => {
         const source = image.getAttribute('src');
         if (source === null) return;
         const url = imageUrl(source);
         if (url === undefined) {
             image.removeAttribute('src');
-        } else {
+        } else if (url !== source) {
             image.setAttribute('src', url);
         }
     });
+}
+
+/**
+ * Sends the images of Azure DevOps through the `shipwarden-azure-image:` protocol. Azure DevOps requires a token for these images,
+ * and the main process adds the token. The function changes the HTML after DOMPurify, so the URLs of the custom protocol stay.
+ */
+export function withAzureImages(html: string): string {
+    if (!/dev\.azure\.com|visualstudio\.com/i.test(html)) return html;
+    const template = document.createElement('template');
+    // The content of a template is inert. The images do not load and no code runs here.
+    template.innerHTML = html;
+    replaceImageSources(template, source => azureImageUrl(source) ?? source);
     return template.innerHTML;
 }
 
@@ -70,7 +89,7 @@ export function sanitizeHtml(html: string): string {
 
 /** Shows Markdown from a task tracker or GitHub. Links open in the default browser, and with ⇧⌘-click in the in-app browser. */
 export function Markdown({ text, className, html: rendered }: Props) {
-    const html = useMemo(() => (rendered !== undefined ? sanitizeHtml(rendered) : renderMarkdown(text)), [text, rendered]);
+    const html = useMemo(() => withAzureImages(rendered !== undefined ? sanitizeHtml(rendered) : renderMarkdown(text)), [text, rendered]);
 
     const onClick = (event: MouseEvent<HTMLDivElement>) => {
         const link = (event.target as HTMLElement).closest('a');
