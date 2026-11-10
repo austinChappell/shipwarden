@@ -1194,6 +1194,17 @@ button {
     margin: 0 0 12px;
 }
 
+/* The message and the Refresh button above the form that creates a pull request. */
+.pr-create-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.pr-create-head p {
+    flex: 1;
+}
+
 /* The form that creates a pull request for the branch of a worktree. */
 .pr-create-form {
     display: flex;

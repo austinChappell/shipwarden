@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { ExternalLink, GitPullRequest } from 'lucide-react';
+import { ExternalLink, GitPullRequest, RefreshCw } from 'lucide-react';
 import { hostLabel, type BranchStatus, type NewPullRequest, type RepoTarget } from '@shared/github';
 import { createPullRequest } from '../github/pull-request-mutations';
 import { optionalErrorText } from '../util';
@@ -12,8 +12,21 @@ const ICON = { size: 15, strokeWidth: 1.6 };
 /**
  * The form that creates a pull request for the branch of a worktree, on GitHub or Azure DevOps.
  * After the create, the status of the worktree loads again and shows the new pull request.
+ * The Refresh button loads the status again. It finds a pull request that an agent or the host created.
  */
-export function CreatePullRequest({ target, status }: { target: RepoTarget; status: BranchStatus }) {
+export function CreatePullRequest({
+    target,
+    status,
+    loading,
+    onRefresh
+}: {
+    target: RepoTarget;
+    status: BranchStatus;
+    /** True while the status loads. The Refresh icon turns. */
+    loading: boolean;
+    /** Loads the status of the branch again. */
+    onRefresh(): Promise<void>;
+}) {
     const [title, setTitle] = useState(status.branch);
     const [body, setBody] = useState('');
     const [draft, setDraft] = useState(false);
@@ -38,9 +51,14 @@ export function CreatePullRequest({ target, status }: { target: RepoTarget; stat
 
     return (
         <div className="panel-message pr-create">
-            <p>
-                No pull request for <code>{status.branch}</code>. Push the branch before you create one.
-            </p>
+            <div className="pr-create-head">
+                <p>
+                    No pull request for <code>{status.branch}</code>. Push the branch before you create one.
+                </p>
+                <button className="icon-button" title="Check for a pull request" onClick={() => onRefresh()}>
+                    <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
+                </button>
+            </div>
             {typeof target === 'string' && (
                 <div className="pr-create-form">
                     <input value={title} placeholder="Title" onChange={event => setTitle(event.target.value)} disabled={busy} />
