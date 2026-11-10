@@ -20,7 +20,7 @@ import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { mergeConditions } from './PullRequestSummary';
 import { showContextMenu } from './ContextMenu';
 import { CopyButton } from './CopyButton';
-import { SeaLoader } from './SeaLoader';
+import { HelmLoader } from './HelmLoader';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 
 interface Props {
@@ -334,7 +334,7 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
     };
 
     if (status === undefined) {
-        if (!error && loading) return <SeaLoader label="Loading the pull request" />;
+        if (!error && loading) return <HelmLoader label="Loading the pull request" />;
         return <div className="panel-message">{error ?? ''}</div>;
     }
     if (status === null) {
