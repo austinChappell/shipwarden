@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Bot, Check, ChevronRight, Circle, CircleCheck, CircleX, Ellipsis, ExternalLink, GitCommitHorizontal, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, LoaderCircle, RefreshCw, TriangleAlert } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
-import { hostLabel, undecidedCount, type BranchStatus, type MergeMethod, type PullRequest, type PullRequestChange, type PullRequestFile, type RepoTarget, type ReviewEvent, type ReviewThread } from '@shared/github';
+import { hostLabel, undecidedCount, type BranchStatus, type CheckRun, type MergeMethod, type PullRequest, type PullRequestChange, type PullRequestFile, type RepoTarget, type ReviewEvent, type ReviewThread } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
@@ -13,7 +13,7 @@ import { DescriptionEditor, EditDescriptionButton, PullRequestMeta } from './Pul
 import { MERGE_LABELS, MergeButton } from './MergeButton';
 import { PullRequestTimeline, REVIEW_STATE_TEXT } from './PullRequestTimeline';
 import { openLink } from '../links';
-import type { CheckCounts } from '../github/use-check-counts';
+import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { mergeConditions } from './PullRequestSummary';
 import { showContextMenu } from './ContextMenu';
 import { CopyButton } from './CopyButton';
@@ -29,6 +29,8 @@ interface Props {
     onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number): void;
     /** Sends a review comment to the agent of the worktree. Without it (in the Review view), the button does not show. */
     onSendToAgent?(prompt: string): void;
+    /** Sends the failed checks to the agent of the worktree. Without it, the CI banner has no "Send to agent" button. */
+    onSendChecksToAgent?(checks: CheckRun[]): void;
     /**
      * "panel" is the full panel of a worktree. "overview" is the Overview tab of the Review view:
      * no header and no file list (the view shows them), and the description is open.
@@ -277,9 +279,13 @@ function conversationOf(pr: PullRequest): ConversationItem[] {
     ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export function PullRequestPanel({ target, status, loading, error, onRefresh, onOpenDiff, onSendToAgent, variant = 'panel', checks, agentReview }: Props) {
+export function PullRequestPanel({ target, status, loading, error, onRefresh, onOpenDiff, onSendToAgent, onSendChecksToAgent, variant = 'panel', checks: givenChecks, agentReview }: Props) {
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
+    // Without counts from the parent, the panel loads the checks itself, for the CI banner.
+    const ownChecks = useCheckCounts(target, givenChecks ? undefined : status?.sha, status);
+    const checks = givenChecks ?? ownChecks;
+    const failedChecks = pr?.state === 'OPEN' ? checks?.failedChecks ?? [] : [];
     const review = useReviewState(target, pr?.number);
     // The review text is in the store, so it stays when the user changes tabs, and an agent review can add to it.
     const body = review.body;
@@ -703,6 +709,21 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                                 className="button"
                                 onClick={() => onSendToAgent(`Pull request #${pr.number} (${pr.url}) has merge conflicts with ${pr.baseRefName}. Fetch origin, merge origin/${pr.baseRefName} into ${pr.headRefName}, resolve the conflicts, run the tests, and commit the merge.`)}
                             >
+                                <Bot size={13} strokeWidth={1.6} /> Send to agent
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {failedChecks.length > 0 && (
+                    <div className="pr-conflict-banner" role="alert">
+                        <CircleX size={16} strokeWidth={1.8} />
+                        <div className="pr-conflict-text">
+                            <strong>{failedChecks.length === 1 ? '1 check failed.' : `${failedChecks.length} checks failed.`}</strong>
+                            <span>{failedChecks.map(check => check.name).join(', ')}</span>
+                        </div>
+                        {onSendChecksToAgent && (
+                            <button className="button" onClick={() => onSendChecksToAgent(failedChecks)}>
                                 <Bot size={13} strokeWidth={1.6} /> Send to agent
                             </button>
                         )}
