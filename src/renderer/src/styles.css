@@ -273,6 +273,16 @@ button {
 .agent-state.starting {
     color: var(--muted);
 }
+.agent-state.blocked-ci {
+    color: var(--purple);
+}
+.agent-state.quiet {
+    color: var(--muted);
+}
+
+.status-dot.blocked-ci {
+    background: var(--purple);
+}
 
 .worktree-pr {
     flex-shrink: 0;
@@ -697,6 +707,15 @@ button {
 
 .editor-server-banner .button {
     flex: none;
+}
+
+.editor-server-banner.failed > svg {
+    color: var(--danger);
+}
+
+.editor-server-error {
+    white-space: pre-wrap;
+    color: var(--text);
 }
 
 /* File explorer */
@@ -1579,6 +1598,84 @@ code {
 .comment-author span {
     color: var(--muted);
     font-weight: 400;
+}
+
+/* A suggested change in a review comment: the old lines and the new lines, as on GitHub. */
+.suggestion {
+    margin: 6px 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.suggestion-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.suggestion-header .link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.suggestion-lines {
+    overflow-x: auto;
+    font:
+        12px / 1.5 "JetBrains Mono",
+        Menlo,
+        monospace;
+}
+
+.suggestion-line {
+    padding: 0 8px;
+    white-space: pre;
+}
+
+.suggestion-sign {
+    display: inline-block;
+    width: 16px;
+    user-select: none;
+}
+
+.suggestion-line.removed {
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.suggestion-line.added {
+    background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.suggestion-note {
+    padding: 2px 8px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.suggestion-result {
+    padding: 4px 8px;
+    border-top: 1px solid var(--border);
+    color: var(--ok);
+    font-size: 11px;
+}
+
+.composer-suggest {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: auto;
+}
+
+.suggestion .form-error {
+    margin: 0;
+    padding: 4px 8px;
+    border-top: 1px solid var(--border);
 }
 
 .comment-body {
@@ -4457,10 +4554,43 @@ button:focus-visible,
 }
 
 .agents-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--panel);
     overflow: hidden;
+}
+
+.agents-states {
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.agents-state-count {
+    color: var(--muted);
+}
+.agents-state-count.waiting {
+    color: var(--danger);
+}
+.agents-state-count.blocked-ci {
+    color: var(--purple);
+}
+.agents-state-count.working {
+    color: var(--accent);
+}
+.agents-state-count.done {
+    color: var(--ok);
+}
+
+.agents-usage {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .agent-row {
@@ -4476,7 +4606,7 @@ button:focus-visible,
     cursor: pointer;
 }
 
-.agent-row + .agent-row {
+.agents-list > li + li {
     border-top: 1px solid var(--border);
 }
 
@@ -4526,10 +4656,38 @@ button:focus-visible,
     max-width: 40%;
 }
 
-.agent-side .agent-state {
+.agent-state-line {
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+}
+
+.agent-side .agent-state {
+    margin-right: 0;
+}
+
+.agent-since {
+    color: var(--muted);
+}
+
+.agent-pr {
+    flex: none;
+    color: var(--muted);
+}
+
+.agent-pr.failed {
+    color: var(--danger);
+}
+.agent-pr.running {
+    color: var(--accent);
+}
+.agent-pr.passed {
+    color: var(--ok);
+}
+
+.agent-where-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .agent-where {
@@ -5814,6 +5972,8 @@ button:focus-visible,
 /* The switch between the changed files and all files of the pull request. */
 .pr-file-side-switch {
     flex: none;
+    /* Keep the switch at the width of its buttons. Do not stretch it across the side. */
+    align-self: flex-start;
     margin: 8px 10px 0;
 }
 
@@ -5913,10 +6073,16 @@ button:focus-visible,
 /* Dashboard */
 
 .dashboard-view {
+    /* Amber for "needs your action", in every theme. The themes have no warning color. */
+    --dash-warning: #e5a54b;
     display: flex;
     flex-direction: column;
     height: 100%;
     min-height: 0;
+}
+
+:root[data-mode="light"] .dashboard-view {
+    --dash-warning: #a8670f;
 }
 
 .dash-header h1 {
@@ -5931,60 +6097,153 @@ button:focus-visible,
     gap: 8px;
 }
 
+.dash-time {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.dash-filter {
+    flex-basis: 280px;
+}
+
+.dash-kbd {
+    padding: 0 5px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+}
+
+.dash-header-button {
+    padding: 3px 10px;
+    font-size: 12px;
+}
+
 .dash-scroll {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     padding: 18px 20px 28px;
+    container-type: inline-size;
 }
 
-/* The Dashboard sections in at most 2 columns. Each section goes to the shorter column. */
-.masonry {
-    display: flex;
-    align-items: flex-start;
-    max-width: 1500px;
-}
-
-.masonry-column {
-    flex: 1;
-    min-width: 0;
+.dash-page {
     display: flex;
     flex-direction: column;
+    gap: 22px;
+    max-width: 1500px;
+    margin: 0 auto;
 }
 
-.dash-section-header {
+/* The counts at the top. */
+.dash-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.dash-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.dash-stat:hover {
+    border-color: var(--muted);
+}
+
+.dash-stat-label {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 7px;
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 12.5px;
+    white-space: nowrap;
+}
+
+.dash-stat-count {
+    color: var(--text-strong);
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-stat.zero .dash-stat-count {
     color: var(--muted);
 }
 
-.dash-section-header h2 {
+.dash-stat-detail {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The color dot of each state. */
+.dash-dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+}
+
+.dash-dot.review {
+    background: var(--info);
+}
+.dash-dot.ready {
+    background: var(--ok);
+}
+.dash-dot.changes {
+    background: var(--purple);
+}
+.dash-dot.blocked {
+    background: var(--danger);
+}
+
+/* The user's pull requests on the left. The review requests and the comments on the right. One column when narrow. */
+.dash-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 480px);
+    align-items: start;
+    gap: 24px;
+}
+
+@container (max-width: 980px) {
+    .dash-columns {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.dash-column {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.dash-heading {
     margin: 0;
-    color: var(--text-strong);
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.dash-section-header .link-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.dash-count {
-    padding: 0 7px;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--accent) 22%, transparent);
-    color: var(--accent);
+    color: var(--muted);
     font-size: 11.5px;
     font-weight: 600;
-}
-
-.dash-count.zero {
-    background: color-mix(in srgb, var(--text) 10%, transparent);
-    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 .dash-card {
@@ -5999,6 +6258,25 @@ button:focus-visible,
     margin: 10px 12px;
 }
 
+.dash-card-error {
+    white-space: pre-line;
+}
+
+/* A card with one line of text, for example "Loading…" or "No new comments". */
+.dash-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    color: var(--muted);
+}
+
+.dash-ok,
+.dash-empty svg {
+    flex: none;
+    color: var(--ok);
+}
+
 .dash-empty {
     display: flex;
     align-items: center;
@@ -6007,8 +6285,54 @@ button:focus-visible,
     color: var(--muted);
 }
 
-.dash-empty svg {
-    color: var(--ok);
+.dash-footnote {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.dash-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    padding: 6px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    text-align: left;
+}
+
+.dash-card-head h3 {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: 13.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.dash-card-head .link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dash-card-count {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-hint {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .dash-row {
@@ -6016,7 +6340,7 @@ button:focus-visible,
     align-items: center;
     gap: 10px;
     width: 100%;
-    min-height: 32px;
+    min-height: 38px;
     padding: 0 12px;
     border: 0;
     background: transparent;
@@ -6027,9 +6351,8 @@ button:focus-visible,
     cursor: pointer;
 }
 
-.dash-row + .dash-row,
-.dash-group + .dash-group,
-.dash-subgroup + .dash-subgroup {
+.dash-pr-card .dash-row + .dash-row,
+.dash-group + .dash-group {
     border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
@@ -6040,13 +6363,22 @@ button:focus-visible,
 /* The ticket column: one width, so the titles start at the same place on each row. */
 .dash-ticket {
     flex: none;
-    width: 86px;
+    width: 96px;
     overflow: hidden;
     color: var(--muted);
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.dash-no-ticket {
+    padding: 0 5px;
+    border: 1px dashed color-mix(in srgb, var(--dash-warning) 60%, transparent);
+    border-radius: 4px;
+    color: var(--dash-warning);
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 11px;
 }
 
 .dash-title {
@@ -6058,32 +6390,64 @@ button:focus-visible,
     white-space: nowrap;
 }
 
-.dash-meta {
+.dash-badges {
     display: flex;
     flex: none;
     align-items: center;
-    gap: 10px;
-    color: var(--muted);
+    gap: 6px;
+}
+
+.dash-badge {
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 19px;
+    white-space: nowrap;
+}
+
+.dash-badge.ci-failing {
+    background: color-mix(in srgb, var(--danger) 16%, transparent);
+    color: var(--danger);
+}
+
+.dash-badge.conflicts {
+    background: color-mix(in srgb, var(--dash-warning) 16%, transparent);
+    color: var(--dash-warning);
+}
+
+.dash-unresolved {
+    color: var(--purple);
     font-size: 12px;
+    white-space: nowrap;
 }
 
 .dash-person {
+    flex: none;
     max-width: 110px;
     overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+/* The repository and number, in a pill. */
 .dash-repo {
+    flex: none;
+    max-width: 170px;
+    overflow: hidden;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--raised);
+    color: var(--muted);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.dash-number {
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 11px;
-}
-
-/* The age column: one width and right-aligned, so the ages line up. */
+/* The age column: one width and right-aligned, so the ages line up. The color shows the urgency. */
 .dash-age {
     flex: none;
     width: 30px;
@@ -6093,54 +6457,133 @@ button:focus-visible,
     text-align: right;
 }
 
-/* The groups of the user's pull requests, by the action that they need. */
-.dash-subgroup-head {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px 4px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
-.dash-subgroup-count {
-    color: var(--muted);
-    font-weight: 500;
-}
-
-/* Amber for "needs your action", in every theme. The themes have no warning color. */
-.dashboard-view {
-    --dash-warning: #e5a54b;
-}
-
-:root[data-mode="light"] .dashboard-view {
-    --dash-warning: #a8670f;
-}
-
-.dash-subgroup-head.changes-requested,
-.dash-subgroup-head.conflicts,
-.dash-extra.changes-requested,
-.dash-extra.conflicts {
+.dash-age.aging {
     color: var(--dash-warning);
 }
 
-.dash-subgroup-head.ci-failing,
-.dash-extra.ci-failing {
+.dash-age.old {
     color: var(--danger);
 }
 
-.dash-subgroup-head.ready-to-merge,
-.dash-extra.ready-to-merge {
+.dash-row-action {
+    flex: none;
+    justify-content: center;
+    min-width: 72px;
+    padding: 3px 12px;
+    font-size: 12.5px;
+}
+
+.button.dash-merge {
+    border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+    background: color-mix(in srgb, var(--ok) 10%, transparent);
     color: var(--ok);
+    font-weight: 600;
 }
 
-.dash-subgroup .dash-row + .dash-row {
-    border-top: 0;
+.button.dash-merge:hover:not(:disabled) {
+    border-color: var(--ok);
 }
 
-/* The head of a group of comments: the pull request or the task. */
+/* The stale card: collapsed by default, with a dashed border. */
+.dash-stale {
+    border-style: dashed;
+    background: transparent;
+}
+
+.dash-stale-head {
+    border-bottom: 0;
+    cursor: pointer;
+}
+
+.dash-stale.open .dash-stale-head {
+    border-bottom: 1px dashed var(--border);
+}
+
+.dash-stale-head .group-chevron {
+    flex: none;
+    color: var(--muted);
+}
+
+.dash-stale-preview {
+    overflow: hidden;
+    padding: 0 12px 12px 34px;
+    color: var(--muted);
+    font-size: 12.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The review requests, in groups by author or repository. */
+.dash-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.dash-chip {
+    padding: 3px 11px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.dash-chip:hover {
+    color: var(--text-strong);
+}
+
+.dash-chip.on {
+    border-color: var(--muted);
+    background: var(--raised);
+    color: var(--text-strong);
+}
+
+.dash-review-group {
+    padding: 4px 0;
+}
+
+.dash-review-group + .dash-review-group {
+    border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.dash-review-group-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 2px;
+    color: var(--text-strong);
+    font-size: 13px;
+}
+
+.dash-avatar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--raised);
+    color: var(--text);
+    font-size: 10.5px;
+    font-weight: 700;
+}
+
+.dash-review-row {
+    min-height: 32px;
+}
+
+.dash-review-row.indented {
+    padding-left: 40px;
+}
+
+/* The comment cards. */
 .dash-group-head {
     background: color-mix(in srgb, var(--text) 3%, transparent);
 }
@@ -6214,11 +6657,6 @@ button:focus-visible,
     color: var(--muted);
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.dash-time {
-    color: var(--muted);
-    font-size: 12px;
 }
 
 /* The comment actions show on hover, over the age. */
@@ -7869,10 +8307,6 @@ body.resizing-column * {
     width: 22px;
     height: 22px;
     border-radius: 4px;
-}
-
-.dash-extra {
-    display: flex;
 }
 
 /* The live steps of a running GitHub Actions job, in place of the log. */

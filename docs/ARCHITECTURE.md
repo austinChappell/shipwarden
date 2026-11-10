@@ -15,6 +15,8 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-07 | Use ghostty-web for terminals and import the user's Ghostty config. | This is Orca's approach (Orca imports the Ghostty config into xterm.js), with Ghostty's own VT parser in place of xterm.js. Supacode embeds the native libghostty, but that needs a Swift app. |
 | 2026-11-09 | Show PDF files in the built-in PDF viewer of Chromium, in a frame that loads a `shipwarden-file:` URL. | It needs no dependency. pdfjs-dist adds about 3 MB and a worker. The viewer has search, zoom and page thumbnails. |
 | 2026-11-09 | The Review view gets go to definition and a file explorer from a hidden, detached git worktree at the PR head. | A language server needs the files on disk. The GitHub API gives files, but no server can run on them. The worktree uses the existing LspManager, FileExplorer and Monaco. |
+| 2026-11-09 | A background helper (a launch agent) can run the phone server while the app is closed. The setting is off by default. | The agents already run in the PTY host. Only the phone server needed the app. The helper is a second entry of the same build, so it needs no other install. |
+| 2026-11-09 | "Apply suggestion" changes the file in the local worktree. It does not commit with the GitHub API. | An agent works on the branch in the worktree. A commit on GitHub makes the local branch fall behind, and the next push fails. The user can check, test and commit the change with other changes. |
 
 ## The old name (Yardmaster)
 
@@ -75,8 +77,15 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 ┌──────────────────┴──────── PTY host (detached process) ──────────┐
 │ TerminalManager    node-pty sessions + output buffers            │
 │ HookServer         agent state from Claude Code hooks (HTTP)     │
-└──────────────────────────────────────────────────────────────────┘
+└──────────────────┬───────────────────────────────────────────────┘
+                   │ the same JSON-RPC socket (a second client)
+┌──────────────────┴──── Background helper (launch agent, optional) ┐
+│ RemoteServer       the phone server while the app is closed       │
+│ HelperServer       JSON-RPC on <app data>/helper-v1.sock          │
+└───────────────────────────────────────────────────────────────────┘
 ```
+
+The main process connects to the helper socket when the helper runs (see "Background helper" below).
 
 ### Terminals
 
@@ -184,9 +193,24 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 - Each state change carries a message and a time. PreToolUse gives a description of the tool call for people
   (`describeTool`, for example "Editing App.tsx" or "Running npm test"). UserPromptSubmit gives a one-line summary of
   the prompt, which the session keeps.
-- The Agents view (the first row of the sidebar) lists the running agents of all projects, grouped by project. A row
-  shows the state and its time, a name (the linked task, else the last prompt, else the branch), the activity, and the
-  repository and branch. A click switches to the agent's project if necessary and opens its tab.
+- The Agents view (the first row of the sidebar, ⌥⌘2) lists the running agents of all projects, grouped by project. A row
+  shows the state, the time since the last output, a name (the linked task, else the last prompt, else the branch),
+  the activity, the pull request with its CI state, and the repository and branch. A click or Enter switches to the
+  agent's project if necessary and opens its tab. The arrow keys, Home and End move between the rows.
+- `src/shared/agent-overview.ts` gives the state of a row (`overviewState`). The inputs are the hook state, the CI state
+  of the branch's open pull request and the time of the last terminal output:
+  - The hook states "waiting", "working" and "starting" stay as they are.
+  - "done" becomes "Blocked on CI" while the checks of the pull request run or after they fail. Else it stays "done".
+  - "idle" (ready, no prompt) becomes "Needs input", or "Blocked on CI" as above.
+  - An agent without hooks (for example Codex) is "working" while its terminal sent output in the last 10 seconds.
+    Else it is "Blocked on CI" as above, or "Quiet".
+- The CI state comes from `github.branchSummaries` for each repository that has an agent. The view loads it every
+  60 seconds while it is open.
+- The renderer records the time of the last output of each terminal (`OutputActivity`). It starts when the window
+  loads, so after a reload of the window the time is not known until the next output. The row then shows the time of
+  the last state change. A redraw of a TUI agent (for example a spinner) also counts as output.
+- The header shows the number of agents in each state and the plan usage of Claude and Codex from the status bar.
+  ShipWarden has no token or cost data for each agent, so the rows show no usage.
 - The project switcher is the header of the repository list, because only the repositories change with the project.
 - The worktree list also shows the open PR of each branch and its combined CI state. One GraphQL request for all
   open PRs runs every 60 seconds and when the window gets focus.
@@ -493,6 +517,12 @@ Done:
 - The tree updates itself when files change on disk. One recursive watch covers each worktree.
 - Files open in Monaco tabs next to the terminal tabs. Cmd+S saves.
   An open file without unsaved changes reloads when an agent changes it.
+- The open files and the active tab of each worktree stay after a reload or a restart (`layout-store.ts`, in local
+  storage). A file that does not exist now does not get a tab. Each file also keeps its cursor and scroll position
+  (`editor/editor-positions.ts`). A closed tab or a removed worktree removes its positions.
+- A handle on the left edge of the right panel changes its width (`ResizeHandle`). The width stays in local storage.
+  The handle is a `separator` with `aria-valuenow`. Left and Right change the width, Shift makes bigger steps, End sets
+  the largest width, and Enter or Home sets the default width.
 - File viewers (`FileView`). The main process tells the kind of a file (`files.info`): from the extension, else from
   the first bytes (`shared/file-types.ts`).
   - Images (png, jpg, gif, webp, svg, bmp, ico, avif): fit, 100% and zoom (also ⌘ and the scroll wheel), the size in
@@ -515,21 +545,40 @@ Done:
 
 - `LspManager` (main process) starts one server for each worktree and language, with the worktree as `rootUri`.
   It answers the server's requests (configuration, workspace folders) and sends diagnostics to the UI.
+  It sends `workspace/applyEdit` requests to the UI with an `id` and waits up to 30 seconds for `lsp.respond`.
 - Servers:
   - TypeScript and JavaScript: `tsc --lsp --stdio` from TypeScript 7. ShipWarden uses the worktree's own TypeScript if it is version 7 or later. If not, it uses the TypeScript 7 that ShipWarden includes.
-  - Rust: `rust-analyzer`. Python: `basedpyright-langserver` or `pyright-langserver`. Go: `gopls`. These must be in the PATH.
+  - Rust: `rust-analyzer`. Python: `basedpyright-langserver` or `pyright-langserver`. Go: `gopls`.
+  - The launcher looks first in `<userData>/language-servers`, and then in the PATH.
+- Install of a missing server (`main/lsp/server-install.ts`):
+  - The editor banner shows an Install button. A dialog shows the source and the folder. ShipWarden installs nothing without consent.
+  - Rust: the `rust-analyzer-<target>.gz` file of the latest GitHub release. The installer checks its size and the SHA-256 that the GitHub API gives.
+  - Python: the `basedpyright` npm package, with a check of its `integrity` value. Electron runs `langserver.index.js` with `ELECTRON_RUN_AS_NODE=1`.
+  - Go: `go install golang.org/x/tools/gopls@latest` with `GOBIN` in the folder. Without `go` in the PATH, the banner tells the user to install Go.
+  - Each install writes to a staging folder first, and then moves it into place.
+  - Downloads wait for `networkReady`, so the CA certificates of Settings › Network apply. `go install` gets `NODE_EXTRA_CA_CERTS` and `SSL_CERT_FILE`.
+  - The banner shows the step, the download progress and the error.
 - The main process reads the PATH of the login shell at start. An app that starts from Finder does not get it.
 - `LspBridge` (renderer) syncs each Monaco model in a worktree with incremental changes.
-  It registers Monaco providers for definition, type definition, implementation, references, hover, document highlights and completion.
+  It registers Monaco providers for definition, type definition, implementation, references, hover, document highlights,
+  completion, rename and code actions.
   It routes each request to the server of the worktree that contains the file.
+- Rename: the bridge sends `textDocument/prepareRename` when the server supports it, then `textDocument/rename`.
+- Code actions: the bridge sends `textDocument/codeAction` with the original LSP diagnostics. Each Monaco action runs the
+  command `shipwarden.lsp.applyCodeAction`. This command sends `codeAction/resolve` when the action has no edit,
+  applies the edit and sends `workspace/executeCommand` for the action's command.
+- Workspace edits (`LspBridge.applyWorkspaceEdit`): the bridge checks all files first. Then it changes them.
+  - A file in the document store gets the edit in its Monaco model, so undo works. A model without unsaved changes is saved.
+  - Other files of a worktree get the edit on the disk (`files.read`, then `files.write`).
+  - The bridge refuses the full edit for a file outside the worktrees, a file operation (create, rename, delete),
+    overlapping edits, or a document version that changed.
 - Diagnostics: the bridge pulls them (`textDocument/diagnostic`) after each change and also accepts pushed diagnostics.
 - "Go to definition" into another file opens that file in a ShipWarden tab. Peek views load the models of the result files first.
 
 Next:
 
-- Rename, code actions and signature help from the servers.
-- Downloads of language servers that are not installed.
-- Open files stay open after a reload. The panel width can change.
+- Signature help from the servers.
+- File operations in workspace edits. An error message in the editor when a code action fails.
 
 ### GitHub (goals 3 and 4)
 
@@ -548,6 +597,18 @@ Next:
   worktree (a bracketed paste, then Enter). A review thread goes to the agent as a prompt with the comments.
 - `RepoTarget`: each GitHub call takes a worktree root (the repository of its "origin") or `{owner, name}`.
   The review store keys its state with `targetKey(target)`.
+- Suggested changes (`shared/suggestion.ts`, `CommentBody`):
+  - A "```suggestion" block in a review comment shows as a diff: the old lines in red, the new lines in green.
+    `splitSuggestions` finds the blocks. A suggestion fence in a different code block is text.
+  - The old lines come from the `diffHunk` of the first comment of the thread (`threadSuggestionTarget`).
+    The thread query also gets `startLine` and `originalStartLine`, so a comment on more than one line works.
+  - "Suggest a change" in the comment box puts a suggestion block with the selected lines at the cursor. It shows
+    only on the new side. A selection of more than one line sends `start_line` and `start_side` with the review.
+  - "Apply suggestion" shows only in the worktree panel. It changes the file in the worktree, and the user commits.
+    `applySuggestion` finds the old lines by their text, near the line of the thread, so lines that moved still work.
+    When the old lines are not in the file, the suggestion is stale and the file does not change.
+    A file with unsaved changes in the editor does not change.
+  - The Review view shows suggestions, but it has no "Apply suggestion", because the PR has no worktree there.
 - Viewed files: `viewerViewedState` from GraphQL, changed with `markFileAsViewed` and `unmarkFileAsViewed`.
   The file list shows "x of y viewed". The diff header has a "Viewed" box. The change shows at once and goes back on an error.
 
@@ -665,7 +726,6 @@ Next:
 
 - Markdown for PR descriptions and comments.
 - PR and CI state in the worktree list.
-- Suggested changes in review comments.
 
 ### Mobile (goal 5)
 
@@ -676,8 +736,8 @@ finds a difference: the unit tests write sample JSON from the TypeScript types t
 `remote.ts`, run `UPDATE_CONTRACT_FIXTURES=1 npm test` and then the check.
 
 - **Server.** `RemoteServer` (`src/main/remote/`) is an HTTPS server on all interfaces, port 7429 by default. It runs
-  only while Settings › Mobile has it on (`settings.remote`). It is in the main process, so ShipWarden must be open.
-  The window can be closed.
+  only while Settings › Mobile has it on (`settings.remote`). It runs in the main process, or in the background helper
+  when that setting is on (see "Background helper"). Only one process listens on the port.
 - **Certificate.** At the first start, `ensureTlsIdentity` makes a P-256 key and a self-signed certificate with
   `/usr/bin/openssl` (`remote-key.pem`, `remote-cert.pem` in the app data folder). The phone accepts only the
   certificate with the SHA-256 fingerprint from the pairing code. A new certificate needs a new pairing.
@@ -711,3 +771,36 @@ finds a difference: the unit tests write sample JSON from the TypeScript types t
   scheme.
 - **Limits.** There are no push notifications, because iOS stops the connections of an app in the background, and
   push needs a server. The phone cannot start agents yet, because the page owns the tabs.
+
+#### Background helper
+
+The setting "Keep agents and phone access running when ShipWarden is closed" (`settings.remote.keepRunning`, off by
+default) runs the phone server in a background helper. The page asks before it turns the setting on.
+
+- **Program.** `src/main/helper/main.ts` is a third entry of the main build (`out/main/helper.js`), next to the PTY host.
+  Electron's Node runtime runs it (`ELECTRON_RUN_AS_NODE=1`). It does not load Electron.
+- **Launch agent.** The setting writes `~/Library/LaunchAgents/dev.shipwarden.helper.plist` and loads it with
+  `launchctl bootstrap gui/<uid>`. launchd starts the helper at login (`RunAtLoad`) and after a stop (`KeepAlive`).
+  `AbandonProcessGroup` keeps the PTY host alive when launchd stops the helper. The arguments are the app data folder
+  and the app version. Off: `launchctl bootout` and the app removes the plist. The app does not change the launch agent
+  for any other reason. At each start with the setting on, the app writes the plist again when the app path or the
+  version changed.
+- **Agents.** The agents already run in the PTY host, outside the app. The helper connects to the PTY host as a
+  second client, with the same `PtyHostClient`. While the helper is connected, the PTY host does not stop. The helper
+  has its own `ShellAgents` scan.
+- **Handoff.** `RemoteControl` (main process) selects the owner of the server (`remoteOwner`): the helper when the
+  setting is on and the app has a connection to the helper socket, else the app. Before the helper gets the settings,
+  the server of the app stops, so the port is free. When the helper stops, the app runs the server again and tries to
+  connect each 3 seconds. Each server of the app is new and reads `remote-devices.json` again.
+- **Versions.** The helper sends a hash of its script (`hello`). When the hash is not the hash of the app's
+  `helper.js` (for example after an update), the app restarts the helper one time (`launchctl kickstart -k`).
+- **Data.** While the app is open, the helper asks the app for the snapshot and for approvals, so the phone gets the
+  pull requests. While the app is closed, the helper reads `projects.json`, `settings.json` and `task-links.json`
+  again for each snapshot, and runs `git worktree list`. It shows no pull requests then, and an approval gets 503.
+  The helper makes no outbound network requests, so it does not need the trusted certificates of Settings › Network.
+- **Security.** The pairing, the tokens, the certificate and the bind address do not change. The helper uses the same
+  `RemoteDevices` file and TLS identity in the app data folder. The helper socket is a Unix socket with mode 0600,
+  like the PTY host socket. Only processes of the user can connect.
+- **Logs.** The helper writes to `<app data>/helper.log`.
+- **Next steps.** Pull requests and approvals while the app is closed (the helper needs the review providers, the
+  tokens without Electron `safeStorage`, and the trusted certificates). Start agents from the phone. Push notifications.

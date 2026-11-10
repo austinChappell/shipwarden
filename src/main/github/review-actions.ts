@@ -52,7 +52,14 @@ export function reviewBody(headSha: string, event: ReviewEvent, body: string, co
         commit_id: headSha,
         event,
         body: body || undefined,
-        comments: comments.map(comment => ({ path: comment.path, line: comment.line, side: comment.side, body: comment.body }))
+        comments: comments.map(comment => ({
+            path: comment.path,
+            line: comment.line,
+            side: comment.side,
+            body: comment.body,
+            // GitHub refuses a start line that is not before the last line.
+            ...(comment.startLine !== undefined && comment.startLine < comment.line ? { start_line: comment.startLine, start_side: comment.side } : {})
+        }))
     };
 }
 

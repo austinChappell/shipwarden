@@ -41,6 +41,8 @@ import {
     type TabKey
 } from './tabs';
 import { errorText } from './worktree-edits';
+import { editorPositions } from '../editor/editor-positions';
+import { outputActivity } from '../terminal/output-activity';
 
 const api = window.shipwarden;
 
@@ -185,6 +187,7 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
             return;
         }
         documents.close(root, path);
+        editorPositions.forget(root, path);
         setDirtyFiles(set => {
             const next = new Set(set);
             next.delete(fileKey(root, path));
@@ -197,6 +200,7 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
         await api.terminals.kill(session.id);
         terminalPool.dispose(session.id);
         agentStateStore.delete(session.id);
+        outputActivity.delete(session.id);
         setSessions(list => list.filter(item => item.id !== session.id));
     };
 
@@ -335,6 +339,7 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
         }
         terminalPool.dispose(id);
         agentStateStore.delete(id);
+        outputActivity.delete(id);
         setSessions(list => list.filter(item => item.id !== id));
         // The host keeps an ended session for its output. The tab is gone, so the host can forget it.
         void api.terminals.kill(id).catch(() => undefined);

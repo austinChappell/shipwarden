@@ -24,6 +24,8 @@ import {
     withWorktreeName,
     worktreeMenuItems
 } from './worktree-edits';
+import { editorPositions } from '../editor/editor-positions';
+import { outputActivity } from '../terminal/output-activity';
 
 const api = window.shipwarden;
 
@@ -213,9 +215,11 @@ export function useWorktreeActions(options: Options) {
                 .forEach(session => {
                     terminalPool.dispose(session.id);
                     agentStateStore.delete(session.id);
+                    outputActivity.delete(session.id);
                 });
             options.setSessions(list => list.filter(session => session.worktreePath !== worktree.path));
             (options.openFiles[worktree.path] ?? []).forEach(path => documents.close(worktree.path, path));
+            editorPositions.forget(worktree.path);
             options.setExtraTabs(map => withoutKey(map, worktree.path));
             if (links[worktree.path]) {
                 await api.tasks.setLink(worktree.path, null);

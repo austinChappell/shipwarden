@@ -3,6 +3,7 @@ import { MultiFileDiff, PatchDiff, type DiffLineAnnotation, type FileDiffOptions
 import { ExternalLink, LoaderCircle } from 'lucide-react';
 import type { DiffSide, FileVersions, PendingComment, PullRequest, PullRequestFile, RepoTarget } from '@shared/github';
 import { unifiedPatch } from '@shared/patch';
+import { sliceLines } from '@shared/ask-agent';
 import { reviewStore } from '../github/review-store';
 import { composerFromRange, lineAnnotations, toSide, type Composer, type Note } from '../github/diff-notes';
 import type { AgentQuestion, QuestionAction } from '../github/agent-questions';
@@ -156,8 +157,17 @@ export const FileBody = memo(function FileBody({
                     canComment={canComment}
                     onAsk={onAsk && (question => onAsk({ line: note.line, startLine: note.startLine, side: note.side }, question))}
                     onCancel={() => onComposer(undefined)}
-                    onAdd={body => {
-                        reviewStore.addPending(target, pr.number, { path: file.path, line: note.line, side: note.side, body });
+                    onSuggest={
+                        note.side === 'RIGHT' && canComment
+                            ? async () => {
+                                  const result = await reviewStore.fileVersions(target, file, pr.baseRefOid, pr.headRefOid);
+                                  return result.unavailable ? undefined : sliceLines(result.head, note.startLine, note.line).replace(/\r$/gm, '');
+                              }
+                            : undefined
+                    }
+                    onAdd={(body, originalCode) => {
+                        const startLine = note.startLine < note.line ? note.startLine : undefined;
+                        reviewStore.addPending(target, pr.number, { path: file.path, line: note.line, startLine, side: note.side, body, originalCode });
                         onComposer(undefined);
                     }}
                 />

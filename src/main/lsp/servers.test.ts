@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { findLegacyTsserver, installCommand, SERVER_DEFINITIONS, type ServerDefinition } from './servers';
+import { findLegacyTsserver, managedPaths, resolveManaged, SERVER_DEFINITIONS, setManagedFolder } from './servers';
 
 let temp: string;
 
@@ -60,45 +60,77 @@ describe('findLegacyTsserver', () => {
     });
 });
 
-describe('installCommand', () => {
-    const definition = (install: ServerDefinition['install']): ServerDefinition => ({
-        id: 'test',
-        name: 'test',
-        languages: [],
-        resolve: async () => undefined,
-        install
+describe('managed servers', () => {
+    afterEach(() => {
+        setManagedFolder(undefined);
     });
-    let oldPath: string | undefined;
 
-    beforeEach(async () => {
-        oldPath = process.env.PATH;
+    it('puts each server in its own folder', () => {
+        expect(managedPaths('/data/language-servers')).toEqual({
+            rustAnalyzer: '/data/language-servers/rust-analyzer/rust-analyzer',
+            basedpyrightPackage: '/data/language-servers/basedpyright/package',
+            basedpyright: '/data/language-servers/basedpyright/package/langserver.index.js',
+            goBin: '/data/language-servers/gopls/bin',
+            gopls: '/data/language-servers/gopls/bin/gopls'
+        });
+    });
+
+    it('returns undefined when the managed folder has no server', async () => {
+        expect(await resolveManaged('rust-analyzer', temp)).toBeUndefined();
+        expect(await resolveManaged('python', temp)).toBeUndefined();
+        expect(await resolveManaged('gopls', temp)).toBeUndefined();
+        expect(await resolveManaged('rust-analyzer', undefined)).toBeUndefined();
+    });
+
+    it('finds the binaries and the basedpyright script in the managed folder', async () => {
+        const paths = managedPaths(temp);
+        await fs.mkdir(path.dirname(paths.rustAnalyzer), { recursive: true });
+        await fs.writeFile(paths.rustAnalyzer, '', { mode: 0o755 });
+        await fs.mkdir(paths.goBin, { recursive: true });
+        await fs.writeFile(paths.gopls, '', { mode: 0o755 });
+        await fs.mkdir(paths.basedpyrightPackage, { recursive: true });
+        await fs.writeFile(paths.basedpyright, '');
+
+        expect(await resolveManaged('rust-analyzer', temp)).toEqual({ command: paths.rustAnalyzer, args: [] });
+        expect(await resolveManaged('gopls', temp)).toEqual({ command: paths.gopls, args: [] });
+        expect(await resolveManaged('python', temp)).toEqual({
+            command: process.execPath,
+            args: [paths.basedpyright, '--stdio'],
+            env: { ELECTRON_RUN_AS_NODE: '1' }
+        });
+    });
+
+    it('does not use a binary that is not executable', async () => {
+        const paths = managedPaths(temp);
+        await fs.mkdir(path.dirname(paths.rustAnalyzer), { recursive: true });
+        await fs.writeFile(paths.rustAnalyzer, '', { mode: 0o644 });
+        expect(await resolveManaged('rust-analyzer', temp)).toBeUndefined();
+    });
+
+    it('uses the managed folder before the PATH', async () => {
+        const oldPath = process.env.PATH;
         const bin = path.join(temp, 'bin');
         await fs.mkdir(bin);
-        await fs.writeFile(path.join(bin, 'second-tool'), '', { mode: 0o755 });
+        await fs.writeFile(path.join(bin, 'gopls'), '', { mode: 0o755 });
         process.env.PATH = bin;
+        try {
+            const gopls = SERVER_DEFINITIONS.find(server => server.id === 'gopls')!;
+            expect((await gopls.resolve(temp))?.command).toBe(path.join(bin, 'gopls'));
+
+            const managed = path.join(temp, 'managed');
+            const paths = managedPaths(managed);
+            await fs.mkdir(paths.goBin, { recursive: true });
+            await fs.writeFile(paths.gopls, '', { mode: 0o755 });
+            setManagedFolder(managed);
+            expect((await gopls.resolve(temp))?.command).toBe(paths.gopls);
+        } finally {
+            process.env.PATH = oldPath;
+        }
     });
 
-    afterEach(() => {
-        process.env.PATH = oldPath;
-    });
-
-    it('returns the command of the first tool that is in the PATH', async () => {
-        const result = await installCommand(
-            definition([
-                { tool: 'first-tool', command: 'first-tool install' },
-                { tool: 'second-tool', command: 'second-tool install' }
-            ])
-        );
-        expect(result).toBe('second-tool install');
-    });
-
-    it('returns undefined when no tool is in the PATH', async () => {
-        expect(await installCommand(definition([{ tool: 'first-tool', command: 'first-tool install' }]))).toBeUndefined();
-    });
-
-    it('gives an install command to each server that ShipWarden does not include', () => {
-        for (const server of SERVER_DEFINITIONS.filter(item => item.id !== 'typescript')) {
-            expect(server.install.length, server.id).toBeGreaterThan(0);
+    it('lets ShipWarden install each server that it does not include', () => {
+        for (const server of SERVER_DEFINITIONS) {
+            expect(server.installable, server.id).toBe(server.id !== 'typescript');
         }
     });
 });

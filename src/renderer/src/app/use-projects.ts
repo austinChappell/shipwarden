@@ -8,6 +8,7 @@ import { pruneLayout, readLayout, writeLayout } from '../layout-store';
 import { keepOpenFileTabs, type TabKey } from './tabs';
 import { viewToSave, type ContentView, type MainView } from './views';
 import { errorText } from './worktree-edits';
+import { editorPositions } from '../editor/editor-positions';
 
 const api = window.shipwarden;
 
@@ -109,6 +110,11 @@ export function useProjects(options: Options) {
             })
         );
         const activeTabs = keepOpenFileTabs(saved.activeTabs, openFiles);
+        // The cursor positions of files that did not open again are not necessary.
+        editorPositions.prune(
+            list.map(worktree => worktree.path),
+            openFiles
+        );
         // Merge, so that the documents of another repository keep their tabs and can close normally.
         setOpenFiles(map => ({ ...map, ...openFiles }));
         setActiveTabs(map => ({ ...map, ...activeTabs }));

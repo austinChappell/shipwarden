@@ -4,7 +4,12 @@ import { checkCommitSha, checkPullNumber, checkRepoRef } from '@shared/review-ch
 import type { Services } from '../services';
 
 /** Registers the IPC handlers of the language servers and the local copies of pull requests. */
-export function registerCodeIpc({ lsp, reviewCheckouts, shellReady }: Pick<Services, 'lsp' | 'reviewCheckouts' | 'shellReady'>): void {
+export function registerCodeIpc({
+    lsp,
+    serverInstaller,
+    reviewCheckouts,
+    shellReady
+}: Pick<Services, 'lsp' | 'serverInstaller' | 'reviewCheckouts' | 'shellReady'>): void {
     ipcMain.handle(IpcChannels.reviewCheckoutStatus, (_event, repo: unknown, number: unknown) =>
         reviewCheckouts.status(checkRepoRef(repo), checkPullNumber(number))
     );
@@ -20,6 +25,12 @@ export function registerCodeIpc({ lsp, reviewCheckouts, shellReady }: Pick<Servi
 
     ipcMain.handle(IpcChannels.lspEnsure, (_event, root: string, languageId: string) => lsp.ensure(root, languageId));
     ipcMain.handle(IpcChannels.lspMissing, (_event, root: string, languageId: string) => lsp.missing(root, languageId));
+    // The renderer calls this only after the user agrees to the install.
+    ipcMain.handle(IpcChannels.lspInstall, async (_event, serverId: string) => {
+        await shellReady;
+        await serverInstaller.install(String(serverId));
+    });
     ipcMain.handle(IpcChannels.lspRequest, (_event, key: string, method: string, params: unknown) => lsp.request(key, method, params));
     ipcMain.on(IpcChannels.lspNotify, (_event, key: string, method: string, params: unknown) => lsp.notify(key, method, params));
+    ipcMain.on(IpcChannels.lspRespond, (_event, id: number, result: unknown) => lsp.respond(id, result));
 }

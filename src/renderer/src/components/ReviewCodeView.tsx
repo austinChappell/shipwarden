@@ -6,6 +6,7 @@ import { lspBridge } from '../lsp/bridge';
 import { useMissingServer } from '../lsp/missing-servers';
 import type { CheckoutState } from '../github/review-checkout-store';
 import { CopyButton } from './CopyButton';
+import { MissingServerBanner } from './MissingServerBanner';
 
 /** A position in a file of the pull request. */
 export interface CodeLocation {
@@ -170,13 +171,7 @@ function CodeEditor({ root, location, onCursor }: { root: string; location: Code
     return (
         <div className="review-code-body">
             {failure && <div className="editor-failure">{failure}</div>}
-            {missing && (
-                <div className="editor-server-banner" role="status">
-                    <span className="editor-server-text">
-                        Install <strong>{missing.server.name}</strong> to get go to definition and hover in this file.
-                    </span>
-                </div>
-            )}
+            {missing && <MissingServerBanner {...missing} features="go to definition and hover" />}
             <div className="editor-monaco" ref={containerRef} />
         </div>
     );

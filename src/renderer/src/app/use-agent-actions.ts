@@ -1,12 +1,10 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { NoteTarget } from '@shared/code-note';
 import type { CheckRun } from '@shared/github';
-import type { LspMissingServer } from '@shared/lsp';
 import { agentForRepo, type AgentDefinition, type AppSettings, type RepoScript } from '@shared/settings';
 import type { TerminalSession } from '@shared/terminal';
 import { setupCommand } from '@shared/worktree-settings';
 import type { CreatedWorktree, Worktree } from '@shared/worktrees';
-import { lspBridge } from '../lsp/bridge';
 import { terminalPool } from '../terminal/terminal-pool';
 import { bracketedPaste, checkLine, checksPrompt, logPrompt, repoFolderName, showsAgentDialog } from './agent-text';
 import type { TabKey } from './tabs';
@@ -237,15 +235,5 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
         await startCommand(worktree.path, script.name, command, `The script "${script.name}" did not start`);
     };
 
-    /**
-     * Runs the install command of a missing language server in a new terminal tab of the worktree.
-     * ShipWarden then looks for the server, and starts it when the install completes.
-     */
-    const installServer = async (worktreePath: string, server: LspMissingServer) => {
-        if (!server.installCommand) return;
-        const session = await startCommand(worktreePath, `Install ${server.name}`, server.installCommand, `The install of ${server.name} did not start`);
-        if (session) void lspBridge.watchInstall(server.serverId);
-    };
-
-    return { showSession, startTerminal, sendToAgent, sendLogToAgent, sendChecksToAgent, prepareWorktree, runScript, installServer };
+    return { showSession, startTerminal, sendToAgent, sendLogToAgent, sendChecksToAgent, prepareWorktree, runScript };
 }

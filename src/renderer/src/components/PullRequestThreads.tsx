@@ -5,6 +5,9 @@ import { threadLine, threadPrompt } from '../github/agent-prompts';
 import { visibleThreads, type ConversationItem } from '../github/review-state';
 import { timeAgo } from '../util';
 import { Markdown } from './Markdown';
+import { CommentBody } from './CommentBody';
+import { threadSuggestionTarget } from '@shared/suggestion';
+import { applyThreadSuggestion } from '../github/suggestions';
 import { REVIEW_STATE_TEXT } from './PullRequestTimeline';
 
 interface Props {
@@ -65,7 +68,16 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
                             <div className="comment-author">
                                 {comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span>
                             </div>
-                            <Markdown className="comment-body" text={comment.body} />
+                            <CommentBody
+                                body={comment.body}
+                                original={threadSuggestionTarget(thread)?.original}
+                                outdated={thread.isOutdated}
+                                onApply={
+                                    typeof target === 'string' && threadSuggestionTarget(thread)
+                                        ? lines => applyThreadSuggestion(target, thread, lines)
+                                        : undefined
+                                }
+                            />
                         </div>
                     ))}
                     {replyTo === thread.id && (

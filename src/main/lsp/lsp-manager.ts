@@ -4,7 +4,8 @@ import { pathToFileURL } from 'url';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter, type MessageConnection } from 'vscode-jsonrpc/node';
 import type { ClientCapabilities, InitializeResult } from 'vscode-languageserver-protocol';
 import type { LspMissingServer, LspServerInfo, LspServerMessage } from '@shared/lsp';
-import { installCommand, serverForLanguage } from './servers';
+import type { ServerInstaller } from './server-install';
+import { serverForLanguage } from './servers';
 
 interface RunningServer {
     info: LspServerInfo;
@@ -15,12 +16,32 @@ interface RunningServer {
 /** The notifications that the UI handles. Other notifications only go to the log. */
 const FORWARDED_NOTIFICATIONS = new Set(['textDocument/publishDiagnostics']);
 
+/** The UI must answer a "workspace/applyEdit" request in this time. If not, the server gets "not applied". */
+const APPLY_EDIT_TIMEOUT_MS = 30_000;
+
+/** The code action kinds that the UI can show. */
+const CODE_ACTION_KINDS = [
+    '',
+    'quickfix',
+    'refactor',
+    'refactor.extract',
+    'refactor.inline',
+    'refactor.rewrite',
+    'source',
+    'source.organizeImports',
+    'source.fixAll'
+];
+
 const CLIENT_CAPABILITIES: ClientCapabilities = {
     general: { positionEncodings: ['utf-16'] },
     workspace: {
         workspaceFolders: true,
         configuration: true,
-        diagnostics: { refreshSupport: true }
+        diagnostics: { refreshSupport: true },
+        applyEdit: true,
+        // The UI applies text edits only. It refuses an edit with file operations (create, rename, delete).
+        workspaceEdit: { documentChanges: true, failureHandling: 'abort' },
+        executeCommand: { dynamicRegistration: false }
     },
     textDocument: {
         synchronization: { didSave: true, dynamicRegistration: false },
@@ -39,6 +60,15 @@ const CLIENT_CAPABILITIES: ClientCapabilities = {
             },
             contextSupport: true
         },
+        rename: { dynamicRegistration: false, prepareSupport: true, prepareSupportDefaultBehavior: 1 },
+        codeAction: {
+            dynamicRegistration: false,
+            codeActionLiteralSupport: { codeActionKind: { valueSet: CODE_ACTION_KINDS } },
+            isPreferredSupport: true,
+            disabledSupport: true,
+            dataSupport: true,
+            resolveSupport: { properties: ['edit'] }
+        },
         publishDiagnostics: { relatedInformation: true },
         diagnostic: { dynamicRegistration: false, relatedDocumentSupport: false }
     }
@@ -50,14 +80,19 @@ const CLIENT_CAPABILITIES: ClientCapabilities = {
 export class LspManager {
     private readonly servers = new Map<string, RunningServer>();
     private readonly starting = new Map<string, Promise<RunningServer | undefined>>();
+    /** The server requests that wait for a result from the UI, by request ID. */
+    private readonly waiting = new Map<number, (result: unknown) => void>();
+    private nextRequestId = 1;
 
     /**
      * @param send Sends a server message to the UI.
      * @param ready Resolves when the environment is ready, for example when the login shell PATH is known.
+     * @param installer Installs missing servers into the folder of the app.
      */
     constructor(
         private readonly send: (message: LspServerMessage) => void,
-        private readonly ready: Promise<void>
+        private readonly ready: Promise<void>,
+        private readonly installer: ServerInstaller
     ) {}
 
     /** Starts the server for the language in the worktree, if necessary. Returns undefined when no server is available. */
@@ -85,19 +120,14 @@ export class LspManager {
      */
     async missing(root: string, languageId: string): Promise<LspMissingServer | undefined> {
         const definition = serverForLanguage(languageId);
-        if (!definition || definition.install.length === 0) {
+        if (!definition || !definition.installable) {
             return undefined;
         }
         await this.ready;
         if (await definition.resolve(root)) {
             return undefined;
         }
-        return {
-            serverId: definition.id,
-            name: definition.name,
-            installCommand: await installCommand(definition),
-            tools: definition.install.map(option => option.tool)
-        };
+        return { serverId: definition.id, name: definition.name, ...(await this.installer.plan(definition.id)) };
     }
 
     request(key: string, method: string, params: unknown): Promise<unknown> {
@@ -109,6 +139,28 @@ export class LspManager {
         if (server) {
             server.connection.sendNotification(method, params).catch(() => undefined);
         }
+    }
+
+    /** Gives the result of the UI to the server request with the ID. */
+    respond(id: number, result: unknown): void {
+        const resolve = this.waiting.get(id);
+        if (resolve) {
+            this.waiting.delete(id);
+            resolve(result);
+        }
+    }
+
+    /** Sends a server request to the UI and waits for the result. After the timeout, the result is `fallback`. */
+    private askUi(key: string, method: string, params: unknown, fallback: unknown, timeoutMs: number): Promise<unknown> {
+        const id = this.nextRequestId++;
+        return new Promise(resolve => {
+            const timer = setTimeout(() => this.respond(id, fallback), timeoutMs);
+            this.waiting.set(id, result => {
+                clearTimeout(timer);
+                resolve(result);
+            });
+            this.send({ key, method, params, id });
+        });
     }
 
     /** Stops the servers of a worktree, for example when the user removes the worktree. */
@@ -187,6 +239,9 @@ export class LspManager {
             case 'workspace/diagnostic/refresh':
                 this.send({ key, method, params });
                 return null;
+            case 'workspace/applyEdit':
+                // The UI applies the edit to the models and the files. The server can send this during "workspace/executeCommand".
+                return this.askUi(key, method, params, { applied: false, failureReason: 'The UI did not answer.' }, APPLY_EDIT_TIMEOUT_MS);
             default:
                 // client/registerCapability, window/workDoneProgress/create and similar requests need no action.
                 return null;

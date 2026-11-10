@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+    ageLevel,
+    bucketMyPullRequests,
+    groupReviewRequests,
     isHiddenComment,
+    isStalePullRequest,
+    matchesDashboardQuery,
     isMergedApproval,
     matchesRule,
     myPullRequestGroup,
@@ -9,7 +14,8 @@ import {
     ownerQualifiers,
     parsePullRequestTitle,
     ruleRegex,
-    shortAge
+    shortAge,
+    type MyPullRequestItem
 } from './dashboard';
 
 describe('myPullRequestReasons', () => {
@@ -151,5 +157,86 @@ describe('myPullRequestGroup and shortAge', () => {
         expect(shortAge('2026-11-07T02:00:00Z', now)).toBe('10h');
         expect(shortAge('2026-11-02T12:00:00Z', now)).toBe('5d');
         expect(shortAge('2026-10-01T12:00:00Z', now)).toBe('5w');
+    });
+});
+
+describe('Dashboard cards', () => {
+    const now = Date.parse('2026-06-01T00:00:00Z');
+    const daysAgo = (days: number) => new Date(now - days * 24 * 3600 * 1000).toISOString();
+    const pr = (number: number, days: number, reasons: MyPullRequestItem['reasons']): MyPullRequestItem => ({
+        repo: { owner: 'acme', name: 'api' },
+        number,
+        title: `ENG-${number}: change ${number}`,
+        url: `https://github.com/acme/api/pull/${number}`,
+        updatedAt: daysAgo(days),
+        reasons
+    });
+
+    it('puts a pull request without an update in 30 days in the stale card, whatever its reasons', () => {
+        expect(isStalePullRequest(pr(1, 29, []), now)).toBe(false);
+        expect(isStalePullRequest(pr(1, 30, []), now)).toBe(true);
+        const buckets = bucketMyPullRequests([pr(1, 40, ['ready-to-merge']), pr(2, 2, ['ready-to-merge'])], now);
+        expect(buckets.stale.map(item => item.number)).toEqual([1]);
+        expect(buckets.ready.map(item => item.number)).toEqual([2]);
+    });
+
+    it('puts each active pull request in the card of its most urgent reason', () => {
+        const buckets = bucketMyPullRequests(
+            [pr(1, 1, ['changes-requested', 'ci-failing']), pr(2, 1, ['ci-failing']), pr(3, 3, ['conflicts']), pr(4, 1, ['ready-to-merge'])],
+            now
+        );
+        expect(buckets.changes.map(item => item.number)).toEqual([1]);
+        // The newest blocked pull request first.
+        expect(buckets.blocked.map(item => item.number)).toEqual([2, 3]);
+        expect(buckets.ready.map(item => item.number)).toEqual([4]);
+    });
+
+    it('gives the urgency of an age', () => {
+        expect(ageLevel(daysAgo(2), now)).toBe('fresh');
+        expect(ageLevel(daysAgo(8), now)).toBe('aging');
+        expect(ageLevel(daysAgo(21), now)).toBe('old');
+    });
+});
+
+describe('matchesDashboardQuery', () => {
+    const item = { title: 'fix(api): ENG-12 limit query depth', repo: { owner: 'acme', name: 'web_app' }, number: 3410, author: 'nlewis' };
+
+    it('matches every word of the query in the title, ticket, repository, number or author', () => {
+        expect(matchesDashboardQuery(item, '')).toBe(true);
+        expect(matchesDashboardQuery(item, 'eng-12')).toBe(true);
+        expect(matchesDashboardQuery(item, 'WEB_APP depth')).toBe(true);
+        expect(matchesDashboardQuery(item, '#3410')).toBe(true);
+        expect(matchesDashboardQuery(item, 'nlewis')).toBe(true);
+        expect(matchesDashboardQuery(item, 'depth mobile')).toBe(false);
+    });
+});
+
+describe('groupReviewRequests', () => {
+    const request = (author: string | null, repo: string, createdAt: string) => ({ author, repo: { owner: 'acme', name: repo }, createdAt });
+    const items = [
+        request('ann', 'api', '2026-05-03'),
+        request('bob', 'web', '2026-05-01'),
+        request('ann', 'web', '2026-05-02'),
+        request(null, 'api', '2026-05-04')
+    ];
+
+    it('groups by author, the largest group first and the newest item first in a group', () => {
+        const groups = groupReviewRequests(items, 'author');
+        expect(groups.map(group => [group.key, group.items.map(entry => entry.createdAt)])).toEqual([
+            ['ann', ['2026-05-03', '2026-05-02']],
+            ['bob', ['2026-05-01']],
+            ['unknown', ['2026-05-04']]
+        ]);
+    });
+
+    it('groups by repository', () => {
+        expect(groupReviewRequests(items, 'repo').map(group => group.key)).toEqual(['api', 'web']);
+    });
+
+    it('makes one list, the oldest first', () => {
+        const groups = groupReviewRequests(items, 'oldest');
+        expect(groups).toHaveLength(1);
+        expect(groups[0].items.map(entry => entry.createdAt)).toEqual(['2026-05-01', '2026-05-02', '2026-05-03', '2026-05-04']);
+        expect(groupReviewRequests([], 'oldest')).toEqual([]);
     });
 });

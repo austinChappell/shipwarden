@@ -1,4 +1,8 @@
 import type {
+    ApplyWorkspaceEditParams,
+    ApplyWorkspaceEditResult,
+    CodeAction,
+    Command,
     CompletionItem,
     CompletionList,
     Diagnostic,
@@ -7,14 +11,30 @@ import type {
     Hover,
     Location,
     LocationLink,
+    PrepareRenameResult,
     PublishDiagnosticsParams,
-    TextDocumentContentChangeEvent
+    TextDocumentContentChangeEvent,
+    TextEdit,
+    WorkspaceEdit
 } from 'vscode-languageserver-protocol';
 import { lspLanguageId, rootForPath, sortChangesForLsp, type LspServerInfo, type LspServerMessage } from '@shared/lsp';
 import { documents } from '../editor/documents';
 import { monaco } from '../editor/monaco';
-import { toCompletionItem, toHighlights, toHover, toLocationLinks, toLocations, toLspPosition, toMarkers, type ShipWardenCompletionItem } from './convert';
+import { APPLY_CODE_ACTION_COMMAND, diagnosticsForMarkers, isCommand, needsResolve, toMonacoCodeAction } from './code-actions';
+import {
+    toCompletionItem,
+    toHighlights,
+    toHover,
+    toLocationLinks,
+    toLocations,
+    toLspPosition,
+    toLspRange,
+    toMarkers,
+    toMonacoRange,
+    type ShipWardenCompletionItem
+} from './convert';
 import { missingServers } from './missing-servers';
+import { applyTextEdits, collectFileEdits, toMonacoEdits } from './workspace-edit';
 
 /** The Monaco languages that get LSP providers. */
 const MONACO_LANGUAGES = ['typescript', 'javascript', 'rust', 'python', 'go'];
@@ -24,10 +44,6 @@ const DIAGNOSTICS_DEBOUNCE_MS = 300;
 /** Peek views need a model for each file in the results. ShipWarden loads at most this number of files. */
 const MAX_PRELOADED_MODELS = 50;
 const TRIGGER_CHARACTERS = ['.', ':', '"', "'", '/', '@', '<', '#', '`'];
-/** After an install command starts, ShipWarden looks for the server at this interval. */
-const INSTALL_POLL_MS = 3000;
-/** ShipWarden stops to look for the server after this time. Then the banner shows the Install button again. */
-const INSTALL_TIMEOUT_MS = 15 * 60 * 1000;
 
 /** One Monaco model that a language server knows about. */
 interface SyncedDocument {
@@ -40,6 +56,21 @@ interface SyncedDocument {
     flushTimer?: ReturnType<typeof setTimeout>;
     diagnosticsTimer?: ReturnType<typeof setTimeout>;
     disposables: monaco.IDisposable[];
+}
+
+/** One file of a workspace edit, after the checks. */
+type FileChange =
+    /** The document store has the file. The edit goes to the model. A model without unsaved changes is saved. */
+    | { kind: 'model'; path: string; model: monaco.editor.ITextModel; edits: TextEdit[]; save?: { root: string; file: string } }
+    /** No model has the file. The new text goes to the disk. */
+    | { kind: 'disk'; path: string; root: string; file: string; text: string };
+
+const NO_SERVER = 'No language server is available for this file.';
+
+/** Removes the prefix that Electron adds to the errors of IPC calls. */
+function errorMessage(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 }
 
 /** Opens a file of a worktree in the app, at a position. */
@@ -58,6 +89,8 @@ export class LspBridge {
     private readonly synced = new Map<string, SyncedDocument>();
     /** Diagnostics that arrived before the model of the file existed. */
     private readonly pendingDiagnostics = new Map<string, Diagnostic[]>();
+    /** The last LSP diagnostics of each model, by URI. Code action requests send them back to the server. */
+    private readonly diagnostics = new Map<string, Diagnostic[]>();
     private opener: FileOpener | undefined;
     private readonly api = window.shipwarden;
     /** The worktrees and languages for which a "missing server" check is in progress. */
@@ -83,9 +116,13 @@ export class LspBridge {
         monaco.typescript.typescriptDefaults.setModeConfiguration(modeConfiguration);
         monaco.typescript.javascriptDefaults.setModeConfiguration(modeConfiguration);
 
+        monaco.editor.registerCommand(APPLY_CODE_ACTION_COMMAND, (_accessor, serverKey: string, item: Command | CodeAction) => {
+            void this.runCodeAction(serverKey, item);
+        });
         this.registerProviders();
         this.registerOpener();
         this.api.lsp.onMessage(message => this.onServerMessage(message));
+        this.api.lsp.onInstallState(state => missingServers.setInstallState(state.serverId, state));
         monaco.editor.getModels().forEach(model => this.track(model));
         monaco.editor.onDidCreateModel(model => this.track(model));
     }
@@ -127,32 +164,35 @@ export class LspBridge {
     }
 
     /**
-     * Looks for the server at an interval after an install command starts.
-     * When the server starts, the open files of all worktrees connect to it.
+     * Installs a missing server into the folder of the app. Call it only after the user agrees.
+     * After the install, the open files of all worktrees connect to the server.
+     * The install state (progress and errors) goes to `missingServers`.
      */
-    async watchInstall(serverId: string): Promise<void> {
+    async install(serverId: string): Promise<void> {
         if (missingServers.isInstalling(serverId)) {
             return;
         }
-        missingServers.setInstalling(serverId, true);
-        const deadline = Date.now() + INSTALL_TIMEOUT_MS;
+        missingServers.setInstallState(serverId, { serverId, status: 'running', step: 'Starting' });
         try {
-            while (Date.now() < deadline) {
-                await new Promise(resolve => setTimeout(resolve, INSTALL_POLL_MS));
-                const entry = missingServers.anyEntryOf(serverId);
-                if (!entry) {
-                    return;
-                }
-                const server = await this.api.lsp.ensure(entry.root, entry.languageId).catch(() => undefined);
-                if (server) {
-                    missingServers.deleteServer(serverId);
-                    monaco.editor.getModels().forEach(model => this.track(model));
-                    return;
-                }
-            }
-        } finally {
-            missingServers.setInstalling(serverId, false);
+            await this.api.lsp.install(serverId);
+        } catch (error) {
+            const message = (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+            missingServers.setInstallState(serverId, { serverId, status: 'error', error: message });
+            return;
         }
+        const entry = missingServers.anyEntryOf(serverId);
+        const server = entry ? await this.api.lsp.ensure(entry.root, entry.languageId).catch(() => undefined) : undefined;
+        if (entry && !server) {
+            missingServers.setInstallState(serverId, {
+                serverId,
+                status: 'error',
+                error: 'The install is complete, but the server did not start. Look at the log for the reason.'
+            });
+            return;
+        }
+        missingServers.setInstallState(serverId, undefined);
+        missingServers.deleteServer(serverId);
+        monaco.editor.getModels().forEach(model => this.track(model));
     }
 
     /** Asks the main process if the worktree needs a server that is not installed. */
@@ -224,7 +264,7 @@ export class LspBridge {
         );
         const pending = this.pendingDiagnostics.get(uri);
         if (pending) {
-            monaco.editor.setModelMarkers(model, MARKER_OWNER, toMarkers(pending));
+            this.setDiagnostics(model, pending);
             this.pendingDiagnostics.delete(uri);
         }
         this.scheduleDiagnostics(document);
@@ -235,7 +275,14 @@ export class LspBridge {
         clearTimeout(document.diagnosticsTimer);
         document.disposables.forEach(disposable => disposable.dispose());
         this.synced.delete(document.uri);
+        this.diagnostics.delete(document.uri);
         this.api.lsp.notify(document.server.key, 'textDocument/didClose', { textDocument: { uri: document.uri } });
+    }
+
+    /** Shows the diagnostics as markers and keeps them for code action requests. */
+    private setDiagnostics(model: monaco.editor.ITextModel, diagnostics: Diagnostic[]): void {
+        this.diagnostics.set(model.uri.toString(), diagnostics);
+        monaco.editor.setModelMarkers(model, MARKER_OWNER, toMarkers(diagnostics));
     }
 
     private onChange(document: SyncedDocument, event: monaco.editor.IModelContentChangedEvent): void {
@@ -289,7 +336,7 @@ export class LspBridge {
                 textDocument: { uri: document.uri }
             })) as DocumentDiagnosticReport;
             if (report.kind === 'full' && !document.model.isDisposed()) {
-                monaco.editor.setModelMarkers(document.model, MARKER_OWNER, toMarkers(report.items));
+                this.setDiagnostics(document.model, report.items);
             }
         } catch {
             // The server cancelled the request because the text changed. The next change pulls again.
@@ -301,7 +348,7 @@ export class LspBridge {
             const params = message.params as PublishDiagnosticsParams;
             const model = monaco.editor.getModel(monaco.Uri.parse(params.uri));
             if (model) {
-                monaco.editor.setModelMarkers(model, MARKER_OWNER, toMarkers(params.diagnostics));
+                this.setDiagnostics(model, params.diagnostics);
             } else {
                 this.pendingDiagnostics.set(params.uri, params.diagnostics);
             }
@@ -312,8 +359,119 @@ export class LspBridge {
             for (const document of this.documentsOf(message.key)) {
                 document.disposables.forEach(disposable => disposable.dispose());
                 this.synced.delete(document.uri);
-                monaco.editor.setModelMarkers(document.model, MARKER_OWNER, []);
+                this.setDiagnostics(document.model, []);
             }
+        } else if (message.method === 'workspace/applyEdit' && message.id !== undefined) {
+            const id = message.id;
+            const params = message.params as ApplyWorkspaceEditParams;
+            void this.applyWorkspaceEdit(params.edit)
+                .catch((error): ApplyWorkspaceEditResult => ({ applied: false, failureReason: errorMessage(error) }))
+                .then(result => this.api.lsp.respond(id, result));
+        }
+    }
+
+    /** Returns the information of a running server, when a synced document uses the server. */
+    private serverInfo(key: string): LspServerInfo | undefined {
+        return [...this.synced.values()].find(document => document.server.key === key)?.server;
+    }
+
+    /**
+     * Applies an LSP workspace edit.
+     * A file in the document store gets the edit in its model. If the model had no unsaved changes, ShipWarden saves it.
+     * Other files of a worktree get the edit on the disk.
+     * ShipWarden checks all files before it changes one file.
+     */
+    async applyWorkspaceEdit(edit: WorkspaceEdit): Promise<ApplyWorkspaceEditResult> {
+        const fail = (failureReason: string): ApplyWorkspaceEditResult => ({ applied: false, failureReason });
+        const { files, resourceOperations } = collectFileEdits(edit);
+        if (resourceOperations.length > 0) {
+            return fail(`ShipWarden cannot do file operations (${[...new Set(resourceOperations)].join(', ')}).`);
+        }
+
+        const changes: FileChange[] = [];
+        for (const fileEdits of files) {
+            const uri = monaco.Uri.parse(fileEdits.uri);
+            const path = uri.path;
+            if (uri.scheme !== 'file') {
+                return fail(`ShipWarden can change only local files. The edit has "${fileEdits.uri}".`);
+            }
+            const synced = this.synced.get(uri.toString());
+            if (typeof fileEdits.version === 'number' && synced && (synced.version !== fileEdits.version || synced.pending.length > 0)) {
+                return fail(`The file "${path}" changed after the server made the edit.`);
+            }
+            const root = rootForPath(this.allRoots(), path);
+            if (!root) {
+                return fail(`The file "${path}" is not in a worktree. ShipWarden does not change it.`);
+            }
+            const file = path.slice(root.length + 1);
+            const model = documents.get(root, file);
+            try {
+                if (model) {
+                    // This call only checks the edits. Monaco applies them below, so that undo works.
+                    applyTextEdits(model.getValue(), fileEdits.edits);
+                    const save = documents.isDirty(root, file) ? undefined : { root, file };
+                    changes.push({ kind: 'model', path, model, edits: fileEdits.edits, save });
+                } else {
+                    const text = applyTextEdits(await this.api.files.read(root, file), fileEdits.edits);
+                    changes.push({ kind: 'disk', path, root, file, text });
+                }
+            } catch (error) {
+                return fail(`ShipWarden cannot change "${path}": ${errorMessage(error)}`);
+            }
+        }
+
+        for (const change of changes) {
+            try {
+                if (change.kind === 'model') {
+                    if (change.model.isDisposed()) {
+                        throw new Error('The editor closed the file.');
+                    }
+                    change.model.pushStackElement();
+                    change.model.pushEditOperations([], toMonacoEdits(change.edits), () => null);
+                    change.model.pushStackElement();
+                    if (change.save) {
+                        await documents.save(change.save.root, change.save.file);
+                    }
+                } else {
+                    await this.api.files.write(change.root, change.file, change.text);
+                }
+            } catch (error) {
+                return fail(`ShipWarden could not change "${change.path}": ${errorMessage(error)}`);
+            }
+        }
+        return { applied: true };
+    }
+
+    /** Sends an LSP command to the server. The server can send "workspace/applyEdit" before it answers. */
+    private async executeCommand(serverKey: string, command: Command): Promise<void> {
+        const provider = this.serverInfo(serverKey)?.capabilities.executeCommandProvider;
+        if (!provider?.commands.includes(command.command)) {
+            throw new Error(`The language server does not support the command "${command.command}".`);
+        }
+        await this.api.lsp.request(serverKey, 'workspace/executeCommand', { command: command.command, arguments: command.arguments });
+    }
+
+    /** Resolves a code action if necessary. Then applies its edit and runs its command. */
+    private async runCodeAction(serverKey: string, item: Command | CodeAction): Promise<void> {
+        try {
+            if (isCommand(item)) {
+                await this.executeCommand(serverKey, item);
+                return;
+            }
+            const provider = this.serverInfo(serverKey)?.capabilities.codeActionProvider;
+            const resolveProvider = typeof provider === 'object' && !!provider.resolveProvider;
+            const action = needsResolve(item, resolveProvider) ? ((await this.api.lsp.request(serverKey, 'codeAction/resolve', item)) as CodeAction) : item;
+            if (action.edit) {
+                const result = await this.applyWorkspaceEdit(action.edit);
+                if (!result.applied) {
+                    throw new Error(result.failureReason);
+                }
+            }
+            if (action.command) {
+                await this.executeCommand(serverKey, action.command);
+            }
+        } catch (error) {
+            console.warn(`ShipWarden could not apply the code action "${item.title}":`, errorMessage(error));
         }
     }
 
@@ -490,6 +648,83 @@ export class LspBridge {
                 } catch {
                     return item;
                 }
+            }
+        });
+
+        monaco.languages.registerRenameProvider(selector, {
+            resolveRenameLocation: async (model, position) => {
+                const reject = (rejectReason: string) => ({ range: monaco.Range.fromPositions(position), text: '', rejectReason });
+                const document = this.ready(model);
+                const provider = document?.server.capabilities.renameProvider;
+                if (!document || !provider) {
+                    return reject(document ? 'The language server cannot rename symbols.' : NO_SERVER);
+                }
+                if (typeof provider !== 'object' || !provider.prepareProvider) {
+                    // Monaco uses the word at the position.
+                    return undefined;
+                }
+                let result: PrepareRenameResult | null;
+                try {
+                    result = (await this.api.lsp.request(document.server.key, 'textDocument/prepareRename', {
+                        textDocument: { uri: document.uri },
+                        position: toLspPosition(position)
+                    })) as PrepareRenameResult | null;
+                } catch (error) {
+                    return reject(errorMessage(error));
+                }
+                if (!result) {
+                    return reject('You cannot rename this element.');
+                }
+                if ('defaultBehavior' in result) {
+                    return undefined;
+                }
+                if ('placeholder' in result) {
+                    return { range: toMonacoRange(result.range), text: result.placeholder };
+                }
+                const range = toMonacoRange(result);
+                return { range, text: model.getValueInRange(range) };
+            },
+            provideRenameEdits: async (model, position, newName) => {
+                const document = this.ready(model);
+                if (!document?.server.capabilities.renameProvider) {
+                    return { edits: [], rejectReason: document ? 'The language server cannot rename symbols.' : NO_SERVER };
+                }
+                let edit: WorkspaceEdit | null;
+                try {
+                    edit = (await this.api.lsp.request(document.server.key, 'textDocument/rename', {
+                        textDocument: { uri: document.uri },
+                        position: toLspPosition(position),
+                        newName
+                    })) as WorkspaceEdit | null;
+                } catch (error) {
+                    return { edits: [], rejectReason: errorMessage(error) };
+                }
+                if (!edit) {
+                    return { edits: [], rejectReason: 'The language server found no symbol to rename.' };
+                }
+                // ShipWarden applies the edit itself, because Monaco can change only files that have a model.
+                const result = await this.applyWorkspaceEdit(edit);
+                return result.applied ? { edits: [] } : { edits: [], rejectReason: result.failureReason };
+            }
+        });
+
+        monaco.languages.registerCodeActionProvider(selector, {
+            provideCodeActions: async (model, range, context) => {
+                const empty = { actions: [], dispose: () => undefined };
+                const document = this.ready(model);
+                if (!document?.server.capabilities.codeActionProvider) {
+                    return empty;
+                }
+                const diagnostics = diagnosticsForMarkers(this.diagnostics.get(document.uri) ?? [], context.markers);
+                // Monaco and LSP use the same trigger values: 1 = Invoke, 2 = Automatic.
+                const result = await this.request<(Command | CodeAction)[] | null>(document, 'textDocument/codeAction', {
+                    range: toLspRange(range),
+                    context: { diagnostics, only: context.only ? [context.only] : undefined, triggerKind: context.trigger }
+                });
+                if (!result) {
+                    return empty;
+                }
+                return { actions: result.map(item => toMonacoCodeAction(item, document.server.key, context.markers)), dispose: () => undefined };
             }
         });
     }

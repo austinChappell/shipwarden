@@ -316,11 +316,12 @@ export class AzureDevOpsService implements SourceHost {
         const repo = await this.resolve(target);
         const base = this.prApi(repo, number);
         for (const comment of comments) {
-            const position = { line: comment.line, offset: 1 };
+            const start = { line: Math.min(comment.startLine ?? comment.line, comment.line), offset: 1 };
+            const end = { line: comment.line, offset: 1 };
             const context =
                 comment.side === 'LEFT'
-                    ? { filePath: `/${comment.path}`, leftFileStart: position, leftFileEnd: position }
-                    : { filePath: `/${comment.path}`, rightFileStart: position, rightFileEnd: position };
+                    ? { filePath: `/${comment.path}`, leftFileStart: start, leftFileEnd: end }
+                    : { filePath: `/${comment.path}`, rightFileStart: start, rightFileEnd: end };
             await this.client.request('POST', `${base}/threads`, {
                 comments: [{ parentCommentId: 0, content: comment.body, commentType: 'text' }],
                 status: 'active',

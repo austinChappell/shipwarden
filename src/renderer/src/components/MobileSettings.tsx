@@ -132,6 +132,19 @@ export function MobileSettings({ settings, onSave }: Props) {
             load();
         }
     };
+    const toggleKeepRunning = async (on: boolean) => {
+        if (
+            on &&
+            !(await confirmDialog({
+                title: 'Run a background helper?',
+                message:
+                    'ShipWarden adds a launch agent to ~/Library/LaunchAgents. The helper starts at login and runs the phone connection while ShipWarden is closed. Turn this setting off to remove it.',
+                confirmLabel: 'Add helper'
+            }))
+        )
+            return;
+        await save({ keepRunning: on });
+    };
     const commitPort = () => {
         const value = Number(port);
         if (!Number.isInteger(value) || value < 1024 || value > 65535) {
@@ -181,7 +194,7 @@ export function MobileSettings({ settings, onSave }: Props) {
                     <>
                         The ShipWarden iPhone app shows your agents, their terminal screens, and the pull requests of the worktrees. You can reply to an agent,
                         answer its questions and approve a pull request. The phone connects to this Mac over HTTPS on your network. ShipWarden must be open, but
-                        the window can be closed.
+                        the window can be closed. A background helper can keep the connection open while ShipWarden is closed.
                     </>
                 }
                 card
@@ -211,6 +224,35 @@ export function MobileSettings({ settings, onSave }: Props) {
                             status.error && (
                                 <div className="form-error">
                                     <TriangleAlert size={12} /> {status.error}
+                                </div>
+                            )
+                        ))}
+                </SettingsRow>
+                <SettingsRow
+                    label="Keep agents and phone access running when ShipWarden is closed"
+                    description="A background helper runs the phone connection. macOS starts it at login and lists it in System Settings › General › Login Items. The agents always continue to run when ShipWarden quits."
+                    control={
+                        <label className="switch" title={remote.keepRunning ? 'On' : 'Off'}>
+                            <input
+                                type="checkbox"
+                                checked={remote.keepRunning}
+                                disabled={saving}
+                                onChange={event => void toggleKeepRunning(event.target.checked)}
+                            />
+                            <span />
+                        </label>
+                    }
+                >
+                    {remote.keepRunning &&
+                        status &&
+                        (status.owner === 'helper' ? (
+                            <div className="panel-note">
+                                <CircleCheck size={12} strokeWidth={2} className="ok-icon" /> The background helper runs the phone connection.
+                            </div>
+                        ) : (
+                            status.helperError && (
+                                <div className="form-error">
+                                    <TriangleAlert size={12} /> {status.helperError}
                                 </div>
                             )
                         ))}

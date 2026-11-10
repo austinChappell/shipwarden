@@ -284,6 +284,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                 thread.line,
                 <ThreadZone
                     thread={thread}
+                    worktree={typeof target === 'string' ? target : undefined}
                     onReply={async body => {
                         await window.shipwarden.github.reply(target, pr.number, thread.comments[thread.comments.length - 1].databaseId, body);
                         await onRefresh();
@@ -317,8 +318,22 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                     line={composer.line}
                     startLine={composer.startLine}
                     onCancel={() => setComposer(undefined)}
-                    onAdd={body => {
-                        reviewStore.addPending(target, pr.number, { path: file.path, line: composer.line, side: composer.side, body });
+                    onSuggest={
+                        composer.side === 'RIGHT'
+                            ? async () => {
+                                  const model = diff.getModifiedEditor().getModel();
+                                  return model
+                                      ? model
+                                            .getLinesContent()
+                                            .slice((composer.startLine ?? composer.line) - 1, composer.line)
+                                            .join('\n')
+                                      : undefined;
+                              }
+                            : undefined
+                    }
+                    onAdd={(body, originalCode) => {
+                        const startLine = composer.startLine !== undefined && composer.startLine < composer.line ? composer.startLine : undefined;
+                        reviewStore.addPending(target, pr.number, { path: file.path, line: composer.line, startLine, side: composer.side, body, originalCode });
                         setComposer(undefined);
                     }}
                 />,

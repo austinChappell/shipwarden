@@ -12,6 +12,8 @@ import { ConfirmDialogs } from './app/confirm';
 import { FileService } from './files/file-service';
 import { FileWatcher } from './files/file-watcher';
 import { LspManager } from './lsp/lsp-manager';
+import { setManagedFolder } from './lsp/servers';
+import { ServerInstaller } from './lsp/server-install';
 import { PluginSettings } from './tasks/plugin-settings';
 import { TaskHost } from './tasks/task-host';
 import { ProjectStore } from './project-store';
@@ -37,6 +39,10 @@ import { RemoteDevices } from './remote/remote-devices';
 import { localHosts, RemoteServer } from './remote/remote-server';
 import { RemoteSnapshotBuilder } from './remote/remote-snapshot';
 import { ensureTlsIdentity } from './remote/tls-identity';
+import { connectHelper } from './helper/helper-link';
+import { helperPlist, LaunchAgent } from './helper/launch-agent';
+import { HELPER_LABEL, helperSocketPath } from './helper/protocol';
+import { RemoteControl } from './helper/remote-control';
 import { BrowserViews } from './browser/browser-views';
 
 /** The parts of the app that the services need. */
@@ -64,7 +70,6 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
     const fileWatcher = new FileWatcher(event => window.send(IpcChannels.filesChanged, event));
     // Language servers need the PATH of the login shell. Load it in the background.
     const shellReady = loadLoginShellPath();
-    const lsp = new LspManager(message => window.send(IpcChannels.lspMessage, message), shellReady);
     const certificates = new TrustedCertificates(join(userData, 'trusted-ca.pem'));
     /**
      * The extra CA certificates apply before the first network request. The settings store comes later in this function,
@@ -75,6 +80,17 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
             await certificates.apply((await settings.get()).network, loginShellCaFile());
         })
         .catch(error => console.warn(`[network] The trusted certificates were not applied: ${error instanceof Error ? error.message : String(error)}`));
+    /** The language servers that ShipWarden installs go here. The LSP launcher looks here before it looks in the PATH. */
+    const languageServersFolder = join(userData, 'language-servers');
+    setManagedFolder(languageServersFolder);
+    const serverInstaller = new ServerInstaller({
+        folder: languageServersFolder,
+        // The downloads need the extra certificates of Settings › Network on a network that inspects TLS traffic.
+        ready: networkReady,
+        extraCertificateBundle: () => certificates.status().bundlePath,
+        onState: state => window.send(IpcChannels.lspInstallState, state)
+    });
+    const lsp = new LspManager(message => window.send(IpcChannels.lspMessage, message), shellReady, serverInstaller);
     /** The in-app browser. Each browser tab of the page has a WebContentsView in the main window. */
     const browserViews = new BrowserViews(
         () => window.get(),
@@ -236,26 +252,72 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
         sessions: terminalSessions
     });
 
-    /** The HTTPS server for the phone app. It runs only while Settings › Mobile has it on. */
-    const remote = new RemoteServer({
-        devices: new RemoteDevices(join(userData, 'remote-devices.json')),
-        identity: () => ensureTlsIdentity(userData),
-        hosts: () => localHosts(localHostName),
-        backend: {
-            macName: () => computerName,
-            version: app.getVersion(),
-            snapshot: () => remoteSnapshot.build(),
-            // The size from the page is newer than the size of an older PTY host, which has none.
-            sessions: async () => (await terminalSessions()).map(session => ({ ...session, ...terminalSizes.get(session.id) })),
-            replay: id => terminals.replay(id),
-            write: (id, data) => terminals.write(id, data),
-            approvePullRequest: async (worktreePath, number, headSha, body) => {
-                const worktree = await projectWorktrees.check(worktreePath);
-                await (await reviewProviders.for(worktree)).submitReview(worktree, number, headSha, 'APPROVE', body, []);
-                remoteSnapshot.invalidate();
-            },
-            onStatusChanged: () => window.send(IpcChannels.remoteChanged)
-        }
+    /** Approves a pull request for the phone. The worktree must be a worktree of a project. */
+    async function approveForPhone(worktreePath: string, number: number, headSha: string, body: string): Promise<void> {
+        const worktree = await projectWorktrees.check(worktreePath);
+        await (await reviewProviders.for(worktree)).submitReview(worktree, number, headSha, 'APPROVE', body, []);
+        remoteSnapshot.invalidate();
+    }
+
+    const notifyRemoteChanged = () => window.send(IpcChannels.remoteChanged);
+
+    /** The HTTPS server for the phone app in this process. Each call makes a new server, which reads the paired phones again. */
+    const createLocalRemote = () =>
+        new RemoteServer({
+            devices: new RemoteDevices(join(userData, 'remote-devices.json')),
+            identity: () => ensureTlsIdentity(userData),
+            hosts: () => localHosts(localHostName),
+            backend: {
+                macName: () => computerName,
+                version: app.getVersion(),
+                snapshot: () => remoteSnapshot.build(),
+                // The size from the page is newer than the size of an older PTY host, which has none.
+                sessions: async () => (await terminalSessions()).map(session => ({ ...session, ...terminalSizes.get(session.id) })),
+                replay: id => terminals.replay(id),
+                write: (id, data) => terminals.write(id, data),
+                approvePullRequest: approveForPhone,
+                onStatusChanged: notifyRemoteChanged
+            }
+        });
+
+    /**
+     * The background helper runs the phone server while the app is closed (Settings › Mobile). A launch agent starts it.
+     * It is a second program in this build, like the PTY host.
+     */
+    const helperScript = join(mainFolder, 'helper.js');
+    const helperLaunchAgent = new LaunchAgent(HELPER_LABEL);
+
+    /**
+     * The phone server runs only while Settings › Mobile has it on. It runs in the background helper when that setting
+     * is on and the helper answers. Else it runs in this process.
+     */
+    const remote = new RemoteControl({
+        createLocal: createLocalRemote,
+        connectHelper: () =>
+            connectHelper(helperSocketPath(userData), {
+                snapshot: () => remoteSnapshot.build(),
+                approvePullRequest: ({ worktreePath, number, headSha, body }) =>
+                    approveForPhone(String(worktreePath), Number(number), String(headSha), String(body ?? '')),
+                statusChanged: notifyRemoteChanged
+            }),
+        agent: {
+            install: () =>
+                helperLaunchAgent.install(
+                    helperPlist({
+                        label: HELPER_LABEL,
+                        execPath: process.execPath,
+                        helperScript,
+                        userData,
+                        version: app.getVersion(),
+                        logPath: join(userData, 'helper.log'),
+                        shell: process.env.SHELL
+                    })
+                ),
+            remove: () => helperLaunchAgent.remove(),
+            restart: () => helperLaunchAgent.restart()
+        },
+        helperBuildId: hostBuildId(helperScript),
+        onStatusChanged: notifyRemoteChanged
     });
 
     /** The worktrees and the repositories of the projects. */
@@ -294,6 +356,7 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
         shellReady,
         networkReady,
         lsp,
+        serverInstaller,
         certificates,
         browserViews,
         reviewProviders,

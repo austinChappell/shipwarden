@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import type { NoteTarget } from '@shared/code-note';
 import type { CheckRun, PullRequest } from '@shared/github';
-import type { LspMissingServer } from '@shared/lsp';
 import type { AgentDefinition } from '@shared/settings';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
@@ -38,7 +37,6 @@ export interface TabViewContext {
     openFile: (path: string) => void;
     sendToAgent: (prompt: string, worktree?: Worktree, target?: NoteTarget) => Promise<void>;
     sendLogToAgent: (check: CheckRun) => Promise<void>;
-    installServer: (worktreePath: string, server: LspMissingServer) => Promise<void>;
     setError: (error: string | undefined) => void;
 }
 
@@ -94,7 +92,6 @@ export function renderTabView(tab: TabKey, focused: boolean, context: TabViewCon
                 revealNonce={reveal?.nonce}
                 focusNonce={focusRequest && focusRequest.root === selectedPath && focusRequest.path === path ? focusRequest.nonce : undefined}
                 onError={context.setError}
-                onInstallServer={server => void context.installServer(selectedPath, server)}
                 onOpenFile={file => openFile(file)}
                 agents={context.agents}
                 defaultAgentId={context.defaultAgentId}

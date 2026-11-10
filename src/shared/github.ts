@@ -113,6 +113,8 @@ export interface ReviewComment {
     body: string;
     createdAt: string;
     url: string;
+    /** The diff hunk that ends at the last line of the comment. Suggested changes use it to find the old lines. */
+    diffHunk?: string;
 }
 
 export interface ReviewThread {
@@ -121,6 +123,10 @@ export interface ReviewThread {
     /** The line in the current diff. It is null when the thread is outdated. */
     line: number | null;
     originalLine: number | null;
+    /** The first line of a comment on more than one line, in the current diff. Null for one line or an outdated thread. */
+    startLine?: number | null;
+    /** The first line of a comment on more than one line, in the commit of the comment. Null for one line. */
+    originalStartLine?: number | null;
     side: DiffSide;
     isResolved: boolean;
     isOutdated: boolean;
@@ -312,7 +318,12 @@ export interface FileVersions {
 /** A comment that the user wrote and that goes out with the next review. */
 export interface PendingComment {
     path: string;
+    /** The last line of the comment. */
     line: number;
+    /** The first line of a comment on more than one line. Undefined for one line. */
+    startLine?: number;
+    /** The text of the lines when the user started a suggested change. The suggestion shows it as the old lines. */
+    originalCode?: string;
     side: DiffSide;
     body: string;
     /** True when an agent review wrote the comment. The user can change it. It goes out as the user's comment. */

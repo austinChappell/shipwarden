@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Bot, Check, ChevronRight, LoaderCircle, Send } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Bot, Check, ChevronRight, FileDiff, LoaderCircle, Send } from 'lucide-react';
 import { lineLabel } from '@shared/ask-agent';
 import { noteTargetOptions, type NoteTarget } from '@shared/code-note';
 import type { AgentDefinition } from '@shared/settings';
@@ -9,6 +9,9 @@ import { composerModes, composerPlaceholder, composerSubmitLabel, type ComposerM
 import { useWorktreeSessions } from '../terminal/session-list-store';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
+import { CommentBody } from './CommentBody';
+import { suggestionBlock, threadSuggestionTarget } from '@shared/suggestion';
+import { applyThreadSuggestion } from '../github/suggestions';
 import { radioGroupKeys } from './keyboard';
 
 export type { AgentQuestion, ComposerMode, QuestionAction };
@@ -17,13 +20,17 @@ export function ThreadZone({
     thread,
     onReply,
     onResolve,
-    onSendToAgent
+    onSendToAgent,
+    worktree
 }: {
     thread: ReviewThread;
     onReply(body: string): Promise<void>;
     onResolve(): Promise<void>;
     onSendToAgent?(): void;
+    /** The worktree of the pull request. With it, a suggested change can go into the file. */
+    worktree?: string;
 }) {
+    const original = threadSuggestionTarget(thread)?.original;
     const [replying, setReplying] = useState(false);
     const [text, setText] = useState('');
     const [busy, setBusy] = useState(false);
@@ -46,7 +53,12 @@ export function ThreadZone({
                     <div className="comment-author">
                         {comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span>
                     </div>
-                    <Markdown className="comment-body" text={comment.body} />
+                    <CommentBody
+                        body={comment.body}
+                        original={original}
+                        outdated={thread.isOutdated}
+                        onApply={worktree && original ? lines => applyThreadSuggestion(worktree, thread, lines) : undefined}
+                    />
                 </div>
             ))}
             {replying && <textarea autoFocus value={text} placeholder="Reply" onChange={event => setText(event.target.value)} />}
@@ -123,7 +135,7 @@ export function PendingZone({
                     }}
                 />
             ) : (
-                <Markdown className="comment-body" text={comment.body} />
+                <CommentBody body={comment.body} original={comment.originalCode?.split('\n')} />
             )}
             <div className="thread-actions">
                 {editing ? (
@@ -196,6 +208,7 @@ export function ComposerZone({
     startLine = line,
     onAdd,
     onAsk,
+    onSuggest,
     note,
     onCancel,
     canComment = true,
@@ -203,7 +216,10 @@ export function ComposerZone({
 }: {
     line: number;
     startLine?: number;
-    onAdd(body: string): void;
+    /** Adds the comment. `originalCode` is the text of the lines when the user started a suggested change. */
+    onAdd(body: string, originalCode?: string): void;
+    /** Returns the text of the lines for a suggested change. Without it, the "Suggest a change" button does not show. */
+    onSuggest?(): Promise<string | undefined>;
     onAsk?(question: string): void;
     note?: NoteOptions;
     onCancel(): void;
@@ -213,6 +229,10 @@ export function ComposerZone({
 }) {
     const [text, setText] = useState('');
     const [mode, setMode] = useState<ComposerMode>(initialMode ?? (canComment ? 'comment' : 'ask'));
+    const textRef = useRef<HTMLTextAreaElement>(null);
+    /** The text of the lines when the user started a suggested change. */
+    const [originalCode, setOriginalCode] = useState<string>();
+    const [suggestError, setSuggestError] = useState<string>();
     const [targetKey, setTargetKey] = useState<string>();
     const sessions = useWorktreeSessions(note?.worktree ?? '');
     const targets = note ? noteTargetOptions(sessions, note.agents, note.defaultAgentId) : [];
@@ -226,7 +246,39 @@ export function ComposerZone({
         if (mode === 'ask') onAsk?.(value);
         else if (mode === 'note') {
             if (target) note?.onSend(value, target.target);
-        } else onAdd(value);
+        } else onAdd(value, originalCode);
+    };
+    /** Puts a suggestion block with the text of the lines at the cursor. */
+    const suggest = async () => {
+        if (!onSuggest) return;
+        setSuggestError(undefined);
+        let code: string | undefined;
+        try {
+            code = await onSuggest();
+        } catch (err) {
+            setSuggestError(errorText(err));
+            return;
+        }
+        if (code === undefined) {
+            setSuggestError('ShipWarden cannot read the lines of the file.');
+            return;
+        }
+        const box = textRef.current;
+        const at = box ? box.selectionStart : text.length;
+        const end = box ? box.selectionEnd : text.length;
+        const before = text.slice(0, at);
+        const after = text.slice(end);
+        const prefix = before && !before.endsWith('\n') ? '\n' : '';
+        const suggestion = suggestionBlock(code);
+        const block = `${prefix}${suggestion}${after && !after.startsWith('\n') ? '\n' : ''}`;
+        setText(before + block + after);
+        setOriginalCode(code);
+        // Select the lines in the block, so the user can type the change at once.
+        const first = before.length + prefix.length + suggestion.indexOf('\n') + 1;
+        requestAnimationFrame(() => {
+            box?.focus();
+            box?.setSelectionRange(first, first + code.length);
+        });
     };
     const placeholder = composerPlaceholder(mode, lines);
     const submitLabel = composerSubmitLabel(mode);
@@ -242,6 +294,7 @@ export function ComposerZone({
                 </div>
             )}
             <textarea
+                ref={textRef}
                 autoFocus
                 value={text}
                 placeholder={placeholder}
@@ -254,7 +307,13 @@ export function ComposerZone({
                     event.stopPropagation();
                 }}
             />
+            {suggestError && <div className="form-error">{suggestError}</div>}
             <div className="row-buttons">
+                {mode === 'comment' && onSuggest && (
+                    <button className="button composer-suggest" title={`Add a suggested change for ${lines}`} onClick={suggest}>
+                        <FileDiff size={13} strokeWidth={1.6} /> Suggest a change
+                    </button>
+                )}
                 {mode === 'note' && (
                     <select
                         className="tasks-select composer-target"

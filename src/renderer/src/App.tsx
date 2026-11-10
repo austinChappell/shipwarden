@@ -426,7 +426,6 @@ export function App() {
             openFile: path => openFile(path),
             sendToAgent,
             sendLogToAgent: agents.sendLogToAgent,
-            installServer: agents.installServer,
             setError
         });
 

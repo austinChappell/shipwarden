@@ -47,6 +47,11 @@ export class DocumentStore {
         return (await promise).model;
     }
 
+    /** Returns the model of the file when the store has the file. Does not load the file. */
+    get(root: string, path: string): monaco.editor.ITextModel | undefined {
+        return this.documents.get(key(root, path))?.model;
+    }
+
     isDirty(root: string, path: string): boolean {
         const document = this.documents.get(key(root, path));
         return !!document && document.model.getAlternativeVersionId() !== document.savedVersion;

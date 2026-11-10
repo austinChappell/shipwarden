@@ -2,7 +2,7 @@ import type { ShortcutAction } from '@shared/shortcuts';
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import { IpcChannels, type ConfirmRequest, type NotificationTarget, type ShipWardenApi } from '@shared/api';
 import type { FilesChangedEvent } from '@shared/files';
-import type { LspServerMessage } from '@shared/lsp';
+import type { LspInstallState, LspServerMessage } from '@shared/lsp';
 import type { AgentUpdate } from '@shared/agents';
 import type { AgentProgram } from '@shared/agent-programs';
 import type { UpdateState } from '@shared/updates';
@@ -210,8 +210,11 @@ const api: ShipWardenApi = {
     lsp: {
         ensure: (root, languageId) => ipcRenderer.invoke(IpcChannels.lspEnsure, root, languageId),
         missing: (root, languageId) => ipcRenderer.invoke(IpcChannels.lspMissing, root, languageId),
+        install: serverId => ipcRenderer.invoke(IpcChannels.lspInstall, serverId),
+        onInstallState: listener => subscribe<[LspInstallState]>(IpcChannels.lspInstallState, listener),
         request: (key, method, params) => ipcRenderer.invoke(IpcChannels.lspRequest, key, method, params),
         notify: (key, method, params) => ipcRenderer.send(IpcChannels.lspNotify, key, method, params),
+        respond: (id, result) => ipcRenderer.send(IpcChannels.lspRespond, id, result),
         onMessage: listener => subscribe<[LspServerMessage]>(IpcChannels.lspMessage, listener)
     },
     processes: {

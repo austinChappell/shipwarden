@@ -56,7 +56,8 @@ const MIRROR_IDLE_MS = 30_000;
 const SUBMIT_DELAY_MS = 120;
 const DEFAULT_SIZE = { cols: 120, rows: 36 };
 
-class HttpError extends Error {
+/** An error with an HTTP status. The server sends the status and the message to the phone. */
+export class HttpError extends Error {
     constructor(
         readonly status: number,
         message: string
