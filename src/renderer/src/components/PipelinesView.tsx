@@ -9,12 +9,20 @@ import { LogView } from './LogView';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
+import { cacheKey, cached, remember } from '../data-cache';
 
 const github = window.shipwarden.github;
 const REPO_KEY = 'shipwarden.pipelinesRepo';
 /** The runs refresh at this interval while a run waits or runs, else at the slow interval. */
 const ACTIVE_POLL_MS = 8_000;
 const IDLE_POLL_MS = 60_000;
+
+/** The cache keys. The view shows cached data immediately and loads new data in the background. */
+const reposKey = (githubKey: string) => cacheKey('pipelines.repos', githubKey);
+const branchesKey = (repo: string) => cacheKey('pipelines.branches', repo);
+const workflowsKey = (repo: string) => cacheKey('pipelines.workflows', repo);
+const runsKey = (repo: string, workflowId: number | undefined) => cacheKey('pipelines.runs', repo, workflowId);
+const jobsKey = (repo: string, runId: number) => cacheKey('pipelines.jobs', repo, runId);
 
 interface Props {
     /** A key for the GitHub providers of Settings › Code review. Undefined: not loaded yet. Null: no GitHub provider is on. */
@@ -208,9 +216,10 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
     useEffect(() => {
         if (!githubKey) return;
         let current = true;
+        setRepos(cached(reposKey(githubKey)));
         github.repositories().then(list => {
             if (!current) return;
-            setRepos(list);
+            setRepos(remember(reposKey(githubKey), list));
             setRepo(value => (value && list.some(item => `${item.owner}/${item.name}` === value) ? value : list[0] && `${list[0].owner}/${list[0].name}`));
         }, err => current && setError(errorText(err)));
         return () => {
@@ -222,16 +231,17 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
     useEffect(() => {
         if (!repoRef) return;
         let current = true;
-        setWorkflows(undefined);
-        setBranches(undefined);
+        const id = `${repoRef.owner}/${repoRef.name}`;
+        setWorkflows(cached(workflowsKey(id)));
+        setBranches(cached(branchesKey(id)));
         setWorkflowId(undefined);
         setRunId(undefined);
         setError(undefined);
         github.branches(repoRef).then(async list => {
             if (!current) return;
-            setBranches(list);
+            setBranches(remember(branchesKey(id), list));
             const found = await github.workflows(repoRef, list[0]);
-            if (current) setWorkflows(found.sort((a, b) => a.name.localeCompare(b.name)));
+            if (current) setWorkflows(remember(workflowsKey(id), found.sort((a, b) => a.name.localeCompare(b.name))));
         }).catch(err => current && setError(errorText(err)));
         return () => {
             current = false;
@@ -245,7 +255,7 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
         setLoading(true);
         try {
             const list = await github.workflowRuns(repoRef, workflowId);
-            if (id === request.current) setRuns(list);
+            if (id === request.current) setRuns(remember(runsKey(`${repoRef.owner}/${repoRef.name}`, workflowId), list));
         } catch (err) {
             if (id === request.current) setError(errorText(err));
         } finally {
@@ -253,8 +263,9 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
         }
     }, [repoRef, workflowId]);
 
+    // The runs show their cached list immediately, and load the new list in the background.
     useEffect(() => {
-        setRuns(undefined);
+        setRuns(repoRef ? cached(runsKey(`${repoRef.owner}/${repoRef.name}`, workflowId)) : undefined);
         void loadRuns();
     }, [loadRuns]);
 
@@ -269,13 +280,13 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
     const loadJobs = useCallback(async () => {
         if (!repoRef || !runId) return;
         try {
-            setJobs(await github.runJobs(repoRef, runId));
+            setJobs(remember(jobsKey(`${repoRef.owner}/${repoRef.name}`, runId), await github.runJobs(repoRef, runId)));
         } catch (err) {
             setActionError(errorText(err));
         }
     }, [repoRef, runId]);
     useEffect(() => {
-        setJobs(undefined);
+        setJobs(repoRef && runId ? cached(jobsKey(`${repoRef.owner}/${repoRef.name}`, runId)) : undefined);
         setJob(undefined);
         setActionError(undefined);
         void loadJobs();

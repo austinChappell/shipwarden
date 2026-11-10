@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
     Check,
     ChevronDown,
@@ -39,6 +39,54 @@ import { confirmDialog } from './ConfirmDialog';
 import { NewWorktreeDialog, type NewWorktreeRequest } from './NewWorktreeDialog';
 import { worktreeLabel } from '@shared/worktrees';
 import { useAgentSessions } from '../terminal/agent-state-store';
+import { onSidebarFocusRequest, takeSidebarFocusRequest } from '../sidebar-focus';
+
+/** The selector of the sidebar items. The Up and Down arrow keys move the focus between them. */
+const SIDEBAR_ITEM = '[data-sidebar-item]';
+
+/** Opens the context menu of an element from the keyboard. The menu opens under the element. */
+function openMenuAt(element: HTMLElement): void {
+    const rect = element.getBoundingClientRect();
+    element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rect.left + 24, clientY: rect.bottom }));
+}
+
+/**
+ * Returns a key handler for a sidebar item that is not a button.
+ * Enter and Space run the action. ⇧F10 and the context menu key open the context menu of the item.
+ */
+function itemKeys(action: () => void) {
+    return (event: ReactKeyboardEvent<HTMLElement>) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            action();
+        } else if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+            event.preventDefault();
+            openMenuAt(event.currentTarget);
+        }
+    };
+}
+
+/**
+ * Moves the focus between the sidebar items. Up and Down move to the previous and next item. Home and End move to the
+ * first and last item. Down in the search field moves to the first item under it.
+ */
+function moveSidebarFocus(event: ReactKeyboardEvent<HTMLElement>): void {
+    const target = event.target as HTMLElement;
+    const inSearch = target.tagName === 'INPUT';
+    if (!(inSearch ? event.key === 'ArrowDown' : target.matches(SIDEBAR_ITEM) && ['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key))) return;
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+    const items = [...event.currentTarget.querySelectorAll<HTMLElement>(SIDEBAR_ITEM)];
+    const after = (item: HTMLElement) => !!(target.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const next = event.key === 'Home' ? items[0]
+        : event.key === 'End' ? items.at(-1)
+        : event.key === 'ArrowDown' ? items.find(after)
+        : items.filter(item => item !== target && !after(item)).at(-1);
+    if (!next) return;
+    event.preventDefault();
+    next.focus();
+    next.scrollIntoView({ block: 'nearest' });
+}
 
 interface Props {
     projects: ProjectsState | undefined;
@@ -282,7 +330,7 @@ function ProjectSwitcher(props: Props) {
 
     return (
         <div className="project-switcher" ref={root}>
-            <button className="project-button" title="Switch the project. The project decides the repositories below." onClick={() => (open ? close() : setOpen(true))}>
+            <button data-sidebar-item className="project-button" title="Switch the project. The project decides the repositories below." onClick={() => (open ? close() : setOpen(true))}>
                 <span className="project-button-name">{active?.name ?? 'Loading…'}</span>
                 <ChevronDown className="repo-chevron" size={13} strokeWidth={1.75} />
             </button>
@@ -403,7 +451,12 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                 key={worktree.path}
                 className={`worktree-row${isHidden ? ' hidden-worktree' : ''}${worktree.path === selectedPath && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.pipelinesActive ? ' selected' : ''}`}
                 title={worktree.path}
+                tabIndex={0}
+                role="button"
+                data-sidebar-item
+                aria-label={name}
                 onClick={() => parent.onSelect(worktree)}
+                onKeyDown={itemKeys(() => parent.onSelect(worktree))}
                 onContextMenu={event => {
                     event.preventDefault();
                     parent.onWorktreeMenu(repo, worktree);
@@ -467,7 +520,20 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                 className={`repo-header${holdsSelection ? ' holds-selection' : ''}${dropClass}`}
                 {...dragProps}
                 title={holdsSelection ? `${repo}\nThe selected worktree is in this repository.` : repo}
+                tabIndex={0}
+                role="button"
+                data-sidebar-item
+                aria-expanded={!collapsed}
                 onClick={onToggle}
+                onKeyDown={event => {
+                    // Left collapses the repository and Right expands it, as in a tree.
+                    if (event.target === event.currentTarget && ((event.key === 'ArrowLeft' && !collapsed) || (event.key === 'ArrowRight' && collapsed))) {
+                        event.preventDefault();
+                        onToggle();
+                        return;
+                    }
+                    itemKeys(onToggle)(event);
+                }}
             >
                 {collapsed ? <ChevronRight size={13} strokeWidth={2} /> : <ChevronDown size={13} strokeWidth={2} />}
                 {color && <RepoIcon color={color} size={13} />}
@@ -540,7 +606,16 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                 <ul className="worktree-list">
                     {worktrees.map(renderRow)}
                     {hidden.length > 0 && (
-                        <li className="worktree-hidden-toggle" title={showHidden ? 'Collapse the hidden worktrees' : 'Show the hidden and snoozed worktrees'} onClick={() => setShowHidden(value => !value)}>
+                        <li
+                            className="worktree-hidden-toggle"
+                            title={showHidden ? 'Collapse the hidden worktrees' : 'Show the hidden and snoozed worktrees'}
+                            tabIndex={0}
+                            role="button"
+                            data-sidebar-item
+                            aria-expanded={showHidden}
+                            onClick={() => setShowHidden(value => !value)}
+                            onKeyDown={itemKeys(() => setShowHidden(value => !value))}
+                        >
                             {showHidden ? <ChevronDown size={12} strokeWidth={2} /> : <ChevronRight size={12} strokeWidth={2} />}
                             <EyeOff size={12} strokeWidth={1.75} />
                             <span>{hidden.length} hidden</span>
@@ -585,6 +660,23 @@ export function Sidebar(outerProps: Props) {
     const runningAgents = props.sessions.filter(session => runsAgent(session)).length;
     const agentsState = worktreeAgentState(props.sessions.filter(session => runsAgent(session)).map(session => session.agentState));
 
+    // ⇧⌘B moves the focus to the selected item, else to the first item. A request can come before the sidebar mounts.
+    const asideRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        const focus = () => {
+            const root = asideRef.current;
+            if (!root || !takeSidebarFocusRequest()) return;
+            const target = root.querySelector<HTMLElement>('.worktree-row.selected')
+                ?? root.querySelector<HTMLElement>('.nav-row.selected')
+                ?? root.querySelector<HTMLElement>('.repo-header.holds-selection')
+                ?? root.querySelector<HTMLElement>(SIDEBAR_ITEM);
+            target?.focus();
+            target?.scrollIntoView({ block: 'nearest' });
+        };
+        focus();
+        return onSidebarFocusRequest(focus);
+    }, []);
+
     const toggle = (repo: string) => setCollapsed(current => {
         const next = new Set(current);
         if (next.has(repo)) {
@@ -601,40 +693,40 @@ export function Sidebar(outerProps: Props) {
     });
 
     return (
-        <aside className="sidebar">
+        <aside className="sidebar" ref={asideRef} aria-label="Sidebar" onKeyDown={moveSidebarFocus}>
             <div className="sidebar-titlebar" />
             <div className="brand">
                 <Logo size={26} />
                 <span className="brand-name">ShipWarden</span>
             </div>
 
-            <button className={`nav-row${props.dashboardActive ? ' selected' : ''}`} onClick={props.onOpenDashboard}>
+            <button data-sidebar-item className={`nav-row${props.dashboardActive ? ' selected' : ''}`} onClick={props.onOpenDashboard}>
                 <LayoutDashboard size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Dashboard</span>
                 {props.dashboardCount > 0 && <span className="nav-row-count attention">{props.dashboardCount}</span>}
             </button>
-            <button className={`nav-row${props.agentsActive ? ' selected' : ''}`} onClick={props.onOpenAgents}>
+            <button data-sidebar-item className={`nav-row${props.agentsActive ? ' selected' : ''}`} onClick={props.onOpenAgents}>
                 <Bot size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Agents</span>
                 {agentsState && <span className={`status-dot ${agentsState}`} title={AGENT_STATE_LABELS[agentsState]} />}
                 {runningAgents > 0 && <span className="nav-row-count">{runningAgents}</span>}
             </button>
             {props.repos.length > 0 && (
-                <button className={`nav-row${props.tasksActive ? ' selected' : ''}`} onClick={props.onOpenTasks}>
+                <button data-sidebar-item className={`nav-row${props.tasksActive ? ' selected' : ''}`} onClick={props.onOpenTasks}>
                     <ListTodo size={15} strokeWidth={1.6} />
                     <span className="nav-row-label">Tasks</span>
                 </button>
             )}
 
-            <button className={`nav-row${props.reviewActive ? ' selected' : ''}`} onClick={props.onOpenReview}>
+            <button data-sidebar-item className={`nav-row${props.reviewActive ? ' selected' : ''}`} onClick={props.onOpenReview}>
                 <GitPullRequest size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Review</span>
             </button>
-            <button className={`nav-row${props.pipelinesActive ? ' selected' : ''}`} onClick={props.onOpenPipelines}>
+            <button data-sidebar-item className={`nav-row${props.pipelinesActive ? ' selected' : ''}`} onClick={props.onOpenPipelines}>
                 <Workflow size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Pipelines</span>
             </button>
-            <button className={`nav-row${props.notesActive ? ' selected' : ''}`} onClick={props.onOpenNotes}>
+            <button data-sidebar-item className={`nav-row${props.notesActive ? ' selected' : ''}`} onClick={props.onOpenNotes}>
                 <NotebookPen size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Notes</span>
             </button>
@@ -696,7 +788,7 @@ export function Sidebar(outerProps: Props) {
             </ul>
 
             <div className="sidebar-footer">
-                <button className={`nav-row${props.settingsActive ? ' selected' : ''}`} title="Settings (⌘,)" onClick={props.onOpenSettings}>
+                <button data-sidebar-item className={`nav-row${props.settingsActive ? ' selected' : ''}`} title="Settings (⌘,)" onClick={props.onOpenSettings}>
                     <Settings size={15} strokeWidth={1.6} />
                     <span>Settings</span>
                 </button>

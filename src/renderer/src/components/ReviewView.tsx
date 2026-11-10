@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CircleCheck, CircleDot, CircleX, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, GitMerge, MessageSquare, RefreshCw, Search } from 'lucide-react';
+import { ArrowLeft, CircleCheck, CircleDot, CircleX, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, GitMerge, MessageSquare, RefreshCw, Search } from 'lucide-react';
 import {
     PULL_REQUEST_FILTERS,
     type BranchStatus,
@@ -10,24 +10,26 @@ import {
     type RepoRef
 } from '@shared/github';
 import { errorText, timeAgo } from '../util';
+import { cacheKey, cached, remember } from '../data-cache';
 import { Combobox, sortedGroups } from './Combobox';
+import { RepoIcon } from './RepoIcon';
 import { ReviewPullRequest } from './ReviewPullRequest';
 
 const api = window.shipwarden.github;
-const REPO_KEY = 'shipwarden.reviewRepo';
 const FILTER_KEY = 'shipwarden.reviewFilter';
 const POLL_MS = 60_000;
 
-/**
- * The last repositories of each owner choice and the last list of each repository, filter and search.
- * The view shows them at once and loads new data at the same time.
- */
-const repoCache = new Map<string, GitHubRepoInfo[]>();
-const listCache = new Map<string, PullRequestSummary[]>();
+/** The cache keys. The view shows cached data immediately and loads new data in the background. */
+const reposKey = (githubKey: string) => cacheKey('review.repos', githubKey);
+const listKey = (scope: string, query: string) => cacheKey('review.list', scope, query);
+const prKey = (repo: string, number: number) => cacheKey('review.pr', repo, number);
+const repoOfKey = (path: string) => cacheKey('github.repoOf', path);
 
 interface Props {
     /** A key for the GitHub providers of Settings › Code review. Undefined: not loaded yet. Null: no GitHub provider is on. */
     githubKey: string | null | undefined;
+    /** The local repositories of all projects, in sidebar order. The entry page shows their GitHub repositories first. */
+    localRepos: string[];
     /** Opens Settings > Code review. */
     onOpenSettings(): void;
     /** A pull request to open, for example from the Dashboard. A new `nonce` opens it again. */
@@ -64,6 +66,133 @@ function repoId(repo: RepoRef): string {
     return `${repo.owner}/${repo.name}`;
 }
 
+/**
+ * Returns the GitHub repositories ("owner/name") of the local repositories, from their "origin" remotes.
+ * The order is the order of the local repositories. A repository without a GitHub remote is not in the result.
+ */
+function useProjectRepos(paths: string[]): string[] {
+    const [ids, setIds] = useState<string[]>(() => paths.flatMap(path => cached<string | null>(repoOfKey(path)) ?? []));
+    useEffect(() => {
+        let cancelled = false;
+        Promise.all(paths.map(async path => {
+            const ref = await api.repoOf(path).catch(() => null);
+            return remember(repoOfKey(path), ref && repoId(ref));
+        })).then(result => {
+            if (cancelled) return;
+            const next = [...new Set(result.filter((id): id is string => !!id))];
+            setIds(current => (current.join('\n') === next.join('\n') ? current : next));
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [paths]);
+    return ids;
+}
+
+interface RepoListProps {
+    repos: GitHubRepoInfo[] | undefined;
+    /** The GitHub repositories of the sidebar repositories, in sidebar order. */
+    projectRepos: string[];
+    error: string | undefined;
+    loading: boolean;
+    onSelect(repo: string): void;
+    onRefresh(): void;
+    onOpenSettings(): void;
+}
+
+/**
+ * The entry page of the Review view, with a filter field. It shows the GitHub repositories of the sidebar repositories.
+ * A button shows all the repositories of the GitHub providers, grouped by owner.
+ */
+function RepoList({ repos, projectRepos, error, loading, onSelect, onRefresh, onOpenSettings }: RepoListProps) {
+    const [query, setQuery] = useState('');
+    const [showAll, setShowAll] = useState(false);
+
+    /** The provider repositories that are in a project, in sidebar order. GitHub names do not use case, so the match ignores case. */
+    const inProjects = useMemo(() => {
+        const byId = new Map((repos ?? []).map(item => [repoId(item).toLowerCase(), item]));
+        return projectRepos.flatMap(id => byId.get(id.toLowerCase()) ?? []);
+    }, [repos, projectRepos]);
+    /** Without project repositories, the page shows all repositories. */
+    const all = showAll || inProjects.length === 0;
+
+    const groups = useMemo(() => {
+        const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const matches = (all ? repos ?? [] : inProjects).filter(item => words.every(word => repoId(item).toLowerCase().includes(word)));
+        if (!all) {
+            return matches.length ? [{ label: 'In your projects', items: matches.map(item => ({ value: repoId(item), label: repoId(item) })) }] : [];
+        }
+        return sortedGroups(matches, item => item.owner, item => ({ value: repoId(item), label: item.name }));
+    }, [repos, inProjects, all, query]);
+
+    const first = groups[0]?.items[0]?.value;
+    const showAllButton = (
+        <button className="button review-show-all" onClick={() => setShowAll(true)}>
+            Show all repositories{repos ? ` (${repos.length})` : ''}
+        </button>
+    );
+
+    return (
+        <>
+            <header className="tasks-header review-header">
+                <div className="tasks-header-group how">
+                    <label className="tasks-search review-repo-filter">
+                        <Search size={14} strokeWidth={1.6} />
+                        <input
+                            autoFocus
+                            value={query}
+                            placeholder="Filter repositories"
+                            spellCheck={false}
+                            onChange={event => setQuery(event.target.value)}
+                            onKeyDown={event => {
+                                if (event.key === 'Enter' && first) onSelect(first);
+                            }}
+                        />
+                    </label>
+                    {inProjects.length > 0 && (
+                        <div className="segmented compact" role="radiogroup" aria-label="Repositories">
+                            <button role="radio" aria-checked={!all} className={!all ? 'selected' : ''} onClick={() => setShowAll(false)}>In projects</button>
+                            <button role="radio" aria-checked={all} className={all ? 'selected' : ''} onClick={() => setShowAll(true)}>All</button>
+                        </div>
+                    )}
+                    <span className="header-spacer" />
+                    <button className="icon-button" title="Refresh" onClick={onRefresh}>
+                        <RefreshCw size={15} strokeWidth={1.6} className={loading ? 'spin' : ''} />
+                    </button>
+                </div>
+            </header>
+            <div className="review-list">
+                {error && <div className="form-error task-list-error">{error}</div>}
+                {!repos && !error && <div className="panel-message">Loading repositories…</div>}
+                {repos?.length === 0 && (
+                    <div className="review-empty">
+                        <p>The selected organizations have no repositories that you can access.</p>
+                        <button className="button" onClick={onOpenSettings}>Open Settings › Code review</button>
+                    </div>
+                )}
+                {repos && repos.length > 0 && groups.length === 0 && (
+                    <div className="panel-message">
+                        {all ? 'No repositories match the filter.' : 'No repositories in your projects match the filter.'}
+                        {!all && <div className="review-show-all-row">{showAllButton}</div>}
+                    </div>
+                )}
+                {groups.map((group, index) => (
+                    <section key={`${index}:${group.label}`} className="review-repo-group">
+                        <h3 className="review-repo-owner">{group.label}</h3>
+                        {group.items.map(item => (
+                            <button key={item.value} className="review-item review-repo-item" onClick={() => onSelect(item.value)}>
+                                <RepoIcon />
+                                <span className="review-item-title">{item.label}</span>
+                            </button>
+                        ))}
+                    </section>
+                ))}
+                {!all && groups.length > 0 && <div className="review-show-all-row">{showAllButton}</div>}
+            </div>
+        </>
+    );
+}
+
 function StateIcon({ pr }: { pr: PullRequestSummary }) {
     const props = { size: 15, strokeWidth: 1.7 };
     if (pr.state === 'MERGED') return <GitMerge {...props} className="pr-state merged" />;
@@ -84,39 +213,50 @@ const REVIEW_TEXT: Record<string, string> = { APPROVED: 'Approved', CHANGES_REQU
 
 /**
  * The Review view: the pull requests of one GitHub repository, from the organizations in Settings > Code review.
- * The view has two pages. The list page shows the pull requests. The pull request page shows one pull request and hides the list.
+ * The view has three pages. The entry page shows the repositories. The list page shows the pull requests of one repository.
+ * The pull request page shows one pull request and hides the list.
  * The user can read the diff, comment, approve or request changes, mark files as viewed, read the CI logs,
  * and merge a pull request when they have write access to the repository.
  */
-export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: Props) {
+export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewWorktree }: Props) {
+    const projectRepos = useProjectRepos(localRepos);
     const [repos, setRepos] = useState<GitHubRepoInfo[]>();
-    const [repo, setRepo] = useState<string | undefined>(() => read(REPO_KEY));
+    const [repo, setRepo] = useState<string>();
     const [filter, setFilter] = useState<PullRequestFilter>(() => (PULL_REQUEST_FILTERS.some(item => item.id === read(FILTER_KEY)) ? read(FILTER_KEY) as PullRequestFilter : 'open'));
     const [query, setQuery] = useState('');
     const [list, setList] = useState<PullRequestSummary[]>();
     const [listLoading, setListLoading] = useState(false);
     const [error, setError] = useState<string>();
+    const [reposLoading, setReposLoading] = useState(false);
+    const [reposError, setReposError] = useState<string>();
     const [selected, setSelected] = useState<number>();
     const [pr, setPr] = useState<PullRequest | null>();
     const [prLoading, setPrLoading] = useState(false);
     const [prError, setPrError] = useState<string>();
 
     // The repositories of the GitHub providers, each in its organizations.
+    const reposRequest = useRef(0);
+    const loadRepos = useCallback(async () => {
+        if (!githubKey) return;
+        const id = ++reposRequest.current;
+        setReposLoading(true);
+        try {
+            const result = await api.repositories();
+            if (id !== reposRequest.current) return;
+            setRepos(remember(reposKey(githubKey), result));
+            setReposError(undefined);
+        } catch (err) {
+            if (id === reposRequest.current) setReposError(errorText(err));
+        } finally {
+            if (id === reposRequest.current) setReposLoading(false);
+        }
+    }, [githubKey]);
     useEffect(() => {
         if (!githubKey) return;
-        let cancelled = false;
-        setRepos(repoCache.get(githubKey));
-        setError(undefined);
-        api.repositories().then(result => {
-            if (cancelled) return;
-            repoCache.set(githubKey, result);
-            setRepos(result);
-            setRepo(current => (current && result.some(item => repoId(item) === current) ? current : result[0] && repoId(result[0])));
-        }, err => !cancelled && setError(errorText(err)));
-        return () => {
-            cancelled = true;
-        };
-    }, [githubKey]);
+        setRepos(cached(reposKey(githubKey)));
+        setReposError(undefined);
+        void loadRepos();
+    }, [githubKey, loadRepos]);
 
     const repoRef = useMemo<RepoRef | undefined>(() => {
         if (!repo) return undefined;
@@ -130,20 +270,19 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
     const loadList = useCallback(async () => {
         if (!repoRef) return;
         const id = ++listRequest.current;
-        const scope = `${repoId(repoRef)}\0${filter}`;
-        const key = `${scope}\0${query.trim()}`;
+        const scope = cacheKey(repoId(repoRef), filter);
+        const key = listKey(scope, query.trim());
         // A new repository or filter shows its last list, or nothing. A new search keeps the current list until the result comes.
-        const cached = listCache.get(key);
-        if (cached || listScope.current !== scope) {
-            setList(cached);
+        const last = cached<PullRequestSummary[]>(key);
+        if (last || listScope.current !== scope) {
+            setList(last);
         }
         listScope.current = scope;
         setListLoading(true);
         try {
             const result = await api.pullRequests(repoRef, filter, query);
             if (id !== listRequest.current) return;
-            listCache.set(key, result);
-            setList(result);
+            setList(remember(key, result));
             setError(undefined);
         } catch (err) {
             if (id === listRequest.current) setError(errorText(err));
@@ -174,27 +313,33 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
         if (!open) return;
         pendingOpen.current = open;
         setRepo(open.repo);
-        write(REPO_KEY, open.repo);
         setSelected(open.number);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open?.nonce]);
 
+    /** Each pull request request gets a number, so that a slow response for another pull request cannot show. */
+    const prRequest = useRef(0);
     const loadPr = useCallback(async () => {
         if (!repoRef || !selected) return;
+        const id = ++prRequest.current;
         setPrLoading(true);
         try {
-            setPr(await api.pullRequest(repoRef, selected));
+            const result = await api.pullRequest(repoRef, selected);
+            if (id !== prRequest.current) return;
+            setPr(remember(prKey(repoId(repoRef), selected), result));
             setPrError(undefined);
         } catch (err) {
-            setPrError(errorText(err));
+            if (id === prRequest.current) setPrError(errorText(err));
         } finally {
-            setPrLoading(false);
+            if (id === prRequest.current) setPrLoading(false);
         }
     }, [repoRef, selected]);
 
+    // A pull request shows its cached data immediately, and loads new data in the background.
     useEffect(() => {
-        setPr(undefined);
-        loadPr();
+        setPr(repoRef && selected ? cached<PullRequest>(prKey(repoId(repoRef), selected)) : undefined);
+        setPrError(undefined);
+        void loadPr();
     }, [loadPr]);
 
     const refresh = async () => {
@@ -206,7 +351,6 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
 
     const selectRepo = (value: string) => {
         setRepo(value);
-        write(REPO_KEY, value);
     };
     const selectFilter = (value: PullRequestFilter) => {
         setFilter(value);
@@ -232,10 +376,29 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
         );
     }
 
+    if (!repo) {
+        return (
+            <div className="review-view">
+                <RepoList
+                    repos={repos}
+                    projectRepos={projectRepos}
+                    error={reposError}
+                    loading={reposLoading}
+                    onSelect={selectRepo}
+                    onRefresh={() => void loadRepos()}
+                    onOpenSettings={onOpenSettings}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="review-view">
             {!selected && <header className="tasks-header review-header">
                 <div className="tasks-header-group where">
+                    <button className="icon-button" title="All repositories" onClick={() => setRepo(undefined)}>
+                        <ArrowLeft size={15} strokeWidth={1.7} />
+                    </button>
                     <Combobox
                         className="review-repo-select"
                         value={repo}
@@ -261,13 +424,6 @@ export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree }: P
                     </button>
                 </div>
             </header>}
-
-            {!selected && repos?.length === 0 && (
-                <div className="review-empty">
-                    <p>The selected organizations have no repositories that you can access.</p>
-                    <button className="button" onClick={onOpenSettings}>Open Settings › Code review</button>
-                </div>
-            )}
 
             {repoRef && (
                 <div className="review-body">

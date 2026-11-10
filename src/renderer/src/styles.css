@@ -329,7 +329,8 @@ button {
     vertical-align: -1px;
 }
 
-.worktree-row:hover .row-action {
+.worktree-row:hover .row-action,
+.worktree-row:focus-within .row-action {
     visibility: visible;
 }
 
@@ -3144,7 +3145,8 @@ body.resizing * {
     justify-content: center;
 }
 
-.repo-header:hover .repo-action {
+.repo-header:hover .repo-action,
+.repo-header:focus-within .repo-action {
     display: flex;
 }
 
@@ -3874,11 +3876,13 @@ body.resizing * {
 }
 
 /* Focus rings show for the keyboard only, not after a mouse click. */
-button:focus:not(:focus-visible) {
+button:focus:not(:focus-visible),
+[data-sidebar-item]:focus:not(:focus-visible) {
     outline: none;
 }
 
-button:focus-visible {
+button:focus-visible,
+[data-sidebar-item]:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
     outline-offset: 1px;
 }
@@ -4681,6 +4685,43 @@ button:focus-visible {
 
 .review-list[hidden] {
     display: none;
+}
+
+/* The entry page of the Review view: the repositories, grouped by owner. */
+.review-repo-filter {
+    flex: 0 1 320px;
+}
+
+.review-repo-owner {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 8px 12px 4px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* The row of the "Show all repositories" button, under the project repositories. */
+.review-show-all-row {
+    display: flex;
+    justify-content: center;
+    padding: 14px 12px;
+}
+
+.review-repo-item {
+    align-items: center;
+    padding: 8px 12px;
+}
+
+.review-repo-item > svg {
+    margin-top: 0;
+    color: var(--muted);
 }
 
 /* The link from a pull request back to the list of the repository. */
