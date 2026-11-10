@@ -1120,6 +1120,32 @@ export function App() {
         }
     };
 
+    /**
+     * Sends all the failed checks of the pull request to the agent in one prompt.
+     * For a GitHub Actions job, the prompt has the path of the saved log. For other checks, it has the link.
+     */
+    const sendChecksToAgent = async (checks: CheckRun[]) => {
+        const root = selectedPath;
+        if (!root || checks.length === 0) {
+            return;
+        }
+        try {
+            const lines = await Promise.all(checks.map(async check => {
+                if (check.isActions) {
+                    return `- "${check.name}": the full log is in ${await api.github.saveJobLog(root, check.id)}`;
+                }
+                return `- "${check.name}"${check.url ? `: the details are at ${check.url}` : ''}`;
+            }));
+            await sendToAgent([
+                `${checks.length === 1 ? 'A CI check' : `${checks.length} CI checks`} failed on the pull request of this branch:`,
+                ...lines,
+                'Find the cause of each failure and fix it. Run the tests, and then commit the fix.'
+            ].join('\n'));
+        } catch (err) {
+            setError(errorText(err));
+        }
+    };
+
     const closeSession = async (session: TerminalSession) => {
         await api.terminals.kill(session.id);
         terminalPool.dispose(session.id);
@@ -2003,6 +2029,7 @@ export function App() {
                         onOpenLog={openLog}
                         onSendToAgent={sendToAgent}
                         onSendLogToAgent={sendLogToAgent}
+                        onSendChecksToAgent={sendChecksToAgent}
                         onShowTerminal={id => activate(selectedPath, `t:${id}`)}
                         onOpenChange={openChange}
                         onOpenAllChanges={openAllChanges}

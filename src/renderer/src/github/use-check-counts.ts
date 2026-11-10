@@ -7,6 +7,8 @@ export interface CheckCounts {
     passed: number;
     failed: number;
     running: number;
+    /** The newest run of each check that failed. */
+    failedChecks: CheckRun[];
 }
 
 const FAILED = new Set(['failure', 'timed_out', 'cancelled', 'action_required', 'error']);
@@ -14,9 +16,10 @@ const POLL_RUNNING_MS = 15_000;
 
 export function countChecks(checks: readonly CheckRun[]): CheckCounts {
     const latest = latestChecks(checks);
-    const failed = latest.filter(check => check.status === 'completed' && FAILED.has(check.conclusion ?? '')).length;
+    const failedChecks = latest.filter(check => check.status === 'completed' && FAILED.has(check.conclusion ?? ''));
+    const failed = failedChecks.length;
     const running = latest.filter(check => check.status !== 'completed').length;
-    return { total: latest.length, passed: latest.length - failed - running, failed, running };
+    return { total: latest.length, passed: latest.length - failed - running, failed, running, failedChecks };
 }
 
 /**

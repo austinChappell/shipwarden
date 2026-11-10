@@ -25,6 +25,7 @@ interface Props {
     onOpenLog(check: CheckRun): void;
     onSendToAgent(prompt: string): void;
     onSendLogToAgent(check: CheckRun): void;
+    onSendChecksToAgent(checks: CheckRun[]): void;
     onShowTerminal(sessionId: string): void;
     onOpenChange(change: FileChange, side: ChangeSide): void;
     onOpenAllChanges(): void;
@@ -112,6 +113,7 @@ export function RightPanel(props: Props) {
                     onRefresh={props.github.refresh}
                     onOpenDiff={props.onOpenDiff}
                     onSendToAgent={props.onSendToAgent}
+                    onSendChecksToAgent={props.onSendChecksToAgent}
                 />
             )}
             {tab === 'changes' && (
