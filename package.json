@@ -108,8 +108,10 @@
       ],
       "icon": "build/icon.icns",
       "darkModeSupport": true,
-      "hardenedRuntime": false,
-      "identity": "Austin Chappell (RS2D575SJ5)"
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "identity": "Austin Chappell (76A95UF226)"
     },
     "dmg": {
       "title": "ShipWarden"

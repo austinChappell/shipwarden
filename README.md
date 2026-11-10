@@ -64,7 +64,7 @@ npm run dist       # builds the app and dist/ShipWarden-<version>-arm64.dmg
 
 ### macOS app
 
-`npm run dist` signs the app with the certificate in `build.mac.identity` in `package.json`. That certificate must be in your login keychain. The app is not notarized, so it opens without a warning only on a Mac that has the certificate. The packaged app keeps these files outside `app.asar`, because macOS cannot run a file from an archive:
+`npm run dist` signs the app with the certificate in `build.mac.identity` in `package.json`. That certificate must be in your login keychain. When the `APPLE_API_KEY`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER` variables are set, it also notarizes the app. See [docs/RELEASING.md](docs/RELEASING.md). The packaged app keeps these files outside `app.asar`, because macOS cannot run a file from an archive:
 
 - the built-in task plugins, in `Contents/Resources/plugins`
 - node-pty and its `spawn-helper`
