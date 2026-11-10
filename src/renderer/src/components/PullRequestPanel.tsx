@@ -40,6 +40,7 @@ import {
 import { conversationOf, reviewConfirmTitle, shownCommentIds } from '../github/review-state';
 import { CreatePullRequest } from './CreatePullRequest';
 import { BranchName, ConflictBadge, PullRequestCommitList, PullRequestDescription, PullRequestFileList, StateBadge } from './PullRequestParts';
+import { HelmLoader } from './HelmLoader';
 import { PullRequestMergeCard } from './PullRequestMergeCard';
 import { PullRequestReviewCard } from './PullRequestReviewCard';
 import { PullRequestConversation, PullRequestThreads } from './PullRequestThreads';
@@ -132,7 +133,8 @@ export function PullRequestPanel({
     };
 
     if (status === undefined) {
-        return <div className="panel-message">{error ?? (loading ? 'Loading the pull request…' : '')}</div>;
+        if (!error && loading) return <HelmLoader label="Loading the pull request" />;
+        return <div className="panel-message">{error ?? ''}</div>;
     }
     if (status === null) {
         return <div className="panel-message">This worktree has no GitHub or Azure Repos remote named "origin".</div>;

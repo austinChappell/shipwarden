@@ -84,6 +84,9 @@ export function registerGitHubIpc({ reviewProviders, seen }: Pick<Services, 'rev
     ipcMain.handle(IpcChannels.githubDashboardComments, () => reviewProviders.dashboardComments());
     ipcMain.handle(IpcChannels.seenKeys, () => seen.keys());
     ipcMain.handle(IpcChannels.seenMark, (_event, keys: unknown) => seen.mark(onlyStrings(keys)));
+    ipcMain.handle(IpcChannels.githubRepoPullRequests, async (_event, repo: RepoRef) =>
+        (await reviewProviders.github(repo)).repoPullRequests({ owner: String(repo?.owner), name: String(repo?.name) })
+    );
     ipcMain.handle(IpcChannels.githubPullRequests, async (_event, repo: RepoRef, filter: PullRequestFilter, query?: string) =>
         (await reviewProviders.github(repo)).pullRequests({ owner: String(repo?.owner), name: String(repo?.name) }, filter, query)
     );

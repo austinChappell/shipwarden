@@ -128,7 +128,7 @@ export function useWorktreeActions(options: Options) {
      * Opens a worktree for the head branch of a pull request from the Review view. A worktree that has the branch opens.
      * Else the New worktree dialog opens on the remote branch. The repository must be in the active project.
      */
-    const openPullRequestWorktree = async (repo: RepoRef, pr: PullRequest) => {
+    const openPullRequestWorktree = async (repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>) => {
         let repoPath: string | undefined;
         for (const path of options.repos) {
             if (sameRepoRef(await api.github.repoOf(path).catch(() => null), repo)) {

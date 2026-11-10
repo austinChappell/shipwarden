@@ -144,7 +144,7 @@ app.whenReady().then(async () => {
     void services.networkReady.then(() => services.usage.start());
     // The packaged app looks for updates. In development, the user can still check in Settings › About.
     if (app.isPackaged) void services.networkReady.then(() => services.updates.start());
-    // Remove the copies of pull requests that the user did not open for some days.
+    // Remove the copies of pull requests that the user did not open for a few days.
     void services.shellReady
         .then(() => services.reviewCheckouts.prune())
         .catch(error => console.warn('[review] The old pull request copies were not removed:', error));

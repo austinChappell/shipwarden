@@ -39,6 +39,7 @@ import { openLink } from '../links';
 import type { ClickModifiers } from '@shared/browser';
 import { Markdown } from './Markdown';
 import { MERGE_LABELS } from './MergeButton';
+import { HelmLoader } from './HelmLoader';
 import { confirmDialog } from './ConfirmDialog';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 
@@ -456,6 +457,9 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
     const commentsLoaded = !!state.prComments;
     const noComments =
         commentsLoaded && !state.prCommentsError && shownPrComments.length === 0 && shownTaskComments.length === 0 && !state.tasks.some(source => source.error);
+    // Show the full-page loader only before the first refresh completes.
+    // The store keeps its items. Thus a later refresh or a new mount shows the items immediately.
+    const firstLoad = !state.updatedAt && !state.pullRequestsError && !state.prCommentsError;
 
     return (
         <div className="dashboard-view">
@@ -499,7 +503,12 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                 </div>
             </header>
 
-            <div className="dash-scroll" onKeyDown={moveListFocus}>
+            {firstLoad && (
+                <div className="dash-first-load">
+                    <HelmLoader hint="The first load can take a few seconds." />
+                </div>
+            )}
+            <div className="dash-scroll" hidden={firstLoad} onKeyDown={moveListFocus}>
                 <div className="dash-page">
                     <div className="dash-stats">
                         <StatCard
@@ -719,7 +728,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                             </section>
 
                             {!commentsLoaded && !state.prCommentsError && (
-                                <div className="dash-card dash-line">Loading comments… The first load can take some seconds.</div>
+                                <div className="dash-card dash-line">Loading comments… The first load can take a few seconds.</div>
                             )}
                             {noComments && (
                                 <div className="dash-card dash-line">

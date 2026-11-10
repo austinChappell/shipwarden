@@ -23,10 +23,12 @@ import {
 } from '@shared/github';
 import type { DashboardPullRequests, PullRequestCommentItem } from '@shared/dashboard';
 import type { WorkflowRun } from '@shared/pipelines';
+import type { RepoPullRequests } from '@shared/review-queue';
 import type { GitHubClient } from './github-client';
 import * as actions from './actions';
 import { DashboardLoader } from './dashboard-loader';
 import * as pulls from './pull-requests';
+import { fetchRepoPullRequests } from './repo-pull-requests';
 import * as reviews from './review-actions';
 
 export { githubViewerRole } from './pull-request-mapping';
@@ -164,6 +166,15 @@ export class GitHubService {
      */
     async pullRequests(repo: RepoRef, filter: PullRequestFilter, query?: string): Promise<PullRequestSummary[]> {
         return pulls.fetchPullRequests(this.client, repo, filter, query);
+    }
+
+    /**
+     * Returns the open pull requests of a repository (up to 100, the newest update first) for the Review view.
+     * For each pull request, it tells if GitHub asks the viewer for a review, the last review of the viewer and the checks.
+     * For a pull request to review again, it also counts the new commits and the resolved threads of the viewer.
+     */
+    async repoPullRequests(repo: RepoRef): Promise<RepoPullRequests> {
+        return fetchRepoPullRequests(this.client, repo);
     }
 
     /** Returns the base and head versions of a file in a pull request. A missing version is an empty string. */

@@ -61,7 +61,7 @@ final class AppModel {
 
     func pair(with link: PairingLink, deviceName: String) async throws {
         // The first connection shows the iOS prompt for local network access. The connections fail until the user
-        // answers, so try again for some seconds.
+        // answers, so try again for a few seconds.
         var found: String?
         for attempt in 0..<8 {
             if attempt > 0 { try await Task.sleep(nanoseconds: 2_500_000_000) }

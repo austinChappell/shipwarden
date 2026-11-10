@@ -598,7 +598,7 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
                     onStarted={() => {
                         setDialog(undefined);
                         setWorkflowId(dialog.id);
-                        // GitHub makes the run some seconds after the dispatch.
+                        // GitHub makes the run a few seconds after the dispatch.
                         setTimeout(() => void loadRuns(), 2500);
                         setTimeout(() => void loadRuns(), 7000);
                     }}

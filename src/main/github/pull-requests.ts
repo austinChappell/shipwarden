@@ -132,7 +132,7 @@ export async function fetchViewedFiles(client: GitHubClient, repo: RepoRef, numb
  * The closed list is shorter and has no CI state, because GitHub is slow to get the CI state of old pull requests.
  */
 export async function fetchPullRequests(client: GitHubClient, repo: RepoRef, filter: PullRequestFilter, query?: string): Promise<PullRequestSummary[]> {
-    const closed = filter === 'closed';
+    const closed = filter === 'closed' || filter === 'merged';
     const data = await client.graphql<{ search: { nodes: (GraphQlSummary | Record<string, never>)[] } }>(
         `query($q: String!, $first: Int!, $checks: Boolean!) {
   search(query: $q, type: ISSUE, first: $first) {

@@ -21,6 +21,7 @@ import { NotesView } from './components/NotesView';
 import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
 import { useDashboardCount, useDashboardLoader } from './dashboard-store';
+import { useReviewOverviewLoader, useReviewQueue } from './github/review-overview-store';
 import { githubScopeKey, useReviewProviders } from './review-providers-store';
 import type { NotificationTarget } from '@shared/api';
 import type { RepoRef } from '@shared/github';
@@ -196,6 +197,8 @@ export function App() {
     const reviewProviders = useReviewProviders();
     const githubKey = githubScopeKey(reviewProviders);
     useDashboardLoader(settingsLoaded, githubKey, activeProject?.id);
+    useReviewOverviewLoader(settingsLoaded, githubKey, project.allRepos);
+    const reviewCount = useReviewQueue().length;
     const commentFilter = useMemo(
         () => ({ hiddenAuthors: appSettings.dashboardHiddenAuthors, hiddenRules: appSettings.dashboardHiddenRules }),
         [appSettings.dashboardHiddenAuthors, appSettings.dashboardHiddenRules]
@@ -460,6 +463,7 @@ export function App() {
                             agentsActive={mainView === 'agents'}
                             onOpenAgents={() => setMainView('agents')}
                             reviewActive={mainView === 'review'}
+                            reviewCount={reviewCount}
                             onOpenReview={() => setMainView('review')}
                             pipelinesActive={mainView === 'pipelines'}
                             onOpenPipelines={() => setMainView('pipelines')}
@@ -513,7 +517,6 @@ export function App() {
                         <main className="workspace">
                             <ReviewView
                                 githubKey={githubKey}
-                                localRepos={project.allRepos}
                                 onOpenSettings={() => openSettings('review')}
                                 open={reviewOpen}
                                 onNewWorktree={(repo, pr) => void worktreeActions.openPullRequestWorktree(repo, pr)}
