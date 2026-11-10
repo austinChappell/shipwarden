@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Ban, CaseSensitive, ChevronRight, File, ListCollapse, RefreshCw, Search, TextAlignStart } from 'lucide-react';
 import { baseName, matchLine, parentPath, type ContentMatch, type FileEntry } from '@shared/files';
 import { fileIcon, folderIcon } from '../files/file-icons';
-import { fuzzyFilter } from '../files/fuzzy';
+import { fuzzyFilter, fuzzyPositions } from '../files/fuzzy';
 import { onExplorerFocusRequest, takeExplorerFocusRequest } from '../files/explorer-focus';
 import { treeKeyAction, type TreeRow } from '../files/tree-nav';
 import { ErrorBanner } from './ErrorBanner';
@@ -61,6 +61,30 @@ function highlight(text: string, query: string, caseSensitive: boolean): ReactNo
         index = lower.indexOf(needle, start);
     }
     parts.push(text.slice(start));
+    return parts;
+}
+
+/**
+ * Marks the characters of `text` at the given positions. `offset` is the index of the first character of `text` in the full path.
+ * Adjacent positions go into one mark.
+ */
+function markPositions(text: string, positions: readonly number[], offset: number): ReactNode {
+    const marked = new Set(positions.map(position => position - offset).filter(index => index >= 0 && index < text.length));
+    if (marked.size === 0) {
+        return text;
+    }
+    const parts: ReactNode[] = [];
+    let start = 0;
+    while (start < text.length) {
+        const isMark = marked.has(start);
+        let end = start + 1;
+        while (end < text.length && marked.has(end) === isMark) {
+            end += 1;
+        }
+        const piece = text.slice(start, end);
+        parts.push(isMark ? <mark key={start}>{piece}</mark> : piece);
+        start = end;
+    }
     return parts;
 }
 
@@ -396,6 +420,8 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                 {summary(nameMatches.length)}
                 {nameMatches.map(({ path }, index) => {
                     const Icon = fileIcon(baseName(path));
+                    const positions = fuzzyPositions(path, query, caseSensitive);
+                    const nameStart = path.lastIndexOf('/') + 1;
                     return (
                         <div
                             key={path}
@@ -405,8 +431,8 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                             onClick={() => onOpenFile(path)}
                         >
                             <Icon className="tree-icon" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                            <span className="search-file-name">{baseName(path)}</span>
-                            <span className="search-file-path">{parentPath(path)}</span>
+                            <span className="search-file-name">{markPositions(baseName(path), positions, nameStart)}</span>
+                            <span className="search-file-path">{markPositions(parentPath(path), positions, 0)}</span>
                         </div>
                     );
                 })}
