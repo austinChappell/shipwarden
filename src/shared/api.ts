@@ -1,5 +1,6 @@
 import type { PairingOffer, RemoteStatus } from './remote';
 import type { DashboardPullRequests, PullRequestCommentItem } from './dashboard';
+import type { RepoPullRequests } from './review-queue';
 import type { NoteInfo } from './notes';
 import type { AppKeyAction, ShortcutAction } from './shortcuts';
 import type { WorkflowRun } from './pipelines';
@@ -254,6 +255,8 @@ export interface ShipWardenApi {
         repoOf(root: string): Promise<RepoRef | null>;
         /** The pull requests of a repository for a filter of the Review view. */
         pullRequests(repo: RepoRef, filter: PullRequestFilter, query?: string): Promise<PullRequestSummary[]>;
+        /** The open pull requests of a repository, with the review state of the viewer, for the Review view. */
+        repoPullRequests(repo: RepoRef): Promise<RepoPullRequests>;
         /** The review requests and the user's pull requests that need an action, from all GitHub providers that are on. */
         dashboardPullRequests(): Promise<DashboardPullRequests>;
         /** The new comments on pull requests for the Dashboard, from all GitHub providers that are on. */
@@ -509,6 +512,7 @@ export const IpcChannels = {
     githubRepoOf: 'github:repoOf',
     githubPullRequests: 'github:pullRequests',
     githubDashboardPullRequests: 'github:dashboardPullRequests',
+    githubRepoPullRequests: 'github:repoPullRequests',
     githubDashboardComments: 'github:dashboardComments',
     githubCreatePullRequest: 'github:createPullRequest',
     reviewProvidersList: 'reviewProviders:list',

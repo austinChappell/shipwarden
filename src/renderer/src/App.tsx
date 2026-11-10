@@ -31,6 +31,7 @@ import { NotesView } from './components/NotesView';
 import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
 import { dashboardStore, useDashboardCount, useDashboardLoader, type DashboardNews } from './dashboard-store';
+import { useReviewOverviewLoader, useReviewQueue } from './github/review-overview-store';
 import { githubScopeKey, useReviewProviders } from './review-providers-store';
 import { seenStore } from './seen-store';
 import { gitHubSeenKey, isHiddenComment, taskSeenKey } from '@shared/dashboard';
@@ -516,6 +517,8 @@ export function App() {
     const reviewProviders = useReviewProviders();
     const githubKey = githubScopeKey(reviewProviders);
     useDashboardLoader(settingsLoaded, githubKey, activeProject?.id);
+    useReviewOverviewLoader(settingsLoaded, githubKey, allRepos);
+    const reviewCount = useReviewQueue().length;
     const commentFilter = useMemo(
         () => ({ hiddenAuthors: appSettings.dashboardHiddenAuthors, hiddenRules: appSettings.dashboardHiddenRules }),
         [appSettings.dashboardHiddenAuthors, appSettings.dashboardHiddenRules]
@@ -1346,7 +1349,7 @@ export function App() {
      * Opens a worktree for the head branch of a pull request from the Review view. A worktree that has the branch opens.
      * Else the New worktree dialog opens on the remote branch. The repository must be in the active project.
      */
-    const openPullRequestWorktree = async (repo: RepoRef, pr: PullRequest) => {
+    const openPullRequestWorktree = async (repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>) => {
         const same = (ref: RepoRef | null) => !!ref && ref.owner.toLowerCase() === repo.owner.toLowerCase() && ref.name.toLowerCase() === repo.name.toLowerCase();
         let repoPath: string | undefined;
         for (const path of repos) {
@@ -1786,6 +1789,7 @@ export function App() {
                     agentsActive={mainView === 'agents'}
                     onOpenAgents={() => setMainView('agents')}
                     reviewActive={mainView === 'review'}
+                    reviewCount={reviewCount}
                     onOpenReview={() => setMainView('review')}
                     pipelinesActive={mainView === 'pipelines'}
                     onOpenPipelines={() => setMainView('pipelines')}
@@ -1850,7 +1854,6 @@ export function App() {
                     <main className="workspace">
                         <ReviewView
                             githubKey={githubKey}
-                            localRepos={allRepos}
                             onOpenSettings={() => openSettings('review')}
                             open={reviewOpen}
                             onNewWorktree={(repo, pr) => void openPullRequestWorktree(repo, pr)}

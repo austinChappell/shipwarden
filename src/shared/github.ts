@@ -19,7 +19,7 @@ export function targetKey(target: RepoTarget): string {
 }
 
 /** The pull requests that the Review view lists. */
-export type PullRequestFilter = 'open' | 'review' | 'mine' | 'assigned' | 'closed';
+export type PullRequestFilter = 'open' | 'review' | 'mine' | 'assigned' | 'closed' | 'merged';
 
 export const PULL_REQUEST_FILTERS: { id: PullRequestFilter; label: string }[] = [
     { id: 'open', label: 'Open' },
@@ -36,7 +36,8 @@ export function pullRequestSearch(repo: RepoRef, filter: PullRequestFilter, quer
         review: 'is:open review-requested:@me',
         mine: 'is:open author:@me',
         assigned: 'is:open assignee:@me',
-        closed: 'is:closed'
+        closed: 'is:closed',
+        merged: 'is:merged'
     };
     return [`repo:${repo.owner}/${repo.name}`, 'is:pr', qualifiers[filter], query?.trim()].filter(Boolean).join(' ');
 }

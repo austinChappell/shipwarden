@@ -106,6 +106,8 @@ interface Props {
     agentsActive: boolean;
     onOpenAgents(): void;
     reviewActive: boolean;
+    /** The number of pull requests that wait for a review of the user. */
+    reviewCount: number;
     onOpenReview(): void;
     pipelinesActive: boolean;
     onOpenPipelines(): void;
@@ -743,6 +745,7 @@ export function Sidebar(outerProps: Props) {
             <button data-sidebar-item className={`nav-row${props.reviewActive ? ' selected' : ''}`} onClick={props.onOpenReview}>
                 <GitPullRequest size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Review</span>
+                {props.reviewCount > 0 && <span className="nav-row-count attention review" title={`${props.reviewCount} pull requests wait for your review`}>{props.reviewCount}</span>}
             </button>
             <button data-sidebar-item className={`nav-row${props.pipelinesActive ? ' selected' : ''}`} onClick={props.onOpenPipelines}>
                 <Workflow size={15} strokeWidth={1.6} />
