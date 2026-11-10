@@ -153,7 +153,7 @@ export function PullRequestPanel({
         return <div className="panel-message">This worktree has no GitHub or Azure Repos remote named "origin".</div>;
     }
     if (!pr) {
-        return <CreatePullRequest target={target} status={status} />;
+        return <CreatePullRequest target={target} status={status} loading={loading} onRefresh={onRefresh} />;
     }
 
     const files = review.files;
