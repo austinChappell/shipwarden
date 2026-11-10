@@ -211,6 +211,7 @@ const api: ShipWardenApi = {
         missing: (root, languageId) => ipcRenderer.invoke(IpcChannels.lspMissing, root, languageId),
         request: (key, method, params) => ipcRenderer.invoke(IpcChannels.lspRequest, key, method, params),
         notify: (key, method, params) => ipcRenderer.send(IpcChannels.lspNotify, key, method, params),
+        respond: (id, result) => ipcRenderer.send(IpcChannels.lspRespond, id, result),
         onMessage: listener => subscribe<[LspServerMessage]>(IpcChannels.lspMessage, listener)
     },
     processes: {
