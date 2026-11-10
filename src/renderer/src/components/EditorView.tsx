@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Download } from 'lucide-react';
 import { locateCode } from '@shared/ask-agent';
 import { codeNotePrompt, type NoteTarget } from '@shared/code-note';
@@ -300,7 +300,7 @@ interface BannerProps {
 
 /** Tells the user that the file needs a language server that is not installed. */
 function MissingServerBanner({ server, installing, onInstall }: BannerProps) {
-    let text;
+    let text: ReactNode;
     if (installing) {
         text = <>ShipWarden waits for the install of <strong>{server.name}</strong> to complete. Then it starts the server.</>;
     } else if (server.installCommand) {

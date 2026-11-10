@@ -109,6 +109,7 @@ function ConnectionSettingsForm({ connection, onSaved }: { connection: Connectio
     return (
         <div className="connection-form">
             {connection.settings.map(setting => (
+                // biome-ignore lint/a11y/noLabelWithoutControl: each branch of the condition below puts an input in the label.
                 <label key={setting.key} className="setting-row">
                     <span className="setting-label">{setting.label}{setting.required ? ' *' : ''}</span>
                     {setting.type === 'boolean' ? (

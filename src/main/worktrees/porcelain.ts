@@ -1,4 +1,4 @@
-import { Worktree } from '@shared/worktrees';
+import type { Worktree } from '@shared/worktrees';
 
 const BRANCH_PREFIX = 'refs/heads/';
 
@@ -57,7 +57,7 @@ export function parseWorktreePorcelain(output: string): Worktree[] {
  */
 export function branchToFolderName(branch: string): string {
     const name = branch
-        .replace(/[\/\\]+/g, '-')
+        .replace(/[/\\]+/g, '-')
         .replace(/[^A-Za-z0-9._-]+/g, '-')
         .replace(/-{2,}/g, '-')
         .replace(/^[-.]+|[-.]+$/g, '');

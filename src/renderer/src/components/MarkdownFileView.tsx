@@ -176,6 +176,7 @@ function MarkdownPreview({ root, path, onOpenFile, onError }: PreviewProps) {
 
     return (
         <div className="markdown-file-preview" ref={containerRef}>
+            {/* biome-ignore lint/security/noDangerouslySetInnerHtml: renderMarkdownFile cleans the HTML with DOMPurify. */}
             <div className="markdown markdown-document" onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
         </div>
     );

@@ -44,6 +44,7 @@ function PairingCode({ offer, onRenew, onClose }: { offer: PairingOffer; onRenew
     return (
         <div className="pairing">
             {/* A QR code needs dark modules on a light background in each theme, so the camera can read it. */}
+            {/* biome-ignore lint/security/noDangerouslySetInnerHtml: the qrcode library makes this SVG from the pairing link. */}
             <div className={`pairing-qr${left === 0 ? ' expired' : ''}`} dangerouslySetInnerHTML={{ __html: svg }} />
             <div className="pairing-text">
                 <ol>

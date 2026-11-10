@@ -39,6 +39,7 @@
             "suspicious": {
                 "noControlCharactersInRegex": "off",
                 "useIterableCallbackReturn": "off",
+                "noTemplateCurlyInString": "off",
                 "noArrayIndexKey": "warn"
             },
             "style": {
@@ -59,7 +60,11 @@
                 "noNoninteractiveElementToInteractiveRole": "off",
                 "noNoninteractiveTabindex": "off",
                 "useFocusableInteractive": "off",
-                "useMediaCaption": "off"
+                "useMediaCaption": "off",
+                "noLabelWithoutControl": {
+                    "level": "error",
+                    "options": { "inputComponents": ["Combobox", "InputField"] }
+                }
             }
         }
     },

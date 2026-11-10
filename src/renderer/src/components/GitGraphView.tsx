@@ -205,7 +205,7 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
                     const { commit } = row;
                     const short = commit.hash.slice(0, 7);
                     return (
-                        <div key={commit.hash} className="gg-row" style={{ height: ROW_HEIGHT }} tabIndex={0} aria-label={`${short} ${commit.subject}`} data-nav-item>
+                        <div key={commit.hash} className="gg-row" style={{ height: ROW_HEIGHT }} tabIndex={0} role="group" aria-label={`${short} ${commit.subject}`} data-nav-item>
                             <RowGraph row={row} lanes={lanes} />
                             <div className="gg-subject" title={commit.subject}>
                                 {commit.refs.map(gitRef => (

@@ -34,7 +34,7 @@ import {
 } from '@shared/github';
 import type { WorkflowRun } from '@shared/pipelines';
 import type { SourceHost } from '../source-host';
-import { AzureDevOpsClient, AzureError } from './azure-client';
+import { type AzureDevOpsClient, AzureError } from './azure-client';
 import {
     branchSummaries,
     buildsForCommit,

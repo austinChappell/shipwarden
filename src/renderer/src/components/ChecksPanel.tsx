@@ -156,13 +156,14 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                     const failed = FAILED.has(check.conclusion ?? '');
                     const open = () => check.isActions && onOpenLog(check);
                     return (
+                        // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the row has the aria-label only when it has the role "button".
                         <div
                             key={`${check.isStatus ? 's' : 'c'}${check.id}`}
                             className={`check-row${check.isActions ? ' clickable' : ''}`}
                             title={check.isActions ? 'Show the log' : check.name}
                             tabIndex={0}
                             role={check.isActions ? 'button' : undefined}
-                            aria-label={check.name}
+                            aria-label={check.isActions ? check.name : undefined}
                             data-nav-item
                             onClick={open}
                             onKeyDown={itemKeys(open)}

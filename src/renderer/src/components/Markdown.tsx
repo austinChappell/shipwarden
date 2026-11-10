@@ -80,5 +80,6 @@ export function Markdown({ text, className, html: rendered }: Props) {
         }
     };
 
+    // biome-ignore lint/security/noDangerouslySetInnerHtml: renderMarkdown and sanitizeHtml clean the HTML with DOMPurify.
     return <div className={`markdown${className ? ` ${className}` : ''}`} onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />;
 }

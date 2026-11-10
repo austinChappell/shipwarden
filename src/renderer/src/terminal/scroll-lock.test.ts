@@ -39,7 +39,7 @@ describe('scroll lock', () => {
         const terminal = new FakeTerminal();
         terminal.viewportY = 10;
         writeKeepingScroll(terminal, 'output');
-        expect(Object.prototype.hasOwnProperty.call(terminal, 'scrollToBottom')).toBe(false);
+        expect(Object.hasOwn(terminal, 'scrollToBottom')).toBe(false);
         terminal.scrollToBottom();
         expect(terminal.viewportY).toBe(0);
     });

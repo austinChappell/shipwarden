@@ -44,7 +44,7 @@ export function writeKeepingScroll(terminal: object, data: string): void {
     const viewport = t.viewportY!;
     const target = t.targetViewportY;
     // The write calls scrollToBottom on the instance. An own property hides the method of the class for this write.
-    const hadOwn = Object.prototype.hasOwnProperty.call(t, 'scrollToBottom');
+    const hadOwn = Object.hasOwn(t, 'scrollToBottom');
     const own = t.scrollToBottom;
     t.scrollToBottom = () => {};
     try {
