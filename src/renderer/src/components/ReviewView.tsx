@@ -63,7 +63,17 @@ function toRef(repo: string): RepoRef {
  * The data of the first two pages comes from the review overview store, which loads at app start.
  * The review queue opens the pull requests to review one after the other, the oldest first.
  */
-export function ReviewView({ githubKey, onOpenSettings, open, onNewWorktree, onSendToAgent, onSendLogToAgent, onSendChecksToAgent, projects, onPullRepo }: Props) {
+export function ReviewView({
+    githubKey,
+    onOpenSettings,
+    open,
+    onNewWorktree,
+    onSendToAgent,
+    onSendLogToAgent,
+    onSendChecksToAgent,
+    projects,
+    onPullRepo
+}: Props) {
     const overview = useReviewOverview();
     const queueItems = useReviewQueue();
     const [repo, setRepo] = useState<string>();
