@@ -1,6 +1,18 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { DashboardPullRequests, PullRequestCommentItem } from '@shared/dashboard';
-import type { BranchSummary, GitHubLabel, GitHubUser, PullRequest, PullRequestChange, ReviewComment, ReviewDecision, ReviewEvent } from '@shared/github';
+import {
+    reactionKinds,
+    toggledReactions,
+    type BranchSummary,
+    type GitHubLabel,
+    type GitHubUser,
+    type PullRequest,
+    type PullRequestChange,
+    type ReactionContent,
+    type ReviewComment,
+    type ReviewDecision,
+    type ReviewEvent
+} from '@shared/github';
 import type { RepoPullRequests } from '@shared/review-queue';
 import { applyMetaChanges } from '../components/pr-meta-changes';
 import { keyRoots } from '../query-client';
@@ -92,6 +104,24 @@ export function withReply(pr: PullRequest, threadId: string, comment: ReviewComm
 /** Returns the pull request with a thread that is resolved or not resolved. */
 export function withThreadResolved(pr: PullRequest, threadId: string, resolved: boolean): PullRequest {
     return { ...pr, threads: pr.threads.map(thread => (thread.id === threadId ? { ...thread, isResolved: resolved } : thread)) };
+}
+
+/**
+ * Returns the pull request after the user adds (`on`) or removes a reaction. `subjectId` is the `id` of a review
+ * comment, a comment of the conversation or a review.
+ */
+export function withReaction(pr: PullRequest, subjectId: string, content: ReactionContent, on: boolean): PullRequest {
+    const kinds = reactionKinds(pr);
+    const patch = <T extends { id: string; reactions?: PullRequest['issueComments'][number]['reactions'] }>(item: T): T =>
+        item.id === subjectId ? { ...item, reactions: toggledReactions(item.reactions, content, on, kinds) } : item;
+    return {
+        ...pr,
+        reviews: pr.reviews.map(patch),
+        issueComments: pr.issueComments.map(patch),
+        threads: pr.threads.map(thread =>
+            thread.comments.some(comment => comment.id === subjectId) ? { ...thread, comments: thread.comments.map(patch) } : thread
+        )
+    };
 }
 
 /**

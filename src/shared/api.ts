@@ -23,6 +23,7 @@ import type {
     PullRequestFile,
     PullRequestFilter,
     PullRequestSummary,
+    ReactionContent,
     RepoRef,
     RepoTarget,
     ReviewEvent,
@@ -246,6 +247,8 @@ export interface ShipWardenApi {
         submitReview(target: RepoTarget, number: number, headSha: string, event: ReviewEvent, body: string, comments: PendingComment[]): Promise<void>;
         reply(target: RepoTarget, number: number, commentId: number, body: string): Promise<void>;
         setThreadResolved(target: RepoTarget, threadId: string, resolved: boolean): Promise<void>;
+        /** Adds (`on`) or removes a reaction of the user to a comment or a review. `subjectId` is the `id` of the item. */
+        setReaction(target: RepoTarget, number: number, subjectId: string, content: ReactionContent, on: boolean): Promise<void>;
         merge(target: RepoTarget, number: number, headSha: string, method: MergeMethod): Promise<void>;
         checks(target: RepoTarget, sha: string): Promise<CheckRun[]>;
         jobLog(target: RepoTarget, jobId: number): Promise<string>;
@@ -517,6 +520,7 @@ export const IpcChannels = {
     githubSubmitReview: 'github:submitReview',
     githubReply: 'github:reply',
     githubSetThreadResolved: 'github:setThreadResolved',
+    githubSetReaction: 'github:setReaction',
     githubMerge: 'github:merge',
     githubChecks: 'github:checks',
     githubJobProgress: 'github:jobProgress',

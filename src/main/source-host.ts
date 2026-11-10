@@ -11,6 +11,7 @@ import type {
     PullRequestCandidates,
     PullRequestChange,
     PullRequestFile,
+    ReactionContent,
     RepoRef,
     RepoTarget,
     ReviewEvent,
@@ -39,6 +40,11 @@ export interface SourceHost {
     submitReview(target: RepoTarget, number: number, headSha: string, event: ReviewEvent, body: string, comments: PendingComment[]): Promise<void>;
     replyToComment(target: RepoTarget, number: number, commentId: number, body: string): Promise<void>;
     setThreadResolved(threadId: string, resolved: boolean): Promise<void>;
+    /**
+     * Adds (`on`) or removes a reaction of the user to a comment or a review. `subjectId` is the `id` of the item.
+     * The host accepts only the reactions in `PullRequest.reactionKinds`.
+     */
+    setReaction(target: RepoTarget, number: number, subjectId: string, content: ReactionContent, on: boolean): Promise<void>;
     merge(target: RepoTarget, number: number, headSha: string, method: MergeMethod): Promise<void>;
     changePullRequest(target: RepoTarget, number: number, change: PullRequestChange): Promise<void>;
     pullRequestCandidates(target: RepoTarget): Promise<PullRequestCandidates>;
@@ -95,6 +101,9 @@ export class GitHubHost implements SourceHost {
     }
     setThreadResolved(threadId: string, resolved: boolean) {
         return this.github.setThreadResolved(threadId, resolved);
+    }
+    setReaction(_target: RepoTarget, _number: number, subjectId: string, content: ReactionContent, on: boolean) {
+        return this.github.setReaction(subjectId, content, on);
     }
     async merge(target: RepoTarget, number: number, headSha: string, method: MergeMethod) {
         return this.github.merge(await this.repoOf(target), number, headSha, method);

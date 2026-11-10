@@ -17,6 +17,7 @@ import {
     type LucideIcon
 } from 'lucide-react';
 import { hostLabel, type GitHubLabel, type PullRequest, type TimelineEvent } from '@shared/github';
+import { Reactions, type ReactionActions } from './Reactions';
 import { timeAgo } from '../util';
 import { openLink } from '../links';
 import { Markdown } from './Markdown';
@@ -234,7 +235,7 @@ function EventRow({ event, pr }: { event: TimelineEvent; pr: PullRequest }) {
     );
 }
 
-function Row({ item, pr }: { item: TimelineItem; pr: PullRequest }) {
+function Row({ item, pr, reactions }: { item: TimelineItem; pr: PullRequest; reactions?: ReactionActions }) {
     switch (item.type) {
         case 'comment':
             return (
@@ -244,6 +245,7 @@ function Row({ item, pr }: { item: TimelineItem; pr: PullRequest }) {
                             <strong>{item.comment.author?.login ?? 'unknown'}</strong> commented <When iso={item.createdAt} />
                         </div>
                         <Markdown className="pr-timeline-body" text={item.comment.body} />
+                        <Reactions subjectId={item.comment.id} reactions={item.comment.reactions} actions={reactions} />
                     </div>
                 </li>
             );
@@ -257,7 +259,12 @@ function Row({ item, pr }: { item: TimelineItem; pr: PullRequest }) {
                             <span className={`tag review-${review.state.toLowerCase()}`}>{REVIEW_STATE_TEXT[review.state] ?? review.state.toLowerCase()}</span>{' '}
                             <When iso={item.createdAt} />
                         </div>
-                        {review.body.trim() && <Markdown className="pr-timeline-body" text={review.body} />}
+                        {review.body.trim() && (
+                            <>
+                                <Markdown className="pr-timeline-body" text={review.body} />
+                                <Reactions subjectId={review.id} reactions={review.reactions} actions={reactions} />
+                            </>
+                        )}
                     </div>
                 </li>
             );
@@ -298,7 +305,7 @@ function Row({ item, pr }: { item: TimelineItem; pr: PullRequest }) {
 }
 
 /** The activity of a pull request on the Overview tab: comments, reviews, commits and events in one timeline, the oldest first. */
-export function PullRequestTimeline({ pr }: { pr: PullRequest }) {
+export function PullRequestTimeline({ pr, reactions }: { pr: PullRequest; reactions?: ReactionActions }) {
     const items = buildTimeline(pr);
     return (
         <section className="pr-section">
@@ -308,7 +315,7 @@ export function PullRequestTimeline({ pr }: { pr: PullRequest }) {
             ) : (
                 <ol className="pr-timeline">
                     {items.map(item => (
-                        <Row key={`${item.type}:${item.id}`} item={item} pr={pr} />
+                        <Row key={`${item.type}:${item.id}`} item={item} pr={pr} reactions={reactions} />
                     ))}
                 </ol>
             )}

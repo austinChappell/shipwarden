@@ -182,6 +182,60 @@ export interface GitHubUser {
     avatarUrl?: string;
 }
 
+/** A reaction to a comment. The names are the names of the GitHub API. */
+export type ReactionContent = 'THUMBS_UP' | 'THUMBS_DOWN' | 'LAUGH' | 'HOORAY' | 'CONFUSED' | 'HEART' | 'ROCKET' | 'EYES';
+
+/** The reactions of GitHub, in the order of the GitHub picker. */
+export const GITHUB_REACTIONS: readonly ReactionContent[] = ['THUMBS_UP', 'THUMBS_DOWN', 'LAUGH', 'HOORAY', 'CONFUSED', 'HEART', 'ROCKET', 'EYES'];
+
+/** The emoji and the name of each reaction. */
+export const REACTION_INFO: Record<ReactionContent, { emoji: string; label: string }> = {
+    THUMBS_UP: { emoji: '👍', label: 'Thumbs up' },
+    THUMBS_DOWN: { emoji: '👎', label: 'Thumbs down' },
+    LAUGH: { emoji: '😄', label: 'Laugh' },
+    HOORAY: { emoji: '🎉', label: 'Hooray' },
+    CONFUSED: { emoji: '😕', label: 'Confused' },
+    HEART: { emoji: '❤️', label: 'Heart' },
+    ROCKET: { emoji: '🚀', label: 'Rocket' },
+    EYES: { emoji: '👀', label: 'Eyes' }
+};
+
+/** The users that gave one reaction to a comment. */
+export interface Reaction {
+    content: ReactionContent;
+    count: number;
+    /** True when the signed-in user gave this reaction. */
+    viewerHasReacted: boolean;
+}
+
+/** Returns the reactions that the host of the pull request accepts. */
+export function reactionKinds(pr: Pick<PullRequest, 'reactionKinds'>): readonly ReactionContent[] {
+    return pr.reactionKinds ?? GITHUB_REACTIONS;
+}
+
+/**
+ * Returns the reactions after the user adds (`on`) or removes a reaction. A reaction with no users goes away.
+ * The result keeps the order of `kinds`.
+ */
+export function toggledReactions(
+    reactions: readonly Reaction[] | undefined,
+    content: ReactionContent,
+    on: boolean,
+    kinds: readonly ReactionContent[]
+): Reaction[] {
+    const current = reactions ?? [];
+    const old = current.find(reaction => reaction.content === content);
+    if (!!old?.viewerHasReacted === on) return [...current];
+    const count = (old?.count ?? 0) + (on ? 1 : -1);
+    const others = current.filter(reaction => reaction.content !== content);
+    const next = count > 0 ? [...others, { content, count, viewerHasReacted: on }] : others;
+    const order = (item: ReactionContent) => {
+        const index = kinds.indexOf(item);
+        return index < 0 ? kinds.length : index;
+    };
+    return next.sort((a, b) => order(a.content) - order(b.content));
+}
+
 export interface ReviewComment {
     /** The GraphQL node ID. */
     id: string;
@@ -193,6 +247,8 @@ export interface ReviewComment {
     url: string;
     /** The diff hunk that ends at the last line of the comment. Suggested changes use it to find the old lines. */
     diffHunk?: string;
+    /** The reactions with one or more users. Undefined when the host gives no reactions. */
+    reactions?: Reaction[];
 }
 
 export interface ReviewThread {
@@ -219,6 +275,8 @@ export interface Review {
     body: string;
     submittedAt: string | null;
     url: string;
+    /** The reactions with one or more users. Undefined when the host gives no reactions. */
+    reactions?: Reaction[];
 }
 
 /** A comment in the conversation of a pull request, not on a line of code. */
@@ -229,6 +287,8 @@ export interface IssueComment {
     body: string;
     createdAt: string;
     url: string;
+    /** The reactions with one or more users. Undefined when the host gives no reactions. */
+    reactions?: Reaction[];
 }
 
 export interface PullRequest {
@@ -289,6 +349,8 @@ export interface PullRequest {
     host?: SourceHostKind;
     /** The review events that the host accepts, in the order of the buttons. Undefined means the GitHub events. */
     reviewEvents?: ReviewEvent[];
+    /** The reactions that the host accepts on a comment. Undefined means the GitHub reactions. Empty means no reactions. */
+    reactionKinds?: ReactionContent[];
     /** False when the host has no assignees, for example Azure DevOps. Undefined means true. */
     hasAssignees?: boolean;
     /** The newest 100 events of the pull request, the oldest first. Undefined when the host gives no events. */

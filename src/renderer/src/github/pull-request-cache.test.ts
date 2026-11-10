@@ -17,6 +17,7 @@ import {
     patchRepoPullRequests,
     reviewedPullRequest,
     viewerOf,
+    withReaction,
     withReply,
     withThreadResolved,
     writePullRequest
@@ -147,6 +148,25 @@ describe('pull request changes', () => {
         const reply = { id: 'local', databaseId: 11, author: { login: 'me' }, body: 'Because.', createdAt: '', url: '' };
         expect(withReply(makePr(), 'T1', reply).threads[0].comments.map(comment => comment.body)).toEqual(['Why?', 'Because.']);
         expect(withThreadResolved(makePr(), 'T1', true).threads[0].isResolved).toBe(true);
+    });
+
+    it('adds and removes a reaction on a review comment, a conversation comment and a review', () => {
+        const pr = makePr({
+            issueComments: [{ id: 'IC1', author: null, body: 'Hi', createdAt: '', url: '', reactions: [] }],
+            reviews: [{ id: 'R1', author: null, state: 'COMMENTED', body: 'Ok', submittedAt: null, url: '', reactions: [] }]
+        });
+        const thumbs = [{ content: 'THUMBS_UP', count: 1, viewerHasReacted: true }];
+        expect(withReaction(pr, 'C1', 'THUMBS_UP', true).threads[0].comments[0].reactions).toEqual(thumbs);
+        expect(withReaction(pr, 'IC1', 'THUMBS_UP', true).issueComments[0].reactions).toEqual(thumbs);
+        expect(withReaction(pr, 'R1', 'THUMBS_UP', true).reviews[0].reactions).toEqual(thumbs);
+        const removed = withReaction(withReaction(pr, 'IC1', 'THUMBS_UP', true), 'IC1', 'THUMBS_UP', false);
+        expect(removed.issueComments[0].reactions).toEqual([]);
+    });
+
+    it('keeps the other threads when it adds a reaction', () => {
+        const pr = makePr();
+        expect(withReaction(pr, 'C1', 'HEART', true).threads).not.toBe(pr.threads);
+        expect(withReaction(pr, 'missing', 'HEART', true).threads[0]).toBe(pr.threads[0]);
     });
 
     it('adds a review and removes the review request of the viewer', () => {

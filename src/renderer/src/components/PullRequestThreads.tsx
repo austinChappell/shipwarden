@@ -10,6 +10,7 @@ import { threadSuggestionTarget } from '@shared/suggestion';
 import { applyThreadSuggestion } from '../github/suggestions';
 import { replyToThread, setThreadResolved } from '../github/pull-request-mutations';
 import { REVIEW_STATE_TEXT } from './PullRequestTimeline';
+import { Reactions, reactionActions, type ReactionActions } from './Reactions';
 
 interface Props {
     target: RepoTarget;
@@ -32,6 +33,7 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
     const [replyText, setReplyText] = useState('');
     const threads = visibleThreads(pr.threads, showResolved);
     const unresolved = pr.threads.filter(thread => !thread.isResolved).length;
+    const reactions = reactionActions(target, pr);
 
     const sendReply = (thread: ReviewThread) => {
         if (thread.comments.length === 0 || !replyText.trim()) {
@@ -78,6 +80,7 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
                                         : undefined
                                 }
                             />
+                            <Reactions subjectId={comment.id} reactions={comment.reactions} actions={reactions} />
                         </div>
                     ))}
                     {replyTo === thread.id && (
@@ -119,7 +122,7 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
 }
 
 /** The comments and reviews of the conversation of a pull request. */
-export function PullRequestConversation({ items }: { items: ConversationItem[] }) {
+export function PullRequestConversation({ items, reactions }: { items: ConversationItem[]; reactions?: ReactionActions }) {
     return (
         <section className="pr-section">
             <div className="section-title">Conversation ({items.length})</div>
@@ -133,6 +136,7 @@ export function PullRequestConversation({ items }: { items: ConversationItem[] }
                         <span>{timeAgo(item.createdAt)}</span>
                     </div>
                     {item.body.trim() && <Markdown className="comment-body" text={item.body} />}
+                    {item.body.trim() && <Reactions subjectId={item.id} reactions={item.reactions} actions={reactions} />}
                 </div>
             ))}
         </section>

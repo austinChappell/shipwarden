@@ -110,6 +110,7 @@ const api: ShipWardenApi = {
             ipcRenderer.invoke(IpcChannels.githubSubmitReview, root, number, headSha, event, body, comments),
         reply: (root, number, commentId, body) => ipcRenderer.invoke(IpcChannels.githubReply, root, number, commentId, body),
         setThreadResolved: (target, threadId, resolved) => ipcRenderer.invoke(IpcChannels.githubSetThreadResolved, target, threadId, resolved),
+        setReaction: (target, number, subjectId, content, on) => ipcRenderer.invoke(IpcChannels.githubSetReaction, target, number, subjectId, content, on),
         merge: (root, number, headSha, method) => ipcRenderer.invoke(IpcChannels.githubMerge, root, number, headSha, method),
         checks: (root, sha) => ipcRenderer.invoke(IpcChannels.githubChecks, root, sha),
         jobLog: (root, jobId) => ipcRenderer.invoke(IpcChannels.githubJobLog, root, jobId),

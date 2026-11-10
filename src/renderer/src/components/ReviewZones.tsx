@@ -13,6 +13,7 @@ import { CommentBody } from './CommentBody';
 import { suggestionBlock, threadSuggestionTarget } from '@shared/suggestion';
 import { applyThreadSuggestion } from '../github/suggestions';
 import { radioGroupKeys } from './keyboard';
+import { Reactions, type ReactionActions } from './Reactions';
 
 export type { AgentQuestion, ComposerMode, QuestionAction };
 
@@ -21,7 +22,8 @@ export function ThreadZone({
     onReply,
     onResolve,
     onSendToAgent,
-    worktree
+    worktree,
+    reactions
 }: {
     thread: ReviewThread;
     onReply(body: string): Promise<void>;
@@ -29,6 +31,8 @@ export function ThreadZone({
     onSendToAgent?(): void;
     /** The worktree of the pull request. With it, a suggested change can go into the file. */
     worktree?: string;
+    /** Without it, the comments show no reactions. */
+    reactions?: ReactionActions;
 }) {
     const original = threadSuggestionTarget(thread)?.original;
     const [replying, setReplying] = useState(false);
@@ -59,6 +63,7 @@ export function ThreadZone({
                         outdated={thread.isOutdated}
                         onApply={worktree && original ? lines => applyThreadSuggestion(worktree, thread, lines) : undefined}
                     />
+                    <Reactions subjectId={comment.id} reactions={comment.reactions} actions={reactions} />
                 </div>
             ))}
             {replying && <textarea autoFocus value={text} placeholder="Reply" onChange={event => setText(event.target.value)} />}
