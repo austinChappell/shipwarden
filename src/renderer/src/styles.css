@@ -8908,6 +8908,11 @@ button.gg-ref:hover {
     gap: 4px;
 }
 
+.composer-target {
+    max-width: 320px;
+    margin-right: auto;
+}
+
 .zone-card.composer.ask,
 .zone-card.agent-question {
     border-color: color-mix(in srgb, var(--info) 60%, transparent);

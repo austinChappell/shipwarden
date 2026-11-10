@@ -4,6 +4,7 @@ import { baseName } from '@shared/files';
 import type { BranchSummary, CheckRun, PullRequest, PullRequestFile } from '@shared/github';
 import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
+import type { NoteTarget } from '@shared/code-note';
 import { isHiddenAt, pruneHiddenWorktrees, snoozeEnd, SNOOZE_LABELS, type SnoozeOption, type Worktree } from '@shared/worktrees';
 import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
@@ -53,6 +54,7 @@ import { lspBridge } from './lsp/bridge';
 import type { LspMissingServer } from '@shared/lsp';
 import { terminalPool } from './terminal/terminal-pool';
 import { agentStateStore } from './terminal/agent-state-store';
+import { sessionListStore } from './terminal/session-list-store';
 import { ChangeDiffView } from './components/ChangeDiffView';
 import { WorktreeChangesView } from './components/WorktreeChangesView';
 import type { ChangeSide, FileChange } from '@shared/git';
@@ -199,6 +201,8 @@ export function App() {
     /** All worktrees of the active project. */
     const worktrees = useMemo(() => repos.flatMap(repo => worktreesByRepo[repo] ?? []), [repos, worktreesByRepo]);
     const [sessions, setSessions] = useState<TerminalSession[]>([]);
+    // The note box in the editor is outside this React tree. It reads the sessions from the store.
+    useEffect(() => sessionListStore.set(sessions), [sessions]);
     const [settings, setSettings] = useState<TerminalSettings>();
     const [selectedPath, setSelectedPath] = useState<string>();
     /** The open files of each worktree, as paths relative to the worktree. */
@@ -1046,15 +1050,31 @@ export function App() {
     };
 
     /**
-     * Sends a prompt to the agent of the selected worktree. Starts the agent first if necessary.
+     * Sends a prompt to an agent of a worktree (default: the selected worktree).
+     * Without a target, the prompt goes to the agent that runs in the worktree. Else ShipWarden starts the agent of the repository.
+     * A target selects an agent tab, or a new session of an agent definition.
      * The prompt goes in as a bracketed paste, so that new lines do not submit it early. Then Enter submits it.
      */
-    const sendToAgent = async (prompt: string, worktree: Worktree | undefined = selected) => {
+    const sendToAgent = async (prompt: string, worktree: Worktree | undefined = selected, target?: NoteTarget) => {
         if (!worktree) {
             return;
         }
-        const running = sessions.find(session => session.worktreePath === worktree.path && session.isAgent && !session.exited);
-        const session = running ?? await startTerminal(worktree, 'agent');
+        let running: TerminalSession | undefined;
+        if (target?.kind === 'session') {
+            running = sessions.find(session => session.id === target.id && !session.exited);
+            if (!running) {
+                setError('ShipWarden did not send the note, because the agent tab closed. Select another agent and try again.');
+                return;
+            }
+        } else if (!target) {
+            running = sessions.find(session => session.worktreePath === worktree.path && session.isAgent && !session.exited);
+        }
+        const definition = target?.kind === 'new' ? appSettings.agents.find(agent => agent.id === target.agentId) : undefined;
+        if (target?.kind === 'new' && !definition) {
+            setError('ShipWarden did not send the note, because the agent is not in Settings › Agents.');
+            return;
+        }
+        const session = running ?? await startTerminal(worktree, definition ?? 'agent');
         if (!session) {
             return;
         }
@@ -1569,6 +1589,9 @@ export function App() {
                     onError={setError}
                     onInstallServer={server => void installServer(selectedPath, server)}
                     onOpenFile={file => openFile(file)}
+                    agents={appSettings.agents}
+                    defaultAgentId={agentForRepo(appSettings, repoOfWorktree(selectedPath)).id}
+                    onSendNote={(prompt, target) => void sendToAgent(prompt, selected, target)}
                 />
             );
         }

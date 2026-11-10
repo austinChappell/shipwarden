@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { Bot, Check, ChevronRight, LoaderCircle } from 'lucide-react';
+import { Bot, Check, ChevronRight, LoaderCircle, Send } from 'lucide-react';
+import { noteTargetOptions, type NoteTarget } from '@shared/code-note';
+import type { AgentDefinition } from '@shared/settings';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, RepoTarget, ReviewThread } from '@shared/github';
 import { monaco } from '../editor/monaco';
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { seenStore } from '../seen-store';
+import { useWorktreeSessions } from '../terminal/session-list-store';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
 import { radioGroupKeys } from './keyboard';
@@ -237,41 +240,71 @@ export function PendingZone({ comment, onRemove, onEdit, onAccept }: { comment: 
     );
 }
 
-type ComposerMode = 'comment' | 'ask';
+export type ComposerMode = 'comment' | 'ask' | 'note';
+
+/** The data of the "Send to agent" mode of the composer. */
+export interface NoteOptions {
+    /** The worktree of the file. The menu shows the agents that run in it. */
+    worktree: string;
+    agents: AgentDefinition[];
+    /** The agent of the repository. Its "New" choice comes first. */
+    defaultAgentId?: string;
+    onSend(note: string, target: NoteTarget): void;
+}
 
 /**
  * The box for a new review comment under a line. With `onAsk`, the box can also ask the agent a question about the lines.
- * `canComment` false shows only the question mode, for example for a closed pull request.
+ * With `note`, the box can also send a note about the lines to an agent that runs, or to a new agent.
+ * `canComment` false hides the comment mode, for example for a closed pull request or a file of a worktree.
  */
-export function ComposerZone({ line, startLine = line, onAdd, onAsk, onCancel, canComment = true }: {
+export function ComposerZone({ line, startLine = line, onAdd, onAsk, note, onCancel, canComment = true, initialMode }: {
     line: number;
     startLine?: number;
     onAdd(body: string): void;
     onAsk?(question: string): void;
+    note?: NoteOptions;
     onCancel(): void;
     canComment?: boolean;
+    /** The mode when the box opens. */
+    initialMode?: ComposerMode;
 }) {
     const [text, setText] = useState('');
-    const [mode, setMode] = useState<ComposerMode>(canComment ? 'comment' : 'ask');
+    const [mode, setMode] = useState<ComposerMode>(initialMode ?? (canComment ? 'comment' : 'ask'));
+    const [targetKey, setTargetKey] = useState<string>();
+    const sessions = useWorktreeSessions(note?.worktree ?? '');
+    const targets = note ? noteTargetOptions(sessions, note.agents, note.defaultAgentId) : [];
+    // The selected agent can stop while the box is open. Then the first choice applies.
+    const target = targets.find(option => option.key === targetKey) ?? targets[0];
     const lines = startLine === line ? `line ${line}` : `lines ${startLine}–${line}`;
+    const modes: { mode: ComposerMode; label: React.ReactNode }[] = [
+        ...(canComment ? [{ mode: 'comment' as const, label: 'Comment' }] : []),
+        ...(onAsk ? [{ mode: 'ask' as const, label: <><Bot size={12} strokeWidth={1.6} /> Ask agent</> }] : []),
+        ...(note ? [{ mode: 'note' as const, label: <><Send size={12} strokeWidth={1.6} /> Send to agent</> }] : [])
+    ];
     const submit = () => {
         const value = text.trim();
         if (!value) return;
         if (mode === 'ask') onAsk?.(value);
-        else onAdd(value);
+        else if (mode === 'note') {
+            if (target) note?.onSend(value, target.target);
+        } else onAdd(value);
     };
+    const placeholder = mode === 'ask' ? `Ask the agent about ${lines}` : mode === 'note' ? `Tell the agent what to do with ${lines}` : `Comment on ${lines}`;
+    const submitLabel = mode === 'ask' ? 'Ask agent' : mode === 'note' ? 'Send to agent' : 'Add review comment';
     return (
-        <div className={`zone-card composer${mode === 'ask' ? ' ask' : ''}`}>
-            {onAsk && canComment && (
-                <div className="segmented compact composer-mode" role="radiogroup" aria-label="Comment or question" onKeyDown={radioGroupKeys}>
-                    <button role="radio" aria-checked={mode === 'comment'} className={mode === 'comment' ? 'selected' : ''} onClick={() => setMode('comment')}>Comment</button>
-                    <button role="radio" aria-checked={mode === 'ask'} className={mode === 'ask' ? 'selected' : ''} onClick={() => setMode('ask')}><Bot size={12} strokeWidth={1.6} /> Ask agent</button>
+        <div className={`zone-card composer${mode === 'comment' ? '' : ' ask'}`}>
+            {modes.length > 1 && (
+                <div className="segmented compact composer-mode" role="radiogroup" aria-label="Kind of note" onKeyDown={radioGroupKeys}>
+                    {modes.map(item => (
+                        <button key={item.mode} role="radio" aria-checked={mode === item.mode} className={mode === item.mode ? 'selected' : ''} onClick={() => setMode(item.mode)}>{item.label}</button>
+                    ))}
                 </div>
             )}
             <textarea
                 autoFocus
                 value={text}
-                placeholder={mode === 'ask' ? `Ask the agent about ${lines}` : `Comment on ${lines}`}
+                placeholder={placeholder}
+                aria-label={placeholder}
                 onChange={event => setText(event.target.value)}
                 onKeyDown={event => {
                     if (event.key === 'Escape') onCancel();
@@ -281,8 +314,27 @@ export function ComposerZone({ line, startLine = line, onAdd, onAsk, onCancel, c
                 }}
             />
             <div className="row-buttons">
+                {mode === 'note' && (
+                    <select
+                        className="tasks-select composer-target"
+                        aria-label="Agent that gets the note"
+                        title="The agent that gets the note"
+                        value={target?.key ?? ''}
+                        onChange={event => setTargetKey(event.target.value)}
+                        onKeyDown={event => event.stopPropagation()}
+                    >
+                        {targets.some(option => option.target.kind === 'session') && (
+                            <optgroup label="Running in this worktree">
+                                {targets.filter(option => option.target.kind === 'session').map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
+                            </optgroup>
+                        )}
+                        <optgroup label="Start a new agent">
+                            {targets.filter(option => option.target.kind === 'new').map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
+                        </optgroup>
+                    </select>
+                )}
                 <button className="button" onClick={onCancel}>Cancel</button>
-                <button className="button primary" disabled={!text.trim()} onClick={submit}>{mode === 'ask' ? 'Ask agent' : 'Add review comment'}</button>
+                <button className="button primary" disabled={!text.trim() || (mode === 'note' && !target)} onClick={submit}>{submitLabel}</button>
             </div>
         </div>
     );
