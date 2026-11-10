@@ -57,6 +57,10 @@ import { RemoteDevices } from './remote/remote-devices';
 import { localHosts, RemoteServer } from './remote/remote-server';
 import { RemoteSnapshotBuilder } from './remote/remote-snapshot';
 import { ensureTlsIdentity } from './remote/tls-identity';
+import { connectHelper } from './helper/helper-link';
+import { helperPlist, LaunchAgent } from './helper/launch-agent';
+import { HELPER_LABEL, helperSocketPath } from './helper/protocol';
+import { RemoteControl } from './helper/remote-control';
 import { BrowserViews } from './browser/browser-views';
 import type { BrowserBounds } from '@shared/browser';
 
@@ -268,8 +272,17 @@ const remoteSnapshot = new RemoteSnapshotBuilder({
     sessions: terminalSessions
 });
 
-/** The HTTPS server for the phone app. It runs only while Settings › Mobile has it on. */
-const remote = new RemoteServer({
+/** Approves a pull request for the phone. The worktree must be a worktree of a project. */
+async function approveForPhone(worktreePath: string, number: number, headSha: string, body: string): Promise<void> {
+    const worktree = await knownWorktree(worktreePath);
+    await (await reviewProviders.for(worktree)).submitReview(worktree, number, headSha, 'APPROVE', body, []);
+    remoteSnapshot.invalidate();
+}
+
+const notifyRemoteChanged = () => mainWindow?.webContents.send(IpcChannels.remoteChanged);
+
+/** The HTTPS server for the phone app in this process. Each call makes a new server, which reads the paired phones again. */
+const createLocalRemote = () => new RemoteServer({
     devices: new RemoteDevices(join(app.getPath('userData'), 'remote-devices.json')),
     identity: () => ensureTlsIdentity(app.getPath('userData')),
     hosts: () => localHosts(localHostName),
@@ -281,13 +294,44 @@ const remote = new RemoteServer({
         sessions: async () => (await terminalSessions()).map(session => ({ ...session, ...terminalSizes.get(session.id) })),
         replay: id => terminals.replay(id),
         write: (id, data) => terminals.write(id, data),
-        approvePullRequest: async (worktreePath, number, headSha, body) => {
-            const worktree = await knownWorktree(worktreePath);
-            await (await reviewProviders.for(worktree)).submitReview(worktree, number, headSha, 'APPROVE', body, []);
-            remoteSnapshot.invalidate();
-        },
-        onStatusChanged: () => mainWindow?.webContents.send(IpcChannels.remoteChanged)
+        approvePullRequest: approveForPhone,
+        onStatusChanged: notifyRemoteChanged
     }
+});
+
+/**
+ * The background helper runs the phone server while the app is closed (Settings › Mobile). A launch agent starts it.
+ * It is a second program in this build, like the PTY host.
+ */
+const helperScript = join(__dirname, 'helper.js');
+const helperLaunchAgent = new LaunchAgent(HELPER_LABEL);
+
+/**
+ * The phone server runs only while Settings › Mobile has it on. It runs in the background helper when that setting
+ * is on and the helper answers. Else it runs in this process.
+ */
+const remote = new RemoteControl({
+    createLocal: createLocalRemote,
+    connectHelper: () => connectHelper(helperSocketPath(app.getPath('userData')), {
+        snapshot: () => remoteSnapshot.build(),
+        approvePullRequest: ({ worktreePath, number, headSha, body }) => approveForPhone(String(worktreePath), Number(number), String(headSha), String(body ?? '')),
+        statusChanged: notifyRemoteChanged
+    }),
+    agent: {
+        install: () => helperLaunchAgent.install(helperPlist({
+            label: HELPER_LABEL,
+            execPath: process.execPath,
+            helperScript,
+            userData: app.getPath('userData'),
+            version: app.getVersion(),
+            logPath: join(app.getPath('userData'), 'helper.log'),
+            shell: process.env.SHELL
+        })),
+        remove: () => helperLaunchAgent.remove(),
+        restart: () => helperLaunchAgent.restart()
+    },
+    helperBuildId: hostBuildId(helperScript),
+    onStatusChanged: notifyRemoteChanged
 });
 
 /** The background of a new window: the background of the active theme, so the window does not flash another color. */

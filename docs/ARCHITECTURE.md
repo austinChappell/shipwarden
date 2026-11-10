@@ -15,6 +15,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-07 | Use ghostty-web for terminals and import the user's Ghostty config. | This is Orca's approach (Orca imports the Ghostty config into xterm.js), with Ghostty's own VT parser in place of xterm.js. Supacode embeds the native libghostty, but that needs a Swift app. |
 | 2026-11-09 | Show PDF files in the built-in PDF viewer of Chromium, in a frame that loads a `shipwarden-file:` URL. | It needs no dependency. pdfjs-dist adds about 3 MB and a worker. The viewer has search, zoom and page thumbnails. |
 | 2026-11-09 | The Review view gets go to definition and a file explorer from a hidden, detached git worktree at the PR head. | A language server needs the files on disk. The GitHub API gives files, but no server can run on them. The worktree uses the existing LspManager, FileExplorer and Monaco. |
+| 2026-11-09 | A background helper (a launch agent) can run the phone server while the app is closed. The setting is off by default. | The agents already run in the PTY host. Only the phone server needed the app. The helper is a second entry of the same build, so it needs no other install. |
 
 ## The old name (Yardmaster)
 
@@ -75,8 +76,15 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 ┌──────────────────┴──────── PTY host (detached process) ──────────┐
 │ TerminalManager    node-pty sessions + output buffers            │
 │ HookServer         agent state from Claude Code hooks (HTTP)     │
-└──────────────────────────────────────────────────────────────────┘
+└──────────────────┬───────────────────────────────────────────────┘
+                   │ the same JSON-RPC socket (a second client)
+┌──────────────────┴──── Background helper (launch agent, optional) ┐
+│ RemoteServer       the phone server while the app is closed       │
+│ HelperServer       JSON-RPC on <app data>/helper-v1.sock          │
+└───────────────────────────────────────────────────────────────────┘
 ```
+
+The main process connects to the helper socket when the helper runs (see "Background helper" below).
 
 ### Terminals
 
@@ -673,8 +681,8 @@ The iPhone app is in `ios/` (SwiftUI, iOS 17). It connects to the main process o
 are in `src/shared/remote.ts` and again in `ios/ShipWarden/Models.swift`. Change both together.
 
 - **Server.** `RemoteServer` (`src/main/remote/`) is an HTTPS server on all interfaces, port 7429 by default. It runs
-  only while Settings › Mobile has it on (`settings.remote`). It is in the main process, so ShipWarden must be open.
-  The window can be closed.
+  only while Settings › Mobile has it on (`settings.remote`). It runs in the main process, or in the background helper
+  when that setting is on (see "Background helper"). Only one process listens on the port.
 - **Certificate.** At the first start, `ensureTlsIdentity` makes a P-256 key and a self-signed certificate with
   `/usr/bin/openssl` (`remote-key.pem`, `remote-cert.pem` in the app data folder). The phone accepts only the
   certificate with the SHA-256 fingerprint from the pairing code. A new certificate needs a new pairing.
@@ -708,3 +716,36 @@ are in `src/shared/remote.ts` and again in `ios/ShipWarden/Models.swift`. Change
   scheme.
 - **Limits.** There are no push notifications, because iOS stops the connections of an app in the background, and
   push needs a server. The phone cannot start agents yet, because the page owns the tabs.
+
+#### Background helper
+
+The setting "Keep agents and phone access running when ShipWarden is closed" (`settings.remote.keepRunning`, off by
+default) runs the phone server in a background helper. The page asks before it turns the setting on.
+
+- **Program.** `src/main/helper/main.ts` is a third entry of the main build (`out/main/helper.js`), next to the PTY host.
+  Electron's Node runtime runs it (`ELECTRON_RUN_AS_NODE=1`). It does not load Electron.
+- **Launch agent.** The setting writes `~/Library/LaunchAgents/dev.shipwarden.helper.plist` and loads it with
+  `launchctl bootstrap gui/<uid>`. launchd starts the helper at login (`RunAtLoad`) and after a stop (`KeepAlive`).
+  `AbandonProcessGroup` keeps the PTY host alive when launchd stops the helper. The arguments are the app data folder
+  and the app version. Off: `launchctl bootout` and the app removes the plist. The app does not change the launch agent
+  for any other reason. At each start with the setting on, the app writes the plist again when the app path or the
+  version changed.
+- **Agents.** The agents already run in the PTY host, outside the app. The helper connects to the PTY host as a
+  second client, with the same `PtyHostClient`. While the helper is connected, the PTY host does not stop. The helper
+  has its own `ShellAgents` scan.
+- **Handoff.** `RemoteControl` (main process) selects the owner of the server (`remoteOwner`): the helper when the
+  setting is on and the app has a connection to the helper socket, else the app. Before the helper gets the settings,
+  the server of the app stops, so the port is free. When the helper stops, the app runs the server again and tries to
+  connect each 3 seconds. Each server of the app is new and reads `remote-devices.json` again.
+- **Versions.** The helper sends a hash of its script (`hello`). When the hash is not the hash of the app's
+  `helper.js` (for example after an update), the app restarts the helper one time (`launchctl kickstart -k`).
+- **Data.** While the app is open, the helper asks the app for the snapshot and for approvals, so the phone gets the
+  pull requests. While the app is closed, the helper reads `projects.json`, `settings.json` and `task-links.json`
+  again for each snapshot, and runs `git worktree list`. It shows no pull requests then, and an approval gets 503.
+  The helper makes no outbound network requests, so it does not need the trusted certificates of Settings › Network.
+- **Security.** The pairing, the tokens, the certificate and the bind address do not change. The helper uses the same
+  `RemoteDevices` file and TLS identity in the app data folder. The helper socket is a Unix socket with mode 0600,
+  like the PTY host socket. Only processes of the user can connect.
+- **Logs.** The helper writes to `<app data>/helper.log`.
+- **Next steps.** Pull requests and approvals while the app is closed (the helper needs the review providers, the
+  tokens without Electron `safeStorage`, and the trusted certificates). Start agents from the phone. Push notifications.
