@@ -6543,8 +6543,24 @@ button:focus-visible,
     height: 1px;
 }
 
-.split-divider:hover::after {
+.split-divider:hover::after,
+.split-divider:focus-visible::after {
     background: var(--accent);
+}
+
+/* The accent line shows the keyboard focus, so the divider has no outline. */
+.split-divider:focus-visible {
+    outline: none;
+}
+
+.split-divider.row:focus-visible::after {
+    left: 1px;
+    width: 3px;
+}
+
+.split-divider.column:focus-visible::after {
+    top: 1px;
+    height: 3px;
 }
 
 body.resizing-split,
@@ -7599,6 +7615,19 @@ body.resizing-column * {
     inset: 0;
     opacity: 0;
     cursor: pointer;
+}
+
+/* The select is invisible, so the label shows the keyboard focus. */
+.note-move:has(select:focus-visible) {
+    outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: 1px;
+}
+
+/* In a folder header, the control has the size of the icon buttons next to it. */
+.note-folder-move {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
 }
 
 .dash-extra {

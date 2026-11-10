@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronRight, Copy, Folder, FolderInput, FolderOpen, FolderPlus, NotebookPen, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react';
-import { folderBaseName, folderNameError, isInFolder, joinNotePath, noteMatches, noteNameError, normalizeTags, parentFolder, splitNotePath, tagOptions, uniqueNoteName, type NoteInfo } from '@shared/notes';
+import { folderBaseName, folderMoveTargets, folderNameError, isInFolder, joinNotePath, noteMatches, noteNameError, normalizeTags, parentFolder, splitNotePath, tagOptions, uniqueNoteName, type NoteInfo } from '@shared/notes';
 import { monaco } from '../editor/monaco';
 import { fileIcon } from '../files/file-icons';
 import { errorText, timeAgo } from '../util';
@@ -672,6 +672,16 @@ export function NotesView() {
                                 <button className="icon-button" title={`New note in ${name}`} onClick={() => startNote(path)}><Plus size={13} strokeWidth={1.8} /></button>
                                 <button className="icon-button" title={`New folder in ${name}`} onClick={() => startFolder(path)}><FolderPlus size={13} strokeWidth={1.8} /></button>
                                 <button className="icon-button" title="Rename the folder" onClick={() => setEditing({ kind: 'renameFolder', folder: path })}><Pencil size={12} strokeWidth={1.8} /></button>
+                                {/* The keyboard alternative to a drag of the folder. */}
+                                <label className="note-move note-folder-move" title="Move the folder to a folder">
+                                    <FolderInput size={13} strokeWidth={1.8} />
+                                    <select aria-label={`Move ${name} to a folder`} value={parentFolder(path)} onChange={event => void moveFolder(path, event.target.value)}>
+                                        <option value="">Top level</option>
+                                        {folderMoveTargets(folders, path).map(item => (
+                                            <option key={item} value={item}>{'\u00a0\u00a0'.repeat(item.split('/').length - 1)}{folderBaseName(item)}</option>
+                                        ))}
+                                    </select>
+                                </label>
                                 <button className="icon-button" title="Move the folder to the Trash" onClick={() => void deleteFolder(path)}><Trash2 size={12} strokeWidth={1.8} /></button>
                             </span>
                         </div>

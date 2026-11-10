@@ -112,9 +112,14 @@ export function closePane(layout: PaneLayout, leafId: string): PaneLayout | unde
     return { root, focused };
 }
 
+/** The smallest size of the first pane of a split, as a part of the split. */
+export const MIN_SPLIT_RATIO = 0.1;
+/** The largest size of the first pane of a split, as a part of the split. */
+export const MAX_SPLIT_RATIO = 0.9;
+
 /** Changes the size of the first pane of a split, between 10% and 90%. */
 export function resizeSplit(layout: PaneLayout, splitId: string, ratio: number): PaneLayout {
-    const clamped = Math.min(0.9, Math.max(0.1, ratio));
+    const clamped = Math.min(MAX_SPLIT_RATIO, Math.max(MIN_SPLIT_RATIO, ratio));
     return { ...layout, root: mapNode(layout.root, node => (node.kind === 'split' && node.id === splitId ? { ...node, ratio: clamped } : undefined)) };
 }
 

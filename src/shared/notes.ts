@@ -82,6 +82,11 @@ export function isInFolder(folder: string, ancestor: string): boolean {
     return folder === ancestor || folder.startsWith(`${ancestor}/`);
 }
 
+/** The folders that can get the folder `source`: all folders except `source` and the folders in it. */
+export function folderMoveTargets(folders: readonly string[], source: string): string[] {
+    return folders.filter(folder => !isInFolder(folder, source));
+}
+
 /** Returns an error message when a folder path ("a/b") is not valid, else undefined. Each part has the rules of a folder name. */
 export function folderPathError(folder: string): string | undefined {
     const parts = folder.split('/').map(part => part.trim());

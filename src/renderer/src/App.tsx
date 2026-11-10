@@ -1505,7 +1505,7 @@ export function App() {
             return (
                 <div key={node.id} className={`pane-split ${node.direction}`}>
                     <div className="pane-slot" style={{ flexBasis: `${node.ratio * 100}%` }}>{renderPane(node.first)}</div>
-                    <SplitDivider direction={node.direction} onResize={ratio => layout && activeTab && commitGroup(activeTab, resizeSplit(layout, node.id, ratio))} />
+                    <SplitDivider direction={node.direction} ratio={node.ratio} onResize={ratio => layout && activeTab && commitGroup(activeTab, resizeSplit(layout, node.id, ratio))} />
                     <div className="pane-slot" style={{ flexBasis: `${(1 - node.ratio) * 100}%` }}>{renderPane(node.second)}</div>
                 </div>
             );

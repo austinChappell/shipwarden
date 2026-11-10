@@ -50,7 +50,7 @@ interface Props {
 
 /**
  * A vertical handle that changes the width of a panel. Drag it, or focus it and push the arrow keys.
- * A double-click sets the default width again.
+ * A double-click, Enter or Home sets the default width again.
  */
 export function ResizeHandle({ panel, edge, label, maxAvailable }: Props) {
     const direction = edge === 'right' ? 1 : -1;
@@ -85,6 +85,9 @@ export function ResizeHandle({ panel, edge, label, maxAvailable }: Props) {
             event.preventDefault();
             const sign = event.key === 'ArrowRight' ? 1 : -1;
             resize(panel.width + sign * direction * KEY_STEP);
+        } else if (event.key === 'Enter' || event.key === 'Home') {
+            event.preventDefault();
+            panel.reset();
         }
     };
 
@@ -98,7 +101,7 @@ export function ResizeHandle({ panel, edge, label, maxAvailable }: Props) {
             aria-valuemin={panel.min}
             aria-valuemax={panel.max}
             tabIndex={0}
-            title={`${label}. Double-click to reset.`}
+            title={`${label}. Double-click or press Enter to reset.`}
             onPointerDown={onPointerDown}
             onDoubleClick={panel.reset}
             onKeyDown={onKeyDown}
