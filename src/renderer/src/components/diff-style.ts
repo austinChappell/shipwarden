@@ -10,7 +10,7 @@ export type DiffStyle = 'unified' | 'split';
  */
 export const THEME_CSS = `
 :host {
-    /* The body sets "user-select: none". The code lines must let the user select and copy text. */
+    /* The user can select and copy the code lines. */
     user-select: text;
     --diffs-dark-bg: var(--bg) !important;
     --diffs-light-bg: var(--bg) !important;
