@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     applyStartStatus,
+    assigneeNames,
     boardColumns,
     branchNameForTask,
     collapsedByDefault,
@@ -11,6 +12,7 @@ import {
     pickCollection,
     sortCollections,
     statusForColumn,
+    taskHasAssignee,
     taskMatches,
     taskPrompt,
     type StatusCategory,
@@ -267,5 +269,33 @@ describe('taskMatches', () => {
         ['login logout', false]
     ])('matches the search text %j', (query, expected) => {
         expect(taskMatches(item, query)).toBe(expected);
+    });
+});
+
+describe('taskHasAssignee', () => {
+    const open: Task = task('ENG-1', 'No owner');
+    const empty: Task = { ...task('ENG-2', 'Empty list'), assignees: [] };
+    const sam: Task = { ...task('ENG-3', 'Sam only'), assignees: [{ name: 'Sam Lee' }] };
+    const pair: Task = { ...task('ENG-4', 'Two people'), assignees: [{ name: 'Sam Lee' }, { name: 'Ana Ruiz' }] };
+
+    it.each([
+        ['all', [true, true, true, true]],
+        ['none', [true, true, false, false]],
+        ['person:Sam Lee', [false, false, true, true]],
+        ['person:Ana Ruiz', [false, false, false, true]],
+        ['person:Sam', [false, false, false, false]]
+    ] as const)('applies the filter %j', (filter, expected) => {
+        expect([open, empty, sam, pair].map(item => taskHasAssignee(item, filter))).toEqual(expected);
+    });
+});
+
+describe('assigneeNames', () => {
+    it('gives each name one time, in alphabetical order', () => {
+        const tasks: Task[] = [
+            { ...task('A', 'a'), assignees: [{ name: 'sam Lee' }, { name: 'Ana Ruiz' }] },
+            task('B', 'b'),
+            { ...task('C', 'c'), assignees: [{ name: 'Ana Ruiz' }, { name: 'Bo Chen' }] }
+        ];
+        expect(assigneeNames(tasks)).toEqual(['Ana Ruiz', 'Bo Chen', 'sam Lee']);
     });
 });

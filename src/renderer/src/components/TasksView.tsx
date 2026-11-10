@@ -1,9 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { X } from 'lucide-react';
-import { boardColumns, groupTasksByStatus, taskMatches, type StatusGroup, type Task, type TaskLink } from '@shared/tasks';
-import { ResizeHandle, usePanelWidth } from './ResizeHandle';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+    assigneeNames,
+    boardColumns,
+    groupTasksByStatus,
+    taskHasAssignee,
+    taskMatches,
+    type AssigneeFilter,
+    type StatusGroup,
+    type Task,
+    type TaskLink
+} from '@shared/tasks';
 import { moveListFocus } from '../keyboard/list-nav';
-import { missingSettingsText, worktreeForTask } from './tasks/task-view-logic';
+import { missingSettingsText, taskLabel, worktreeForTask } from './tasks/task-view-logic';
 import { useTaskSource } from './tasks/use-task-source';
 import { useTaskList } from './tasks/use-task-list';
 import { useTaskDetail } from './tasks/use-task-detail';
@@ -12,9 +20,7 @@ import { TasksHeader } from './tasks/TasksHeader';
 import { TaskStatusGroups } from './tasks/TaskList';
 import { TaskBoardColumns } from './tasks/TaskBoard';
 import { TaskDetails } from './tasks/TaskDetails';
-
-/** The smallest width of the task details when the user drags the border of the task list. */
-const MIN_DETAIL_WIDTH = 320;
+import { TaskDialog } from './tasks/TaskDialog';
 
 interface Props {
     /** The ShipWarden project. The view uses it only for the repository of "Start in worktree". */
@@ -33,18 +39,20 @@ interface Props {
     openTask?: { connectionId: string; taskId: string; nonce: number };
 }
 
-/** The tasks of the project's task managers, one collection at a time, with a detail pane for the selected task. */
+/** The tasks of the project's task managers, one collection at a time, with a dialog for the details of the selected task. */
 export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree, onOpenSettings, repoLabel, openTask }: Props) {
     const [selectedId, setSelectedId] = useState<string>();
     const [query, setQuery] = useState('');
-    const listWidth = usePanelWidth('shipwarden.width.taskList', 460, 300, 900);
-    const boardDetailWidth = usePanelWidth('shipwarden.width.taskBoardDetail', 420, 320, 800);
+    const [assignee, setAssignee] = useState<AssigneeFilter>('all');
 
     const sourceState = useTaskSource(setSelectedId);
     const { connections, connectionId, source, sourceError, collection, request } = sourceState;
     const prefs = useTaskViewPrefs(projectId, source?.pluginId);
     const list = useTaskList({ source, collection, filter: sourceState.filter, request, setSelectedId });
     const { tasks, loadTasks } = list;
+    // The people of one task manager are not the people of another. A new task manager shows all assignees again.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The body does not read connectionId, but a change must reset the filter.
+    useEffect(() => setAssignee('all'), [connectionId]);
     const listError = sourceState.collectionsError ?? list.listError;
     const detailState = useTaskDetail({ source, selectedId, setSelectedId, request, setTasks: list.setTasks, loadTasks });
 
@@ -102,7 +110,8 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
 
     const worktreeFor = (task: Task) => worktreeForTask(links, source?.connectionId, task);
 
-    const shown = useMemo(() => (tasks ?? []).filter(task => taskMatches(task, query)), [tasks, query]);
+    const names = useMemo(() => assigneeNames(tasks ?? []), [tasks]);
+    const shown = useMemo(() => (tasks ?? []).filter(task => taskHasAssignee(task, assignee) && taskMatches(task, query)), [tasks, assignee, query]);
     const statusGroups = useMemo(() => groupTasksByStatus(shown, list.statusOrder?.statuses), [shown, list.statusOrder]);
     /** The board has a column for each status of the collection's workflow, also without tasks, so a card can move to it. */
     const columns = useMemo(() => boardColumns(shown, list.statusOrder?.statuses), [shown, list.statusOrder]);
@@ -155,6 +164,9 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                 selectCollection={sourceState.selectCollection}
                 filter={sourceState.filter}
                 setFilter={sourceState.setFilter}
+                assigneeNames={names}
+                assignee={assignee}
+                setAssignee={setAssignee}
                 viewMode={prefs.viewMode}
                 changeViewMode={prefs.changeViewMode}
                 query={query}
@@ -205,45 +217,41 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                             </div>
                         )}
                     </div>
-                    {selectedId && (
-                        <>
-                            <ResizeHandle
-                                panel={boardDetailWidth}
-                                edge="left"
-                                label="Resize the task details"
-                                maxAvailable={() => (document.querySelector<HTMLElement>('.tasks-body')?.offsetWidth ?? Infinity) - 280}
-                            />
-                            <div className="task-detail board-detail" ref={detailRef} tabIndex={-1} style={{ width: boardDetailWidth.width }}>
-                                <button className="icon-button board-detail-close" title="Close the details" onClick={() => setSelectedId(undefined)}>
-                                    <X size={15} strokeWidth={1.75} />
-                                </button>
-                                {detailContent}
-                            </div>
-                        </>
-                    )}
                 </div>
             )}
 
             {source && prefs.viewMode === 'list' && (
-                <div className="tasks-body" style={{ '--task-list-width': `${listWidth.width}px` } as CSSProperties}>
+                <div className="tasks-body">
                     <div className="task-list" onKeyDown={moveListFocus}>
                         {listError && <div className="form-error task-list-error">{listError}</div>}
                         {tasks === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
                         {tasks?.length === 0 && <div className="panel-message">No tasks in this collection.</div>}
-                        {!!tasks?.length && shown.length === 0 && <div className="panel-message">No tasks match “{query.trim()}”.</div>}
+                        {!!tasks?.length && shown.length === 0 && <div className="panel-message">{noMatchText(query, assignee)}</div>}
                         <TaskStatusGroups {...itemProps} groups={statusGroups} />
-                    </div>
-                    <ResizeHandle
-                        panel={listWidth}
-                        edge="right"
-                        label="Resize the task list"
-                        maxAvailable={() => (document.querySelector<HTMLElement>('.tasks-body')?.offsetWidth ?? Infinity) - MIN_DETAIL_WIDTH}
-                    />
-                    <div className="task-detail" ref={detailRef} tabIndex={-1}>
-                        {detailContent}
                     </div>
                 </div>
             )}
+
+            {/* The board and the list both show the details of the selected task in a large dialog. */}
+            {source && selectedId && (
+                <TaskDialog
+                    dialogRef={detailRef}
+                    label={detailState.detail ? taskLabel(detailState.detail) : 'Task'}
+                    canClose={!detailState.editing}
+                    onClose={() => setSelectedId(undefined)}
+                >
+                    {detailContent}
+                </TaskDialog>
+            )}
         </div>
     );
+}
+
+/** The message when the search or the assignee filter hides all tasks. */
+function noMatchText(query: string, assignee: AssigneeFilter): string {
+    const text = query.trim();
+    const who = assignee === 'none' ? 'without an assignee' : assignee === 'all' ? '' : `of ${assignee.slice('person:'.length)}`;
+    if (text && who) return `No tasks ${who} match “${text}”.`;
+    if (text) return `No tasks match “${text}”.`;
+    return `No tasks ${who} in this collection.`;
 }

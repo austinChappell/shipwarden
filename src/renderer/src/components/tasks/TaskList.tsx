@@ -2,7 +2,7 @@ import { ChevronRight } from 'lucide-react';
 import { collapsedByDefault, type StatusGroup, type Task } from '@shared/tasks';
 import { itemKeys } from '../../keyboard/list-nav';
 import { groupStatus, taskLabel } from './task-view-logic';
-import { StatusDot, TaskLabels, WorktreeButton } from './TaskParts';
+import { StatusDot, TaskAssignees, TaskLabels, WorktreeButton } from './TaskParts';
 
 interface RowProps {
     task: Task;
@@ -31,6 +31,7 @@ export function TaskRow({ task, selected, worktree, onSelect, onSelectFromKeyboa
             <span className="task-title">{task.title}</span>
             {worktree && <WorktreeButton worktree={worktree} onOpenWorktree={onOpenWorktree} />}
             <TaskLabels labels={task.labels} limit={2} />
+            <TaskAssignees assignees={task.assignees} limit={2} />
         </div>
     );
 }

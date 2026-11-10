@@ -3,7 +3,7 @@ import { LoaderCircle } from 'lucide-react';
 import { collapsedByDefault, type StatusGroup, type Task } from '@shared/tasks';
 import { itemKeys, moveListFocus } from '../../keyboard/list-nav';
 import { acceptsDrop, groupStatus, neighborColumn, taskLabel } from './task-view-logic';
-import { StatusDot, TaskLabels, WorktreeButton } from './TaskParts';
+import { StatusDot, TaskAssignees, TaskLabels, WorktreeButton } from './TaskParts';
 
 interface CardProps {
     task: Task;
@@ -72,9 +72,11 @@ export function BoardCard({
                 {worktree && <WorktreeButton worktree={worktree} onOpenWorktree={onOpenWorktree} />}
             </div>
             <div className="board-card-title">{task.title}</div>
-            {!!task.labels?.length && (
+            {(!!task.labels?.length || !!task.assignees?.length) && (
                 <div className="board-card-meta">
                     <TaskLabels labels={task.labels} limit={2} />
+                    <span className="header-spacer" />
+                    <TaskAssignees assignees={task.assignees} />
                 </div>
             )}
         </div>

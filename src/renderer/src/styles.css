@@ -2406,6 +2406,15 @@ button.task-linked {
     max-width: 280px;
 }
 
+.assignee-select {
+    max-width: 200px;
+}
+
+/* An assignee filter that hides tasks has the accent color, so the user sees that the list is not complete. */
+.assignee-select.active > button {
+    border-color: var(--accent);
+}
+
 .collection-open {
     flex: none;
     display: flex;
@@ -2469,12 +2478,10 @@ button.task-linked {
 }
 
 .task-list {
-    width: var(--task-list-width, 460px);
-    flex-shrink: 1;
-    min-width: 260px;
+    flex: 1;
+    min-width: 0;
     padding: 6px 0 16px;
     overflow-y: auto;
-    border-right: 1px solid var(--border);
 }
 
 .task-list .section-title {
@@ -4021,20 +4028,144 @@ body.resizing * {
     text-align: center;
 }
 
-.board-detail {
-    position: relative;
-    flex: none;
-    border-left: 1px solid var(--border);
+/* The details of a task: a dialog that fills most of the window. */
+.task-dialog-backdrop {
+    padding: 28px 32px;
 }
 
-.board-detail-close {
+.modal.task-dialog {
+    position: relative;
+    width: min(1280px, 100%);
+    height: 100%;
+    max-height: none;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.task-dialog .task-detail-scroll {
+    padding: 22px 32px 28px;
+}
+
+/* Space for the close button at the top right. */
+.task-dialog .task-detail-top {
+    padding-right: 36px;
+}
+
+.task-dialog-close {
     position: absolute;
-    top: 8px;
-    right: 10px;
+    top: 16px;
+    right: 18px;
     z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.task-dialog .task-detail-title {
+    font-size: 22px;
+}
+
+/* A wide dialog puts the description and the comments at the left, and the fields in a column at the right. */
+@media (min-width: 900px) {
+    .task-dialog .task-detail-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 0 36px;
+        align-items: start;
+    }
+
+    .task-dialog .task-meta {
+        grid-column: 2;
+        grid-row: 1;
+        grid-template-columns: 86px 1fr;
+        padding: 14px 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--raised);
+    }
+
+    .task-dialog .task-detail-main {
+        grid-column: 1;
+        grid-row: 1;
+        min-width: 0;
+    }
+
+    .task-dialog .task-description {
+        padding-top: 0;
+    }
+}
+
+/* Avatars of people. A person without a picture shows the initials. */
+.task-avatar {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    object-fit: cover;
+    vertical-align: middle;
+    box-sizing: border-box;
+}
+
+.task-avatar.initials {
+    background: color-mix(in srgb, var(--accent) 22%, var(--raised));
+    color: var(--text-strong);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+/* The avatars overlap, with a ring in the card color between them. */
+.task-assignees {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+}
+
+.task-assignees .task-avatar {
+    box-shadow: 0 0 0 2px var(--raised);
+}
+
+.task-assignees .task-avatar + .task-avatar,
+.task-assignees .task-avatar + .task-assignees-more {
+    margin-left: -5px;
+}
+
+.task-assignees-more {
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--panel);
+    box-shadow: 0 0 0 2px var(--raised);
+    color: var(--muted);
+    font-size: 10.5px;
+    line-height: 16px;
+}
+
+.task-row .task-assignees .task-avatar,
+.task-row .task-assignees-more {
+    box-shadow: 0 0 0 2px var(--panel);
+}
+
+.board-card-meta {
+    align-items: center;
+}
+
+/* The assignees in the fields of the task details: an avatar and a name for each person. */
+.task-people {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+}
+
+.task-person {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.comment-author .task-avatar {
+    margin-right: 6px;
 }
 
 /* Task managers settings */

@@ -168,3 +168,17 @@ export function collectionTitle(current: Pick<TaskCollection, 'name' | 'path'> |
 export function collectionPlaceholder(collections: readonly TaskCollection[] | undefined): string {
     return !collections ? 'Loading collections…' : collections.length === 0 ? 'No collections' : 'Select a collection';
 }
+
+/**
+ * The initials of a name, at most two letters: "Sam Lee" gives "SL", "sam" gives "S". An empty name gives "?".
+ * An email address uses only the part before "@".
+ */
+export function personInitials(name: string): string {
+    const words = name
+        .replace(/@.*/, '')
+        .split(/[\s._@-]+/)
+        .map(word => word.trim())
+        .filter(Boolean);
+    const letters = words.length > 1 ? [words[0], words[words.length - 1]] : words;
+    return letters.map(word => [...word][0].toUpperCase()).join('') || '?';
+}

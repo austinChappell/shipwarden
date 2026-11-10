@@ -421,3 +421,24 @@ export function taskMatches(task: Task, query: string): boolean {
         .toLowerCase();
     return words.every(word => text.includes(word));
 }
+
+/**
+ * The assignee filter of the task view. "all" shows all tasks. "none" shows only the tasks without an assignee.
+ * "person:<name>" shows only the tasks of that person. The tasks give only the name of a person, so the name identifies the person.
+ */
+export type AssigneeFilter = 'all' | 'none' | `person:${string}`;
+
+/** True when the task agrees with the assignee filter. */
+export function taskHasAssignee(task: Task, filter: AssigneeFilter): boolean {
+    if (filter === 'all') return true;
+    const assignees = task.assignees ?? [];
+    if (filter === 'none') return assignees.length === 0;
+    const name = filter.slice('person:'.length);
+    return assignees.some(person => person.name === name);
+}
+
+/** The names of all assignees of the tasks, one time each, in alphabetical order. */
+export function assigneeNames(tasks: readonly Task[]): string[] {
+    const names = new Set(tasks.flatMap(task => (task.assignees ?? []).map(person => person.name)));
+    return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}

@@ -36,10 +36,12 @@ interface Props {
     disabled?: boolean;
     title?: string;
     className?: string;
+    /** False removes the group label from the button text. The default is true. */
+    groupPrefix?: boolean;
 }
 
 /** A select with a search field, for long lists in groups. */
-export function Combobox({ value, groups, onChange, placeholder, searchPlaceholder = 'Search', disabled, title, className }: Props) {
+export function Combobox({ value, groups, onChange, placeholder, searchPlaceholder = 'Search', disabled, title, className, groupPrefix = true }: Props) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
@@ -170,7 +172,7 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
                 <span className="combobox-value">
                     {selected ? (
                         <>
-                            {selected.group && <span className="combobox-group-prefix">{selected.group} / </span>}
+                            {groupPrefix && selected.group && <span className="combobox-group-prefix">{selected.group} / </span>}
                             {selected.item.label}
                         </>
                     ) : (

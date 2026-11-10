@@ -21,7 +21,8 @@ import {
     taskLabel,
     toggleCollapse,
     uniqueTasks,
-    worktreeForTask
+    worktreeForTask,
+    personInitials
 } from './task-view-logic';
 
 const task = (id: string, status = 'to do', extra: Partial<Task> = {}): Task => ({
@@ -241,5 +242,19 @@ describe('labels and text', () => {
         expect(collectionPlaceholder(undefined)).toBe('Loading collections…');
         expect(collectionPlaceholder([])).toBe('No collections');
         expect(collectionPlaceholder([{ id: '1', name: 'One' }])).toBe('Select a collection');
+    });
+});
+
+describe('personInitials', () => {
+    it.each([
+        ['Sam Lee', 'SL'],
+        ['sam', 'S'],
+        ['Ana María Ruiz', 'AR'],
+        ['ana.ruiz@example.com', 'AR'],
+        ['jane_doe', 'JD'],
+        ['', '?'],
+        ['  ', '?']
+    ])('gives the initials of %j', (name, expected) => {
+        expect(personInitials(name)).toBe(expected);
     });
 });
