@@ -10275,10 +10275,6 @@ button.pr-summary-cell:hover {
     padding-bottom: 48px;
 }
 
-.dash-first-load .sea-loader-art {
-    width: 240px;
-}
-
 /* The helm loader (HelmLoader). It uses the text styles of the sea loader. */
 .helm-loader-art {
     width: 112px;
