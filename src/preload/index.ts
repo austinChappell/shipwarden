@@ -88,7 +88,7 @@ const api: ShipWardenApi = {
     files: {
         listDirectory: (root, directory) => ipcRenderer.invoke(IpcChannels.filesListDirectory, root, directory),
         listFiles: root => ipcRenderer.invoke(IpcChannels.filesListFiles, root),
-        searchContents: (root, query) => ipcRenderer.invoke(IpcChannels.filesSearch, root, query),
+        searchContents: (root, query, caseSensitive) => ipcRenderer.invoke(IpcChannels.filesSearch, root, query, caseSensitive),
         read: (root, file) => ipcRenderer.invoke(IpcChannels.filesRead, root, file),
         info: (root, file) => ipcRenderer.invoke(IpcChannels.filesInfo, root, file),
         reveal: (root, file) => ipcRenderer.invoke(IpcChannels.filesReveal, root, file),

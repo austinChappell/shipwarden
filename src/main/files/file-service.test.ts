@@ -61,6 +61,11 @@ describe('FileService', () => {
         ]);
     });
 
+    it('matches case when caseSensitive is true', async () => {
+        const result = await service.searchContents(root, 'Hello', true);
+        expect(result.matches).toEqual([{ path: 'README.md', line: 2, text: 'Hello World' }]);
+    });
+
     it('returns no matches for an empty query or a query with no matches', async () => {
         expect((await service.searchContents(root, '  ')).matches).toEqual([]);
         expect((await service.searchContents(root, 'no-such-text')).matches).toEqual([]);

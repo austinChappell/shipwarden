@@ -143,13 +143,13 @@ export class FileService {
         return [...new Set(files)];
     }
 
-    /** Searches the contents of the files that git does not ignore. The search ignores case. */
-    async searchContents(root: string, query: string): Promise<ContentSearchResult> {
+    /** Searches the contents of the files that git does not ignore. The search ignores case when `caseSensitive` is false. */
+    async searchContents(root: string, query: string, caseSensitive = false): Promise<ContentSearchResult> {
         if (!query.trim()) {
             return { matches: [], truncated: false };
         }
         const { stdout, code } = await git(root, [
-            'grep', '--untracked', '-I', '-i', '--fixed-strings', '--null', '--line-number', '--no-color',
+            'grep', '--untracked', '-I', ...(caseSensitive ? [] : ['-i']), '--fixed-strings', '--null', '--line-number', '--no-color',
             '-e', query, '--', '.'
         ]);
         // git grep exits with code 1 when there are no matches.

@@ -55,9 +55,9 @@ export function baseName(path: string): string {
 const CONTEXT_BEFORE = 16;
 
 /** Trims a line of a content match, and cuts a long start so that the first match shows. */
-export function matchLine(text: string, query: string): string {
+export function matchLine(text: string, query: string, caseSensitive = false): string {
     const line = text.trim();
-    const index = query ? line.toLowerCase().indexOf(query.toLowerCase()) : -1;
+    const index = !query ? -1 : caseSensitive ? line.indexOf(query) : line.toLowerCase().indexOf(query.toLowerCase());
     if (index <= CONTEXT_BEFORE + 8) return line;
     return `…${line.slice(index - CONTEXT_BEFORE).trimStart()}`;
 }

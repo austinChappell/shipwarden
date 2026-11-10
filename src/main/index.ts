@@ -541,7 +541,7 @@ function registerIpc(): void {
 
     ipcMain.handle(IpcChannels.filesListDirectory, (_event, root: string, directory: string) => files.listDirectory(root, directory));
     ipcMain.handle(IpcChannels.filesListFiles, (_event, root: string) => files.listFiles(root));
-    ipcMain.handle(IpcChannels.filesSearch, (_event, root: string, query: string) => files.searchContents(root, query));
+    ipcMain.handle(IpcChannels.filesSearch, (_event, root: string, query: string, caseSensitive?: boolean) => files.searchContents(root, query, caseSensitive === true));
     ipcMain.handle(IpcChannels.filesRead, (_event, root: string, file: string) => files.readFile(root, file));
     // Like files.read, info does not need a known worktree. The editor also opens files of other roots.
     ipcMain.handle(IpcChannels.filesInfo, (_event, root: string, file: string) => files.info(String(root), String(file)));
