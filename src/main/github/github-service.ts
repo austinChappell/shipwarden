@@ -74,8 +74,8 @@ interface RestWorkflowRun {
 const DASHBOARD_COMMENT_FIELDS = 'id url createdAt bodyText bodyHTML author { __typename login }';
 
 const DASHBOARD_SUMMARY_FIELDS = `
-  id number title url state isDraft updatedAt createdAt reviewDecision mergeable mergeStateStatus
-  repository { name owner { login } }
+  id number title url state isDraft updatedAt createdAt reviewDecision mergeable mergeStateStatus headRefOid
+  repository { name owner { login } viewerDefaultMergeMethod }
   author { login }
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
 
@@ -94,8 +94,11 @@ function dashboardRepo(pr: DashboardPr): RepoRef {
     return { owner: pr.repository.owner.login, name: pr.repository.name };
 }
 
-function dashboardSearch(first: number): string {
-    return `query($q: String!) { viewer { login } search(query: $q, type: ISSUE, first: ${first}) { nodes { ... on PullRequest { ${DASHBOARD_SUMMARY_FIELDS} } } } }`;
+/** The unresolved review threads of the user's pull requests. Only the search for the user's pull requests asks for them. */
+const DASHBOARD_THREAD_FIELDS = 'reviewThreads(first: 100) { nodes { isResolved } }';
+
+function dashboardSearch(first: number, extraFields = ''): string {
+    return `query($q: String!) { viewer { login } search(query: $q, type: ISSUE, first: ${first}) { nodes { ... on PullRequest { ${DASHBOARD_SUMMARY_FIELDS} ${extraFields} } } } }`;
 }
 
 interface DashboardComment {
@@ -120,9 +123,11 @@ interface DashboardPr {
     reviewDecision: string | null;
     mergeable: string;
     mergeStateStatus: string;
-    repository: { name: string; owner: { login: string } };
+    headRefOid: string;
+    repository: { name: string; owner: { login: string }; viewerDefaultMergeMethod?: 'MERGE' | 'SQUASH' | 'REBASE' };
     author: { login: string } | null;
     commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
+    reviewThreads?: { nodes: { isResolved: boolean }[] };
 }
 
 interface DashboardPrComments {
@@ -540,7 +545,7 @@ export class GitHubService {
         const scope = `${ownerQualifiers(owners)} archived:false is:pr`.trim();
         const [review, mine] = await Promise.all([
             this.dashboardSearch(`${scope} is:open draft:false review-requested:@me sort:updated-desc`, 100),
-            this.dashboardSearch(`${scope} is:open author:@me sort:updated-desc`, 100)
+            this.dashboardSearch(`${scope} is:open author:@me sort:updated-desc`, 100, DASHBOARD_THREAD_FIELDS)
         ]);
         return {
             reviewRequests: review.prs.map(pr => ({
@@ -559,7 +564,11 @@ export class GitHubService {
                     title: pr.title,
                     url: pr.url,
                     updatedAt: pr.updatedAt,
-                    reasons: myPullRequestReasons({ ...pr, checks: pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null })
+                    createdAt: pr.createdAt,
+                    reasons: myPullRequestReasons({ ...pr, checks: pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null }),
+                    headSha: pr.headRefOid,
+                    mergeMethod: pr.repository.viewerDefaultMergeMethod?.toLowerCase() as MergeMethod | undefined,
+                    unresolvedThreads: pr.reviewThreads?.nodes.filter(thread => !thread.isResolved).length
                 }))
                 .filter(pr => pr.reasons.length > 0)
         };
@@ -624,8 +633,8 @@ export class GitHubService {
         return [...comments.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     }
 
-    private async dashboardSearch(q: string, first: number): Promise<{ viewer: string; prs: DashboardPr[] }> {
-        const data = await this.client.graphql<{ viewer: { login: string }; search: { nodes: (DashboardPr | Record<string, never>)[] } }>(dashboardSearch(first), { q });
+    private async dashboardSearch(q: string, first: number, extraFields?: string): Promise<{ viewer: string; prs: DashboardPr[] }> {
+        const data = await this.client.graphql<{ viewer: { login: string }; search: { nodes: (DashboardPr | Record<string, never>)[] } }>(dashboardSearch(first, extraFields), { q });
         return { viewer: data.viewer.login, prs: data.search.nodes.filter((node): node is DashboardPr => 'number' in node) };
     }
 
