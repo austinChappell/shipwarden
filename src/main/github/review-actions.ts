@@ -1,4 +1,4 @@
-import type { MergeMethod, PendingComment, PullRequestChange, RepoRef, ReviewEvent } from '@shared/github';
+import type { MergeMethod, PendingComment, PullRequestChange, ReactionContent, RepoRef, ReviewEvent } from '@shared/github';
 import type { GitHubClient } from './github-client';
 
 /** Makes one change to a pull request: the details, an assignee, a reviewer or a label. */
@@ -87,6 +87,15 @@ export async function setThreadResolved(client: GitHubClient, threadId: string, 
         ? 'mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } }'
         : 'mutation($id: ID!) { unresolveReviewThread(input: { threadId: $id }) { thread { id } } }';
     await client.graphql(mutation, { id: threadId });
+}
+
+/** Adds (`on`) or removes a reaction of the user. `subjectId` is the node ID of a comment or a review. */
+export async function setReaction(client: GitHubClient, subjectId: string, content: ReactionContent, on: boolean): Promise<void> {
+    const mutation = on ? 'addReaction' : 'removeReaction';
+    await client.graphql(`mutation($id: ID!, $content: ReactionContent!) { ${mutation}(input: { subjectId: $id, content: $content }) { clientMutationId } }`, {
+        id: subjectId,
+        content
+    });
 }
 
 /** Marks a file of a pull request as viewed or not viewed, as the "Viewed" box on GitHub does. `pullRequestId` is the node ID. */

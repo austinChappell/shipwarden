@@ -7,6 +7,7 @@ import type {
     PullRequestChange,
     PullRequestFile,
     PullRequestFilter,
+    ReactionContent,
     RepoRef,
     RepoTarget,
     ReviewEvent
@@ -36,6 +37,11 @@ export function registerGitHubIpc({ reviewProviders, seen }: Pick<Services, 'rev
     );
     ipcMain.handle(IpcChannels.githubReply, async (_event, target: RepoTarget, number: number, commentId: number, body: string) =>
         (await host(target)).replyToComment(target, number, commentId, body)
+    );
+    ipcMain.handle(
+        IpcChannels.githubSetReaction,
+        async (_event, target: RepoTarget, number: number, subjectId: string, content: ReactionContent, on: boolean) =>
+            (await host(target)).setReaction(target, number, subjectId, content, on)
     );
     ipcMain.handle(IpcChannels.githubSetThreadResolved, async (_event, target: RepoTarget, threadId: string, resolved: boolean) =>
         (await host(target)).setThreadResolved(threadId, resolved)

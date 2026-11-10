@@ -4,6 +4,7 @@ import {
     mapBranchSummaries,
     mapPullRequest,
     mapPullRequestSummaries,
+    mapReactions,
     mapReviewRequests,
     type GraphQlBranchPullRequest
 } from './pull-request-mapping';
@@ -34,6 +35,22 @@ describe('mapReviewRequests', () => {
             { kind: 'team', login: 'core', name: 'Core' },
             { kind: 'user', login: 'copilot' }
         ]);
+    });
+});
+
+describe('mapReactions', () => {
+    it('keeps only the reactions with users', () => {
+        expect(
+            mapReactions([
+                { content: 'THUMBS_UP', viewerHasReacted: true, reactors: { totalCount: 2 } },
+                { content: 'HEART', viewerHasReacted: false, reactors: { totalCount: 0 } }
+            ])
+        ).toEqual([{ content: 'THUMBS_UP', count: 2, viewerHasReacted: true }]);
+    });
+
+    it('gives no reactions when GitHub gives no groups', () => {
+        expect(mapReactions(null)).toEqual([]);
+        expect(mapReactions(undefined)).toEqual([]);
     });
 });
 
@@ -114,7 +131,8 @@ describe('mapPullRequest', () => {
             undefined
         );
         expect(pr.body).toBe('The body ⚠️');
-        expect(pr.issueComments).toEqual([{ id: 'c1', author: null, body: 'Looks good 🎉', createdAt: 'c', url: 'u' }]);
+        expect(pr.issueComments).toEqual([{ id: 'c1', author: null, body: 'Looks good 🎉', createdAt: 'c', url: 'u', reactions: [] }]);
+        expect(pr.issueComments[0]).not.toHaveProperty('reactionGroups');
         expect(pr).not.toHaveProperty('bodyHTML');
     });
 
@@ -165,8 +183,8 @@ describe('mapPullRequest', () => {
                 originalLine: 41,
                 side: 'RIGHT',
                 comments: [
-                    { id: 'C1', databaseId: 101, author: { login: 'bo', avatarUrl: 'b' }, body: 'Check for null 👀', createdAt: 'c', url: 'u1' },
-                    { id: 'C2', databaseId: 102, author: null, body: 'Agreed.', createdAt: 'd', url: 'u2' }
+                    { id: 'C1', databaseId: 101, author: { login: 'bo', avatarUrl: 'b' }, body: 'Check for null 👀', createdAt: 'c', url: 'u1', reactions: [] },
+                    { id: 'C2', databaseId: 102, author: null, body: 'Agreed.', createdAt: 'd', url: 'u2', reactions: [] }
                 ]
             }
         ]);

@@ -10,6 +10,7 @@ import { selectionLines, threadsWithLine } from '../github/diff-notes';
 import { seenStore } from '../seen-store';
 import { errorText } from '../util';
 import { ComposerZone, PendingZone, ThreadZone } from './ReviewZones';
+import { reactionActions } from './Reactions';
 
 export {
     ComposerZone,
@@ -293,6 +294,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onSendToAg
                     worktree={typeof target === 'string' ? target : undefined}
                     onReply={body => replyToThread(target, pr, thread, body)}
                     onResolve={() => setThreadResolved(target, pr, thread, !thread.isResolved)}
+                    reactions={reactionActions(target, pr)}
                     onSendToAgent={onSendToAgentRef.current && (() => onSendToAgentRef.current?.(threadPrompt(pr, thread)))}
                 />
             );
