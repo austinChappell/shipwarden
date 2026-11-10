@@ -46,6 +46,7 @@ import { setupCommand } from '@shared/worktree-settings';
 import type { CreatedWorktree } from '@shared/worktrees';
 import type { ProjectsState } from '@shared/projects';
 import { pruneLayout, readLayout, writeLayout } from './layout-store';
+import { editorPositions } from './editor/editor-positions';
 import { closePane, findLeaf, focusSide, focusedTab, groupOf, insertNode, leafOfTab, leaves, pruneGroups, resizeSplit, setGroup, splitPane, tabLayout, type PaneLayout, type PaneNode, type SplitGroups, type SplitSide } from '@shared/panes';
 import { SplitDivider } from './components/SplitDivider';
 import { shortcutAction, type ShortcutAction, type ViewAction } from '@shared/shortcuts';
@@ -307,6 +308,8 @@ export function App() {
         }));
         const activeTabs = Object.fromEntries(Object.entries(saved.activeTabs)
             .filter(([root, tab]) => !tab.startsWith('f:') || openFiles[root]?.includes(tab.slice(2))));
+        // The cursor positions of files that did not open again are not necessary.
+        editorPositions.prune(list.map(worktree => worktree.path), openFiles);
         // Merge, so that the documents of another repository keep their tabs and can close normally.
         setOpenFiles(map => ({ ...map, ...openFiles }));
         setActiveTabs(map => ({ ...map, ...activeTabs }));
@@ -1208,6 +1211,7 @@ export function App() {
             return;
         }
         documents.close(root, path);
+        editorPositions.forget(root, path);
         setDirtyFiles(set => {
             const next = new Set(set);
             next.delete(fileKey(root, path));
@@ -1435,6 +1439,7 @@ export function App() {
             });
             setSessions(list => list.filter(session => session.worktreePath !== worktree.path));
             (openFiles[worktree.path] ?? []).forEach(path => documents.close(worktree.path, path));
+            editorPositions.forget(worktree.path);
             setExtraTabs(map => {
                 const next = { ...map };
                 delete next[worktree.path];
