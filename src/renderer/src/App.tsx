@@ -88,6 +88,8 @@ export function App() {
     const [taskOpen, setTaskOpen] = useState<{ connectionId: string; taskId: string; nonce: number }>();
     /** The pull request that the Review view opens next, for example from the Dashboard. */
     const [reviewOpen, setReviewOpen] = useState<ReviewOpenRequest>();
+    /** A new value starts the views again on their entry page, for example the pull request list of Review. */
+    const [viewEntry, setViewEntry] = useState(0);
     /** The view that the settings page goes back to when it closes. */
     const viewBeforeSettings = useRef<ContentView>('dashboard');
     const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -173,6 +175,16 @@ export function App() {
         showSettingsPage();
     };
     const closeSettings = useCallback(() => setMainView(viewBeforeSettings.current), []);
+    /**
+     * Shows a view on its entry page. The sidebar and the view shortcuts use it. An open pull request or task closes, also
+     * when the view shows already.
+     */
+    const enterView = (view: MainView) => {
+        setReviewOpen(undefined);
+        setTaskOpen(undefined);
+        setViewEntry(value => value + 1);
+        setMainView(view);
+    };
     /** Selects a worktree and shows the worktree view. */
     const showWorktree = (path: string) => {
         setSelectedPath(path);
@@ -383,7 +395,7 @@ export function App() {
             const view = VIEW_OF_ACTION[action as ViewAction];
             // The sidebar shows Tasks only when the project has repositories.
             if (view === 'tasks' && repos.length === 0) return;
-            setMainView(view);
+            enterView(view);
             return;
         }
         if (action === 'focusWorkspace') {
@@ -459,19 +471,19 @@ export function App() {
                             }}
                             repoLabel={repoLabel}
                             repoColor={repo => appSettings.repos[repo]?.color}
-                            onOpenTasks={() => setMainView('tasks')}
+                            onOpenTasks={() => enterView('tasks')}
                             agentsActive={mainView === 'agents'}
-                            onOpenAgents={() => setMainView('agents')}
+                            onOpenAgents={() => enterView('agents')}
                             reviewActive={mainView === 'review'}
                             reviewCount={reviewCount}
-                            onOpenReview={() => setMainView('review')}
+                            onOpenReview={() => enterView('review')}
                             pipelinesActive={mainView === 'pipelines'}
-                            onOpenPipelines={() => setMainView('pipelines')}
+                            onOpenPipelines={() => enterView('pipelines')}
                             notesActive={mainView === 'notes'}
-                            onOpenNotes={() => setMainView('notes')}
+                            onOpenNotes={() => enterView('notes')}
                             dashboardActive={mainView === 'dashboard'}
                             dashboardCount={dashboardCount}
-                            onOpenDashboard={() => setMainView('dashboard')}
+                            onOpenDashboard={() => enterView('dashboard')}
                             onAddRepo={project.addRepo}
                             onRemoveRepo={project.removeRepo}
                             onSwitchProject={project.switchProject}
@@ -501,7 +513,7 @@ export function App() {
                     {mainView === 'tasks' && activeProject && (
                         <main className="workspace">
                             <TasksView
-                                key={activeProject.id}
+                                key={`${activeProject.id}:${viewEntry}`}
                                 projectId={activeProject.id}
                                 repos={repos}
                                 links={links}
@@ -516,6 +528,7 @@ export function App() {
                     {mainView === 'review' && (
                         <main className="workspace">
                             <ReviewView
+                                key={viewEntry}
                                 githubKey={githubKey}
                                 onOpenSettings={() => openSettings('review')}
                                 open={reviewOpen}
@@ -527,7 +540,7 @@ export function App() {
                     )}
                     {mainView === 'pipelines' && (
                         <main className="workspace">
-                            <PipelinesView githubKey={githubKey} onOpenSettings={() => openSettings('review')} />
+                            <PipelinesView key={viewEntry} githubKey={githubKey} onOpenSettings={() => openSettings('review')} />
                         </main>
                     )}
                     {mainView === 'graph' && graphRepo && (
@@ -543,12 +556,13 @@ export function App() {
                     )}
                     {mainView === 'notes' && (
                         <main className="workspace">
-                            <NotesView />
+                            <NotesView key={viewEntry} />
                         </main>
                     )}
                     {mainView === 'dashboard' && (
                         <main className="workspace">
                             <DashboardView
+                                key={viewEntry}
                                 onOpenPullRequest={openPullRequest}
                                 filter={commentFilter}
                                 onCreateRule={(author, text) => {
@@ -566,6 +580,7 @@ export function App() {
                     {mainView === 'agents' && (
                         <main className="workspace">
                             <AgentsView
+                                key={viewEntry}
                                 sessions={sessions}
                                 projects={projects}
                                 links={links}
