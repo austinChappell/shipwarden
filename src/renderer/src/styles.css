@@ -1096,7 +1096,8 @@ button {
     text-overflow: ellipsis;
 }
 
-.search-text mark {
+.search-text mark,
+.search-name mark {
     border-radius: 2px;
     background: color-mix(in srgb, var(--info) 32%, transparent);
     color: var(--text-strong);
