@@ -5,6 +5,7 @@ import type { CopyIgnoredSettings, RepoWorktreeSettings } from '@shared/worktree
 import { CopyEditor, CopyPreview, FolderField } from './WorktreeSettings';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { radioGroupKeys } from './keyboard';
 
 interface Props {
     repo: string;
@@ -82,7 +83,7 @@ export function RepoSettingsPage({ repo, settings, onSave }: Props) {
                 label="Color"
                 description="A color marker for the repository in the sidebar and the Agents view."
                 control={(
-                    <div className="color-picker" role="radiogroup" aria-label="Repository color">
+                    <div className="color-picker" role="radiogroup" aria-label="Repository color" onKeyDown={radioGroupKeys}>
                         <button
                             className={`color-swatch none${current.color ? '' : ' selected'}`}
                             role="radio"
@@ -180,9 +181,9 @@ function RepoWorktreeGroup({ repo, settings, current, onChange }: {
                 description="Git-ignored files from the main worktree that each new worktree of this repository gets."
             >
                 {/* The choice is below the label, so the label and the description keep the full width. */}
-                <div className="segmented compact copy-source" role="radiogroup" aria-label="Copy settings">
+                <div className="segmented compact copy-source" role="radiogroup" aria-label="Copy settings" onKeyDown={radioGroupKeys}>
                     {(['global', 'custom', 'off'] as CopyMode[]).map(item => (
-                        <button key={item} className={mode === item ? 'selected' : ''} onClick={() => setMode(item)}>
+                        <button key={item} role="radio" aria-checked={mode === item} className={mode === item ? 'selected' : ''} onClick={() => setMode(item)}>
                             {item === 'global' ? 'Global' : item === 'custom' ? 'Custom' : 'Off'}
                         </button>
                     ))}

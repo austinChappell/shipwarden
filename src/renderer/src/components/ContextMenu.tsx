@@ -7,10 +7,18 @@ export type ContextMenuItem =
     | { label: string; submenu: ContextMenuItem[]; enabled?: boolean }
     | { type: 'separator' };
 
-interface Request {
-    items: ContextMenuItem[];
+/** The point of a root menu. A menu under a button flips to `flipX` and `flipY` when the window has no space. */
+interface Point {
     x: number;
     y: number;
+    flipX?: number;
+    flipY?: number;
+}
+
+interface Request extends Point {
+    items: ContextMenuItem[];
+    /** True when a key opened the menu. The first usable item is then active. */
+    keyboard: boolean;
     resolve(id: string | undefined): void;
 }
 
@@ -20,13 +28,16 @@ const EDGE = 4;
 let current: Request | undefined;
 const listeners = new Set<() => void>();
 let pointer = { x: 0, y: 0 };
+/** True when the last input was a key, not a pointer press. */
+let lastInputKey = false;
 
 // The menu opens at the last pointer position, as a native context menu does.
 // The capture phase records the position before a handler of the page opens the menu.
 if (typeof window !== 'undefined') {
     const record = (event: MouseEvent) => { pointer = { x: event.clientX, y: event.clientY }; };
-    window.addEventListener('pointerdown', record, true);
+    window.addEventListener('pointerdown', event => { lastInputKey = false; record(event); }, true);
     window.addEventListener('contextmenu', record, true);
+    window.addEventListener('keydown', () => { lastInputKey = true; }, true);
 }
 
 function emit() {
@@ -48,11 +59,14 @@ function close(id: string | undefined) {
 /**
  * Shows a context menu of the app at the pointer. Resolves the ID of the chosen item, or undefined when the user
  * closes the menu. A new menu closes the menu that is open.
+ * With `anchor`, the menu opens below the anchor, for example below the button that opens the menu.
  */
-export function showContextMenu(items: ContextMenuItem[]): Promise<string | undefined> {
+export function showContextMenu(items: ContextMenuItem[], anchor?: DOMRect | Element): Promise<string | undefined> {
     close(undefined);
+    const rect = anchor instanceof Element ? anchor.getBoundingClientRect() : anchor;
+    const point: Point = rect ? { x: rect.left, y: rect.bottom + 2, flipX: rect.right, flipY: rect.top - 2 } : pointer;
     return new Promise(resolve => {
-        current = { items, x: pointer.x, y: pointer.y, resolve };
+        current = { items, x: point.x, y: point.y, flipX: point.flipX, flipY: point.flipY, keyboard: lastInputKey, resolve };
         emit();
     });
 }
@@ -65,7 +79,7 @@ function usable(item: ContextMenuItem): boolean {
 interface PanelProps {
     items: ContextMenuItem[];
     /** The point of a root menu. */
-    point?: { x: number; y: number };
+    point?: Point;
     /** The item that opens a submenu, and the menu that holds that item. */
     anchor?: { item: DOMRect; parent: DOMRect };
     /** The index of the first active item, for a submenu that the keyboard opens. -1 for none. */
@@ -101,8 +115,8 @@ function MenuPanel({ items, point, anchor, initialActive, onChoose, onBack }: Pa
             left = point?.x ?? 0;
             top = point?.y ?? 0;
             // When there is no space on the right or below, the menu opens on the other side of the pointer.
-            if (left > maxLeft) left = left - width;
-            if (top > maxTop) top = top - height;
+            if (left > maxLeft) left = (point?.flipX ?? left) - width;
+            if (top > maxTop) top = (point?.flipY ?? top) - height;
         }
         setPosition({
             left: Math.max(EDGE, Math.min(left, maxLeft)),
@@ -113,6 +127,9 @@ function MenuPanel({ items, point, anchor, initialActive, onChoose, onBack }: Pa
     useEffect(() => {
         if (!open) panel.current?.focus({ preventScroll: true });
     }, [open]);
+
+    const firstUsable = () => items.findIndex(usable);
+    const lastUsable = () => items.length - 1 - [...items].reverse().findIndex(usable);
 
     const step = (direction: 1 | -1) => {
         if (!items.some(usable)) return;
@@ -138,7 +155,11 @@ function MenuPanel({ items, point, anchor, initialActive, onChoose, onBack }: Pa
             ArrowUp: () => step(-1),
             ArrowRight: () => { if (active >= 0 && 'submenu' in items[active]) activate(active, true); },
             ArrowLeft: () => { if (anchor) onBack(); },
+            Home: () => setActive(firstUsable()),
+            End: () => { if (items.some(usable)) setActive(lastUsable()); },
             Escape: onBack,
+            // Tab closes all the menus. The focus goes back to the element that had it before.
+            Tab: () => close(undefined),
             Enter: () => activate(active, true),
             ' ': () => activate(active, true)
         };
@@ -234,8 +255,8 @@ export function ContextMenuHost() {
             <MenuPanel
                 key={`${request.x},${request.y}`}
                 items={request.items}
-                point={{ x: request.x, y: request.y }}
-                initialActive={-1}
+                point={request}
+                initialActive={request.keyboard ? request.items.findIndex(usable) : -1}
                 onChoose={id => close(id)}
                 onBack={() => close(undefined)}
             />

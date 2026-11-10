@@ -7,6 +7,7 @@ import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { ComposerZone, PendingZone, QuestionZone, ThreadZone, type AgentQuestion, type QuestionAction } from './DiffView';
 import { CopyButton } from './CopyButton';
+import { radioGroupKeys } from './keyboard';
 import { askPrompt, lineLabel, sliceLines, type SavedAnswer } from '@shared/ask-agent';
 import { searchPatches, type PatchMatch } from '@shared/pr-search';
 import { openLink } from '../links';
@@ -641,9 +642,9 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                 )}
                 <button className="link-button" onClick={() => setOpen(Object.fromEntries(files.map(file => [file.path, false])))}>Collapse all</button>
                 <button className="link-button" onClick={() => setOpen(Object.fromEntries(files.map(file => [file.path, true])))}>Expand all</button>
-                <div className="segmented compact" role="radiogroup" aria-label="Diff layout">
-                    <button className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
-                    <button className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
+                <div className="segmented compact" role="radiogroup" aria-label="Diff layout" onKeyDown={radioGroupKeys}>
+                    <button role="radio" aria-checked={diffStyle === 'unified'} className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
+                    <button role="radio" aria-checked={diffStyle === 'split'} className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
                 </div>
             </div>
             <Virtualizer className="files-stream-scroll" contentClassName="files-stream-content">

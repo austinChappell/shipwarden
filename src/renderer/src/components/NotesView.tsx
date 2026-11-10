@@ -96,6 +96,7 @@ function TagPicker({ tags, allTags, onAdd, onRemoveLast }: { tags: string[]; all
     /** True when the popover opens to the left of the button, because the window has no space at the right. */
     const [alignRight, setAlignRight] = useState(false);
     const root = useRef<HTMLDivElement>(null);
+    const trigger = useRef<HTMLButtonElement>(null);
     const options = tagOptions(query, tags, allTags);
 
     useEffect(() => {
@@ -124,17 +125,29 @@ function TagPicker({ tags, allTags, onAdd, onRemoveLast }: { tags: string[]; all
             event.preventDefault();
             const option = options[active];
             if (option) choose(option.tag);
-        } else if (event.key === 'Escape') {
+        } else if (event.key === 'Escape' || (event.key === 'Tab' && event.shiftKey)) {
+            // Escape closes only the popover, not a dialog around it. Shift+Tab also closes it.
+            // The focus goes back to the button. After Tab, `onBlur` closes the popover.
             event.preventDefault();
+            event.stopPropagation();
             setOpen(false);
+            trigger.current?.focus();
         } else if (event.key === 'Backspace' && !query && tags.length) {
             onRemoveLast();
         }
     };
 
     return (
-        <div className="tag-picker" ref={root}>
+        <div
+            className="tag-picker"
+            ref={root}
+            onBlur={event => {
+                // A click on an option gives no new focus. Only a focus outside the picker closes the popover.
+                if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+            }}
+        >
             <button
+                ref={trigger}
                 className={`note-tag-add${open ? ' on' : ''}`}
                 aria-haspopup="listbox"
                 aria-expanded={open}
