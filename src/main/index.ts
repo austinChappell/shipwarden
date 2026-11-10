@@ -2,6 +2,7 @@ import { join } from 'path';
 import { app, BrowserWindow, Menu, protocol } from 'electron';
 import * as os from 'os';
 import { IpcChannels } from '@shared/api';
+import { AZURE_IMAGE_SCHEME } from '@shared/azure-image-url';
 import { FILE_SCHEME } from '@shared/file-url';
 import { appKeyAction, shortcutAction, type AppKeyAction, type ShortcutAction } from '@shared/shortcuts';
 import { removeAgentSessionVariables } from './agent-environment';
@@ -9,6 +10,7 @@ import { writeAgentHookFiles } from './agents/hook-files';
 import { browserViewKey } from './app/keys';
 import { MainWindow } from './app/main-window';
 import { menuTemplate } from './app/menu';
+import { createAzureImageHandler } from './azure/azure-image-protocol';
 import { quitAndStopSessions } from './app/quit';
 import { createFileProtocolHandler } from './files/file-protocol';
 import { registerIpc } from './ipc';
@@ -30,7 +32,11 @@ if (process.env.SHIPWARDEN_DEBUG_PORT) {
 
 // The viewers of images, PDF, audio and video files get the files through this protocol.
 // The scheme must be privileged before the app is ready. "stream" lets <video> and <audio> read byte ranges.
-protocol.registerSchemesAsPrivileged([{ scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+// The Markdown of Azure DevOps gets its images through the second protocol, because these images require a token.
+protocol.registerSchemesAsPrivileged([
+    { scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+    { scheme: AZURE_IMAGE_SCHEME, privileges: { standard: true, secure: true } }
+]);
 
 const mainWindow = new MainWindow();
 const services = createServices({ window: mainWindow, mainFolder: __dirname, onBrowserInput: (id, input) => browserKey(id, input) });
@@ -144,6 +150,10 @@ app.whenReady().then(async () => {
     protocol.handle(
         FILE_SCHEME,
         createFileProtocolHandler(worktree => services.projectWorktrees.check(worktree))
+    );
+    protocol.handle(
+        AZURE_IMAGE_SCHEME,
+        createAzureImageHandler((organization, url, accept) => services.reviewProviders.azureFile(organization, url, accept))
     );
     registerIpc(services, runAppKey);
     createWindow();
