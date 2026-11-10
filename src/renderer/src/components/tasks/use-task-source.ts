@@ -1,50 +1,46 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { pickCollection, sortCollections, type ConnectionInfo, type TaskCollection, type TaskSource } from '@shared/tasks';
-import { errorText } from '../../util';
-import { cached, remember } from '../../data-cache';
-import {
-    collectionsKey,
-    connectionIdKey,
-    connectionsKey,
-    connectionStateOf,
-    filterKey,
-    nextSelection,
-    pickConnection,
-    pickFilter,
-    same,
-    selectedCollection,
-    selectionKey,
-    sourceKey,
-    type CollectionSelection
-} from './task-view-logic';
+import { optionalErrorText } from '../../util';
+import { connectionStateOf, lastFilter, pickConnection, pickFilter, rememberFilter, taskQueryKeys } from './task-view-logic';
 
 const api = window.shipwarden.tasks;
 
 /** A request to the plugin of the selected task manager. */
 export type TaskRequest = <T>(method: string, params: unknown) => Promise<T>;
 
+/** The task managers of the project, and the task manager that the user selected last in the project. */
+interface ConnectionsData {
+    list: ConnectionInfo[];
+    saved: string | undefined;
+}
+
+/** The sorted collections of a source, and the collection that the user selected last for the source. */
+interface CollectionsData {
+    list: TaskCollection[];
+    saved: string | undefined;
+}
+
 /**
  * The task managers of the project, the started plugin (the source), its filter and its collections.
- * `setSelectedId` clears the selected task when the source or the collection changes.
- * `setListError` shows an error when the collections do not load.
+ * The query cache keeps each of them. Cached data shows in the first render, while new data loads in the background.
+ * `setSelectedId` clears the selected task when the user selects another connection or collection.
  */
-export function useTaskSource(projectId: string, setSelectedId: (id: string | undefined) => void, setListError: (error: string | undefined) => void) {
-    /** The task managers (connections) of the project. */
-    const [connections, setConnections] = useState<ConnectionInfo[] | undefined>(() => cached(connectionsKey(projectId)));
-    const [connectionId, setConnectionId] = useState<string | undefined>(() => cached(connectionIdKey(projectId)));
-    const [sourceError, setSourceError] = useState<string>();
-    const [filter, setFilter] = useState<string>();
-    /** The collections of the task source, for example ClickUp lists or GitHub repositories. */
-    const [collections, setCollections] = useState<TaskCollection[]>();
-    /**
-     * The selected collection, with the connection that it belongs to. During a switch to another connection, the old
-     * collection is still in state for one render. It must not go to the new connection, so it counts only for its own.
-     */
-    const [selection, setSelection] = useState<CollectionSelection>();
-    const [source, setSource] = useState<TaskSource | null>();
-    const collection = selectedCollection(source, selection);
-    /** Changes when the user asks to load the collections again, for example after a failed request. */
-    const [collectionsReload, setCollectionsReload] = useState(0);
+export function useTaskSource(projectId: string, setSelectedId: (id: string | undefined) => void) {
+    const queryClient = useQueryClient();
+
+    // The task managers change in Settings. Thus they load again each time that the view opens.
+    const connectionsQuery = useQuery({
+        queryKey: taskQueryKeys.connections(projectId),
+        queryFn: async (): Promise<ConnectionsData> => {
+            const [list, saved] = await Promise.all([api.enabledConnections(), api.selectedConnection(projectId).catch(() => undefined)]);
+            return { list, saved };
+        },
+        staleTime: 0
+    });
+    const connections = connectionsQuery.data?.list ?? (connectionsQuery.isError ? [] : undefined);
+    const connectionId = connectionsQuery.data ? pickConnection(connectionsQuery.data.list, connectionsQuery.data.saved) : undefined;
+    const connectionState = connectionStateOf(connections, connectionId);
 
     const request: TaskRequest = useCallback(
         <T>(method: string, params: unknown) => {
@@ -56,125 +52,67 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
         [connectionId, projectId]
     );
 
-    // Load the task managers of the project, and select the last one that the user showed in this project.
-    useEffect(() => {
-        let cancelled = false;
-        setConnections(cached(connectionsKey(projectId)));
-        setConnectionId(cached(connectionIdKey(projectId)));
-        Promise.all([api.enabledConnections(), api.selectedConnection(projectId).catch(() => undefined)]).then(
-            ([list, saved]) => {
-                if (cancelled) return;
-                setConnections(current => same(current, remember(connectionsKey(projectId), list)));
-                setConnectionId(remember(connectionIdKey(projectId), pickConnection(list, saved)));
-            },
-            err => {
-                if (!cancelled) {
-                    setConnections([]);
-                    setSourceError(errorText(err));
-                }
-            }
-        );
-        return () => {
-            cancelled = true;
-        };
-        // The view opens again after a visit to Settings, so it loads the task managers again then.
-    }, [projectId]);
+    // Start the plugin of the selected task manager. The settings of a plugin can change, so it starts again each time that the view opens.
+    const sourceQuery = useQuery({
+        queryKey: taskQueryKeys.source(connectionId, projectId),
+        queryFn: () => api.source(connectionId as string, projectId),
+        enabled: connectionState === 'ready' && !!connectionId,
+        staleTime: 0
+    });
+    /** undefined: the source loads. null: no source, or the source did not start. */
+    const source: TaskSource | null | undefined =
+        connectionState === 'loading' ? undefined : connectionState !== 'ready' || sourceQuery.isError ? null : sourceQuery.data;
+    const sourceError = optionalErrorText(connectionsQuery.error ?? (connectionState === 'ready' ? sourceQuery.error : null));
+    /** The source of the selected connection. After a switch, the cached source of the old connection must not show. */
+    const readySource = source && source.connectionId === connectionId ? source : undefined;
 
-    const connectionState = connectionStateOf(connections, connectionId);
-
-    // Start the plugin of the selected task manager. The cached source shows immediately while the plugin starts.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: setSelectedId is a state setter from TasksView. It is stable, but Biome cannot see that.
-    useEffect(() => {
-        let cancelled = false;
-        setSourceError(undefined);
-        setSelectedId(undefined);
-        if (connectionState !== 'ready' || !connectionId) {
-            setSource(connectionState === 'loading' ? undefined : null);
-            return;
-        }
-        const lastFilter = () => cached<string>(filterKey(connectionId, projectId));
-        const last = cached<TaskSource>(sourceKey(connectionId, projectId));
-        setSource(last);
-        if (last) setFilter(pickFilter(last.filters, lastFilter()));
-        api.source(connectionId, projectId).then(
-            started => {
-                if (cancelled) return;
-                remember(sourceKey(connectionId, projectId), started);
-                setSource(current => same(current, started));
-                setFilter(pickFilter(started.filters, lastFilter()));
-            },
-            err => {
-                if (!cancelled) {
-                    setSourceError(errorText(err));
-                    setSource(null);
-                }
-            }
-        );
-        return () => {
-            cancelled = true;
-        };
-    }, [connectionState, connectionId, projectId]);
-
-    // Keep the filter of each source for the next visit.
-    useEffect(() => {
-        if (source && filter) remember(filterKey(source.connectionId, projectId), filter);
-    }, [source, filter, projectId]);
+    /** The filter that the user selected in this view. Else the view uses the last filter of the source, or its default filter. */
+    const [chosenFilter, setChosenFilter] = useState<{ connectionId: string; id: string }>();
+    const filter = readySource
+        ? pickFilter(
+              readySource.filters,
+              chosenFilter?.connectionId === readySource.connectionId ? chosenFilter.id : lastFilter(readySource.connectionId, projectId)
+          )
+        : undefined;
+    const setFilter = (id: string) => {
+        if (!readySource) return;
+        rememberFilter(readySource.connectionId, projectId, id);
+        setChosenFilter({ connectionId: readySource.connectionId, id });
+    };
 
     const selectConnection = (id: string) => {
-        setConnectionId(remember(connectionIdKey(projectId), id));
+        queryClient.setQueryData<ConnectionsData>(taskQueryKeys.connections(projectId), data => data && { ...data, saved: id });
+        setSelectedId(undefined);
         api.setSelectedConnection(projectId, id).catch(() => undefined);
     };
 
-    // Load the collections of the source and select the saved one, the plugin's default or the first one.
-    const sourceConnection = source?.connectionId;
-    // biome-ignore lint/correctness/useExhaustiveDependencies: setListError is a stable state setter from TasksView. A new collectionsReload value must load the collections again.
-    useEffect(() => {
-        // After a switch, the old source is still in state for one render. Load only for the selected connection.
-        if (!sourceConnection || sourceConnection !== connectionId) {
-            setCollections(undefined);
-            setSelection(undefined);
-            return;
-        }
-        // The cached collections and selection show immediately while the new ones load.
-        const lastSelection = cached<string>(selectionKey(sourceConnection, projectId));
-        setCollections(cached(collectionsKey(sourceConnection, projectId)));
-        setSelection(lastSelection ? { connectionId: sourceConnection, id: lastSelection } : undefined);
-        let cancelled = false;
-        Promise.all([request<TaskCollection[]>('collections/list', {}), api.selectedCollection(sourceConnection).catch(() => undefined)]).then(
-            ([list, saved]) => {
-                if (cancelled) return;
-                const sorted = remember(collectionsKey(sourceConnection, projectId), sortCollections(list));
-                setCollections(current => same(current, sorted));
-                const picked = pickCollection(sorted, saved);
-                if (picked) remember(selectionKey(sourceConnection, projectId), picked);
-                setSelection(current => nextSelection(current, sourceConnection, picked));
-            },
-            err => {
-                if (!cancelled) {
-                    setCollections([]);
-                    setListError(errorText(err));
-                }
-            }
-        );
-        return () => {
-            cancelled = true;
-        };
-    }, [sourceConnection, connectionId, projectId, request, collectionsReload]);
+    // Load the collections of the source. The view selects the saved one, the plugin's default or the first one.
+    const collectionsQuery = useQuery({
+        queryKey: taskQueryKeys.collections(readySource?.connectionId, projectId),
+        queryFn: async (): Promise<CollectionsData> => {
+            const sourceConnection = readySource?.connectionId as string;
+            const [list, saved] = await Promise.all([
+                request<TaskCollection[]>('collections/list', {}),
+                api.selectedCollection(sourceConnection).catch(() => undefined)
+            ]);
+            return { list: sortCollections(list), saved };
+        },
+        enabled: !!readySource
+    });
+    const collections = readySource ? (collectionsQuery.data?.list ?? (collectionsQuery.isError ? [] : undefined)) : undefined;
+    const collection = readySource && collectionsQuery.data ? pickCollection(collectionsQuery.data.list, collectionsQuery.data.saved) : undefined;
+    const collectionsError = readySource ? optionalErrorText(collectionsQuery.error) : undefined;
 
     /** Selects a collection. The main process remembers it for the task source, in all repositories and after a restart. */
     const selectCollection = (id: string) => {
-        if (source) {
-            setSelection({ connectionId: source.connectionId, id });
-            remember(selectionKey(source.connectionId, projectId), id);
-        }
         setSelectedId(undefined);
-        if (source) {
-            api.setSelectedCollection(source.connectionId, id).catch(() => undefined);
-        }
+        if (!readySource) return;
+        queryClient.setQueryData<CollectionsData>(taskQueryKeys.collections(readySource.connectionId, projectId), data => data && { ...data, saved: id });
+        api.setSelectedCollection(readySource.connectionId, id).catch(() => undefined);
     };
 
     /** Asks for the collections again, for example after a failed request. */
-    const reloadCollections = () => setCollectionsReload(key => key + 1);
+    const reloadCollections = () => void collectionsQuery.refetch();
 
     return {
         connections,
@@ -187,6 +125,7 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
         setFilter,
         collections,
         collection,
+        collectionsError,
         selectCollection,
         reloadCollections,
         request

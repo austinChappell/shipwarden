@@ -3,6 +3,11 @@ export function errorText(error: unknown): string {
     return (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 }
 
+/** Returns the text of an error, or undefined when there is no error. A query has the error null when it did not fail. */
+export function optionalErrorText(error: unknown): string | undefined {
+    return error ? errorText(error) : undefined;
+}
+
 /** Formats the time between two ISO dates, for example "1m 12s". */
 export function formatDuration(start: string | null, end: string | null): string {
     if (!start) {

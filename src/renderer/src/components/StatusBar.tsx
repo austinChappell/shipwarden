@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CircleAlert, RefreshCw } from 'lucide-react';
 import { formatResetIn, highestWindow, PROVIDER_NAMES, type ProviderUsage, type UsageWindow } from '@shared/usage';
-
-const api = window.shipwarden.usage;
+import { useRefreshUsage, useUsage } from '../usage-query';
 
 /** The color class of a usage value: green, then amber from 70 %, then red from 90 %. */
 function level(percent: number): string {
@@ -68,32 +67,21 @@ function ProviderView({ usage, now }: { usage: ProviderUsage; now: number }) {
  * and Codex. A narrow window shows the highest value of each agent. A wide window shows each limit with its reset time.
  */
 export function StatusBar() {
-    const [usage, setUsage] = useState<ProviderUsage[]>([]);
+    const usage = useUsage();
     const [now, setNow] = useState(Date.now());
-    const [refreshing, setRefreshing] = useState(false);
+    const refreshUsage = useRefreshUsage();
+    const refreshing = refreshUsage.isPending;
 
+    // The reset times count down, so the text changes each minute.
     useEffect(() => {
-        api.get().then(setUsage, () => undefined);
-        const off = api.onChanged(setUsage);
-        // The reset times count down, so the text changes each minute.
         const timer = setInterval(() => setNow(Date.now()), 60_000);
-        return () => {
-            off();
-            clearInterval(timer);
-        };
+        return () => clearInterval(timer);
     }, []);
 
     const shown = usage.filter(item => item.status !== 'signed-out');
 
-    const refresh = async () => {
-        setRefreshing(true);
-        try {
-            setUsage(await api.refresh());
-            setNow(Date.now());
-        } finally {
-            setRefreshing(false);
-        }
-    };
+    // A failed refresh keeps the old usage. Each provider shows its own error.
+    const refresh = () => refreshUsage.mutate(undefined, { onSuccess: () => setNow(Date.now()) });
 
     return (
         <footer className="status-bar">

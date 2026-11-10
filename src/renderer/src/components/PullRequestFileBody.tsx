@@ -6,6 +6,7 @@ import { unifiedPatch } from '@shared/patch';
 import { sliceLines } from '@shared/ask-agent';
 import { threadPrompt } from '../github/agent-prompts';
 import { reviewStore } from '../github/review-store';
+import { replyToThread, setThreadResolved } from '../github/pull-request-mutations';
 import { composerFromRange, lineAnnotations, toSide, type Composer, type Note } from '../github/diff-notes';
 import type { AgentQuestion, QuestionAction } from '../github/agent-questions';
 import { openLink } from '../links';
@@ -27,7 +28,8 @@ interface FileBodyProps {
     /** Asks the agent a question about the lines of the composer. Undefined when no agent can answer. */
     onAsk?(composer: Composer, question: string): void;
     onQuestion(question: AgentQuestion, action: QuestionAction): void;
-    onRefresh(): Promise<void>;
+    /** Not used. A reply or a resolve puts its result into the cache, so the view does not load the pull request again. */
+    onRefresh?(): Promise<void>;
     onGoToDefinition?(path: string, line: number, column: number): void;
     /** Sends a prompt to an agent. Without it, the review threads have no "Send to agent" button. */
     onSendToAgent?(prompt: string): void;
@@ -51,7 +53,6 @@ export const FileBody = memo(function FileBody({
     onComposer,
     onAsk,
     onQuestion,
-    onRefresh,
     onGoToDefinition,
     onSendToAgent
 }: FileBodyProps) {
@@ -122,14 +123,8 @@ export const FileBody = memo(function FileBody({
                     <ThreadZone
                         thread={thread}
                         onSendToAgent={onSendToAgent && (() => onSendToAgent(threadPrompt(pr, thread)))}
-                        onReply={async body => {
-                            await window.shipwarden.github.reply(target, pr.number, thread.comments[thread.comments.length - 1].databaseId, body);
-                            await onRefresh();
-                        }}
-                        onResolve={async () => {
-                            await window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved);
-                            await onRefresh();
-                        }}
+                        onReply={body => replyToThread(target, pr, thread, body)}
+                        onResolve={() => setThreadResolved(target, pr, thread, !thread.isResolved)}
                     />
                 </div>
             );

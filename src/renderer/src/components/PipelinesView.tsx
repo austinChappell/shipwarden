@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, LoaderCircle, Play, RefreshCw, RotateCw, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
 import {
     hostLabel,
@@ -8,14 +9,13 @@ import {
     type CheckConclusion,
     type CheckRun,
     type CheckStatus,
-    type GitHubRepoInfo,
     type RepoRef,
     type RepoTarget,
     type SourceHostKind,
     type Workflow
 } from '@shared/github';
 import { dispatchInputs, runIsActive, type WorkflowInput, type WorkflowRun } from '@shared/pipelines';
-import { errorText, formatDuration, timeAgo } from '../util';
+import { formatDuration, optionalErrorText, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { Combobox, sortedGroups } from './Combobox';
 import { LogView } from './LogView';
@@ -23,21 +23,12 @@ import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
 import { useModal } from './use-modal';
 import { openLink } from '../links';
-import { cacheKey, cached, remember } from '../data-cache';
 import { moveListFocus } from '../keyboard/list-nav';
+import { branchesQuery, ciActions, repositoriesQuery, runJobsQuery, sortWorkflows, useCiAction, workflowRunsQuery, workflowsQuery } from '../github/ci-queries';
 
-const github = window.shipwarden.github;
 const REPO_KEY = 'shipwarden.pipelinesRepo';
-/** The runs refresh at this interval while a run waits or runs, else at the slow interval. */
+/** The runs and the jobs refresh at this interval while a run or a job waits or runs. */
 const ACTIVE_POLL_MS = 8_000;
-const IDLE_POLL_MS = 60_000;
-
-/** The cache keys. The view shows cached data immediately and loads new data in the background. */
-const reposKey = (reviewKey: string) => cacheKey('pipelines.repos', reviewKey);
-const branchesKey = (repo: string) => cacheKey('pipelines.branches', repo);
-const workflowsKey = (repo: string) => cacheKey('pipelines.workflows', repo);
-const runsKey = (repo: string, workflowId: number | undefined) => cacheKey('pipelines.runs', repo, workflowId);
-const jobsKey = (repo: string, runId: number) => cacheKey('pipelines.jobs', repo, runId);
 
 interface Props {
     /** A key for the providers of Settings › Code review. Undefined: not loaded yet. Null: no provider is on. */
@@ -116,62 +107,37 @@ interface RunDialogProps {
  */
 export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }: RunDialogProps) {
     const [branch, setBranch] = useState(branches?.[0] ?? '');
-    const [inputs, setInputs] = useState<WorkflowInput[] | undefined>(workflow.inputs);
     const [values, setValues] = useState<Record<string, string>>({});
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState<string>();
+    /** The error of the form, for example a required input without a value. */
+    const [formError, setFormError] = useState<string>();
+    const dispatch = useCiAction();
     const dialog = useRef<HTMLDivElement>(null);
     useModal(dialog);
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: The inputs load again only for a new branch. The other values do not change while the dialog is open.
-    useEffect(() => {
-        if (!branch || branch === branches?.[0]) {
-            setInputs(workflow.inputs);
-            return;
-        }
-        let current = true;
-        setInputs(undefined);
-        github.workflows(repo, branch).then(
-            list => {
-                if (!current) return;
-                const found = list.find(item => item.id === workflow.id);
-                if (!found?.dispatchable) {
-                    setError(
-                        host === 'azure'
-                            ? `The pipeline cannot start on "${branch}". It is possibly turned off.`
-                            : `The workflow on "${branch}" cannot start by hand: it has no workflow_dispatch trigger.`
-                    );
-                    setInputs([]);
-                } else {
-                    setError(undefined);
-                    setInputs(found.inputs);
-                }
-            },
-            err => current && setError(errorText(err))
-        );
-        return () => {
-            current = false;
-        };
-    }, [branch]);
+    // The workflow came from the first branch. The inputs of another branch load from that branch.
+    const otherBranch = !!branch && branch !== branches?.[0];
+    const branchQuery = useQuery({ ...workflowsQuery(repo, branch), enabled: otherBranch });
+    const found = branchQuery.data?.find(item => item.id === workflow.id);
+    const branchError =
+        otherBranch && branchQuery.data && !found?.dispatchable
+            ? host === 'azure'
+                ? `The pipeline cannot start on "${branch}". It is possibly turned off.`
+                : `The workflow on "${branch}" cannot start by hand: it has no workflow_dispatch trigger.`
+            : undefined;
+    const inputs: WorkflowInput[] | undefined = !otherBranch ? workflow.inputs : branchQuery.data ? (found?.dispatchable ? found.inputs : []) : undefined;
+    const error = formError ?? optionalErrorText(dispatch.error) ?? branchError ?? (otherBranch ? optionalErrorText(branchQuery.error) : undefined);
 
     const value = (input: WorkflowInput) =>
         values[input.name] ?? input.default ?? (input.type === 'choice' && input.required ? (input.options?.[0] ?? '') : '');
-    const run = async () => {
+    const run = () => {
         if (!inputs) return;
         const prepared = dispatchInputs(inputs, Object.fromEntries(inputs.map(input => [input.name, value(input)])));
         if ('error' in prepared) {
-            setError(prepared.error);
+            setFormError(prepared.error);
             return;
         }
-        setBusy(true);
-        setError(undefined);
-        try {
-            await github.dispatchWorkflow(repo, workflow.id, branch, prepared.inputs);
-            onStarted();
-        } catch (err) {
-            setError(errorText(err));
-            setBusy(false);
-        }
+        setFormError(undefined);
+        dispatch.mutate(() => ciActions.dispatchWorkflow(repo, workflow.id, branch, prepared.inputs), { onSuccess: onStarted });
     };
 
     return (
@@ -201,7 +167,11 @@ export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }
                             placeholder={branches ? 'Select a branch' : 'Loading branches…'}
                             searchPlaceholder="Search branches"
                             disabled={!branches}
-                            onChange={setBranch}
+                            onChange={next => {
+                                setBranch(next);
+                                setFormError(undefined);
+                                dispatch.reset();
+                            }}
                         />
                     </label>
                     {!inputs && (
@@ -235,8 +205,8 @@ export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }
                     <button className="button" onClick={onClose}>
                         Cancel
                     </button>
-                    <button className="button primary" disabled={busy || !inputs || !branch} onClick={() => void run()}>
-                        {busy ? <LoaderCircle size={13} className="spin" /> : <Play size={13} strokeWidth={2} />} Run workflow
+                    <button className="button primary" disabled={dispatch.isPending || !inputs || !branch} onClick={run}>
+                        {dispatch.isPending ? <LoaderCircle size={13} className="spin" /> : <Play size={13} strokeWidth={2} />} Run workflow
                     </button>
                 </footer>
             </div>
@@ -250,129 +220,59 @@ export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }
  * On Azure DevOps, the workflows are the pipelines (build definitions) of the repository, and a run is one build.
  */
 export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
-    const [repos, setRepos] = useState<GitHubRepoInfo[]>();
-    const [repo, setRepo] = useState<string | undefined>(readRepo);
-    const [workflows, setWorkflows] = useState<Workflow[]>();
-    const [branches, setBranches] = useState<string[]>();
+    const [chosenRepo, setChosenRepo] = useState<string | undefined>(readRepo);
     const [workflowId, setWorkflowId] = useState<number>();
-    const [runs, setRuns] = useState<WorkflowRun[]>();
     const [runId, setRunId] = useState<number>();
-    const [jobs, setJobs] = useState<CheckRun[]>();
     const [job, setJob] = useState<CheckRun>();
     const [dialog, setDialog] = useState<Workflow>();
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string>();
-    const [actionError, setActionError] = useState<string>();
     const workflowWidth = usePanelWidth('shipwarden.width.pipelineWorkflows', 230, 180, 400);
     const runsWidth = usePanelWidth('shipwarden.width.pipelineRuns', 380, 260, 640);
 
+    const reposQuery = useQuery({ ...repositoriesQuery(reviewKey ?? null), enabled: !!reviewKey });
+    const repos = reviewKey ? reposQuery.data : undefined;
+
+    // The chosen repository, when the list has it. Else the first repository of the list.
+    const repo = repos && !(chosenRepo && repos.some(item => repoId(item) === chosenRepo)) ? repos[0] && repoId(repos[0]) : chosenRepo;
     const repoRef = useMemo<RepoRef | undefined>(() => (repo ? parseRepoId(repo) : undefined), [repo]);
     const host = hostLabel(repoRef?.host);
 
-    useEffect(() => {
-        if (!reviewKey) return;
-        let current = true;
-        setRepos(cached(reposKey(reviewKey)));
-        github.repositories().then(
-            list => {
-                if (!current) return;
-                setRepos(remember(reposKey(reviewKey), list));
-                setRepo(value => (value && list.some(item => repoId(item) === value) ? value : list[0] && repoId(list[0])));
-            },
-            err => current && setError(errorText(err))
-        );
-        return () => {
-            current = false;
-        };
-    }, [reviewKey]);
-
     // The workflows and branches of the repository. The workflows come from the default branch.
-    useEffect(() => {
-        if (!repoRef) return;
-        let current = true;
-        const id = repoId(repoRef);
-        setWorkflows(cached(workflowsKey(id)));
-        setBranches(cached(branchesKey(id)));
-        setWorkflowId(undefined);
-        setRunId(undefined);
-        setError(undefined);
-        github
-            .branches(repoRef)
-            .then(async list => {
-                if (!current) return;
-                setBranches(remember(branchesKey(id), list));
-                const found = await github.workflows(repoRef, list[0]);
-                if (current)
-                    setWorkflows(
-                        remember(
-                            workflowsKey(id),
-                            found.sort((a, b) => a.name.localeCompare(b.name))
-                        )
-                    );
-            })
-            .catch(err => current && setError(errorText(err)));
-        return () => {
-            current = false;
-        };
-    }, [repoRef]);
+    const branchesResult = useQuery(branchesQuery(repoRef));
+    const branches = branchesResult.data;
+    const workflowsResult = useQuery({
+        ...workflowsQuery(repoRef, branches?.[0]),
+        select: sortWorkflows
+    });
+    // A repository without branches has no workflow files.
+    const workflows = branches?.length === 0 ? [] : workflowsResult.data;
 
-    const request = useRef(0);
-    const loadRuns = useCallback(async () => {
-        if (!repoRef) return;
-        const id = ++request.current;
-        setLoading(true);
-        try {
-            const list = await github.workflowRuns(repoRef, workflowId);
-            if (id === request.current) setRuns(remember(runsKey(repoId(repoRef), workflowId), list));
-        } catch (err) {
-            if (id === request.current) setError(errorText(err));
-        } finally {
-            if (id === request.current) setLoading(false);
-        }
-    }, [repoRef, workflowId]);
-
-    // The runs show their cached list immediately, and load the new list in the background.
-    useEffect(() => {
-        setRuns(repoRef ? cached(runsKey(repoId(repoRef), workflowId)) : undefined);
-        void loadRuns();
-    }, [repoRef, workflowId, loadRuns]);
-
+    const runsQuery = useQuery(workflowRunsQuery(repoRef, workflowId, ACTIVE_POLL_MS));
+    const runs = runsQuery.data;
     const selectedRun = runs?.find(item => item.id === runId);
-    const active = !!runs?.some(runIsActive);
-    useEffect(() => {
-        const timer = setInterval(() => void loadRuns(), active ? ACTIVE_POLL_MS : IDLE_POLL_MS);
-        return () => clearInterval(timer);
-    }, [loadRuns, active]);
 
-    // The jobs of the selected run. They load again when the run changes its status or time.
-    const loadJobs = useCallback(async () => {
-        if (!repoRef || !runId) return;
-        try {
-            setJobs(remember(jobsKey(repoId(repoRef), runId), await github.runJobs(repoRef, runId)));
-        } catch (err) {
-            setActionError(errorText(err));
-        }
-    }, [repoRef, runId]);
-    useEffect(() => {
-        setJobs(repoRef && runId ? cached(jobsKey(repoId(repoRef), runId)) : undefined);
+    // The jobs of the selected run.
+    const jobsQuery = useQuery(runJobsQuery(repoRef, runId, !!selectedRun && runIsActive(selectedRun), ACTIVE_POLL_MS));
+    const jobs = runId === undefined ? undefined : jobsQuery.data;
+
+    const action = useCiAction();
+    const error = optionalErrorText(reposQuery.error ?? branchesResult.error ?? workflowsResult.error ?? runsQuery.error);
+    const actionError = optionalErrorText(action.error ?? jobsQuery.error);
+
+    const selectRun = (id: number | undefined) => {
+        setRunId(id);
         setJob(undefined);
-        setActionError(undefined);
-        void loadJobs();
-    }, [repoRef, runId, loadJobs]);
-    // biome-ignore lint/correctness/useExhaustiveDependencies: The jobs load again only when the status or time of the run changes. The effect above loads them for a new run.
-    useEffect(() => {
-        if (selectedRun) void loadJobs();
-    }, [selectedRun?.status, selectedRun?.updatedAt]);
+        action.reset();
+    };
+    const selectRepo = (value: string) => {
+        setChosenRepo(value);
+        writeRepo(value);
+        setWorkflowId(undefined);
+        selectRun(undefined);
+    };
 
-    const act = async (label: string, action: () => Promise<void>) => {
+    const act = async (label: string, perform: () => Promise<void>) => {
         if (!(await confirmDialog({ title: label }))) return;
-        setActionError(undefined);
-        try {
-            await action();
-            setTimeout(() => void loadRuns(), 1500);
-        } catch (err) {
-            setActionError(errorText(err));
-        }
+        action.mutate(perform);
     };
 
     if (reviewKey === undefined) {
@@ -413,10 +313,7 @@ export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
                         searchPlaceholder="Search repositories"
                         disabled={!repos?.length}
                         title="Repository"
-                        onChange={value => {
-                            setRepo(value);
-                            writeRepo(value);
-                        }}
+                        onChange={selectRepo}
                     />
                 </div>
                 <div className="tasks-header-group how">
@@ -432,8 +329,8 @@ export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
                             <ExternalLink size={15} strokeWidth={1.6} />
                         </button>
                     )}
-                    <button className="icon-button" title="Refresh" onClick={() => void loadRuns()}>
-                        <RefreshCw size={15} strokeWidth={1.6} className={loading ? 'spin' : ''} />
+                    <button className="icon-button" title="Refresh" onClick={() => void runsQuery.refetch()}>
+                        <RefreshCw size={15} strokeWidth={1.6} className={runsQuery.isFetching ? 'spin' : ''} />
                     </button>
                 </div>
             </header>
@@ -508,7 +405,7 @@ export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
                             className={`pipeline-run${item.id === runId ? ' selected' : ''}`}
                             data-nav-item
                             aria-pressed={item.id === runId}
-                            onClick={() => setRunId(item.id)}
+                            onClick={() => selectRun(item.id)}
                         >
                             <RunIcon run={item} />
                             <span className="pipeline-run-main">
@@ -550,7 +447,7 @@ export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
                                             className="button"
                                             onClick={() =>
                                                 void act(`Cancel run #${selectedRun.runNumber} of ${selectedRun.workflowName}?`, () =>
-                                                    github.cancelRun(repoRef, selectedRun.id)
+                                                    ciActions.cancelRun(repoRef, selectedRun.id)
                                                 )
                                             }
                                         >
@@ -562,7 +459,7 @@ export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
                                             className="button"
                                             onClick={() =>
                                                 void act(`Run the failed jobs of run #${selectedRun.runNumber} again?`, () =>
-                                                    github.rerunFailedJobs(repoRef, selectedRun.id)
+                                                    ciActions.rerunFailedJobs(repoRef, selectedRun.id)
                                                 )
                                             }
                                         >
@@ -573,7 +470,9 @@ export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
                                         <button
                                             className="button"
                                             onClick={() =>
-                                                void act(`Run all jobs of run #${selectedRun.runNumber} again?`, () => github.rerunRun(repoRef, selectedRun.id))
+                                                void act(`Run all jobs of run #${selectedRun.runNumber} again?`, () =>
+                                                    ciActions.rerunRun(repoRef, selectedRun.id)
+                                                )
                                             }
                                         >
                                             <RotateCw size={12} strokeWidth={2} /> Re-run all jobs
@@ -628,9 +527,6 @@ export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
                     onStarted={() => {
                         setDialog(undefined);
                         setWorkflowId(dialog.id);
-                        // The host makes the run a few seconds after the dispatch.
-                        setTimeout(() => void loadRuns(), 2500);
-                        setTimeout(() => void loadRuns(), 7000);
                     }}
                 />
             )}

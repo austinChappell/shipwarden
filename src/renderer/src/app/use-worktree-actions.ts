@@ -27,6 +27,10 @@ import {
 } from './worktree-edits';
 import { editorPositions } from '../editor/editor-positions';
 import { outputActivity } from '../terminal/output-activity';
+import { keyRoots, queryClient } from '../query-client';
+import { taskManagerKeys } from '../components/task-managers-cache';
+import { taskQueryKeys } from '../components/tasks/task-view-logic';
+import { saveTaskLink } from './task-links';
 
 const api = window.shipwarden;
 
@@ -53,7 +57,6 @@ interface Options {
     sessions: TerminalSession[];
     setSessions: Dispatch<SetStateAction<TerminalSession[]>>;
     links: Record<string, TaskLink>;
-    setLinks: Dispatch<SetStateAction<Record<string, TaskLink>>>;
     openFiles: Record<string, string[]>;
     setOpenFiles: Dispatch<SetStateAction<Record<string, string[]>>>;
     setExtraTabs: Dispatch<SetStateAction<Record<string, ExtraTab[]>>>;
@@ -99,15 +102,25 @@ export function useWorktreeActions(options: Options) {
         if (!projectId) return;
         let wanted: string | undefined;
         try {
-            wanted = (await api.tasks.connections()).find(item => item.id === connectionId)?.startStatus;
+            // The settings page and the Tasks view use the same cache entries, so a fresh copy does not load again.
+            const connections = await queryClient.fetchQuery({ queryKey: taskManagerKeys.allConnections, queryFn: () => api.tasks.connections() });
+            wanted = connections.find(item => item.id === connectionId)?.startStatus;
             if (!wanted) return;
-            const source = await api.tasks.source(connectionId, projectId);
-            await applyStartStatus(
+            const source = await queryClient.fetchQuery({
+                queryKey: taskQueryKeys.source(connectionId, projectId),
+                queryFn: () => api.tasks.source(connectionId, projectId)
+            });
+            const result = await applyStartStatus(
                 task,
                 wanted,
                 source.capabilities,
                 <T>(method: string, params: unknown) => api.tasks.request(connectionId, projectId, method, params) as Promise<T>
             );
+            if (result === 'moved') {
+                // The task has a new status. The lists and the task details of the project load again when they show.
+                void queryClient.invalidateQueries({ queryKey: [...keyRoots.tasks, 'list', connectionId, projectId] });
+                void queryClient.invalidateQueries({ queryKey: taskQueryKeys.detail(connectionId, projectId, task.id) });
+            }
         } catch (err) {
             setError(`${task.key ?? task.title} did not move to "${wanted}": ${errorText(err)}`);
         }
@@ -122,8 +135,7 @@ export function useWorktreeActions(options: Options) {
         const worktree = await api.worktrees.create({ repoPath, branch });
         await options.prepareWorktree(repoPath, worktree);
         const link: TaskLink = { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
-        await api.tasks.setLink(worktree.path, link);
-        options.setLinks(map => ({ ...map, [worktree.path]: link }));
+        await saveTaskLink(queryClient, worktree.path, link);
         await refreshWorktrees(repoPath);
         setSelectedPath(worktree.path);
         setMainView('worktree');
@@ -172,7 +184,10 @@ export function useWorktreeActions(options: Options) {
             ...projects.filter(project => project.id !== active).flatMap(project => project.repos.map(repoPath => ({ projectId: project.id, repoPath })))
         ];
         for (const candidate of candidates) {
-            if (sameRepoRef(await api.github.repoOf(candidate.repoPath).catch(() => null), repo)) {
+            const remote = await queryClient
+                .fetchQuery({ queryKey: [...keyRoots.repoOf, candidate.repoPath], queryFn: () => api.github.repoOf(candidate.repoPath) })
+                .catch(() => null);
+            if (sameRepoRef(remote, repo)) {
                 return candidate;
             }
         }
@@ -257,10 +272,7 @@ export function useWorktreeActions(options: Options) {
             (options.openFiles[worktree.path] ?? []).forEach(path => documents.close(worktree.path, path));
             editorPositions.forget(worktree.path);
             options.setExtraTabs(map => withoutKey(map, worktree.path));
-            if (links[worktree.path]) {
-                await api.tasks.setLink(worktree.path, null);
-                options.setLinks(map => withoutKey(map, worktree.path));
-            }
+            if (links[worktree.path]) await saveTaskLink(queryClient, worktree.path, null);
             options.setOpenFiles(map => withoutKey(map, worktree.path));
             if (appSettings.worktreeNames?.[worktree.path]) await setWorktreeName(worktree.path, undefined);
             if (appSettings.hiddenWorktrees?.[worktree.path]) await setWorktreeHidden(worktree.path, undefined);

@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { targetKey, type FileVersions, type PendingComment, type PullRequest, type PullRequestFile, type RepoRef, type RepoTarget } from '@shared/github';
 import { parseAgentReview, reviewBody, reviewPrompt } from '@shared/agent-review';
+import { keyRoots, queryClient } from '../query-client';
 import { errorText } from '../util';
 
 /** The state of an agent review of a pull request. */
@@ -11,7 +13,6 @@ export type AgentReviewState =
 
 interface ReviewState {
     pending: PendingComment[];
-    files?: PullRequestFile[];
     /** The text of the review that the user writes. It stays when the user changes tabs. */
     body: string;
     agentReview?: AgentReviewState;
@@ -19,17 +20,32 @@ interface ReviewState {
 
 const EMPTY: ReviewState = { pending: [], body: '' };
 
+/** The query keys of the pull requests in the Review view, and of their files. */
+export const reviewKeys = {
+    /** One pull request. `invalidatePullRequestData` reaches it. */
+    pullRequest: (target: RepoTarget, number: number) => [...keyRoots.pullRequest, targetKey(target), number] as const,
+    /** The changed files of a pull request. */
+    files: (target: RepoTarget, number: number) => [...keyRoots.pullRequestFiles, targetKey(target), number] as const,
+    /** The base and head text of a file. The text of a commit does not change. */
+    fileVersions: (target: RepoTarget, path: string, baseSha: string, headSha: string) =>
+        [...keyRoots.pullRequestFiles, targetKey(target), 'versions', path, baseSha, headSha] as const
+};
+
+/** Sets the viewed flag of one file in a file list. */
+export function withViewed(files: PullRequestFile[], path: string, viewed: boolean): PullRequestFile[] {
+    return files.map(file => (file.path === path ? { ...file, viewed } : file));
+}
+
 function key(target: RepoTarget, number: number): string {
     return `${targetKey(target)}#${number}`;
 }
 
 /**
- * Keeps the review state of each pull request that the user has open:
- * the comments that wait for the next review, the changed files and the loaded file versions.
+ * Keeps the review state of each pull request that the user has open: the comments that wait for the next review,
+ * the review text and the agent review. The query cache keeps the changed files and the loaded file versions.
  */
 class ReviewStore {
     private readonly states = new Map<string, ReviewState>();
-    private readonly versions = new Map<string, Promise<FileVersions>>();
     private readonly listeners = new Set<() => void>();
 
     get(target: RepoTarget, number: number): ReviewState {
@@ -116,14 +132,13 @@ class ReviewStore {
         this.update(target, number, state => ({ ...state, pending: [] }));
     }
 
+    /**
+     * Returns the changed files of a pull request. Cached files return immediately. Stale files then load again in
+     * the background. `force` loads the files now.
+     */
     async loadFiles(target: RepoTarget, number: number, force = false): Promise<PullRequestFile[]> {
-        const current = this.get(target, number).files;
-        if (current && !force) {
-            return current;
-        }
-        const files = await window.shipwarden.github.files(target, number);
-        this.update(target, number, state => ({ ...state, files }));
-        return files;
+        const options = { queryKey: reviewKeys.files(target, number), queryFn: () => window.shipwarden.github.files(target, number) };
+        return force ? queryClient.fetchQuery({ ...options, staleTime: 0 }) : queryClient.ensureQueryData({ ...options, revalidateIfStale: true });
     }
 
     /**
@@ -132,10 +147,7 @@ class ReviewStore {
      */
     async setViewed(target: RepoTarget, number: number, pullRequestId: string, path: string, viewed: boolean): Promise<void> {
         const change = (value: boolean) =>
-            this.update(target, number, state => ({
-                ...state,
-                files: state.files?.map(file => (file.path === path ? { ...file, viewed: value } : file))
-            }));
+            queryClient.setQueryData<PullRequestFile[]>(reviewKeys.files(target, number), files => files && withViewed(files, path, value));
         change(viewed);
         try {
             await window.shipwarden.github.setFileViewed(target, pullRequestId, path, viewed);
@@ -145,16 +157,17 @@ class ReviewStore {
         }
     }
 
-    /** Returns the base and head text of a file. The result stays in memory for the same commits. */
+    /** Returns the base and head text of a file. The result stays in the cache for the same commits. */
     fileVersions(target: RepoTarget, file: PullRequestFile, baseSha: string, headSha: string): Promise<FileVersions> {
-        const id = `${targetKey(target)}\0${file.path}\0${baseSha}\0${headSha}`;
-        let promise = this.versions.get(id);
-        if (!promise) {
-            promise = window.shipwarden.github.fileVersions(target, file, baseSha, headSha);
-            promise.catch(() => this.versions.delete(id));
-            this.versions.set(id, promise);
-        }
-        return promise;
+        const queryKey = reviewKeys.fileVersions(target, file.path, baseSha, headSha);
+        // The text of a commit does not change. Thus a stale mark (after a change of the pull request) does not load it again.
+        const cachedVersions = queryClient.getQueryData<FileVersions>(queryKey);
+        if (cachedVersions) return Promise.resolve(cachedVersions);
+        return queryClient.fetchQuery({
+            queryKey,
+            queryFn: () => window.shipwarden.github.fileVersions(target, file, baseSha, headSha),
+            staleTime: Number.POSITIVE_INFINITY
+        });
     }
 
     private update(target: RepoTarget, number: number, change: (state: ReviewState) => ReviewState): void {
@@ -165,7 +178,16 @@ class ReviewStore {
 
 export const reviewStore = new ReviewStore();
 
-/** Returns the review state of a pull request and renders again when it changes. */
-export function useReviewState(target: RepoTarget | undefined, number: number | undefined): ReviewState {
-    return useSyncExternalStore(reviewStore.subscribe, () => (target && number ? reviewStore.get(target, number) : EMPTY));
+/**
+ * Returns the review state of a pull request with its cached files, and renders again when they change.
+ * The hook does not load the files. `reviewStore.loadFiles` loads them.
+ */
+export function useReviewState(target: RepoTarget | undefined, number: number | undefined): ReviewState & { files?: PullRequestFile[] } {
+    const state = useSyncExternalStore(reviewStore.subscribe, () => (target && number ? reviewStore.get(target, number) : EMPTY));
+    const files = useQuery({
+        queryKey: reviewKeys.files(target ?? '', number ?? 0),
+        queryFn: () => window.shipwarden.github.files(target as RepoTarget, number as number),
+        enabled: false
+    });
+    return { ...state, files: target && number ? files.data : undefined };
 }

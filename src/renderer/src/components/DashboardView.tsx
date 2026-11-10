@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import {
     Check,
     CheckCheck,
@@ -32,7 +33,8 @@ import {
     type TaskCommentItem
 } from '@shared/dashboard';
 import type { RepoRef } from '@shared/github';
-import { dashboardStore, useDashboard } from '../dashboard-store';
+import { refreshDashboard, useDashboard } from '../dashboard-store';
+import { applyMerged } from '../github/review-overview-store';
 import { seenStore, useSeenVersion } from '../seen-store';
 import { errorText, timeAgo } from '../util';
 import { openLink } from '../links';
@@ -340,8 +342,6 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
     const [query, setQuery] = useState('');
     const [reviewSort, setReviewSortState] = useState<ReviewSort>(readReviewSort);
     const [staleOpen, setStaleOpen] = useState(false);
-    const [merging, setMerging] = useState(false);
-    const [mergeError, setMergeError] = useState<string>();
     const filterInput = useRef<HTMLInputElement>(null);
     // Comments that the user saw while the Dashboard was open stay in the list (dimmed) until the next load.
     const [shownAt] = useState(() => new Set<string>());
@@ -423,7 +423,31 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
     /** Gives the click handler only when the section shows rows. */
     const jumpTo = (id: string, shown: number) => (shown > 0 ? () => scrollTo(id) : undefined);
 
-    /** Merges the pull requests one after the other, after the user confirms. GitHub refuses a merge after a new push. */
+    /**
+     * Merges the pull requests one after the other. GitHub refuses a merge after a new push.
+     * The cached lists then drop the merged pull requests. No list loads again.
+     */
+    const mergeMutation = useMutation({
+        mutationFn: async (prs: MyPullRequestItem[]) => {
+            const merged: MyPullRequestItem[] = [];
+            const errors: string[] = [];
+            for (const pr of prs) {
+                try {
+                    await window.shipwarden.github.merge(pr.repo, pr.number, pr.headSha!, pr.mergeMethod ?? 'merge');
+                    merged.push(pr);
+                } catch (error) {
+                    errors.push(`${pr.repo.name} #${pr.number}: ${errorText(error)}`);
+                }
+            }
+            return { merged, errors };
+        },
+        onSuccess: ({ merged }) => applyMerged(merged)
+    });
+    const merging = mergeMutation.isPending;
+    const mergeErrors = mergeMutation.data?.errors;
+    const mergeError = mergeErrors?.length ? mergeErrors.join('\n') : undefined;
+
+    /** Merges the pull requests after the user confirms. */
     const merge = async (prs: MyPullRequestItem[]) => {
         const ready = prs.filter(pr => pr.headSha);
         if (ready.length === 0) return;
@@ -436,19 +460,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
             confirmLabel: 'Merge'
         });
         if (!ok) return;
-        setMerging(true);
-        setMergeError(undefined);
-        const errors: string[] = [];
-        for (const pr of ready) {
-            try {
-                await window.shipwarden.github.merge(pr.repo, pr.number, pr.headSha!, pr.mergeMethod ?? 'merge');
-            } catch (error) {
-                errors.push(`${pr.repo.name} #${pr.number}: ${errorText(error)}`);
-            }
-        }
-        setMergeError(errors.length ? errors.join('\n') : undefined);
-        setMerging(false);
-        await dashboardStore.refresh();
+        mergeMutation.mutate(ready);
     };
 
     // The details of the counts at the top.
@@ -514,7 +526,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                     <button className="icon-button" title="Dashboard settings" onClick={onOpenSettings}>
                         <Settings2 size={15} strokeWidth={1.6} />
                     </button>
-                    <button className="icon-button" title="Refresh" onClick={() => void dashboardStore.refresh()}>
+                    <button className="icon-button" title="Refresh" onClick={() => void refreshDashboard()}>
                         <RefreshCw size={15} strokeWidth={1.6} className={state.loading ? 'spin' : ''} />
                     </button>
                 </div>

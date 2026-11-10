@@ -183,7 +183,7 @@ export function ReviewPullRequest({
     const [fileError, setFileError] = useState<string>();
     const [findRequest, setFindRequest] = useState<number>();
     const review = useReviewState(repo, pr?.number);
-    const checkCounts = useCheckCounts(repo, status?.sha, status);
+    const checkCounts = useCheckCounts(repo, status?.sha);
     const sideWidth = usePanelWidth('shipwarden.width.reviewSide', 320, 220, 560);
     const [fileListOpen, setFileListOpen] = useState(readFileListOpen);
     const [fileSide, setFileSide] = useState<FileSide>(readFileSide);

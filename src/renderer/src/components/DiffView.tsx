@@ -4,6 +4,7 @@ import type { DiffSide, PullRequest, PullRequestFile, RepoTarget } from '@shared
 import { monaco } from '../editor/monaco';
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
+import { replyToThread, setThreadResolved } from '../github/pull-request-mutations';
 import { threadPrompt } from '../github/agent-prompts';
 import { selectionLines, threadsWithLine } from '../github/diff-notes';
 import { seenStore } from '../seen-store';
@@ -27,7 +28,8 @@ interface Props {
     file: PullRequestFile;
     revealLine?: number;
     revealNonce?: number;
-    onRefresh(): Promise<void>;
+    /** Not used. A reply or a resolve puts its result into the cache, so the view does not load the pull request again. */
+    onRefresh?(): Promise<void>;
     /** Sends a review comment to the agent of the worktree. Without it (in the Review view), the button does not show. */
     onSendToAgent?(prompt: string): void;
 }
@@ -144,7 +146,7 @@ export function removeReviewZones(handles: ZoneHandle[]): void {
 }
 
 /** Shows the change to one file in a pull request, with the review threads under their lines. */
-export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh, onSendToAgent }: Props) {
+export function DiffView({ target, pr, file, revealLine, revealNonce, onSendToAgent }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const diffRef = useRef<monaco.editor.IStandaloneDiffEditor | undefined>(undefined);
     const zonesRef = useRef<ZoneHandle[]>([]);
@@ -154,9 +156,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
     const review = useReviewState(target, pr.number);
     /** The file in the loaded file list, for its "Viewed" state. */
     const viewedFile = review.files?.find(item => item.path === file.path);
-    // The zones keep these functions. The refs give the zones the newest functions without a new set of zones.
-    const onRefreshRef = useRef(onRefresh);
-    onRefreshRef.current = onRefresh;
+    // The zones keep this function. The ref gives the zones the newest function without a new set of zones.
     const onSendToAgentRef = useRef(onSendToAgent);
     onSendToAgentRef.current = onSendToAgent;
 
@@ -291,14 +291,8 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                 <ThreadZone
                     thread={thread}
                     worktree={typeof target === 'string' ? target : undefined}
-                    onReply={async body => {
-                        await window.shipwarden.github.reply(target, pr.number, thread.comments[thread.comments.length - 1].databaseId, body);
-                        await onRefreshRef.current();
-                    }}
-                    onResolve={async () => {
-                        await window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved);
-                        await onRefreshRef.current();
-                    }}
+                    onReply={body => replyToThread(target, pr, thread, body)}
+                    onResolve={() => setThreadResolved(target, pr, thread, !thread.isResolved)}
                     onSendToAgent={onSendToAgentRef.current && (() => onSendToAgentRef.current?.(threadPrompt(pr, thread)))}
                 />
             );

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import type { BranchSummary, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { SplitGroups } from '@shared/panes';
@@ -6,9 +7,10 @@ import type { Worktree } from '@shared/worktrees';
 import { confirmDialog } from '../components/ConfirmDialog';
 import { pruneLayout, readLayout, writeLayout } from '../layout-store';
 import { keepOpenFileTabs, type TabKey } from './tabs';
-import { viewToSave, type ContentView, type MainView } from './views';
+import { viewAfterProjectSwitch, viewToSave, type ContentView, type MainView } from './views';
 import { errorText } from './worktree-edits';
 import { editorPositions } from '../editor/editor-positions';
+import { branchSummariesQuery, summariesByRepo } from '../github/use-branch-status';
 
 const api = window.shipwarden;
 
@@ -47,8 +49,6 @@ export function useProjects(options: Options) {
     const [worktreesByRepo, setWorktreesByRepo] = useState<Record<string, Worktree[]>>({});
     /** All worktrees of the active project. */
     const worktrees = useMemo(() => repos.flatMap(repo => worktreesByRepo[repo] ?? []), [repos, worktreesByRepo]);
-    /** The open pull request of each branch, with its CI state, by repository. */
-    const [summaries, setSummaries] = useState<Record<string, Record<string, BranchSummary>>>({});
     /** True until the first project shows. The first restore keeps the start view (the Dashboard). */
     const firstRestore = useRef(true);
 
@@ -82,7 +82,7 @@ export function useProjects(options: Options) {
      * Opens the saved tabs of a project again. A file that does not exist now does not get a tab.
      * Terminal sessions that are still running keep their active tab.
      * `fallbackKey` is the key of an older layout (one repository) that a project without its own layout uses.
-     * With `keepView`, the main view does not change.
+     * The main view stays, except the graph page (see viewAfterProjectSwitch). With `keepView`, the main view does not change at all.
      */
     const restoreLayout = useCallback(
         async (key: string, list: Worktree[], sessionIds: string[], fallbackKey?: string, keepView = false) => {
@@ -128,7 +128,7 @@ export function useProjects(options: Options) {
             if (firstRestore.current) {
                 firstRestore.current = false;
             } else if (!keepView) {
-                setMainView(saved.mainView ?? 'worktree');
+                setMainView(viewAfterProjectSwitch);
             }
             restoredKey.current = key;
         },
@@ -159,29 +159,21 @@ export function useProjects(options: Options) {
         }
     }, [layoutKey, selectedPath, mainView, openFiles, activeTabs, panes]);
 
-    // The PR and CI state of each branch for the worktree list. One request covers all worktrees of a repository.
+    // An agent or a terminal can also add worktrees, so the lists load again when the window gets focus.
     const repoKey = repos.join('\0');
     useEffect(() => {
         const repoList = repoKey ? repoKey.split('\0') : [];
-        const load = () =>
-            repoList.forEach(repo => {
-                api.github.branchSummaries(repo).then(
-                    result => setSummaries(map => ({ ...map, [repo]: result })),
-                    () => undefined
-                );
-            });
-        // An agent or a terminal can also add worktrees, so the lists load again when the window gets focus.
         const loadWorktrees = () => refreshAll(repoList);
         window.addEventListener('focus', loadWorktrees);
-        load();
-        const timer = setInterval(load, 60_000);
-        window.addEventListener('focus', load);
-        return () => {
-            clearInterval(timer);
-            window.removeEventListener('focus', load);
-            window.removeEventListener('focus', loadWorktrees);
-        };
+        return () => window.removeEventListener('focus', loadWorktrees);
     }, [repoKey, refreshAll]);
+
+    /**
+     * The open pull request of each branch, with its CI state, by repository. One request covers all worktrees of a
+     * repository. The query loads again each minute, and when the window gets focus after that time.
+     */
+    const combineSummaries = useCallback((results: UseQueryResult<Record<string, BranchSummary>>[]) => summariesByRepo(repos, results), [repos]);
+    const summaries = useQueries({ queries: repos.map(branchSummariesQuery), combine: combineSummaries });
 
     /** The repository of the selected worktree. */
     const selectedRepo = repos.find(repo => worktreesByRepo[repo]?.some(worktree => worktree.path === selectedPath));

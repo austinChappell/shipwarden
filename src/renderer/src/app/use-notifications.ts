@@ -7,7 +7,7 @@ import type { AppSettings } from '@shared/settings';
 import type { TaskLink } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
-import { dashboardStore, type DashboardNews } from '../dashboard-store';
+import { onDashboardNews, type DashboardNews } from '../dashboard-store';
 import { seenStore } from '../seen-store';
 import { agentNotice, ciNotice, dashboardNotice, type Notice } from './notices';
 
@@ -93,7 +93,7 @@ export function useNotifications(options: Options) {
     };
     const dashboardNewsRef = useRef(dashboardNews);
     dashboardNewsRef.current = dashboardNews;
-    useEffect(() => dashboardStore.onNews(news => dashboardNewsRef.current(news)), []);
+    useEffect(() => onDashboardNews(news => dashboardNewsRef.current(news)), []);
 
     return notifyAgent;
 }

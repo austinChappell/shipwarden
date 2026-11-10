@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowUpCircle, ExternalLink, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { UpdateState } from '@shared/updates';
 import { errorText, timeAgo } from '../util';
@@ -6,25 +7,26 @@ import { confirmDialog } from './ConfirmDialog';
 import { Markdown } from './Markdown';
 import { openLink } from '../links';
 import { useModal } from './use-modal';
+import { keyRoots } from '../query-client';
 
 const DISMISS_KEY = 'shipwarden.updateDismissed';
 
-/** The state of the updater. It follows the changes from the main process. */
+/** The query key of the updater state. */
+const stateKey = [...keyRoots.updates, 'state'];
+
+/**
+ * The state of the updater. The query loads the first state. Then the main process sends each new state, and the
+ * cache gets it. Thus the state does not become stale, and all views that show it share one copy.
+ */
 export function useUpdateState(): UpdateState | undefined {
-    const [state, setState] = useState<UpdateState>();
-    useEffect(() => {
-        let current = true;
-        window.shipwarden.updates.state().then(
-            value => current && setState(value),
-            () => undefined
-        );
-        const off = window.shipwarden.updates.onState(setState);
-        return () => {
-            current = false;
-            off();
-        };
-    }, []);
-    return state;
+    const queryClient = useQueryClient();
+    useEffect(() => window.shipwarden.updates.onState(state => queryClient.setQueryData(stateKey, state)), [queryClient]);
+    return useQuery({
+        queryKey: stateKey,
+        queryFn: () => window.shipwarden.updates.state(),
+        staleTime: Number.POSITIVE_INFINITY,
+        refetchInterval: false
+    }).data;
 }
 
 /** Asks first, then installs. The app restarts, and the terminals and agents continue to run. */

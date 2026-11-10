@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, LoaderCircle, Plus, Trash2 } from 'lucide-react';
-import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskScope } from '@shared/tasks';
-import { errorText } from '../util';
+import type { ConnectionChange, ConnectionInfo, PluginInfo } from '@shared/tasks';
+import { optionalErrorText } from '../util';
 import { SettingsGroup } from './settings-ui';
 import { confirmDialog } from './ConfirmDialog';
+import { connectionAdded, connectionChanged, connectionRemoved, connectionSettingsSaved, taskManagerKeys } from './task-managers-cache';
 
 const api = window.shipwarden.tasks;
 
@@ -31,23 +33,15 @@ interface ScopePickerProps {
  * The list comes from the plugin, so the connection must have its settings first.
  */
 function ScopePicker({ connection, value, onChange }: ScopePickerProps) {
-    const [scopes, setScopes] = useState<TaskScope[]>();
-    const [error, setError] = useState<string>();
     const label = connection.scopeLabel ?? 'scope';
-
-    useEffect(() => {
-        if (!connection.configured) return;
-        let cancelled = false;
-        setScopes(undefined);
-        setError(undefined);
-        api.scopes(connection.id).then(
-            list => !cancelled && setScopes(list),
-            err => !cancelled && setError(errorText(err))
-        );
-        return () => {
-            cancelled = true;
-        };
-    }, [connection.id, connection.configured]);
+    // The scopes come from the task manager. A save of the settings marks them as stale.
+    const scopesQuery = useQuery({
+        queryKey: taskManagerKeys.scopes(connection.id),
+        queryFn: () => api.scopes(connection.id),
+        enabled: connection.configured
+    });
+    const scopes = scopesQuery.data;
+    const error = optionalErrorText(scopesQuery.error);
 
     if (!connection.configured) {
         return <p className="panel-note">Add the settings above first. Then you can select the {plural(label)}.</p>;
@@ -94,25 +88,19 @@ function ScopePicker({ connection, value, onChange }: ScopePickerProps) {
 }
 
 /** The settings fields of a connection. Secret values never come back from the main process, so a saved secret shows as "Saved". */
-function ConnectionSettingsForm({ connection, onSaved }: { connection: ConnectionInfo; onSaved(): void }) {
+function ConnectionSettingsForm({ connection }: { connection: ConnectionInfo }) {
+    const queryClient = useQueryClient();
     const [values, setValues] = useState<Record<string, string | boolean>>({ ...connection.publicSettings });
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState<string>();
+    const saveMutation = useMutation({
+        mutationFn: (settings: Record<string, string | boolean>) => api.saveConnectionSettings(connection.id, settings),
+        onSuccess: () => connectionSettingsSaved(queryClient, connection.id)
+    });
     if (connection.settings.length === 0) {
         return null;
     }
-    const save = async () => {
-        setBusy(true);
-        setError(undefined);
-        try {
-            await api.saveConnectionSettings(connection.id, values);
-            onSaved();
-        } catch (err) {
-            setError(errorText(err));
-        } finally {
-            setBusy(false);
-        }
-    };
+    const busy = saveMutation.isPending;
+    const error = optionalErrorText(saveMutation.error);
+    const save = () => saveMutation.mutate(values);
     return (
         <div className="connection-form">
             {connection.settings.map(setting => (
@@ -153,22 +141,23 @@ function ConnectionSettingsForm({ connection, onSaved }: { connection: Connectio
 }
 
 /** One global connection: a summary row that opens to its name, settings and scope. */
-function ConnectionCard({ connection, open, onToggle, onChanged }: { connection: ConnectionInfo; open: boolean; onToggle(): void; onChanged(): void }) {
+function ConnectionCard({ connection, open, onToggle }: { connection: ConnectionInfo; open: boolean; onToggle(): void }) {
+    const queryClient = useQueryClient();
     const [name, setName] = useState(connection.name);
     const [startStatus, setStartStatus] = useState(connection.startStatus ?? '');
-    const [error, setError] = useState<string>();
     useEffect(() => setName(connection.name), [connection.name]);
     useEffect(() => setStartStatus(connection.startStatus ?? ''), [connection.startStatus]);
 
-    const update = async (change: ConnectionChange) => {
-        setError(undefined);
-        try {
-            await api.updateConnection(connection.id, change);
-            onChanged();
-        } catch (err) {
-            setError(errorText(err));
-        }
-    };
+    const updateMutation = useMutation({
+        mutationFn: (change: ConnectionChange) => api.updateConnection(connection.id, change),
+        onSuccess: (_result, change) => connectionChanged(queryClient, connection.id, change)
+    });
+    const removeMutation = useMutation({
+        mutationFn: () => api.removeConnection(connection.id),
+        onSuccess: () => connectionRemoved(queryClient, connection.id)
+    });
+    const error = optionalErrorText(updateMutation.error ?? removeMutation.error);
+    const update = (change: ConnectionChange) => updateMutation.mutate(change);
 
     const remove = async () => {
         if (
@@ -181,12 +170,7 @@ function ConnectionCard({ connection, open, onToggle, onChanged }: { connection:
         ) {
             return;
         }
-        try {
-            await api.removeConnection(connection.id);
-            onChanged();
-        } catch (err) {
-            setError(errorText(err));
-        }
+        removeMutation.mutate();
     };
 
     return (
@@ -231,7 +215,7 @@ function ConnectionCard({ connection, open, onToggle, onChanged }: { connection:
                             Empty: the status does not change.
                         </span>
                     </label>
-                    <ConnectionSettingsForm key={connection.settingsWithValue.join(',')} connection={connection} onSaved={onChanged} />
+                    <ConnectionSettingsForm key={connection.settingsWithValue.join(',')} connection={connection} />
                     <div className="connection-section-label">{plural(connection.scopeLabel).replace(/^./, letter => letter.toUpperCase())}</div>
                     <ScopePicker connection={connection} value={connection.scope} onChange={scope => update({ scope: scope ?? null })} />
                     {error && <div className="form-error">{error}</div>}
@@ -252,38 +236,32 @@ function ConnectionCard({ connection, open, onToggle, onChanged }: { connection:
  * switch, its settings and an optional scope. All projects use the connections that are on.
  */
 export function TaskManagersSettings() {
-    const [plugins, setPlugins] = useState<PluginInfo[]>([]);
-    const [connections, setConnections] = useState<ConnectionInfo[]>();
+    const queryClient = useQueryClient();
     const [openId, setOpenId] = useState<string>();
     const [adding, setAdding] = useState('');
-    const [error, setError] = useState<string>();
 
-    const reload = useCallback(async () => {
-        try {
-            const [pluginList, connectionList] = await Promise.all([api.plugins(), api.connections()]);
-            setPlugins(pluginList);
-            setConnections(connectionList);
-        } catch (err) {
-            setError(errorText(err));
-        }
-    }, []);
+    // The settings page shows the current state. The cached lists show first, and new lists load each time that the page opens.
+    const pluginsQuery = useQuery({ queryKey: taskManagerKeys.plugins, queryFn: () => api.plugins(), staleTime: 0 });
+    const connectionsQuery = useQuery({ queryKey: taskManagerKeys.allConnections, queryFn: () => api.connections(), staleTime: 0 });
+    const plugins = pluginsQuery.data ?? [];
+    const connections = connectionsQuery.data;
 
-    useEffect(() => {
-        reload();
-    }, [reload]);
-
-    const add = async () => {
-        const plugin = plugins.find(item => item.id === adding);
-        if (!plugin) return;
-        try {
+    const addMutation = useMutation({
+        mutationFn: (plugin: PluginInfo) => {
             const existing = (connections ?? []).filter(item => item.pluginId === plugin.id).length;
-            const created = await api.addConnection(plugin.id, existing ? `${plugin.name} ${existing + 1}` : plugin.name);
+            return api.addConnection(plugin.id, existing ? `${plugin.name} ${existing + 1}` : plugin.name);
+        },
+        onSuccess: created => {
             setAdding('');
             setOpenId(created.id);
-            await reload();
-        } catch (err) {
-            setError(errorText(err));
+            connectionAdded(queryClient, created);
         }
+    });
+    const error = optionalErrorText(addMutation.error ?? pluginsQuery.error ?? connectionsQuery.error);
+
+    const add = () => {
+        const plugin = plugins.find(item => item.id === adding);
+        if (plugin) addMutation.mutate(plugin);
     };
 
     return (
@@ -315,7 +293,6 @@ export function TaskManagersSettings() {
                             connection={connection}
                             open={openId === connection.id}
                             onToggle={() => setOpenId(id => (id === connection.id ? undefined : connection.id))}
-                            onChanged={reload}
                         />
                     ))}
                     {connections?.length === 0 && <p className="panel-note">No task managers yet. Add ClickUp or GitHub above.</p>}

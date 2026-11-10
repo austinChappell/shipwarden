@@ -8,6 +8,7 @@ import { Markdown } from './Markdown';
 import { CommentBody } from './CommentBody';
 import { threadSuggestionTarget } from '@shared/suggestion';
 import { applyThreadSuggestion } from '../github/suggestions';
+import { replyToThread, setThreadResolved } from '../github/pull-request-mutations';
 import { REVIEW_STATE_TEXT } from './PullRequestTimeline';
 
 interface Props {
@@ -17,7 +18,7 @@ interface Props {
     showResolved: boolean;
     onShowResolved(value: boolean): void;
     busy: boolean;
-    /** Runs a change on the host. Then the panel loads the pull request again. */
+    /** Runs a change on the host. The panel shows the busy state and the error of the change. */
     run(action: () => Promise<void>): Promise<void>;
     /** Opens the diff of the file of a thread at the line of the thread. */
     onOpen(thread: ReviewThread): void;
@@ -33,12 +34,11 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
     const unresolved = pr.threads.filter(thread => !thread.isResolved).length;
 
     const sendReply = (thread: ReviewThread) => {
-        const last = thread.comments[thread.comments.length - 1];
-        if (!last || !replyText.trim()) {
+        if (thread.comments.length === 0 || !replyText.trim()) {
             return;
         }
         run(async () => {
-            await window.shipwarden.github.reply(target, pr.number, last.databaseId, replyText.trim());
+            await replyToThread(target, pr, thread, replyText.trim());
             setReplyText('');
             setReplyTo(undefined);
         });
@@ -103,11 +103,7 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
                         >
                             Reply
                         </button>
-                        <button
-                            className="link-button"
-                            disabled={busy}
-                            onClick={() => run(() => window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved))}
-                        >
+                        <button className="link-button" disabled={busy} onClick={() => run(() => setThreadResolved(target, pr, thread, !thread.isResolved))}>
                             {thread.isResolved ? 'Unresolve' : 'Resolve'}
                         </button>
                         {onSendToAgent && (

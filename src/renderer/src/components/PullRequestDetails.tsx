@@ -1,21 +1,35 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Check, Pencil, Plus, Search, Settings2, Users, X } from 'lucide-react';
-import { targetKey, type GitHubLabel, type PullRequest, type PullRequestCandidates, type RepoTarget } from '@shared/github';
-import { errorText } from '../util';
+import { targetKey, type GitHubLabel, type PullRequest, type RepoTarget } from '@shared/github';
+import { changePullRequest } from '../github/pull-request-mutations';
+import { keyRoots } from '../query-client';
+import { errorText, optionalErrorText } from '../util';
 import { applyMetaChanges, metaChangeKey, type MetaChange } from './pr-meta-changes';
 
-/** The candidates of each repository, by target key. The list loads one time for each repository and session. */
-const candidateCache = new Map<string, Promise<PullRequestCandidates>>();
-
-function loadCandidates(target: RepoTarget): Promise<PullRequestCandidates> {
-    const key = targetKey(target);
-    let promise = candidateCache.get(key);
-    if (!promise) {
-        promise = window.shipwarden.github.pullRequestCandidates(target);
-        promise.catch(() => candidateCache.delete(key));
-        candidateCache.set(key, promise);
-    }
-    return promise;
+/**
+ * The users and the labels that the user can add to the pull requests of a repository. The list loads when the user
+ * first opens a picker, and then one time for each repository and session.
+ */
+function useCandidates(target: RepoTarget) {
+    const repoKey = targetKey(target);
+    /** The repository whose picker the user opened. */
+    const [wantedKey, setWantedKey] = useState<string>();
+    const query = useQuery({
+        queryKey: [...keyRoots.pullRequestCandidates, repoKey],
+        queryFn: () => window.shipwarden.github.pullRequestCandidates(target),
+        enabled: wantedKey === repoKey,
+        staleTime: Number.POSITIVE_INFINITY,
+        refetchInterval: false
+    });
+    const load = () => {
+        if (query.isError) {
+            query.refetch();
+        } else {
+            setWantedKey(repoKey);
+        }
+    };
+    return { candidates: query.data, error: optionalErrorText(query.error), load };
 }
 
 interface PickerOption {
@@ -239,18 +253,19 @@ interface PendingChange {
 /**
  * Sends the changes to the reviewers, the assignees and the labels, and shows them before GitHub confirms them.
  * The user can make the next change at once. Changes to the same item go to GitHub in order.
- * When no request is open, the pull request refreshes one time. The refresh then replaces the changes that it confirms.
- * A change that fails goes away, and `error` shows why.
+ * A change that GitHub confirms goes into the cached pull request. The change stays in the list until the
+ * pull request of the next render has it. A change that fails goes away, and `error` shows why.
  */
-function usePendingMetaChanges(target: RepoTarget, pr: PullRequest, onRefresh: () => Promise<void>) {
+function usePendingMetaChanges(target: RepoTarget, pr: PullRequest, knownLabels: GitHubLabel[] | undefined) {
     const pending = useRef<PendingChange[]>([]);
     const queues = useRef(new Map<string, Promise<void>>());
-    const open = useRef(0);
     const nextId = useRef(0);
     const [, render] = useReducer((count: number) => count + 1, 0);
     const [error, setError] = useState<string>();
     const scope = `${targetKey(target)}#${pr.number}`;
     const scopeRef = useRef(scope);
+    const labelsRef = useRef(knownLabels);
+    labelsRef.current = knownLabels;
 
     const update = (change: (list: PendingChange[]) => PendingChange[]) => {
         pending.current = change(pending.current);
@@ -262,10 +277,17 @@ function usePendingMetaChanges(target: RepoTarget, pr: PullRequest, onRefresh: (
         scopeRef.current = scope;
         pending.current = [];
         queues.current.clear();
-        open.current = 0;
         setError(undefined);
         render();
     }, [scope]);
+
+    // A new pull request object comes from the cache. It has the changes that GitHub confirmed, so the list can drop them.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect must run when the pull request object changes.
+    useEffect(() => {
+        if (pending.current.some(item => item.sent)) {
+            update(list => list.filter(item => !item.sent));
+        }
+    }, [pr]);
 
     const send = (change: MetaChange) => {
         const id = nextId.current++;
@@ -273,33 +295,19 @@ function usePendingMetaChanges(target: RepoTarget, pr: PullRequest, onRefresh: (
         const sentScope = scope;
         setError(undefined);
         update(list => [...list, { id, change, sent: false }]);
-        open.current++;
-        const request = (queues.current.get(key) ?? Promise.resolve()).then(() => window.shipwarden.github.changePullRequest(target, pr.number, change));
+        const request = (queues.current.get(key) ?? Promise.resolve()).then(() => changePullRequest(target, pr, change, labelsRef.current));
         queues.current.set(
             key,
             request.catch(() => undefined)
         );
-        request
-            .then(
-                () => update(list => list.map(item => (item.id === id ? { ...item, sent: true } : item))),
-                err => {
-                    update(list => list.filter(item => item.id !== id));
-                    setError(errorText(err));
-                }
-            )
-            .finally(async () => {
+        request.then(
+            () => scopeRef.current === sentScope && update(list => list.map(item => (item.id === id ? { ...item, sent: true } : item))),
+            err => {
                 if (scopeRef.current !== sentScope) return;
-                open.current--;
-                if (open.current > 0) return;
-                const confirmed = new Set(pending.current.filter(item => item.sent).map(item => item.id));
-                try {
-                    await onRefresh();
-                } catch {
-                    // The changes stay on the screen. The next refresh confirms them.
-                    return;
-                }
-                if (scopeRef.current === sentScope) update(list => list.filter(item => !confirmed.has(item.id)));
-            });
+                update(list => list.filter(item => item.id !== id));
+                setError(errorText(err));
+            }
+        );
     };
 
     return { changes: pending.current.map(item => item.change), send, error };
@@ -312,33 +320,20 @@ function usePendingMetaChanges(target: RepoTarget, pr: PullRequest, onRefresh: (
 export function PullRequestMeta({
     target,
     pr,
-    onRefresh,
     card
 }: {
     target: RepoTarget;
     pr: PullRequest;
-    onRefresh(): Promise<void>;
+    /** Not used. A change puts its result into the cache, so the sidebar does not load the pull request again. */
+    onRefresh?(): Promise<void>;
     /** True shows a card with the author and one row for each part, for the side column of the Overview tab. */
     card?: boolean;
 }) {
-    const [candidates, setCandidates] = useState<PullRequestCandidates>();
-    const [loadError, setLoadError] = useState<string>();
-    const { changes, send: onChange, error } = usePendingMetaChanges(target, pr, onRefresh);
+    const { candidates, error: loadError, load } = useCandidates(target);
+    const { changes, send: onChange, error } = usePendingMetaChanges(target, pr, candidates?.labels);
     const shown = applyMetaChanges(pr, changes, candidates?.labels);
     // GitHub accepts assignees and labels also on a closed pull request. Reviewers need an open pull request.
     const manage = pr.viewerCanManage;
-
-    const load = () => {
-        setLoadError(undefined);
-        loadCandidates(target).then(setCandidates, err => setLoadError(errorText(err)));
-    };
-
-    // A different repository has different users and labels.
-    const repoKey = targetKey(target);
-    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect clears the candidates when the repository changes.
-    useEffect(() => {
-        setCandidates(undefined);
-    }, [repoKey]);
 
     const reviewed = reviewedBy(pr);
     const requestedUsers = new Set(shown.reviewRequests.filter(item => item.kind === 'user').map(item => item.login));

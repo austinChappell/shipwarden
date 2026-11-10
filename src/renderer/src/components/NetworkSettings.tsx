@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CircleX, LoaderCircle } from 'lucide-react';
-import type { NetworkStatus } from '@shared/api';
 import type { AppSettings } from '@shared/settings';
-import { errorText } from '../util';
+import { keyRoots } from '../query-client';
+import { optionalErrorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 
 interface Props {
@@ -10,7 +11,8 @@ interface Props {
     onSave(change: Partial<AppSettings>): Promise<void>;
 }
 
-type TestResult = { name: string; ok: boolean; error?: string };
+/** The query key of the certificate state. */
+const statusKey = [...keyRoots.network, 'status'];
 
 /**
  * The network settings: extra CA certificates for a network that inspects TLS traffic, for example a company VPN.
@@ -19,51 +21,40 @@ type TestResult = { name: string; ok: boolean; error?: string };
  */
 export function NetworkSettings({ settings, onSave }: Props) {
     const network = settings.network;
+    const queryClient = useQueryClient();
     const [file, setFile] = useState(network.caCertsFile ?? '');
-    const [status, setStatus] = useState<NetworkStatus>();
-    const [error, setError] = useState<string>();
-    const [testing, setTesting] = useState(false);
-    const [results, setResults] = useState<TestResult[]>();
-
-    const loadStatus = useCallback(() => {
-        window.shipwarden.network.status().then(setStatus, err => setError(errorText(err)));
-    }, []);
-    useEffect(loadStatus, [loadStatus]);
     useEffect(() => setFile(network.caCertsFile ?? ''), [network.caCertsFile]);
 
-    const save = async (change: Partial<AppSettings['network']>) => {
-        setError(undefined);
-        setResults(undefined);
-        try {
-            await onSave({ network: { ...network, ...change } });
-            loadStatus();
-        } catch (err) {
-            setError(errorText(err));
-        }
-    };
+    // The settings page shows the current state. The cached state shows first, and a new state loads each time that the page opens.
+    const statusQuery = useQuery({ queryKey: statusKey, queryFn: () => window.shipwarden.network.status(), staleTime: 0 });
+    const status = statusQuery.data;
+
+    /** The connection test. Its result shows until the next save. */
+    const testMutation = useMutation({ mutationFn: () => window.shipwarden.network.test() });
+    const results = testMutation.data;
+    const testing = testMutation.isPending;
+
+    // A save changes the trusted certificates, so the state loads again.
+    const saveMutation = useMutation({
+        mutationFn: (change: Partial<AppSettings['network']>) => onSave({ network: { ...network, ...change } }),
+        onMutate: () => testMutation.reset(),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: statusKey })
+    });
+    const error = optionalErrorText(saveMutation.error ?? testMutation.error ?? statusQuery.error);
+    const save = (change: Partial<AppSettings['network']>) => saveMutation.mutate(change);
     const commitFile = () => {
         if (file.trim() !== (network.caCertsFile ?? '')) {
-            void save({ caCertsFile: file.trim() || undefined });
+            save({ caCertsFile: file.trim() || undefined });
         }
     };
     const choose = async () => {
         const chosen = await window.shipwarden.network.chooseCaFile();
         if (chosen) {
             setFile(chosen);
-            void save({ caCertsFile: chosen });
+            save({ caCertsFile: chosen });
         }
     };
-    const test = async () => {
-        setTesting(true);
-        setResults(undefined);
-        try {
-            setResults(await window.shipwarden.network.test());
-        } catch (err) {
-            setError(errorText(err));
-        } finally {
-            setTesting(false);
-        }
-    };
+    const test = () => testMutation.mutate();
 
     const fileStatus = status?.file;
     return (
@@ -123,7 +114,7 @@ export function NetworkSettings({ settings, onSave }: Props) {
                             <input
                                 type="checkbox"
                                 checked={network.useSystemCertificates}
-                                onChange={event => void save({ useSystemCertificates: event.target.checked })}
+                                onChange={event => save({ useSystemCertificates: event.target.checked })}
                             />
                             <span />
                         </label>
@@ -140,7 +131,7 @@ export function NetworkSettings({ settings, onSave }: Props) {
                     label="Test the connection"
                     description="Connects to GitHub and ClickUp with these certificates."
                     control={
-                        <button className="button" disabled={testing} onClick={() => void test()}>
+                        <button className="button" disabled={testing} onClick={test}>
                             {testing && <LoaderCircle size={13} className="spin" />} Test
                         </button>
                     }

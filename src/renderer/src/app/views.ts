@@ -27,6 +27,14 @@ export function viewToSave(mainView: MainView, viewBeforeSettings: ContentView):
 }
 
 /**
+ * Returns the view after a switch to another project. The current view stays.
+ * The graph page shows a repository of the old project. Thus the worktree view of the new project goes in its place.
+ */
+export function viewAfterProjectSwitch(view: MainView): MainView {
+    return view === 'graph' ? 'worktree' : view;
+}
+
+/**
  * Returns the history entry of the current place in the app. The settings page has no entry.
  * The worktree view has an entry only when a worktree is selected.
  */

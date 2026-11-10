@@ -1,19 +1,25 @@
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { ExternalLink, GitPullRequest } from 'lucide-react';
-import { hostLabel, type BranchStatus, type RepoTarget } from '@shared/github';
-import { errorText } from '../util';
+import { hostLabel, type BranchStatus, type NewPullRequest, type RepoTarget } from '@shared/github';
+import { createPullRequest } from '../github/pull-request-mutations';
+import { optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
 
 const ICON = { size: 15, strokeWidth: 1.6 };
 
-/** The form that creates a pull request for the branch of a worktree, on GitHub or Azure DevOps. */
-export function CreatePullRequest({ target, status, onCreated }: { target: RepoTarget; status: BranchStatus; onCreated(): Promise<void> }) {
+/**
+ * The form that creates a pull request for the branch of a worktree, on GitHub or Azure DevOps.
+ * After the create, the status of the worktree loads again and shows the new pull request.
+ */
+export function CreatePullRequest({ target, status }: { target: RepoTarget; status: BranchStatus }) {
     const [title, setTitle] = useState(status.branch);
     const [body, setBody] = useState('');
     const [draft, setDraft] = useState(false);
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState<string>();
+    const mutation = useMutation({ mutationFn: ({ root, ...request }: { root: string } & NewPullRequest) => createPullRequest(root, request) });
+    const busy = mutation.isPending;
+    const error = optionalErrorText(mutation.error);
     const host = hostLabel(status.host);
     const webUrl = status.createUrl ?? `https://github.com/${status.repo.owner}/${status.repo.name}/compare/${encodeURIComponent(status.branch)}?expand=1`;
 
@@ -27,16 +33,7 @@ export function CreatePullRequest({ target, status, onCreated }: { target: RepoT
         ) {
             return;
         }
-        setBusy(true);
-        setError(undefined);
-        try {
-            await window.shipwarden.github.createPullRequest(target, { title: title.trim(), body, draft });
-            await onCreated();
-        } catch (err) {
-            setError(errorText(err));
-        } finally {
-            setBusy(false);
-        }
+        mutation.mutate({ root: target, title: title.trim(), body, draft });
     };
 
     return (

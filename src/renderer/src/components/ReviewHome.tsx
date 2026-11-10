@@ -6,7 +6,7 @@ import { shortAge } from '@shared/dashboard';
 import { timeAgo } from '../util';
 import { focusFirstItem, moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
-import { reviewOverviewStore, useReviewOverview } from '../github/review-overview-store';
+import { refreshReviewOverview, useReviewOverview } from '../github/review-overview-store';
 import { CountPill, Dotted, KeyLegend, useInitialFocus, usePageKeys } from './ReviewParts';
 
 interface Props {
@@ -194,7 +194,7 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                         </div>
                     )}
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Refresh" onClick={() => reviewOverviewStore.refreshAll()}>
+                    <button className="icon-button" title="Refresh" onClick={() => void refreshReviewOverview()}>
                         <RefreshCw size={15} strokeWidth={1.6} className={state.catalogLoading || entries.some(entry => entry.loading) ? 'spin' : ''} />
                     </button>
                     <button className="button primary-solid review-queue-button" disabled={queue.length === 0} onClick={onStartQueue}>

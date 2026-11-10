@@ -1,6 +1,5 @@
-import type { ConnectionInfo, FilterDefinition, StatusGroup, Task, TaskCollection, TaskComment, TaskLink, TaskSource, TaskStatus } from '@shared/tasks';
+import type { ConnectionInfo, FilterDefinition, StatusGroup, Task, TaskCollection, TaskComment, TaskLink, TaskStatus } from '@shared/tasks';
 import { linkMatchesTask, statusKey } from '@shared/tasks';
-import { cacheKey } from '../../data-cache';
 
 /** The list (grouped) or the board (a column for each status). */
 export type ViewMode = 'list' | 'board';
@@ -10,12 +9,6 @@ export type CollapseState = Record<string, boolean>;
 
 /** The state of the selected task manager. The plugin starts again only when this state changes. */
 export type ConnectionState = 'loading' | 'none' | 'ready' | 'unconfigured';
-
-/** The selected collection, with the connection that it belongs to. */
-export interface CollectionSelection {
-    connectionId: string;
-    id: string;
-}
 
 export interface CachedDetail {
     task: Task;
@@ -34,21 +27,28 @@ export function startRepoKey(projectId: string): string {
     return `shipwarden.startRepo:${projectId}`;
 }
 
+/** The last filter of each source in the project, for the session. The view selects it again on the next visit. */
+const lastFilters = new Map<string, string>();
+const filterKey = (connectionId: string, projectId: string) => `${connectionId}\0${projectId}`;
+export const lastFilter = (connectionId: string, projectId: string) => lastFilters.get(filterKey(connectionId, projectId));
+export function rememberFilter(connectionId: string, projectId: string, filter: string): void {
+    lastFilters.set(filterKey(connectionId, projectId), filter);
+}
+
 /**
- * The cache keys of the view. The view shows cached data immediately and loads new data in the background.
- * Each key starts with the connection and the project, because the same connection can have other data in another project.
+ * The query keys of the view. The query cache keeps the loaded data for the session.
+ * Each key contains the connection and the project, because the same connection can have other data in another project.
  */
-export const connectionsKey = (projectId: string) => cacheKey('tasks.connections', projectId);
-export const connectionIdKey = (projectId: string) => cacheKey('tasks.connectionId', projectId);
-export const sourceKey = (connectionId: string, projectId: string) => cacheKey('tasks.source', connectionId, projectId);
-export const filterKey = (connectionId: string, projectId: string) => cacheKey('tasks.filter', connectionId, projectId);
-export const collectionsKey = (connectionId: string, projectId: string) => cacheKey('tasks.collections', connectionId, projectId);
-export const selectionKey = (connectionId: string, projectId: string) => cacheKey('tasks.selection', connectionId, projectId);
-export const tasksKey = (connectionId: string, projectId: string, collection: string, filter: string | undefined) =>
-    cacheKey('tasks.list', connectionId, projectId, collection, filter);
-export const statusOrderKey = (connectionId: string, projectId: string, collection: string) =>
-    cacheKey('tasks.statusOrder', connectionId, projectId, collection);
-export const detailKey = (connectionId: string, projectId: string, taskId: string) => cacheKey('tasks.detail', connectionId, projectId, taskId);
+export const taskQueryKeys = {
+    connections: (projectId: string) => ['tasks', 'connections', projectId] as const,
+    source: (connectionId: string | undefined, projectId: string) => ['tasks', 'source', connectionId, projectId] as const,
+    collections: (connectionId: string | undefined, projectId: string) => ['tasks', 'collections', connectionId, projectId] as const,
+    list: (connectionId: string | undefined, projectId: string, collection: string | undefined, filter: string | undefined) =>
+        ['tasks', 'list', connectionId, projectId, collection, filter] as const,
+    statusOrder: (connectionId: string | undefined, projectId: string, collection: string | undefined) =>
+        ['tasks', 'statusOrder', connectionId, projectId, collection] as const,
+    detail: (connectionId: string | undefined, projectId: string, taskId: string | undefined) => ['tasks', 'detail', connectionId, projectId, taskId] as const
+};
 
 /** The board is the default view. The list shows only when the user selected it. */
 export function parseViewMode(value: string | null): ViewMode {
@@ -81,11 +81,6 @@ export function formatField(value: string | number | boolean | null | undefined,
     return String(value);
 }
 
-/** Returns the old value when the new value has the same data, so that effects that use the value do not run again. */
-export function same<T>(current: T, next: T): T {
-    return current !== undefined && JSON.stringify(current) === JSON.stringify(next) ? current : next;
-}
-
 /** Returns the saved connection if the list has it. Else it returns the first configured connection, else the first one. */
 export function pickConnection(list: readonly ConnectionInfo[], saved: string | undefined): string | undefined {
     const usable = list.filter(item => item.configured);
@@ -103,23 +98,6 @@ export function connectionStateOf(connections: readonly ConnectionInfo[] | undef
  */
 export function pickFilter(filters: readonly FilterDefinition[], last: string | undefined): string | undefined {
     return last && filters.some(item => item.id === last) ? last : (filters.find(item => item.default)?.id ?? filters[0]?.id);
-}
-
-/**
- * Returns the selected collection ID. During a switch to another connection, the old selection is still in state
- * for one render. It must not go to the new connection, so it counts only for its own connection.
- */
-export function selectedCollection(
-    source: Pick<TaskSource, 'connectionId'> | null | undefined,
-    selection: CollectionSelection | undefined
-): string | undefined {
-    return source && selection?.connectionId === source.connectionId ? selection.id : undefined;
-}
-
-/** Returns the current selection when it is the same as the picked collection, so that effects do not run again. */
-export function nextSelection(current: CollectionSelection | undefined, connectionId: string, picked: string | undefined): CollectionSelection | undefined {
-    if (current?.connectionId === connectionId && current.id === picked) return current;
-    return picked ? { connectionId, id: picked } : undefined;
 }
 
 /** A task can be on two pages when it changes during the load. This function keeps its first copy. */
