@@ -1,6 +1,15 @@
 import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { targetKey, type FileVersions, type PendingComment, type PullRequest, type PullRequestFile, type RepoRef, type RepoTarget } from '@shared/github';
+import {
+    targetKey,
+    type CommitFiles,
+    type FileVersions,
+    type PendingComment,
+    type PullRequest,
+    type PullRequestFile,
+    type RepoRef,
+    type RepoTarget
+} from '@shared/github';
 import { parseAgentReview, reviewBody, reviewPrompt } from '@shared/agent-review';
 import { keyRoots, queryClient } from '../query-client';
 import { errorText } from '../util';
@@ -26,6 +35,8 @@ export const reviewKeys = {
     pullRequest: (target: RepoTarget, number: number) => [...keyRoots.pullRequest, targetKey(target), number] as const,
     /** The changed files of a pull request. */
     files: (target: RepoTarget, number: number) => [...keyRoots.pullRequestFiles, targetKey(target), number] as const,
+    /** The changed files of one commit. */
+    commitFiles: (target: RepoTarget, sha: string) => [...keyRoots.pullRequestFiles, targetKey(target), 'commit', sha] as const,
     /** The base and head text of a file. The text of a commit does not change. */
     fileVersions: (target: RepoTarget, path: string, baseSha: string, headSha: string) =>
         [...keyRoots.pullRequestFiles, targetKey(target), 'versions', path, baseSha, headSha] as const
@@ -190,4 +201,13 @@ export function useReviewState(target: RepoTarget | undefined, number: number | 
         enabled: false
     });
     return { ...state, files: target && number ? files.data : undefined };
+}
+
+/** Loads the changed files of one commit. A commit does not change, so the result stays in the cache and does not load again. */
+export function useCommitFiles(target: RepoTarget, sha: string) {
+    return useQuery<CommitFiles>({
+        queryKey: reviewKeys.commitFiles(target, sha),
+        queryFn: () => window.shipwarden.github.commitFiles(target, sha),
+        staleTime: Number.POSITIVE_INFINITY
+    });
 }

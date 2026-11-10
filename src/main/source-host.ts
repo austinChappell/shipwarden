@@ -2,6 +2,7 @@ import type {
     BranchStatus,
     BranchSummary,
     CheckRun,
+    CommitFiles,
     FileVersions,
     JobProgress,
     MergeMethod,
@@ -36,6 +37,8 @@ export interface SourceHost {
     pullRequest(target: RepoTarget, number: number): Promise<PullRequest>;
     pullRequestFiles(target: RepoTarget, number: number): Promise<PullRequestFile[]>;
     setFileViewed(pullRequestId: string, path: string, viewed: boolean): Promise<void>;
+    /** Returns the changed files of one commit and its first parent, for the diff of one commit. */
+    commitFiles(target: RepoTarget, sha: string): Promise<CommitFiles>;
     fileVersions(target: RepoTarget, file: PullRequestFile, baseSha: string, headSha: string): Promise<FileVersions>;
     submitReview(target: RepoTarget, number: number, headSha: string, event: ReviewEvent, body: string, comments: PendingComment[]): Promise<void>;
     replyToComment(target: RepoTarget, number: number, commentId: number, body: string): Promise<void>;
@@ -89,6 +92,9 @@ export class GitHubHost implements SourceHost {
     }
     setFileViewed(pullRequestId: string, path: string, viewed: boolean) {
         return this.github.setFileViewed(pullRequestId, path, viewed);
+    }
+    async commitFiles(target: RepoTarget, sha: string) {
+        return this.github.commitFiles(await this.repoOf(target), sha);
     }
     async fileVersions(target: RepoTarget, file: PullRequestFile, baseSha: string, headSha: string) {
         return this.github.fileVersions(await this.repoOf(target), file, baseSha, headSha);

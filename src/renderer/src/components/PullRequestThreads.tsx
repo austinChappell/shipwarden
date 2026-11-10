@@ -49,14 +49,16 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
     return (
         <section className="pr-section">
             <div className="section-title">
-                Review threads ({unresolved} unresolved)
+                <span>
+                    Review threads <span className="section-title-count">· {unresolved} unresolved</span>
+                </span>
                 {pr.threads.length > unresolved && (
                     <button className="link-button" onClick={() => onShowResolved(!showResolved)}>
                         {showResolved ? 'Hide resolved' : 'Show resolved'}
                     </button>
                 )}
             </div>
-            {threads.length === 0 && <div className="panel-note">No review comments.</div>}
+            {threads.length === 0 && <div className="panel-note pr-threads-empty">No review comments yet.</div>}
             {threads.map(thread => (
                 <div key={thread.id} className={`thread-card${thread.isResolved ? ' resolved' : ''}`}>
                     <button className="thread-location" onClick={() => onOpen(thread)}>

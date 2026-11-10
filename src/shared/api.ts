@@ -10,6 +10,7 @@ import type {
     BranchStatus,
     BranchSummary,
     CheckRun,
+    CommitFiles,
     FileVersions,
     GitHubOwner,
     JobProgress,
@@ -243,6 +244,8 @@ export interface ShipWardenApi {
         /** Creates a pull request from the branch of the worktree. Returns its number. */
         createPullRequest(root: string, request: NewPullRequest): Promise<number>;
         files(target: RepoTarget, number: number): Promise<PullRequestFile[]>;
+        /** Returns the changed files of one commit and its first parent, for the diff of one commit. */
+        commitFiles(target: RepoTarget, sha: string): Promise<CommitFiles>;
         /** Returns the open pull requests of the repository by head branch, with their CI state. */
         branchSummaries(repoPath: string): Promise<Record<string, BranchSummary>>;
         fileVersions(target: RepoTarget, file: PullRequestFile, baseSha: string, headSha: string): Promise<FileVersions>;
@@ -517,6 +520,7 @@ export const IpcChannels = {
     filesChanged: 'files:changed',
     githubStatus: 'github:status',
     githubFiles: 'github:files',
+    githubCommitFiles: 'github:commitFiles',
     githubBranchSummaries: 'github:branchSummaries',
     githubFileVersions: 'github:fileVersions',
     githubSubmitReview: 'github:submitReview',

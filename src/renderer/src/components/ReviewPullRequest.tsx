@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, LoaderCircle, RefreshCw, X } from 'lucide-react';
-import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
+import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
+import { CommitView } from './CommitView';
 import { LogView } from './LogView';
 import { PullRequestFilesStream } from './PullRequestFilesStream';
 import { BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, PullRequestPanel, StateBadge } from './PullRequestPanel';
@@ -176,6 +177,12 @@ export function ReviewPullRequest({
     onPullRepo
 }: Props) {
     const [tab, setTab] = useState<ReviewTab>(readTab);
+    // The commit that the Commits tab shows. Undefined shows the commit list.
+    const [commitSha, setCommitSha] = useState<string>();
+    const openCommit = (commit: PullRequestCommit) => {
+        setCommitSha(commit.oid);
+        selectTab('commits');
+    };
     const inProject = useRepoInProject(repo, projects);
     const [pullOpen, setPullOpen] = useState(false);
     const [file, setFile] = useState<{ file: PullRequestFile; line?: number; side?: DiffSide; nonce: number }>();
@@ -243,6 +250,8 @@ export function ReviewPullRequest({
     };
 
     const selectTab = (value: ReviewTab) => {
+        // A click on the Commits tab while it shows a commit goes back to the commit list.
+        if (value === 'commits' && tab === 'commits') setCommitSha(undefined);
         setTab(value);
         // The Files changed tab opens the search bar again only after a new ⌘F.
         if (value !== 'files') setFindRequest(undefined);
@@ -322,7 +331,7 @@ export function ReviewPullRequest({
 
     if (!pr) {
         return (
-            <div className="review-pr">
+            <div className={`review-pr${tab === 'overview' ? ' overview' : ''}`}>
                 <header className="review-pr-header">{back}</header>
                 {!error && loading ? <HelmLoader label="Loading the pull request" /> : <div className="review-placeholder panel-message">{error ?? ''}</div>}
             </div>
@@ -334,6 +343,8 @@ export function ReviewPullRequest({
         selectTab('files');
     };
     const current = file && files?.find(item => item.path === file.file.path);
+    // A commit that is not in the pull request now (for example after a force push) shows the commit list.
+    const selectedCommit = commitSha ? pr.commits.find(commit => commit.oid === commitSha) : undefined;
     // The agent works in a worktree of the head branch. That needs a clone of the repository in a project.
     const sendToAgent = inProject && onSendToAgent ? (prompt: string) => onSendToAgent(pr, prompt) : undefined;
     const sendLogToAgent = inProject && onSendLogToAgent ? (target: CheckRun) => onSendLogToAgent(pr, target) : undefined;
@@ -343,7 +354,7 @@ export function ReviewPullRequest({
     const codeMax = () => (document.querySelector<HTMLElement>('.pr-tab-body')?.offsetWidth ?? Infinity) - (fileListOpen ? sideWidth.width : 0) - 320;
 
     return (
-        <div className="review-pr">
+        <div className={`review-pr${tab === 'overview' ? ' overview' : ''}`}>
             <header className="review-pr-header">
                 {back}
                 <div className="review-pr-title">
@@ -464,6 +475,7 @@ export function ReviewPullRequest({
                             onOpenDiff={(_pr, target, line, side) => openFile(target, line, side)}
                             checks={checkCounts}
                             onSendToAgent={sendToAgent}
+                            onOpenCommit={openCommit}
                             onSendChecksToAgent={inProject && onSendChecksToAgent ? checks => onSendChecksToAgent(pr, checks) : undefined}
                             agentReview={{
                                 running: agentReview?.status === 'running',
@@ -473,11 +485,21 @@ export function ReviewPullRequest({
                     </div>
                 )}
 
-                {tab === 'commits' && (
-                    <div className="pr-commits">
-                        <PullRequestCommitList pr={pr} />
-                    </div>
-                )}
+                {tab === 'commits' &&
+                    (selectedCommit ? (
+                        <CommitView
+                            key={selectedCommit.oid}
+                            target={repo}
+                            pr={pr}
+                            commit={selectedCommit}
+                            onBack={() => setCommitSha(undefined)}
+                            onSelect={commit => setCommitSha(commit.oid)}
+                        />
+                    ) : (
+                        <div className="pr-commits">
+                            <PullRequestCommitList pr={pr} onOpen={commit => setCommitSha(commit.oid)} />
+                        </div>
+                    ))}
 
                 {tab === 'checks' && (
                     <>

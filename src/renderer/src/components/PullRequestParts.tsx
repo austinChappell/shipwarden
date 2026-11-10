@@ -10,13 +10,15 @@ import {
     TriangleAlert
 } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
-import { hostLabel, type PullRequest, type PullRequestFile, type RepoTarget } from '@shared/github';
+import { hostLabel, type PullRequest, type PullRequestCommit, type PullRequestFile, type RepoTarget } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { hasConflicts } from '../github/merge-state';
 import { openCommentCount } from '../github/review-state';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
+import { splitFooter } from './pr-description';
+import { Avatar } from './Avatar';
 import { EditDescriptionButton } from './PullRequestDetails';
 import { openLink } from '../links';
 import { CopyButton } from './CopyButton';
@@ -75,8 +77,11 @@ export function ConflictBadge({ pr }: { pr: PullRequest }) {
     );
 }
 
-/** The commits of a pull request, the newest first, with a link to each commit on the host. */
-export function PullRequestCommitList({ pr }: { pr: PullRequest }) {
+/**
+ * The commits of a pull request, the newest first. With `onOpen`, a click on a commit shows its diff in ShipWarden,
+ * and the commit view has the link to the host. Without `onOpen`, the SHA is a link to the commit on the host.
+ */
+export function PullRequestCommitList({ pr, onOpen }: { pr: PullRequest; onOpen?(commit: PullRequestCommit): void }) {
     return (
         <>
             {pr.commitCount > pr.commits.length && (
@@ -85,26 +90,42 @@ export function PullRequestCommitList({ pr }: { pr: PullRequest }) {
                 </div>
             )}
             <div className="pr-commit-list">
-                {[...pr.commits].reverse().map(commit => (
-                    <div key={commit.oid} className="pr-commit">
-                        <GitCommitHorizontal size={15} strokeWidth={1.6} className="pr-commit-icon" />
-                        <div className="pr-commit-main">
-                            <div className="pr-commit-title" title={commit.messageHeadline}>
-                                {commit.messageHeadline}
+                {[...pr.commits].reverse().map(commit => {
+                    const content = (
+                        <>
+                            <GitCommitHorizontal size={15} strokeWidth={1.6} className="pr-commit-icon" />
+                            <div className="pr-commit-main">
+                                <div className="pr-commit-title" title={commit.messageHeadline}>
+                                    {commit.messageHeadline}
+                                </div>
+                                <div className="pr-commit-meta">
+                                    {commit.author ?? 'unknown'} committed {timeAgo(commit.committedDate)}
+                                </div>
                             </div>
-                            <div className="pr-commit-meta">
-                                {commit.author ?? 'unknown'} committed {timeAgo(commit.committedDate)}
-                            </div>
+                        </>
+                    );
+                    if (onOpen) {
+                        return (
+                            <button key={commit.oid} className="pr-commit openable" title="Show the changes of this commit" onClick={() => onOpen(commit)}>
+                                {content}
+                                <code className="pr-commit-sha">{commit.abbreviatedOid}</code>
+                                <ChevronRight size={14} strokeWidth={1.8} className="pr-commit-chevron" />
+                            </button>
+                        );
+                    }
+                    return (
+                        <div key={commit.oid} className="pr-commit">
+                            {content}
+                            <button
+                                className="link-button pr-commit-sha"
+                                title={`Open the commit on ${hostLabel(pr.host)}`}
+                                onClick={event => openLink(commit.url, event)}
+                            >
+                                {commit.abbreviatedOid}
+                            </button>
                         </div>
-                        <button
-                            className="link-button pr-commit-sha"
-                            title={`Open the commit on ${hostLabel(pr.host)}`}
-                            onClick={event => openLink(commit.url, event)}
-                        >
-                            {commit.abbreviatedOid}
-                        </button>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </>
     );
@@ -133,7 +154,29 @@ export function PullRequestDescription({ pr, overview, onEdit }: { pr: PullReque
     }, [pr.body, open, overview]);
 
     const editButton = pr.viewerCanUpdate && <EditDescriptionButton onClick={onEdit} />;
-    if (overview || !body) {
+    if (overview) {
+        const { text, footer } = splitFooter(body);
+        const author = pr.author?.login ?? 'unknown';
+        return (
+            <section className="pr-section">
+                <div className="pr-description-card">
+                    <div className="pr-description-card-header">
+                        <Avatar login={author} url={pr.author?.avatarUrl} size={24} className="pr-description-avatar" />
+                        <span className="pr-description-card-title">
+                            <strong>{author}</strong> opened this <span className="dot-separator">·</span>{' '}
+                            <time dateTime={pr.createdAt} title={new Date(pr.createdAt).toLocaleString()}>
+                                {timeAgo(pr.createdAt)}
+                            </time>
+                        </span>
+                        {editButton}
+                    </div>
+                    {text ? <Markdown className="pr-description open" text={text} /> : <div className="panel-note pr-description-empty">No description.</div>}
+                    {footer && <Markdown className="pr-description-card-footer" text={footer} />}
+                </div>
+            </section>
+        );
+    }
+    if (!body) {
         return (
             <section className="pr-section">
                 <div className="section-title">Description{editButton}</div>

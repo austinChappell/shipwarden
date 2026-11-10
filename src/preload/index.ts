@@ -105,6 +105,7 @@ const api: ShipWardenApi = {
     github: {
         status: root => ipcRenderer.invoke(IpcChannels.githubStatus, root),
         files: (root, number) => ipcRenderer.invoke(IpcChannels.githubFiles, root, number),
+        commitFiles: (root, sha) => ipcRenderer.invoke(IpcChannels.githubCommitFiles, root, sha),
         branchSummaries: repoPath => ipcRenderer.invoke(IpcChannels.githubBranchSummaries, repoPath),
         fileVersions: (root, file, baseSha, headSha) => ipcRenderer.invoke(IpcChannels.githubFileVersions, root, file, baseSha, headSha),
         submitReview: (root, number, headSha, event, body, comments) =>

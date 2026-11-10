@@ -17,6 +17,7 @@ import {
 } from '@shared/azure-devops';
 import type { DashboardPullRequests, MyPullRequestItem, ReviewRequestItem } from '@shared/dashboard';
 import {
+    type CommitFiles,
     cleanActionsLog,
     type BranchStatus,
     type BranchSummary,
@@ -66,6 +67,7 @@ import {
     type AzBuild,
     type AzBuildDefinition,
     type AzChangeEntry,
+    type AzCommitChange,
     type AzCommit,
     type AzGitStatus,
     type AzIdentity,
@@ -500,6 +502,31 @@ export class AzureDevOpsService implements SourceHost {
         if (viewed) set.add(filePath);
         else set.delete(filePath);
         this.viewed.set(key, set);
+    }
+
+    /**
+     * Returns the changed files of one commit and its first parent. Azure DevOps sends no patch and no line counts.
+     * The diff view loads the two versions of each file.
+     */
+    async commitFiles(target: RepoTarget, sha: string): Promise<CommitFiles> {
+        const repo = await this.resolve(target);
+        const commitApi = `${repo.api}/commits/${encodeURIComponent(sha)}`;
+        const commit = await this.client.request<{ parents?: string[] }>('GET', commitApi);
+        const entries: AzChangeEntry[] = [];
+        // Azure DevOps returns at most 2000 changes in one page.
+        for (let page = 0; page < 5; page++) {
+            const data = await this.client.request<{ changes?: AzCommitChange[] }>('GET', `${commitApi}/changes?top=2000&skip=${page * 2000}`);
+            const changes = data.changes ?? [];
+            entries.push(
+                ...changes.map(change => ({
+                    changeType: change.changeType,
+                    originalPath: change.originalPath ?? change.sourceServerItem,
+                    item: change.item && { path: change.item.path, isFolder: change.item.isFolder || change.item.gitObjectType === 'tree' }
+                }))
+            );
+            if (changes.length < 2000) break;
+        }
+        return { parentSha: commit.parents?.[0] ?? null, files: mapChanges(entries) };
     }
 
     async fileVersions(target: RepoTarget, file: PullRequestFile, baseSha: string, headSha: string): Promise<FileVersions> {

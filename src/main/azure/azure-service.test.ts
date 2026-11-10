@@ -160,6 +160,27 @@ describe('AzureDevOpsService', () => {
         );
     });
 
+    it('returns the changed files of a commit without the folders, and its first parent', async () => {
+        const { calls, service } = recordCalls({
+            '/commits/abc123/changes': {
+                changes: [
+                    { changeType: 'edit', item: { path: '/src', gitObjectType: 'tree' } },
+                    { changeType: 'edit', item: { path: '/src/a.ts', gitObjectType: 'blob' } },
+                    { changeType: 'rename', item: { path: '/src/new.ts', gitObjectType: 'blob' }, originalPath: '/src/old.ts' }
+                ]
+            },
+            '/commits/abc123': { parents: ['p1'] }
+        });
+        expect(await service.commitFiles(ROOT, 'abc123')).toEqual({
+            parentSha: 'p1',
+            files: [
+                { path: 'src/a.ts', status: 'modified', additions: 0, deletions: 0 },
+                { path: 'src/new.ts', previousPath: 'src/old.ts', status: 'renamed', additions: 0, deletions: 0 }
+            ]
+        });
+        expect(calls.map(([, url]) => url)).toContain(`${PROJECT}/git/repositories/${REPO_ID}/commits/abc123/changes?top=2000&skip=0`);
+    });
+
     it('keeps the viewed files in memory', async () => {
         const { service } = recordCalls({
             '/iterations/2/changes': { changeEntries: [{ changeType: 'edit', item: { path: '/src/a.ts' } }] },

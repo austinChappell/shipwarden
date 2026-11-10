@@ -1,6 +1,7 @@
 import {
     pullRequestSearch,
     type BranchSummary,
+    type CommitFiles,
     type FileVersions,
     type GitHubLabel,
     type GitHubOwner,
@@ -83,20 +84,34 @@ export async function fetchPullRequestCandidates(client: GitHubClient, repo: Rep
 /** Returns the changed files of a pull request. A failed load of the viewed state gives no viewed files. */
 export async function fetchPullRequestFiles(client: GitHubClient, repo: RepoRef, number: number): Promise<PullRequestFile[]> {
     const [files, viewed] = await Promise.all([
-        client.paginate<{ filename: string; previous_filename?: string; status: string; additions: number; deletions: number; patch?: string }>(
-            `/repos/${repo.owner}/${repo.name}/pulls/${number}/files`
-        ),
+        client.paginate<RestFile>(`/repos/${repo.owner}/${repo.name}/pulls/${number}/files`),
         fetchViewedFiles(client, repo, number).catch(() => new Set<string>())
     ]);
-    return files.map(file => ({
+    return files.map(file => ({ ...mapRestFile(file), viewed: viewed.has(file.filename) }));
+}
+
+type RestFile = { filename: string; previous_filename?: string; status: string; additions: number; deletions: number; patch?: string };
+
+function mapRestFile(file: RestFile): PullRequestFile {
+    return {
         path: file.filename,
         previousPath: file.previous_filename,
         status: file.status,
         additions: file.additions,
         deletions: file.deletions,
-        viewed: viewed.has(file.filename),
         ...(file.patch ? { patch: file.patch } : {})
-    }));
+    };
+}
+
+/** Returns the changed files of one commit and its first parent. GitHub sends the files in pages of 100, up to 3000 files. */
+export async function fetchCommitFiles(client: GitHubClient, repo: RepoRef, sha: string): Promise<CommitFiles> {
+    let parentSha: string | null = null;
+    const files = await client.paginate<RestFile>(`/repos/${repo.owner}/${repo.name}/commits/${encodeURIComponent(sha)}`, page => {
+        const commit = page as { parents?: { sha: string }[]; files?: RestFile[] };
+        parentSha ??= commit.parents?.[0]?.sha ?? null;
+        return commit.files ?? [];
+    });
+    return { parentSha, files: files.map(mapRestFile) };
 }
 
 /** Returns the files that the user marked as viewed. Only GraphQL has this state. */

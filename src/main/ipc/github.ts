@@ -27,6 +27,10 @@ export function registerGitHubIpc({ reviewProviders, seen }: Pick<Services, 'rev
         (await host(root)).createPullRequest(root, newPullRequestOf(request))
     );
     ipcMain.handle(IpcChannels.githubFiles, async (_event, target: RepoTarget, number: number) => (await host(target)).pullRequestFiles(target, number));
+    ipcMain.handle(IpcChannels.githubCommitFiles, async (_event, target: RepoTarget, sha: string) => {
+        if (typeof sha !== 'string' || !/^[0-9a-f]{4,64}$/i.test(sha)) throw new Error('The commit SHA is not valid.');
+        return (await host(target)).commitFiles(target, sha);
+    });
     ipcMain.handle(IpcChannels.githubFileVersions, async (_event, target: RepoTarget, file: PullRequestFile, baseSha: string, headSha: string) =>
         (await host(target)).fileVersions(target, file, baseSha, headSha)
     );
