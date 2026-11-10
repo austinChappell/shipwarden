@@ -37,6 +37,11 @@ checks. You can review diffs with inline comments, approve, request changes, mer
 logs, run jobs again and send a failed job or a review comment to the agent. ShipWarden uses
 your GitHub CLI login (`gh auth login`).
 
+The Agents view (⌥⌘2) shows all running agents in one list. Each row shows the state of the agent
+(needs input, blocked on CI, working or done), the time since its last output, and its pull request
+with the CI state. Click a row to open the agent's terminal. The header shows the plan usage of
+Claude and Codex. ShipWarden has no usage data for each agent.
+
 The Tasks view shows the tasks of a task tracker. Task trackers are plugins: GitHub Issues and
 ClickUp are built in, and anyone can write a plugin with the
 [ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch

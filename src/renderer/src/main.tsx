@@ -8,6 +8,7 @@ import { confirmDialog, DialogHost } from './components/ConfirmDialog';
 import { ContextMenuHost } from './components/ContextMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { applyLastPalette } from './theme/appearance';
+import { outputActivity } from './terminal/output-activity';
 import { appKeyAction } from '@shared/shortcuts';
 
 /** The page settings of Yardmaster (the old app name) have the prefix "yardmaster.". Copy them one time to the new prefix. */
@@ -26,6 +27,8 @@ function migrateLegacyStorage(): void {
 
 migrateLegacyStorage();
 applyLastPalette();
+// Record the time of the last output of each terminal from the start. The Agents view shows it.
+outputActivity.start(window.shipwarden.terminals);
 
 // The app keys (⌘Q, ⇧⌥⌘Q, ⌘, and ⌘H), in the capture phase, before a terminal takes them. The main process normally
 // reads these keys first (before-input-event). This is the second way, when it does not.

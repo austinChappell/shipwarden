@@ -184,9 +184,24 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
 - Each state change carries a message and a time. PreToolUse gives a description of the tool call for people
   (`describeTool`, for example "Editing App.tsx" or "Running npm test"). UserPromptSubmit gives a one-line summary of
   the prompt, which the session keeps.
-- The Agents view (the first row of the sidebar) lists the running agents of all projects, grouped by project. A row
-  shows the state and its time, a name (the linked task, else the last prompt, else the branch), the activity, and the
-  repository and branch. A click switches to the agent's project if necessary and opens its tab.
+- The Agents view (the first row of the sidebar, ⌥⌘2) lists the running agents of all projects, grouped by project. A row
+  shows the state, the time since the last output, a name (the linked task, else the last prompt, else the branch),
+  the activity, the pull request with its CI state, and the repository and branch. A click or Enter switches to the
+  agent's project if necessary and opens its tab. The arrow keys, Home and End move between the rows.
+- `src/shared/agent-overview.ts` gives the state of a row (`overviewState`). The inputs are the hook state, the CI state
+  of the branch's open pull request and the time of the last terminal output:
+  - The hook states "waiting", "working" and "starting" stay as they are.
+  - "done" becomes "Blocked on CI" while the checks of the pull request run or after they fail. Else it stays "done".
+  - "idle" (ready, no prompt) becomes "Needs input", or "Blocked on CI" as above.
+  - An agent without hooks (for example Codex) is "working" while its terminal sent output in the last 10 seconds.
+    Else it is "Blocked on CI" as above, or "Quiet".
+- The CI state comes from `github.branchSummaries` for each repository that has an agent. The view loads it every
+  60 seconds while it is open.
+- The renderer records the time of the last output of each terminal (`OutputActivity`). It starts when the window
+  loads, so after a reload of the window the time is not known until the next output. The row then shows the time of
+  the last state change. A redraw of a TUI agent (for example a spinner) also counts as output.
+- The header shows the number of agents in each state and the plan usage of Claude and Codex from the status bar.
+  ShipWarden has no token or cost data for each agent, so the rows show no usage.
 - The project switcher is the header of the repository list, because only the repositories change with the project.
 - The worktree list also shows the open PR of each branch and its combined CI state. One GraphQL request for all
   open PRs runs every 60 seconds and when the window gets focus.
