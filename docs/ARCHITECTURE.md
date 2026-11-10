@@ -15,6 +15,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-07 | Use ghostty-web for terminals and import the user's Ghostty config. | This is Orca's approach (Orca imports the Ghostty config into xterm.js), with Ghostty's own VT parser in place of xterm.js. Supacode embeds the native libghostty, but that needs a Swift app. |
 | 2026-11-09 | Show PDF files in the built-in PDF viewer of Chromium, in a frame that loads a `shipwarden-file:` URL. | It needs no dependency. pdfjs-dist adds about 3 MB and a worker. The viewer has search, zoom and page thumbnails. |
 | 2026-11-09 | The Review view gets go to definition and a file explorer from a hidden, detached git worktree at the PR head. | A language server needs the files on disk. The GitHub API gives files, but no server can run on them. The worktree uses the existing LspManager, FileExplorer and Monaco. |
+| 2026-11-09 | "Apply suggestion" changes the file in the local worktree. It does not commit with the GitHub API. | An agent works on the branch in the worktree. A commit on GitHub makes the local branch fall behind, and the next push fails. The user can check, test and commit the change with other changes. |
 
 ## The old name (Yardmaster)
 
@@ -548,6 +549,18 @@ Next:
   worktree (a bracketed paste, then Enter). A review thread goes to the agent as a prompt with the comments.
 - `RepoTarget`: each GitHub call takes a worktree root (the repository of its "origin") or `{owner, name}`.
   The review store keys its state with `targetKey(target)`.
+- Suggested changes (`shared/suggestion.ts`, `CommentBody`):
+  - A "```suggestion" block in a review comment shows as a diff: the old lines in red, the new lines in green.
+    `splitSuggestions` finds the blocks. A suggestion fence in a different code block is text.
+  - The old lines come from the `diffHunk` of the first comment of the thread (`threadSuggestionTarget`).
+    The thread query also gets `startLine` and `originalStartLine`, so a comment on more than one line works.
+  - "Suggest a change" in the comment box puts a suggestion block with the selected lines at the cursor. It shows
+    only on the new side. A selection of more than one line sends `start_line` and `start_side` with the review.
+  - "Apply suggestion" shows only in the worktree panel. It changes the file in the worktree, and the user commits.
+    `applySuggestion` finds the old lines by their text, near the line of the thread, so lines that moved still work.
+    When the old lines are not in the file, the suggestion is stale and the file does not change.
+    A file with unsaved changes in the editor does not change.
+  - The Review view shows suggestions, but it has no "Apply suggestion", because the PR has no worktree there.
 - Viewed files: `viewerViewedState` from GraphQL, changed with `markFileAsViewed` and `unmarkFileAsViewed`.
   The file list shows "x of y viewed". The diff header has a "Viewed" box. The change shows at once and goes back on an error.
 
@@ -665,7 +678,6 @@ Next:
 
 - Markdown for PR descriptions and comments.
 - PR and CI state in the worktree list.
-- Suggested changes in review comments.
 
 ### Mobile (goal 5)
 

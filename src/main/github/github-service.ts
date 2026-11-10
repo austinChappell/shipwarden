@@ -173,8 +173,8 @@ query($owner: String!, $name: String!, $number: Int!) {
       comments(last: 50) { nodes { id author { login avatarUrl } body bodyHTML createdAt url } }
       reviewThreads(first: 100) {
         nodes {
-          id isResolved isOutdated path line originalLine diffSide
-          comments(first: 50) { nodes { id databaseId author { login avatarUrl } body bodyHTML createdAt url } }
+          id isResolved isOutdated path line originalLine startLine originalStartLine diffSide
+          comments(first: 50) { nodes { id databaseId author { login avatarUrl } body bodyHTML createdAt url diffHunk } }
         }
       }
       commits(last: 100) {
@@ -749,7 +749,14 @@ export class GitHubService {
             commit_id: headSha,
             event,
             body: body || undefined,
-            comments: comments.map(comment => ({ path: comment.path, line: comment.line, side: comment.side, body: comment.body }))
+            comments: comments.map(comment => ({
+                path: comment.path,
+                line: comment.line,
+                side: comment.side,
+                body: comment.body,
+                // GitHub refuses a start line that is not before the last line.
+                ...(comment.startLine !== undefined && comment.startLine < comment.line ? { start_line: comment.startLine, start_side: comment.side } : {})
+            }))
         });
     }
 

@@ -264,8 +264,13 @@ const FileBody = memo(function FileBody({ target, pr, file, pending, composer, q
                     canComment={canComment}
                     onAsk={onAsk && (question => onAsk({ line: note.line, startLine: note.startLine, side: note.side }, question))}
                     onCancel={() => onComposer(undefined)}
-                    onAdd={body => {
-                        reviewStore.addPending(target, pr.number, { path: file.path, line: note.line, side: note.side, body });
+                    onSuggest={note.side === 'RIGHT' && canComment ? async () => {
+                        const result = await reviewStore.fileVersions(target, file, pr.baseRefOid, pr.headRefOid);
+                        return result.unavailable ? undefined : sliceLines(result.head, note.startLine, note.line).replace(/\r$/gm, '');
+                    } : undefined}
+                    onAdd={(body, originalCode) => {
+                        const startLine = note.startLine < note.line ? note.startLine : undefined;
+                        reviewStore.addPending(target, pr.number, { path: file.path, line: note.line, startLine, side: note.side, body, originalCode });
                         onComposer(undefined);
                     }}
                 />
