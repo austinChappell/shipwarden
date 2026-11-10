@@ -25,9 +25,16 @@ describe('quitAndStopSessions', () => {
         const questions: ConfirmRequest[] = [];
         const deps = {
             sessions: async () => sessions,
-            confirm: async (request: ConfirmRequest) => { questions.push(request); return answer; },
-            shutdownHost: async () => { steps.push('shutdown'); },
-            quit: () => { steps.push('quit'); }
+            confirm: async (request: ConfirmRequest) => {
+                questions.push(request);
+                return answer;
+            },
+            shutdownHost: async () => {
+                steps.push('shutdown');
+            },
+            quit: () => {
+                steps.push('quit');
+            }
         };
         return { deps, steps, questions };
     }

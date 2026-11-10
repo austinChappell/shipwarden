@@ -137,7 +137,11 @@ export function parseListeningPorts(text: string): Map<number, ListeningPort[]> 
             const port = parsePortName(name);
             if (port && !ports.some(item => item.port === port.port)) ports.push(port);
         }
-        if (ports.length) result.set(pid, ports.sort((a, b) => a.port - b.port));
+        if (ports.length)
+            result.set(
+                pid,
+                ports.sort((a, b) => a.port - b.port)
+            );
     }
     return result;
 }
@@ -218,7 +222,10 @@ function tree(pid: number, byPid: Map<number, ProcessRow>, children: Map<number,
     const row = byPid.get(pid);
     if (!row) return undefined;
     const root = info(row, ports);
-    const descendants = descendantPids(children, pid).map(id => byPid.get(id)).filter((item): item is ProcessRow => !!item).map(item => info(item, ports));
+    const descendants = descendantPids(children, pid)
+        .map(id => byPid.get(id))
+        .filter((item): item is ProcessRow => !!item)
+        .map(item => info(item, ports));
     const all = [...root.ports, ...descendants.flatMap(item => item.ports)];
     const unique = all.filter((port, index) => all.findIndex(item => item.port === port.port) === index).sort((a, b) => a.port - b.port);
     return { root, descendants, ports: unique };
@@ -234,9 +241,7 @@ function tree(pid: number, byPid: Map<number, ProcessRow>, children: Map<number,
 export function groupProcesses(input: ScanInput): WorktreeProcesses[] {
     const byPid = new Map(input.rows.map(row => [row.pid, row]));
     const children = childMap(input.rows);
-    const result = new Map<string, WorktreeProcesses>(
-        input.worktreePaths.map(path => [path, { worktreePath: path, terminals: [], others: [] }])
-    );
+    const result = new Map<string, WorktreeProcesses>(input.worktreePaths.map(path => [path, { worktreePath: path, terminals: [], others: [] }]));
 
     const excluded = new Set<number>();
     for (const pid of input.excludedPids) {

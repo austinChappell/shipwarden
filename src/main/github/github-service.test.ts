@@ -7,7 +7,11 @@ import { GitHubService, githubViewerRole } from './github-service';
 /** Records the REST calls of the service, without a network. */
 function recordCalls() {
     const calls: [string, string, unknown][] = [];
-    const client = { rest: async (method: string, path: string, body?: unknown) => { calls.push([method, path, body]); } } as unknown as GitHubClient;
+    const client = {
+        rest: async (method: string, path: string, body?: unknown) => {
+            calls.push([method, path, body]);
+        }
+    } as unknown as GitHubClient;
     return { calls, service: new GitHubService(client) };
 }
 
@@ -19,8 +23,14 @@ describe('changePullRequest', () => {
         [{ kind: 'details', state: 'closed' }, ['PATCH', '/repos/acme/api/pulls/7', { title: undefined, body: undefined, state: 'closed' }]],
         [{ kind: 'assignee', login: 'ana', add: true }, ['POST', '/repos/acme/api/issues/7/assignees', { assignees: ['ana'] }]],
         [{ kind: 'assignee', login: 'ana', add: false }, ['DELETE', '/repos/acme/api/issues/7/assignees', { assignees: ['ana'] }]],
-        [{ kind: 'reviewer', reviewer: { kind: 'user', login: 'bo' }, add: true }, ['POST', '/repos/acme/api/pulls/7/requested_reviewers', { reviewers: ['bo'] }]],
-        [{ kind: 'reviewer', reviewer: { kind: 'team', login: 'platform' }, add: false }, ['DELETE', '/repos/acme/api/pulls/7/requested_reviewers', { team_reviewers: ['platform'] }]],
+        [
+            { kind: 'reviewer', reviewer: { kind: 'user', login: 'bo' }, add: true },
+            ['POST', '/repos/acme/api/pulls/7/requested_reviewers', { reviewers: ['bo'] }]
+        ],
+        [
+            { kind: 'reviewer', reviewer: { kind: 'team', login: 'platform' }, add: false },
+            ['DELETE', '/repos/acme/api/pulls/7/requested_reviewers', { team_reviewers: ['platform'] }]
+        ],
         [{ kind: 'label', name: 'bug', add: true }, ['POST', '/repos/acme/api/issues/7/labels', { labels: ['bug'] }]],
         [{ kind: 'label', name: 'needs review', add: false }, ['DELETE', '/repos/acme/api/issues/7/labels/needs%20review', undefined]]
     ];
@@ -86,7 +96,12 @@ describe('GitHubService delegation', () => {
             ['POST', '/repos/acme/api/actions/runs/900/cancel'],
             ['POST', '/repos/acme/api/pulls/7/comments/101/replies']
         ]);
-        expect(calls[0].body).toEqual({ commit_id: 'head1', event: 'APPROVE', body: undefined, comments: [{ path: 'a.ts', line: 2, side: 'RIGHT', body: 'Nice.' }] });
+        expect(calls[0].body).toEqual({
+            commit_id: 'head1',
+            event: 'APPROVE',
+            body: undefined,
+            comments: [{ path: 'a.ts', line: 2, side: 'RIGHT', body: 'Nice.' }]
+        });
         expect(calls[1].body).toEqual({ merge_method: 'rebase', sha: 'head1' });
     });
 
@@ -109,7 +124,7 @@ describe('GitHubService delegation', () => {
     });
 
     it('returns the pull request from the GraphQL data', async () => {
-        const { client } = fakeClient(call => queryHas(call, 'timelineItems') ? { repository: { pullRequest: null } } : graphQlPullRequest());
+        const { client } = fakeClient(call => (queryHas(call, 'timelineItems') ? { repository: { pullRequest: null } } : graphQlPullRequest()));
         const pr = await new GitHubService(client).pullRequest(repo, 7);
         expect([pr.number, pr.headRefOid, pr.timeline]).toEqual([7, 'head1', []]);
     });

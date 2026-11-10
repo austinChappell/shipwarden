@@ -73,8 +73,10 @@ export async function fetchPullRequestCandidates(client: GitHubClient, repo: Rep
             labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color description } }
           }
         }`;
-    const data = await client.graphql<{ repository: { assignableUsers: { nodes: GitHubUser[] }; labels: { nodes: GitHubLabel[] } } }>(
-        query, { owner: repo.owner, name: repo.name });
+    const data = await client.graphql<{ repository: { assignableUsers: { nodes: GitHubUser[] }; labels: { nodes: GitHubLabel[] } } }>(query, {
+        owner: repo.owner,
+        name: repo.name
+    });
     return { users: data.repository.assignableUsers.nodes, labels: data.repository.labels.nodes };
 }
 
@@ -103,14 +105,20 @@ export async function fetchViewedFiles(client: GitHubClient, repo: RepoRef, numb
     let after: string | null = null;
     // A pull request can have 3000 files. GraphQL returns 100 on each page.
     for (let page = 0; page < 30; page++) {
-        const data: { repository: { pullRequest: { files: { nodes: { path: string; viewerViewedState: string }[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } } } =
-            await client.graphql(`query($owner: String!, $name: String!, $number: Int!, $after: String) {
+        const data: {
+            repository: {
+                pullRequest: { files: { nodes: { path: string; viewerViewedState: string }[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } };
+            };
+        } = await client.graphql(
+            `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       files(first: 100, after: $after) { nodes { path viewerViewedState } pageInfo { hasNextPage endCursor } }
     }
   }
-}`, { owner: repo.owner, name: repo.name, number, after });
+}`,
+            { owner: repo.owner, name: repo.name, number, after }
+        );
         const files = data.repository.pullRequest.files;
         files.nodes.filter(file => file.viewerViewedState === 'VIEWED').forEach(file => viewed.add(file.path));
         if (!files.pageInfo.hasNextPage) break;
@@ -125,7 +133,8 @@ export async function fetchViewedFiles(client: GitHubClient, repo: RepoRef, numb
  */
 export async function fetchPullRequests(client: GitHubClient, repo: RepoRef, filter: PullRequestFilter, query?: string): Promise<PullRequestSummary[]> {
     const closed = filter === 'closed';
-    const data = await client.graphql<{ search: { nodes: (GraphQlSummary | Record<string, never>)[] } }>(`query($q: String!, $first: Int!, $checks: Boolean!) {
+    const data = await client.graphql<{ search: { nodes: (GraphQlSummary | Record<string, never>)[] } }>(
+        `query($q: String!, $first: Int!, $checks: Boolean!) {
   search(query: $q, type: ISSUE, first: $first) {
     nodes {
       ... on PullRequest {
@@ -136,7 +145,9 @@ export async function fetchPullRequests(client: GitHubClient, repo: RepoRef, fil
       }
     }
   }
-}`, { q: `${pullRequestSearch(repo, filter, query)} sort:updated-desc`, first: closed ? 30 : 50, checks: !closed });
+}`,
+        { q: `${pullRequestSearch(repo, filter, query)} sort:updated-desc`, first: closed ? 30 : 50, checks: !closed }
+    );
     return mapPullRequestSummaries(data.search.nodes);
 }
 
@@ -168,10 +179,7 @@ export async function fetchFileVersions(client: GitHubClient, repo: RepoRef, fil
 
 /** Returns the user and the organizations of the token, for the organization choice of the Review view. */
 export async function fetchOwners(client: GitHubClient): Promise<GitHubOwner[]> {
-    const [user, orgs] = await Promise.all([
-        client.rest<{ login: string }>('GET', '/user'),
-        client.paginate<{ login: string }>('/user/orgs', undefined, 300)
-    ]);
+    const [user, orgs] = await Promise.all([client.rest<{ login: string }>('GET', '/user'), client.paginate<{ login: string }>('/user/orgs', undefined, 300)]);
     return [{ login: user.login, kind: 'user' }, ...orgs.map(org => ({ login: org.login, kind: 'organization' as const }))];
 }
 
@@ -182,7 +190,9 @@ export async function fetchOwners(client: GitHubClient): Promise<GitHubOwner[]> 
 export async function fetchRepositories(client: GitHubClient, owners?: string[]): Promise<GitHubRepoInfo[]> {
     const wanted = owners ? new Set(owners.map(owner => owner.toLowerCase())) : undefined;
     const repos = await client.paginate<{ name: string; owner: { login: string }; pushed_at?: string; archived: boolean }>(
-        '/user/repos?sort=pushed&affiliation=owner,collaborator,organization_member', undefined, 1000
+        '/user/repos?sort=pushed&affiliation=owner,collaborator,organization_member',
+        undefined,
+        1000
     );
     return repos
         .filter(repo => !repo.archived && (!wanted || wanted.has(repo.owner.login.toLowerCase())))

@@ -47,7 +47,15 @@ describe('opencode plugin', () => {
 
     it('sends a turn as Claude Code events that map to agent states', async () => {
         const hooks = await load();
-        await hooks['chat.message']!({ sessionID: 's1' }, { parts: [{ type: 'text', text: 'Fix the test' }, { type: 'text', text: 'hidden', synthetic: true }] });
+        await hooks['chat.message']!(
+            { sessionID: 's1' },
+            {
+                parts: [
+                    { type: 'text', text: 'Fix the test' },
+                    { type: 'text', text: 'hidden', synthetic: true }
+                ]
+            }
+        );
         await hooks['tool.execute.before']!({ tool: 'read', sessionID: 's1' }, { args: { filePath: '/repo/notes.txt' } });
         await event(hooks, 'message.updated', { info: { id: 'm1', role: 'assistant', sessionID: 's1' } });
         await event(hooks, 'message.part.updated', { part: { type: 'text', messageID: 'm1', text: 'The test passes now.' } });
@@ -76,7 +84,10 @@ describe('opencode plugin', () => {
         await event(hooks, 'question.asked', { sessionID: 's1', questions: [{ question: 'Which branch?' }] });
 
         const [, , , permission, replied, question] = sent;
-        expect(agentStateFromHook(permission.event, permission.payload)).toEqual({ state: 'waiting', message: 'opencode asks for permission: bash (npm test)' });
+        expect(agentStateFromHook(permission.event, permission.payload)).toEqual({
+            state: 'waiting',
+            message: 'opencode asks for permission: bash (npm test)'
+        });
         expect(agentStateFromHook(replied.event, replied.payload)).toEqual({ state: 'working', message: 'Running npm test' });
         expect(agentStateFromHook(question.event, question.payload)).toEqual({ state: 'waiting', message: 'Which branch?' });
     });

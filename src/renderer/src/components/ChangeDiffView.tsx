@@ -78,14 +78,17 @@ export function ChangeDiffView({ worktree, change, side, onOpenFile }: Props) {
         }
     };
 
-    const options = useMemo(() => ({
-        diffStyle,
-        themeType: mode,
-        disableFileHeader: true,
-        overflow: 'wrap' as const,
-        lineDiffType: 'word' as const,
-        unsafeCSS: THEME_CSS
-    }), [diffStyle, mode]);
+    const options = useMemo(
+        () => ({
+            diffStyle,
+            themeType: mode,
+            disableFileHeader: true,
+            overflow: 'wrap' as const,
+            lineDiffType: 'word' as const,
+            unsafeCSS: THEME_CSS
+        }),
+        [diffStyle, mode]
+    );
 
     const same = contents && !contents.binary && contents.original === contents.modified;
 
@@ -93,11 +96,27 @@ export function ChangeDiffView({ worktree, change, side, onOpenFile }: Props) {
         <div className="editor change-diff">
             <div className="diff-header">
                 <span className={`change-side ${side}`}>{side === 'staged' ? 'Staged' : 'Working tree'}</span>
-                <span className="diff-path" title={change.path}>{change.oldPath ? `${change.oldPath} → ${change.path}` : change.path}</span>
+                <span className="diff-path" title={change.path}>
+                    {change.oldPath ? `${change.oldPath} → ${change.path}` : change.path}
+                </span>
                 <span className="header-spacer" />
                 <div className="segmented compact" role="radiogroup" aria-label="Diff layout" onKeyDown={radioGroupKeys}>
-                    <button role="radio" aria-checked={diffStyle === 'unified'} className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
-                    <button role="radio" aria-checked={diffStyle === 'split'} className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
+                    <button
+                        role="radio"
+                        aria-checked={diffStyle === 'unified'}
+                        className={diffStyle === 'unified' ? 'selected' : ''}
+                        onClick={() => changeStyle('unified')}
+                    >
+                        Unified
+                    </button>
+                    <button
+                        role="radio"
+                        aria-checked={diffStyle === 'split'}
+                        className={diffStyle === 'split' ? 'selected' : ''}
+                        onClick={() => changeStyle('split')}
+                    >
+                        Split
+                    </button>
                 </div>
                 <button className="button change-stage" disabled={busy} onClick={() => void toggleStage()}>
                     {side === 'staged' ? <Minus size={13} strokeWidth={2} /> : <Plus size={13} strokeWidth={2} />}
@@ -109,12 +128,20 @@ export function ChangeDiffView({ worktree, change, side, onOpenFile }: Props) {
                     </button>
                 )}
                 {change.kind !== 'deleted' && (
-                    <button className="icon-button" title="Open the file" onClick={() => onOpenFile(change.path)}><FileText size={14} strokeWidth={1.6} /></button>
+                    <button className="icon-button" title="Open the file" onClick={() => onOpenFile(change.path)}>
+                        <FileText size={14} strokeWidth={1.6} />
+                    </button>
                 )}
-                <button className="icon-button" title="Load again" onClick={() => void load()}><RefreshCw size={14} strokeWidth={1.6} /></button>
+                <button className="icon-button" title="Load again" onClick={() => void load()}>
+                    <RefreshCw size={14} strokeWidth={1.6} />
+                </button>
             </div>
             {error && <div className="editor-failure">{error}</div>}
-            {!contents && !error && <div className="panel-message"><LoaderCircle size={14} className="spin" /> Loading the diff…</div>}
+            {!contents && !error && (
+                <div className="panel-message">
+                    <LoaderCircle size={14} className="spin" /> Loading the diff…
+                </div>
+            )}
             {contents?.binary && <div className="panel-message">This is a binary file. ShipWarden does not show its diff.</div>}
             {same && <div className="panel-message">No {side === 'staged' ? 'staged' : 'unstaged'} changes in this file now.</div>}
             {contents && !contents.binary && !same && (

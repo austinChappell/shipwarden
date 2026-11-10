@@ -14,7 +14,10 @@ export function useUpdateState(): UpdateState | undefined {
     const [state, setState] = useState<UpdateState>();
     useEffect(() => {
         let current = true;
-        window.shipwarden.updates.state().then(value => current && setState(value), () => undefined);
+        window.shipwarden.updates.state().then(
+            value => current && setState(value),
+            () => undefined
+        );
         const off = window.shipwarden.updates.onState(setState);
         return () => {
             current = false;
@@ -41,13 +44,22 @@ function NotesDialog({ state, onClose }: { state: UpdateState; onClose(): void }
     useModal(dialog);
     return (
         <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
-            <div ref={dialog} className="modal update-notes" role="dialog" aria-modal="true" aria-label="Release notes" onKeyDown={event => event.key === 'Escape' && onClose()}>
+            <div
+                ref={dialog}
+                className="modal update-notes"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Release notes"
+                onKeyDown={event => event.key === 'Escape' && onClose()}
+            >
                 <header className="modal-header">
                     <ArrowUpCircle size={16} strokeWidth={1.8} />
                     <h2>ShipWarden {update.version}</h2>
                     <span className="update-notes-date">{timeAgo(update.publishedAt)}</span>
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Close" onClick={onClose}><X size={15} strokeWidth={1.8} /></button>
+                    <button className="icon-button" title="Close" onClick={onClose}>
+                        <X size={15} strokeWidth={1.8} />
+                    </button>
                 </header>
                 <div className="modal-body">
                     <Markdown text={update.notes || 'This release has no notes.'} className="update-notes-body" />
@@ -57,9 +69,17 @@ function NotesDialog({ state, onClose }: { state: UpdateState; onClose(): void }
                         Open on GitHub <ExternalLink size={12} />
                     </button>
                     <span className="header-spacer" />
-                    <button className="button" onClick={onClose}>Close</button>
+                    <button className="button" onClick={onClose}>
+                        Close
+                    </button>
                     {state.canInstall && (
-                        <button className="button primary" onClick={() => { onClose(); void installUpdate(state).catch(() => undefined); }}>
+                        <button
+                            className="button primary"
+                            onClick={() => {
+                                onClose();
+                                void installUpdate(state).catch(() => undefined);
+                            }}
+                        >
                             Update and restart
                         </button>
                     )}
@@ -123,12 +143,18 @@ export function UpdateNotice() {
                 </div>
                 {!busy && (
                     <div className="update-notice-buttons">
-                        <button className="link-button" onClick={() => setNotes(true)}>Release notes</button>
+                        <button className="link-button" onClick={() => setNotes(true)}>
+                            Release notes
+                        </button>
                         {state.canInstall && state.status === 'available' && (
-                            <button className="button primary" onClick={() => void installUpdate(state).catch(() => undefined)}>Update and restart</button>
+                            <button className="button primary" onClick={() => void installUpdate(state).catch(() => undefined)}>
+                                Update and restart
+                            </button>
                         )}
                         {failed && (
-                            <button className="button" onClick={() => void window.shipwarden.updates.check()}>Try again</button>
+                            <button className="button" onClick={() => void window.shipwarden.updates.check()}>
+                                Try again
+                            </button>
                         )}
                         <button className="icon-button" title="Later. The notice shows again for the next version." onClick={later}>
                             <X size={14} strokeWidth={1.8} />
@@ -171,14 +197,26 @@ export function UpdateSettings() {
         <div className="update-settings">
             <span className={`update-settings-text${state.status === 'error' ? ' error' : ''}`}>
                 {text}
-                {state.checkedAt && state.status !== 'checking' && <span className="panel-note"> Checked {timeAgo(new Date(state.checkedAt).toISOString())}.</span>}
+                {state.checkedAt && state.status !== 'checking' && (
+                    <span className="panel-note"> Checked {timeAgo(new Date(state.checkedAt).toISOString())}.</span>
+                )}
             </span>
             <div className="update-settings-buttons">
-                {state.update && <button className="link-button" onClick={() => setNotes(true)}>Release notes</button>}
-                {state.update && state.canInstall && state.status === 'available' && (
-                    <button className="button primary" onClick={() => void installUpdate(state).catch(err => setError(errorText(err)))}>Update and restart</button>
+                {state.update && (
+                    <button className="link-button" onClick={() => setNotes(true)}>
+                        Release notes
+                    </button>
                 )}
-                <button className="button" disabled={state.status === 'checking' || state.status === 'downloading' || state.status === 'installing'} onClick={() => void check()}>
+                {state.update && state.canInstall && state.status === 'available' && (
+                    <button className="button primary" onClick={() => void installUpdate(state).catch(err => setError(errorText(err)))}>
+                        Update and restart
+                    </button>
+                )}
+                <button
+                    className="button"
+                    disabled={state.status === 'checking' || state.status === 'downloading' || state.status === 'installing'}
+                    onClick={() => void check()}
+                >
                     <RefreshCw size={13} strokeWidth={1.8} className={state.status === 'checking' ? 'spin' : ''} /> Check for updates
                 </button>
             </div>

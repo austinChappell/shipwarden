@@ -3,7 +3,7 @@ import type { CheckCounts } from './use-check-counts';
 
 /** Returns the failed checks for the CI banner. Only an open pull request shows them. */
 export function bannerChecks(pr: PullRequest | null, checks: CheckCounts | undefined): CheckRun[] {
-    return pr?.state === 'OPEN' ? checks?.failedChecks ?? [] : [];
+    return pr?.state === 'OPEN' ? (checks?.failedChecks ?? []) : [];
 }
 
 /** The title of the CI banner, for example "2 checks failed.". */

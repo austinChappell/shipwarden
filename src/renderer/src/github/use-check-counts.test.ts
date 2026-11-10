@@ -2,8 +2,16 @@ import { describe, expect, it } from 'vitest';
 import type { CheckRun } from '@shared/github';
 import { countChecks } from './use-check-counts';
 
-const run = (id: number, name: string, status: CheckRun['status'], conclusion: CheckRun['conclusion']): CheckRun =>
-    ({ id, name, status, conclusion, startedAt: null, completedAt: null, url: null, isActions: true });
+const run = (id: number, name: string, status: CheckRun['status'], conclusion: CheckRun['conclusion']): CheckRun => ({
+    id,
+    name,
+    status,
+    conclusion,
+    startedAt: null,
+    completedAt: null,
+    url: null,
+    isActions: true
+});
 
 describe('countChecks', () => {
     it('lists the newest failed run of each check', () => {

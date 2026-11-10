@@ -6,7 +6,8 @@ import type { Services } from '../services';
 /** Registers the IPC handlers of the language servers and the local copies of pull requests. */
 export function registerCodeIpc({ lsp, reviewCheckouts, shellReady }: Pick<Services, 'lsp' | 'reviewCheckouts' | 'shellReady'>): void {
     ipcMain.handle(IpcChannels.reviewCheckoutStatus, (_event, repo: unknown, number: unknown) =>
-        reviewCheckouts.status(checkRepoRef(repo), checkPullNumber(number)));
+        reviewCheckouts.status(checkRepoRef(repo), checkPullNumber(number))
+    );
     ipcMain.handle(IpcChannels.reviewCheckout, async (_event, repo: unknown, number: unknown, sha: unknown, allowClone: unknown) => {
         await shellReady;
         return reviewCheckouts.ensure(checkRepoRef(repo), checkPullNumber(number), checkCommitSha(sha), allowClone === true);

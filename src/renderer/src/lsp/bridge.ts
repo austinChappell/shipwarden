@@ -13,16 +13,7 @@ import type {
 import { lspLanguageId, rootForPath, sortChangesForLsp, type LspServerInfo, type LspServerMessage } from '@shared/lsp';
 import { documents } from '../editor/documents';
 import { monaco } from '../editor/monaco';
-import {
-    toCompletionItem,
-    toHighlights,
-    toHover,
-    toLocationLinks,
-    toLocations,
-    toLspPosition,
-    toMarkers,
-    type ShipWardenCompletionItem
-} from './convert';
+import { toCompletionItem, toHighlights, toHover, toLocationLinks, toLocations, toLspPosition, toMarkers, type ShipWardenCompletionItem } from './convert';
 import { missingServers } from './missing-servers';
 
 /** The Monaco languages that get LSP providers. */
@@ -32,7 +23,7 @@ const CHANGE_DEBOUNCE_MS = 100;
 const DIAGNOSTICS_DEBOUNCE_MS = 300;
 /** Peek views need a model for each file in the results. ShipWarden loads at most this number of files. */
 const MAX_PRELOADED_MODELS = 50;
-const TRIGGER_CHARACTERS = ['.', ':', '"', '\'', '/', '@', '<', '#', '`'];
+const TRIGGER_CHARACTERS = ['.', ':', '"', "'", '/', '@', '<', '#', '`'];
 /** After an install command starts, ShipWarden looks for the server at this interval. */
 const INSTALL_POLL_MS = 3000;
 /** ShipWarden stops to look for the server after this time. Then the banner shows the Install button again. */
@@ -250,7 +241,7 @@ export class LspBridge {
     private onChange(document: SyncedDocument, event: monaco.editor.IModelContentChangedEvent): void {
         // TextDocumentSyncKind: 1 = Full, 2 = Incremental.
         const sync = document.server.capabilities.textDocumentSync;
-        const kind = typeof sync === 'number' ? sync : sync?.change ?? 2;
+        const kind = typeof sync === 'number' ? sync : (sync?.change ?? 2);
         if (kind === 1) {
             document.pending = [{ text: document.model.getValue() }];
         } else {
@@ -294,9 +285,9 @@ export class LspBridge {
 
     private async pullDiagnostics(document: SyncedDocument): Promise<void> {
         try {
-            const report = await this.api.lsp.request(document.server.key, 'textDocument/diagnostic', {
+            const report = (await this.api.lsp.request(document.server.key, 'textDocument/diagnostic', {
                 textDocument: { uri: document.uri }
-            }) as DocumentDiagnosticReport;
+            })) as DocumentDiagnosticReport;
             if (report.kind === 'full' && !document.model.isDisposed()) {
                 monaco.editor.setModelMarkers(document.model, MARKER_OWNER, toMarkers(report.items));
             }
@@ -341,7 +332,7 @@ export class LspBridge {
 
     private async request<T>(document: SyncedDocument, method: string, params: object): Promise<T | undefined> {
         try {
-            return await this.api.lsp.request(document.server.key, method, { textDocument: { uri: document.uri }, ...params }) as T;
+            return (await this.api.lsp.request(document.server.key, method, { textDocument: { uri: document.uri }, ...params })) as T;
         } catch {
             return undefined;
         }
@@ -353,24 +344,26 @@ export class LspBridge {
      */
     private async preloadModels(uris: monaco.Uri[]): Promise<void> {
         const unique = [...new Map(uris.map(uri => [uri.toString(), uri])).values()].slice(0, MAX_PRELOADED_MODELS);
-        await Promise.all(unique.map(async uri => {
-            if (monaco.editor.getModel(uri) || uri.scheme !== 'file') {
-                return;
-            }
-            const root = rootForPath(this.allRoots(), uri.path);
-            try {
-                if (root) {
-                    await documents.open(root, uri.path.slice(root.length + 1));
-                } else if (!monaco.editor.getModel(uri)) {
-                    const content = await this.api.files.readExternal(uri.path);
-                    if (!monaco.editor.getModel(uri)) {
-                        monaco.editor.createModel(content, undefined, uri);
-                    }
+        await Promise.all(
+            unique.map(async uri => {
+                if (monaco.editor.getModel(uri) || uri.scheme !== 'file') {
+                    return;
                 }
-            } catch {
-                // The file is not readable. Monaco shows the location without a preview.
-            }
-        }));
+                const root = rootForPath(this.allRoots(), uri.path);
+                try {
+                    if (root) {
+                        await documents.open(root, uri.path.slice(root.length + 1));
+                    } else if (!monaco.editor.getModel(uri)) {
+                        const content = await this.api.files.readExternal(uri.path);
+                        if (!monaco.editor.getModel(uri)) {
+                            monaco.editor.createModel(content, undefined, uri);
+                        }
+                    }
+                } catch {
+                    // The file is not readable. Monaco shows the location without a preview.
+                }
+            })
+        );
     }
 
     private registerProviders(): void {
@@ -382,7 +375,9 @@ export class LspBridge {
                 if (!document) {
                     return null;
                 }
-                const result = await this.request<Location | Location[] | LocationLink[]>(document, 'textDocument/definition', { position: toLspPosition(position) });
+                const result = await this.request<Location | Location[] | LocationLink[]>(document, 'textDocument/definition', {
+                    position: toLspPosition(position)
+                });
                 const links = toLocationLinks(result);
                 await this.preloadModels(links.map(link => link.uri));
                 return links;
@@ -395,7 +390,9 @@ export class LspBridge {
                 if (!document || !document.server.capabilities.typeDefinitionProvider) {
                     return null;
                 }
-                const result = await this.request<Location | Location[] | LocationLink[]>(document, 'textDocument/typeDefinition', { position: toLspPosition(position) });
+                const result = await this.request<Location | Location[] | LocationLink[]>(document, 'textDocument/typeDefinition', {
+                    position: toLspPosition(position)
+                });
                 const links = toLocationLinks(result);
                 await this.preloadModels(links.map(link => link.uri));
                 return links;
@@ -408,7 +405,9 @@ export class LspBridge {
                 if (!document || !document.server.capabilities.implementationProvider) {
                     return null;
                 }
-                const result = await this.request<Location | Location[] | LocationLink[]>(document, 'textDocument/implementation', { position: toLspPosition(position) });
+                const result = await this.request<Location | Location[] | LocationLink[]>(document, 'textDocument/implementation', {
+                    position: toLspPosition(position)
+                });
                 const links = toLocationLinks(result);
                 await this.preloadModels(links.map(link => link.uri));
                 return links;
@@ -461,9 +460,8 @@ export class LspBridge {
                 }
                 // A trigger character that the server does not list is a normal request. LSP: 1 = Invoked, 2 = TriggerCharacter.
                 const character = context.triggerCharacter;
-                const lspContext = character && provider.triggerCharacters?.includes(character)
-                    ? { triggerKind: 2, triggerCharacter: character }
-                    : { triggerKind: 1 };
+                const lspContext =
+                    character && provider.triggerCharacters?.includes(character) ? { triggerKind: 2, triggerCharacter: character } : { triggerKind: 1 };
                 if (character && lspContext.triggerKind === 1) {
                     return { suggestions: [] };
                 }
@@ -471,7 +469,7 @@ export class LspBridge {
                     position: toLspPosition(position),
                     context: lspContext
                 });
-                const items = Array.isArray(result) ? result : result?.items ?? [];
+                const items = Array.isArray(result) ? result : (result?.items ?? []);
                 const word = model.getWordUntilPosition(position);
                 const defaultRange = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
                 return {
@@ -486,7 +484,7 @@ export class LspBridge {
                     return item;
                 }
                 try {
-                    const resolved = await this.api.lsp.request(server.key, 'completionItem/resolve', shipwardenItem.lspItem) as CompletionItem;
+                    const resolved = (await this.api.lsp.request(server.key, 'completionItem/resolve', shipwardenItem.lspItem)) as CompletionItem;
                     const converted = toCompletionItem(resolved, item.range as monaco.IRange);
                     return { ...item, detail: converted.detail ?? item.detail, documentation: converted.documentation ?? item.documentation };
                 } catch {

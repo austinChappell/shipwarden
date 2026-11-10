@@ -43,15 +43,15 @@ export function ReviewCodeView({ root, checkout, location, canGoBack, onBack, on
                 <button className="icon-button" title="Back" disabled={!canGoBack} onClick={onBack}>
                     <ArrowLeft size={14} strokeWidth={1.6} />
                 </button>
-                <span className="review-code-path" title={location.path}>{location.path}</span>
+                <span className="review-code-path" title={location.path}>
+                    {location.path}
+                </span>
                 <CopyButton text={location.path} title="Copy the file path" size={13} />
                 <button className="icon-button" title="Close the code" onClick={onClose}>
                     <X size={14} strokeWidth={1.6} />
                 </button>
             </header>
-            {root
-                ? <CodeEditor root={root} location={location} onCursor={onCursor} />
-                : <CheckoutMessage checkout={checkout} onRetry={onRetry} />}
+            {root ? <CodeEditor root={root} location={location} onCursor={onCursor} /> : <CheckoutMessage checkout={checkout} onRetry={onRetry} />}
         </div>
     );
 }
@@ -70,14 +70,18 @@ export function CheckoutMessage({ checkout, onRetry }: { checkout: CheckoutState
         return (
             <div className="panel-message review-code-message">
                 <span className="form-error">{checkout.error}</span>
-                <button className="button" onClick={onRetry}>Try again</button>
+                <button className="button" onClick={onRetry}>
+                    Try again
+                </button>
             </div>
         );
     }
     return (
         <div className="panel-message review-code-message">
             <span>Go to definition and the file explorer need a local copy of the pull request.</span>
-            <button className="button primary" onClick={onRetry}>Get the files</button>
+            <button className="button primary" onClick={onRetry}>
+                Get the files
+            </button>
         </div>
     );
 }
@@ -130,30 +134,34 @@ function CodeEditor({ root, location, onCursor }: { root: string; location: Code
         if (!editor) return;
         let current = true;
         setFailure(undefined);
-        documents.open(root, location.path).then(async model => {
-            if (!current || editor.getModel() === model && !location.line) {
-                if (current) editor.focus();
-                return;
-            }
-            if (editor.getModel() !== model) editor.setModel(model);
-            if (location.line) {
-                const line = Math.min(location.line, model.getLineCount());
-                const column = location.column ?? 1;
-                editor.setPosition({ lineNumber: line, column });
-                editor.revealLineInCenter(line);
-                if (!location.column) editor.setSelection(new monaco.Selection(line, 1, line, model.getLineMaxColumn(line)));
-            }
-            editor.focus();
-            if (location.action === 'definition') {
-                // The server must have the file first. Before that, the request gets no result.
-                await lspBridge.whenTracked(model);
-                if (current && editor.getModel() === model) {
-                    void editor.getAction('editor.action.revealDefinition')?.run();
+        documents.open(root, location.path).then(
+            async model => {
+                if (!current || (editor.getModel() === model && !location.line)) {
+                    if (current) editor.focus();
+                    return;
                 }
+                if (editor.getModel() !== model) editor.setModel(model);
+                if (location.line) {
+                    const line = Math.min(location.line, model.getLineCount());
+                    const column = location.column ?? 1;
+                    editor.setPosition({ lineNumber: line, column });
+                    editor.revealLineInCenter(line);
+                    if (!location.column) editor.setSelection(new monaco.Selection(line, 1, line, model.getLineMaxColumn(line)));
+                }
+                editor.focus();
+                if (location.action === 'definition') {
+                    // The server must have the file first. Before that, the request gets no result.
+                    await lspBridge.whenTracked(model);
+                    if (current && editor.getModel() === model) {
+                        void editor.getAction('editor.action.revealDefinition')?.run();
+                    }
+                }
+            },
+            error => {
+                if (current)
+                    setFailure((error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
             }
-        }, error => {
-            if (current) setFailure((error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
-        });
+        );
         return () => {
             current = false;
         };

@@ -22,34 +22,62 @@ interface Props {
 }
 
 /** The buttons of the task: "Open worktree" or "Start in worktree", and the actions of the plugin. */
-export function TaskActions({ task, source, busy, worktree, repos, startRepo, chooseStartRepo, repoLabel, onOpenWorktree, onStartTask, act, runAction }: Props) {
+export function TaskActions({
+    task,
+    source,
+    busy,
+    worktree,
+    repos,
+    startRepo,
+    chooseStartRepo,
+    repoLabel,
+    onOpenWorktree,
+    onStartTask,
+    act,
+    runAction
+}: Props) {
     /** The repository for "Start in worktree": the last one in this project, else the first. */
     const targetRepo = pickTargetRepo(repos, startRepo);
     return (
         <div className="task-start">
             {worktree ? (
                 <button className="button primary" onClick={() => onOpenWorktree(worktree)}>
-                    <GitBranch size={14} strokeWidth={1.8} />Open worktree
+                    <GitBranch size={14} strokeWidth={1.8} />
+                    Open worktree
                 </button>
             ) : (
                 <>
                     <button
                         className="button primary"
                         disabled={busy || !targetRepo || !source}
-                        title={targetRepo ? `Make a worktree in ${repoLabel(targetRepo)} and start an agent on the task` : 'Add a repository to the project first'}
+                        title={
+                            targetRepo ? `Make a worktree in ${repoLabel(targetRepo)} and start an agent on the task` : 'Add a repository to the project first'
+                        }
                         onClick={() => source && targetRepo && act(() => onStartTask(task, source.connectionId, source.pluginId, targetRepo))}
                     >
-                        <Play size={14} strokeWidth={1.8} />Start in worktree
+                        <Play size={14} strokeWidth={1.8} />
+                        Start in worktree
                     </button>
                     {repos.length > 1 && (
-                        <select className="tasks-select" value={targetRepo} title="The repository of the new worktree" onChange={event => chooseStartRepo(event.target.value)}>
-                            {repos.map(repo => <option key={repo} value={repo}>{repoLabel(repo)}</option>)}
+                        <select
+                            className="tasks-select"
+                            value={targetRepo}
+                            title="The repository of the new worktree"
+                            onChange={event => chooseStartRepo(event.target.value)}
+                        >
+                            {repos.map(repo => (
+                                <option key={repo} value={repo}>
+                                    {repoLabel(repo)}
+                                </option>
+                            ))}
                         </select>
                     )}
                 </>
             )}
             {source.actions.map(action => (
-                <button key={action.id} className="button" disabled={busy} onClick={() => runAction(action.id, action.confirm)}>{action.label}</button>
+                <button key={action.id} className="button" disabled={busy} onClick={() => runAction(action.id, action.confirm)}>
+                    {action.label}
+                </button>
             ))}
         </div>
     );

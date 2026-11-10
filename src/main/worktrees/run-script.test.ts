@@ -4,7 +4,13 @@ import { runScript } from './run-script';
 
 describe('runScript', () => {
     it('runs the script in the folder with the variables and keeps the output', async () => {
-        const result = await runScript('echo "$SHIPWARDEN_BRANCH in $(pwd -P)"; echo oops >&2', os.tmpdir(), { SHIPWARDEN_BRANCH: 'feat/a' }, 10_000, '/bin/sh');
+        const result = await runScript(
+            'echo "$SHIPWARDEN_BRANCH in $(pwd -P)"; echo oops >&2',
+            os.tmpdir(),
+            { SHIPWARDEN_BRANCH: 'feat/a' },
+            10_000,
+            '/bin/sh'
+        );
         expect(result.code).toBe(0);
         expect(result.output).toContain('feat/a in /');
         expect(result.output).toContain('oops');

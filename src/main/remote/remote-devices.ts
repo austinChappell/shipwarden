@@ -27,7 +27,13 @@ function sameHash(a: Buffer, b: Buffer): boolean {
 
 /** Removes control characters and extra spaces from a device name. */
 export function cleanDeviceName(name: unknown): string {
-    const clean = typeof name === 'string' ? name.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim() : '';
+    const clean =
+        typeof name === 'string'
+            ? name
+                  .replace(/[\u0000-\u001f\u007f]/g, '')
+                  .replace(/\s+/g, ' ')
+                  .trim()
+            : '';
     return clean.slice(0, MAX_NAME_LENGTH) || 'Phone';
 }
 
@@ -39,7 +45,10 @@ export class RemoteDevices {
     private readonly store: JsonStore<{ devices: StoredDevice[] }>;
     private pending: PendingPairing | undefined;
 
-    constructor(file: string, private readonly now: () => number = Date.now) {
+    constructor(
+        file: string,
+        private readonly now: () => number = Date.now
+    ) {
         this.store = new JsonStore(file, () => ({ devices: [] }));
     }
 

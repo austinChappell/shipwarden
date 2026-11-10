@@ -46,7 +46,8 @@ export const collectionsKey = (connectionId: string, projectId: string) => cache
 export const selectionKey = (connectionId: string, projectId: string) => cacheKey('tasks.selection', connectionId, projectId);
 export const tasksKey = (connectionId: string, projectId: string, collection: string, filter: string | undefined) =>
     cacheKey('tasks.list', connectionId, projectId, collection, filter);
-export const statusOrderKey = (connectionId: string, projectId: string, collection: string) => cacheKey('tasks.statusOrder', connectionId, projectId, collection);
+export const statusOrderKey = (connectionId: string, projectId: string, collection: string) =>
+    cacheKey('tasks.statusOrder', connectionId, projectId, collection);
 export const detailKey = (connectionId: string, projectId: string, taskId: string) => cacheKey('tasks.detail', connectionId, projectId, taskId);
 
 /** The board is the default view. The list shows only when the user selected it. */
@@ -101,14 +102,17 @@ export function connectionStateOf(connections: readonly ConnectionInfo[] | undef
  * Thus the view uses the last filter of this source, or the default filter of the source.
  */
 export function pickFilter(filters: readonly FilterDefinition[], last: string | undefined): string | undefined {
-    return last && filters.some(item => item.id === last) ? last : filters.find(item => item.default)?.id ?? filters[0]?.id;
+    return last && filters.some(item => item.id === last) ? last : (filters.find(item => item.default)?.id ?? filters[0]?.id);
 }
 
 /**
  * Returns the selected collection ID. During a switch to another connection, the old selection is still in state
  * for one render. It must not go to the new connection, so it counts only for its own connection.
  */
-export function selectedCollection(source: Pick<TaskSource, 'connectionId'> | null | undefined, selection: CollectionSelection | undefined): string | undefined {
+export function selectedCollection(
+    source: Pick<TaskSource, 'connectionId'> | null | undefined,
+    selection: CollectionSelection | undefined
+): string | undefined {
     return source && selection?.connectionId === source.connectionId ? selection.id : undefined;
 }
 
@@ -170,7 +174,12 @@ export function targetRepo(repos: readonly string[], last: string): string | und
 
 /** The text that tells which settings a task manager needs. */
 export function missingSettingsText(connection: Pick<ConnectionInfo, 'settings'>): string {
-    return connection.settings.filter(setting => setting.required).map(setting => setting.label.toLowerCase()).join(' and ') || 'settings';
+    return (
+        connection.settings
+            .filter(setting => setting.required)
+            .map(setting => setting.label.toLowerCase())
+            .join(' and ') || 'settings'
+    );
 }
 
 /** The tooltip of the collection picker. */

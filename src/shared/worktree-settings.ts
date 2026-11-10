@@ -5,8 +5,19 @@ export const DEFAULT_COPY_PATTERNS = ['.env', '.env.*'];
 
 /** The ignored folders that "all except" does not copy, when the user did not choose others. They are large or belong to one build. */
 export const DEFAULT_COPY_EXCLUDE = [
-    'node_modules/', 'dist/', 'build/', 'out/', 'target/', '.next/', '.turbo/', '.cache/', 'coverage/',
-    '.venv/', '__pycache__/', '.gradle/', '*.tsbuildinfo'
+    'node_modules/',
+    'dist/',
+    'build/',
+    'out/',
+    'target/',
+    '.next/',
+    '.turbo/',
+    '.cache/',
+    'coverage/',
+    '.venv/',
+    '__pycache__/',
+    '.gradle/',
+    '*.tsbuildinfo'
 ];
 
 /** "matching": copy the ignored entries that match `patterns`. "allExcept": copy all ignored entries except `exclude`. */
@@ -60,7 +71,14 @@ export const DEFAULT_WORKTREE_SETTINGS: WorktreeSettings = { copyIgnored: DEFAUL
 
 function cleanPatterns(value: unknown): string[] {
     if (!Array.isArray(value)) return [];
-    return [...new Set(value.filter((item): item is string => typeof item === 'string').map(item => item.trim()).filter(Boolean))];
+    return [
+        ...new Set(
+            value
+                .filter((item): item is string => typeof item === 'string')
+                .map(item => item.trim())
+                .filter(Boolean)
+        )
+    ];
 }
 
 function normalizeCopy(value: unknown): CopyIgnoredSettings | undefined {
@@ -89,7 +107,7 @@ function cleanScript(value: unknown): string | undefined {
  * outside the worktree settings. It applies when the worktree settings have no sort.
  */
 export function normalizeWorktreeSettings(value: unknown, legacySort?: unknown): WorktreeSettings {
-    const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
     const directory = cleanText(raw.directory);
     return {
         ...(directory ? { directory } : {}),
@@ -229,6 +247,8 @@ export function shellQuote(value: string): string {
 
 /** The terminal command of a setup script: the variables, then the script. The terminal tab shows its output. */
 export function setupCommand(script: string, vars: ScriptVariables): string {
-    const exports = Object.entries(scriptEnvironment(vars)).map(([key, value]) => `export ${key}=${shellQuote(value)}`).join('; ');
+    const exports = Object.entries(scriptEnvironment(vars))
+        .map(([key, value]) => `export ${key}=${shellQuote(value)}`)
+        .join('; ');
     return `${exports}; ${script}`;
 }

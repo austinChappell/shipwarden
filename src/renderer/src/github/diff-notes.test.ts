@@ -2,12 +2,33 @@ import { describe, expect, it } from 'vitest';
 import type { PendingComment, PullRequestFile, ReviewThread } from '@shared/github';
 import type { AgentQuestion } from './agent-questions';
 import {
-    allFilesOpen, composerFromRange, composerModes, composerPlaceholder, composerSubmitLabel, currentMatchIndex, findCountText,
-    fromSide, isFileOpen, lineAnnotations, nextMatchIndex, selectionLines, threadsWithLine, toSide, type EditorSelection
+    allFilesOpen,
+    composerFromRange,
+    composerModes,
+    composerPlaceholder,
+    composerSubmitLabel,
+    currentMatchIndex,
+    findCountText,
+    fromSide,
+    isFileOpen,
+    lineAnnotations,
+    nextMatchIndex,
+    selectionLines,
+    threadsWithLine,
+    toSide,
+    type EditorSelection
 } from './diff-notes';
 
-const thread = (id: string, path: string, line: number | null, side: 'LEFT' | 'RIGHT' = 'RIGHT'): ReviewThread =>
-    ({ id, path, line, originalLine: 9, side, isResolved: false, isOutdated: line === null, comments: [] });
+const thread = (id: string, path: string, line: number | null, side: 'LEFT' | 'RIGHT' = 'RIGHT'): ReviewThread => ({
+    id,
+    path,
+    line,
+    originalLine: 9,
+    side,
+    isResolved: false,
+    isOutdated: line === null,
+    comments: []
+});
 
 const pending: PendingComment = { path: 'a.ts', line: 5, side: 'LEFT', body: 'Fix' };
 
@@ -94,7 +115,10 @@ describe('selectionLines', () => {
 });
 
 describe('isFileOpen and allFilesOpen', () => {
-    const files = [{ path: 'a.ts', viewed: false }, { path: 'b.ts', viewed: true }] as PullRequestFile[];
+    const files = [
+        { path: 'a.ts', viewed: false },
+        { path: 'b.ts', viewed: true }
+    ] as PullRequestFile[];
 
     it('opens a file that is not viewed and closes a viewed file by default', () => {
         expect(files.map(file => isFileOpen({}, file))).toEqual([true, false]);

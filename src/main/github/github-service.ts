@@ -73,9 +73,13 @@ export class GitHubService {
         }
         const branch = await git(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
         const localSha = await git(root, ['rev-parse', 'HEAD']);
-        const found = branch === 'HEAD'
-            ? []
-            : await this.client.rest<{ number: number }[]>('GET', `/repos/${repo.owner}/${repo.name}/pulls?state=all&sort=updated&direction=desc&head=${encodeURIComponent(`${repo.owner}:${branch}`)}`);
+        const found =
+            branch === 'HEAD'
+                ? []
+                : await this.client.rest<{ number: number }[]>(
+                      'GET',
+                      `/repos/${repo.owner}/${repo.name}/pulls?state=all&sort=updated&direction=desc&head=${encodeURIComponent(`${repo.owner}:${branch}`)}`
+                  );
         const pullRequest = found.length > 0 ? await this.pullRequest(repo, found[0].number) : null;
         return { repo, branch, sha: pullRequest?.state === 'OPEN' ? pullRequest.headRefOid : localSha, pullRequest };
     }

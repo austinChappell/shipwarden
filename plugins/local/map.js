@@ -40,7 +40,10 @@ export function slug(text) {
  * the last status is "done" and the other statuses are "in_progress".
  */
 export function parseStatuses(text) {
-    const names = String(text ?? '').split(/[,\n]/).map(name => name.trim()).filter(Boolean);
+    const names = String(text ?? '')
+        .split(/[,\n]/)
+        .map(name => name.trim())
+        .filter(Boolean);
     const unique = [];
     for (const name of names.length > 0 ? names : DEFAULT_STATUSES.split(',').map(name => name.trim())) {
         const id = slug(name);
@@ -60,7 +63,9 @@ export function parseStatuses(text) {
 
 /** Returns the status with an ID. A status that the settings do not have any more shows with its ID as the name. */
 export function statusFor(statuses, id) {
-    return statuses.find(status => status.id === id) ?? { id: String(id), name: String(id), color: CATEGORY_COLORS.todo, category: 'todo', order: statuses.length };
+    return (
+        statuses.find(status => status.id === id) ?? { id: String(id), name: String(id), color: CATEGORY_COLORS.todo, category: 'todo', order: statuses.length }
+    );
 }
 
 /**
@@ -101,7 +106,7 @@ export function toTask(stored, collection, statuses, { withDescription = false }
         status: statusFor(statuses, stored.status),
         labels: stored.archived ? [{ name: 'archived', color: CATEGORY_COLORS.canceled }] : [],
         updatedAt: stored.updatedAt,
-        description: withDescription ? stored.description ?? '' : undefined,
+        description: withDescription ? (stored.description ?? '') : undefined,
         fields: {
             createdAt: stored.createdAt ?? null,
             comments: stored.comments?.length ?? 0
@@ -127,7 +132,11 @@ export function matchesFilter(stored, filter = 'active') {
 
 /** True when each word of the query is in the key, the title, the description or a comment. The search is not case sensitive. */
 export function matchesQuery(stored, query) {
-    const words = String(query ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const words = String(query ?? '')
+        .trim()
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(Boolean);
     if (words.length === 0) return true;
     const text = [`${KEY_PREFIX}-${stored.number}`, stored.title, stored.description ?? '', ...(stored.comments ?? []).map(comment => comment.body)]
         .join(' ')

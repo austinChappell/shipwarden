@@ -30,12 +30,14 @@ describe('submitReview', () => {
     it.each(events)('sends one review request for the %s event', async event => {
         const { client, calls } = fakeClient();
         await submitReview(client, repo, 7, 'head1', event, 'The text', []);
-        expect(calls).toEqual([{
-            kind: 'rest',
-            method: 'POST',
-            path: '/repos/acme/api/pulls/7/reviews',
-            body: { commit_id: 'head1', event, body: 'The text', comments: [] }
-        }]);
+        expect(calls).toEqual([
+            {
+                kind: 'rest',
+                method: 'POST',
+                path: '/repos/acme/api/pulls/7/reviews',
+                body: { commit_id: 'head1', event, body: 'The text', comments: [] }
+            }
+        ]);
     });
 
     it('sends the pending line comments in the same request', async () => {
@@ -54,7 +56,9 @@ describe('submitReview', () => {
     });
 
     it('gives the GitHub error to the caller', async () => {
-        const { client } = fakeClient(() => { throw new GitHubError('GitHub returned 422.', 422); });
+        const { client } = fakeClient(() => {
+            throw new GitHubError('GitHub returned 422.', 422);
+        });
         await expect(submitReview(client, repo, 7, 'head1', 'APPROVE', '', [])).rejects.toMatchObject({ status: 422 });
     });
 });
@@ -85,7 +89,10 @@ describe('setFileViewed', () => {
         expect(calls[0].path).toContain('markFileAsViewed(');
         expect(calls[0].path).not.toContain('unmarkFileAsViewed');
         expect(calls[1].path).toContain('unmarkFileAsViewed(');
-        expect(calls.map(call => call.body)).toEqual([{ id: 'PR1', path: 'src/a.ts' }, { id: 'PR1', path: 'src/a.ts' }]);
+        expect(calls.map(call => call.body)).toEqual([
+            { id: 'PR1', path: 'src/a.ts' },
+            { id: 'PR1', path: 'src/a.ts' }
+        ]);
     });
 });
 

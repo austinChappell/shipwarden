@@ -30,7 +30,12 @@ export function viewToSave(mainView: MainView, viewBeforeSettings: ContentView):
  * Returns the history entry of the current place in the app. The settings page has no entry.
  * The worktree view has an entry only when a worktree is selected.
  */
-export function navLocationOf(mainView: MainView, selectedPath: string | undefined, activeTab: string | undefined, graphRepo: string | undefined): NavLocation | undefined {
+export function navLocationOf(
+    mainView: MainView,
+    selectedPath: string | undefined,
+    activeTab: string | undefined,
+    graphRepo: string | undefined
+): NavLocation | undefined {
     if (mainView === 'settings') return undefined;
     if (mainView === 'worktree') return selectedPath ? { view: mainView, worktree: selectedPath, tab: activeTab } : undefined;
     if (mainView === 'graph') return { view: mainView, repo: graphRepo };

@@ -27,14 +27,26 @@ import {
     worktreeForTask
 } from './task-view-logic';
 
-const task = (id: string, status = 'to do', extra: Partial<Task> = {}): Task =>
-    ({ id, title: `Task ${id}`, status: { id: status, name: status, category: 'todo' }, ...extra });
+const task = (id: string, status = 'to do', extra: Partial<Task> = {}): Task => ({
+    id,
+    title: `Task ${id}`,
+    status: { id: status, name: status, category: 'todo' },
+    ...extra
+});
 
-const connection = (id: string, configured: boolean): ConnectionInfo =>
-    ({ id, pluginId: 'p', name: id, enabled: true, pluginName: 'P', settings: [], configured, settingsWithValue: [], publicSettings: {} });
+const connection = (id: string, configured: boolean): ConnectionInfo => ({
+    id,
+    pluginId: 'p',
+    name: id,
+    enabled: true,
+    pluginName: 'P',
+    settings: [],
+    configured,
+    settingsWithValue: [],
+    publicSettings: {}
+});
 
-const column = (key: string, tasks: Task[]): StatusGroup =>
-    ({ key, name: key, category: 'todo', tasks }) as StatusGroup;
+const column = (key: string, tasks: Task[]): StatusGroup => ({ key, name: key, category: 'todo', tasks }) as StatusGroup;
 
 describe('parseViewMode', () => {
     it('gives the list only when the stored value is "list"', () => {
@@ -124,7 +136,10 @@ describe('connectionStateOf', () => {
 });
 
 describe('pickFilter', () => {
-    const filters = [{ id: 'mine', label: 'Mine' }, { id: 'all', label: 'All', default: true }];
+    const filters = [
+        { id: 'mine', label: 'Mine' },
+        { id: 'all', label: 'All', default: true }
+    ];
 
     it('keeps the last filter when the source has it', () => {
         expect(pickFilter(filters, 'mine')).toBe('mine');
@@ -219,8 +234,12 @@ describe('board helpers', () => {
     });
 
     it('makes the status of a group for its status dot', () => {
-        expect(groupStatus({ key: 'doing', name: 'Doing', color: '#fff', category: 'in_progress' }))
-            .toEqual({ id: 'doing', name: 'Doing', color: '#fff', category: 'in_progress' });
+        expect(groupStatus({ key: 'doing', name: 'Doing', color: '#fff', category: 'in_progress' })).toEqual({
+            id: 'doing',
+            name: 'Doing',
+            color: '#fff',
+            category: 'in_progress'
+        });
     });
 });
 

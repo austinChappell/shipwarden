@@ -1,5 +1,23 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Check, CheckCheck, ChevronRight, CircleCheck, CircleX, ExternalLink, EyeOff, FileWarning, Filter, GitMerge, GitPullRequest, LayoutDashboard, MessageSquare, RefreshCw, Settings2, SquareCheckBig, TriangleAlert } from 'lucide-react';
+import {
+    Check,
+    CheckCheck,
+    ChevronRight,
+    CircleCheck,
+    CircleX,
+    ExternalLink,
+    EyeOff,
+    FileWarning,
+    Filter,
+    GitMerge,
+    GitPullRequest,
+    LayoutDashboard,
+    MessageSquare,
+    RefreshCw,
+    Settings2,
+    SquareCheckBig,
+    TriangleAlert
+} from 'lucide-react';
 import {
     DASHBOARD_WINDOW_DAYS,
     gitHubSeenKey,
@@ -58,7 +76,12 @@ function Section({ icon, title, count, actions, children }: { icon: ReactNode; t
 }
 
 function Empty({ text }: { text: string }) {
-    return <div className="dash-empty"><CircleCheck size={14} strokeWidth={1.8} />{text}</div>;
+    return (
+        <div className="dash-empty">
+            <CircleCheck size={14} strokeWidth={1.8} />
+            {text}
+        </div>
+    );
 }
 
 /** The icon of each reason of the user's pull requests. The color comes from the CSS class of the reason. */
@@ -75,7 +98,9 @@ function Title({ title }: { title: string }) {
     return (
         <>
             <span className={`dash-ticket${parsed.ticket ? '' : ' none'}`}>{parsed.ticket ?? ''}</span>
-            <span className="dash-title" title={title}>{parsed.text}</span>
+            <span className="dash-title" title={title}>
+                {parsed.text}
+            </span>
         </>
     );
 }
@@ -85,14 +110,31 @@ function Meta({ repo, number, age, ageTitle, children }: { repo: RepoRef; number
     return (
         <span className="dash-meta">
             {children}
-            <span className="dash-repo" title={`${repo.owner}/${repo.name} #${number}`}>{repo.name} <span className="dash-number">#{number}</span></span>
-            {age !== undefined && <span className="dash-age" title={ageTitle}>{shortAge(age)}</span>}
+            <span className="dash-repo" title={`${repo.owner}/${repo.name} #${number}`}>
+                {repo.name} <span className="dash-number">#{number}</span>
+            </span>
+            {age !== undefined && (
+                <span className="dash-age" title={ageTitle}>
+                    {shortAge(age)}
+                </span>
+            )}
         </span>
     );
 }
 
 /** A comment on the Dashboard. A click shows all of it and records it as seen. */
-function CommentRow({ seenKey, author, createdAt, label, preview, body, onOpen, openTitle, onHideAuthor, onCreateRule }: {
+function CommentRow({
+    seenKey,
+    author,
+    createdAt,
+    label,
+    preview,
+    body,
+    onOpen,
+    openTitle,
+    onHideAuthor,
+    onCreateRule
+}: {
     seenKey: string;
     author: string;
     createdAt: string;
@@ -127,7 +169,9 @@ function CommentRow({ seenKey, author, createdAt, label, preview, body, onOpen, 
                 <strong className="dash-author">{author}</strong>
                 {label && <span className={`dash-tag ${label === 'approved' ? 'approved' : label === 'requested changes' ? 'changes' : ''}`}>{label}</span>}
                 <span className="dash-preview">{open ? '' : preview}</span>
-                <span className="dash-age" title={new Date(createdAt).toLocaleString()}>{shortAge(createdAt)}</span>
+                <span className="dash-age" title={new Date(createdAt).toLocaleString()}>
+                    {shortAge(createdAt)}
+                </span>
                 <span className="dash-actions">
                     <button
                         className="icon-button dash-hide"
@@ -153,11 +197,26 @@ function CommentRow({ seenKey, author, createdAt, label, preview, body, onOpen, 
                     >
                         <EyeOff size={13} strokeWidth={1.7} />
                     </button>
-                    <button className="icon-button" title={openTitle} onClick={event => { event.stopPropagation(); seenStore.mark([seenKey]); onOpen(event); }}>
+                    <button
+                        className="icon-button"
+                        title={openTitle}
+                        onClick={event => {
+                            event.stopPropagation();
+                            seenStore.mark([seenKey]);
+                            onOpen(event);
+                        }}
+                    >
                         <ExternalLink size={13} strokeWidth={1.7} />
                     </button>
                     {!seen && (
-                        <button className="icon-button" title="Mark as seen" onClick={event => { event.stopPropagation(); seenStore.mark([seenKey]); }}>
+                        <button
+                            className="icon-button"
+                            title="Mark as seen"
+                            onClick={event => {
+                                event.stopPropagation();
+                                seenStore.mark([seenKey]);
+                            }}
+                        >
                             <Check size={14} strokeWidth={2} />
                         </button>
                     )}
@@ -174,7 +233,6 @@ function reviewLabel(item: PullRequestCommentItem): string | undefined {
     if (item.path) return item.path.split('/').pop();
     return item.reviewState ? 'review' : undefined;
 }
-
 
 /** Groups items by a key, in the order of their first item. */
 function groupBy<T>(items: T[], key: (item: T) => string): [string, T[]][] {
@@ -211,9 +269,9 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
     );
     const shownPrComments = prComments.filter(item => visible(gitHubSeenKey(item.id)));
     const unseenPr = prComments.filter(item => !seenStore.has(gitHubSeenKey(item.id)));
-    const taskComments = state.tasks.flatMap(source => (source.comments ?? [])
-        .filter(comment => !isHiddenComment(comment.author, comment.body, filter))
-        .map(comment => ({ source, comment })));
+    const taskComments = state.tasks.flatMap(source =>
+        (source.comments ?? []).filter(comment => !isHiddenComment(comment.author, comment.body, filter)).map(comment => ({ source, comment }))
+    );
     const shownTaskComments = taskComments.filter(({ source, comment }) => visible(taskSeenKey(source.connectionId, comment.id)));
     const unseenTask = taskComments.filter(({ source, comment }) => !seenStore.has(taskSeenKey(source.connectionId, comment.id)));
 
@@ -275,51 +333,73 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                         {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
                         {!pullRequests && !state.pullRequestsError && <div className="panel-note">Loading…</div>}
                         {pullRequests?.myPullRequests.length === 0 && <Empty text="None of your pull requests needs an action." />}
-                        {pullRequests && MY_PULL_REQUEST_GROUP_ORDER.map(group => {
-                            const items = pullRequests.myPullRequests.filter(pr => myPullRequestGroup(pr.reasons) === group);
-                            if (items.length === 0) return null;
-                            const Icon = REASON_ICONS[group];
-                            return (
-                                <div key={group} className="dash-subgroup">
-                                    <div className={`dash-subgroup-head ${group}`}>
-                                        <Icon size={13} strokeWidth={2} />
-                                        {MY_PULL_REQUEST_REASON_LABELS[group]}
-                                        <span className="dash-subgroup-count">{items.length}</span>
+                        {pullRequests &&
+                            MY_PULL_REQUEST_GROUP_ORDER.map(group => {
+                                const items = pullRequests.myPullRequests.filter(pr => myPullRequestGroup(pr.reasons) === group);
+                                if (items.length === 0) return null;
+                                const Icon = REASON_ICONS[group];
+                                return (
+                                    <div key={group} className="dash-subgroup">
+                                        <div className={`dash-subgroup-head ${group}`}>
+                                            <Icon size={13} strokeWidth={2} />
+                                            {MY_PULL_REQUEST_REASON_LABELS[group]}
+                                            <span className="dash-subgroup-count">{items.length}</span>
+                                        </div>
+                                        {items.map(pr => (
+                                            <button
+                                                key={pr.url}
+                                                className="dash-row"
+                                                data-nav-item
+                                                onClick={() => onOpenPullRequest(pr.repo, pr.number, myPrTab(pr))}
+                                            >
+                                                <Title title={pr.title} />
+                                                <Meta repo={pr.repo} number={pr.number} age={pr.updatedAt} ageTitle={`Updated ${timeAgo(pr.updatedAt)}`}>
+                                                    {pr.reasons
+                                                        .filter(reason => reason !== group)
+                                                        .map(reason => {
+                                                            const Extra = REASON_ICONS[reason];
+                                                            return (
+                                                                <span
+                                                                    key={reason}
+                                                                    className={`dash-extra ${reason}`}
+                                                                    title={`Also: ${MY_PULL_REQUEST_REASON_LABELS[reason]}`}
+                                                                >
+                                                                    <Extra size={13} strokeWidth={2} />
+                                                                </span>
+                                                            );
+                                                        })}
+                                                </Meta>
+                                            </button>
+                                        ))}
                                     </div>
-                                    {items.map(pr => (
-                                        <button key={pr.url} className="dash-row" data-nav-item onClick={() => onOpenPullRequest(pr.repo, pr.number, myPrTab(pr))}>
-                                            <Title title={pr.title} />
-                                            <Meta repo={pr.repo} number={pr.number} age={pr.updatedAt} ageTitle={`Updated ${timeAgo(pr.updatedAt)}`}>
-                                                {pr.reasons.filter(reason => reason !== group).map(reason => {
-                                                    const Extra = REASON_ICONS[reason];
-                                                    return (
-                                                        <span key={reason} className={`dash-extra ${reason}`} title={`Also: ${MY_PULL_REQUEST_REASON_LABELS[reason]}`}>
-                                                            <Extra size={13} strokeWidth={2} />
-                                                        </span>
-                                                    );
-                                                })}
-                                            </Meta>
-                                        </button>
-                                    ))}
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
                     </Section>
 
                     <Section
                         icon={<MessageSquare size={15} strokeWidth={1.7} />}
                         title="New pull request comments"
                         count={unseenPr.length}
-                        actions={unseenPr.length > 0 && (
-                            <button className="link-button" onClick={markAllPr}><CheckCheck size={13} strokeWidth={1.8} /> Mark all as seen</button>
-                        )}
+                        actions={
+                            unseenPr.length > 0 && (
+                                <button className="link-button" onClick={markAllPr}>
+                                    <CheckCheck size={13} strokeWidth={1.8} /> Mark all as seen
+                                </button>
+                            )
+                        }
                     >
                         {state.prCommentsError && <div className="form-error">{state.prCommentsError}</div>}
-                        {!state.prComments && !state.prCommentsError && <div className="panel-note">Loading comments… The first load can take some seconds.</div>}
+                        {!state.prComments && !state.prCommentsError && (
+                            <div className="panel-note">Loading comments… The first load can take some seconds.</div>
+                        )}
                         {state.prComments && shownPrComments.length === 0 && <Empty text={`No new comments in the last ${DASHBOARD_WINDOW_DAYS} days.`} />}
                         {groupBy(shownPrComments, item => item.prUrl).map(([url, items]) => (
                             <div key={url} className="dash-group">
-                                <button className="dash-row dash-group-head" data-nav-item onClick={() => onOpenPullRequest(items[0].repo, items[0].number, 'overview')}>
+                                <button
+                                    className="dash-row dash-group-head"
+                                    data-nav-item
+                                    onClick={() => onOpenPullRequest(items[0].repo, items[0].number, 'overview')}
+                                >
                                     <Title title={items[0].prTitle} />
                                     <Meta repo={items[0].repo} number={items[0].number} />
                                 </button>
@@ -346,23 +426,42 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                         icon={<SquareCheckBig size={15} strokeWidth={1.7} />}
                         title="New task comments"
                         count={unseenTask.length}
-                        actions={unseenTask.length > 0 && (
-                            <button className="link-button" onClick={markAllTasks}><CheckCheck size={13} strokeWidth={1.8} /> Mark all as seen</button>
-                        )}
+                        actions={
+                            unseenTask.length > 0 && (
+                                <button className="link-button" onClick={markAllTasks}>
+                                    <CheckCheck size={13} strokeWidth={1.8} /> Mark all as seen
+                                </button>
+                            )
+                        }
                     >
-                        {state.tasks.filter(source => source.error).map(source => (
-                            <div key={source.connectionId} className="form-error">{source.name}: {source.error}</div>
-                        ))}
-                        {state.tasks.length === 0 && state.updatedAt && <Empty text="No task manager with comments for the Dashboard. Add ClickUp in Settings › Task managers." />}
-                        {state.tasks.length > 0 && shownTaskComments.length === 0 && <Empty text={`No new comments on your tasks in the last ${DASHBOARD_WINDOW_DAYS} days.`} />}
+                        {state.tasks
+                            .filter(source => source.error)
+                            .map(source => (
+                                <div key={source.connectionId} className="form-error">
+                                    {source.name}: {source.error}
+                                </div>
+                            ))}
+                        {state.tasks.length === 0 && state.updatedAt && (
+                            <Empty text="No task manager with comments for the Dashboard. Add ClickUp in Settings › Task managers." />
+                        )}
+                        {state.tasks.length > 0 && shownTaskComments.length === 0 && (
+                            <Empty text={`No new comments on your tasks in the last ${DASHBOARD_WINDOW_DAYS} days.`} />
+                        )}
                         {groupBy(shownTaskComments, ({ source, comment }) => `${source.connectionId}\0${comment.taskId}`).map(([key, items]) => {
                             const task: TaskCommentItem = items[0].comment;
                             return (
                                 <div key={key} className="dash-group">
-                                    <button className="dash-row dash-group-head" data-nav-item onClick={event => openUrl(task.taskUrl, event)} title="Open the task in the browser">
+                                    <button
+                                        className="dash-row dash-group-head"
+                                        data-nav-item
+                                        onClick={event => openUrl(task.taskUrl, event)}
+                                        title="Open the task in the browser"
+                                    >
                                         <span className={`dash-ticket${task.taskKey ? '' : ' none'}`}>{task.taskKey ?? ''}</span>
                                         <span className="dash-title">{task.taskTitle}</span>
-                                        <span className="dash-meta"><span className="dash-repo">{items[0].source.name}</span></span>
+                                        <span className="dash-meta">
+                                            <span className="dash-repo">{items[0].source.name}</span>
+                                        </span>
                                     </button>
                                     {items.map(({ source, comment }) => (
                                         <CommentRow

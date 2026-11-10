@@ -85,16 +85,29 @@ export function useProjects(options: Options) {
         if (!stored.selectedPath && Object.keys(stored.openFiles).length === 0 && fallbackKey) {
             stored = readLayout(fallbackKey);
         }
-        const saved = pruneLayout(stored, list.map(worktree => worktree.path), sessionIds);
+        const saved = pruneLayout(
+            stored,
+            list.map(worktree => worktree.path),
+            sessionIds
+        );
         const openFiles: Record<string, string[]> = {};
-        await Promise.all(Object.entries(saved.openFiles).map(async ([root, files]) => {
-            // info and not read: an image or a PDF is not text, but its tab must stay.
-            const exists = await Promise.all(files.map(file => api.files.info(root, file).then(() => true, () => false)));
-            const kept = files.filter((_file, index) => exists[index]);
-            if (kept.length > 0) {
-                openFiles[root] = kept;
-            }
-        }));
+        await Promise.all(
+            Object.entries(saved.openFiles).map(async ([root, files]) => {
+                // info and not read: an image or a PDF is not text, but its tab must stay.
+                const exists = await Promise.all(
+                    files.map(file =>
+                        api.files.info(root, file).then(
+                            () => true,
+                            () => false
+                        )
+                    )
+                );
+                const kept = files.filter((_file, index) => exists[index]);
+                if (kept.length > 0) {
+                    openFiles[root] = kept;
+                }
+            })
+        );
         const activeTabs = keepOpenFileTabs(saved.activeTabs, openFiles);
         // Merge, so that the documents of another repository keep their tabs and can close normally.
         setOpenFiles(map => ({ ...map, ...openFiles }));
@@ -111,15 +124,18 @@ export function useProjects(options: Options) {
     }, []);
 
     /** Loads the worktrees of the active project and opens its saved tabs. */
-    const showProject = useCallback(async (state: ProjectsState, sessionIds: string[]) => {
-        const project = state.projects.find(item => item.id === state.activeId);
-        if (!project) {
-            return;
-        }
-        restoredKey.current = undefined;
-        const list = await refreshAll(project.repos);
-        await restoreLayout(`project:${project.id}`, list, sessionIds, project.repos[0]);
-    }, [refreshAll, restoreLayout]);
+    const showProject = useCallback(
+        async (state: ProjectsState, sessionIds: string[]) => {
+            const project = state.projects.find(item => item.id === state.activeId);
+            if (!project) {
+                return;
+            }
+            restoredKey.current = undefined;
+            const list = await refreshAll(project.repos);
+            await restoreLayout(`project:${project.id}`, list, sessionIds, project.repos[0]);
+        },
+        [refreshAll, restoreLayout]
+    );
 
     const { openFiles, activeTabs, panes } = options;
     const layoutKey = activeProject ? `project:${activeProject.id}` : undefined;
@@ -135,9 +151,13 @@ export function useProjects(options: Options) {
     const repoKey = repos.join('\0');
     useEffect(() => {
         const repoList = repoKey ? repoKey.split('\0') : [];
-        const load = () => repoList.forEach(repo => {
-            api.github.branchSummaries(repo).then(result => setSummaries(map => ({ ...map, [repo]: result })), () => undefined);
-        });
+        const load = () =>
+            repoList.forEach(repo => {
+                api.github.branchSummaries(repo).then(
+                    result => setSummaries(map => ({ ...map, [repo]: result })),
+                    () => undefined
+                );
+            });
         // An agent or a terminal can also add worktrees, so the lists load again when the window gets focus.
         const loadWorktrees = () => refreshAll(repoList);
         window.addEventListener('focus', loadWorktrees);
@@ -176,11 +196,14 @@ export function useProjects(options: Options) {
 
     /** Removes a repository from the active project. Its files, worktrees and terminal sessions stay. */
     const removeRepo = async (repo: string) => {
-        if (!activeProject || !(await confirmDialog({
-            title: `Remove "${options.repoLabel(repo)}" from the project "${activeProject.name}"?`,
-            message: 'The repository and its worktrees stay on disk. Agents in its worktrees continue to run.',
-            confirmLabel: 'Remove'
-        }))) {
+        if (
+            !activeProject ||
+            !(await confirmDialog({
+                title: `Remove "${options.repoLabel(repo)}" from the project "${activeProject.name}"?`,
+                message: 'The repository and its worktrees stay on disk. Agents in its worktrees continue to run.',
+                confirmLabel: 'Remove'
+            }))
+        ) {
             return;
         }
         try {
@@ -230,7 +253,23 @@ export function useProjects(options: Options) {
     };
 
     return {
-        projects, setProjects, activeProject, repos, allRepos, worktreesByRepo, worktrees, summaries, selectedRepo,
-        repoOfWorktree, refreshWorktrees, showProject, addRepo, removeRepo, switchProject, changeProjects, moveProject, moveRepo
+        projects,
+        setProjects,
+        activeProject,
+        repos,
+        allRepos,
+        worktreesByRepo,
+        worktrees,
+        summaries,
+        selectedRepo,
+        repoOfWorktree,
+        refreshWorktrees,
+        showProject,
+        addRepo,
+        removeRepo,
+        switchProject,
+        changeProjects,
+        moveProject,
+        moveRepo
     };
 }

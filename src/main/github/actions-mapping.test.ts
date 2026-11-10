@@ -103,10 +103,18 @@ describe('mapCommitStatus', () => {
 describe('mapChecks', () => {
     it('keeps the newest check run of each name and sorts the checks by name', () => {
         const checks = mapChecks(
-            [checkRun({ id: 1, name: 'test', conclusion: 'failure' }), checkRun({ id: 3, name: 'test', conclusion: 'success' }), checkRun({ id: 2, name: 'build' })],
+            [
+                checkRun({ id: 1, name: 'test', conclusion: 'failure' }),
+                checkRun({ id: 3, name: 'test', conclusion: 'success' }),
+                checkRun({ id: 2, name: 'build' })
+            ],
             [status({ id: 9, context: 'a-status' })]
         );
-        expect(checks.map(check => [check.name, check.id])).toEqual([['a-status', 9], ['build', 2], ['test', 3]]);
+        expect(checks.map(check => [check.name, check.id])).toEqual([
+            ['a-status', 9],
+            ['build', 2],
+            ['test', 3]
+        ]);
     });
 
     it('keeps a commit status and a check run with the same name', () => {
@@ -121,13 +129,15 @@ describe('mapChecks', () => {
 
 describe('mapJobProgress', () => {
     it('maps the job and each step', () => {
-        expect(mapJobProgress({
-            status: 'in_progress',
-            conclusion: null,
-            started_at: 's',
-            completed_at: null,
-            steps: [{ number: 1, name: 'Set up job', status: 'completed', conclusion: 'success', started_at: 'a', completed_at: 'b' }]
-        })).toEqual({
+        expect(
+            mapJobProgress({
+                status: 'in_progress',
+                conclusion: null,
+                started_at: 's',
+                completed_at: null,
+                steps: [{ number: 1, name: 'Set up job', status: 'completed', conclusion: 'success', started_at: 'a', completed_at: 'b' }]
+            })
+        ).toEqual({
             status: 'in_progress',
             conclusion: null,
             startedAt: 's',
@@ -143,8 +153,18 @@ describe('mapJobProgress', () => {
 
 describe('mapRunJob', () => {
     it('changes a job of a run to a GitHub Actions check with the run ID', () => {
-        expect(mapRunJob({ id: 4, name: 'lint', status: 'completed', conclusion: 'failure', started_at: 'a', completed_at: 'b', html_url: 'u', run_id: 77 })).toEqual({
-            id: 4, name: 'lint', status: 'completed', conclusion: 'failure', startedAt: 'a', completedAt: 'b', url: 'u', runId: 77, isActions: true
+        expect(
+            mapRunJob({ id: 4, name: 'lint', status: 'completed', conclusion: 'failure', started_at: 'a', completed_at: 'b', html_url: 'u', run_id: 77 })
+        ).toEqual({
+            id: 4,
+            name: 'lint',
+            status: 'completed',
+            conclusion: 'failure',
+            startedAt: 'a',
+            completedAt: 'b',
+            url: 'u',
+            runId: 77,
+            isActions: true
         });
     });
 });

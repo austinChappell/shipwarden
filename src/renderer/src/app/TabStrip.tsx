@@ -69,7 +69,13 @@ export function TabStrip({ items, activeTab, info, onSelect, onMove, onCloseTab,
                     <div
                         key={group ? group.root.id : key}
                         className={`tab${active ? ' active' : ''}${tab.dirty ? ' dirty' : ''}${tab.exited ? ' exited' : ''}${group ? ' split-tab' : ''}`}
-                        title={group ? `${count} panes: ${leaves(group.root).map(leaf => info(leaf.tab).title).join(', ')}` : tab.tooltip}
+                        title={
+                            group
+                                ? `${count} panes: ${leaves(group.root)
+                                      .map(leaf => info(leaf.tab).title)
+                                      .join(', ')}`
+                                : tab.tooltip
+                        }
                         role="tab"
                         aria-selected={active}
                         tabIndex={active ? 0 : -1}

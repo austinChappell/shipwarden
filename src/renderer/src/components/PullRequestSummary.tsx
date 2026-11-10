@@ -58,10 +58,14 @@ function mergeState(pr: PullRequest, checks: CheckCounts | undefined): { text: s
 function reviewState(pr: PullRequest): { text: string; tone: Tone } {
     if (pr.state === 'OPEN' && pr.viewerIsRequested) return { text: 'Waiting on you', tone: 'mine' };
     switch (pr.reviewDecision) {
-        case 'APPROVED': return { text: 'Approved', tone: 'ok' };
-        case 'CHANGES_REQUESTED': return { text: 'Changes requested', tone: 'fail' };
-        case 'REVIEW_REQUIRED': return { text: pr.viewerDidAuthor ? 'Waiting on reviewers' : 'Review required', tone: 'wait' };
-        default: return { text: 'No review required', tone: 'muted' };
+        case 'APPROVED':
+            return { text: 'Approved', tone: 'ok' };
+        case 'CHANGES_REQUESTED':
+            return { text: 'Changes requested', tone: 'fail' };
+        case 'REVIEW_REQUIRED':
+            return { text: pr.viewerDidAuthor ? 'Waiting on reviewers' : 'Review required', tone: 'wait' };
+        default:
+            return { text: 'No review required', tone: 'muted' };
     }
 }
 
@@ -83,9 +87,13 @@ function Cell({ label, tone, dot, onClick, children }: { label: string; tone?: T
             </span>
         </>
     );
-    return onClick
-        ? <button className="pr-summary-cell" onClick={onClick}>{body}</button>
-        : <div className="pr-summary-cell">{body}</div>;
+    return onClick ? (
+        <button className="pr-summary-cell" onClick={onClick}>
+            {body}
+        </button>
+    ) : (
+        <div className="pr-summary-cell">{body}</div>
+    );
 }
 
 /** The strip below the title: the review state, the checks, the size and the merge state of a pull request. */
@@ -95,13 +103,22 @@ export function PullRequestSummary({ pr, checks, onSelectTab }: { pr: PullReques
     const merge = mergeState(pr, checks);
     return (
         <div className="pr-summary">
-            <Cell label="Review" tone={review.tone} dot={review.tone !== 'muted'}>{review.text}</Cell>
-            <Cell label="Checks" tone={check.tone} dot={check.tone !== 'muted'} onClick={() => onSelectTab('checks')}>{check.text}</Cell>
+            <Cell label="Review" tone={review.tone} dot={review.tone !== 'muted'}>
+                {review.text}
+            </Cell>
+            <Cell label="Checks" tone={check.tone} dot={check.tone !== 'muted'} onClick={() => onSelectTab('checks')}>
+                {check.text}
+            </Cell>
             <Cell label="Size" onClick={() => onSelectTab('files')}>
                 <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>
-                <span className="pr-summary-detail"> · {plural(pr.changedFiles, 'file')} · {plural(pr.commitCount, 'commit')}</span>
+                <span className="pr-summary-detail">
+                    {' '}
+                    · {plural(pr.changedFiles, 'file')} · {plural(pr.commitCount, 'commit')}
+                </span>
             </Cell>
-            <Cell label="Merge" tone={merge.tone === 'wait' ? undefined : merge.tone}>{merge.text}</Cell>
+            <Cell label="Merge" tone={merge.tone === 'wait' ? undefined : merge.tone}>
+                {merge.text}
+            </Cell>
         </div>
     );
 }

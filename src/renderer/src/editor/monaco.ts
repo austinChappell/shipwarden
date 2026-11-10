@@ -37,12 +37,30 @@ for (const defaults of [monaco.typescript.typescriptDefaults, monaco.typescript.
 /** Syntax colors for each mode. Dark follows Ayu Dark. Light uses dark, saturated colors that are readable on a light background. */
 const SYNTAX: Record<Mode, Record<string, string>> = {
     dark: {
-        comment: '6c7380', keyword: 'ff8f40', string: 'aad94c', number: 'd2a6ff', type: '59c2ff', delimiter: 'bfbdb6b3',
-        tag: '39bae6', attributeName: 'ffb454', regexp: '95e6cb', error: 'f07178', warning: 'e6b450'
+        comment: '6c7380',
+        keyword: 'ff8f40',
+        string: 'aad94c',
+        number: 'd2a6ff',
+        type: '59c2ff',
+        delimiter: 'bfbdb6b3',
+        tag: '39bae6',
+        attributeName: 'ffb454',
+        regexp: '95e6cb',
+        error: 'f07178',
+        warning: 'e6b450'
     },
     light: {
-        comment: '6e7781', keyword: 'cf222e', string: '0a3069', number: '0550ae', type: '953800', delimiter: '57606a',
-        tag: '116329', attributeName: '0550ae', regexp: '116329', error: 'cf222e', warning: '9a6700'
+        comment: '6e7781',
+        keyword: 'cf222e',
+        string: '0a3069',
+        number: '0550ae',
+        type: '953800',
+        delimiter: '57606a',
+        tag: '116329',
+        attributeName: '0550ae',
+        regexp: '116329',
+        error: 'cf222e',
+        warning: '9a6700'
     }
 };
 
@@ -55,13 +73,18 @@ function hexToRgb(hex: string): [number, number, number] {
 function mix(a: string, b: string, amount: number): string {
     const [ra, ga, ba] = hexToRgb(a);
     const [rb, gb, bb] = hexToRgb(b);
-    const channel = (x: number, y: number) => Math.round(x * amount + y * (1 - amount)).toString(16).padStart(2, '0');
+    const channel = (x: number, y: number) =>
+        Math.round(x * amount + y * (1 - amount))
+            .toString(16)
+            .padStart(2, '0');
     return `#${channel(ra, rb)}${channel(ga, gb)}${channel(ba, bb)}`;
 }
 
 /** Adds an alpha value (0 to 1) to a hex color. */
 function alpha(hex: string, value: number): string {
-    return `${hex.slice(0, 7)}${Math.round(value * 255).toString(16).padStart(2, '0')}`;
+    return `${hex.slice(0, 7)}${Math.round(value * 255)
+        .toString(16)
+        .padStart(2, '0')}`;
 }
 
 /**
@@ -123,7 +146,7 @@ export function applyEditorTheme(palette: Palette, mode: Mode): void {
             'scrollbarSlider.background': alpha(shade, 0.07),
             'scrollbarSlider.hoverBackground': alpha(shade, 0.12),
             'scrollbarSlider.activeBackground': alpha(shade, 0.16),
-            'focusBorder': '#00000000',
+            focusBorder: '#00000000',
             'peekView.border': palette.accent,
             'peekViewTitle.background': widget,
             'peekViewTitleLabel.foreground': palette.textStrong,

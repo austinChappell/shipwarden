@@ -29,7 +29,9 @@ function recordCalls(answers: Record<string, unknown> = {}) {
         },
         text: async (url: string) => `2026-11-02T11:28:10.1234567Z output of log ${url.split('/').pop()}`
     } as unknown as AzureDevOpsClient;
-    const service = new AzureDevOpsService(client, async root => root === ROOT ? 'https://dev.azure.com/contoso/Web/_git/shop' : 'git@github.com:acme/api.git');
+    const service = new AzureDevOpsService(client, async root =>
+        root === ROOT ? 'https://dev.azure.com/contoso/Web/_git/shop' : 'git@github.com:acme/api.git'
+    );
     const changes = () => calls.filter(([method]) => method !== 'GET');
     return { calls, changes, service };
 }
@@ -49,16 +51,24 @@ describe('AzureDevOpsService', () => {
             { path: 'src/b.ts', line: 9, side: 'LEFT', body: 'Why?' }
         ]);
         expect(changes()).toEqual([
-            ['POST', `${PR}/threads`, {
-                comments: [{ parentCommentId: 0, content: 'Rename this.', commentType: 'text' }],
-                status: 'active',
-                threadContext: { filePath: '/src/a.ts', rightFileStart: { line: 3, offset: 1 }, rightFileEnd: { line: 3, offset: 1 } }
-            }],
-            ['POST', `${PR}/threads`, {
-                comments: [{ parentCommentId: 0, content: 'Why?', commentType: 'text' }],
-                status: 'active',
-                threadContext: { filePath: '/src/b.ts', leftFileStart: { line: 9, offset: 1 }, leftFileEnd: { line: 9, offset: 1 } }
-            }],
+            [
+                'POST',
+                `${PR}/threads`,
+                {
+                    comments: [{ parentCommentId: 0, content: 'Rename this.', commentType: 'text' }],
+                    status: 'active',
+                    threadContext: { filePath: '/src/a.ts', rightFileStart: { line: 3, offset: 1 }, rightFileEnd: { line: 3, offset: 1 } }
+                }
+            ],
+            [
+                'POST',
+                `${PR}/threads`,
+                {
+                    comments: [{ parentCommentId: 0, content: 'Why?', commentType: 'text' }],
+                    status: 'active',
+                    threadContext: { filePath: '/src/b.ts', leftFileStart: { line: 9, offset: 1 }, leftFileEnd: { line: 9, offset: 1 } }
+                }
+            ],
             ['POST', `${PR}/threads`, { comments: [{ parentCommentId: 0, content: 'Looks good.', commentType: 'text' }], status: 'active' }],
             ['PUT', `${PR}/reviewers/${VIEWER}`, { vote: 5 }]
         ]);
@@ -73,7 +83,9 @@ describe('AzureDevOpsService', () => {
     it('completes a pull request with the head commit and the strategy', async () => {
         const { changes, service } = recordCalls();
         await service.merge(ROOT, 22, 'b602', 'merge');
-        expect(changes()).toEqual([['PATCH', PR, { status: 'completed', lastMergeSourceCommit: { commitId: 'b602' }, completionOptions: { mergeStrategy: 'noFastForward' } }]]);
+        expect(changes()).toEqual([
+            ['PATCH', PR, { status: 'completed', lastMergeSourceCommit: { commitId: 'b602' }, completionOptions: { mergeStrategy: 'noFastForward' } }]
+        ]);
     });
 
     it('replies to a thread and resolves it', async () => {
@@ -91,8 +103,14 @@ describe('AzureDevOpsService', () => {
         [{ kind: 'details', state: 'closed' }, ['PATCH', PR, { status: 'abandoned' }]],
         [{ kind: 'details', state: 'open' }, ['PATCH', PR, { status: 'active' }]],
         [{ kind: 'draft', pullRequestId: 'x', draft: true }, ['PATCH', PR, { isDraft: true }]],
-        [{ kind: 'autoMerge', pullRequestId: 'x', method: 'squash', headSha: 'h' }, ['PATCH', PR, { autoCompleteSetBy: { id: VIEWER }, completionOptions: { mergeStrategy: 'squash' } }]],
-        [{ kind: 'autoMerge', pullRequestId: 'x', method: null, headSha: 'h' }, ['PATCH', PR, { autoCompleteSetBy: { id: '00000000-0000-0000-0000-000000000000' } }]],
+        [
+            { kind: 'autoMerge', pullRequestId: 'x', method: 'squash', headSha: 'h' },
+            ['PATCH', PR, { autoCompleteSetBy: { id: VIEWER }, completionOptions: { mergeStrategy: 'squash' } }]
+        ],
+        [
+            { kind: 'autoMerge', pullRequestId: 'x', method: null, headSha: 'h' },
+            ['PATCH', PR, { autoCompleteSetBy: { id: '00000000-0000-0000-0000-000000000000' } }]
+        ],
         [{ kind: 'label', name: 'ui', add: true }, ['POST', `${PR}/labels`, { name: 'ui' }]],
         [{ kind: 'label', name: 'a b', add: false }, ['DELETE', `${PR}/labels/a%20b`, undefined]]
     ])('changes a pull request: %j', async (change, expected) => {
@@ -137,12 +155,9 @@ describe('AzureDevOpsService', () => {
 
     it('joins the task logs of a build in the order of the timeline, without timestamps', async () => {
         const { service } = recordCalls({ '/timeline': timelineJson });
-        expect(await service.jobLog(ROOT, 905)).toBe([
-            '##[section]Compile › Checkout shop@feat/cart',
-            'output of log 3',
-            '##[section]Compile › npm ci',
-            'output of log 4'
-        ].join('\n'));
+        expect(await service.jobLog(ROOT, 905)).toBe(
+            ['##[section]Compile › Checkout shop@feat/cart', 'output of log 3', '##[section]Compile › npm ci', 'output of log 4'].join('\n')
+        );
     });
 
     it('keeps the viewed files in memory', async () => {

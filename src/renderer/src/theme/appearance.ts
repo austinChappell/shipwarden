@@ -57,7 +57,7 @@ export function useAppearance(appearance: Appearance | undefined): { mode: Mode;
         return () => darkQuery.removeEventListener('change', onChange);
     }, []);
 
-    const active = appearance ? activePalette(appearance, systemDark) : readLastPalette() ?? activePalette(DEFAULT_APPEARANCE, systemDark);
+    const active = appearance ? activePalette(appearance, systemDark) : (readLastPalette() ?? activePalette(DEFAULT_APPEARANCE, systemDark));
     useEffect(() => {
         if (appearance) {
             apply(active.palette, active.mode);

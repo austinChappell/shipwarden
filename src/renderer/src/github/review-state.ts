@@ -57,7 +57,10 @@ export function reviewButtons({ events, body, pending, busy }: ReviewInput): Rev
 }
 
 /** Returns the first agent comment without a decision, and its file in the loaded file list. */
-export function firstUndecided(pending: PendingComment[], files: PullRequestFile[] | undefined): { comment: PendingComment; file: PullRequestFile | undefined } | undefined {
+export function firstUndecided(
+    pending: PendingComment[],
+    files: PullRequestFile[] | undefined
+): { comment: PendingComment; file: PullRequestFile | undefined } | undefined {
     const comment = pending.find(item => item.needsDecision);
     return comment && { comment, file: files?.find(file => file.path === comment.path) };
 }
@@ -111,6 +114,12 @@ export function conversationOf(pr: PullRequest): ConversationItem[] {
         ...pr.issueComments.map(comment => ({ id: comment.id, author: comment.author?.login ?? null, body: comment.body, createdAt: comment.createdAt })),
         ...pr.reviews
             .filter(review => review.body.trim() || (review.state !== 'COMMENTED' && review.state !== 'DISMISSED'))
-            .map(review => ({ id: review.id, author: review.author?.login ?? null, body: review.body, createdAt: review.submittedAt ?? '', state: review.state }))
+            .map(review => ({
+                id: review.id,
+                author: review.author?.login ?? null,
+                body: review.body,
+                createdAt: review.submittedAt ?? '',
+                state: review.state
+            }))
     ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }

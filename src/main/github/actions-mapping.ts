@@ -1,11 +1,4 @@
-import {
-    latestChecks,
-    parseActionsRunId,
-    type CheckConclusion,
-    type CheckRun,
-    type CheckStatus,
-    type JobProgress
-} from '@shared/github';
+import { latestChecks, parseActionsRunId, type CheckConclusion, type CheckRun, type CheckStatus, type JobProgress } from '@shared/github';
 import type { WorkflowRun } from '@shared/pipelines';
 
 export interface RestCheckRun {

@@ -5,9 +5,7 @@
   "protocolVersion": 3,
   "description": "Tasks in a JSON file on this computer. It needs no account. Each repository of the project is a collection.",
   "command": "node",
-  "args": [
-    "index.js"
-  ],
+  "args": ["index.js"],
   "settings": [
     {
       "key": "inRepository",

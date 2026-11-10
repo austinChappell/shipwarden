@@ -21,11 +21,7 @@ import {
  */
 
 /** Makes each optional field required, at all levels. A full sample must then contain every field. */
-type DeepRequired<T> = T extends (infer U)[]
-    ? DeepRequired<U>[]
-    : T extends object
-      ? { [K in keyof T]-?: DeepRequired<Exclude<T[K], undefined>> }
-      : T;
+type DeepRequired<T> = T extends (infer U)[] ? DeepRequired<U>[] : T extends object ? { [K in keyof T]-?: DeepRequired<Exclude<T[K], undefined>> } : T;
 
 /** Each agent state. The record type makes the compiler find a missing state. */
 const AGENT_STATES: Record<AgentState, true> = { starting: true, idle: true, working: true, waiting: true, done: true, exited: true };
@@ -33,64 +29,76 @@ const AGENT_STATES: Record<AgentState, true> = { starting: true, idle: true, wor
 const fullSnapshot: DeepRequired<RemoteSnapshot> = {
     protocol: REMOTE_PROTOCOL,
     mac: { name: 'Studio', version: '0.1.5' },
-    projects: [{
-        id: 'project-1',
-        name: 'Work',
-        repos: [{
-            path: '/Users/ana/api',
-            name: 'api',
-            color: '#4a8fe7',
-            worktrees: [{
-                path: '/Users/ana/.shipwarden/worktrees/api/fix-login',
-                branch: 'eng-12-fix-login',
-                name: 'Fix login',
-                isMain: false,
-                task: { title: 'Fix the login page', key: 'ENG-12', url: 'https://example.com/t/12' },
-                pullRequest: {
-                    number: 7,
-                    title: 'Fix the login page',
-                    url: 'https://github.com/acme/api/pull/7',
-                    isDraft: false,
-                    reviewDecision: 'APPROVED',
-                    checks: 'SUCCESS',
-                    headSha: '0123456789abcdef0123456789abcdef01234567'
+    projects: [
+        {
+            id: 'project-1',
+            name: 'Work',
+            repos: [
+                {
+                    path: '/Users/ana/api',
+                    name: 'api',
+                    color: '#4a8fe7',
+                    worktrees: [
+                        {
+                            path: '/Users/ana/.shipwarden/worktrees/api/fix-login',
+                            branch: 'eng-12-fix-login',
+                            name: 'Fix login',
+                            isMain: false,
+                            task: { title: 'Fix the login page', key: 'ENG-12', url: 'https://example.com/t/12' },
+                            pullRequest: {
+                                number: 7,
+                                title: 'Fix the login page',
+                                url: 'https://github.com/acme/api/pull/7',
+                                isDraft: false,
+                                reviewDecision: 'APPROVED',
+                                checks: 'SUCCESS',
+                                headSha: '0123456789abcdef0123456789abcdef01234567'
+                            }
+                        }
+                    ]
                 }
-            }]
-        }]
-    }],
-    agents: [{
-        id: 'session-1',
-        title: 'Claude Code',
-        worktreePath: '/Users/ana/.shipwarden/worktrees/api/fix-login',
-        cwd: '/Users/ana/.shipwarden/worktrees/api/fix-login',
-        state: 'waiting',
-        message: 'Claude needs your permission to use Bash',
-        prompt: 'Fix the login page',
-        stateAt: 1767225600000,
-        exited: false
-    }]
+            ]
+        }
+    ],
+    agents: [
+        {
+            id: 'session-1',
+            title: 'Claude Code',
+            worktreePath: '/Users/ana/.shipwarden/worktrees/api/fix-login',
+            cwd: '/Users/ana/.shipwarden/worktrees/api/fix-login',
+            state: 'waiting',
+            message: 'Claude needs your permission to use Bash',
+            prompt: 'Fix the login page',
+            stateAt: 1767225600000,
+            exited: false
+        }
+    ]
 };
 
 const minimalSnapshot: RemoteSnapshot = {
     protocol: REMOTE_PROTOCOL,
     mac: { name: 'Studio', version: '0.1.5' },
-    projects: [{
-        id: 'project-1',
-        name: 'Work',
-        repos: [{
-            path: '/Users/ana/api',
-            name: 'api',
-            worktrees: [
-                { path: '/Users/ana/api', name: 'api', isMain: true },
+    projects: [
+        {
+            id: 'project-1',
+            name: 'Work',
+            repos: [
                 {
-                    path: '/Users/ana/.shipwarden/worktrees/api/draft',
-                    name: 'draft',
-                    isMain: false,
-                    pullRequest: { number: 8, url: 'https://github.com/acme/api/pull/8', isDraft: true, reviewDecision: null, checks: null }
+                    path: '/Users/ana/api',
+                    name: 'api',
+                    worktrees: [
+                        { path: '/Users/ana/api', name: 'api', isMain: true },
+                        {
+                            path: '/Users/ana/.shipwarden/worktrees/api/draft',
+                            name: 'draft',
+                            isMain: false,
+                            pullRequest: { number: 8, url: 'https://github.com/acme/api/pull/8', isDraft: true, reviewDecision: null, checks: null }
+                        }
+                    ]
                 }
             ]
-        }]
-    }],
+        }
+    ],
     agents: [{ id: 'session-2', title: 'Shell', cwd: '/Users/ana/api', exited: true }]
 };
 
@@ -99,7 +107,13 @@ const screen: ScreenSnapshot = {
     rows: 2,
     lines: [
         [{ t: 'plain ' }, { t: 'palette', fg: 2, bg: 236 }, { t: ' rgb', fg: '#ff8800', bg: '#000000' }],
-        [{ t: 'bold', b: 1 }, { t: 'dim', d: 1 }, { t: 'italic', i: 1 }, { t: 'under', u: 1 }, { t: 'inverse', v: 1 }],
+        [
+            { t: 'bold', b: 1 },
+            { t: 'dim', d: 1 },
+            { t: 'italic', i: 1 },
+            { t: 'under', u: 1 },
+            { t: 'inverse', v: 1 }
+        ],
         []
     ],
     cursor: { x: 4, y: 1, visible: true }

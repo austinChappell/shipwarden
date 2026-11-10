@@ -28,7 +28,11 @@ export function TaskDetails({ source, selectedId, state, worktreeFor, repos, sta
     return (
         <>
             {!selectedId && <div className="panel-message">Select a task.</div>}
-            {selectedId && !detail && !detailError && <div className="panel-message"><LoaderCircle size={14} className="spin" /> Loading…</div>}
+            {selectedId && !detail && !detailError && (
+                <div className="panel-message">
+                    <LoaderCircle size={14} className="spin" /> Loading…
+                </div>
+            )}
             {detailError && <div className="form-error task-detail-error">{detailError}</div>}
             {detail && (
                 <div className="task-detail-scroll">
@@ -75,8 +79,12 @@ export function TaskDetails({ source, selectedId, state, worktreeFor, repos, sta
                                 onChange={event => setEditing({ ...editing, description: event.target.value })}
                             />
                             <div className="row-buttons">
-                                <button className="button" disabled={busy} onClick={() => setEditing(undefined)}>Cancel</button>
-                                <button className="button primary" disabled={busy || !editing.title.trim()} onClick={state.saveEdit}>Save</button>
+                                <button className="button" disabled={busy} onClick={() => setEditing(undefined)}>
+                                    Cancel
+                                </button>
+                                <button className="button primary" disabled={busy || !editing.title.trim()} onClick={state.saveEdit}>
+                                    Save
+                                </button>
                             </div>
                         </div>
                     ) : (
@@ -101,11 +109,22 @@ export function TaskDetails({ source, selectedId, state, worktreeFor, repos, sta
                     <div className="task-meta">
                         <span className="task-meta-label">Status</span>
                         {source.capabilities.update && statuses.length > 0 ? (
-                            <select className="tasks-select" value={detail.status.id} disabled={busy} onChange={event => state.changeStatus(event.target.value)}>
-                                {statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}
+                            <select
+                                className="tasks-select"
+                                value={detail.status.id}
+                                disabled={busy}
+                                onChange={event => state.changeStatus(event.target.value)}
+                            >
+                                {statuses.map(status => (
+                                    <option key={status.id} value={status.id}>
+                                        {status.name}
+                                    </option>
+                                ))}
                             </select>
                         ) : (
-                            <span><StatusDot status={detail.status} /> {detail.status.name}</span>
+                            <span>
+                                <StatusDot status={detail.status} /> {detail.status.name}
+                            </span>
                         )}
                         <span className="task-meta-label">Assignees</span>
                         <span>{detail.assignees?.length ? detail.assignees.map(person => person.name).join(', ') : '—'}</span>
@@ -118,7 +137,9 @@ export function TaskDetails({ source, selectedId, state, worktreeFor, repos, sta
                         {detail.labels && detail.labels.length > 0 && (
                             <>
                                 <span className="task-meta-label">Labels</span>
-                                <span className="task-labels"><TaskLabels labels={detail.labels} /></span>
+                                <span className="task-labels">
+                                    <TaskLabels labels={detail.labels} />
+                                </span>
                             </>
                         )}
                         {source.fields.map(field => (
@@ -132,22 +153,36 @@ export function TaskDetails({ source, selectedId, state, worktreeFor, repos, sta
                         )}
                     </div>
 
-                    {!editing && (detail.description?.trim()
-                        ? <Markdown className="task-description" text={detail.description} />
-                        : <div className="task-description">No description.</div>)}
+                    {!editing &&
+                        (detail.description?.trim() ? (
+                            <Markdown className="task-description" text={detail.description} />
+                        ) : (
+                            <div className="task-description">No description.</div>
+                        ))}
 
                     {source.capabilities.comments && (
                         <section className="task-comments">
-                            <div className="section-title">Comments <span>{comments.length}</span></div>
+                            <div className="section-title">
+                                Comments <span>{comments.length}</span>
+                            </div>
                             {comments.map(comment => (
                                 <div key={comment.id} className="thread-comment">
-                                    <div className="comment-author">{comment.author?.name ?? 'unknown'} {comment.createdAt && <span>{timeAgo(comment.createdAt)}</span>}</div>
+                                    <div className="comment-author">
+                                        {comment.author?.name ?? 'unknown'} {comment.createdAt && <span>{timeAgo(comment.createdAt)}</span>}
+                                    </div>
                                     <Markdown className="comment-body" text={comment.body} />
                                 </div>
                             ))}
-                            <textarea className="review-body" value={commentText} placeholder="Add a comment" onChange={event => setCommentText(event.target.value)} />
+                            <textarea
+                                className="review-body"
+                                value={commentText}
+                                placeholder="Add a comment"
+                                onChange={event => setCommentText(event.target.value)}
+                            />
                             <div className="row-buttons">
-                                <button className="button" disabled={busy || !commentText.trim()} onClick={state.addComment}>Comment</button>
+                                <button className="button" disabled={busy || !commentText.trim()} onClick={state.addComment}>
+                                    Comment
+                                </button>
                             </div>
                         </section>
                     )}

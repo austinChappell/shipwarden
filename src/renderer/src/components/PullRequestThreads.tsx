@@ -55,13 +55,16 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
             {threads.map(thread => (
                 <div key={thread.id} className={`thread-card${thread.isResolved ? ' resolved' : ''}`}>
                     <button className="thread-location" onClick={() => onOpen(thread)}>
-                        {thread.path}{threadLine(thread) ? `:${threadLine(thread)}` : ''}
+                        {thread.path}
+                        {threadLine(thread) ? `:${threadLine(thread)}` : ''}
                         {thread.isOutdated && <span className="tag">outdated</span>}
                         {thread.isResolved && <span className="tag">resolved</span>}
                     </button>
                     {thread.comments.map(comment => (
                         <div key={comment.id} className="thread-comment">
-                            <div className="comment-author">{comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span></div>
+                            <div className="comment-author">
+                                {comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span>
+                            </div>
                             <Markdown className="comment-body" text={comment.body} />
                         </div>
                     ))}
@@ -69,14 +72,30 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
                         <div className="reply-box">
                             <textarea autoFocus value={replyText} placeholder="Reply" onChange={event => setReplyText(event.target.value)} />
                             <div className="row-buttons">
-                                <button className="button" onClick={() => setReplyTo(undefined)}>Cancel</button>
-                                <button className="button primary" disabled={busy || !replyText.trim()} onClick={() => sendReply(thread)}>Reply</button>
+                                <button className="button" onClick={() => setReplyTo(undefined)}>
+                                    Cancel
+                                </button>
+                                <button className="button primary" disabled={busy || !replyText.trim()} onClick={() => sendReply(thread)}>
+                                    Reply
+                                </button>
                             </div>
                         </div>
                     )}
                     <div className="thread-actions">
-                        <button className="link-button" onClick={() => { setReplyTo(thread.id); setReplyText(''); }}>Reply</button>
-                        <button className="link-button" disabled={busy} onClick={() => run(() => window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved))}>
+                        <button
+                            className="link-button"
+                            onClick={() => {
+                                setReplyTo(thread.id);
+                                setReplyText('');
+                            }}
+                        >
+                            Reply
+                        </button>
+                        <button
+                            className="link-button"
+                            disabled={busy}
+                            onClick={() => run(() => window.shipwarden.github.setThreadResolved(target, thread.id, !thread.isResolved))}
+                        >
                             {thread.isResolved ? 'Unresolve' : 'Resolve'}
                         </button>
                         {onSendToAgent && (
@@ -100,7 +119,9 @@ export function PullRequestConversation({ items }: { items: ConversationItem[] }
                 <div key={item.id} className="thread-card">
                     <div className="comment-author">
                         {item.author ?? 'unknown'}
-                        {item.state && <span className={`tag review-${item.state.toLowerCase()}`}>{REVIEW_STATE_TEXT[item.state] ?? item.state.toLowerCase()}</span>}
+                        {item.state && (
+                            <span className={`tag review-${item.state.toLowerCase()}`}>{REVIEW_STATE_TEXT[item.state] ?? item.state.toLowerCase()}</span>
+                        )}
                         <span>{timeAgo(item.createdAt)}</span>
                     </div>
                     {item.body.trim() && <Markdown className="comment-body" text={item.body} />}

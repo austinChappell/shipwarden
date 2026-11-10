@@ -22,7 +22,20 @@ interface CardProps {
 }
 
 /** A task on the board. The user can drag it to another column, or move it with Alt and an arrow key. */
-export function BoardCard({ task, selected, isMoving, isDragged, canMove, worktree, onSelect, onSelectFromKeyboard, onOpenWorktree, onDragStart, onDragEnd, onMoveBy }: CardProps) {
+export function BoardCard({
+    task,
+    selected,
+    isMoving,
+    isDragged,
+    canMove,
+    worktree,
+    onSelect,
+    onSelectFromKeyboard,
+    onOpenWorktree,
+    onDragStart,
+    onDragEnd,
+    onMoveBy
+}: CardProps) {
     const select = itemKeys(() => onSelectFromKeyboard(task.id));
     return (
         <div
@@ -86,7 +99,19 @@ interface Props {
 }
 
 /** The board: a column for each status. The user drags a card to a column to change the status of the task. */
-export function TaskBoardColumns({ columns, selectedId, canMove, moving, isCollapsed, toggleGroup, worktreeFor, onSelect, onSelectFromKeyboard, onOpenWorktree, onMove }: Props) {
+export function TaskBoardColumns({
+    columns,
+    selectedId,
+    canMove,
+    moving,
+    isCollapsed,
+    toggleGroup,
+    worktreeFor,
+    onSelect,
+    onSelectFromKeyboard,
+    onOpenWorktree,
+    onMove
+}: Props) {
     /** The task that the user drags on the board. */
     const [dragging, setDragging] = useState<Task>();
     /** The board column under the dragged card. */

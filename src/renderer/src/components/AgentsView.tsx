@@ -59,13 +59,15 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
     const repoKey = allRepos.join('\0');
     useEffect(() => {
         let cancelled = false;
-        Promise.all(allRepos.map(async repo => {
-            try {
-                return (await api.worktrees.list(repo)).map(worktree => [worktree.path, { repo, worktree }] as const);
-            } catch {
-                return [];
-            }
-        })).then(lists => {
+        Promise.all(
+            allRepos.map(async repo => {
+                try {
+                    return (await api.worktrees.list(repo)).map(worktree => [worktree.path, { repo, worktree }] as const);
+                } catch {
+                    return [];
+                }
+            })
+        ).then(lists => {
             if (!cancelled) {
                 setPlaces(Object.fromEntries(lists.flat()));
             }
@@ -83,9 +85,9 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
 
     /** The groups: one for each project with agents, the active project first, then agents that are in no project. */
     const groups = useMemo(() => {
-        const sorted = [...agents].sort((a, b) =>
-            STATE_ORDER.indexOf(a.agentState ?? 'idle') - STATE_ORDER.indexOf(b.agentState ?? 'idle')
-            || (a.agentStateAt ?? 0) - (b.agentStateAt ?? 0));
+        const sorted = [...agents].sort(
+            (a, b) => STATE_ORDER.indexOf(a.agentState ?? 'idle') - STATE_ORDER.indexOf(b.agentState ?? 'idle') || (a.agentStateAt ?? 0) - (b.agentStateAt ?? 0)
+        );
         const list = [...(projects?.projects ?? [])]
             .sort((a, b) => (a.id === projects?.activeId ? -1 : b.id === projects?.activeId ? 1 : 0))
             .map(project => ({
@@ -129,21 +131,32 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                 const place = session.worktreePath ? places[session.worktreePath] : undefined;
                                 const link = session.worktreePath ? links[session.worktreePath] : undefined;
                                 const branch = place?.worktree.branch ?? place?.worktree.path.split('/').pop();
-                                const name = link ? `${link.key ? `${link.key} · ` : ''}${link.title}` : session.agentPrompt ?? branch ?? session.title;
+                                const name = link ? `${link.key ? `${link.key} · ` : ''}${link.title}` : (session.agentPrompt ?? branch ?? session.title);
                                 const state = session.agentState;
                                 const label = state ? AGENT_STATE_LABELS[state] : 'Running';
                                 const time = since(session.agentStateAt, now);
                                 return (
-                                    <button key={session.id} className={`agent-row ${state ?? 'running'}`} data-nav-item onClick={() => onOpen(session, group.id)}>
+                                    <button
+                                        key={session.id}
+                                        className={`agent-row ${state ?? 'running'}`}
+                                        data-nav-item
+                                        onClick={() => onOpen(session, group.id)}
+                                    >
                                         <span className={`status-dot ${state ?? 'running'}`} />
                                         <span className="agent-main">
-                                            <span className="agent-name" title={name}>{name}</span>
+                                            <span className="agent-name" title={name}>
+                                                {name}
+                                            </span>
                                             <span className="agent-activity" title={session.agentMessage}>
-                                                {session.agentMessage ?? (state ? '' : `${session.title} has no status hooks, so ShipWarden shows only that it runs.`)}
+                                                {session.agentMessage ??
+                                                    (state ? '' : `${session.title} has no status hooks, so ShipWarden shows only that it runs.`)}
                                             </span>
                                         </span>
                                         <span className="agent-side">
-                                            <span className={`agent-state ${state ?? 'running'}`}>{label}{time ? ` · ${time}` : ''}</span>
+                                            <span className={`agent-state ${state ?? 'running'}`}>
+                                                {label}
+                                                {time ? ` · ${time}` : ''}
+                                            </span>
                                             <span className="agent-where">
                                                 {place && repoColor(place.repo) && <RepoIcon color={repoColor(place.repo)} size={12} />}
                                                 {place ? `${repoLabel(place.repo)} · ${branch}` : session.cwd.split('/').pop()}

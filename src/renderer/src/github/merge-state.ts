@@ -13,10 +13,14 @@ export function hasConflicts(pr: PullRequest): boolean {
 
 export function reviewText(pr: PullRequest): string {
     switch (pr.reviewDecision) {
-        case 'APPROVED': return 'Approved';
-        case 'CHANGES_REQUESTED': return 'Changes requested';
-        case 'REVIEW_REQUIRED': return 'Review required';
-        default: return 'No review decision';
+        case 'APPROVED':
+            return 'Approved';
+        case 'CHANGES_REQUESTED':
+            return 'Changes requested';
+        case 'REVIEW_REQUIRED':
+            return 'Review required';
+        default:
+            return 'No review decision';
     }
 }
 

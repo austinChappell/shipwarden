@@ -5,7 +5,28 @@ import type { AppKeyAction, ShortcutAction } from './shortcuts';
 import type { WorkflowRun } from './pipelines';
 import type { ContentSearchResult, FileEntry, FilesChangedEvent } from './files';
 import type { FileInfo } from './file-types';
-import type { BranchStatus, BranchSummary, CheckRun, FileVersions, GitHubOwner, JobProgress, GitHubRepoInfo, MergeMethod, NewPullRequest, PendingComment, PullRequest, PullRequestCandidates, PullRequestChange, PullRequestFile, PullRequestFilter, PullRequestSummary, RepoRef, RepoTarget, ReviewEvent, Workflow } from './github';
+import type {
+    BranchStatus,
+    BranchSummary,
+    CheckRun,
+    FileVersions,
+    GitHubOwner,
+    JobProgress,
+    GitHubRepoInfo,
+    MergeMethod,
+    NewPullRequest,
+    PendingComment,
+    PullRequest,
+    PullRequestCandidates,
+    PullRequestChange,
+    PullRequestFile,
+    PullRequestFilter,
+    PullRequestSummary,
+    RepoRef,
+    RepoTarget,
+    ReviewEvent,
+    Workflow
+} from './github';
 import type { ReviewProviderChange, ReviewProviderInfo, ReviewProviderKind, ReviewTokenSource } from './review-providers';
 import type { LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
@@ -26,9 +47,7 @@ import type { CopyIgnoredSettings } from './worktree-settings';
 import type { BrowserBounds, BrowserState } from './browser';
 
 /** Where a click on a notification goes. */
-export type NotificationTarget =
-    | { view: 'worktree'; worktreePath: string; sessionId?: string }
-    | { view: 'dashboard' };
+export type NotificationTarget = { view: 'worktree'; worktreePath: string; sessionId?: string } | { view: 'dashboard' };
 
 /** A notification that the page asks the main process to show. */
 export interface NotificationRequest {

@@ -7,7 +7,16 @@ import type { LspMissingServer } from '@shared/lsp';
 import { codeQuestions, useCodeQuestions } from '../editor/code-questions';
 import { documents } from '../editor/documents';
 import { monaco } from '../editor/monaco';
-import { addReviewZone, ComposerZone, QuestionZone, removeReviewZones, type AgentQuestion, type NoteOptions, type QuestionAction, type ZoneHandle } from './DiffView';
+import {
+    addReviewZone,
+    ComposerZone,
+    QuestionZone,
+    removeReviewZones,
+    type AgentQuestion,
+    type NoteOptions,
+    type QuestionAction,
+    type ZoneHandle
+} from './DiffView';
 import { missingServers, useMissingServer } from '../lsp/missing-servers';
 
 interface Props {
@@ -44,7 +53,19 @@ interface AskRange {
  * A click in the gutter, the context menu or Cmd+Shift+A opens an "Ask agent" box for the line or the selected lines.
  * The answer shows under the lines. The box can also send a note about the lines to an agent tab of the worktree, or to a new agent. A saved answer shows only while the lines have the same text as when the user asked.
  */
-export function EditorView({ root, path, revealLine, revealColumn, revealNonce, focusNonce, onError, onInstallServer, agents, defaultAgentId, onSendNote }: Props) {
+export function EditorView({
+    root,
+    path,
+    revealLine,
+    revealColumn,
+    revealNonce,
+    focusNonce,
+    onError,
+    onInstallServer,
+    agents,
+    defaultAgentId,
+    onSendNote
+}: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | undefined>(undefined);
     const [ready, setReady] = useState(false);
@@ -92,7 +113,8 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
             const selection = editor.getSelection();
             if (selection && !selection.isEmpty()) {
                 // A selection that ends at column 1 does not contain its last line.
-                const end = selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber ? selection.endLineNumber - 1 : selection.endLineNumber;
+                const end =
+                    selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber ? selection.endLineNumber - 1 : selection.endLineNumber;
                 if (line === undefined || (line >= selection.startLineNumber && line <= end)) return { startLine: selection.startLineNumber, line: end };
             }
             const at = line ?? selection?.positionLineNumber;
@@ -127,9 +149,19 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
         });
         editor.onMouseMove(event => {
             const line = event.target.position?.lineNumber;
-            hover.set(event.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN && line
-                ? [{ range: new monaco.Range(line, 1, line, 1), options: { glyphMarginClassName: 'ask-glyph', glyphMarginHoverMessage: { value: 'Ask the agent about this line or the selected lines, or send a note to an agent' } } }]
-                : []);
+            hover.set(
+                event.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN && line
+                    ? [
+                          {
+                              range: new monaco.Range(line, 1, line, 1),
+                              options: {
+                                  glyphMarginClassName: 'ask-glyph',
+                                  glyphMarginHoverMessage: { value: 'Ask the agent about this line or the selected lines, or send a note to an agent' }
+                              }
+                          }
+                      ]
+                    : []
+            );
         });
         editor.onMouseLeave(() => hover.clear());
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -210,7 +242,11 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
                 else if (action === 'toggle') codeQuestions.change(root, path, question.id, { collapsed: !question.collapsed });
                 else codeQuestions.remove(root, question, reportError);
             };
-            return addReviewZone(editor, line, <QuestionZone question={question} headRefOid="" canComment={false} linesChanged={changed} onAction={onAction} />);
+            return addReviewZone(
+                editor,
+                line,
+                <QuestionZone question={question} headRefOid="" canComment={false} linesChanged={changed} onAction={onAction} />
+            );
         });
         return () => removeReviewZones(handles);
     }, [ready, placed, root, path]);
@@ -231,17 +267,22 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
             return { end, code: model.getValueInRange(range, monaco.editor.EndOfLinePreference.LF) };
         };
         const { agents: agentList, defaultAgentId: defaultId, onSendNote: send } = noteRef.current;
-        const noteOptions: NoteOptions | undefined = send && agentList?.length ? {
-            worktree: root,
-            agents: agentList,
-            defaultAgentId: defaultId,
-            onSend: (text, target) => {
-                const { end, code } = linesNow();
-                noteRef.current.onSendNote?.(codeNotePrompt({ path, startLine, endLine: end, code, note: text }), target);
-                setAsking(undefined);
-            }
-        } : undefined;
-        const handle = addReviewZone(editor, line, (
+        const noteOptions: NoteOptions | undefined =
+            send && agentList?.length
+                ? {
+                      worktree: root,
+                      agents: agentList,
+                      defaultAgentId: defaultId,
+                      onSend: (text, target) => {
+                          const { end, code } = linesNow();
+                          noteRef.current.onSendNote?.(codeNotePrompt({ path, startLine, endLine: end, code, note: text }), target);
+                          setAsking(undefined);
+                      }
+                  }
+                : undefined;
+        const handle = addReviewZone(
+            editor,
+            line,
             <ComposerZone
                 line={line}
                 startLine={startLine}
@@ -258,8 +299,9 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
                     setAsking(undefined);
                     editor.focus();
                 }}
-            />
-        ), { focus: true });
+            />,
+            { focus: true }
+        );
         return () => removeReviewZones([handle]);
     }, [ready, asking, root, path]);
 
@@ -302,20 +344,36 @@ interface BannerProps {
 function MissingServerBanner({ server, installing, onInstall }: BannerProps) {
     let text: ReactNode;
     if (installing) {
-        text = <>ShipWarden waits for the install of <strong>{server.name}</strong> to complete. Then it starts the server.</>;
+        text = (
+            <>
+                ShipWarden waits for the install of <strong>{server.name}</strong> to complete. Then it starts the server.
+            </>
+        );
     } else if (server.installCommand) {
-        text = <>Install <strong>{server.name}</strong> to get go to definition, hover and errors in this file.</>;
+        text = (
+            <>
+                Install <strong>{server.name}</strong> to get go to definition, hover and errors in this file.
+            </>
+        );
     } else {
-        text = <>Install <strong>{server.name}</strong> to get go to definition, hover and errors. ShipWarden did not find {server.tools.join(', ')} in the PATH.</>;
+        text = (
+            <>
+                Install <strong>{server.name}</strong> to get go to definition, hover and errors. ShipWarden did not find {server.tools.join(', ')} in the PATH.
+            </>
+        );
     }
     return (
         <div className="editor-server-banner" role="status">
             <Download size={14} strokeWidth={1.8} />
             <span className="editor-server-text">{text}</span>
             {!installing && server.installCommand && (
-                <button className="button primary" title={server.installCommand} onClick={onInstall}>Install</button>
+                <button className="button primary" title={server.installCommand} onClick={onInstall}>
+                    Install
+                </button>
             )}
-            <button className="button" onClick={() => missingServers.dismiss(server.serverId)}>Not now</button>
+            <button className="button" onClick={() => missingServers.dismiss(server.serverId)}>
+                Not now
+            </button>
         </div>
     );
 }

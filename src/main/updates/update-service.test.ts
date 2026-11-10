@@ -34,12 +34,13 @@ describe('INSTALLER_SCRIPT', () => {
         return { root, bin, app: join(root, 'Applications', 'ShipWarden.app'), staging };
     };
 
-    const runScript = (env: Record<string, string>) => new Promise<void>((resolve, reject) => {
-        // The app process: it ends after a short time, as the app does when it quits.
-        const app = spawn('/bin/sleep', ['0.5']);
-        const child = spawn('/bin/sh', ['-c', INSTALLER_SCRIPT], { env: { ...env, PID: String(app.pid) } });
-        child.on('exit', code => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
-    });
+    const runScript = (env: Record<string, string>) =>
+        new Promise<void>((resolve, reject) => {
+            // The app process: it ends after a short time, as the app does when it quits.
+            const app = spawn('/bin/sleep', ['0.5']);
+            const child = spawn('/bin/sh', ['-c', INSTALLER_SCRIPT], { env: { ...env, PID: String(app.pid) } });
+            child.on('exit', code => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
+        });
 
     it('waits for the app, replaces the bundle and opens the new app', async () => {
         const { root, bin, app, staging } = setup();

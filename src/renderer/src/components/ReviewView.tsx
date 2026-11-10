@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CircleCheck, CircleDot, CircleX, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, GitMerge, MessageSquare, RefreshCw, Search } from 'lucide-react';
+import {
+    ArrowLeft,
+    CircleCheck,
+    CircleDot,
+    CircleX,
+    GitPullRequest,
+    GitPullRequestClosed,
+    GitPullRequestDraft,
+    GitMerge,
+    MessageSquare,
+    RefreshCw,
+    Search
+} from 'lucide-react';
 import {
     PULL_REQUEST_FILTERS,
     type BranchStatus,
@@ -75,10 +87,12 @@ function useProjectRepos(paths: string[]): string[] {
     const [ids, setIds] = useState<string[]>(() => paths.flatMap(path => cached<string | null>(repoOfKey(path)) ?? []));
     useEffect(() => {
         let cancelled = false;
-        Promise.all(paths.map(async path => {
-            const ref = await api.repoOf(path).catch(() => null);
-            return remember(repoOfKey(path), ref && repoId(ref));
-        })).then(result => {
+        Promise.all(
+            paths.map(async path => {
+                const ref = await api.repoOf(path).catch(() => null);
+                return remember(repoOfKey(path), ref && repoId(ref));
+            })
+        ).then(result => {
             if (cancelled) return;
             const next = [...new Set(result.filter((id): id is string => !!id))];
             setIds(current => (current.join('\n') === next.join('\n') ? current : next));
@@ -119,11 +133,15 @@ function RepoList({ repos, projectRepos, error, loading, onSelect, onRefresh, on
 
     const groups = useMemo(() => {
         const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-        const matches = (all ? repos ?? [] : inProjects).filter(item => words.every(word => repoId(item).toLowerCase().includes(word)));
+        const matches = (all ? (repos ?? []) : inProjects).filter(item => words.every(word => repoId(item).toLowerCase().includes(word)));
         if (!all) {
             return matches.length ? [{ label: 'In your projects', items: matches.map(item => ({ value: repoId(item), label: repoId(item) })) }] : [];
         }
-        return sortedGroups(matches, item => item.owner, item => ({ value: repoId(item), label: item.name }));
+        return sortedGroups(
+            matches,
+            item => item.owner,
+            item => ({ value: repoId(item), label: item.name })
+        );
     }, [repos, inProjects, all, query]);
 
     const first = groups[0]?.items[0]?.value;
@@ -154,8 +172,12 @@ function RepoList({ repos, projectRepos, error, loading, onSelect, onRefresh, on
                     </label>
                     {inProjects.length > 0 && (
                         <div className="segmented compact" role="radiogroup" aria-label="Repositories">
-                            <button role="radio" aria-checked={!all} className={!all ? 'selected' : ''} onClick={() => setShowAll(false)}>In projects</button>
-                            <button role="radio" aria-checked={all} className={all ? 'selected' : ''} onClick={() => setShowAll(true)}>All</button>
+                            <button role="radio" aria-checked={!all} className={!all ? 'selected' : ''} onClick={() => setShowAll(false)}>
+                                In projects
+                            </button>
+                            <button role="radio" aria-checked={all} className={all ? 'selected' : ''} onClick={() => setShowAll(true)}>
+                                All
+                            </button>
                         </div>
                     )}
                     <span className="header-spacer" />
@@ -170,7 +192,9 @@ function RepoList({ repos, projectRepos, error, loading, onSelect, onRefresh, on
                 {repos?.length === 0 && (
                     <div className="review-empty">
                         <p>The selected organizations have no repositories that you can access.</p>
-                        <button className="button" onClick={onOpenSettings}>Open Settings › Code review</button>
+                        <button className="button" onClick={onOpenSettings}>
+                            Open Settings › Code review
+                        </button>
                     </div>
                 )}
                 {repos && repos.length > 0 && groups.length === 0 && (
@@ -225,7 +249,9 @@ export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewW
     const projectRepos = useProjectRepos(localRepos);
     const [repos, setRepos] = useState<GitHubRepoInfo[]>();
     const [repo, setRepo] = useState<string>();
-    const [filter, setFilter] = useState<PullRequestFilter>(() => (PULL_REQUEST_FILTERS.some(item => item.id === read(FILTER_KEY)) ? read(FILTER_KEY) as PullRequestFilter : 'open'));
+    const [filter, setFilter] = useState<PullRequestFilter>(() =>
+        PULL_REQUEST_FILTERS.some(item => item.id === read(FILTER_KEY)) ? (read(FILTER_KEY) as PullRequestFilter) : 'open'
+    );
     const [query, setQuery] = useState('');
     const [list, setList] = useState<PullRequestSummary[]>();
     const [listLoading, setListLoading] = useState(false);
@@ -362,7 +388,15 @@ export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewW
     };
 
     /** The repositories by owner, for the groups of the picker. */
-    const groups = useMemo(() => sortedGroups(repos ?? [], item => item.owner, item => ({ value: repoId(item), label: item.name })), [repos]);
+    const groups = useMemo(
+        () =>
+            sortedGroups(
+                repos ?? [],
+                item => item.owner,
+                item => ({ value: repoId(item), label: item.name })
+            ),
+        [repos]
+    );
 
     if (githubKey === undefined) {
         return <div className="review-view" />;
@@ -374,7 +408,9 @@ export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewW
                     <GitPullRequest size={30} strokeWidth={1.3} />
                     <h2>Review pull requests</h2>
                     <p>Add a GitHub provider to see its pull requests here.</p>
-                    <button className="button primary" onClick={onOpenSettings}>Open Settings › Code review</button>
+                    <button className="button primary" onClick={onOpenSettings}>
+                        Open Settings › Code review
+                    </button>
                 </div>
             </div>
         );
@@ -398,44 +434,55 @@ export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewW
 
     return (
         <div className="review-view">
-            {!selected && <header className="tasks-header review-header">
-                <div className="tasks-header-group where">
-                    <button className="icon-button" title="All repositories" onClick={() => setRepo(undefined)}>
-                        <ArrowLeft size={15} strokeWidth={1.7} />
-                    </button>
-                    <Combobox
-                        className="review-repo-select"
-                        value={repo}
-                        groups={groups}
-                        placeholder={!repos ? 'Loading repositories…' : repos.length === 0 ? 'No repositories' : 'Select a repository'}
-                        searchPlaceholder="Search repositories"
-                        disabled={!repos?.length}
-                        title="Repository"
-                        onChange={selectRepo}
-                    />
-                    <select className="tasks-select" value={filter} title="Filter" onChange={event => selectFilter(event.target.value as PullRequestFilter)}>
-                        {PULL_REQUEST_FILTERS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-                    </select>
-                </div>
-                <div className="tasks-header-group how">
-                    <label className="tasks-search">
-                        <Search size={14} strokeWidth={1.6} />
-                        <input
-                            value={query}
-                            placeholder="Search pull requests"
-                            spellCheck={false}
-                            onChange={event => setQuery(event.target.value)}
-                            onKeyDown={event => {
-                                if (event.key === 'ArrowDown' && focusFirstItem(prListRef.current)) event.preventDefault();
-                            }}
+            {!selected && (
+                <header className="tasks-header review-header">
+                    <div className="tasks-header-group where">
+                        <button className="icon-button" title="All repositories" onClick={() => setRepo(undefined)}>
+                            <ArrowLeft size={15} strokeWidth={1.7} />
+                        </button>
+                        <Combobox
+                            className="review-repo-select"
+                            value={repo}
+                            groups={groups}
+                            placeholder={!repos ? 'Loading repositories…' : repos.length === 0 ? 'No repositories' : 'Select a repository'}
+                            searchPlaceholder="Search repositories"
+                            disabled={!repos?.length}
+                            title="Repository"
+                            onChange={selectRepo}
                         />
-                    </label>
-                    <span className="header-spacer" />
-                    <button className="icon-button" title="Refresh" onClick={refresh}>
-                        <RefreshCw size={15} strokeWidth={1.6} className={listLoading || prLoading ? 'spin' : ''} />
-                    </button>
-                </div>
-            </header>}
+                        <select
+                            className="tasks-select"
+                            value={filter}
+                            title="Filter"
+                            onChange={event => selectFilter(event.target.value as PullRequestFilter)}
+                        >
+                            {PULL_REQUEST_FILTERS.map(item => (
+                                <option key={item.id} value={item.id}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="tasks-header-group how">
+                        <label className="tasks-search">
+                            <Search size={14} strokeWidth={1.6} />
+                            <input
+                                value={query}
+                                placeholder="Search pull requests"
+                                spellCheck={false}
+                                onChange={event => setQuery(event.target.value)}
+                                onKeyDown={event => {
+                                    if (event.key === 'ArrowDown' && focusFirstItem(prListRef.current)) event.preventDefault();
+                                }}
+                            />
+                        </label>
+                        <span className="header-spacer" />
+                        <button className="icon-button" title="Refresh" onClick={refresh}>
+                            <RefreshCw size={15} strokeWidth={1.6} className={listLoading || prLoading ? 'spin' : ''} />
+                        </button>
+                    </div>
+                </header>
+            )}
 
             {repoRef && (
                 <div className="review-body">
@@ -450,12 +497,20 @@ export function ReviewView({ githubKey, localRepos, onOpenSettings, open, onNewW
                                 <span className="review-item-main">
                                     <span className="review-item-title">{item.title}</span>
                                     <span className="review-item-meta">
-                                        #{item.number} · {item.author ?? 'unknown'}{item.viewerDidAuthor ? ' (you)' : ''} · {timeAgo(item.updatedAt)}
+                                        #{item.number} · {item.author ?? 'unknown'}
+                                        {item.viewerDidAuthor ? ' (you)' : ''} · {timeAgo(item.updatedAt)}
                                     </span>
                                     <span className="review-item-meta">
-                                        {item.reviewDecision && <span className={`review-decision ${item.reviewDecision.toLowerCase()}`}>{REVIEW_TEXT[item.reviewDecision]}</span>}
+                                        {item.reviewDecision && (
+                                            <span className={`review-decision ${item.reviewDecision.toLowerCase()}`}>{REVIEW_TEXT[item.reviewDecision]}</span>
+                                        )}
                                         <span className="additions">+{item.additions}</span> <span className="deletions">−{item.deletions}</span>
-                                        {item.comments > 0 && <span className="review-comments"><MessageSquare size={11} strokeWidth={1.8} />{item.comments}</span>}
+                                        {item.comments > 0 && (
+                                            <span className="review-comments">
+                                                <MessageSquare size={11} strokeWidth={1.8} />
+                                                {item.comments}
+                                            </span>
+                                        )}
                                     </span>
                                 </span>
                                 <ChecksIcon state={item.checks} />

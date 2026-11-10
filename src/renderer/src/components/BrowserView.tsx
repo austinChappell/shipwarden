@@ -95,12 +95,16 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
     }, [id, focused]);
 
     // ⌘L in the page selects the address bar.
-    useEffect(() => api.onFocusAddress(target => {
-        if (target === id) {
-            input.current?.focus();
-            input.current?.select();
-        }
-    }), [api, id]);
+    useEffect(
+        () =>
+            api.onFocusAddress(target => {
+                if (target === id) {
+                    input.current?.focus();
+                    input.current?.select();
+                }
+            }),
+        [api, id]
+    );
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -179,7 +183,9 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
                     <div className="browser-error">
                         <p>The page did not load: {state.error}</p>
                         <p className="browser-error-url">{state.url}</p>
-                        <button type="button" className="button" onClick={() => api.reload(id)}>Try again</button>
+                        <button type="button" className="button" onClick={() => api.reload(id)}>
+                            Try again
+                        </button>
                     </div>
                 )}
             </div>

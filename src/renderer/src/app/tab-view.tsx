@@ -103,7 +103,12 @@ export function renderTabView(tab: TabKey, focused: boolean, context: TabViewCon
         );
     }
     const session = context.sessions.find(item => `t:${item.id}` === tab);
-    return session && context.settings
-        ? <TerminalView key={`${session.id}:${context.terminalColorsKey}`} session={session} settings={context.terminalSettings ?? context.settings} focused={focused} />
-        : null;
+    return session && context.settings ? (
+        <TerminalView
+            key={`${session.id}:${context.terminalColorsKey}`}
+            session={session}
+            settings={context.terminalSettings ?? context.settings}
+            focused={focused}
+        />
+    ) : null;
 }

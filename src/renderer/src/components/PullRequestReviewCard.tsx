@@ -31,13 +31,21 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
             onSubmit('COMMENT');
         }
     };
-    const eventButton = (event: ReviewEvent) => event === 'COMMENT' ? (
-        <button key={event} className="button" disabled={!canComment} onClick={() => onSubmit(event)}>Comment</button>
-    ) : event === 'APPROVE' ? (
-        <button key={event} className="button approve" disabled={!canDecide} onClick={() => onSubmit(event)}><Check size={14} strokeWidth={2} />Approve</button>
-    ) : (
-        <button key={event} className="button" disabled={!canDecide} onClick={() => onSubmit(event)}>{REVIEW_EVENT_TEXT[event].button}</button>
-    );
+    const eventButton = (event: ReviewEvent) =>
+        event === 'COMMENT' ? (
+            <button key={event} className="button" disabled={!canComment} onClick={() => onSubmit(event)}>
+                Comment
+            </button>
+        ) : event === 'APPROVE' ? (
+            <button key={event} className="button approve" disabled={!canDecide} onClick={() => onSubmit(event)}>
+                <Check size={14} strokeWidth={2} />
+                Approve
+            </button>
+        ) : (
+            <button key={event} className="button" disabled={!canDecide} onClick={() => onSubmit(event)}>
+                {REVIEW_EVENT_TEXT[event].button}
+            </button>
+        );
     const decisions = decisionEvents(events, overview);
     const pendingPill = pending.length > 0 && (
         <span className="pending-pill" title="These comments go out with this review.">
@@ -50,7 +58,10 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
             {undecidedText(undecided)}
             {first && firstFile && (
                 <>
-                    {' '}<button className="link-button" onClick={() => onOpenDiff(pr, firstFile, first.comment.line)}>Show the first one</button>
+                    {' '}
+                    <button className="link-button" onClick={() => onOpenDiff(pr, firstFile, first.comment.line)}>
+                        Show the first one
+                    </button>
                 </>
             )}
         </div>
@@ -110,7 +121,9 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
                     )}
                     <span className="header-spacer" />
                     {decisions.length < events.length && (
-                        <span className="review-shortcut" title="Press ⌘↵ in the summary to submit a comment without a decision.">Comment only: ⌘↵</span>
+                        <span className="review-shortcut" title="Press ⌘↵ in the summary to submit a comment without a decision.">
+                            Comment only: ⌘↵
+                        </span>
                     )}
                 </div>
             )}

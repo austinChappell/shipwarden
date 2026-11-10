@@ -20,7 +20,17 @@ export function findLineElement(section: HTMLElement, side: DiffSide, line: numb
 }
 
 /** The search bar of the changed files (⌘F). Enter goes to the next match, Shift+Enter to the previous one. */
-export function FindBar({ query, caseSensitive, count, index, focusNonce, onQuery, onCaseSensitive, onMove, onClose }: {
+export function FindBar({
+    query,
+    caseSensitive,
+    count,
+    index,
+    focusNonce,
+    onQuery,
+    onCaseSensitive,
+    onMove,
+    onClose
+}: {
     query: string;
     caseSensitive: boolean;
     count: number;
@@ -54,10 +64,23 @@ export function FindBar({ query, caseSensitive, count, index, focusNonce, onQuer
                 }}
             />
             <span className="find-count">{findCountText(query, count, index)}</span>
-            <button className={`icon-button find-case${caseSensitive ? ' selected' : ''}`} title="Match case" aria-pressed={caseSensitive} onClick={() => onCaseSensitive(!caseSensitive)}>Aa</button>
-            <button className="icon-button" title="Previous match (Shift+Enter)" disabled={!count} onClick={() => onMove(-1)}><ChevronUp size={14} /></button>
-            <button className="icon-button" title="Next match (Enter)" disabled={!count} onClick={() => onMove(1)}><ChevronDown size={14} /></button>
-            <button className="icon-button" title="Close (Escape)" onClick={onClose}><X size={14} /></button>
+            <button
+                className={`icon-button find-case${caseSensitive ? ' selected' : ''}`}
+                title="Match case"
+                aria-pressed={caseSensitive}
+                onClick={() => onCaseSensitive(!caseSensitive)}
+            >
+                Aa
+            </button>
+            <button className="icon-button" title="Previous match (Shift+Enter)" disabled={!count} onClick={() => onMove(-1)}>
+                <ChevronUp size={14} />
+            </button>
+            <button className="icon-button" title="Next match (Enter)" disabled={!count} onClick={() => onMove(1)}>
+                <ChevronDown size={14} />
+            </button>
+            <button className="icon-button" title="Close (Escape)" onClick={onClose}>
+                <X size={14} />
+            </button>
         </div>
     );
 }

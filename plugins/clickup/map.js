@@ -41,7 +41,7 @@ export function toTask(task, { withDescription = false } = {}) {
         // ClickUp priorities: 1 urgent, 2 high, 3 normal, 4 low.
         priority: task.priority ? { name: task.priority.priority, level: Number(task.priority.id) } : undefined,
         updatedAt: isoDate(task.date_updated),
-        description: withDescription ? task.markdown_description ?? task.description ?? '' : undefined,
+        description: withDescription ? (task.markdown_description ?? task.description ?? '') : undefined,
         fields: {
             dueDate: isoDate(task.due_date) ?? null
         }
@@ -76,13 +76,14 @@ export function listStatusOrder(statuses) {
 export function toCollections(teamId, spaces, defaultListId, prefix) {
     const collections = [];
     const at = path => (prefix ? `${prefix} / ${path}` : path);
-    const add = (list, path) => collections.push({
-        id: String(list.id),
-        name: list.name,
-        path,
-        url: `https://app.clickup.com/${teamId}/v/li/${list.id}`,
-        ...(String(list.id) === String(defaultListId) ? { default: true } : {})
-    });
+    const add = (list, path) =>
+        collections.push({
+            id: String(list.id),
+            name: list.name,
+            path,
+            url: `https://app.clickup.com/${teamId}/v/li/${list.id}`,
+            ...(String(list.id) === String(defaultListId) ? { default: true } : {})
+        });
     for (const { space, folders, lists } of spaces) {
         for (const list of lists ?? []) {
             add(list, at(space.name));

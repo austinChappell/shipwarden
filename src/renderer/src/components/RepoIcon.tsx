@@ -14,15 +14,7 @@ interface Props {
  * ShipWarden uses an icon, not a dot, so that the color does not look like an agent status.
  */
 export function RepoIcon({ color, size = 14, strokeWidth = 1.8 }: Props) {
-    return (
-        <FolderGit2
-            className="repo-icon"
-            size={size}
-            strokeWidth={strokeWidth}
-            style={color ? { color: REPO_COLORS[color] } : undefined}
-            aria-hidden
-        />
-    );
+    return <FolderGit2 className="repo-icon" size={size} strokeWidth={strokeWidth} style={color ? { color: REPO_COLORS[color] } : undefined} aria-hidden />;
 }
 
 /** The CSS variable that gives the repository color to the left line of a sidebar group. */

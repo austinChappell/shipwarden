@@ -1,5 +1,14 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { ChevronRight, GitCommitHorizontal, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, MessageSquare, TriangleAlert } from 'lucide-react';
+import {
+    ChevronRight,
+    GitCommitHorizontal,
+    GitMerge,
+    GitPullRequest,
+    GitPullRequestClosed,
+    GitPullRequestDraft,
+    MessageSquare,
+    TriangleAlert
+} from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
 import { hostLabel, type PullRequest, type PullRequestFile, type RepoTarget } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
@@ -16,10 +25,33 @@ import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 const ICON = { size: 15, strokeWidth: 1.6 };
 
 export function StateBadge({ pr }: { pr: PullRequest }) {
-    if (pr.state === 'MERGED') return <span className="pr-badge merged"><GitMerge {...ICON} />Merged</span>;
-    if (pr.state === 'CLOSED') return <span className="pr-badge closed"><GitPullRequestClosed {...ICON} />Closed</span>;
-    if (pr.isDraft) return <span className="pr-badge draft"><GitPullRequestDraft {...ICON} />Draft</span>;
-    return <span className="pr-badge open"><GitPullRequest {...ICON} />Open</span>;
+    if (pr.state === 'MERGED')
+        return (
+            <span className="pr-badge merged">
+                <GitMerge {...ICON} />
+                Merged
+            </span>
+        );
+    if (pr.state === 'CLOSED')
+        return (
+            <span className="pr-badge closed">
+                <GitPullRequestClosed {...ICON} />
+                Closed
+            </span>
+        );
+    if (pr.isDraft)
+        return (
+            <span className="pr-badge draft">
+                <GitPullRequestDraft {...ICON} />
+                Draft
+            </span>
+        );
+    return (
+        <span className="pr-badge open">
+            <GitPullRequest {...ICON} />
+            Open
+        </span>
+    );
 }
 
 /** A branch name in code style, with a button that copies the name. */
@@ -37,7 +69,8 @@ export function ConflictBadge({ pr }: { pr: PullRequest }) {
     if (!hasConflicts(pr)) return null;
     return (
         <span className="pr-badge conflict" title={`The branch ${pr.headRefName} has conflicts with ${pr.baseRefName}. GitHub cannot merge it.`}>
-            <TriangleAlert {...ICON} />Merge conflicts
+            <TriangleAlert {...ICON} />
+            Merge conflicts
         </span>
     );
 }
@@ -47,17 +80,27 @@ export function PullRequestCommitList({ pr }: { pr: PullRequest }) {
     return (
         <>
             {pr.commitCount > pr.commits.length && (
-                <div className="panel-note">The list shows the newest {pr.commits.length} of {pr.commitCount} commits, the newest first.</div>
+                <div className="panel-note">
+                    The list shows the newest {pr.commits.length} of {pr.commitCount} commits, the newest first.
+                </div>
             )}
             <div className="pr-commit-list">
                 {[...pr.commits].reverse().map(commit => (
                     <div key={commit.oid} className="pr-commit">
                         <GitCommitHorizontal size={15} strokeWidth={1.6} className="pr-commit-icon" />
                         <div className="pr-commit-main">
-                            <div className="pr-commit-title" title={commit.messageHeadline}>{commit.messageHeadline}</div>
-                            <div className="pr-commit-meta">{commit.author ?? 'unknown'} committed {timeAgo(commit.committedDate)}</div>
+                            <div className="pr-commit-title" title={commit.messageHeadline}>
+                                {commit.messageHeadline}
+                            </div>
+                            <div className="pr-commit-meta">
+                                {commit.author ?? 'unknown'} committed {timeAgo(commit.committedDate)}
+                            </div>
                         </div>
-                        <button className="link-button pr-commit-sha" title={`Open the commit on ${hostLabel(pr.host)}`} onClick={event => openLink(commit.url, event)}>
+                        <button
+                            className="link-button pr-commit-sha"
+                            title={`Open the commit on ${hostLabel(pr.host)}`}
+                            onClick={event => openLink(commit.url, event)}
+                        >
                             {commit.abbreviatedOid}
                         </button>
                     </div>
@@ -101,13 +144,19 @@ export function PullRequestDescription({ pr, overview, onEdit }: { pr: PullReque
     return (
         <section className="pr-section">
             <div className="section-title-row">
-                {toggleable
-                    ? (
-                        <button className="section-toggle" aria-expanded={open} title={open ? 'Show less' : 'Show the full description'} onClick={() => setOpen(value => !value)}>
-                            <ChevronRight size={13} strokeWidth={1.8} className={`section-chevron${open ? ' open' : ''}`} />Description
-                        </button>
-                    )
-                    : <div className="section-title">Description</div>}
+                {toggleable ? (
+                    <button
+                        className="section-toggle"
+                        aria-expanded={open}
+                        title={open ? 'Show less' : 'Show the full description'}
+                        onClick={() => setOpen(value => !value)}
+                    >
+                        <ChevronRight size={13} strokeWidth={1.8} className={`section-chevron${open ? ' open' : ''}`} />
+                        Description
+                    </button>
+                ) : (
+                    <div className="section-title">Description</div>
+                )}
                 {editButton}
             </div>
             <div ref={box} className={`pr-description${open ? ' open' : ''}${!open && overflows ? ' clipped' : ''}`}>
@@ -140,7 +189,11 @@ export function PullRequestFileList({ target, pr, files, selectedPath, onOpen, o
         <>
             <div className="section-title">
                 Files changed {files ? `(${files.length})` : ''}
-                {files && files.length > 0 && <span className="viewed-count">{files.filter(item => item.viewed).length} of {files.length} viewed</span>}
+                {files && files.length > 0 && (
+                    <span className="viewed-count">
+                        {files.filter(item => item.viewed).length} of {files.length} viewed
+                    </span>
+                )}
             </div>
             {!files && <div className="panel-note">Loading files…</div>}
             <div onKeyDown={moveListFocus}>
@@ -163,7 +216,12 @@ export function PullRequestFileList({ target, pr, files, selectedPath, onOpen, o
                             <Icon className="tree-icon" size={15} strokeWidth={1.5} />
                             <span className="tree-name">{baseName(file.path)}</span>
                             <span className="tree-detail">{parentPath(file.path)}</span>
-                            {count > 0 && <span className="comment-count"><MessageSquare size={12} strokeWidth={1.6} />{count}</span>}
+                            {count > 0 && (
+                                <span className="comment-count">
+                                    <MessageSquare size={12} strokeWidth={1.6} />
+                                    {count}
+                                </span>
+                            )}
                             <span className="additions">+{file.additions}</span>
                             <span className="deletions">−{file.deletions}</span>
                             <input
@@ -172,7 +230,9 @@ export function PullRequestFileList({ target, pr, files, selectedPath, onOpen, o
                                 title={file.viewed ? 'Viewed. Click to mark as not viewed.' : 'Mark as viewed'}
                                 checked={!!file.viewed}
                                 onClick={event => event.stopPropagation()}
-                                onChange={event => reviewStore.setViewed(target, pr.number, pr.id, file.path, event.target.checked).catch(err => onError(errorText(err)))}
+                                onChange={event =>
+                                    reviewStore.setViewed(target, pr.number, pr.id, file.path, event.target.checked).catch(err => onError(errorText(err)))
+                                }
                             />
                         </div>
                     );

@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { repoDisplayName, type AppSettings } from '@shared/settings';
-import { DEFAULT_COPY_EXCLUDE, DEFAULT_COPY_PATTERNS, type CopyIgnoredSettings, type CopyMode, type WorktreeSettings as WorktreeSettingsValue } from '@shared/worktree-settings';
+import {
+    DEFAULT_COPY_EXCLUDE,
+    DEFAULT_COPY_PATTERNS,
+    type CopyIgnoredSettings,
+    type CopyMode,
+    type WorktreeSettings as WorktreeSettingsValue
+} from '@shared/worktree-settings';
 import { WORKTREE_SORT_LABELS, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
@@ -9,7 +15,10 @@ import { radioGroupKeys } from './keyboard';
 
 /** Splits the text of the patterns field into patterns, one on each line. */
 function parsePatterns(text: string): string[] {
-    return text.split('\n').map(line => line.trim()).filter(Boolean);
+    return text
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
 }
 
 /** A folder field with a "Choose…" button. It saves when the field loses focus. */
@@ -71,17 +80,29 @@ export function CopyPreview({ repo, copy }: { repo: string | undefined; copy: Co
     if (!matches) return <div className="panel-note">Finding the files…</div>;
     return (
         <div className="panel-note copy-preview">
-            {matches.length === 0
-                ? 'No git-ignored file in the main worktree matches now.'
-                : <>A new worktree gets {matches.length === 1 ? 'this' : `these ${matches.length}`} (a name with &quot;/&quot; at the end is a folder):</>}
-            {matches.slice(0, 12).map(item => <code key={item}>{item}</code>)}
+            {matches.length === 0 ? (
+                'No git-ignored file in the main worktree matches now.'
+            ) : (
+                <>A new worktree gets {matches.length === 1 ? 'this' : `these ${matches.length}`} (a name with &quot;/&quot; at the end is a folder):</>
+            )}
+            {matches.slice(0, 12).map(item => (
+                <code key={item}>{item}</code>
+            ))}
             {matches.length > 12 && <span>and {matches.length - 12} more</span>}
         </div>
     );
 }
 
 /** A text field for copy patterns, one on each line. It saves when the field loses focus. */
-export function PatternsField({ patterns, placeholder = DEFAULT_COPY_PATTERNS, onSave }: { patterns: string[]; placeholder?: string[]; onSave(patterns: string[]): void }) {
+export function PatternsField({
+    patterns,
+    placeholder = DEFAULT_COPY_PATTERNS,
+    onSave
+}: {
+    patterns: string[];
+    placeholder?: string[];
+    onSave(patterns: string[]): void;
+}) {
     const [text, setText] = useState(patterns.join('\n'));
     useEffect(() => setText(patterns.join('\n')), [patterns.join('\n')]);
     return (
@@ -99,9 +120,10 @@ export function PatternsField({ patterns, placeholder = DEFAULT_COPY_PATTERNS, o
     );
 }
 
-export const PATTERN_HELP = 'One pattern on each line. A pattern without "/" matches the name in any folder, for example .env.*. '
-    + 'A pattern with "/" matches the path from the repository root, for example config/master.key. '
-    + 'A pattern with "/" at the end matches only folders, for example node_modules/. Only git-ignored files are copied.';
+export const PATTERN_HELP =
+    'One pattern on each line. A pattern without "/" matches the name in any folder, for example .env.*. ' +
+    'A pattern with "/" matches the path from the repository root, for example config/master.key. ' +
+    'A pattern with "/" at the end matches only folders, for example node_modules/. Only git-ignored files are copied.';
 
 const listOf = (copy: CopyIgnoredSettings) => (copy.mode === 'matching' ? copy.patterns : copy.exclude);
 const defaultsOf = (mode: CopyMode) => (mode === 'matching' ? DEFAULT_COPY_PATTERNS : DEFAULT_COPY_EXCLUDE);
@@ -113,24 +135,45 @@ export function CopyEditor({ copy, repo, onSave }: { copy: CopyIgnoredSettings; 
     return (
         <>
             <div className="copy-mode segmented compact" role="radiogroup" aria-label="What to copy" onKeyDown={radioGroupKeys}>
-                <button role="radio" aria-checked={copy.mode === 'matching'} className={copy.mode === 'matching' ? 'selected' : ''} onClick={() => setMode('matching')} title="Copy only the ignored files that match the patterns">Matching files</button>
-                <button role="radio" aria-checked={copy.mode === 'allExcept'} className={copy.mode === 'allExcept' ? 'selected' : ''} onClick={() => setMode('allExcept')} title="Copy all ignored files and folders except the patterns">All except</button>
+                <button
+                    role="radio"
+                    aria-checked={copy.mode === 'matching'}
+                    className={copy.mode === 'matching' ? 'selected' : ''}
+                    onClick={() => setMode('matching')}
+                    title="Copy only the ignored files that match the patterns"
+                >
+                    Matching files
+                </button>
+                <button
+                    role="radio"
+                    aria-checked={copy.mode === 'allExcept'}
+                    className={copy.mode === 'allExcept' ? 'selected' : ''}
+                    onClick={() => setMode('allExcept')}
+                    title="Copy all ignored files and folders except the patterns"
+                >
+                    All except
+                </button>
             </div>
-            {copy.mode === 'matching'
-                ? <PatternsField key="patterns" patterns={copy.patterns} onSave={patterns => onSave({ ...copy, patterns })} />
-                : <PatternsField key="exclude" patterns={copy.exclude} placeholder={DEFAULT_COPY_EXCLUDE} onSave={exclude => onSave({ ...copy, exclude })} />}
+            {copy.mode === 'matching' ? (
+                <PatternsField key="patterns" patterns={copy.patterns} onSave={patterns => onSave({ ...copy, patterns })} />
+            ) : (
+                <PatternsField key="exclude" patterns={copy.exclude} placeholder={DEFAULT_COPY_EXCLUDE} onSave={exclude => onSave({ ...copy, exclude })} />
+            )}
             {/* A saved list keeps its values when the defaults change. The link sets the current defaults. */}
             {!sameList(listOf(copy), defaultsOf(copy.mode)) && (
                 <button
                     className="link-button copy-reset"
                     title={defaultsOf(copy.mode).join('\n')}
-                    onClick={() => onSave(copy.mode === 'matching' ? { ...copy, patterns: [...DEFAULT_COPY_PATTERNS] } : { ...copy, exclude: [...DEFAULT_COPY_EXCLUDE] })}
+                    onClick={() =>
+                        onSave(copy.mode === 'matching' ? { ...copy, patterns: [...DEFAULT_COPY_PATTERNS] } : { ...copy, exclude: [...DEFAULT_COPY_EXCLUDE] })
+                    }
                 >
                     Reset to the default list
                 </button>
             )}
             <div className="panel-note">
-                {copy.mode === 'allExcept' && 'ShipWarden copies every git-ignored file and folder except these. Large folders such as node_modules/ make a new worktree slow. '}
+                {copy.mode === 'allExcept' &&
+                    'ShipWarden copies every git-ignored file and folder except these. Large folders such as node_modules/ make a new worktree slow. '}
                 {PATTERN_HELP}
             </div>
             {repo && <CopyPreview repo={repo} copy={copy} />}
@@ -149,12 +192,27 @@ function directionLabel(by: WorktreeSortKey, direction: WorktreeSort['direction'
 function SortControl({ sort, onSave }: { sort: WorktreeSort; onSave(sort: WorktreeSort): void }) {
     return (
         <div className="worktree-sort-control">
-            <select className="tasks-select" aria-label="Sort worktrees by" value={sort.by} onChange={event => onSave({ ...sort, by: event.target.value as WorktreeSortKey })}>
-                {SORT_KEYS.map(by => <option key={by} value={by}>{WORKTREE_SORT_LABELS[by]}</option>)}
+            <select
+                className="tasks-select"
+                aria-label="Sort worktrees by"
+                value={sort.by}
+                onChange={event => onSave({ ...sort, by: event.target.value as WorktreeSortKey })}
+            >
+                {SORT_KEYS.map(by => (
+                    <option key={by} value={by}>
+                        {WORKTREE_SORT_LABELS[by]}
+                    </option>
+                ))}
             </select>
             <div className="segmented compact" role="radiogroup" aria-label="Sort direction" onKeyDown={radioGroupKeys}>
                 {(['asc', 'desc'] as const).map(direction => (
-                    <button key={direction} role="radio" aria-checked={sort.direction === direction} className={sort.direction === direction ? 'selected' : ''} onClick={() => onSave({ ...sort, direction })}>
+                    <button
+                        key={direction}
+                        role="radio"
+                        aria-checked={sort.direction === direction}
+                        className={sort.direction === direction ? 'selected' : ''}
+                        onClick={() => onSave({ ...sort, direction })}
+                    >
                         {directionLabel(sort.by, direction)}
                     </button>
                 ))}
@@ -206,19 +264,23 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                 />
                 <SettingsRow
                     label="Folder"
-                    description={<>New worktrees go to <code>{value.directory ?? defaultFolder}/&lt;repository&gt;/&lt;branch&gt;</code>. Empty: the default folder.</>}
+                    description={
+                        <>
+                            New worktrees go to <code>{value.directory ?? defaultFolder}/&lt;repository&gt;/&lt;branch&gt;</code>. Empty: the default folder.
+                        </>
+                    }
                 >
                     <FolderField value={value.directory} placeholder={defaultFolder} onSave={directory => void save({ directory })} />
                 </SettingsRow>
                 <SettingsRow
                     label="Copy ignored files"
                     description="Copies git-ignored files, for example .env, from the main worktree into each new worktree."
-                    control={(
+                    control={
                         <label className="switch" title={value.copyIgnored.enabled ? 'On' : 'Off'}>
                             <input type="checkbox" checked={value.copyIgnored.enabled} onChange={event => void saveCopy({ enabled: event.target.checked })} />
                             <span />
                         </label>
-                    )}
+                    }
                 >
                     {value.copyIgnored.enabled && (
                         <>
@@ -231,7 +293,11 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                                 <div className="copy-preview-repo">
                                     Preview in
                                     <select className="tasks-select" value={previewRepo} onChange={event => setPreviewRepo(event.target.value)}>
-                                        {repos.map(repo => <option key={repo} value={repo}>{repoDisplayName(settings, repo)}</option>)}
+                                        {repos.map(repo => (
+                                            <option key={repo} value={repo}>
+                                                {repoDisplayName(settings, repo)}
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                             )}

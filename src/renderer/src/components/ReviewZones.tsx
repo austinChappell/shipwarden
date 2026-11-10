@@ -13,7 +13,12 @@ import { radioGroupKeys } from './keyboard';
 
 export type { AgentQuestion, ComposerMode, QuestionAction };
 
-export function ThreadZone({ thread, onReply, onResolve, onSendToAgent }: {
+export function ThreadZone({
+    thread,
+    onReply,
+    onResolve,
+    onSendToAgent
+}: {
     thread: ReviewThread;
     onReply(body: string): Promise<void>;
     onResolve(): Promise<void>;
@@ -38,7 +43,9 @@ export function ThreadZone({ thread, onReply, onResolve, onSendToAgent }: {
         <div className={`zone-card${thread.isResolved ? ' resolved' : ''}`}>
             {thread.comments.map(comment => (
                 <div key={comment.id} className="thread-comment">
-                    <div className="comment-author">{comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span></div>
+                    <div className="comment-author">
+                        {comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span>
+                    </div>
                     <Markdown className="comment-body" text={comment.body} />
                 </div>
             ))}
@@ -47,21 +54,43 @@ export function ThreadZone({ thread, onReply, onResolve, onSendToAgent }: {
             <div className="thread-actions">
                 {replying ? (
                     <>
-                        <button className="link-button" onClick={() => setReplying(false)}>Cancel</button>
-                        <button className="link-button" disabled={busy || !text.trim()} onClick={() => act(() => onReply(text.trim()))}>Send reply</button>
+                        <button className="link-button" onClick={() => setReplying(false)}>
+                            Cancel
+                        </button>
+                        <button className="link-button" disabled={busy || !text.trim()} onClick={() => act(() => onReply(text.trim()))}>
+                            Send reply
+                        </button>
                     </>
                 ) : (
-                    <button className="link-button" onClick={() => setReplying(true)}>Reply</button>
+                    <button className="link-button" onClick={() => setReplying(true)}>
+                        Reply
+                    </button>
                 )}
-                <button className="link-button" disabled={busy} onClick={() => act(onResolve)}>{thread.isResolved ? 'Unresolve' : 'Resolve'}</button>
-                {onSendToAgent && <button className="link-button" onClick={onSendToAgent}><Bot size={13} strokeWidth={1.6} /> Send to agent</button>}
+                <button className="link-button" disabled={busy} onClick={() => act(onResolve)}>
+                    {thread.isResolved ? 'Unresolve' : 'Resolve'}
+                </button>
+                {onSendToAgent && (
+                    <button className="link-button" onClick={onSendToAgent}>
+                        <Bot size={13} strokeWidth={1.6} /> Send to agent
+                    </button>
+                )}
             </div>
         </div>
     );
 }
 
 /** A pending comment. With `onAccept`, a comment from an agent review that waits for a decision shows an Accept button. */
-export function PendingZone({ comment, onRemove, onEdit, onAccept }: { comment: PendingComment; onRemove(): void; onEdit?(body: string): void; onAccept?(): void }) {
+export function PendingZone({
+    comment,
+    onRemove,
+    onEdit,
+    onAccept
+}: {
+    comment: PendingComment;
+    onRemove(): void;
+    onEdit?(body: string): void;
+    onAccept?(): void;
+}) {
     const [editing, setEditing] = useState(false);
     const [text, setText] = useState(comment.body);
     const save = () => {
@@ -73,7 +102,11 @@ export function PendingZone({ comment, onRemove, onEdit, onAccept }: { comment: 
         <div className={`zone-card pending${comment.fromAgent ? ' from-agent' : ''}${comment.needsDecision ? ' needs-decision' : ''}`}>
             <div className="comment-author">
                 <span className="tag">pending</span>
-                {comment.fromAgent && <span className="tag agent-tag"><Bot size={11} strokeWidth={1.8} /> agent draft</span>}
+                {comment.fromAgent && (
+                    <span className="tag agent-tag">
+                        <Bot size={11} strokeWidth={1.8} /> agent draft
+                    </span>
+                )}
                 {comment.needsDecision
                     ? ' Accept or remove this comment. You cannot submit your review until you do.'
                     : ' goes out as your comment with your next review'}
@@ -95,16 +128,34 @@ export function PendingZone({ comment, onRemove, onEdit, onAccept }: { comment: 
             <div className="thread-actions">
                 {editing ? (
                     <>
-                        <button className="link-button" onClick={() => setEditing(false)}>Cancel</button>
-                        <button className="link-button" disabled={!text.trim()} onClick={save}>Save</button>
+                        <button className="link-button" onClick={() => setEditing(false)}>
+                            Cancel
+                        </button>
+                        <button className="link-button" disabled={!text.trim()} onClick={save}>
+                            Save
+                        </button>
                     </>
                 ) : (
-                    onEdit && <button className="link-button" onClick={() => { setText(comment.body); setEditing(true); }}>Edit</button>
+                    onEdit && (
+                        <button
+                            className="link-button"
+                            onClick={() => {
+                                setText(comment.body);
+                                setEditing(true);
+                            }}
+                        >
+                            Edit
+                        </button>
+                    )
                 )}
                 {comment.needsDecision && onAccept && !editing && (
-                    <button className="link-button accept-button" onClick={onAccept}><Check size={13} strokeWidth={2} /> Accept</button>
+                    <button className="link-button accept-button" onClick={onAccept}>
+                        <Check size={13} strokeWidth={2} /> Accept
+                    </button>
                 )}
-                <button className="link-button" onClick={onRemove}>Remove</button>
+                <button className="link-button" onClick={onRemove}>
+                    Remove
+                </button>
             </div>
         </div>
     );
@@ -113,8 +164,16 @@ export function PendingZone({ comment, onRemove, onEdit, onAccept }: { comment: 
 /** The text of each mode button of the composer. */
 const MODE_LABELS: Record<ComposerMode, React.ReactNode> = {
     comment: 'Comment',
-    ask: <><Bot size={12} strokeWidth={1.6} /> Ask agent</>,
-    note: <><Send size={12} strokeWidth={1.6} /> Send to agent</>
+    ask: (
+        <>
+            <Bot size={12} strokeWidth={1.6} /> Ask agent
+        </>
+    ),
+    note: (
+        <>
+            <Send size={12} strokeWidth={1.6} /> Send to agent
+        </>
+    )
 };
 
 /** The data of the "Send to agent" mode of the composer. */
@@ -132,7 +191,16 @@ export interface NoteOptions {
  * With `note`, the box can also send a note about the lines to an agent that runs, or to a new agent.
  * `canComment` false hides the comment mode, for example for a closed pull request or a file of a worktree.
  */
-export function ComposerZone({ line, startLine = line, onAdd, onAsk, note, onCancel, canComment = true, initialMode }: {
+export function ComposerZone({
+    line,
+    startLine = line,
+    onAdd,
+    onAsk,
+    note,
+    onCancel,
+    canComment = true,
+    initialMode
+}: {
     line: number;
     startLine?: number;
     onAdd(body: string): void;
@@ -167,7 +235,9 @@ export function ComposerZone({ line, startLine = line, onAdd, onAsk, note, onCan
             {modes.length > 1 && (
                 <div className="segmented compact composer-mode" role="radiogroup" aria-label="Kind of note" onKeyDown={radioGroupKeys}>
                     {modes.map(item => (
-                        <button key={item} role="radio" aria-checked={mode === item} className={mode === item ? 'selected' : ''} onClick={() => setMode(item)}>{MODE_LABELS[item]}</button>
+                        <button key={item} role="radio" aria-checked={mode === item} className={mode === item ? 'selected' : ''} onClick={() => setMode(item)}>
+                            {MODE_LABELS[item]}
+                        </button>
                     ))}
                 </div>
             )}
@@ -196,16 +266,32 @@ export function ComposerZone({ line, startLine = line, onAdd, onAsk, note, onCan
                     >
                         {targets.some(option => option.target.kind === 'session') && (
                             <optgroup label="Running in this worktree">
-                                {targets.filter(option => option.target.kind === 'session').map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
+                                {targets
+                                    .filter(option => option.target.kind === 'session')
+                                    .map(option => (
+                                        <option key={option.key} value={option.key}>
+                                            {option.label}
+                                        </option>
+                                    ))}
                             </optgroup>
                         )}
                         <optgroup label="Start a new agent">
-                            {targets.filter(option => option.target.kind === 'new').map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
+                            {targets
+                                .filter(option => option.target.kind === 'new')
+                                .map(option => (
+                                    <option key={option.key} value={option.key}>
+                                        {option.label}
+                                    </option>
+                                ))}
                         </optgroup>
                     </select>
                 )}
-                <button className="button" onClick={onCancel}>Cancel</button>
-                <button className="button primary" disabled={!text.trim() || (mode === 'note' && !target)} onClick={submit}>{submitLabel}</button>
+                <button className="button" onClick={onCancel}>
+                    Cancel
+                </button>
+                <button className="button primary" disabled={!text.trim() || (mode === 'note' && !target)} onClick={submit}>
+                    {submitLabel}
+                </button>
             </div>
         </div>
     );
@@ -215,7 +301,13 @@ export function ComposerZone({ line, startLine = line, onAdd, onAsk, note, onCan
  * Shows a question to the agent under its lines, with the answer or the error. The answer can become a pending comment.
  * An answer stays on disk until the user deletes it. "Hide" collapses the card to the question only.
  */
-export function QuestionZone({ question, headRefOid, onAction, canComment, linesChanged = false }: {
+export function QuestionZone({
+    question,
+    headRefOid,
+    onAction,
+    canComment,
+    linesChanged = false
+}: {
     question: AgentQuestion;
     /** The current head commit of the pull request. */
     headRefOid: string;
@@ -245,24 +337,46 @@ export function QuestionZone({ question, headRefOid, onAction, canComment, lines
                 {done && question.answeredAt && <span className="agent-question-time">{timeAgo(new Date(question.answeredAt).toISOString())}</span>}
             </div>
             <div className="comment-body agent-question-text">{question.question}</div>
-            {question.status === 'running' && <div className="agent-question-wait"><LoaderCircle size={13} className="spin" /> The agent reads the code…</div>}
+            {question.status === 'running' && (
+                <div className="agent-question-wait">
+                    <LoaderCircle size={13} className="spin" /> The agent reads the code…
+                </div>
+            )}
             {done && <Markdown className="comment-body agent-answer" text={question.answer ?? ''} />}
             {done && linesChanged && <div className="agent-question-outdated">The lines changed after you asked. The answer is about the old lines.</div>}
-            {outdated && <div className="agent-question-outdated">The agent answered on commit {question.commit?.slice(0, 7)}. The pull request changed after that.</div>}
+            {outdated && (
+                <div className="agent-question-outdated">The agent answered on commit {question.commit?.slice(0, 7)}. The pull request changed after that.</div>
+            )}
             {question.status === 'error' && <div className="form-error">{question.error}</div>}
             <div className="thread-actions">
                 {question.status === 'running' ? (
-                    <button className="link-button" onClick={() => onAction('cancel')}>Cancel</button>
+                    <button className="link-button" onClick={() => onAction('cancel')}>
+                        Cancel
+                    </button>
                 ) : done ? (
                     <>
-                        {canComment && <button className="link-button" onClick={() => onAction('comment')}>Use as a pending comment</button>}
-                        <button className="link-button" onClick={() => onAction('toggle')}>Hide</button>
-                        <button className="link-button" onClick={() => onAction('delete')}>Delete</button>
+                        {canComment && (
+                            <button className="link-button" onClick={() => onAction('comment')}>
+                                Use as a pending comment
+                            </button>
+                        )}
+                        <button className="link-button" onClick={() => onAction('toggle')}>
+                            Hide
+                        </button>
+                        <button className="link-button" onClick={() => onAction('delete')}>
+                            Delete
+                        </button>
                     </>
                 ) : (
                     <>
-                        {question.status === 'error' && <button className="link-button" onClick={() => onAction('retry')}>Try again</button>}
-                        <button className="link-button" onClick={() => onAction('close')}>Close</button>
+                        {question.status === 'error' && (
+                            <button className="link-button" onClick={() => onAction('retry')}>
+                                Try again
+                            </button>
+                        )}
+                        <button className="link-button" onClick={() => onAction('close')}>
+                            Close
+                        </button>
                     </>
                 )}
             </div>

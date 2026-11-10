@@ -16,7 +16,15 @@ interface PickerProps {
 export function CollectionPicker({ collections, collection, onSelect }: PickerProps) {
     const current = collections?.find(item => item.id === collection);
     /** The picker groups the collections by path, for example a ClickUp space and folder or a GitHub owner. */
-    const pickerGroups = useMemo(() => sortedGroups(collections ?? [], item => item.path ?? '', item => ({ value: item.id, label: item.name })), [collections]);
+    const pickerGroups = useMemo(
+        () =>
+            sortedGroups(
+                collections ?? [],
+                item => item.path ?? '',
+                item => ({ value: item.id, label: item.name })
+            ),
+        [collections]
+    );
     return (
         <div className="collection-picker">
             <Combobox
@@ -69,8 +77,17 @@ export function TasksHeader(props: Props) {
             {/* Two groups: where the tasks come from, and how they show. A narrow window puts the second group on its own row. */}
             <div className="tasks-header-group where">
                 {connections && connections.length > 0 && (
-                    <select className="tasks-select" value={connectionId ?? ''} onChange={event => props.selectConnection(event.target.value)} title="Task manager">
-                        {connections.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    <select
+                        className="tasks-select"
+                        value={connectionId ?? ''}
+                        onChange={event => props.selectConnection(event.target.value)}
+                        title="Task manager"
+                    >
+                        {connections.map(item => (
+                            <option key={item.id} value={item.id}>
+                                {item.name}
+                            </option>
+                        ))}
                     </select>
                 )}
                 {source && <CollectionPicker collections={props.collections} collection={props.collection} onSelect={props.selectCollection} />}
@@ -78,15 +95,31 @@ export function TasksHeader(props: Props) {
             <div className="tasks-header-group how">
                 {source && source.filters.length > 0 && (
                     <select className="tasks-select" value={filter} onChange={event => props.setFilter(event.target.value)} title="Filter">
-                        {source.filters.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+                        {source.filters.map(item => (
+                            <option key={item.id} value={item.id}>
+                                {item.label}
+                            </option>
+                        ))}
                     </select>
                 )}
                 {source && (
                     <div className="segmented compact view-switch" role="group" aria-label="View">
-                        <button className={viewMode === 'board' ? 'selected' : ''} title="Board" aria-label="Board" aria-pressed={viewMode === 'board'} onClick={() => props.changeViewMode('board')}>
+                        <button
+                            className={viewMode === 'board' ? 'selected' : ''}
+                            title="Board"
+                            aria-label="Board"
+                            aria-pressed={viewMode === 'board'}
+                            onClick={() => props.changeViewMode('board')}
+                        >
                             <SquareKanban size={15} strokeWidth={1.8} />
                         </button>
-                        <button className={viewMode === 'list' ? 'selected' : ''} title="List" aria-label="List" aria-pressed={viewMode === 'list'} onClick={() => props.changeViewMode('list')}>
+                        <button
+                            className={viewMode === 'list' ? 'selected' : ''}
+                            title="List"
+                            aria-label="List"
+                            aria-pressed={viewMode === 'list'}
+                            onClick={() => props.changeViewMode('list')}
+                        >
                             <List size={15} strokeWidth={1.8} />
                         </button>
                     </div>

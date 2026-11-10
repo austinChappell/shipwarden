@@ -40,10 +40,14 @@ describe('parseAzureRemote', () => {
 
     it('decodes spaces and other escaped characters', () => {
         expect(parseAzureRemote('https://dev.azure.com/contoso/My%20Project/_git/My%20Repo')).toEqual({
-            organization: 'contoso', project: 'My Project', repository: 'My Repo'
+            organization: 'contoso',
+            project: 'My Project',
+            repository: 'My Repo'
         });
         expect(parseAzureRemote('git@ssh.dev.azure.com:v3/contoso/My%20Project/My%20Repo')).toEqual({
-            organization: 'contoso', project: 'My Project', repository: 'My Repo'
+            organization: 'contoso',
+            project: 'My Project',
+            repository: 'My Repo'
         });
     });
 

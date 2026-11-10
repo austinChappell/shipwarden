@@ -3,7 +3,10 @@ import { networkErrorDetail } from '@shared/network';
 import { AZURE_API_VERSION, AZURE_DEVOPS_RESOURCE } from '@shared/azure-devops';
 
 export class AzureError extends Error {
-    constructor(message: string, readonly status: number) {
+    constructor(
+        message: string,
+        readonly status: number
+    ) {
         super(message);
     }
 }
@@ -24,14 +27,19 @@ const AZ_TOKEN_MS = 45 * 60 * 1000;
 /** Gets an access token for Azure DevOps from the az CLI. */
 export function azCliToken(): Promise<string> {
     return new Promise((resolve, reject) => {
-        execFile('az', ['account', 'get-access-token', '--resource', AZURE_DEVOPS_RESOURCE, '--query', 'accessToken', '-o', 'tsv'], { timeout: 20000 }, (error, stdout) => {
-            const token = stdout?.trim();
-            if (error || !token) {
-                reject(new Error('The az CLI did not give a token.'));
-            } else {
-                resolve(token);
+        execFile(
+            'az',
+            ['account', 'get-access-token', '--resource', AZURE_DEVOPS_RESOURCE, '--query', 'accessToken', '-o', 'tsv'],
+            { timeout: 20000 },
+            (error, stdout) => {
+                const token = stdout?.trim();
+                if (error || !token) {
+                    reject(new Error('The az CLI did not give a token.'));
+                } else {
+                    resolve(token);
+                }
             }
-        });
+        );
     });
 }
 
@@ -101,8 +109,8 @@ export class AzureDevOpsClient {
             response = await fetch(url, {
                 method,
                 headers: {
-                    'Authorization': auth.header,
-                    'Accept': accept,
+                    Authorization: auth.header,
+                    Accept: accept,
                     'User-Agent': 'ShipWarden',
                     // Without this header, Azure DevOps can answer 203 with a sign-in page in place of 401.
                     'X-TFS-FedAuthRedirect': 'Suppress',
@@ -118,7 +126,7 @@ export class AzureDevOpsClient {
             const status = signIn ? 401 : response.status;
             let detail = '';
             try {
-                const error = await response.json() as { message?: string };
+                const error = (await response.json()) as { message?: string };
                 detail = error.message ?? '';
             } catch {
                 // The error response has no JSON body.

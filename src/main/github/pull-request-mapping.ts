@@ -65,32 +65,51 @@ export interface GraphQlPullRequest {
         autoMergeAllowed: boolean;
         viewerDefaultMergeMethod: 'MERGE' | 'SQUASH' | 'REBASE';
         viewerPermission: string | null;
-        pullRequest: Omit<PullRequest, 'reviews' | 'issueComments' | 'threads' | 'allowedMergeMethods' | 'defaultMergeMethod' | 'commits' | 'commitCount' | 'checkCount'
-            | 'assignees' | 'labels' | 'reviewRequests' | 'viewerCanManage' | 'viewerCanMerge' | 'autoMerge'> & {
-            autoMergeRequest: { mergeMethod: 'MERGE' | 'SQUASH' | 'REBASE'; enabledBy: { login: string } | null } | null;
-            bodyHTML: string;
-            assignees: { nodes: GitHubUser[] };
-            labels: { nodes: GitHubLabel[] };
-            reviewRequests: { nodes: { requestedReviewer: GraphQlReviewer }[] };
-            commits: {
-                totalCount: number;
-                nodes: { commit: Omit<PullRequestCommit, 'author'> & { author: { name: string | null; user: { login: string } | null } | null } }[];
-            };
-            headCommit: { nodes: { commit: { statusCheckRollup: { contexts: { totalCount: number } } | null } }[] };
-            reviews: { nodes: (PullRequest['reviews'][number] & { bodyHTML: string })[] };
-            comments: { nodes: (PullRequest['issueComments'][number] & { bodyHTML: string })[] };
-            reviewThreads: {
-                nodes: (Omit<PullRequest['threads'][number], 'comments' | 'side'> & {
-                    diffSide: 'LEFT' | 'RIGHT';
-                    comments: { nodes: (PullRequest['threads'][number]['comments'][number] & { bodyHTML: string })[] };
-                })[];
-            };
-        } | null;
+        pullRequest:
+            | (Omit<
+                  PullRequest,
+                  | 'reviews'
+                  | 'issueComments'
+                  | 'threads'
+                  | 'allowedMergeMethods'
+                  | 'defaultMergeMethod'
+                  | 'commits'
+                  | 'commitCount'
+                  | 'checkCount'
+                  | 'assignees'
+                  | 'labels'
+                  | 'reviewRequests'
+                  | 'viewerCanManage'
+                  | 'viewerCanMerge'
+                  | 'autoMerge'
+              > & {
+                  autoMergeRequest: { mergeMethod: 'MERGE' | 'SQUASH' | 'REBASE'; enabledBy: { login: string } | null } | null;
+                  bodyHTML: string;
+                  assignees: { nodes: GitHubUser[] };
+                  labels: { nodes: GitHubLabel[] };
+                  reviewRequests: { nodes: { requestedReviewer: GraphQlReviewer }[] };
+                  commits: {
+                      totalCount: number;
+                      nodes: { commit: Omit<PullRequestCommit, 'author'> & { author: { name: string | null; user: { login: string } | null } | null } }[];
+                  };
+                  headCommit: { nodes: { commit: { statusCheckRollup: { contexts: { totalCount: number } } | null } }[] };
+                  reviews: { nodes: (PullRequest['reviews'][number] & { bodyHTML: string })[] };
+                  comments: { nodes: (PullRequest['issueComments'][number] & { bodyHTML: string })[] };
+                  reviewThreads: {
+                      nodes: (Omit<PullRequest['threads'][number], 'comments' | 'side'> & {
+                          diffSide: 'LEFT' | 'RIGHT';
+                          comments: { nodes: (PullRequest['threads'][number]['comments'][number] & { bodyHTML: string })[] };
+                      })[];
+                  };
+              })
+            | null;
     };
 }
 
 /** Returns the merge methods that the repository allows, in the order merge, squash, rebase. */
-export function allowedMergeMethods(repository: Pick<GraphQlPullRequest['repository'], 'mergeCommitAllowed' | 'squashMergeAllowed' | 'rebaseMergeAllowed'>): MergeMethod[] {
+export function allowedMergeMethods(
+    repository: Pick<GraphQlPullRequest['repository'], 'mergeCommitAllowed' | 'squashMergeAllowed' | 'rebaseMergeAllowed'>
+): MergeMethod[] {
     const allowed: MergeMethod[] = [];
     if (repository.mergeCommitAllowed) allowed.push('merge');
     if (repository.squashMergeAllowed) allowed.push('squash');
@@ -124,8 +143,7 @@ export function mapPullRequest(data: GraphQlPullRequest, repo: RepoRef, number: 
     const images = signedImageUrls(html);
     // The Markdown has emoji shortcodes such as :warning:. GitHub shows them as emoji.
     const render = (body: string) => withEmoji(withSignedImages(body, images));
-    const sign = <T extends { body: string; bodyHTML: string }>({ bodyHTML: _html, ...item }: T): Omit<T, 'bodyHTML'> =>
-        ({ ...item, body: render(item.body) });
+    const sign = <T extends { body: string; bodyHTML: string }>({ bodyHTML: _html, ...item }: T): Omit<T, 'bodyHTML'> => ({ ...item, body: render(item.body) });
     return {
         ...rest,
         body: render(pr.body),
@@ -141,7 +159,9 @@ export function mapPullRequest(data: GraphQlPullRequest, repo: RepoRef, number: 
         labels: labels.nodes,
         reviewRequests: mapReviewRequests(reviewRequests.nodes),
         // A request to a team of the user does not count. The query does not get the teams of the user.
-        viewerIsRequested: reviewRequests.nodes.some(({ requestedReviewer: reviewer }) => reviewer?.__typename === 'User' && reviewer.login === data.viewer?.login),
+        viewerIsRequested: reviewRequests.nodes.some(
+            ({ requestedReviewer: reviewer }) => reviewer?.__typename === 'User' && reviewer.login === data.viewer?.login
+        ),
         viewerCanManage: canManagePullRequests(data.repository.viewerPermission),
         viewerCanMerge: canMergePullRequests(data.repository.viewerPermission),
         autoMerge: autoMergeRequest
@@ -214,16 +234,20 @@ export function mapBranchSummaries(data: GraphQlBranchSummaries): Record<string,
 }
 
 /** Returns the relation of the viewer to a pull request. Participants are the author, the reviewers and the commenters. */
-export function githubViewerRole(viewer: string, pr: {
-    viewerDidAuthor: boolean;
-    assignees: { nodes: { login: string }[] };
-    reviewRequests: { nodes: { requestedReviewer: { login?: string } | null }[] };
-    participants: { nodes: { login: string }[] };
-}): BranchSummary['viewerRole'] {
+export function githubViewerRole(
+    viewer: string,
+    pr: {
+        viewerDidAuthor: boolean;
+        assignees: { nodes: { login: string }[] };
+        reviewRequests: { nodes: { requestedReviewer: { login?: string } | null }[] };
+        participants: { nodes: { login: string }[] };
+    }
+): BranchSummary['viewerRole'] {
     if (pr.viewerDidAuthor) return 'author';
-    const involved = pr.assignees.nodes.some(user => user.login === viewer)
-        || pr.reviewRequests.nodes.some(request => request.requestedReviewer?.login === viewer)
-        || pr.participants.nodes.some(user => user.login === viewer);
+    const involved =
+        pr.assignees.nodes.some(user => user.login === viewer) ||
+        pr.reviewRequests.nodes.some(request => request.requestedReviewer?.login === viewer) ||
+        pr.participants.nodes.some(user => user.login === viewer);
     return involved ? 'involved' : undefined;
 }
 

@@ -1,14 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import type { PendingComment, PullRequest, PullRequestFile, ReviewThread } from '@shared/github';
 import {
-    conversationOf, decisionEvents, firstUndecided, openCommentCount, pendingText, reviewButtons, reviewConfirmTitle,
-    reviewEvents, shownCommentIds, undecidedText, visibleThreads
+    conversationOf,
+    decisionEvents,
+    firstUndecided,
+    openCommentCount,
+    pendingText,
+    reviewButtons,
+    reviewConfirmTitle,
+    reviewEvents,
+    shownCommentIds,
+    undecidedText,
+    visibleThreads
 } from './review-state';
 
 const comment = (path: string, parts: Partial<PendingComment> = {}): PendingComment => ({ path, line: 3, side: 'RIGHT', body: 'Fix', ...parts });
 
 const thread = (id: string, path: string, isResolved: boolean): ReviewThread => ({
-    id, path, line: 1, originalLine: 1, side: 'RIGHT', isResolved, isOutdated: false,
+    id,
+    path,
+    line: 1,
+    originalLine: 1,
+    side: 'RIGHT',
+    isResolved,
+    isOutdated: false,
     comments: [{ id: `${id}-c`, databaseId: 1, author: null, body: '', createdAt: '', url: '' }]
 });
 
@@ -22,7 +37,11 @@ describe('reviewEvents', () => {
     });
 
     it('returns the events of the host', () => {
-        expect(reviewEvents(pr({ reviewEvents: ['COMMENT', 'APPROVE_WITH_SUGGESTIONS', 'REJECT'] }))).toEqual(['COMMENT', 'APPROVE_WITH_SUGGESTIONS', 'REJECT']);
+        expect(reviewEvents(pr({ reviewEvents: ['COMMENT', 'APPROVE_WITH_SUGGESTIONS', 'REJECT'] }))).toEqual([
+            'COMMENT',
+            'APPROVE_WITH_SUGGESTIONS',
+            'REJECT'
+        ]);
     });
 
     it('keeps only the comment for the author of the pull request', () => {
@@ -93,8 +112,9 @@ describe('reviewConfirmTitle', () => {
     });
 
     it('counts the inline comments', () => {
-        expect(reviewConfirmTitle(pr({ host: 'azure' }), 'REQUEST_CHANGES', 2))
-            .toBe('Submit a review to Azure DevOps: request changes on pull request #7 with 2 inline comment(s)?');
+        expect(reviewConfirmTitle(pr({ host: 'azure' }), 'REQUEST_CHANGES', 2)).toBe(
+            'Submit a review to Azure DevOps: request changes on pull request #7 with 2 inline comment(s)?'
+        );
     });
 });
 
@@ -139,15 +159,17 @@ describe('visibleThreads and shownCommentIds', () => {
 
 describe('conversationOf', () => {
     it('sorts the comments and the reviews by time and leaves out empty comment reviews', () => {
-        const items = conversationOf(pr({
-            issueComments: [{ id: 'i1', author: { login: 'ann' }, body: 'Hi', createdAt: '2026-01-02', url: '' }],
-            reviews: [
-                { id: 'r1', author: null, state: 'APPROVED', body: '', submittedAt: '2026-01-01', url: '' },
-                { id: 'r2', author: null, state: 'COMMENTED', body: ' ', submittedAt: '2026-01-03', url: '' },
-                { id: 'r3', author: null, state: 'DISMISSED', body: '', submittedAt: '2026-01-04', url: '' },
-                { id: 'r4', author: { login: 'bob' }, state: 'COMMENTED', body: 'Nit', submittedAt: null, url: '' }
-            ]
-        }));
+        const items = conversationOf(
+            pr({
+                issueComments: [{ id: 'i1', author: { login: 'ann' }, body: 'Hi', createdAt: '2026-01-02', url: '' }],
+                reviews: [
+                    { id: 'r1', author: null, state: 'APPROVED', body: '', submittedAt: '2026-01-01', url: '' },
+                    { id: 'r2', author: null, state: 'COMMENTED', body: ' ', submittedAt: '2026-01-03', url: '' },
+                    { id: 'r3', author: null, state: 'DISMISSED', body: '', submittedAt: '2026-01-04', url: '' },
+                    { id: 'r4', author: { login: 'bob' }, state: 'COMMENTED', body: 'Nit', submittedAt: null, url: '' }
+                ]
+            })
+        );
         expect(items.map(item => item.id)).toEqual(['r4', 'r1', 'i1']);
         expect(items[2]).toEqual({ id: 'i1', author: 'ann', body: 'Hi', createdAt: '2026-01-02' });
         expect(items[1].state).toBe('APPROVED');

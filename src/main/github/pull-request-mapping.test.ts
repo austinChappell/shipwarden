@@ -21,13 +21,15 @@ describe('allowedMergeMethods', () => {
 
 describe('mapReviewRequests', () => {
     it('changes users, bots and teams, and ignores a reviewer without a name', () => {
-        expect(mapReviewRequests([
-            { requestedReviewer: { __typename: 'User', login: 'bo' } },
-            { requestedReviewer: { __typename: 'Team', slug: 'core', name: 'Core' } },
-            { requestedReviewer: { __typename: 'Bot', login: 'copilot' } },
-            { requestedReviewer: { __typename: 'Team' } },
-            { requestedReviewer: null }
-        ])).toEqual([
+        expect(
+            mapReviewRequests([
+                { requestedReviewer: { __typename: 'User', login: 'bo' } },
+                { requestedReviewer: { __typename: 'Team', slug: 'core', name: 'Core' } },
+                { requestedReviewer: { __typename: 'Bot', login: 'copilot' } },
+                { requestedReviewer: { __typename: 'Team' } },
+                { requestedReviewer: null }
+            ])
+        ).toEqual([
             { kind: 'user', login: 'bo' },
             { kind: 'team', login: 'core', name: 'Core' },
             { kind: 'user', login: 'copilot' }
@@ -76,16 +78,21 @@ describe('mapPullRequest', () => {
 
     it('uses the GitHub login of a commit author, else the git name', () => {
         const commit = { oid: 'o', abbreviatedOid: 'o', messageHeadline: 'm', committedDate: 'd', url: 'u' };
-        const pr = mapPullRequest(graphQlPullRequest({
-            commits: {
-                totalCount: 140,
-                nodes: [
-                    { commit: { ...commit, author: { name: 'Ann A', user: { login: 'ann' } } } },
-                    { commit: { ...commit, author: { name: 'Bob B', user: null } } },
-                    { commit: { ...commit, author: null } }
-                ]
-            }
-        }), repo, 7, undefined);
+        const pr = mapPullRequest(
+            graphQlPullRequest({
+                commits: {
+                    totalCount: 140,
+                    nodes: [
+                        { commit: { ...commit, author: { name: 'Ann A', user: { login: 'ann' } } } },
+                        { commit: { ...commit, author: { name: 'Bob B', user: null } } },
+                        { commit: { ...commit, author: null } }
+                    ]
+                }
+            }),
+            repo,
+            7,
+            undefined
+        );
         expect(pr.commits.map(item => item.author)).toEqual(['ann', 'Bob B', null]);
         expect(pr.commitCount).toBe(140);
     });
@@ -98,58 +105,85 @@ describe('mapPullRequest', () => {
     });
 
     it('changes emoji shortcodes in the body and removes the HTML fields', () => {
-        const pr = mapPullRequest(graphQlPullRequest({
-            comments: { nodes: [{ id: 'c1', author: null, body: 'Looks good :tada:', bodyHTML: '<p>x</p>', createdAt: 'c', url: 'u' }] }
-        }), repo, 7, undefined);
+        const pr = mapPullRequest(
+            graphQlPullRequest({
+                comments: { nodes: [{ id: 'c1', author: null, body: 'Looks good :tada:', bodyHTML: '<p>x</p>', createdAt: 'c', url: 'u' }] }
+            }),
+            repo,
+            7,
+            undefined
+        );
         expect(pr.body).toBe('The body ⚠️');
         expect(pr.issueComments).toEqual([{ id: 'c1', author: null, body: 'Looks good 🎉', createdAt: 'c', url: 'u' }]);
         expect(pr).not.toHaveProperty('bodyHTML');
     });
 
     it('gives the thread data that "Send to agent" puts in the prompt', () => {
-        const pr = mapPullRequest(graphQlPullRequest({
-            reviewThreads: {
-                nodes: [{
-                    id: 'T1',
-                    isResolved: false,
-                    isOutdated: true,
-                    path: 'src/parser.ts',
-                    line: null,
-                    originalLine: 41,
-                    diffSide: 'RIGHT',
-                    comments: {
-                        nodes: [
-                            { id: 'C1', databaseId: 101, author: { login: 'bo', avatarUrl: 'b' }, body: 'Check for null :eyes:', bodyHTML: '<p>x</p>', createdAt: 'c', url: 'u1' },
-                            { id: 'C2', databaseId: 102, author: null, body: 'Agreed.', bodyHTML: '<p>y</p>', createdAt: 'd', url: 'u2' }
-                        ]
-                    }
-                }]
-            }
-        }), repo, 7, undefined);
+        const pr = mapPullRequest(
+            graphQlPullRequest({
+                reviewThreads: {
+                    nodes: [
+                        {
+                            id: 'T1',
+                            isResolved: false,
+                            isOutdated: true,
+                            path: 'src/parser.ts',
+                            line: null,
+                            originalLine: 41,
+                            diffSide: 'RIGHT',
+                            comments: {
+                                nodes: [
+                                    {
+                                        id: 'C1',
+                                        databaseId: 101,
+                                        author: { login: 'bo', avatarUrl: 'b' },
+                                        body: 'Check for null :eyes:',
+                                        bodyHTML: '<p>x</p>',
+                                        createdAt: 'c',
+                                        url: 'u1'
+                                    },
+                                    { id: 'C2', databaseId: 102, author: null, body: 'Agreed.', bodyHTML: '<p>y</p>', createdAt: 'd', url: 'u2' }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }),
+            repo,
+            7,
+            undefined
+        );
         expect(pr.number).toBe(7);
         expect(pr.url).toBe('https://github.com/acme/api/pull/7');
-        expect(pr.threads).toEqual([{
-            id: 'T1',
-            isResolved: false,
-            isOutdated: true,
-            path: 'src/parser.ts',
-            line: null,
-            originalLine: 41,
-            side: 'RIGHT',
-            comments: [
-                { id: 'C1', databaseId: 101, author: { login: 'bo', avatarUrl: 'b' }, body: 'Check for null 👀', createdAt: 'c', url: 'u1' },
-                { id: 'C2', databaseId: 102, author: null, body: 'Agreed.', createdAt: 'd', url: 'u2' }
-            ]
-        }]);
+        expect(pr.threads).toEqual([
+            {
+                id: 'T1',
+                isResolved: false,
+                isOutdated: true,
+                path: 'src/parser.ts',
+                line: null,
+                originalLine: 41,
+                side: 'RIGHT',
+                comments: [
+                    { id: 'C1', databaseId: 101, author: { login: 'bo', avatarUrl: 'b' }, body: 'Check for null 👀', createdAt: 'c', url: 'u1' },
+                    { id: 'C2', databaseId: 102, author: null, body: 'Agreed.', createdAt: 'd', url: 'u2' }
+                ]
+            }
+        ]);
     });
 
     it('replaces a private image link with the signed URL from the rendered HTML', () => {
         const id = '0123abcd-0000-4000-8000-000000000001';
         const signed = `https://private-user-images.githubusercontent.com/1/2-${id}.png?jwt=token`;
-        const pr = mapPullRequest(graphQlPullRequest({
-            body: `![shot](https://github.com/user-attachments/assets/${id})`,
-            bodyHTML: `<img src="${signed}">`
-        }), repo, 7, undefined);
+        const pr = mapPullRequest(
+            graphQlPullRequest({
+                body: `![shot](https://github.com/user-attachments/assets/${id})`,
+                bodyHTML: `<img src="${signed}">`
+            }),
+            repo,
+            7,
+            undefined
+        );
         expect(pr.body).toContain(signed);
     });
 
@@ -216,9 +250,21 @@ describe('mapPullRequestSummaries', () => {
                 comments: { totalCount: 4 }
             }
         ]);
-        expect(summaries).toEqual([{
-            number: 9, title: 't', author: null, isDraft: true, state: 'OPEN', updatedAt: 'u', reviewDecision: null,
-            checks: null, comments: 4, additions: 1, deletions: 2, viewerDidAuthor: false
-        }]);
+        expect(summaries).toEqual([
+            {
+                number: 9,
+                title: 't',
+                author: null,
+                isDraft: true,
+                state: 'OPEN',
+                updatedAt: 'u',
+                reviewDecision: null,
+                checks: null,
+                comments: 4,
+                additions: 1,
+                deletions: 2,
+                viewerDidAuthor: false
+            }
+        ]);
     });
 });

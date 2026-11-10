@@ -114,19 +114,25 @@ describe('Local task file', () => {
     it('does the changes of one process one at a time, so no change is lost', async () => {
         const file = path.join(dir, 'tasks.json');
         const store = new TaskFile(file);
-        await Promise.all(Array.from({ length: 20 }, (_, index) => store.update(data => {
-            data.tasks.push({ number: data.nextNumber, title: `Task ${index}` });
-            data.nextNumber += 1;
-        })));
+        await Promise.all(
+            Array.from({ length: 20 }, (_, index) =>
+                store.update(data => {
+                    data.tasks.push({ number: data.nextNumber, title: `Task ${index}` });
+                    data.nextNumber += 1;
+                })
+            )
+        );
         const data = JSON.parse(await fs.readFile(file, 'utf8'));
         expect(data.tasks.map(task => task.number)).toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
     });
 
     it('continues after a failed change', async () => {
         const store = new TaskFile(path.join(dir, 'tasks.json'));
-        await expect(store.update(() => {
-            throw new Error('no');
-        })).rejects.toThrow('no');
+        await expect(
+            store.update(() => {
+                throw new Error('no');
+            })
+        ).rejects.toThrow('no');
         await store.update(data => {
             data.nextNumber = 9;
         });
@@ -228,11 +234,12 @@ describe('Local tasks plugin process', () => {
             }
         });
         let next = 0;
-        const send = (method, params) => new Promise(resolve => {
-            next += 1;
-            waiting.set(next, resolve);
-            child.stdin.write(encodeMessage({ jsonrpc: '2.0', id: next, method, params }));
-        });
+        const send = (method, params) =>
+            new Promise(resolve => {
+                next += 1;
+                waiting.set(next, resolve);
+                child.stdin.write(encodeMessage({ jsonrpc: '2.0', id: next, method, params }));
+            });
         const root = path.join(dir, 'repo');
         try {
             const init = await send('initialize', { protocolVersion: 3, settings: {}, context: { repositories: [{ root }] } });

@@ -61,14 +61,29 @@ export interface SourceHost {
 export class GitHubHost implements SourceHost {
     readonly kind = 'github' as const;
 
-    constructor(private readonly github: GitHubService, private readonly repoOf: (target: RepoTarget) => Promise<RepoRef>) {}
+    constructor(
+        private readonly github: GitHubService,
+        private readonly repoOf: (target: RepoTarget) => Promise<RepoRef>
+    ) {}
 
-    branchStatus(root: string) { return this.github.branchStatus(root); }
-    branchSummaries(root: string) { return this.github.branchSummaries(root); }
-    createPullRequest(root: string, request: NewPullRequest) { return this.github.createPullRequest(root, request); }
-    async pullRequest(target: RepoTarget, number: number) { return this.github.pullRequest(await this.repoOf(target), number); }
-    async pullRequestFiles(target: RepoTarget, number: number) { return this.github.pullRequestFiles(await this.repoOf(target), number); }
-    setFileViewed(pullRequestId: string, path: string, viewed: boolean) { return this.github.setFileViewed(pullRequestId, path, viewed); }
+    branchStatus(root: string) {
+        return this.github.branchStatus(root);
+    }
+    branchSummaries(root: string) {
+        return this.github.branchSummaries(root);
+    }
+    createPullRequest(root: string, request: NewPullRequest) {
+        return this.github.createPullRequest(root, request);
+    }
+    async pullRequest(target: RepoTarget, number: number) {
+        return this.github.pullRequest(await this.repoOf(target), number);
+    }
+    async pullRequestFiles(target: RepoTarget, number: number) {
+        return this.github.pullRequestFiles(await this.repoOf(target), number);
+    }
+    setFileViewed(pullRequestId: string, path: string, viewed: boolean) {
+        return this.github.setFileViewed(pullRequestId, path, viewed);
+    }
     async fileVersions(target: RepoTarget, file: PullRequestFile, baseSha: string, headSha: string) {
         return this.github.fileVersions(await this.repoOf(target), file, baseSha, headSha);
     }
@@ -78,23 +93,55 @@ export class GitHubHost implements SourceHost {
     async replyToComment(target: RepoTarget, number: number, commentId: number, body: string) {
         return this.github.replyToComment(await this.repoOf(target), number, commentId, body);
     }
-    setThreadResolved(threadId: string, resolved: boolean) { return this.github.setThreadResolved(threadId, resolved); }
-    async merge(target: RepoTarget, number: number, headSha: string, method: MergeMethod) { return this.github.merge(await this.repoOf(target), number, headSha, method); }
-    async changePullRequest(target: RepoTarget, number: number, change: PullRequestChange) { return this.github.changePullRequest(await this.repoOf(target), number, change); }
-    async pullRequestCandidates(target: RepoTarget) { return this.github.pullRequestCandidates(await this.repoOf(target)); }
-    async checks(target: RepoTarget, sha: string) { return this.github.checks(await this.repoOf(target), sha); }
-    async jobProgress(target: RepoTarget, jobId: number) { return this.github.jobProgress(await this.repoOf(target), jobId); }
-    async jobLog(target: RepoTarget, jobId: number) { return this.github.jobLog(await this.repoOf(target), jobId); }
-    async saveJobLog(target: RepoTarget, jobId: number) { return this.github.saveJobLog(await this.repoOf(target), jobId); }
-    async rerunJob(target: RepoTarget, jobId: number) { return this.github.rerunJob(await this.repoOf(target), jobId); }
-    async rerunFailedJobs(target: RepoTarget, runId: number) { return this.github.rerunFailedJobs(await this.repoOf(target), runId); }
-    async workflows(target: RepoTarget, ref: string) { return this.github.workflows(await this.repoOf(target), ref); }
+    setThreadResolved(threadId: string, resolved: boolean) {
+        return this.github.setThreadResolved(threadId, resolved);
+    }
+    async merge(target: RepoTarget, number: number, headSha: string, method: MergeMethod) {
+        return this.github.merge(await this.repoOf(target), number, headSha, method);
+    }
+    async changePullRequest(target: RepoTarget, number: number, change: PullRequestChange) {
+        return this.github.changePullRequest(await this.repoOf(target), number, change);
+    }
+    async pullRequestCandidates(target: RepoTarget) {
+        return this.github.pullRequestCandidates(await this.repoOf(target));
+    }
+    async checks(target: RepoTarget, sha: string) {
+        return this.github.checks(await this.repoOf(target), sha);
+    }
+    async jobProgress(target: RepoTarget, jobId: number) {
+        return this.github.jobProgress(await this.repoOf(target), jobId);
+    }
+    async jobLog(target: RepoTarget, jobId: number) {
+        return this.github.jobLog(await this.repoOf(target), jobId);
+    }
+    async saveJobLog(target: RepoTarget, jobId: number) {
+        return this.github.saveJobLog(await this.repoOf(target), jobId);
+    }
+    async rerunJob(target: RepoTarget, jobId: number) {
+        return this.github.rerunJob(await this.repoOf(target), jobId);
+    }
+    async rerunFailedJobs(target: RepoTarget, runId: number) {
+        return this.github.rerunFailedJobs(await this.repoOf(target), runId);
+    }
+    async workflows(target: RepoTarget, ref: string) {
+        return this.github.workflows(await this.repoOf(target), ref);
+    }
     async dispatchWorkflow(target: RepoTarget, workflowId: number, ref: string, inputs?: Record<string, string>) {
         return this.github.dispatchWorkflow(await this.repoOf(target), workflowId, ref, inputs);
     }
-    async workflowRuns(target: RepoTarget, workflowId?: number) { return this.github.workflowRuns(await this.repoOf(target), workflowId); }
-    async runJobs(target: RepoTarget, runId: number) { return this.github.runJobs(await this.repoOf(target), runId); }
-    async cancelRun(target: RepoTarget, runId: number) { return this.github.cancelRun(await this.repoOf(target), runId); }
-    async rerunRun(target: RepoTarget, runId: number) { return this.github.rerunRun(await this.repoOf(target), runId); }
-    async branches(target: RepoTarget) { return this.github.branches(await this.repoOf(target)); }
+    async workflowRuns(target: RepoTarget, workflowId?: number) {
+        return this.github.workflowRuns(await this.repoOf(target), workflowId);
+    }
+    async runJobs(target: RepoTarget, runId: number) {
+        return this.github.runJobs(await this.repoOf(target), runId);
+    }
+    async cancelRun(target: RepoTarget, runId: number) {
+        return this.github.cancelRun(await this.repoOf(target), runId);
+    }
+    async rerunRun(target: RepoTarget, runId: number) {
+        return this.github.rerunRun(await this.repoOf(target), runId);
+    }
+    async branches(target: RepoTarget) {
+        return this.github.branches(await this.repoOf(target));
+    }
 }

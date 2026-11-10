@@ -17,9 +17,9 @@ export function parseWorkflowFile(text: string): { dispatchable: boolean; inputs
     if (Array.isArray(on)) return { dispatchable: on.includes('workflow_dispatch'), inputs: [] };
     if (!on || typeof on !== 'object' || !('workflow_dispatch' in on)) return { dispatchable: false, inputs: [] };
     const trigger = (on as Record<string, unknown>).workflow_dispatch as { inputs?: unknown } | null;
-    const raw = trigger && typeof trigger.inputs === 'object' && trigger.inputs ? trigger.inputs as Record<string, unknown> : {};
+    const raw = trigger && typeof trigger.inputs === 'object' && trigger.inputs ? (trigger.inputs as Record<string, unknown>) : {};
     const inputs = Object.entries(raw).map(([name, value]): WorkflowInput => {
-        const item = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+        const item = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
         const type = typeof item.type === 'string' ? item.type : 'string';
         return {
             name,

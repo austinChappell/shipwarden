@@ -57,15 +57,17 @@ export async function fetchWorkflows(client: GitHubClient, repo: RepoRef, ref: s
         page => (page as { workflows: { id: number; name: string; path: string; state: string }[] }).workflows
     );
     const active = list.filter(workflow => workflow.state === 'active' && workflow.path.startsWith('.github/workflows/'));
-    return Promise.all(active.map(async workflow => {
-        let trigger = { dispatchable: false, inputs: [] as Workflow['inputs'] };
-        try {
-            trigger = parseWorkflowFile(await client.text(`/repos/${repo.owner}/${repo.name}/contents/${workflow.path}?ref=${encodeURIComponent(ref)}`));
-        } catch {
-            // The workflow file is not on this branch.
-        }
-        return { id: workflow.id, name: workflow.name, path: workflow.path, ...trigger };
-    }));
+    return Promise.all(
+        active.map(async workflow => {
+            let trigger = { dispatchable: false, inputs: [] as Workflow['inputs'] };
+            try {
+                trigger = parseWorkflowFile(await client.text(`/repos/${repo.owner}/${repo.name}/contents/${workflow.path}?ref=${encodeURIComponent(ref)}`));
+            } catch {
+                // The workflow file is not on this branch.
+            }
+            return { id: workflow.id, name: workflow.name, path: workflow.path, ...trigger };
+        })
+    );
 }
 
 /** Starts a workflow with a `workflow_dispatch` trigger on a branch or tag, with the values of its inputs. */
@@ -78,9 +80,7 @@ export async function dispatchWorkflow(client: GitHubClient, repo: RepoRef, work
 
 /** Returns the newest workflow runs of a repository, of one workflow when `workflowId` is set. */
 export async function fetchWorkflowRuns(client: GitHubClient, repo: RepoRef, workflowId?: number): Promise<WorkflowRun[]> {
-    const base = workflowId
-        ? `/repos/${repo.owner}/${repo.name}/actions/workflows/${workflowId}/runs`
-        : `/repos/${repo.owner}/${repo.name}/actions/runs`;
+    const base = workflowId ? `/repos/${repo.owner}/${repo.name}/actions/workflows/${workflowId}/runs` : `/repos/${repo.owner}/${repo.name}/actions/runs`;
     const data = await client.rest<{ workflow_runs: RestWorkflowRun[] }>('GET', `${base}?per_page=40`);
     return data.workflow_runs.map(mapWorkflowRun);
 }

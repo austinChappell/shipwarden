@@ -34,12 +34,21 @@ export function tabInfo(key: TabKey, context: TabContext): TabInfo {
     if (key.startsWith('f:')) {
         const path = key.slice(2);
         const Icon = fileIcon(baseName(path));
-        return { icon: <Icon className="tab-icon" size={14} strokeWidth={1.5} />, title: baseName(path), tooltip: path, dirty: !!selectedPath && dirtyFiles.has(fileKey(selectedPath, path)) };
+        return {
+            icon: <Icon className="tab-icon" size={14} strokeWidth={1.5} />,
+            title: baseName(path),
+            tooltip: path,
+            dirty: !!selectedPath && dirtyFiles.has(fileKey(selectedPath, path))
+        };
     }
     const extra = extras.find(item => item.key === key);
     if (extra?.kind === 'browser') {
         const state = browserStates.get(extra.id);
-        return { icon: <Globe className="tab-icon" size={14} strokeWidth={1.5} />, title: browserTabTitle(state), tooltip: state?.url && state.url !== BLANK_PAGE ? state.url : undefined };
+        return {
+            icon: <Globe className="tab-icon" size={14} strokeWidth={1.5} />,
+            title: browserTabTitle(state),
+            tooltip: state?.url && state.url !== BLANK_PAGE ? state.url : undefined
+        };
     }
     if (extra?.kind === 'changes') {
         return { icon: <GitCompareArrows className="tab-icon" size={14} strokeWidth={1.5} />, title: 'Changes', tooltip: 'All local changes of the worktree' };
@@ -53,5 +62,9 @@ export function tabInfo(key: TabKey, context: TabContext): TabInfo {
     }
     return extra?.kind === 'diff'
         ? { icon: <FileDiff className="tab-icon" size={14} strokeWidth={1.5} />, title: baseName(extra.file.path), tooltip: `Changes in ${extra.file.path}` }
-        : { icon: <ScrollText className="tab-icon" size={14} strokeWidth={1.5} />, title: extra?.check.name ?? 'log', tooltip: extra ? `Log of ${extra.check.name}` : undefined };
+        : {
+              icon: <ScrollText className="tab-icon" size={14} strokeWidth={1.5} />,
+              title: extra?.check.name ?? 'log',
+              tooltip: extra ? `Log of ${extra.check.name}` : undefined
+          };
 }

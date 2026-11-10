@@ -78,18 +78,34 @@ export function CodeReviewSettings() {
             <SettingsGroup
                 title="Providers"
                 description="A worktree uses a provider of the kind of its remote. When two providers have the same kind, ShipWarden uses the provider whose organizations include the organization of the remote."
-                actions={(
+                actions={
                     <div className="add-connection">
-                        <select className="tasks-select" value={adding} aria-label="Provider to add" onChange={event => setAdding(event.target.value as ReviewProviderKind | '')}>
+                        <select
+                            className="tasks-select"
+                            value={adding}
+                            aria-label="Provider to add"
+                            onChange={event => setAdding(event.target.value as ReviewProviderKind | '')}
+                        >
                             <option value="">Add a provider…</option>
-                            {REVIEW_PROVIDER_KINDS.map(item => <option key={item.kind} value={item.kind}>{item.name}</option>)}
+                            {REVIEW_PROVIDER_KINDS.map(item => (
+                                <option key={item.kind} value={item.kind}>
+                                    {item.name}
+                                </option>
+                            ))}
                         </select>
-                        <button className="button" disabled={!adding} onClick={add}><Plus size={13} strokeWidth={1.8} />Add</button>
+                        <button className="button" disabled={!adding} onClick={add}>
+                            <Plus size={13} strokeWidth={1.8} />
+                            Add
+                        </button>
                     </div>
-                )}
+                }
             >
                 <div className="connection-list">
-                    {!providers && <p className="panel-note"><LoaderCircle size={12} className="spin" /> Loading the providers…</p>}
+                    {!providers && (
+                        <p className="panel-note">
+                            <LoaderCircle size={12} className="spin" /> Loading the providers…
+                        </p>
+                    )}
                     {providers?.map(provider => (
                         <ProviderCard
                             key={provider.id}
@@ -124,12 +140,15 @@ function ProviderCard({ provider, open, onToggle }: { provider: ReviewProviderIn
     };
 
     const remove = async () => {
-        if (!(await confirmDialog({
-            title: `Remove the provider "${provider.name}"?`,
-            message: 'ShipWarden forgets its settings and its token. Worktrees with a remote of this kind use another provider of the same kind, if there is one.',
-            confirmLabel: 'Remove',
-            danger: true
-        }))) {
+        if (
+            !(await confirmDialog({
+                title: `Remove the provider "${provider.name}"?`,
+                message:
+                    'ShipWarden forgets its settings and its token. Worktrees with a remote of this kind use another provider of the same kind, if there is one.',
+                confirmLabel: 'Remove',
+                danger: true
+            }))
+        ) {
             return;
         }
         try {
@@ -157,17 +176,26 @@ function ProviderCard({ provider, open, onToggle }: { provider: ReviewProviderIn
                 <div className="connection-body">
                     <label className="setting-row">
                         <span className="setting-label">Name</span>
-                        <input value={name} onChange={event => setName(event.target.value)} onBlur={() => name.trim() && name !== provider.name && update({ name })} />
+                        <input
+                            value={name}
+                            onChange={event => setName(event.target.value)}
+                            onBlur={() => name.trim() && name !== provider.name && update({ name })}
+                        />
                     </label>
                     {provider.kind === 'github' && <CliAccountField provider={provider} onChange={cliAccount => update({ cliAccount })} />}
                     <TokenFields provider={provider} />
                     <div className="connection-section-label">Organizations</div>
-                    {provider.kind === 'github'
-                        ? <GitHubScope provider={provider} onChange={scope => update({ scope })} />
-                        : <AzureScope provider={provider} onChange={scope => update({ scope })} />}
+                    {provider.kind === 'github' ? (
+                        <GitHubScope provider={provider} onChange={scope => update({ scope })} />
+                    ) : (
+                        <AzureScope provider={provider} onChange={scope => update({ scope })} />
+                    )}
                     {error && <div className="form-error">{error}</div>}
                     <div className="row-buttons">
-                        <button className="button danger" onClick={remove}><Trash2 size={13} strokeWidth={1.8} />Remove</button>
+                        <button className="button danger" onClick={remove}>
+                            <Trash2 size={13} strokeWidth={1.8} />
+                            Remove
+                        </button>
                     </div>
                 </div>
             )}
@@ -213,7 +241,10 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
     useEffect(() => {
         let cancelled = false;
         setSource(null);
-        api.tokenSource(provider.id).then(value => !cancelled && setSource(value), () => !cancelled && setSource(undefined));
+        api.tokenSource(provider.id).then(
+            value => !cancelled && setSource(value),
+            () => !cancelled && setSource(undefined)
+        );
         return () => {
             cancelled = true;
         };
@@ -245,16 +276,32 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
                         onChange={event => setToken(event.target.value)}
                         disabled={busy}
                     />
-                    <button className="button" disabled={busy || !token.trim()} onClick={() => act(async () => {
-                        await api.saveToken(provider.id, token);
-                        setToken('');
-                        setMessage('The token is saved.');
-                    })}>Save</button>
+                    <button
+                        className="button"
+                        disabled={busy || !token.trim()}
+                        onClick={() =>
+                            act(async () => {
+                                await api.saveToken(provider.id, token);
+                                setToken('');
+                                setMessage('The token is saved.');
+                            })
+                        }
+                    >
+                        Save
+                    </button>
                     {provider.tokenSaved && (
-                        <button className="button" disabled={busy} onClick={() => act(async () => {
-                            await api.clearToken(provider.id);
-                            setMessage('The token is removed.');
-                        })}>Remove</button>
+                        <button
+                            className="button"
+                            disabled={busy}
+                            onClick={() =>
+                                act(async () => {
+                                    await api.clearToken(provider.id);
+                                    setMessage('The token is removed.');
+                                })
+                            }
+                        >
+                            Remove
+                        </button>
                     )}
                 </div>
                 <span className="panel-note">
@@ -272,10 +319,18 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
                             disabled={busy}
                         />
                     )}
-                    <button className="button" disabled={busy || (azure && !organization.trim() && !provider.scope?.[0])} onClick={() => act(async () => {
-                        const user = await api.test(provider.id, azure ? organization : undefined);
-                        setMessage(`The token works. It belongs to ${user}.`);
-                    })}>Test</button>
+                    <button
+                        className="button"
+                        disabled={busy || (azure && !organization.trim() && !provider.scope?.[0])}
+                        onClick={() =>
+                            act(async () => {
+                                const user = await api.test(provider.id, azure ? organization : undefined);
+                                setMessage(`The token works. It belongs to ${user}.`);
+                            })
+                        }
+                    >
+                        Test
+                    </button>
                 </div>
                 {azure && <span className="panel-note">Type the name of an organization, for example "contoso" for dev.azure.com/contoso.</span>}
             </div>
@@ -294,7 +349,10 @@ function GitHubScope({ provider, onChange }: { provider: ReviewProviderInfo; onC
         let cancelled = false;
         setOwners(undefined);
         setError(undefined);
-        api.githubOwners(provider.id).then(list => !cancelled && setOwners(list), err => !cancelled && setError(errorText(err)));
+        api.githubOwners(provider.id).then(
+            list => !cancelled && setOwners(list),
+            err => !cancelled && setError(errorText(err))
+        );
         return () => {
             cancelled = true;
         };
@@ -314,7 +372,11 @@ function GitHubScope({ provider, onChange }: { provider: ReviewProviderInfo; onC
                 Only these organizations:
             </label>
             {error && <div className="form-error">{error}</div>}
-            {!owners && !error && <div className="panel-note"><LoaderCircle size={12} className="spin" /> Loading the organizations…</div>}
+            {!owners && !error && (
+                <div className="panel-note">
+                    <LoaderCircle size={12} className="spin" /> Loading the organizations…
+                </div>
+            )}
             {owners && (
                 <div className={`scope-list${mode === 'some' ? '' : ' disabled'}`}>
                     {owners.map(owner => (
@@ -325,9 +387,11 @@ function GitHubScope({ provider, onChange }: { provider: ReviewProviderInfo; onC
                                 checked={mode === 'some' && !!value?.some(item => item.toLowerCase() === owner.login.toLowerCase())}
                                 onChange={event => {
                                     const current = value ?? [];
-                                    onChange(event.target.checked
-                                        ? [...current, owner.login]
-                                        : current.filter(item => item.toLowerCase() !== owner.login.toLowerCase()));
+                                    onChange(
+                                        event.target.checked
+                                            ? [...current, owner.login]
+                                            : current.filter(item => item.toLowerCase() !== owner.login.toLowerCase())
+                                    );
                                 }}
                             />
                             <span>{owner.login}</span>
@@ -346,7 +410,10 @@ function AzureScope({ provider, onChange }: { provider: ReviewProviderInfo; onCh
     const [value, setValue] = useState(text);
     useEffect(() => setValue(text), [text]);
     const save = () => {
-        const names = value.split(',').map(name => name.trim()).filter(Boolean);
+        const names = value
+            .split(',')
+            .map(name => name.trim())
+            .filter(Boolean);
         if (names.join(', ') !== text) onChange(names.length ? names : null);
     };
     return (

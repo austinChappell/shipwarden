@@ -1,6 +1,16 @@
 import { promises as fs, watch, type FSWatcher } from 'fs';
 import * as path from 'path';
-import { folderPathError, joinNotePath, MAX_FOLDER_DEPTH, MAX_NOTE_BYTES, normalizeFolderPath, normalizeTags, notePathError, splitNotePath, type NoteInfo } from '@shared/notes';
+import {
+    folderPathError,
+    joinNotePath,
+    MAX_FOLDER_DEPTH,
+    MAX_NOTE_BYTES,
+    normalizeFolderPath,
+    normalizeTags,
+    notePathError,
+    splitNotePath,
+    type NoteInfo
+} from '@shared/notes';
 import { JsonStore } from '../tasks/json-store';
 
 /** The file in the notes folder that keeps the tags. It starts with a dot, so it is not a note. */
@@ -20,7 +30,10 @@ export class NotesService {
     private watcher: FSWatcher | undefined;
 
     /** `trash` moves a file to the Trash. The tests replace it. */
-    constructor(readonly folder: string, private readonly trash: (file: string) => Promise<void>) {
+    constructor(
+        readonly folder: string,
+        private readonly trash: (file: string) => Promise<void>
+    ) {
         this.index = new JsonStore<NotesIndex>(path.join(folder, INDEX_FILE), () => ({ notes: {} }));
     }
 
@@ -52,19 +65,21 @@ export class NotesService {
     /** Returns all notes (at the top level and in the folders at any depth), the newest change first. */
     async list(): Promise<NoteInfo[]> {
         const [{ files }, index] = await Promise.all([this.walk(), this.index.get()]);
-        const notes = await Promise.all(files.map(async ({ folder, fileName }) => {
-            const name = joinNotePath(folder, fileName);
-            const stat = await fs.stat(this.file(name));
-            return {
-                name,
-                fileName,
-                folder,
-                tags: normalizeTags(index.notes?.[name]?.tags),
-                size: stat.size,
-                createdAt: stat.birthtime.toISOString(),
-                modifiedAt: stat.mtime.toISOString()
-            };
-        }));
+        const notes = await Promise.all(
+            files.map(async ({ folder, fileName }) => {
+                const name = joinNotePath(folder, fileName);
+                const stat = await fs.stat(this.file(name));
+                return {
+                    name,
+                    fileName,
+                    folder,
+                    tags: normalizeTags(index.notes?.[name]?.tags),
+                    size: stat.size,
+                    createdAt: stat.birthtime.toISOString(),
+                    modifiedAt: stat.mtime.toISOString()
+                };
+            })
+        );
         return notes.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
     }
 
@@ -81,7 +96,8 @@ export class NotesService {
         try {
             await fs.mkdir(folder);
         } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(`A folder or note with the name "${normalizeFolderPath(name)}" exists already.`);
+            if ((error as NodeJS.ErrnoException).code === 'EEXIST')
+                throw new Error(`A folder or note with the name "${normalizeFolderPath(name)}" exists already.`);
             throw error;
         }
         return normalizeFolderPath(name);
@@ -99,13 +115,22 @@ export class NotesService {
         if (from === to) return target;
         if (target.startsWith(`${source}/`)) throw new Error(`The folder "${source}" cannot move into itself.`);
         await fs.mkdir(path.dirname(to), { recursive: true });
-        const exists = await fs.access(to).then(() => true, () => false);
+        const exists = await fs.access(to).then(
+            () => true,
+            () => false
+        );
         if (exists && source.toLowerCase() !== target.toLowerCase()) {
             throw new Error(`A folder or note with the name "${target}" exists already.`);
         }
         await fs.rename(from, to);
-        await this.index.update(value => ({ notes: Object.fromEntries(Object.entries(value.notes ?? {}).map(([key, entry]) =>
-            [key.startsWith(`${source}/`) ? `${target}/${key.slice(source.length + 1)}` : key, entry])) }));
+        await this.index.update(value => ({
+            notes: Object.fromEntries(
+                Object.entries(value.notes ?? {}).map(([key, entry]) => [
+                    key.startsWith(`${source}/`) ? `${target}/${key.slice(source.length + 1)}` : key,
+                    entry
+                ])
+            )
+        }));
         return target;
     }
 
@@ -152,7 +177,10 @@ export class NotesService {
         const target = this.key(newName);
         if (from !== to) {
             // A rename to a name that differs only in case is the same file on macOS, so it is not a conflict.
-            const exists = await fs.access(to).then(() => true, () => false);
+            const exists = await fs.access(to).then(
+                () => true,
+                () => false
+            );
             if (exists && this.key(name).toLowerCase() !== target.toLowerCase()) {
                 throw new Error(`A note with the name "${target}" exists already.`);
             }

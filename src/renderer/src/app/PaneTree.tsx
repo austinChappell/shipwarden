@@ -36,16 +36,25 @@ export function PaneTree(props: Props): ReactNode {
     if (node.kind === 'split') {
         return (
             <div key={node.id} className={`pane-split ${node.direction}`}>
-                <div className="pane-slot" style={{ flexBasis: `${node.ratio * 100}%` }}><PaneTree {...props} node={node.first} /></div>
+                <div className="pane-slot" style={{ flexBasis: `${node.ratio * 100}%` }}>
+                    <PaneTree {...props} node={node.first} />
+                </div>
                 <SplitDivider direction={node.direction} ratio={node.ratio} onResize={ratio => props.onResize(node.id, ratio)} />
-                <div className="pane-slot" style={{ flexBasis: `${(1 - node.ratio) * 100}%` }}><PaneTree {...props} node={node.second} /></div>
+                <div className="pane-slot" style={{ flexBasis: `${(1 - node.ratio) * 100}%` }}>
+                    <PaneTree {...props} node={node.second} />
+                </div>
             </div>
         );
     }
     const focused = !split || layout.focused === node.id;
     const target = dropTarget?.leafId === node.id ? dropTarget.side : undefined;
     return (
-        <div key={node.id} data-pane={node.id} className={`pane${split ? (focused ? ' focused' : ' unfocused') : ''}`} onMouseDownCapture={() => props.onFocusPane(node.id)}>
+        <div
+            key={node.id}
+            data-pane={node.id}
+            className={`pane${split ? (focused ? ' focused' : ' unfocused') : ''}`}
+            onMouseDownCapture={() => props.onFocusPane(node.id)}
+        >
             {renderTab(node.tab, focused)}
             {split && (
                 <div className="pane-actions">

@@ -302,15 +302,24 @@ function routeLinkClicks(terminal: Terminal): void {
         console.warn('[terminal] The link detector of ghostty-web is not available. Links use the default behavior.');
         return;
     }
-    detector.providers = (detector.providers as ILinkProvider[]).map((provider): ILinkProvider => ({
-        provideLinks: (row, callback) => provider.provideLinks(row, links => callback(links?.map((link): ILink => ({
-            ...link,
-            activate: event => {
-                openLink(link.text, event, { needsModifier: true });
-            }
-        })))),
-        dispose: () => provider.dispose?.()
-    }));
+    detector.providers = (detector.providers as ILinkProvider[]).map(
+        (provider): ILinkProvider => ({
+            provideLinks: (row, callback) =>
+                provider.provideLinks(row, links =>
+                    callback(
+                        links?.map(
+                            (link): ILink => ({
+                                ...link,
+                                activate: event => {
+                                    openLink(link.text, event, { needsModifier: true });
+                                }
+                            })
+                        )
+                    )
+                ),
+            dispose: () => provider.dispose?.()
+        })
+    );
 }
 
 export const terminalPool = new TerminalPool();

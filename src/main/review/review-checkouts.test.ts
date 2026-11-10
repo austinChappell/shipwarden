@@ -20,12 +20,13 @@ describe('ReviewCheckouts', () => {
         git(cwd, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-q', '-m', `change ${file}`);
         return git(cwd, 'rev-parse', 'HEAD');
     };
-    const make = () => new ReviewCheckouts({
-        folder,
-        indexFile: path.join(tmp, 'index.json'),
-        findClone: async () => clone,
-        now: () => now
-    });
+    const make = () =>
+        new ReviewCheckouts({
+            folder,
+            indexFile: path.join(tmp, 'index.json'),
+            findClone: async () => clone,
+            now: () => now
+        });
 
     /** Pushes a new commit to the ref of pull request 7 in the origin, as GitHub does. Returns the commit. */
     const pushPullHead = (text: string) => {
@@ -93,8 +94,7 @@ describe('ReviewCheckouts', () => {
         pushPullHead('one');
         const checkouts = make();
 
-        await expect(checkouts.ensure({ owner: 'octo', name: 'app' }, 7, 'a'.repeat(40), false))
-            .rejects.toThrow('is not the head of pull request #7 now');
+        await expect(checkouts.ensure({ owner: 'octo', name: 'app' }, 7, 'a'.repeat(40), false)).rejects.toThrow('is not the head of pull request #7 now');
     });
 
     it('needs a clone when no project has the repository', async () => {
@@ -102,8 +102,7 @@ describe('ReviewCheckouts', () => {
         const checkouts = make();
 
         expect(await checkouts.status({ owner: 'octo', name: 'app' }, 7)).toEqual({ needsClone: true });
-        await expect(checkouts.ensure({ owner: 'octo', name: 'app' }, 7, 'a'.repeat(40), false))
-            .rejects.toThrow('ShipWarden must clone the repository first');
+        await expect(checkouts.ensure({ owner: 'octo', name: 'app' }, 7, 'a'.repeat(40), false)).rejects.toThrow('ShipWarden must clone the repository first');
     });
 
     it('removes the checkouts that the user did not open for some time', async () => {

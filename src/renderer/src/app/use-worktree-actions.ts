@@ -13,7 +13,17 @@ import { agentStateStore } from '../terminal/agent-state-store';
 import { terminalPool } from '../terminal/terminal-pool';
 import { withoutKey, type ExtraTab } from './tabs';
 import type { MainView } from './views';
-import { errorText, removeWorktreeDialog, sameRepoRef, snoozeChoice, teardownFailure, withHiddenWorktree, withRepoScripts, withWorktreeName, worktreeMenuItems } from './worktree-edits';
+import {
+    errorText,
+    removeWorktreeDialog,
+    sameRepoRef,
+    snoozeChoice,
+    teardownFailure,
+    withHiddenWorktree,
+    withRepoScripts,
+    withWorktreeName,
+    worktreeMenuItems
+} from './worktree-edits';
 
 const api = window.shipwarden;
 
@@ -83,8 +93,12 @@ export function useWorktreeActions(options: Options) {
             wanted = (await api.tasks.connections()).find(item => item.id === connectionId)?.startStatus;
             if (!wanted) return;
             const source = await api.tasks.source(connectionId, projectId);
-            await applyStartStatus(task, wanted, source.capabilities,
-                <T,>(method: string, params: unknown) => api.tasks.request(connectionId, projectId, method, params) as Promise<T>);
+            await applyStartStatus(
+                task,
+                wanted,
+                source.capabilities,
+                <T>(method: string, params: unknown) => api.tasks.request(connectionId, projectId, method, params) as Promise<T>
+            );
         } catch (err) {
             setError(`${task.key ?? task.title} did not move to "${wanted}": ${errorText(err)}`);
         }
@@ -181,21 +195,25 @@ export function useWorktreeActions(options: Options) {
             const result = await api.worktrees.remove(repoPath, worktree.path);
             if (result.teardownFailed) {
                 const { title, tail } = teardownFailure(result.teardownFailed);
-                if (!(await confirmDialog({
-                    title,
-                    message: 'Remove the worktree anyway?',
-                    detail: tail,
-                    confirmLabel: 'Remove anyway',
-                    danger: true
-                }))) {
+                if (
+                    !(await confirmDialog({
+                        title,
+                        message: 'Remove the worktree anyway?',
+                        detail: tail,
+                        confirmLabel: 'Remove anyway',
+                        danger: true
+                    }))
+                ) {
                     return;
                 }
                 await api.worktrees.remove(repoPath, worktree.path, { skipTeardown: true });
             }
-            options.sessions.filter(session => session.worktreePath === worktree.path).forEach(session => {
-                terminalPool.dispose(session.id);
-                agentStateStore.delete(session.id);
-            });
+            options.sessions
+                .filter(session => session.worktreePath === worktree.path)
+                .forEach(session => {
+                    terminalPool.dispose(session.id);
+                    agentStateStore.delete(session.id);
+                });
             options.setSessions(list => list.filter(session => session.worktreePath !== worktree.path));
             (options.openFiles[worktree.path] ?? []).forEach(path => documents.close(worktree.path, path));
             options.setExtraTabs(map => withoutKey(map, worktree.path));
@@ -212,12 +230,15 @@ export function useWorktreeActions(options: Options) {
             }
             if (branch) {
                 const deleted = await api.worktrees.deleteBranch(repoPath, branch);
-                if (deleted.notMerged && await confirmDialog({
-                    title: `The branch "${branch}" has commits that are not merged into another branch.`,
-                    message: 'Delete the branch anyway? The commits are then lost, unless the remote branch has them.',
-                    confirmLabel: 'Delete branch',
-                    danger: true
-                })) {
+                if (
+                    deleted.notMerged &&
+                    (await confirmDialog({
+                        title: `The branch "${branch}" has commits that are not merged into another branch.`,
+                        message: 'Delete the branch anyway? The commits are then lost, unless the remote branch has them.',
+                        confirmLabel: 'Delete branch',
+                        danger: true
+                    }))
+                ) {
                     await api.worktrees.deleteBranch(repoPath, branch, true);
                 }
             }

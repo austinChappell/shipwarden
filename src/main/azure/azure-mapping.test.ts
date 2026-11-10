@@ -82,9 +82,7 @@ describe('mapPullRequest', () => {
             ['ana@contoso.com', 'APPROVED'],
             ['chen@contoso.com', 'WAITING_FOR_AUTHOR']
         ]);
-        expect(mapped.reviewRequests).toEqual([
-            { kind: 'team', login: 'vstfs:///Classification/TeamProject/a7573007\\Web Team', name: '[Web]\\Web Team' }
-        ]);
+        expect(mapped.reviewRequests).toEqual([{ kind: 'team', login: 'vstfs:///Classification/TeamProject/a7573007\\Web Team', name: '[Web]\\Web Team' }]);
         expect(mapped.reviewEvents).toContain('APPROVE_WITH_SUGGESTIONS');
         expect(mapped.reviewEvents).toContain('REJECT');
     });
@@ -127,7 +125,13 @@ describe('mapPullRequest', () => {
         expect(mapPullRequest({ repo, pr: { ...pr, status: 'completed' }, threads: [], commits: [] }).state).toBe('MERGED');
         expect(mapPullRequest({ repo, pr: { ...pr, status: 'abandoned' }, threads: [], commits: [] }).state).toBe('CLOSED');
         const conflict = mapPullRequest({ repo, pr: { ...pr, mergeStatus: 'conflicts', autoCompleteSetBy: undefined }, threads: [], commits: [] });
-        expect(conflict).toMatchObject({ mergeable: 'CONFLICTING', mergeStateStatus: 'DIRTY', autoMerge: null, viewerCanEnableAutoMerge: true, viewerDidAuthor: false });
+        expect(conflict).toMatchObject({
+            mergeable: 'CONFLICTING',
+            mergeStateStatus: 'DIRTY',
+            autoMerge: null,
+            viewerCanEnableAutoMerge: true,
+            viewerDidAuthor: false
+        });
         expect(mapPullRequest({ repo, pr: { ...pr, mergeStatus: 'rejectedByPolicy' }, threads: [], commits: [] }).mergeStateStatus).toBe('BLOCKED');
     });
 });
@@ -174,7 +178,11 @@ describe('builds', () => {
             runId: 905,
             isActions: true
         });
-        expect(buildToCheck(repo, builds[1])).toMatchObject({ status: 'completed', conclusion: 'success', url: 'https://dev.azure.com/contoso/Web/_build/results?buildId=904' });
+        expect(buildToCheck(repo, builds[1])).toMatchObject({
+            status: 'completed',
+            conclusion: 'success',
+            url: 'https://dev.azure.com/contoso/Web/_build/results?buildId=904'
+        });
         expect(buildToCheck(repo, builds[2]).conclusion).toBe('failure');
         expect(buildToCheck(repo, builds[3]).conclusion).toBe('neutral');
     });
@@ -192,7 +200,12 @@ describe('builds', () => {
             actor: 'Norman Paulk',
             headSha: 'b60280bc6e62e2f880f1b63c1e24987664d3bda3'
         });
-        expect(buildToRun(repo, builds[3])).toMatchObject({ title: 'Merge the login fix', branch: 'main', status: 'completed', headSha: 'f47bbc106853afe3c1b07a81754bce5f4b8dbf62' });
+        expect(buildToRun(repo, builds[3])).toMatchObject({
+            title: 'Merge the login fix',
+            branch: 'main',
+            status: 'completed',
+            headSha: 'f47bbc106853afe3c1b07a81754bce5f4b8dbf62'
+        });
     });
 
     it('maps the timeline to steps, in the order of the jobs and the tasks', () => {
@@ -209,22 +222,50 @@ describe('builds', () => {
     it('maps the statuses of other services', () => {
         expect(statuses.map(gitStatusToCheckRun)).toEqual([
             {
-                id: 1, name: 'sonarqube/quality-gate', status: 'completed', conclusion: 'success',
-                startedAt: '2026-11-02T11:30:00Z', completedAt: '2026-11-02T11:31:00Z',
-                url: 'https://sonar.contoso.com/dashboard?id=shop', isActions: false, isStatus: true
+                id: 1,
+                name: 'sonarqube/quality-gate',
+                status: 'completed',
+                conclusion: 'success',
+                startedAt: '2026-11-02T11:30:00Z',
+                completedAt: '2026-11-02T11:31:00Z',
+                url: 'https://sonar.contoso.com/dashboard?id=shop',
+                isActions: false,
+                isStatus: true
             },
             {
-                id: 2, name: 'deploy-preview', status: 'pending', conclusion: null,
-                startedAt: '2026-11-02T11:32:00Z', completedAt: null, url: null, isActions: false, isStatus: true
+                id: 2,
+                name: 'deploy-preview',
+                status: 'pending',
+                conclusion: null,
+                startedAt: '2026-11-02T11:32:00Z',
+                completedAt: null,
+                url: null,
+                isActions: false,
+                isStatus: true
             }
         ]);
     });
 
     it('combines the CI state', () => {
         expect(rollupState([])).toBeNull();
-        expect(rollupState([{ status: 'completed', conclusion: 'success' }, { status: 'in_progress', conclusion: null }])).toBe('PENDING');
-        expect(rollupState([{ status: 'completed', conclusion: 'failure' }, { status: 'in_progress', conclusion: null }])).toBe('FAILURE');
-        expect(rollupState([{ status: 'completed', conclusion: 'success' }, { status: 'completed', conclusion: 'neutral' }])).toBe('SUCCESS');
+        expect(
+            rollupState([
+                { status: 'completed', conclusion: 'success' },
+                { status: 'in_progress', conclusion: null }
+            ])
+        ).toBe('PENDING');
+        expect(
+            rollupState([
+                { status: 'completed', conclusion: 'failure' },
+                { status: 'in_progress', conclusion: null }
+            ])
+        ).toBe('FAILURE');
+        expect(
+            rollupState([
+                { status: 'completed', conclusion: 'success' },
+                { status: 'completed', conclusion: 'neutral' }
+            ])
+        ).toBe('SUCCESS');
     });
 });
 

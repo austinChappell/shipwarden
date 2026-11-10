@@ -126,11 +126,7 @@ export type ComposerMode = 'comment' | 'ask' | 'note';
 
 /** Returns the modes that the comment box shows, in the order of the buttons. */
 export function composerModes(canComment: boolean, canAsk: boolean, canNote: boolean): ComposerMode[] {
-    return [
-        ...(canComment ? ['comment' as const] : []),
-        ...(canAsk ? ['ask' as const] : []),
-        ...(canNote ? ['note' as const] : [])
-    ];
+    return [...(canComment ? ['comment' as const] : []), ...(canAsk ? ['ask' as const] : []), ...(canNote ? ['note' as const] : [])];
 }
 
 /** The placeholder text of the comment box. `lines` is a label such as "lines 3–5". */

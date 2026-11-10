@@ -1,17 +1,4 @@
-import {
-    File,
-    FileBraces,
-    FileCode,
-    FileCog,
-    FileImage,
-    FileLock,
-    FileTerminal,
-    FileText,
-    Folder,
-    FolderOpen,
-    Package,
-    type LucideIcon
-} from 'lucide-react';
+import { File, FileBraces, FileCode, FileCog, FileImage, FileLock, FileTerminal, FileText, Folder, FolderOpen, Package, type LucideIcon } from 'lucide-react';
 
 const BY_NAME: Record<string, LucideIcon> = {
     'package.json': Package,
@@ -19,8 +6,8 @@ const BY_NAME: Record<string, LucideIcon> = {
     'pnpm-lock.yaml': FileLock,
     'yarn.lock': FileLock,
     'Cargo.lock': FileLock,
-    'Dockerfile': FileCog,
-    'Makefile': FileTerminal
+    Dockerfile: FileCog,
+    Makefile: FileTerminal
 };
 
 const BY_EXTENSION: Record<string, LucideIcon> = {

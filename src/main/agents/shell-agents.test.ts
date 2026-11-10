@@ -22,15 +22,22 @@ function setup(sessions: TerminalSession[], rows: ProcessRow[], hostPids = [10])
 
 describe('ShellAgents', () => {
     it('finds an agent below the shell of a tab, in each host', async () => {
-        const test = setup([shell('a', 20), shell('b', 50)], [
-            row(20, 10, '/bin/zsh -l'),
-            row(21, 20, 'codex'),
-            // The shell of tab "b" runs in a second host.
-            row(50, 40, '/bin/zsh -l'),
-            row(51, 50, '/Users/me/.local/share/claude/versions/2.1.319')
-        ], [10, 40]);
+        const test = setup(
+            [shell('a', 20), shell('b', 50)],
+            [
+                row(20, 10, '/bin/zsh -l'),
+                row(21, 20, 'codex'),
+                // The shell of tab "b" runs in a second host.
+                row(50, 40, '/bin/zsh -l'),
+                row(51, 50, '/Users/me/.local/share/claude/versions/2.1.319')
+            ],
+            [10, 40]
+        );
         await test.tracker.poll();
-        expect(test.programs).toEqual([['a', 'codex'], ['b', 'claude']]);
+        expect(test.programs).toEqual([
+            ['a', 'codex'],
+            ['b', 'claude']
+        ]);
         expect(test.tracker.annotate([shell('a', 20)])[0].agentProgram).toBe('codex');
     });
 
@@ -45,7 +52,10 @@ describe('ShellAgents', () => {
         await test.tracker.poll();
         test.rows.pop();
         await test.tracker.poll();
-        expect(test.programs).toEqual([['a', 'claude'], ['a', undefined]]);
+        expect(test.programs).toEqual([
+            ['a', 'claude'],
+            ['a', undefined]
+        ]);
         expect(test.states.map(([id, update]) => [id, update.state, update.prompt])).toEqual([['a', 'exited', 'Fix it']]);
         expect(test.tracker.annotate([{ ...shell('a', 20), agentState: 'done' }])[0].agentState).toBe('exited');
     });

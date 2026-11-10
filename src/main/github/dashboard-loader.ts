@@ -168,7 +168,10 @@ export class DashboardLoader {
     }
 
     private async dashboardSearch(q: string, first: number): Promise<{ viewer: string; prs: DashboardPr[] }> {
-        const data = await this.client.graphql<{ viewer: { login: string }; search: { nodes: (DashboardPr | Record<string, never>)[] } }>(dashboardSearch(first), { q });
+        const data = await this.client.graphql<{ viewer: { login: string }; search: { nodes: (DashboardPr | Record<string, never>)[] } }>(
+            dashboardSearch(first),
+            { q }
+        );
         return { viewer: data.viewer.login, prs: data.search.nodes.filter((node): node is DashboardPr => 'number' in node) };
     }
 
@@ -185,17 +188,19 @@ export class DashboardLoader {
         }
         // Two requests at the same time. More can trigger the secondary rate limit of GitHub.
         let next = 0;
-        await Promise.all([0, 1].map(async () => {
-            while (next < batches.length) {
-                const ids = batches[next++];
-                const data = await this.client.graphql<{ nodes: (DashboardPrComments | null)[] }>(DASHBOARD_COMMENTS_QUERY, { ids });
-                for (const node of data.nodes) {
-                    if (node && 'comments' in node) {
-                        this.dashboardCommentCache.set(node.id, node);
+        await Promise.all(
+            [0, 1].map(async () => {
+                while (next < batches.length) {
+                    const ids = batches[next++];
+                    const data = await this.client.graphql<{ nodes: (DashboardPrComments | null)[] }>(DASHBOARD_COMMENTS_QUERY, { ids });
+                    for (const node of data.nodes) {
+                        if (node && 'comments' in node) {
+                            this.dashboardCommentCache.set(node.id, node);
+                        }
                     }
                 }
-            }
-        }));
+            })
+        );
         // Forget pull requests that are not in the Dashboard searches any more.
         const current = new Set(prs.map(pr => pr.id));
         for (const id of this.dashboardCommentCache.keys()) {

@@ -6,8 +6,10 @@ import { loadGhosttySettings } from '../terminal/ghostty-loader';
 import type { Services } from '../services';
 import { onlyStrings, terminalCommand } from './args';
 
-type TerminalIpcDependencies = Pick<Services,
-    'terminals' | 'terminalSessions' | 'terminalSizes' | 'killTerminal' | 'shellAgents' | 'remote' | 'processes' | 'hookPaths' | 'shellIntegration'>;
+type TerminalIpcDependencies = Pick<
+    Services,
+    'terminals' | 'terminalSessions' | 'terminalSizes' | 'killTerminal' | 'shellAgents' | 'remote' | 'processes' | 'hookPaths' | 'shellIntegration'
+>;
 
 /** Registers the IPC handlers of the terminal sessions and the processes of the worktrees. */
 export function registerTerminalIpc(deps: TerminalIpcDependencies): void {

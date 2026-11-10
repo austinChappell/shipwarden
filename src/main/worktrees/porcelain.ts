@@ -9,7 +9,10 @@ const BRANCH_PREFIX = 'refs/heads/';
  */
 export function parseWorktreePorcelain(output: string): Worktree[] {
     const worktrees: Worktree[] = [];
-    const blocks = output.split(/\r?\n\r?\n/).map(block => block.trim()).filter(block => block.length > 0);
+    const blocks = output
+        .split(/\r?\n\r?\n/)
+        .map(block => block.trim())
+        .filter(block => block.length > 0);
     for (const block of blocks) {
         const worktree: Worktree = {
             path: '',

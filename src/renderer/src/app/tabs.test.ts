@@ -44,8 +44,7 @@ describe('fileKey', () => {
 
 describe('worktreeTabKeys', () => {
     it('puts the terminals first, then the files, then the other tabs', () => {
-        expect(worktreeTabKeys(['1', '2'], ['src/a.ts'], [{ key: 'c:all', kind: 'changes' }]))
-            .toEqual(['t:1', 't:2', 'f:src/a.ts', 'c:all']);
+        expect(worktreeTabKeys(['1', '2'], ['src/a.ts'], [{ key: 'c:all', kind: 'changes' }])).toEqual(['t:1', 't:2', 'f:src/a.ts', 'c:all']);
     });
 
     it('returns an empty list for a worktree without tabs', () => {

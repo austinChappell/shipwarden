@@ -16,7 +16,12 @@ interface Props {
 }
 
 /** The dialog that adds a script or changes one. */
-function ScriptDialog({ repoName, script, onClose, onSubmit }: {
+function ScriptDialog({
+    repoName,
+    script,
+    onClose,
+    onSubmit
+}: {
     repoName: string;
     script?: RepoScript;
     onClose(): void;
@@ -45,17 +50,33 @@ function ScriptDialog({ repoName, script, onClose, onSubmit }: {
 
     return (
         <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
-            <div ref={dialog} className="modal" role="dialog" aria-modal="true" aria-label={script ? 'Edit script' : 'Add script'} onKeyDown={event => event.key === 'Escape' && onClose()}>
+            <div
+                ref={dialog}
+                className="modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label={script ? 'Edit script' : 'Add script'}
+                onKeyDown={event => event.key === 'Escape' && onClose()}
+            >
                 <header className="modal-header">
                     <Play size={15} strokeWidth={1.8} />
                     <h2>{script ? `Edit "${script.name}"` : `New script for ${repoName}`}</h2>
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Close" onClick={onClose}><X size={15} strokeWidth={1.8} /></button>
+                    <button className="icon-button" title="Close" onClick={onClose}>
+                        <X size={15} strokeWidth={1.8} />
+                    </button>
                 </header>
                 <div className="modal-body">
                     <label className="run-field">
                         <span className="setting-label">Name</span>
-                        <input className="settings-input" autoFocus value={name} placeholder="Test" spellCheck={false} onChange={event => setName(event.target.value)} />
+                        <input
+                            className="settings-input"
+                            autoFocus
+                            value={name}
+                            placeholder="Test"
+                            spellCheck={false}
+                            onChange={event => setName(event.target.value)}
+                        />
                     </label>
                     <label className="run-field">
                         <span className="setting-label">Command</span>
@@ -81,8 +102,12 @@ function ScriptDialog({ repoName, script, onClose, onSubmit }: {
                 </div>
                 <footer className="modal-footer">
                     <span className="panel-note">⌘↩ saves.</span>
-                    <button className="button" onClick={onClose}>Cancel</button>
-                    <button className="button primary" disabled={busy} onClick={() => void submit()}>{script ? 'Save' : 'Add script'}</button>
+                    <button className="button" onClick={onClose}>
+                        Cancel
+                    </button>
+                    <button className="button primary" disabled={busy} onClick={() => void submit()}>
+                        {script ? 'Save' : 'Add script'}
+                    </button>
                 </footer>
             </div>
         </div>
@@ -129,9 +154,10 @@ export function ScriptsMenu({ repoName, scripts, onRun, onSave }: Props) {
         }
     };
     const submit = async (name: string, command: string) => {
-        const list = editing && editing !== 'new'
-            ? scripts.map(item => (item.id === editing.id ? { ...item, name, command } : item))
-            : [...scripts, { id: crypto.randomUUID(), name, command }];
+        const list =
+            editing && editing !== 'new'
+                ? scripts.map(item => (item.id === editing.id ? { ...item, name, command } : item))
+                : [...scripts, { id: crypto.randomUUID(), name, command }];
         await save(list);
         closeDialog();
     };
@@ -171,30 +197,44 @@ export function ScriptsMenu({ repoName, scripts, onRun, onSave }: Props) {
                                 <Play size={13} strokeWidth={1.8} />
                                 <span className="new-tab-label">{script.name}</span>
                             </button>
-                            <button className="icon-button script-action" title={`Edit "${script.name}"`} onClick={() => { setOpen(false); setEditing(script); }}>
+                            <button
+                                className="icon-button script-action"
+                                title={`Edit "${script.name}"`}
+                                onClick={() => {
+                                    setOpen(false);
+                                    setEditing(script);
+                                }}
+                            >
                                 <Pencil size={12} strokeWidth={1.8} />
                             </button>
-                            <button className="icon-button script-action" title={`Delete "${script.name}"`} onClick={() => { setOpen(false); void remove(script); }}>
+                            <button
+                                className="icon-button script-action"
+                                title={`Delete "${script.name}"`}
+                                onClick={() => {
+                                    setOpen(false);
+                                    void remove(script);
+                                }}
+                            >
                                 <Trash2 size={12} strokeWidth={1.8} />
                             </button>
                         </div>
                     ))}
                     <div className="new-tab-separator" />
-                    <button className="new-tab-item" role="menuitem" onClick={() => { setOpen(false); setEditing('new'); }}>
+                    <button
+                        className="new-tab-item"
+                        role="menuitem"
+                        onClick={() => {
+                            setOpen(false);
+                            setEditing('new');
+                        }}
+                    >
                         <Plus size={14} strokeWidth={1.8} />
                         <span className="new-tab-label">Add script…</span>
                     </button>
                     {error && <div className="form-error scripts-error">{error}</div>}
                 </div>
             )}
-            {editing && (
-                <ScriptDialog
-                    repoName={repoName}
-                    script={editing === 'new' ? undefined : editing}
-                    onClose={closeDialog}
-                    onSubmit={submit}
-                />
-            )}
+            {editing && <ScriptDialog repoName={repoName} script={editing === 'new' ? undefined : editing} onClose={closeDialog} onSubmit={submit} />}
         </div>
     );
 }

@@ -63,14 +63,17 @@ class CodeQuestionStore {
         const id = key(root, path);
         if (this.loaded.has(id)) return;
         this.loaded.add(id);
-        window.shipwarden.ask.codeAnswers(root, path).then(saved => {
-            saved.forEach(item => this.codes.set(item.id, item.code));
-            // A question that the user asked while the list loaded stays.
-            this.set(root, path, list => [...saved.map(fromSaved).filter(item => !list.some(other => other.id === item.id)), ...list]);
-        }).catch(err => {
-            this.loaded.delete(id);
-            onError(`The saved agent answers did not load. ${errorText(err)}`);
-        });
+        window.shipwarden.ask
+            .codeAnswers(root, path)
+            .then(saved => {
+                saved.forEach(item => this.codes.set(item.id, item.code));
+                // A question that the user asked while the list loaded stays.
+                this.set(root, path, list => [...saved.map(fromSaved).filter(item => !list.some(other => other.id === item.id)), ...list]);
+            })
+            .catch(err => {
+                this.loaded.delete(id);
+                onError(`The saved agent answers did not load. ${errorText(err)}`);
+            });
     }
 
     /** Asks the agent a question about lines `startLine` to `line` of a file. `code` is the text of the lines. */
@@ -111,19 +114,33 @@ class CodeQuestionStore {
         try {
             const result = await window.shipwarden.ask.run({ id, worktree: root, prompt });
             const answeredAt = Date.now();
-            this.set(root, path, list => list.map(item => (item.id === id && item.status === 'running'
-                ? { ...item, status: 'done', agent: result.agent, answer: result.answer, answeredAt, collapsed: false }
-                : item)));
+            this.set(root, path, list =>
+                list.map(item =>
+                    item.id === id && item.status === 'running'
+                        ? { ...item, status: 'done', agent: result.agent, answer: result.answer, answeredAt, collapsed: false }
+                        : item
+                )
+            );
             // A cancelled run rejects, so each answer here is a real answer. Very long code stays only in memory.
             if (canSaveCode(code)) {
                 const saved: SavedCodeAnswer = {
-                    id, worktree: root, path, startLine: question.startLine, line: question.line, code,
-                    question: question.question, agent: result.agent, answer: result.answer, answeredAt
+                    id,
+                    worktree: root,
+                    path,
+                    startLine: question.startLine,
+                    line: question.line,
+                    code,
+                    question: question.question,
+                    agent: result.agent,
+                    answer: result.answer,
+                    answeredAt
                 };
                 window.shipwarden.ask.saveCodeAnswer(saved).catch(err => onError(`The answer was not saved. ${errorText(err)}`));
             }
         } catch (err) {
-            this.set(root, path, list => list.map(item => (item.id === id && item.status === 'running' ? { ...item, status: 'error', error: errorText(err) } : item)));
+            this.set(root, path, list =>
+                list.map(item => (item.id === id && item.status === 'running' ? { ...item, status: 'error', error: errorText(err) } : item))
+            );
         }
     }
 

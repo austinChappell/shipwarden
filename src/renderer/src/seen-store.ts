@@ -11,12 +11,15 @@ class SeenStore {
     private readonly listeners = new Set<() => void>();
 
     load(): Promise<void> {
-        this.loaded ??= window.shipwarden.seen.keys().then(keys => {
-            keys.forEach(key => this.keys.add(key));
-            this.changed();
-        }, () => {
-            // Without the record, all comments show as new. The next mark adds them.
-        });
+        this.loaded ??= window.shipwarden.seen.keys().then(
+            keys => {
+                keys.forEach(key => this.keys.add(key));
+                this.changed();
+            },
+            () => {
+                // Without the record, all comments show as new. The next mark adds them.
+            }
+        );
         return this.loaded;
     }
 

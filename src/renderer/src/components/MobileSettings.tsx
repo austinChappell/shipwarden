@@ -49,18 +49,28 @@ function PairingCode({ offer, onRenew, onClose }: { offer: PairingOffer; onRenew
             <div className="pairing-text">
                 <ol>
                     <li>Open the ShipWarden app on your iPhone.</li>
-                    <li>Tap <strong>Pair with a Mac</strong> and scan this code. You can also scan it with the Camera app.</li>
+                    <li>
+                        Tap <strong>Pair with a Mac</strong> and scan this code. You can also scan it with the Camera app.
+                    </li>
                     <li>The phone must be on the same network as this Mac, or on the same VPN, for example Tailscale.</li>
                 </ol>
-                {left > 0
-                    ? <p className="panel-note">The code works one time. It stops in {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}.</p>
-                    : <p className="panel-note">The code stopped. Make a new code.</p>}
+                {left > 0 ? (
+                    <p className="panel-note">
+                        The code works one time. It stops in {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}.
+                    </p>
+                ) : (
+                    <p className="panel-note">The code stopped. Make a new code.</p>
+                )}
                 <div className="pairing-actions">
                     <button className="button" onClick={() => void copy()}>
                         {copied ? <CircleCheck size={13} /> : <Copy size={13} />} {copied ? 'Copied' : 'Copy link'}
                     </button>
-                    <button className="button" onClick={onRenew}>New code</button>
-                    <button className="button" onClick={onClose}>Close</button>
+                    <button className="button" onClick={onRenew}>
+                        New code
+                    </button>
+                    <button className="button" onClick={onClose}>
+                        Close
+                    </button>
                 </div>
             </div>
         </div>
@@ -82,15 +92,18 @@ export function MobileSettings({ settings, onSave }: Props) {
     const deviceCount = useRef<number | undefined>(undefined);
 
     const load = useCallback(() => {
-        api.status().then(next => {
-            // A new device while the QR code shows: the pairing worked.
-            if (deviceCount.current !== undefined && next.devices.length > deviceCount.current) {
-                setOffer(undefined);
-                setPaired(next.devices[next.devices.length - 1]?.name);
-            }
-            deviceCount.current = next.devices.length;
-            setStatus(next);
-        }, err => setError(errorText(err)));
+        api.status().then(
+            next => {
+                // A new device while the QR code shows: the pairing worked.
+                if (deviceCount.current !== undefined && next.devices.length > deviceCount.current) {
+                    setOffer(undefined);
+                    setPaired(next.devices[next.devices.length - 1]?.name);
+                }
+                deviceCount.current = next.devices.length;
+                setStatus(next);
+            },
+            err => setError(errorText(err))
+        );
     }, []);
     useEffect(() => {
         load();
@@ -142,12 +155,15 @@ export function MobileSettings({ settings, onSave }: Props) {
         void api.cancelPairing();
     };
     const remove = async (id: string, name: string) => {
-        if (!(await confirmDialog({
-            title: `Remove "${name}"?`,
-            message: 'The phone loses its access at once. To use it again, pair it again.',
-            confirmLabel: 'Remove',
-            danger: true
-        }))) return;
+        if (
+            !(await confirmDialog({
+                title: `Remove "${name}"?`,
+                message: 'The phone loses its access at once. To use it again, pair it again.',
+                confirmLabel: 'Remove',
+                danger: true
+            }))
+        )
+            return;
         try {
             await api.removeDevice(id);
             load();
@@ -161,36 +177,48 @@ export function MobileSettings({ settings, onSave }: Props) {
         <>
             <SettingsGroup
                 title="Phone connection"
-                description={(
+                description={
                     <>
-                        The ShipWarden iPhone app shows your agents, their terminal screens, and the pull requests of the worktrees. You can
-                        reply to an agent, answer its questions and approve a pull request. The phone connects to this Mac over HTTPS on your
-                        network. ShipWarden must be open, but the window can be closed.
+                        The ShipWarden iPhone app shows your agents, their terminal screens, and the pull requests of the worktrees. You can reply to an agent,
+                        answer its questions and approve a pull request. The phone connects to this Mac over HTTPS on your network. ShipWarden must be open, but
+                        the window can be closed.
                     </>
-                )}
+                }
                 card
             >
                 <SettingsRow
                     label="Allow phone connections"
                     description="Only paired phones can connect. Each phone has its own key, and you can remove it at any time."
-                    control={(
+                    control={
                         <label className="switch" title={remote.enabled ? 'On' : 'Off'}>
-                            <input type="checkbox" checked={remote.enabled} disabled={saving} onChange={event => void save({ enabled: event.target.checked })} />
+                            <input
+                                type="checkbox"
+                                checked={remote.enabled}
+                                disabled={saving}
+                                onChange={event => void save({ enabled: event.target.checked })}
+                            />
                             <span />
                         </label>
-                    )}
+                    }
                 >
-                    {remote.enabled && status && (
-                        status.running
-                            ? (
-                                <div className="panel-note">
-                                    <CircleCheck size={12} strokeWidth={2} className="ok-icon" /> Listening on port {status.port} at {status.hosts.join(', ')}.
+                    {remote.enabled &&
+                        status &&
+                        (status.running ? (
+                            <div className="panel-note">
+                                <CircleCheck size={12} strokeWidth={2} className="ok-icon" /> Listening on port {status.port} at {status.hosts.join(', ')}.
+                            </div>
+                        ) : (
+                            status.error && (
+                                <div className="form-error">
+                                    <TriangleAlert size={12} /> {status.error}
                                 </div>
                             )
-                            : status.error && <div className="form-error"><TriangleAlert size={12} /> {status.error}</div>
-                    )}
+                        ))}
                 </SettingsRow>
-                <SettingsRow label="Port" description="The TCP port of the server. A change disconnects the phones. They find the new port only after a new pairing.">
+                <SettingsRow
+                    label="Port"
+                    description="The TCP port of the server. A change disconnects the phones. They find the new port only after a new pairing."
+                >
                     <input
                         className="settings-input mono port-input"
                         value={port}
@@ -210,11 +238,11 @@ export function MobileSettings({ settings, onSave }: Props) {
 
             <SettingsGroup
                 title="Paired phones"
-                actions={(
+                actions={
                     <button className="button primary" disabled={!status?.running} onClick={() => void pair()}>
                         <Smartphone size={13} /> Pair a phone
                     </button>
-                )}
+                }
                 card
             >
                 {offer && <PairingCode offer={offer} onRenew={() => void pair()} onClose={closePairing} />}
@@ -224,16 +252,24 @@ export function MobileSettings({ settings, onSave }: Props) {
                     </div>
                 )}
                 {status?.devices.length === 0 && !offer && (
-                    <div className="settings-row-description device-empty">{status.running ? 'No phones yet. Select “Pair a phone”.' : 'Turn on phone connections to pair a phone.'}</div>
+                    <div className="settings-row-description device-empty">
+                        {status.running ? 'No phones yet. Select “Pair a phone”.' : 'Turn on phone connections to pair a phone.'}
+                    </div>
                 )}
                 {status?.devices.map(device => (
                     <div key={device.id} className="connection-row device-row">
-                        <span className={`device-dot${connected.has(device.id) ? ' online' : ''}`} title={connected.has(device.id) ? 'Connected now' : 'Not connected'} />
+                        <span
+                            className={`device-dot${connected.has(device.id) ? ' online' : ''}`}
+                            title={connected.has(device.id) ? 'Connected now' : 'Not connected'}
+                        />
                         <span className="connection-name">{device.name}</span>
                         <span className="connection-meta">
-                            {connected.has(device.id) ? 'Connected now' : `Last seen ${since(device.lastSeenAt)}`} · paired {new Date(device.pairedAt).toLocaleDateString()}
+                            {connected.has(device.id) ? 'Connected now' : `Last seen ${since(device.lastSeenAt)}`} · paired{' '}
+                            {new Date(device.pairedAt).toLocaleDateString()}
                         </span>
-                        <button className="button danger" onClick={() => void remove(device.id, device.name)}>Remove</button>
+                        <button className="button danger" onClick={() => void remove(device.id, device.name)}>
+                            Remove
+                        </button>
                     </div>
                 ))}
             </SettingsGroup>

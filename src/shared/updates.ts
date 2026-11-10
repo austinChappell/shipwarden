@@ -106,6 +106,8 @@ export function nextVersion(tags: string[], packageVersion: string, bump: Versio
 
 /** The newest release tag that is older than `version`: the start of the release notes. */
 export function previousTag(tags: string[], version: string): string | undefined {
-    return tags.filter(tag => parseVersion(tag) && compareVersions(tag, version) < 0).sort(compareVersions).pop();
+    return tags
+        .filter(tag => parseVersion(tag) && compareVersions(tag, version) < 0)
+        .sort(compareVersions)
+        .pop();
 }
-

@@ -96,56 +96,79 @@ export type AzureGitStatusState = 'notSet' | 'pending' | 'succeeded' | 'failed' 
 /** Converts the status of a build to the check status of the UI. */
 export function buildStatusToCheck(status: AzureBuildStatus | string | null | undefined): CheckStatus {
     switch (status) {
-        case 'completed': return 'completed';
+        case 'completed':
+            return 'completed';
         case 'inProgress':
-        case 'cancelling': return 'in_progress';
-        case 'postponed': return 'waiting';
-        default: return 'queued';
+        case 'cancelling':
+            return 'in_progress';
+        case 'postponed':
+            return 'waiting';
+        default:
+            return 'queued';
     }
 }
 
 /** Converts the result of a build to the check conclusion of the UI. A build that did not complete has no conclusion. */
 export function buildResultToConclusion(result: AzureBuildResult | string | null | undefined): CheckConclusion {
     switch (result) {
-        case 'succeeded': return 'success';
+        case 'succeeded':
+            return 'success';
         // The build passed, but some tasks had warnings or failures that "continue on error" allowed.
-        case 'partiallySucceeded': return 'neutral';
-        case 'failed': return 'failure';
-        case 'canceled': return 'cancelled';
-        default: return null;
+        case 'partiallySucceeded':
+            return 'neutral';
+        case 'failed':
+            return 'failure';
+        case 'canceled':
+            return 'cancelled';
+        default:
+            return null;
     }
 }
 
 /** Converts the state of a timeline record to the check status of the UI. */
 export function timelineStateToCheck(state: AzureTimelineState | string | null | undefined): CheckStatus {
     switch (state) {
-        case 'completed': return 'completed';
-        case 'inProgress': return 'in_progress';
-        default: return 'queued';
+        case 'completed':
+            return 'completed';
+        case 'inProgress':
+            return 'in_progress';
+        default:
+            return 'queued';
     }
 }
 
 /** Converts the result of a timeline record to the check conclusion of the UI. */
 export function timelineResultToConclusion(result: AzureTimelineResult | string | null | undefined): CheckConclusion {
     switch (result) {
-        case 'succeeded': return 'success';
-        case 'succeededWithIssues': return 'neutral';
-        case 'failed': return 'failure';
+        case 'succeeded':
+            return 'success';
+        case 'succeededWithIssues':
+            return 'neutral';
+        case 'failed':
+            return 'failure';
         case 'canceled':
-        case 'abandoned': return 'cancelled';
-        case 'skipped': return 'skipped';
-        default: return null;
+        case 'abandoned':
+            return 'cancelled';
+        case 'skipped':
+            return 'skipped';
+        default:
+            return null;
     }
 }
 
 /** Converts the state of a status from an external service to the status and the conclusion of the UI. */
 export function gitStatusToCheck(state: AzureGitStatusState | string | null | undefined): { status: CheckStatus; conclusion: CheckConclusion } {
     switch (state) {
-        case 'succeeded': return { status: 'completed', conclusion: 'success' };
-        case 'failed': return { status: 'completed', conclusion: 'failure' };
-        case 'error': return { status: 'completed', conclusion: 'error' };
-        case 'notApplicable': return { status: 'completed', conclusion: 'skipped' };
-        default: return { status: 'pending', conclusion: null };
+        case 'succeeded':
+            return { status: 'completed', conclusion: 'success' };
+        case 'failed':
+            return { status: 'completed', conclusion: 'failure' };
+        case 'error':
+            return { status: 'completed', conclusion: 'error' };
+        case 'notApplicable':
+            return { status: 'completed', conclusion: 'skipped' };
+        default:
+            return { status: 'pending', conclusion: null };
     }
 }
 
@@ -164,12 +187,17 @@ export const AZURE_REVIEW_EVENTS: ReviewEvent[] = ['COMMENT', 'WAIT_FOR_AUTHOR',
 /** Returns the vote for a review event. A comment gives no vote. */
 export function voteForEvent(event: ReviewEvent): number | undefined {
     switch (event) {
-        case 'APPROVE': return AZURE_VOTE.approved;
-        case 'APPROVE_WITH_SUGGESTIONS': return AZURE_VOTE.approvedWithSuggestions;
+        case 'APPROVE':
+            return AZURE_VOTE.approved;
+        case 'APPROVE_WITH_SUGGESTIONS':
+            return AZURE_VOTE.approvedWithSuggestions;
         case 'REQUEST_CHANGES':
-        case 'WAIT_FOR_AUTHOR': return AZURE_VOTE.waitingForAuthor;
-        case 'REJECT': return AZURE_VOTE.rejected;
-        default: return undefined;
+        case 'WAIT_FOR_AUTHOR':
+            return AZURE_VOTE.waitingForAuthor;
+        case 'REJECT':
+            return AZURE_VOTE.rejected;
+        default:
+            return undefined;
     }
 }
 

@@ -21,7 +21,11 @@ const FAILED = new Set(['failure', 'timed_out', 'cancelled', 'action_required', 
 export function CheckIcon({ check }: { check: Pick<CheckRun, 'status' | 'conclusion'> }) {
     const props = { size: 15, strokeWidth: 1.8 };
     if (check.status !== 'completed') {
-        return check.status === 'in_progress' ? <LoaderCircle {...props} className="check-icon running spin" /> : <CircleDot {...props} className="check-icon queued" />;
+        return check.status === 'in_progress' ? (
+            <LoaderCircle {...props} className="check-icon running spin" />
+        ) : (
+            <CircleDot {...props} className="check-icon queued" />
+        );
     }
     if (check.conclusion === 'success') return <CircleCheck {...props} className="check-icon success" />;
     if (FAILED.has(check.conclusion ?? '')) return <CircleX {...props} className="check-icon failure" />;
@@ -94,7 +98,9 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
         return <div className="panel-message">This worktree has no GitHub or Azure Repos remote named "origin".</div>;
     }
 
-    const failedRuns = [...new Set((checks ?? []).filter(check => check.isActions && check.runId && FAILED.has(check.conclusion ?? '')).map(check => check.runId!))];
+    const failedRuns = [
+        ...new Set((checks ?? []).filter(check => check.isActions && check.runId && FAILED.has(check.conclusion ?? '')).map(check => check.runId!))
+    ];
     const counts = {
         passed: checks?.filter(check => check.conclusion === 'success').length ?? 0,
         failed: checks?.filter(check => FAILED.has(check.conclusion ?? '')).length ?? 0,
@@ -106,28 +112,45 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
         <div className="checks-panel">
             <div className="checks-header">
                 <div className={`checks-summary ${summary}`}>
-                    {checks === undefined ? 'Loading checks…' : checks.length === 0 ? 'No checks for this commit.' :
-                        [counts.failed && `${counts.failed} failing`, counts.running && `${counts.running} running`, counts.passed && `${counts.passed} passing`].filter(Boolean).join(', ')}
+                    {checks === undefined
+                        ? 'Loading checks…'
+                        : checks.length === 0
+                          ? 'No checks for this commit.'
+                          : [
+                                counts.failed && `${counts.failed} failing`,
+                                counts.running && `${counts.running} running`,
+                                counts.passed && `${counts.passed} passing`
+                            ]
+                                .filter(Boolean)
+                                .join(', ')}
                 </div>
                 <div className="checks-subtitle">
                     {status.pullRequest?.state === 'OPEN' ? `PR #${status.pullRequest.number} head` : status.branch} · <code>{status.sha.slice(0, 7)}</code>
-                    <button className="icon-button" title="Refresh" onClick={load}><RefreshCw size={14} strokeWidth={1.6} /></button>
+                    <button className="icon-button" title="Refresh" onClick={load}>
+                        <RefreshCw size={14} strokeWidth={1.6} />
+                    </button>
                 </div>
                 <div className="row-buttons">
                     {failedRuns.length > 0 && (
                         <button
                             className="button"
                             disabled={busy}
-                            onClick={() => run(`Run the failed jobs again in ${failedRuns.length} workflow run(s)?`, async () => {
-                                for (const runId of failedRuns) {
-                                    await window.shipwarden.github.rerunFailedJobs(target, runId);
-                                }
-                            })}
+                            onClick={() =>
+                                run(`Run the failed jobs again in ${failedRuns.length} workflow run(s)?`, async () => {
+                                    for (const runId of failedRuns) {
+                                        await window.shipwarden.github.rerunFailedJobs(target, runId);
+                                    }
+                                })
+                            }
                         >
-                            <RotateCw size={14} strokeWidth={1.8} />Re-run failed
+                            <RotateCw size={14} strokeWidth={1.8} />
+                            Re-run failed
                         </button>
                     )}
-                    <button className="button" onClick={toggleWorkflows}><Play size={14} strokeWidth={1.8} />Run workflow</button>
+                    <button className="button" onClick={toggleWorkflows}>
+                        <Play size={14} strokeWidth={1.8} />
+                        Run workflow
+                    </button>
                 </div>
                 {showWorkflows && (
                     <div className="workflow-list">
@@ -139,7 +162,11 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                                 className="workflow-row"
                                 disabled={!workflow.dispatchable || busy}
                                 title={workflow.dispatchable ? `Run on ${status.branch}` : 'This workflow has no workflow_dispatch trigger.'}
-                                onClick={() => run(`Run the workflow "${workflow.name}" on ${status.branch}?`, () => window.shipwarden.github.dispatchWorkflow(target, workflow.id, status.branch))}
+                                onClick={() =>
+                                    run(`Run the workflow "${workflow.name}" on ${status.branch}?`, () =>
+                                        window.shipwarden.github.dispatchWorkflow(target, workflow.id, status.branch)
+                                    )
+                                }
                             >
                                 <Play size={13} strokeWidth={1.8} />
                                 <span>{workflow.name}</span>
@@ -173,7 +200,14 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                             <span className="check-duration">{formatDuration(check.startedAt, check.completedAt)}</span>
                             <span className="check-actions">
                                 {check.isActions && failed && onSendLogToAgent && (
-                                    <button className="icon-button" title="Send the log to the agent" onClick={event => { event.stopPropagation(); onSendLogToAgent(check); }}>
+                                    <button
+                                        className="icon-button"
+                                        title="Send the log to the agent"
+                                        onClick={event => {
+                                            event.stopPropagation();
+                                            onSendLogToAgent(check);
+                                        }}
+                                    >
                                         <Bot size={14} strokeWidth={1.6} />
                                     </button>
                                 )}
@@ -182,13 +216,23 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                                         className="icon-button"
                                         title="Run this job again"
                                         disabled={busy}
-                                        onClick={event => { event.stopPropagation(); run(`Run the job "${check.name}" again?`, () => window.shipwarden.github.rerunJob(target, check.id)); }}
+                                        onClick={event => {
+                                            event.stopPropagation();
+                                            run(`Run the job "${check.name}" again?`, () => window.shipwarden.github.rerunJob(target, check.id));
+                                        }}
                                     >
                                         <RotateCw size={14} strokeWidth={1.6} />
                                     </button>
                                 )}
                                 {check.url && (
-                                    <button className="icon-button" title={`Open on ${hostLabel(status.host)}`} onClick={event => { event.stopPropagation(); openLink(check.url!, event); }}>
+                                    <button
+                                        className="icon-button"
+                                        title={`Open on ${hostLabel(status.host)}`}
+                                        onClick={event => {
+                                            event.stopPropagation();
+                                            openLink(check.url!, event);
+                                        }}
+                                    >
                                         <ExternalLink size={14} strokeWidth={1.6} />
                                     </button>
                                 )}

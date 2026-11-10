@@ -5,19 +5,47 @@ import { addLoaded, answerOutdated, answerQuestion, changeQuestion, failQuestion
 
 const repo = { owner: 'o', name: 'r' } as RepoRef;
 
-const question = (id: string, parts: Partial<AgentQuestion> = {}): AgentQuestion =>
-    ({ id, path: 'a.ts', side: 'RIGHT', startLine: 2, line: 4, question: 'Why?', status: 'running', ...parts });
+const question = (id: string, parts: Partial<AgentQuestion> = {}): AgentQuestion => ({
+    id,
+    path: 'a.ts',
+    side: 'RIGHT',
+    startLine: 2,
+    line: 4,
+    question: 'Why?',
+    status: 'running',
+    ...parts
+});
 
 const saved: SavedAnswer = {
-    id: 'q1', repo, number: 7, path: 'a.ts', side: 'LEFT', startLine: 2, line: 4,
-    question: 'Why?', agent: 'Claude', answer: 'Because.', commit: 'abc', answeredAt: 1000
+    id: 'q1',
+    repo,
+    number: 7,
+    path: 'a.ts',
+    side: 'LEFT',
+    startLine: 2,
+    line: 4,
+    question: 'Why?',
+    agent: 'Claude',
+    answer: 'Because.',
+    commit: 'abc',
+    answeredAt: 1000
 };
 
 describe('fromSaved and toSaved', () => {
     it('makes a collapsed card from a saved answer', () => {
         expect(fromSaved(saved)).toEqual({
-            id: 'q1', path: 'a.ts', side: 'LEFT', startLine: 2, line: 4, question: 'Why?', status: 'done',
-            agent: 'Claude', answer: 'Because.', commit: 'abc', answeredAt: 1000, collapsed: true
+            id: 'q1',
+            path: 'a.ts',
+            side: 'LEFT',
+            startLine: 2,
+            line: 4,
+            question: 'Why?',
+            status: 'done',
+            agent: 'Claude',
+            answer: 'Because.',
+            commit: 'abc',
+            answeredAt: 1000,
+            collapsed: true
         });
     });
 

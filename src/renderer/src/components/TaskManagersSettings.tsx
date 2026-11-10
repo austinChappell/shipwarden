@@ -40,7 +40,10 @@ function ScopePicker({ connection, value, onChange }: ScopePickerProps) {
         let cancelled = false;
         setScopes(undefined);
         setError(undefined);
-        api.scopes(connection.id).then(list => !cancelled && setScopes(list), err => !cancelled && setError(errorText(err)));
+        api.scopes(connection.id).then(
+            list => !cancelled && setScopes(list),
+            err => !cancelled && setError(errorText(err))
+        );
         return () => {
             cancelled = true;
         };
@@ -61,7 +64,11 @@ function ScopePicker({ connection, value, onChange }: ScopePickerProps) {
                 Only these {plural(label)}:
             </label>
             {error && <div className="form-error">{error}</div>}
-            {!scopes && !error && <div className="panel-note"><LoaderCircle size={12} className="spin" /> Loading the {plural(label)}…</div>}
+            {!scopes && !error && (
+                <div className="panel-note">
+                    <LoaderCircle size={12} className="spin" /> Loading the {plural(label)}…
+                </div>
+            )}
             {scopes && (
                 <div className={`scope-list${mode === 'some' ? '' : ' disabled'}`}>
                     {scopes.map(scope => (
@@ -111,14 +118,23 @@ function ConnectionSettingsForm({ connection, onSaved }: { connection: Connectio
             {connection.settings.map(setting => (
                 // biome-ignore lint/a11y/noLabelWithoutControl: each branch of the condition below puts an input in the label.
                 <label key={setting.key} className="setting-row">
-                    <span className="setting-label">{setting.label}{setting.required ? ' *' : ''}</span>
+                    <span className="setting-label">
+                        {setting.label}
+                        {setting.required ? ' *' : ''}
+                    </span>
                     {setting.type === 'boolean' ? (
-                        <input type="checkbox" checked={!!values[setting.key]} onChange={event => setValues(v => ({ ...v, [setting.key]: event.target.checked }))} />
+                        <input
+                            type="checkbox"
+                            checked={!!values[setting.key]}
+                            onChange={event => setValues(v => ({ ...v, [setting.key]: event.target.checked }))}
+                        />
                     ) : (
                         <input
                             type={setting.type === 'secret' ? 'password' : 'text'}
-                            value={typeof values[setting.key] === 'string' ? values[setting.key] as string : ''}
-                            placeholder={setting.type === 'secret' && connection.settingsWithValue.includes(setting.key) ? 'Saved. Type a new value to change it.' : ''}
+                            value={typeof values[setting.key] === 'string' ? (values[setting.key] as string) : ''}
+                            placeholder={
+                                setting.type === 'secret' && connection.settingsWithValue.includes(setting.key) ? 'Saved. Type a new value to change it.' : ''
+                            }
                             spellCheck={false}
                             onChange={event => setValues(v => ({ ...v, [setting.key]: event.target.value }))}
                         />
@@ -128,7 +144,9 @@ function ConnectionSettingsForm({ connection, onSaved }: { connection: Connectio
             ))}
             {error && <div className="form-error">{error}</div>}
             <div className="row-buttons">
-                <button className="button" disabled={busy} onClick={save}>Save settings</button>
+                <button className="button" disabled={busy} onClick={save}>
+                    Save settings
+                </button>
             </div>
         </div>
     );
@@ -153,12 +171,14 @@ function ConnectionCard({ connection, open, onToggle, onChanged }: { connection:
     };
 
     const remove = async () => {
-        if (!(await confirmDialog({
-            title: `Remove the task manager "${connection.name}"?`,
-            message: 'ShipWarden forgets its settings and its token. Worktrees that are linked to its tasks keep their links.',
-            confirmLabel: 'Remove',
-            danger: true
-        }))) {
+        if (
+            !(await confirmDialog({
+                title: `Remove the task manager "${connection.name}"?`,
+                message: 'ShipWarden forgets its settings and its token. Worktrees that are linked to its tasks keep their links.',
+                confirmLabel: 'Remove',
+                danger: true
+            }))
+        ) {
             return;
         }
         try {
@@ -179,7 +199,8 @@ function ConnectionCard({ connection, open, onToggle, onChanged }: { connection:
                 <button className="connection-summary" aria-expanded={open} onClick={onToggle}>
                     <span className="connection-name">{connection.name}</span>
                     <span className="connection-meta">
-                        {connection.pluginName !== connection.name && `${connection.pluginName} · `}{scopeSummary(connection.scope, connection.scopeLabel)}
+                        {connection.pluginName !== connection.name && `${connection.pluginName} · `}
+                        {scopeSummary(connection.scope, connection.scopeLabel)}
                         {!connection.configured && <span className="connection-warning"> · needs settings</span>}
                     </span>
                     <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
@@ -189,7 +210,11 @@ function ConnectionCard({ connection, open, onToggle, onChanged }: { connection:
                 <div className="connection-body">
                     <label className="setting-row">
                         <span className="setting-label">Name</span>
-                        <input value={name} onChange={event => setName(event.target.value)} onBlur={() => name.trim() && name !== connection.name && update({ name })} />
+                        <input
+                            value={name}
+                            onChange={event => setName(event.target.value)}
+                            onBlur={() => name.trim() && name !== connection.name && update({ name })}
+                        />
                     </label>
                     <label className="setting-row">
                         <span className="setting-label">Status when a worktree starts</span>
@@ -202,8 +227,8 @@ function ConnectionCard({ connection, open, onToggle, onChanged }: { connection:
                             onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                         />
                         <span className="panel-note">
-                            When you start a worktree from a task, the task moves to the status with this name, if its list has one.
-                            ShipWarden ignores case. Empty: the status does not change.
+                            When you start a worktree from a task, the task moves to the status with this name, if its list has one. ShipWarden ignores case.
+                            Empty: the status does not change.
                         </span>
                     </label>
                     <ConnectionSettingsForm key={connection.settingsWithValue.join(',')} connection={connection} onSaved={onChanged} />
@@ -211,7 +236,10 @@ function ConnectionCard({ connection, open, onToggle, onChanged }: { connection:
                     <ScopePicker connection={connection} value={connection.scope} onChange={scope => update({ scope: scope ?? null })} />
                     {error && <div className="form-error">{error}</div>}
                     <div className="row-buttons">
-                        <button className="button danger" onClick={remove}><Trash2 size={13} strokeWidth={1.8} />Remove</button>
+                        <button className="button danger" onClick={remove}>
+                            <Trash2 size={13} strokeWidth={1.8} />
+                            Remove
+                        </button>
                     </div>
                 </div>
             )}
@@ -258,21 +286,27 @@ export function TaskManagersSettings() {
         }
     };
 
-
     return (
         <div className="task-managers">
             <SettingsGroup
                 title="Connected task managers"
                 description="All projects use the task managers that are on. Open one to change its settings and the workspaces or organizations it includes."
-                actions={(
+                actions={
                     <div className="add-connection">
                         <select className="tasks-select" value={adding} aria-label="Task manager to add" onChange={event => setAdding(event.target.value)}>
                             <option value="">Add a task manager…</option>
-                            {plugins.map(plugin => <option key={plugin.id} value={plugin.id}>{plugin.name}</option>)}
+                            {plugins.map(plugin => (
+                                <option key={plugin.id} value={plugin.id}>
+                                    {plugin.name}
+                                </option>
+                            ))}
                         </select>
-                        <button className="button" disabled={!adding} onClick={add}><Plus size={13} strokeWidth={1.8} />Add</button>
+                        <button className="button" disabled={!adding} onClick={add}>
+                            <Plus size={13} strokeWidth={1.8} />
+                            Add
+                        </button>
                     </div>
-                )}
+                }
             >
                 <div className="connection-list">
                     {connections?.map(connection => (

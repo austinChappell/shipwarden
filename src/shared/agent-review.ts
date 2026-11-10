@@ -59,14 +59,16 @@ export function reviewPrompt(input: ReviewPromptInput): string {
     if (skipped.length) {
         parts.push(`These files are not in the diff above:\n${skipped.map(item => `- ${item}`).join('\n')}`);
     }
-    parts.push([
-        'Find bugs, security problems, missing tests and code that is hard to maintain. Read more of the code if it helps you. Do not change files. Do not post comments on GitHub.',
-        'Write only the review comments that are important. Do not write a comment that only praises the code.',
-        'Your answer must be one JSON object and nothing else, with this shape:',
-        '{"summary": "<the review summary, in Markdown>", "comments": [{"path": "<file path>", "line": <line number>, "side": "RIGHT", "body": "<the comment, in Markdown>"}]}',
-        '"side" is "RIGHT" for a line of the new version (an added line or a context line) and "LEFT" for a removed line.',
-        '"line" is the line number in that version of the file. It must be a line in a "@@" hunk of the diff above.'
-    ].join('\n'));
+    parts.push(
+        [
+            'Find bugs, security problems, missing tests and code that is hard to maintain. Read more of the code if it helps you. Do not change files. Do not post comments on GitHub.',
+            'Write only the review comments that are important. Do not write a comment that only praises the code.',
+            'Your answer must be one JSON object and nothing else, with this shape:',
+            '{"summary": "<the review summary, in Markdown>", "comments": [{"path": "<file path>", "line": <line number>, "side": "RIGHT", "body": "<the comment, in Markdown>"}]}',
+            '"side" is "RIGHT" for a line of the new version (an added line or a context line) and "LEFT" for a removed line.',
+            '"line" is the line number in that version of the file. It must be a line in a "@@" hunk of the diff above.'
+        ].join('\n')
+    );
     return parts.join('\n\n');
 }
 

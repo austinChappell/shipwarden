@@ -13,13 +13,14 @@ export function useStoredFlag(storageKey: string, fallback: boolean): [boolean, 
             return fallback;
         }
     });
-    const toggle = () => setValue(current => {
-        try {
-            localStorage.setItem(storageKey, String(!current));
-        } catch {
-            // The value stays for this session only.
-        }
-        return !current;
-    });
+    const toggle = () =>
+        setValue(current => {
+            try {
+                localStorage.setItem(storageKey, String(!current));
+            } catch {
+                // The value stays for this session only.
+            }
+            return !current;
+        });
     return [value, toggle];
 }

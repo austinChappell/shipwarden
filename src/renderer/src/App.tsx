@@ -113,30 +113,60 @@ export function App() {
     const tabs = useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setSessions, setError });
     const { activeTab, layout, worktreeSessions, worktreeExtras, activate, openExtra, openFile } = tabs;
     const project = useProjects({
-        selectedPath, setSelectedPath, mainView, setMainView, viewBeforeSettings, repoLabel, setError,
-        openFiles: tabs.openFiles, setOpenFiles: tabs.setOpenFiles, activeTabs: tabs.activeTabs, setActiveTabs: tabs.setActiveTabs,
-        panes: tabs.panes, setPanes: tabs.setPanes, sessionIds: () => sessions.map(session => session.id)
+        selectedPath,
+        setSelectedPath,
+        mainView,
+        setMainView,
+        viewBeforeSettings,
+        repoLabel,
+        setError,
+        openFiles: tabs.openFiles,
+        setOpenFiles: tabs.setOpenFiles,
+        activeTabs: tabs.activeTabs,
+        setActiveTabs: tabs.setActiveTabs,
+        panes: tabs.panes,
+        setPanes: tabs.setPanes,
+        sessionIds: () => sessions.map(session => session.id)
     });
     const { projects, activeProject, repos, worktreesByRepo, worktrees, selectedRepo, showProject } = project;
     const selected = worktrees.find(worktree => worktree.path === selectedPath);
     const agents = useAgentActions({ sessions, setSessions, appSettings, selectedPath, selected, repoOfWorktree: project.repoOfWorktree, activate, setError });
     const { startTerminal, sendToAgent } = agents;
     const worktreeActions = useWorktreeActions({
-        appSettings, setAppSettings, activeProjectId: activeProject?.id, repos, worktreesByRepo, worktrees,
-        refreshWorktrees: project.refreshWorktrees, sessions, setSessions, links, setLinks,
-        openFiles: tabs.openFiles, setOpenFiles: tabs.setOpenFiles, setExtraTabs: tabs.setExtraTabs,
-        selectedPath, setSelectedPath, setMainView, setNewWorktree, setTaskOpen,
-        startTerminal, sendToAgent, prepareWorktree: agents.prepareWorktree, setError
+        appSettings,
+        setAppSettings,
+        activeProjectId: activeProject?.id,
+        repos,
+        worktreesByRepo,
+        worktrees,
+        refreshWorktrees: project.refreshWorktrees,
+        sessions,
+        setSessions,
+        links,
+        setLinks,
+        openFiles: tabs.openFiles,
+        setOpenFiles: tabs.setOpenFiles,
+        setExtraTabs: tabs.setExtraTabs,
+        selectedPath,
+        setSelectedPath,
+        setMainView,
+        setNewWorktree,
+        setTaskOpen,
+        startTerminal,
+        sendToAgent,
+        prepareWorktree: agents.prepareWorktree,
+        setError
     });
     const { openLinkedTask, removeWorktree } = worktreeActions;
 
     /** Shows the settings page, and keeps the view that it goes back to. */
-    const showSettingsPage = () => setMainView(view => {
-        if (view !== 'settings') {
-            viewBeforeSettings.current = view;
-        }
-        return 'settings';
-    });
+    const showSettingsPage = () =>
+        setMainView(view => {
+            if (view !== 'settings') {
+                viewBeforeSettings.current = view;
+            }
+            return 'settings';
+        });
     const openSettings = (section?: string) => {
         setSettingsSection(section);
         showSettingsPage();
@@ -192,10 +222,18 @@ export function App() {
         if (target.sessionId) activate(target.worktreePath, `t:${target.sessionId}`);
     };
     const notifyAgent = useNotifications({
-        appSettings, summaries: project.summaries, worktreesByRepo, worktrees, sessions, links, commentFilter, repoLabel,
+        appSettings,
+        summaries: project.summaries,
+        worktreesByRepo,
+        worktrees,
+        sessions,
+        links,
+        commentFilter,
+        repoLabel,
         openTarget: openNotificationTarget,
         // A terminal in any pane of the split view is visible, not only the focused one.
-        isSessionVisible: session => document.hasFocus() && mainView === 'worktree' && session.worktreePath === selectedPath && !!layout && !!leafOfTab(layout, `t:${session.id}`)
+        isSessionVisible: session =>
+            document.hasFocus() && mainView === 'worktree' && session.worktreePath === selectedPath && !!layout && !!leafOfTab(layout, `t:${session.id}`)
     });
 
     // The effect below registers the IPC listeners one time. The refs give the listeners the functions of the newest render.
@@ -205,17 +243,19 @@ export function App() {
     notifyAgentRef.current = notifyAgent;
     useEffect(() => {
         (async () => {
-            const [state, terminalSettings, existing] = await Promise.all([
-                api.projects.get(),
-                api.terminals.settings(),
-                api.terminals.list()
-            ]);
+            const [state, terminalSettings, existing] = await Promise.all([api.projects.get(), api.terminals.settings(), api.terminals.list()]);
             setSettings(terminalSettings);
             api.tasks.links().then(setLinks, () => undefined);
-            api.settings.get().then(setAppSettings, () => undefined).finally(() => setSettingsLoaded(true));
+            api.settings
+                .get()
+                .then(setAppSettings, () => undefined)
+                .finally(() => setSettingsLoaded(true));
             setSessions(existing);
             project.setProjects(state);
-            await showProject(state, existing.map(session => session.id));
+            await showProject(
+                state,
+                existing.map(session => session.id)
+            );
         })();
         const offExit = api.terminals.onExit(id => sessionExitedRef.current(id));
         // The agent state goes to its own store, not to `sessions`: an agent reports it at each tool call, and a
@@ -247,8 +287,7 @@ export function App() {
     const github = useBranchStatus(selectedPath, explorerOpen || worktreeExtras.some(tab => tab.kind !== 'browser'));
     /** The address and the title of each browser tab, for the tab strip. */
     const browserStates = useBrowserStates();
-    const latestPullRequest = (pr: PullRequest) =>
-        github.status?.pullRequest?.number === pr.number ? github.status.pullRequest : pr;
+    const latestPullRequest = (pr: PullRequest) => (github.status?.pullRequest?.number === pr.number ? github.status.pullRequest : pr);
 
     /** Opens a tab of the selected worktree: a pull request diff, a local change, all local changes or a CI log. */
     const openExtraHere = (tab: Parameters<typeof openExtra>[1]) => {
@@ -256,7 +295,8 @@ export function App() {
             openExtra(selectedPath, tab);
         }
     };
-    const openDiff = (pr: PullRequest, file: PullRequestFile, line?: number) => openExtraHere({ key: `d:${file.path}`, kind: 'diff', pr, file, line, nonce: Date.now() });
+    const openDiff = (pr: PullRequest, file: PullRequestFile, line?: number) =>
+        openExtraHere({ key: `d:${file.path}`, kind: 'diff', pr, file, line, nonce: Date.now() });
     /** Opens the diff of a local change: staged (HEAD and the index) or unstaged (the index and the working file). */
     const openChange = (change: FileChange, side: ChangeSide) => openExtraHere({ key: `c:${side}:${change.path}`, kind: 'change', change, side });
     /** Opens one tab with the diffs of all local changes of the selected worktree. */
@@ -264,8 +304,13 @@ export function App() {
     const openLog = (check: CheckRun) => openExtraHere({ key: `l:${check.id}`, kind: 'log', check });
 
     const openBrowser = useBrowserTabs({
-        extraTabs: tabs.extraTabs, openExtra, defaultRoot: selectedPath ?? worktrees[0]?.path, selectedPath,
-        setSelectedPath, setMainView, focusBrowserPane: tabs.focusBrowserPane
+        extraTabs: tabs.extraTabs,
+        openExtra,
+        defaultRoot: selectedPath ?? worktrees[0]?.path,
+        selectedPath,
+        setSelectedPath,
+        setMainView,
+        focusBrowserPane: tabs.focusBrowserPane
     });
 
     /**
@@ -275,7 +320,14 @@ export function App() {
      */
     const stepHistory = useNavHistory(navLocationOf(mainView, selectedPath, activeTab, graphRepo));
     const navigate = (step: 1 | -1) => {
-        const location = stepHistory(step, item => isNavValid(item, repos, worktrees.map(worktree => worktree.path), tabs.tabKeysOf));
+        const location = stepHistory(step, item =>
+            isNavValid(
+                item,
+                repos,
+                worktrees.map(worktree => worktree.path),
+                tabs.tabKeysOf
+            )
+        );
         if (!location) return;
         if (location.view === 'worktree' && location.worktree) {
             setSelectedPath(location.worktree);
@@ -354,312 +406,351 @@ export function App() {
     const tabContext = { selectedPath, sessions: worktreeSessions, extras: worktreeExtras, dirtyFiles: tabs.dirtyFiles, browserStates };
 
     /** The view of one tab. `focused` is false for a pane without the focus. */
-    const renderTab = (tab: TabKey, focused: boolean): ReactNode => renderTabView(tab, focused, {
-        selectedPath, selected, sessions: worktreeSessions, extras: worktreeExtras, dragging: !!tabs.draggingTab,
-        reveal: tabs.reveal, focusRequest: tabs.focusRequest, settings, terminalSettings, terminalColorsKey,
-        agents: appSettings.agents, defaultAgentId: agentForRepo(appSettings, selectedPath && project.repoOfWorktree(selectedPath)).id,
-        latestPullRequest, refreshGitHub: github.refresh, closeFromView: tabs.closeFromView, openFile: path => openFile(path),
-        sendToAgent, sendLogToAgent: agents.sendLogToAgent, installServer: agents.installServer, setError
-    });
+    const renderTab = (tab: TabKey, focused: boolean): ReactNode =>
+        renderTabView(tab, focused, {
+            selectedPath,
+            selected,
+            sessions: worktreeSessions,
+            extras: worktreeExtras,
+            dragging: !!tabs.draggingTab,
+            reveal: tabs.reveal,
+            focusRequest: tabs.focusRequest,
+            settings,
+            terminalSettings,
+            terminalColorsKey,
+            agents: appSettings.agents,
+            defaultAgentId: agentForRepo(appSettings, selectedPath && project.repoOfWorktree(selectedPath)).id,
+            latestPullRequest,
+            refreshGitHub: github.refresh,
+            closeFromView: tabs.closeFromView,
+            openFile: path => openFile(path),
+            sendToAgent,
+            sendLogToAgent: agents.sendLogToAgent,
+            installServer: agents.installServer,
+            setError
+        });
 
     return (
         <SidebarContext.Provider value={{ collapsed: sidebarCollapsed, toggle: toggleSidebar }}>
-        <div className="app-shell">
-            <div
-                className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${mainView === 'worktree' && selectedPath ? ' has-right-toggle' : ''}${rightPanelShown ? ' right-panel-shown' : ''}`}
-                style={{ '--sidebar-width': `${sidebarWidth.width}px`, '--explorer-width': `${explorerWidth.width}px` } as CSSProperties}
-            >
-                {!sidebarCollapsed && <Sidebar
-                    projects={projects}
-                    repos={repos}
-                    worktreesByRepo={worktreesByRepo}
-                    sessions={sessions}
-                    selectedPath={selectedPath}
-                    links={links}
-                    summaries={project.summaries}
-                    tasksActive={mainView === 'tasks'}
-                    settingsActive={mainView === 'settings'}
-                    onOpenSettings={() => openSettings()}
-                    onOpenRepoSettings={repo => openSettings(`repo:${repo}`)}
-                    graphRepo={mainView === 'graph' ? graphRepo : undefined}
-                    onOpenGraph={repo => {
-                        setGraphRepo(repo);
-                        setMainView('graph');
-                    }}
-                    repoLabel={repoLabel}
-                    repoColor={repo => appSettings.repos[repo]?.color}
-                    onOpenTasks={() => setMainView('tasks')}
-                    agentsActive={mainView === 'agents'}
-                    onOpenAgents={() => setMainView('agents')}
-                    reviewActive={mainView === 'review'}
-                    onOpenReview={() => setMainView('review')}
-                    pipelinesActive={mainView === 'pipelines'}
-                    onOpenPipelines={() => setMainView('pipelines')}
-                    notesActive={mainView === 'notes'}
-                    onOpenNotes={() => setMainView('notes')}
-                    dashboardActive={mainView === 'dashboard'}
-                    dashboardCount={dashboardCount}
-                    onOpenDashboard={() => setMainView('dashboard')}
-                    onAddRepo={project.addRepo}
-                    onRemoveRepo={project.removeRepo}
-                    onSwitchProject={project.switchProject}
-                    onCreateProject={(name: string) => project.changeProjects(api.projects.create(name))}
-                    onRenameProject={(id: string, name: string) => project.changeProjects(api.projects.rename(id, name))}
-                    onDeleteProject={(id: string) => project.changeProjects(api.projects.delete(id))}
-                    onSelect={worktree => showWorktree(worktree.path)}
-                    onCreate={worktreeActions.createWorktree}
-                    worktreeNames={appSettings.worktreeNames}
-                    onRemove={(repo, worktree) => removeWorktree(repo, worktree)}
-                    onWorktreeMenu={worktreeActions.worktreeMenu}
-                    onOpenTask={openLinkedTask}
-                    worktreeSort={appSettings.worktrees.sort}
-                    hiddenWorktrees={appSettings.hiddenWorktrees}
-                    onMoveProject={project.moveProject}
-                    onMoveRepo={project.moveRepo}
-                />}
-                {!sidebarCollapsed && (
-                    <ResizeHandle
-                        panel={sidebarWidth}
-                        edge="right"
-                        label="Resize the worktree list"
-                        maxAvailable={() => window.innerWidth - renderedWidth('.explorer') - MIN_WORKSPACE_WIDTH}
-                    />
-                )}
-                {mainView === 'tasks' && activeProject && (
-                    <main className="workspace">
-                        <TasksView
-                            key={activeProject.id}
-                            projectId={activeProject.id}
+            <div className="app-shell">
+                <div
+                    className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${mainView === 'worktree' && selectedPath ? ' has-right-toggle' : ''}${rightPanelShown ? ' right-panel-shown' : ''}`}
+                    style={{ '--sidebar-width': `${sidebarWidth.width}px`, '--explorer-width': `${explorerWidth.width}px` } as CSSProperties}
+                >
+                    {!sidebarCollapsed && (
+                        <Sidebar
+                            projects={projects}
                             repos={repos}
+                            worktreesByRepo={worktreesByRepo}
+                            sessions={sessions}
+                            selectedPath={selectedPath}
                             links={links}
-                            onStartTask={worktreeActions.startTask}
-                            onOpenSettings={() => openSettings('tasks')}
-                            openTask={taskOpen}
+                            summaries={project.summaries}
+                            tasksActive={mainView === 'tasks'}
+                            settingsActive={mainView === 'settings'}
+                            onOpenSettings={() => openSettings()}
+                            onOpenRepoSettings={repo => openSettings(`repo:${repo}`)}
+                            graphRepo={mainView === 'graph' ? graphRepo : undefined}
+                            onOpenGraph={repo => {
+                                setGraphRepo(repo);
+                                setMainView('graph');
+                            }}
                             repoLabel={repoLabel}
-                            onOpenWorktree={showWorktree}
+                            repoColor={repo => appSettings.repos[repo]?.color}
+                            onOpenTasks={() => setMainView('tasks')}
+                            agentsActive={mainView === 'agents'}
+                            onOpenAgents={() => setMainView('agents')}
+                            reviewActive={mainView === 'review'}
+                            onOpenReview={() => setMainView('review')}
+                            pipelinesActive={mainView === 'pipelines'}
+                            onOpenPipelines={() => setMainView('pipelines')}
+                            notesActive={mainView === 'notes'}
+                            onOpenNotes={() => setMainView('notes')}
+                            dashboardActive={mainView === 'dashboard'}
+                            dashboardCount={dashboardCount}
+                            onOpenDashboard={() => setMainView('dashboard')}
+                            onAddRepo={project.addRepo}
+                            onRemoveRepo={project.removeRepo}
+                            onSwitchProject={project.switchProject}
+                            onCreateProject={(name: string) => project.changeProjects(api.projects.create(name))}
+                            onRenameProject={(id: string, name: string) => project.changeProjects(api.projects.rename(id, name))}
+                            onDeleteProject={(id: string) => project.changeProjects(api.projects.delete(id))}
+                            onSelect={worktree => showWorktree(worktree.path)}
+                            onCreate={worktreeActions.createWorktree}
+                            worktreeNames={appSettings.worktreeNames}
+                            onRemove={(repo, worktree) => removeWorktree(repo, worktree)}
+                            onWorktreeMenu={worktreeActions.worktreeMenu}
+                            onOpenTask={openLinkedTask}
+                            worktreeSort={appSettings.worktrees.sort}
+                            hiddenWorktrees={appSettings.hiddenWorktrees}
+                            onMoveProject={project.moveProject}
+                            onMoveRepo={project.moveRepo}
                         />
-                    </main>
-                )}
-                {mainView === 'review' && (
-                    <main className="workspace">
-                        <ReviewView
-                            githubKey={githubKey}
-                            localRepos={project.allRepos}
-                            onOpenSettings={() => openSettings('review')}
-                            open={reviewOpen}
-                            onNewWorktree={(repo, pr) => void worktreeActions.openPullRequestWorktree(repo, pr)}
-                        />
-                    </main>
-                )}
-                {mainView === 'pipelines' && (
-                    <main className="workspace">
-                        <PipelinesView githubKey={githubKey} onOpenSettings={() => openSettings('review')} />
-                    </main>
-                )}
-                {mainView === 'graph' && graphRepo && (
-                    <main className="workspace">
-                        <GitGraphView
-                            repo={worktreesByRepo[graphRepo]?.find(worktree => worktree.isMain)?.path ?? graphRepo}
-                            repoName={repoLabel(graphRepo)}
-                            worktrees={worktreesByRepo[graphRepo] ?? []}
-                            onNewWorktree={start => setNewWorktree({ repo: graphRepo, start })}
-                            onOpenWorktree={worktree => showWorktree(worktree.path)}
-                        />
-                    </main>
-                )}
-                {mainView === 'notes' && (
-                    <main className="workspace">
-                        <NotesView />
-                    </main>
-                )}
-                {mainView === 'dashboard' && (
-                    <main className="workspace">
-                        <DashboardView
-                            onOpenPullRequest={openPullRequest}
-                            filter={commentFilter}
-                            onCreateRule={(author, text) => {
-                                setRulePrefill({ author, text, nonce: Date.now() });
-                                openSettings('dashboard');
-                            }}
-                            onHideAuthor={author => {
-                                const list = appSettings.dashboardHiddenAuthors ?? [];
-                                void api.settings.update({ dashboardHiddenAuthors: [...list, author] }).then(setAppSettings);
-                            }}
-                            onOpenSettings={() => openSettings('dashboard')}
-                        />
-                    </main>
-                )}
-                {mainView === 'agents' && (
-                    <main className="workspace">
-                        <AgentsView sessions={sessions} projects={projects} links={links} repoLabel={repoLabel} repoColor={repo => appSettings.repos[repo]?.color} onOpen={openAgent} />
-                    </main>
-                )}
-                {mainView === 'settings' && (
-                    <main className="workspace">
-                        <SettingsView
-                            settings={appSettings}
-                            mode={mode}
-                            terminal={settings}
-                            repos={repos}
-                            initialSection={settingsSection}
-                            rulePrefill={rulePrefill}
-                            onSave={async change => setAppSettings(await api.settings.update(change))}
-                            onClose={closeSettings}
-                        />
-                    </main>
-                )}
-                <main className="workspace" style={mainView !== 'worktree' ? { display: 'none' } : undefined}>
-                    <header className="workspace-header">
-                        <TabStrip
-                            items={tabs.stripItems}
-                            activeTab={activeTab}
-                            info={key => tabInfo(key, tabContext)}
-                            onSelect={key => selectedPath && activate(selectedPath, key)}
-                            onMove={tabs.moveStripItem}
-                            onCloseTab={tabs.closeTabView}
-                            onCloseGroup={tabs.closeGroup}
-                            onDragStart={tabs.setDraggingTab}
-                            onDragEnd={() => {
-                                tabs.setDraggingTab(undefined);
-                                tabs.setDropTarget(undefined);
-                            }}
-                        />
-                        {/* The "+" sits right after the last tab. It is outside the tab strip, which scrolls and would cut off the menu. */}
-                        {selected && (
-                            <div className="tab-strip-actions">
-                                <NewTabMenu
-                                    agents={appSettings.agents}
-                                    defaultAgentId={agentForRepo(appSettings, selectedRepo).id}
-                                    onStart={target => (target === 'browser' ? void openBrowser(BLANK_PAGE, selected.path) : startTerminal(selected, target))}
-                                />
-                            </div>
-                        )}
-                        <div className="header-spacer" />
-                        {selectedPath && links[selectedPath] && (
-                            <button className="task-chip" title={`Open the task: ${links[selectedPath].title}`} onClick={() => openLinkedTask(selectedPath)}>
-                                <ListTodo size={13} strokeWidth={1.7} />
-                                <span>{links[selectedPath].key ?? links[selectedPath].title}</span>
-                            </button>
-                        )}
-                        <div className="header-actions">
-                            {selected && selectedRepo && (
-                                <ScriptsMenu
-                                    repoName={repoLabel(selectedRepo)}
-                                    scripts={appSettings.repos[selectedRepo]?.scripts ?? []}
-                                    onRun={script => void agents.runScript(selectedRepo, selected, script)}
-                                    onSave={scripts => worktreeActions.saveScripts(selectedRepo, scripts)}
-                                />
-                            )}
-                        </div>
-                    </header>
-
-                    {error && (
-                        <ErrorBanner title="Click to close" onClose={() => setError(undefined)}>{error}</ErrorBanner>
                     )}
-
-                    <section className={`terminal-area${tabs.draggingTab ? ' dragging-tab' : ''}`}>
-                        {layout ? (
-                            <PaneTree
-                                layout={layout}
-                                node={layout.root}
-                                renderTab={renderTab}
-                                tabTitle={key => tabInfo(key, tabContext).title}
-                                draggingTab={tabs.draggingTab}
-                                dropTarget={tabs.dropTarget}
-                                setDropTarget={tabs.setDropTarget}
-                                onFocusPane={tabs.focusPane}
-                                onResize={(splitId, ratio) => activeTab && tabs.commitGroup(activeTab, resizeSplit(layout, splitId, ratio))}
-                                onMoveToTab={tabs.movePaneToTab}
-                                onClosePane={tabs.closePaneView}
-                                onDrop={(dragged, leafId, side) => {
-                                    tabs.dropTab(dragged, leafId, side);
+                    {!sidebarCollapsed && (
+                        <ResizeHandle
+                            panel={sidebarWidth}
+                            edge="right"
+                            label="Resize the worktree list"
+                            maxAvailable={() => window.innerWidth - renderedWidth('.explorer') - MIN_WORKSPACE_WIDTH}
+                        />
+                    )}
+                    {mainView === 'tasks' && activeProject && (
+                        <main className="workspace">
+                            <TasksView
+                                key={activeProject.id}
+                                projectId={activeProject.id}
+                                repos={repos}
+                                links={links}
+                                onStartTask={worktreeActions.startTask}
+                                onOpenSettings={() => openSettings('tasks')}
+                                openTask={taskOpen}
+                                repoLabel={repoLabel}
+                                onOpenWorktree={showWorktree}
+                            />
+                        </main>
+                    )}
+                    {mainView === 'review' && (
+                        <main className="workspace">
+                            <ReviewView
+                                githubKey={githubKey}
+                                localRepos={project.allRepos}
+                                onOpenSettings={() => openSettings('review')}
+                                open={reviewOpen}
+                                onNewWorktree={(repo, pr) => void worktreeActions.openPullRequestWorktree(repo, pr)}
+                            />
+                        </main>
+                    )}
+                    {mainView === 'pipelines' && (
+                        <main className="workspace">
+                            <PipelinesView githubKey={githubKey} onOpenSettings={() => openSettings('review')} />
+                        </main>
+                    )}
+                    {mainView === 'graph' && graphRepo && (
+                        <main className="workspace">
+                            <GitGraphView
+                                repo={worktreesByRepo[graphRepo]?.find(worktree => worktree.isMain)?.path ?? graphRepo}
+                                repoName={repoLabel(graphRepo)}
+                                worktrees={worktreesByRepo[graphRepo] ?? []}
+                                onNewWorktree={start => setNewWorktree({ repo: graphRepo, start })}
+                                onOpenWorktree={worktree => showWorktree(worktree.path)}
+                            />
+                        </main>
+                    )}
+                    {mainView === 'notes' && (
+                        <main className="workspace">
+                            <NotesView />
+                        </main>
+                    )}
+                    {mainView === 'dashboard' && (
+                        <main className="workspace">
+                            <DashboardView
+                                onOpenPullRequest={openPullRequest}
+                                filter={commentFilter}
+                                onCreateRule={(author, text) => {
+                                    setRulePrefill({ author, text, nonce: Date.now() });
+                                    openSettings('dashboard');
+                                }}
+                                onHideAuthor={author => {
+                                    const list = appSettings.dashboardHiddenAuthors ?? [];
+                                    void api.settings.update({ dashboardHiddenAuthors: [...list, author] }).then(setAppSettings);
+                                }}
+                                onOpenSettings={() => openSettings('dashboard')}
+                            />
+                        </main>
+                    )}
+                    {mainView === 'agents' && (
+                        <main className="workspace">
+                            <AgentsView
+                                sessions={sessions}
+                                projects={projects}
+                                links={links}
+                                repoLabel={repoLabel}
+                                repoColor={repo => appSettings.repos[repo]?.color}
+                                onOpen={openAgent}
+                            />
+                        </main>
+                    )}
+                    {mainView === 'settings' && (
+                        <main className="workspace">
+                            <SettingsView
+                                settings={appSettings}
+                                mode={mode}
+                                terminal={settings}
+                                repos={repos}
+                                initialSection={settingsSection}
+                                rulePrefill={rulePrefill}
+                                onSave={async change => setAppSettings(await api.settings.update(change))}
+                                onClose={closeSettings}
+                            />
+                        </main>
+                    )}
+                    <main className="workspace" style={mainView !== 'worktree' ? { display: 'none' } : undefined}>
+                        <header className="workspace-header">
+                            <TabStrip
+                                items={tabs.stripItems}
+                                activeTab={activeTab}
+                                info={key => tabInfo(key, tabContext)}
+                                onSelect={key => selectedPath && activate(selectedPath, key)}
+                                onMove={tabs.moveStripItem}
+                                onCloseTab={tabs.closeTabView}
+                                onCloseGroup={tabs.closeGroup}
+                                onDragStart={tabs.setDraggingTab}
+                                onDragEnd={() => {
                                     tabs.setDraggingTab(undefined);
                                     tabs.setDropTarget(undefined);
                                 }}
                             />
-                        ) : (
-                            <div className="empty-state">
-                                {repos.length === 0 && (
-                                    <>
-                                        <div className="empty-title">{activeProject ? `${activeProject.name} has no repositories` : 'Loading…'}</div>
-                                        {activeProject && <button className="button primary" onClick={project.addRepo}>Add a repository</button>}
-                                    </>
-                                )}
-                                {repos.length > 0 && selected && (
-                                    <>
-                                        <div className="empty-title">{selected.branch ?? selected.path}</div>
-                                        <div className="empty-detail">{selected.path}</div>
-                                        <button className="button primary" onClick={() => startTerminal(selected, 'agent')}>Start {agentForRepo(appSettings, selectedRepo).name}</button>
-                                    </>
+                            {/* The "+" sits right after the last tab. It is outside the tab strip, which scrolls and would cut off the menu. */}
+                            {selected && (
+                                <div className="tab-strip-actions">
+                                    <NewTabMenu
+                                        agents={appSettings.agents}
+                                        defaultAgentId={agentForRepo(appSettings, selectedRepo).id}
+                                        onStart={target =>
+                                            target === 'browser' ? void openBrowser(BLANK_PAGE, selected.path) : startTerminal(selected, target)
+                                        }
+                                    />
+                                </div>
+                            )}
+                            <div className="header-spacer" />
+                            {selectedPath && links[selectedPath] && (
+                                <button
+                                    className="task-chip"
+                                    title={`Open the task: ${links[selectedPath].title}`}
+                                    onClick={() => openLinkedTask(selectedPath)}
+                                >
+                                    <ListTodo size={13} strokeWidth={1.7} />
+                                    <span>{links[selectedPath].key ?? links[selectedPath].title}</span>
+                                </button>
+                            )}
+                            <div className="header-actions">
+                                {selected && selectedRepo && (
+                                    <ScriptsMenu
+                                        repoName={repoLabel(selectedRepo)}
+                                        scripts={appSettings.repos[selectedRepo]?.scripts ?? []}
+                                        onRun={script => void agents.runScript(selectedRepo, selected, script)}
+                                        onSave={scripts => worktreeActions.saveScripts(selectedRepo, scripts)}
+                                    />
                                 )}
                             </div>
+                        </header>
+
+                        {error && (
+                            <ErrorBanner title="Click to close" onClose={() => setError(undefined)}>
+                                {error}
+                            </ErrorBanner>
                         )}
-                    </section>
-                </main>
-                {rightPanelShown && selectedPath && (
-                    <ResizeHandle
-                        panel={explorerWidth}
-                        edge="left"
-                        label="Resize the side panel"
-                        maxAvailable={() => window.innerWidth - renderedWidth('.sidebar') - MIN_WORKSPACE_WIDTH}
-                    />
-                )}
-                {rightPanelShown && selectedPath && (
-                    <RightPanel
-                        root={selectedPath}
-                        activeFile={tabs.activeFile}
-                        github={github}
-                        onOpenFile={(path, line) => openFile(path, line)}
-                        onOpenDiff={openDiff}
-                        onOpenLog={openLog}
-                        onSendToAgent={sendToAgent}
-                        onSendLogToAgent={agents.sendLogToAgent}
-                        onSendChecksToAgent={agents.sendChecksToAgent}
-                        onShowTerminal={id => activate(selectedPath, `t:${id}`)}
-                        onOpenChange={openChange}
-                        onOpenAllChanges={openAllChanges}
-                    />
-                )}
-                {newWorktree && (
-                    <NewWorktreeDialog
-                        // A new key for each repository and start point, so that the dialog starts with empty fields.
-                        key={`${newWorktree.repo}\n${JSON.stringify(newWorktree.start ?? null)}`}
-                        repoName={repoLabel(newWorktree.repo)}
-                        repoPath={newWorktree.repo}
-                        {...(!newWorktree.start
-                            ? {}
-                            : 'remote' in newWorktree.start
-                                ? { initialRemote: newWorktree.start.remote }
-                                : { initialBase: { ref: newWorktree.start.commit, label: newWorktree.start.label } })}
-                        onClose={() => setNewWorktree(undefined)}
-                        onCreate={async request => {
-                            await worktreeActions.createWorktree(newWorktree.repo, request);
-                            setNewWorktree(undefined);
-                        }}
-                    />
-                )}
-            </div>
-            {/* The two panel buttons have fixed places in the title bar, so they never move when they are clicked: the
+
+                        <section className={`terminal-area${tabs.draggingTab ? ' dragging-tab' : ''}`}>
+                            {layout ? (
+                                <PaneTree
+                                    layout={layout}
+                                    node={layout.root}
+                                    renderTab={renderTab}
+                                    tabTitle={key => tabInfo(key, tabContext).title}
+                                    draggingTab={tabs.draggingTab}
+                                    dropTarget={tabs.dropTarget}
+                                    setDropTarget={tabs.setDropTarget}
+                                    onFocusPane={tabs.focusPane}
+                                    onResize={(splitId, ratio) => activeTab && tabs.commitGroup(activeTab, resizeSplit(layout, splitId, ratio))}
+                                    onMoveToTab={tabs.movePaneToTab}
+                                    onClosePane={tabs.closePaneView}
+                                    onDrop={(dragged, leafId, side) => {
+                                        tabs.dropTab(dragged, leafId, side);
+                                        tabs.setDraggingTab(undefined);
+                                        tabs.setDropTarget(undefined);
+                                    }}
+                                />
+                            ) : (
+                                <div className="empty-state">
+                                    {repos.length === 0 && (
+                                        <>
+                                            <div className="empty-title">{activeProject ? `${activeProject.name} has no repositories` : 'Loading…'}</div>
+                                            {activeProject && (
+                                                <button className="button primary" onClick={project.addRepo}>
+                                                    Add a repository
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+                                    {repos.length > 0 && selected && (
+                                        <>
+                                            <div className="empty-title">{selected.branch ?? selected.path}</div>
+                                            <div className="empty-detail">{selected.path}</div>
+                                            <button className="button primary" onClick={() => startTerminal(selected, 'agent')}>
+                                                Start {agentForRepo(appSettings, selectedRepo).name}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </section>
+                    </main>
+                    {rightPanelShown && selectedPath && (
+                        <ResizeHandle
+                            panel={explorerWidth}
+                            edge="left"
+                            label="Resize the side panel"
+                            maxAvailable={() => window.innerWidth - renderedWidth('.sidebar') - MIN_WORKSPACE_WIDTH}
+                        />
+                    )}
+                    {rightPanelShown && selectedPath && (
+                        <RightPanel
+                            root={selectedPath}
+                            activeFile={tabs.activeFile}
+                            github={github}
+                            onOpenFile={(path, line) => openFile(path, line)}
+                            onOpenDiff={openDiff}
+                            onOpenLog={openLog}
+                            onSendToAgent={sendToAgent}
+                            onSendLogToAgent={agents.sendLogToAgent}
+                            onSendChecksToAgent={agents.sendChecksToAgent}
+                            onShowTerminal={id => activate(selectedPath, `t:${id}`)}
+                            onOpenChange={openChange}
+                            onOpenAllChanges={openAllChanges}
+                        />
+                    )}
+                    {newWorktree && (
+                        <NewWorktreeDialog
+                            // A new key for each repository and start point, so that the dialog starts with empty fields.
+                            key={`${newWorktree.repo}\n${JSON.stringify(newWorktree.start ?? null)}`}
+                            repoName={repoLabel(newWorktree.repo)}
+                            repoPath={newWorktree.repo}
+                            {...(!newWorktree.start
+                                ? {}
+                                : 'remote' in newWorktree.start
+                                  ? { initialRemote: newWorktree.start.remote }
+                                  : { initialBase: { ref: newWorktree.start.commit, label: newWorktree.start.label } })}
+                            onClose={() => setNewWorktree(undefined)}
+                            onCreate={async request => {
+                                await worktreeActions.createWorktree(newWorktree.repo, request);
+                                setNewWorktree(undefined);
+                            }}
+                        />
+                    )}
+                </div>
+                {/* The two panel buttons have fixed places in the title bar, so they never move when they are clicked: the
                 left one after the macOS window buttons, the right one in the top-right corner. They come after the
                 top bars in the page: Electron applies the window drag areas in page order, so a later "no-drag" area
                 is needed over the drag area of a top bar, or the click moves the window. */}
-            <div className="titlebar-controls left">
-                <SidebarToggle />
-            </div>
-            {mainView === 'worktree' && selectedPath && (
-                <div className="titlebar-controls right">
-                    <button
-                        className="icon-button panel-toggle"
-                        title={explorerOpen ? 'Hide the right panel (⌘E)' : 'Show the right panel (⌘E)'}
-                        aria-pressed={explorerOpen}
-                        onClick={toggleExplorer}
-                    >
-                        <PanelRight size={16} strokeWidth={1.5} />
-                    </button>
+                <div className="titlebar-controls left">
+                    <SidebarToggle />
                 </div>
-            )}
-            <StatusBar />
-        </div>
+                {mainView === 'worktree' && selectedPath && (
+                    <div className="titlebar-controls right">
+                        <button
+                            className="icon-button panel-toggle"
+                            title={explorerOpen ? 'Hide the right panel (⌘E)' : 'Show the right panel (⌘E)'}
+                            aria-pressed={explorerOpen}
+                            onClick={toggleExplorer}
+                        >
+                            <PanelRight size={16} strokeWidth={1.5} />
+                        </button>
+                    </div>
+                )}
+                <StatusBar />
+            </div>
         </SidebarContext.Provider>
     );
 }

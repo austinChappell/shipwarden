@@ -6,7 +6,13 @@ const pr = { number: 7, url: 'https://github.com/o/r/pull/7', baseRefName: 'main
 
 function thread(parts: Partial<ReviewThread>): ReviewThread {
     return {
-        id: 't1', path: 'src/a.ts', line: 12, originalLine: 10, side: 'RIGHT', isResolved: false, isOutdated: false,
+        id: 't1',
+        path: 'src/a.ts',
+        line: 12,
+        originalLine: 10,
+        side: 'RIGHT',
+        isResolved: false,
+        isOutdated: false,
         comments: [
             { id: 'c1', databaseId: 1, author: { login: 'ann' }, body: 'Rename this.', createdAt: '' },
             { id: 'c2', databaseId: 2, author: null, body: 'Agreed.', createdAt: '' }
@@ -33,7 +39,7 @@ describe('threadPrompt', () => {
     it('contains the path, the line, the pull request and all comments', () => {
         expect(threadPrompt(pr, thread({}))).toBe(
             'A reviewer left this comment on src/a.ts line 12 in pull request #7 (https://github.com/o/r/pull/7):\n\n' +
-            'ann: Rename this.\n\nsomeone: Agreed.\n\nMake the change that the reviewer asks for.'
+                'ann: Rename this.\n\nsomeone: Agreed.\n\nMake the change that the reviewer asks for.'
         );
     });
 
@@ -50,7 +56,7 @@ describe('conflictPrompt', () => {
     it('tells the agent to merge the base branch and resolve the conflicts', () => {
         expect(conflictPrompt(pr)).toBe(
             'Pull request #7 (https://github.com/o/r/pull/7) has merge conflicts with main. ' +
-            'Fetch origin, merge origin/main into fix-login, resolve the conflicts, run the tests, and commit the merge.'
+                'Fetch origin, merge origin/main into fix-login, resolve the conflicts, run the tests, and commit the merge.'
         );
     });
 });

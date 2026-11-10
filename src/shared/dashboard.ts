@@ -133,8 +133,10 @@ export function matchesRule(rule: HiddenCommentRule, author: string | undefined,
     const body = text.trim().toLowerCase();
     const wanted = rule.text.trim().toLowerCase();
     switch (rule.match) {
-        case 'startsWith': return body.startsWith(wanted);
-        case 'contains': return body.includes(wanted);
+        case 'startsWith':
+            return body.startsWith(wanted);
+        case 'contains':
+            return body.includes(wanted);
         case 'regex': {
             const regex = ruleRegex(rule.text);
             return typeof regex !== 'string' && regex.test(text.trim());
@@ -186,11 +188,9 @@ export function newComments<T extends RawComment>(comments: T[], viewer: string,
         }
     }
     const after = Math.max(since.getTime(), lastOwn);
-    return comments.filter(comment =>
-        !comment.isBot
-        && !!comment.author
-        && comment.author.toLowerCase() !== viewerName
-        && Date.parse(comment.createdAt) > after);
+    return comments.filter(
+        comment => !comment.isBot && !!comment.author && comment.author.toLowerCase() !== viewerName && Date.parse(comment.createdAt) > after
+    );
 }
 
 /** The order of the groups of the user's pull requests: the most urgent action first. */

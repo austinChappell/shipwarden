@@ -9,7 +9,16 @@ import { radioGroupKeys } from './keyboard';
 import { askPrompt, lineLabel, sliceLines } from '@shared/ask-agent';
 import { searchPatches, type PatchMatch } from '@shared/pr-search';
 import { isCommentKey } from '@shared/shortcuts';
-import { addLoaded, answerQuestion, changeQuestion as changeQuestionIn, failQuestion, fromSaved, toSaved, type AgentQuestion, type QuestionAction } from '../github/agent-questions';
+import {
+    addLoaded,
+    answerQuestion,
+    changeQuestion as changeQuestionIn,
+    failQuestion,
+    fromSaved,
+    toSaved,
+    type AgentQuestion,
+    type QuestionAction
+} from '../github/agent-questions';
 import { allFilesOpen, currentMatchIndex, isFileOpen, nextMatchIndex, type Composer } from '../github/diff-notes';
 import { openCommentCount } from '../github/review-state';
 import { readStyle, STYLE_KEY, useColorMode, useMetaKey, type DiffStyle } from './diff-style';
@@ -64,9 +73,10 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
     // FileBody is memoized, so it gets one function for the life of the stream.
     const goToRef = useRef(onGoToDefinition);
     goToRef.current = onGoToDefinition;
-    const goTo = useMemo(() => (onGoToDefinition
-        ? (path: string, line: number, column: number) => goToRef.current?.(path, line, column)
-        : undefined), [!!onGoToDefinition]);
+    const goTo = useMemo(
+        () => (onGoToDefinition ? (path: string, line: number, column: number) => goToRef.current?.(path, line, column) : undefined),
+        [!!onGoToDefinition]
+    );
 
     // A different pull request starts with the default open state, and with its saved answers.
     useEffect(() => {
@@ -76,12 +86,15 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
         setAnswersOpen(false);
         if (!repo) return;
         let active = true;
-        window.shipwarden.ask.answers(repo, pr.number).then(saved => {
-            if (!active) return;
-            const loaded = saved.map(fromSaved);
-            // A question that the user asked while the list loaded stays.
-            setQuestions(list => addLoaded(list, loaded));
-        }).catch(err => onError(`The saved answers did not load. ${errorText(err)}`));
+        window.shipwarden.ask
+            .answers(repo, pr.number)
+            .then(saved => {
+                if (!active) return;
+                const loaded = saved.map(fromSaved);
+                // A question that the user asked while the list loaded stays.
+                setQuestions(list => addLoaded(list, loaded));
+            })
+            .catch(err => onError(`The saved answers did not load. ${errorText(err)}`));
         return () => {
             active = false;
         };
@@ -104,7 +117,17 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                 // The prompt has the diff. The agent can read the file itself.
             }
         }
-        const prompt = askPrompt({ pr, repo, path: question.path, side: question.side, startLine: question.startLine, endLine: question.line, code, patch: file?.patch, question: question.question });
+        const prompt = askPrompt({
+            pr,
+            repo,
+            path: question.path,
+            side: question.side,
+            startLine: question.startLine,
+            endLine: question.line,
+            code,
+            patch: file?.patch,
+            question: question.question
+        });
         try {
             const result = await window.shipwarden.ask.run({ id: question.id, repo, headRefOid: pr.headRefOid, prompt });
             const answeredAt = Date.now();
@@ -135,7 +158,13 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
             case 'comment':
                 // The answer stays saved. The card collapses, so the pending comment is easy to see.
                 if (question.answer) {
-                    reviewStore.addPending(target, pr.number, { path: question.path, line: question.line, side: question.side, body: question.answer, fromAgent: true });
+                    reviewStore.addPending(target, pr.number, {
+                        path: question.path,
+                        line: question.line,
+                        side: question.side,
+                        body: question.answer,
+                        fromAgent: true
+                    });
                 }
                 changeQuestion(question.id, { collapsed: true });
                 return;
@@ -221,7 +250,11 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
     const commentCount = (path: string) => openCommentCount(pr.threads, review.pending, path);
 
     if (!files) {
-        return <div className="panel-message"><LoaderCircle size={14} className="spin" /> Loading the changed files…</div>;
+        return (
+            <div className="panel-message">
+                <LoaderCircle size={14} className="spin" /> Loading the changed files…
+            </div>
+        );
     }
     const viewedCount = files.filter(file => file.viewed).length;
     const answered = questions.filter(question => question.status === 'done');
@@ -263,7 +296,9 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                         {fileList.open ? <PanelLeftClose size={15} strokeWidth={1.5} /> : <PanelLeftOpen size={15} strokeWidth={1.5} />}
                     </button>
                 )}
-                <span className="files-stream-count">{viewedCount} of {files.length} viewed</span>
+                <span className="files-stream-count">
+                    {viewedCount} of {files.length} viewed
+                </span>
                 <span className="header-spacer" />
                 {onGoToDefinition && <span className="files-stream-hint">⌘-click a name to go to its definition</span>}
                 {answered.length > 0 && (
@@ -286,11 +321,29 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                         )}
                     </div>
                 )}
-                <button className="link-button" onClick={() => setOpen(allFilesOpen(files, false))}>Collapse all</button>
-                <button className="link-button" onClick={() => setOpen(allFilesOpen(files, true))}>Expand all</button>
+                <button className="link-button" onClick={() => setOpen(allFilesOpen(files, false))}>
+                    Collapse all
+                </button>
+                <button className="link-button" onClick={() => setOpen(allFilesOpen(files, true))}>
+                    Expand all
+                </button>
                 <div className="segmented compact" role="radiogroup" aria-label="Diff layout" onKeyDown={radioGroupKeys}>
-                    <button role="radio" aria-checked={diffStyle === 'unified'} className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
-                    <button role="radio" aria-checked={diffStyle === 'split'} className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
+                    <button
+                        role="radio"
+                        aria-checked={diffStyle === 'unified'}
+                        className={diffStyle === 'unified' ? 'selected' : ''}
+                        onClick={() => changeStyle('unified')}
+                    >
+                        Unified
+                    </button>
+                    <button
+                        role="radio"
+                        aria-checked={diffStyle === 'split'}
+                        className={diffStyle === 'split' ? 'selected' : ''}
+                        onClick={() => changeStyle('split')}
+                    >
+                        Split
+                    </button>
                 </div>
             </div>
             <Virtualizer className="files-stream-scroll" contentClassName="files-stream-content">
@@ -311,7 +364,8 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                                     <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${expanded ? ' open' : ''}`} />
                                     <span className={`file-status status-${file.status}`}>{file.status[0].toUpperCase()}</span>
                                     <span className="stream-file-path" title={file.path}>
-                                        {file.previousPath && file.previousPath !== file.path ? `${file.previousPath} → ` : ''}{file.path}
+                                        {file.previousPath && file.previousPath !== file.path ? `${file.previousPath} → ` : ''}
+                                        {file.path}
                                     </span>
                                 </button>
                                 <CopyButton text={file.path} title="Copy the file path" size={13} className="icon-button stream-file-copy" />
@@ -327,7 +381,12 @@ export function PullRequestFilesStream({ target, pr, files, scrollTo, onRefresh,
                                         <FileCode size={13} strokeWidth={1.6} />
                                     </button>
                                 )}
-                                {count > 0 && <span className="comment-count"><MessageSquare size={12} strokeWidth={1.6} />{count}</span>}
+                                {count > 0 && (
+                                    <span className="comment-count">
+                                        <MessageSquare size={12} strokeWidth={1.6} />
+                                        {count}
+                                    </span>
+                                )}
                                 <span className="additions">+{file.additions}</span>
                                 <span className="deletions">−{file.deletions}</span>
                                 <label className="viewed-toggle" title="Mark the file as viewed, as on GitHub" onClick={event => event.stopPropagation()}>

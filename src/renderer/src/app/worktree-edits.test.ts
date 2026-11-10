@@ -12,7 +12,7 @@ import {
     worktreeMenuItems
 } from './worktree-edits';
 
-const worktree = (fields: Partial<Worktree>): Worktree => ({ path: '/w', head: 'abc1234', isMain: false, ...fields } as Worktree);
+const worktree = (fields: Partial<Worktree>): Worktree => ({ path: '/w', head: 'abc1234', isMain: false, ...fields }) as Worktree;
 
 /** Returns the IDs of the menu items. A separator gives "-", and a submenu gives its label. */
 const ids = (items: ReturnType<typeof worktreeMenuItems>) => items.map(item => ('type' in item ? '-' : 'id' in item ? item.id : item.label));
@@ -44,8 +44,7 @@ describe('withHiddenWorktree', () => {
     const now = 1_000;
 
     it('hides a worktree and removes the snoozes that ended', () => {
-        expect(withHiddenWorktree({ '/old': { until: 500 }, '/later': { until: 2_000 } }, '/w', {}, now))
-            .toEqual({ '/later': { until: 2_000 }, '/w': {} });
+        expect(withHiddenWorktree({ '/old': { until: 500 }, '/later': { until: 2_000 } }, '/w', {}, now)).toEqual({ '/later': { until: 2_000 }, '/w': {} });
     });
 
     it('shows a worktree again', () => {
@@ -115,8 +114,15 @@ describe('worktreeMenuItems', () => {
     });
 
     it('offers to hide or snooze a visible worktree', () => {
-        expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0)))
-            .toEqual(['rename', '-', 'hide', 'Snooze', '-', 'remove', 'removeBranch']);
+        expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0))).toEqual([
+            'rename',
+            '-',
+            'hide',
+            'Snooze',
+            '-',
+            'remove',
+            'removeBranch'
+        ]);
     });
 
     it('offers to show a hidden worktree or to stop its snooze', () => {

@@ -39,7 +39,9 @@ describe('menuTemplate', () => {
 
     it('gives each accelerator to one item only', () => {
         const { template } = recordActions();
-        const accelerators = allItems(template).map(entry => entry.accelerator).filter(Boolean);
+        const accelerators = allItems(template)
+            .map(entry => entry.accelerator)
+            .filter(Boolean);
         expect(new Set(accelerators).size).toBe(accelerators.length);
     });
 

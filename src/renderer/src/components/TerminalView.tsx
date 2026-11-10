@@ -18,7 +18,8 @@ async function stopOutdatedHosts(): Promise<void> {
     const count = sessions.filter(session => session.hostOutdated && !session.exited).length;
     const ok = await confirmDialog({
         title: `Stop ${count} old ${count === 1 ? 'session' : 'sessions'}?`,
-        message: 'These terminals run on a terminal host from an older ShipWarden build. Their processes stop now, also agents and servers. New tabs use the current build.',
+        message:
+            'These terminals run on a terminal host from an older ShipWarden build. Their processes stop now, also agents and servers. New tabs use the current build.',
         confirmLabel: 'Stop sessions',
         danger: true
     });
@@ -39,7 +40,9 @@ function OutdatedHostNotice() {
             <span className="host-notice-text" title={error}>
                 {error ?? 'This tab runs on a terminal host from an older ShipWarden build. Some features do not work in it. New tabs use the current build.'}
             </span>
-            <button className="button" onClick={() => void stopOutdatedHosts().catch(reason => setError(errorText(reason)))}>Stop old sessions…</button>
+            <button className="button" onClick={() => void stopOutdatedHosts().catch(reason => setError(errorText(reason)))}>
+                Stop old sessions…
+            </button>
         </div>
     );
 }

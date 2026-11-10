@@ -10,7 +10,16 @@ import { seenStore } from '../seen-store';
 import { errorText } from '../util';
 import { ComposerZone, PendingZone, ThreadZone } from './ReviewZones';
 
-export { ComposerZone, PendingZone, QuestionZone, ThreadZone, type AgentQuestion, type ComposerMode, type NoteOptions, type QuestionAction } from './ReviewZones';
+export {
+    ComposerZone,
+    PendingZone,
+    QuestionZone,
+    ThreadZone,
+    type AgentQuestion,
+    type ComposerMode,
+    type NoteOptions,
+    type QuestionAction
+} from './ReviewZones';
 
 interface Props {
     target: RepoTarget;
@@ -54,13 +63,17 @@ export function addReviewZone(editor: monaco.editor.ICodeEditor, line: number, c
     // Clicks and keys in a zone must not move the editor cursor.
     domNode.addEventListener('mousedown', event => event.stopPropagation());
     // The overlay is not in the scrollable part of the editor. Send the wheel to the editor, except in a text box that scrolls.
-    domNode.addEventListener('wheel', event => {
-        const box = (event.target as HTMLElement).closest('textarea');
-        if (box && box.scrollHeight > box.clientHeight) return;
-        event.preventDefault();
-        editor.setScrollTop(editor.getScrollTop() + event.deltaY);
-        editor.setScrollLeft(editor.getScrollLeft() + event.deltaX);
-    }, { passive: false });
+    domNode.addEventListener(
+        'wheel',
+        event => {
+            const box = (event.target as HTMLElement).closest('textarea');
+            if (box && box.scrollHeight > box.clientHeight) return;
+            event.preventDefault();
+            editor.setScrollTop(editor.getScrollTop() + event.deltaY);
+            editor.setScrollLeft(editor.getScrollLeft() + event.deltaX);
+        },
+        { passive: false }
+    );
     const zoneRoot = createRoot(domNode);
     zoneRoot.render(content);
 
@@ -130,7 +143,6 @@ export function removeReviewZones(handles: ZoneHandle[]): void {
     queueMicrotask(() => handles.forEach(handle => handle.root.unmount()));
 }
 
-
 /** Shows the change to one file in a pull request, with the review threads under their lines. */
 export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh, onSendToAgent }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -181,7 +193,10 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
             hoverDecorations.set(editor, editor.createDecorationsCollection());
             editor.onMouseDown(event => {
                 const type = event.target.type;
-                if ((type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS || type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) && event.target.position) {
+                if (
+                    (type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS || type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) &&
+                    event.target.position
+                ) {
                     setComposer({ side, line: event.target.position.lineNumber });
                 }
             });
@@ -189,9 +204,16 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                 const type = event.target.type;
                 const line = event.target.position?.lineNumber;
                 const onGutter = type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS || type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN;
-                hoverDecorations.get(editor)!.set(onGutter && line
-                    ? [{ range: new monaco.Range(line, 1, line, 1), options: { glyphMarginClassName: 'comment-glyph', glyphMarginHoverMessage: { value: 'Add a review comment' } } }]
-                    : []);
+                hoverDecorations.get(editor)!.set(
+                    onGutter && line
+                        ? [
+                              {
+                                  range: new monaco.Range(line, 1, line, 1),
+                                  options: { glyphMarginClassName: 'comment-glyph', glyphMarginHoverMessage: { value: 'Add a review comment' } }
+                              }
+                          ]
+                        : []
+                );
             });
             editor.onMouseLeave(() => hoverDecorations.get(editor)!.clear());
             // ⇧⌘M starts a comment from the keyboard. The comment goes on the line of the cursor, or on the last selected line.
@@ -257,7 +279,9 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
             handles.push(addReviewZone(editorFor(side), line, content, { focus }));
 
         for (const thread of threadsWithLine(pr.threads, file.path)) {
-            addZone(thread.side, thread.line, (
+            addZone(
+                thread.side,
+                thread.line,
                 <ThreadZone
                     thread={thread}
                     onReply={async body => {
@@ -270,15 +294,25 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                     }}
                     onSendToAgent={onSendToAgent && (() => onSendToAgent(threadPrompt(pr, thread)))}
                 />
-            ));
+            );
         }
         for (const comment of review.pending) {
             if (comment.path === file.path) {
-                addZone(comment.side, comment.line, <PendingZone comment={comment} onRemove={() => reviewStore.removePending(target, pr.number, comment)} onEdit={body => reviewStore.updatePending(target, pr.number, comment, body)} />);
+                addZone(
+                    comment.side,
+                    comment.line,
+                    <PendingZone
+                        comment={comment}
+                        onRemove={() => reviewStore.removePending(target, pr.number, comment)}
+                        onEdit={body => reviewStore.updatePending(target, pr.number, comment, body)}
+                    />
+                );
             }
         }
         if (composer) {
-            addZone(composer.side, composer.line, (
+            addZone(
+                composer.side,
+                composer.line,
                 <ComposerZone
                     line={composer.line}
                     startLine={composer.startLine}
@@ -287,8 +321,9 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                         reviewStore.addPending(target, pr.number, { path: file.path, line: composer.line, side: composer.side, body });
                         setComposer(undefined);
                     }}
-                />
-            ), true);
+                />,
+                true
+            );
         }
         zonesRef.current = handles;
 
@@ -318,7 +353,9 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onRefresh,
                         <input
                             type="checkbox"
                             checked={!!viewedFile.viewed}
-                            onChange={event => reviewStore.setViewed(target, pr.number, pr.id, file.path, event.target.checked).catch(err => setMessage(errorText(err)))}
+                            onChange={event =>
+                                reviewStore.setViewed(target, pr.number, pr.id, file.path, event.target.checked).catch(err => setMessage(errorText(err)))
+                            }
                         />
                         Viewed
                     </label>

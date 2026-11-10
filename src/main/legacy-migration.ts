@@ -53,8 +53,12 @@ export function migrateLegacyData(options: { appData: string; userData: string; 
     };
 
     const legacyData = legacyDataFolder(options.appData);
-    if (legacyData && legacyData.toLowerCase() !== options.userData.toLowerCase() && !existsSync(join(options.userData, MARKER))
-        && !existsSync(join(options.userData, 'settings.json'))) {
+    if (
+        legacyData &&
+        legacyData.toLowerCase() !== options.userData.toLowerCase() &&
+        !existsSync(join(options.userData, MARKER)) &&
+        !existsSync(join(options.userData, 'settings.json'))
+    ) {
         copy(legacyData, options.userData);
         try {
             writeFileSync(join(options.userData, MARKER), `${new Date().toISOString()}\n`);

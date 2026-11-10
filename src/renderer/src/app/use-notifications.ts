@@ -78,8 +78,11 @@ export function useNotifications(options: Options) {
     // New Dashboard items: one notification for each refresh, without hidden authors and seen comments.
     const dashboardNews = (news: DashboardNews) => {
         const filter = options.commentFilter;
-        const comments = news.prComments.filter(item => !isHiddenComment(item.author, item.text, filter) && !seenStore.has(gitHubSeenKey(item.id))).length
-            + news.taskComments.filter(({ connectionId, comment }) => !isHiddenComment(comment.author, comment.body, filter) && !seenStore.has(taskSeenKey(connectionId, comment.id))).length;
+        const comments =
+            news.prComments.filter(item => !isHiddenComment(item.author, item.text, filter) && !seenStore.has(gitHubSeenKey(item.id))).length +
+            news.taskComments.filter(
+                ({ connectionId, comment }) => !isHiddenComment(comment.author, comment.body, filter) && !seenStore.has(taskSeenKey(connectionId, comment.id))
+            ).length;
         const notice = dashboardNotice({
             reviewRequests: news.reviewRequests.length,
             myPullRequests: news.myPullRequests.length,

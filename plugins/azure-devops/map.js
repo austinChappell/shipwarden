@@ -27,7 +27,9 @@ export const CLOSED_CATEGORIES = ['Completed', 'Removed'];
  * Returns the base URL of the REST API, without a slash at the end, and the organization name.
  */
 export function parseOrganization(value) {
-    const text = String(value ?? '').trim().replace(/\/+$/, '');
+    const text = String(value ?? '')
+        .trim()
+        .replace(/\/+$/, '');
     if (!text) {
         throw new Error('The Azure DevOps connection needs an organization. Add it in Settings > Task managers.');
     }
@@ -115,9 +117,7 @@ export function mergeStates(typeStates) {
             }
         });
     });
-    return [...byName.values()]
-        .sort((a, b) => a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.rank[2] - b.rank[2])
-        .map(({ state }) => toStatus(state));
+    return [...byName.values()].sort((a, b) => a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.rank[2] - b.rank[2]).map(({ state }) => toStatus(state));
 }
 
 function categoryRank(category) {
@@ -140,9 +140,11 @@ export function closedStateNames(typeStates) {
 
 /** Returns the work item types that the project shows. The types in "Microsoft.HiddenCategory" (for example "Code Review Request") are left out. */
 export function visibleTypes(types, categories) {
-    const hidden = new Set((categories ?? [])
-        .filter(category => category.referenceName === 'Microsoft.HiddenCategory')
-        .flatMap(category => (category.workItemTypes ?? []).map(type => type.name.toLowerCase())));
+    const hidden = new Set(
+        (categories ?? [])
+            .filter(category => category.referenceName === 'Microsoft.HiddenCategory')
+            .flatMap(category => (category.workItemTypes ?? []).map(type => type.name.toLowerCase()))
+    );
     return (types ?? []).filter(type => !type.isDisabled && !hidden.has(type.name.toLowerCase())).map(type => type.name);
 }
 
@@ -172,9 +174,11 @@ export function listQuery({ filter = 'assigned', query, closedStates = [], areaP
     }
     const needle = query?.trim().replace(/^(?:AB)?#/i, '');
     if (needle) {
-        conditions.push(/^\d+$/.test(needle)
-            ? `([System.Id] = ${Number(needle)} OR [System.Title] CONTAINS ${wiqlString(needle)})`
-            : `[System.Title] CONTAINS ${wiqlString(needle)}`);
+        conditions.push(
+            /^\d+$/.test(needle)
+                ? `([System.Id] = ${Number(needle)} OR [System.Title] CONTAINS ${wiqlString(needle)})`
+                : `[System.Title] CONTAINS ${wiqlString(needle)}`
+        );
     }
     return `SELECT [System.Id] FROM WorkItems WHERE ${conditions.join(' AND ')} ORDER BY [System.ChangedDate] DESC`;
 }
@@ -210,7 +214,11 @@ function person(identity) {
 
 /** Splits the "System.Tags" field ("tag one; tag two") into labels. */
 export function toLabels(tags) {
-    return String(tags ?? '').split(';').map(tag => tag.trim()).filter(Boolean).map(name => ({ name }));
+    return String(tags ?? '')
+        .split(';')
+        .map(tag => tag.trim())
+        .filter(Boolean)
+        .map(name => ({ name }));
 }
 
 const PRIORITY_NAMES = { 1: 'Critical', 2: 'High', 3: 'Medium', 4: 'Low' };
@@ -277,7 +285,11 @@ export function description(item) {
     const fields = item.fields ?? {};
     const formats = item.multilineFieldsFormat ?? {};
     const parts = [];
-    for (const [field, heading] of [['System.Description', undefined], ['Microsoft.VSTS.TCM.ReproSteps', 'Repro steps'], ['Microsoft.VSTS.Common.AcceptanceCriteria', 'Acceptance criteria']]) {
+    for (const [field, heading] of [
+        ['System.Description', undefined],
+        ['Microsoft.VSTS.TCM.ReproSteps', 'Repro steps'],
+        ['Microsoft.VSTS.Common.AcceptanceCriteria', 'Acceptance criteria']
+    ]) {
         const value = fields[field];
         if (typeof value !== 'string' || !value.trim()) {
             continue;
@@ -303,9 +315,7 @@ export function toComment(comment) {
 
 /** Returns the comments in time order, without deleted comments. */
 export function sortComments(comments) {
-    return (comments ?? [])
-        .filter(comment => !comment.isDeleted)
-        .sort((a, b) => Date.parse(a.createdDate) - Date.parse(b.createdDate));
+    return (comments ?? []).filter(comment => !comment.isDeleted).sort((a, b) => Date.parse(a.createdDate) - Date.parse(b.createdDate));
 }
 
 /**
@@ -364,7 +374,7 @@ export function htmlToMarkdown(html) {
             const href = attribute(match, 'href');
             const label = inner.replace(/<[^>]+>/g, '').trim();
             // A mention ("@Name") has the href "#". The text is enough.
-            return href && href !== '#' && !href.startsWith('#') && label !== href ? `[${label || href}](${href})` : (label || href || '');
+            return href && href !== '#' && !href.startsWith('#') && label !== href ? `[${label || href}](${href})` : label || href || '';
         })
         .replace(/<img\s[^>]*>/gi, tag => {
             const src = attribute(tag, 'src');
@@ -397,7 +407,12 @@ function convertLists(html) {
         const items = [...match[2].matchAll(/<li[^>]*>([\s\S]*?)(?:<\/li>|(?=<li[\s>])|$)/gi)].map(item => item[1]);
         const lines = items.map((item, index) => {
             const marker = ordered ? `${index + 1}.` : '-';
-            const body = item.replace(/<\/?p[^>]*>/gi, ' ').trim().split('\n').map((line, lineIndex) => (lineIndex === 0 ? line : `   ${line}`)).join('\n');
+            const body = item
+                .replace(/<\/?p[^>]*>/gi, ' ')
+                .trim()
+                .split('\n')
+                .map((line, lineIndex) => (lineIndex === 0 ? line : `   ${line}`))
+                .join('\n');
             return `${marker} ${body}`;
         });
         text = `${text.slice(0, match.index)}\n${lines.join('\n')}\n${text.slice(match.index + match[0].length)}`;

@@ -121,14 +121,16 @@ describe('ClickUp mapping', () => {
     });
 
     it('maps the hierarchy to collections with the space and folder as the path', () => {
-        const spaces = [{
-            space: { id: 's1', name: 'Engineering' },
-            lists: [{ id: 1, name: 'Inbox' }],
-            folders: [
-                { id: 'f1', name: 'Sprints', lists: [{ id: 2, name: 'Sprint 12' }] },
-                { id: 'f2', name: 'hidden', hidden: true, lists: [{ id: 3, name: 'Loose' }] }
-            ]
-        }];
+        const spaces = [
+            {
+                space: { id: 's1', name: 'Engineering' },
+                lists: [{ id: 1, name: 'Inbox' }],
+                folders: [
+                    { id: 'f1', name: 'Sprints', lists: [{ id: 2, name: 'Sprint 12' }] },
+                    { id: 'f2', name: 'hidden', hidden: true, lists: [{ id: 3, name: 'Loose' }] }
+                ]
+            }
+        ];
         expect(clickup.toCollections('9', spaces, '2')).toEqual([
             { id: '1', name: 'Inbox', path: 'Engineering', url: 'https://app.clickup.com/9/v/li/1' },
             { id: '2', name: 'Sprint 12', path: 'Engineering / Sprints', url: 'https://app.clickup.com/9/v/li/2', default: true },
@@ -186,7 +188,10 @@ describe('Azure DevOps mapping', () => {
         expect(azure.parseOrganization('https://dev.azure.com/contoso/Web/')).toEqual({ baseUrl: 'https://dev.azure.com/contoso', name: 'contoso' });
         expect(azure.parseOrganization('dev.azure.com/contoso')).toEqual({ baseUrl: 'https://dev.azure.com/contoso', name: 'contoso' });
         expect(azure.parseOrganization('https://contoso.visualstudio.com')).toEqual({ baseUrl: 'https://contoso.visualstudio.com', name: 'contoso' });
-        expect(azure.parseOrganization('https://tfs.example.com/tfs/DefaultCollection')).toEqual({ baseUrl: 'https://tfs.example.com/tfs/DefaultCollection', name: 'DefaultCollection' });
+        expect(azure.parseOrganization('https://tfs.example.com/tfs/DefaultCollection')).toEqual({
+            baseUrl: 'https://tfs.example.com/tfs/DefaultCollection',
+            name: 'DefaultCollection'
+        });
         expect(() => azure.parseOrganization(' ')).toThrow('needs an organization');
         expect(() => azure.parseOrganization('https://dev.azure.com/')).toThrow('no organization name');
     });
@@ -229,13 +234,28 @@ describe('Azure DevOps mapping', () => {
     });
 
     it('maps the state categories', () => {
-        expect(['Proposed', 'InProgress', 'Resolved', 'Completed', 'Removed', 'Other'].map(azure.statusCategory))
-            .toEqual(['todo', 'in_progress', 'in_progress', 'done', 'canceled', 'in_progress']);
+        expect(['Proposed', 'InProgress', 'Resolved', 'Completed', 'Removed', 'Other'].map(azure.statusCategory)).toEqual([
+            'todo',
+            'in_progress',
+            'in_progress',
+            'done',
+            'canceled',
+            'in_progress'
+        ]);
     });
 
     it('merges the states of the work item types in workflow order', () => {
-        const task = [{ name: 'To Do', category: 'Proposed' }, { name: 'Doing', category: 'InProgress' }, { name: 'Done', category: 'Completed' }];
-        const bug = [{ name: 'New', category: 'Proposed' }, { name: 'Done', category: 'Completed' }, { name: 'Removed', category: 'Removed' }, { name: 'Committed', category: 'InProgress' }];
+        const task = [
+            { name: 'To Do', category: 'Proposed' },
+            { name: 'Doing', category: 'InProgress' },
+            { name: 'Done', category: 'Completed' }
+        ];
+        const bug = [
+            { name: 'New', category: 'Proposed' },
+            { name: 'Done', category: 'Completed' },
+            { name: 'Removed', category: 'Removed' },
+            { name: 'Committed', category: 'InProgress' }
+        ];
         expect(azure.mergeStates([task, bug]).map(status => status.name)).toEqual(['To Do', 'New', 'Doing', 'Committed', 'Done', 'Removed']);
         expect(azure.closedStateNames([task, bug])).toEqual(['Done', 'Removed']);
     });
@@ -248,17 +268,26 @@ describe('Azure DevOps mapping', () => {
 
     it('makes WIQL queries with escaped text', () => {
         expect(azure.listQuery({ filter: 'assigned', query: "it's", closedStates: ['Closed'], areaPath: 'Web\\UI', types: ['Bug'] })).toBe(
-            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.WorkItemType] IN ('Bug') AND [System.AssignedTo] = @Me"
-            + " AND [System.State] NOT IN ('Closed') AND [System.AreaPath] UNDER 'Web\\UI' AND [System.Title] CONTAINS 'it''s' ORDER BY [System.ChangedDate] DESC");
+            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.WorkItemType] IN ('Bug') AND [System.AssignedTo] = @Me" +
+                " AND [System.State] NOT IN ('Closed') AND [System.AreaPath] UNDER 'Web\\UI' AND [System.Title] CONTAINS 'it''s' ORDER BY [System.ChangedDate] DESC"
+        );
         expect(azure.listQuery({ filter: 'all', query: 'AB#42', closedStates: ['Closed'] })).toBe(
-            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND ([System.Id] = 42 OR [System.Title] CONTAINS '42') ORDER BY [System.ChangedDate] DESC");
+            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND ([System.Id] = 42 OR [System.Title] CONTAINS '42') ORDER BY [System.ChangedDate] DESC"
+        );
         expect(azure.activityQuery('2026-11-07T00:00:00Z', ['A'])).toBe(
-            "SELECT [System.Id] FROM WorkItems WHERE [System.AssignedTo] = @Me AND [System.ChangedDate] > '2026-11-07T00:00:00.000Z' AND [System.TeamProject] IN ('A') ORDER BY [System.ChangedDate] DESC");
+            "SELECT [System.Id] FROM WorkItems WHERE [System.AssignedTo] = @Me AND [System.ChangedDate] > '2026-11-07T00:00:00.000Z' AND [System.TeamProject] IN ('A') ORDER BY [System.ChangedDate] DESC"
+        );
     });
 
     it('maps HTML and Markdown comments', () => {
-        expect(azure.toComment({ id: 50, text: '<div>See <a href="https://example.com">the log</a>.<br>Thanks</div>', createdBy: { displayName: 'Jamal' }, createdDate: '2026-11-07T00:00:00Z' }))
-            .toEqual({ id: '50', author: { name: 'Jamal' }, body: 'See [the log](https://example.com).\nThanks', createdAt: '2026-11-07T00:00:00Z' });
+        expect(
+            azure.toComment({
+                id: 50,
+                text: '<div>See <a href="https://example.com">the log</a>.<br>Thanks</div>',
+                createdBy: { displayName: 'Jamal' },
+                createdDate: '2026-11-07T00:00:00Z'
+            })
+        ).toEqual({ id: '50', author: { name: 'Jamal' }, body: 'See [the log](https://example.com).\nThanks', createdAt: '2026-11-07T00:00:00Z' });
         expect(azure.toComment({ id: 51, format: 'markdown', text: '**ok**' }).body).toBe('**ok**');
     });
 
@@ -275,10 +304,12 @@ describe('Azure DevOps mapping', () => {
     });
 
     it('converts rich text HTML to Markdown', () => {
-        expect(azure.htmlToMarkdown('<h2>Plan</h2><ul><li>One<ul><li>Two</li></ul></li><li>Three</li></ul><pre><code>a &lt; b\n  c</code></pre>'))
-            .toBe('## Plan\n\n- One\n   - Two\n- Three\n\n```\na < b\n  c\n```');
-        expect(azure.htmlToMarkdown('<p><i>Note</i> <img src="https://x/y.png" alt="shot"> <a href="#" data-vss-mention="version:2.0,1">@Ann</a></p>'))
-            .toBe('*Note* ![shot](https://x/y.png) @Ann');
+        expect(azure.htmlToMarkdown('<h2>Plan</h2><ul><li>One<ul><li>Two</li></ul></li><li>Three</li></ul><pre><code>a &lt; b\n  c</code></pre>')).toBe(
+            '## Plan\n\n- One\n   - Two\n- Three\n\n```\na < b\n  c\n```'
+        );
+        expect(azure.htmlToMarkdown('<p><i>Note</i> <img src="https://x/y.png" alt="shot"> <a href="#" data-vss-mention="version:2.0,1">@Ann</a></p>')).toBe(
+            '*Note* ![shot](https://x/y.png) @Ann'
+        );
         expect(azure.htmlToMarkdown('Plain text')).toBe('Plain text');
     });
 });

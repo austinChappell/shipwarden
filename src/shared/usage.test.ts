@@ -19,11 +19,13 @@ describe('parseClaudeUsage', () => {
     });
 
     it('does not count a model twice and ignores bad values', () => {
-        expect(parseClaudeUsage({
-            seven_day_fable: { utilization: 9 },
-            limits: [{ kind: 'weekly_scoped', percent: 4, scope: { model: { display_name: 'Fable' } } }, null, { kind: 'other' }],
-            five_hour: { utilization: 'x' }
-        })).toEqual([{ kind: 'model', label: 'Fable', usedPercent: 4, resetsAt: undefined }]);
+        expect(
+            parseClaudeUsage({
+                seven_day_fable: { utilization: 9 },
+                limits: [{ kind: 'weekly_scoped', percent: 4, scope: { model: { display_name: 'Fable' } } }, null, { kind: 'other' }],
+                five_hour: { utilization: 'x' }
+            })
+        ).toEqual([{ kind: 'model', label: 'Fable', usedPercent: 4, resetsAt: undefined }]);
         expect(parseClaudeUsage(null)).toEqual([]);
     });
 });
@@ -66,10 +68,12 @@ describe('helpers', () => {
     });
 
     it('finds the window nearest to its limit', () => {
-        expect(highestWindow([
-            { kind: 'session', label: '5h', usedPercent: 7 },
-            { kind: 'weekly', label: 'Weekly', usedPercent: 15 }
-        ])?.label).toBe('Weekly');
+        expect(
+            highestWindow([
+                { kind: 'session', label: '5h', usedPercent: 7 },
+                { kind: 'weekly', label: 'Weekly', usedPercent: 15 }
+            ])?.label
+        ).toBe('Weekly');
         expect(highestWindow([])).toBeUndefined();
     });
 });

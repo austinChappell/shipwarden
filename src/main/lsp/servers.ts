@@ -47,7 +47,7 @@ async function isExecutable(file: string): Promise<boolean> {
 export async function which(command: string): Promise<string | undefined> {
     if (command.includes('/')) {
         const file = command.startsWith('~/') ? path.join(os.homedir(), command.slice(2)) : command;
-        return path.isAbsolute(file) && await isExecutable(file) ? file : undefined;
+        return path.isAbsolute(file) && (await isExecutable(file)) ? file : undefined;
     }
     for (const folder of (process.env.PATH ?? '').split(':').filter(Boolean)) {
         const candidate = path.join(folder, command);
@@ -128,7 +128,7 @@ export async function findLegacyTsserver(root: string): Promise<string | undefin
         return undefined;
     }
     const tsserver = path.join(path.dirname(packageJson), 'lib', 'tsserver.js');
-    return await isFile(tsserver) ? tsserver : undefined;
+    return (await isFile(tsserver)) ? tsserver : undefined;
 }
 
 /**
@@ -208,7 +208,7 @@ function fromPath(...candidates: Candidate[]): (root: string) => Promise<ServerC
     return async () => {
         for (const candidate of candidates) {
             const command = await which(candidate.command);
-            if (command && (!candidate.check || await runsWithoutError(command, candidate.check))) {
+            if (command && (!candidate.check || (await runsWithoutError(command, candidate.check)))) {
                 return { command, args: candidate.args };
             }
         }
@@ -243,10 +243,7 @@ export const SERVER_DEFINITIONS: readonly ServerDefinition[] = [
         id: 'python',
         name: 'basedpyright',
         languages: ['python'],
-        resolve: fromPath(
-            { command: 'basedpyright-langserver', args: ['--stdio'] },
-            { command: 'pyright-langserver', args: ['--stdio'] }
-        ),
+        resolve: fromPath({ command: 'basedpyright-langserver', args: ['--stdio'] }, { command: 'pyright-langserver', args: ['--stdio'] }),
         install: [
             { tool: 'npm', command: 'npm install --global basedpyright' },
             { tool: 'pipx', command: 'pipx install basedpyright' },

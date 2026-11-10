@@ -1,6 +1,14 @@
 import type { RepoRef } from '@shared/github';
 import type { RepoScript, RepoSettings } from '@shared/settings';
-import { isHiddenAt, pruneHiddenWorktrees, SNOOZE_LABELS, type HiddenWorktree, type RemoveWorktreeResult, type SnoozeOption, type Worktree } from '@shared/worktrees';
+import {
+    isHiddenAt,
+    pruneHiddenWorktrees,
+    SNOOZE_LABELS,
+    type HiddenWorktree,
+    type RemoveWorktreeResult,
+    type SnoozeOption,
+    type Worktree
+} from '@shared/worktrees';
 import type { ContextMenuItem } from '../components/ContextMenu';
 
 /** Returns the message of an error, without the prefix that Electron adds to an IPC error. */
@@ -51,7 +59,9 @@ export function sameRepoRef(a: RepoRef | null | undefined, b: RepoRef): boolean 
 /** The text of the dialog that asks the user to agree to the removal of a worktree. */
 export function removeWorktreeDialog(name: string, branch: string | undefined, hasTeardown: boolean): { title: string; message: string; confirmLabel: string } {
     const teardown = hasTeardown ? ' The teardown script of the repository runs first.' : '';
-    const branchText = branch ? `ShipWarden then pulls the newest changes of the branch that the worktree started from, and git deletes the local branch "${branch}". The remote branch stays.` : 'Git keeps the branch.';
+    const branchText = branch
+        ? `ShipWarden then pulls the newest changes of the branch that the worktree started from, and git deletes the local branch "${branch}". The remote branch stays.`
+        : 'Git keeps the branch.';
     return {
         title: `Remove the worktree "${name}"?`,
         message: `${branchText} Uncommitted changes stop the removal. The terminals, editors and running processes of this worktree stop.${teardown}`,
@@ -66,7 +76,13 @@ export function teardownFailure(failure: NonNullable<RemoveWorktreeResult['teard
 }
 
 /** Returns the items of the context menu of a worktree in the sidebar. */
-export function worktreeMenuItems(worktree: Worktree, taskKey: string | undefined, hasTask: boolean, hidden: HiddenWorktree | undefined, now: number): ContextMenuItem[] {
+export function worktreeMenuItems(
+    worktree: Worktree,
+    taskKey: string | undefined,
+    hasTask: boolean,
+    hidden: HiddenWorktree | undefined,
+    now: number
+): ContextMenuItem[] {
     const snoozeOptions = Object.keys(SNOOZE_LABELS) as SnoozeOption[];
     return [
         ...(hasTask ? [{ id: 'task', label: `Open Task${taskKey ? ` ${taskKey}` : ''}` }, { type: 'separator' as const }] : []),
@@ -75,17 +91,22 @@ export function worktreeMenuItems(worktree: Worktree, taskKey: string | undefine
         ...(isHiddenAt(hidden, now)
             ? [{ id: 'show', label: hidden?.until ? 'Stop Snooze' : 'Show in Sidebar' }]
             : [
-                { id: 'hide', label: 'Hide from Sidebar' },
-                { label: 'Snooze', submenu: snoozeOptions.map(option => ({ id: `snooze:${option}`, label: SNOOZE_LABELS[option] })) }
-            ]),
+                  { id: 'hide', label: 'Hide from Sidebar' },
+                  { label: 'Snooze', submenu: snoozeOptions.map(option => ({ id: `snooze:${option}`, label: SNOOZE_LABELS[option] })) }
+              ]),
         { type: 'separator' as const },
         { id: 'remove', label: 'Remove Worktree…', enabled: !worktree.isMain, danger: true },
-        { id: 'removeBranch', label: worktree.branch ? `Remove Worktree and Delete Branch "${worktree.branch}"…` : 'Remove Worktree and Delete Branch…', enabled: !worktree.isMain && !!worktree.branch, danger: true }
+        {
+            id: 'removeBranch',
+            label: worktree.branch ? `Remove Worktree and Delete Branch "${worktree.branch}"…` : 'Remove Worktree and Delete Branch…',
+            enabled: !worktree.isMain && !!worktree.branch,
+            danger: true
+        }
     ];
 }
 
 /** Returns the snooze option of a menu choice such as "snooze:hour". Returns undefined for other choices. */
 export function snoozeChoice(choice: string | undefined): SnoozeOption | undefined {
     const option = choice?.startsWith('snooze:') ? choice.slice('snooze:'.length) : undefined;
-    return option && option in SNOOZE_LABELS ? option as SnoozeOption : undefined;
+    return option && option in SNOOZE_LABELS ? (option as SnoozeOption) : undefined;
 }

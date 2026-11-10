@@ -22,7 +22,8 @@ import {
 
 const repo = { owner: 'acme', name: 'api' };
 
-const RAW_LOG = '﻿2026-11-09T10:00:00.1234567Z ##[group]Run npm test\n2026-11-09T10:00:01Z \x1b[31mFAIL\x1b[0m src/a.test.ts\r\n2026-11-09T10:00:02Z Error: expected 1 to be 2';
+const RAW_LOG =
+    '﻿2026-11-09T10:00:00.1234567Z ##[group]Run npm test\n2026-11-09T10:00:01Z \x1b[31mFAIL\x1b[0m src/a.test.ts\r\n2026-11-09T10:00:02Z Error: expected 1 to be 2';
 
 describe('re-run and cancel', () => {
     it.each([
@@ -89,15 +90,34 @@ describe('saveJobLog', () => {
 
 describe('fetchChecks', () => {
     it('reads the check runs and the commit statuses of the commit and joins them', async () => {
-        const { client, calls } = fakeClient(call => call.kind === 'paginate'
-            ? { check_runs: [{ id: 2, name: 'test', status: 'completed', conclusion: 'failure', started_at: null, completed_at: null, details_url: null, html_url: 'h', app: { slug: 'github-actions' } }] }
-            : { statuses: [{ id: 5, context: 'deploy', state: 'error', target_url: 't', created_at: 'c', updated_at: 'u' }] });
+        const { client, calls } = fakeClient(call =>
+            call.kind === 'paginate'
+                ? {
+                      check_runs: [
+                          {
+                              id: 2,
+                              name: 'test',
+                              status: 'completed',
+                              conclusion: 'failure',
+                              started_at: null,
+                              completed_at: null,
+                              details_url: null,
+                              html_url: 'h',
+                              app: { slug: 'github-actions' }
+                          }
+                      ]
+                  }
+                : { statuses: [{ id: 5, context: 'deploy', state: 'error', target_url: 't', created_at: 'c', updated_at: 'u' }] }
+        );
         const checks = await fetchChecks(client, repo, 'sha1');
         expect(calls.map(call => [call.kind, call.path, call.limit])).toEqual([
             ['paginate', '/repos/acme/api/commits/sha1/check-runs', 500],
             ['rest', '/repos/acme/api/commits/sha1/status', undefined]
         ]);
-        expect(checks.map(check => [check.name, check.conclusion, check.isActions])).toEqual([['deploy', 'error', false], ['test', 'failure', true]]);
+        expect(checks.map(check => [check.name, check.conclusion, check.isActions])).toEqual([
+            ['deploy', 'error', false],
+            ['test', 'failure', true]
+        ]);
     });
 });
 
@@ -153,10 +173,7 @@ describe('fetchWorkflowRuns', () => {
         const { client, calls } = fakeClient(() => ({ workflow_runs: [] }));
         await fetchWorkflowRuns(client, repo);
         await fetchWorkflowRuns(client, repo, 4);
-        expect(calls.map(call => call.path)).toEqual([
-            '/repos/acme/api/actions/runs?per_page=40',
-            '/repos/acme/api/actions/workflows/4/runs?per_page=40'
-        ]);
+        expect(calls.map(call => call.path)).toEqual(['/repos/acme/api/actions/runs?per_page=40', '/repos/acme/api/actions/workflows/4/runs?per_page=40']);
     });
 });
 
@@ -167,6 +184,8 @@ describe('fetchRunJobs', () => {
         }));
         const jobs = await fetchRunJobs(client, repo, 900);
         expect(calls[0].path).toBe('/repos/acme/api/actions/runs/900/jobs?filter=latest');
-        expect(jobs).toEqual([{ id: 8, name: 'build', status: 'completed', conclusion: 'failure', startedAt: null, completedAt: null, url: 'h', runId: 900, isActions: true }]);
+        expect(jobs).toEqual([
+            { id: 8, name: 'build', status: 'completed', conclusion: 'failure', startedAt: null, completedAt: null, url: 'h', runId: 900, isActions: true }
+        ]);
     });
 });

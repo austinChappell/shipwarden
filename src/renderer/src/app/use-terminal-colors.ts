@@ -13,9 +13,10 @@ export function useTerminalColors(
     palette: Parameters<typeof terminalTheme>[0],
     mode: Parameters<typeof terminalTheme>[1]
 ) {
-    const terminalSettings = useMemo(() => (settings && matchTheme
-        ? { ...settings, colors: { ...settings.colors, ...terminalTheme(palette, mode) } }
-        : settings), [settings, matchTheme, palette, mode]);
+    const terminalSettings = useMemo(
+        () => (settings && matchTheme ? { ...settings, colors: { ...settings.colors, ...terminalTheme(palette, mode) } } : settings),
+        [settings, matchTheme, palette, mode]
+    );
     const colorsKey = useMemo(() => JSON.stringify(terminalSettings?.colors ?? {}), [terminalSettings]);
     const shownColorsKey = useRef(colorsKey);
     if (shownColorsKey.current !== colorsKey) {

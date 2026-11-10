@@ -15,7 +15,13 @@ export interface ScriptResult {
  * Runs a shell script in the user's login shell, so the script finds the same commands as a terminal.
  * The script gets the environment of this process and `env`.
  */
-export function runScript(script: string, cwd: string, env: Record<string, string>, timeoutMs = 5 * 60_000, shell = process.env.SHELL || '/bin/zsh'): Promise<ScriptResult> {
+export function runScript(
+    script: string,
+    cwd: string,
+    env: Record<string, string>,
+    timeoutMs = 5 * 60_000,
+    shell = process.env.SHELL || '/bin/zsh'
+): Promise<ScriptResult> {
     return new Promise(resolve => {
         let output = '';
         let timedOut = false;

@@ -71,15 +71,21 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
      * but this callback runs after the function returns.
      */
     const networkReady: Promise<void> = shellReady
-        .then(async () => { await certificates.apply((await settings.get()).network, loginShellCaFile()); })
+        .then(async () => {
+            await certificates.apply((await settings.get()).network, loginShellCaFile());
+        })
         .catch(error => console.warn(`[network] The trusted certificates were not applied: ${error instanceof Error ? error.message : String(error)}`));
     /** The in-app browser. Each browser tab of the page has a WebContentsView in the main window. */
-    const browserViews = new BrowserViews(() => window.get(), () => certificates.extraCertificates(), {
-        onState: state => window.send(IpcChannels.browserStateChanged, state),
-        onOpenTab: (url, openerId) => window.send(IpcChannels.browserOpenTab, url, openerId),
-        onFocus: id => window.send(IpcChannels.browserFocused, id),
-        onInput: (id, input) => onBrowserInput(id, input)
-    });
+    const browserViews = new BrowserViews(
+        () => window.get(),
+        () => certificates.extraCertificates(),
+        {
+            onState: state => window.send(IpcChannels.browserStateChanged, state),
+            onOpenTab: (url, openerId) => window.send(IpcChannels.browserOpenTab, url, openerId),
+            onFocus: id => window.send(IpcChannels.browserFocused, id),
+            onInput: (id, input) => onBrowserInput(id, input)
+        }
+    );
     /**
      * The code review providers (GitHub and Azure DevOps accounts). Each pull request and pipeline call goes to the provider
      * of its target. The clients use the same trusted certificates as the in-app browser (`networkReady`).
@@ -124,10 +130,7 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
     const terminals = new PtyHostClient({
         // Each build has its own host. A host of an older build keeps its sessions, and new sessions use this build.
         socketPath: buildSocketPath(ptyHostSocketFolder(userData), hostBuildId(ptyHostScript)),
-        olderSocketPaths: [
-            ptyHostSocketPath(userData),
-            ...LEGACY_NAMES.map(name => ptyHostSocketPath(join(app.getPath('appData'), name)))
-        ],
+        olderSocketPaths: [ptyHostSocketPath(userData), ...LEGACY_NAMES.map(name => ptyHostSocketPath(join(app.getPath('appData'), name)))],
         hostScript: ptyHostScript,
         logPath: join(userData, 'pty-host.log'),
         events: {
@@ -165,7 +168,7 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
 
     /** Finds the agents that the user starts in a shell tab, for example with `claude` or `codex`. */
     const shellAgents = new ShellAgents({
-        sessions: () => terminals.isConnected() ? terminals.list() : Promise.resolve([]),
+        sessions: () => (terminals.isConnected() ? terminals.list() : Promise.resolve([])),
         hostPids: () => terminals.hostPids(),
         processTable: () => processes.table(),
         onState: (id, update) => {

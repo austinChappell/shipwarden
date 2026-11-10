@@ -64,7 +64,13 @@ function PortChips({ ports }: { ports: ListeningPort[] }) {
     );
 }
 
-function ProcessLine({ process, ports, stopping, onStop, children }: {
+function ProcessLine({
+    process,
+    ports,
+    stopping,
+    onStop,
+    children
+}: {
     process: ProcessInfo;
     ports: ListeningPort[];
     stopping: boolean;
@@ -74,13 +80,25 @@ function ProcessLine({ process, ports, stopping, onStop, children }: {
     return (
         <div className="process-line">
             {children}
-            <span className="process-name" title={process.command}>{process.name}</span>
-            <span className="process-command" title={process.command}>{commandArguments(process.command)}</span>
+            <span className="process-name" title={process.command}>
+                {process.name}
+            </span>
+            <span className="process-command" title={process.command}>
+                {commandArguments(process.command)}
+            </span>
             <PortChips ports={ports} />
-            <span className="process-stats" title={`PID ${process.pid}. CPU ${process.cpu}%. Memory ${formatMemory(process.rssKb)}. Runs for ${formatElapsed(process.elapsed)}.`}>
+            <span
+                className="process-stats"
+                title={`PID ${process.pid}. CPU ${process.cpu}%. Memory ${formatMemory(process.rssKb)}. Runs for ${formatElapsed(process.elapsed)}.`}
+            >
                 {formatElapsed(process.elapsed)}
             </span>
-            <button className="icon-button process-stop" title={`Stop ${process.name} (PID ${process.pid}) and its child processes`} disabled={stopping} onClick={onStop}>
+            <button
+                className="icon-button process-stop"
+                title={`Stop ${process.name} (PID ${process.pid}) and its child processes`}
+                disabled={stopping}
+                onClick={onStop}
+            >
                 {stopping ? <LoaderCircle size={13} className="spin" /> : <CircleStop size={14} strokeWidth={1.7} />}
             </button>
         </div>
@@ -102,11 +120,12 @@ function TreeRow({ tree, stopping, onStop }: { tree: ProcessTree; stopping: Set<
                     {hasChildren && <ChevronRight size={12} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />}
                 </button>
             </ProcessLine>
-            {open && tree.descendants.map(child => (
-                <div key={child.pid} className="process-child">
-                    <ProcessLine process={child} ports={child.ports} stopping={stopping.has(child.pid)} onStop={() => onStop(child.pid)} />
-                </div>
-            ))}
+            {open &&
+                tree.descendants.map(child => (
+                    <div key={child.pid} className="process-child">
+                        <ProcessLine process={child} ports={child.ports} stopping={stopping.has(child.pid)} onStop={() => onStop(child.pid)} />
+                    </div>
+                ))}
         </div>
     );
 }
@@ -156,12 +175,21 @@ export function ProcessesPanel({ worktreePath, onShowTerminal }: Props) {
     };
 
     if (!data) {
-        return <div className="panel-message">{error ?? <><LoaderCircle size={14} className="spin" /> Looking for processes…</>}</div>;
+        return (
+            <div className="panel-message">
+                {error ?? (
+                    <>
+                        <LoaderCircle size={14} className="spin" /> Looking for processes…
+                    </>
+                )}
+            </div>
+        );
     }
 
     const terminals = data.terminals.filter(terminal => terminal.jobs.length > 0);
     const trees = [...terminals.flatMap(terminal => terminal.jobs), ...data.others];
-    const ports = trees.flatMap(tree => tree.ports.map(port => ({ port, tree })))
+    const ports = trees
+        .flatMap(tree => tree.ports.map(port => ({ port, tree })))
         .filter((item, index, list) => list.findIndex(other => other.port.port === item.port.port) === index)
         .sort((a, b) => a.port.port - b.port.port);
 
@@ -171,7 +199,9 @@ export function ProcessesPanel({ worktreePath, onShowTerminal }: Props) {
                 <span className="processes-summary">
                     {trees.length === 0 ? 'No running processes' : `${trees.length} running · ${ports.length} ${ports.length === 1 ? 'port' : 'ports'}`}
                 </span>
-                <button className="icon-button" title="Refresh" onClick={() => void load()}><RefreshCw size={14} strokeWidth={1.6} /></button>
+                <button className="icon-button" title="Refresh" onClick={() => void load()}>
+                    <RefreshCw size={14} strokeWidth={1.6} />
+                </button>
             </div>
             {error && <div className="form-error">{error}</div>}
 
@@ -180,11 +210,17 @@ export function ProcessesPanel({ worktreePath, onShowTerminal }: Props) {
                     <div className="section-title">Ports</div>
                     {ports.map(({ port, tree }) => (
                         <div key={port.port} className="port-row">
-                            <button className="port-link" title={`Open ${portUrl(port)} in the browser (⇧⌘-click: in ShipWarden)`} onClick={event => openLink(portUrl(port), event)}>
+                            <button
+                                className="port-link"
+                                title={`Open ${portUrl(port)} in the browser (⇧⌘-click: in ShipWarden)`}
+                                onClick={event => openLink(portUrl(port), event)}
+                            >
                                 localhost:{port.port}
                                 <ExternalLink size={11} strokeWidth={1.8} />
                             </button>
-                            <span className="process-command" title={tree.root.command}>{tree.root.name}</span>
+                            <span className="process-command" title={tree.root.command}>
+                                {tree.root.name}
+                            </span>
                             <button
                                 className="icon-button process-stop"
                                 title={`Stop ${tree.root.name} (PID ${tree.root.pid}), which has this port`}
@@ -202,25 +238,35 @@ export function ProcessesPanel({ worktreePath, onShowTerminal }: Props) {
                 <section key={terminal.shellPid} className="processes-section">
                     <div className="section-title processes-terminal">
                         {terminal.isAgent ? <Bot size={12} strokeWidth={1.8} /> : <SquareTerminal size={12} strokeWidth={1.8} />}
-                        {terminal.sessionId && onShowTerminal
-                            ? <button className="link-button" title="Show the terminal tab" onClick={() => onShowTerminal(terminal.sessionId!)}>{terminal.title}</button>
-                            : <span>{terminal.title}</span>}
+                        {terminal.sessionId && onShowTerminal ? (
+                            <button className="link-button" title="Show the terminal tab" onClick={() => onShowTerminal(terminal.sessionId!)}>
+                                {terminal.title}
+                            </button>
+                        ) : (
+                            <span>{terminal.title}</span>
+                        )}
                     </div>
-                    {terminal.jobs.map(tree => <TreeRow key={tree.root.pid} tree={tree} stopping={stopping} onStop={pid => void stop(pid)} />)}
+                    {terminal.jobs.map(tree => (
+                        <TreeRow key={tree.root.pid} tree={tree} stopping={stopping} onStop={pid => void stop(pid)} />
+                    ))}
                 </section>
             ))}
 
             {data.others.length > 0 && (
                 <section className="processes-section">
-                    <div className="section-title" title="These processes run in the worktree folder, but a ShipWarden terminal did not start them.">Other processes in this folder</div>
-                    {data.others.map(tree => <TreeRow key={tree.root.pid} tree={tree} stopping={stopping} onStop={pid => void stop(pid)} />)}
+                    <div className="section-title" title="These processes run in the worktree folder, but a ShipWarden terminal did not start them.">
+                        Other processes in this folder
+                    </div>
+                    {data.others.map(tree => (
+                        <TreeRow key={tree.root.pid} tree={tree} stopping={stopping} onStop={pid => void stop(pid)} />
+                    ))}
                 </section>
             )}
 
             {trees.length === 0 && (
                 <p className="panel-note processes-empty">
-                    The processes that you start in the terminals of this worktree show here, with their ports. A closed
-                    terminal tab or a removed worktree stops its processes.
+                    The processes that you start in the terminals of this worktree show here, with their ports. A closed terminal tab or a removed worktree
+                    stops its processes.
                 </p>
             )}
         </div>

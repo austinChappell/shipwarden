@@ -34,7 +34,15 @@ export function useShortcuts(handler: (action: ShortcutAction) => Promise<void>,
     // normally takes these keys first (before-input-event). This is the second way, when it does not.
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
-            const action = shortcutAction({ type: 'keyDown', meta: event.metaKey, shift: event.shiftKey, control: event.ctrlKey, alt: event.altKey, key: event.key, code: event.code });
+            const action = shortcutAction({
+                type: 'keyDown',
+                meta: event.metaKey,
+                shift: event.shiftKey,
+                control: event.ctrlKey,
+                alt: event.altKey,
+                key: event.key,
+                code: event.code
+            });
             if (action) {
                 event.preventDefault();
                 event.stopPropagation();

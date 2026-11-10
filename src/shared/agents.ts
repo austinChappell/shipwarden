@@ -32,7 +32,7 @@ export function worktreeAgentState(states: readonly (AgentState | undefined)[]):
 
 /** The Claude Code hook events that ShipWarden listens to. */
 export const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'Notification', 'Stop', 'SessionEnd'] as const;
-export type HookEvent = typeof HOOK_EVENTS[number];
+export type HookEvent = (typeof HOOK_EVENTS)[number];
 
 /**
  * The Gemini CLI hook events that ShipWarden listens to.
@@ -40,7 +40,7 @@ export type HookEvent = typeof HOOK_EVENTS[number];
  * Gemini CLI uses the same names as Claude Code for SessionStart, Notification and SessionEnd.
  */
 export const GEMINI_HOOK_EVENTS = ['SessionStart', 'BeforeAgent', 'BeforeTool', 'AfterTool', 'Notification', 'AfterAgent', 'SessionEnd'] as const;
-export type GeminiHookEvent = typeof GEMINI_HOOK_EVENTS[number];
+export type GeminiHookEvent = (typeof GEMINI_HOOK_EVENTS)[number];
 
 export interface AgentStateChange {
     state: AgentState;
@@ -180,7 +180,10 @@ export function describeTool(tool: string, input: Record<string, unknown> = {}):
 function toolChange(payload: Record<string, unknown>): AgentStateChange {
     return {
         state: 'working',
-        message: describeTool(String(payload.tool_name ?? 'a tool'), (payload.tool_input && typeof payload.tool_input === 'object' ? payload.tool_input : {}) as Record<string, unknown>)
+        message: describeTool(
+            String(payload.tool_name ?? 'a tool'),
+            (payload.tool_input && typeof payload.tool_input === 'object' ? payload.tool_input : {}) as Record<string, unknown>
+        )
     };
 }
 
@@ -242,12 +245,13 @@ export function agentStateFromHook(event: string, payload: Record<string, unknow
  * variable with a name that starts with GEMINI_CLI_. Thus the Gemini command reads the GEMINI_CLI_SHIPWARDEN_* copies first.
  */
 function hookCommand(event: string, gemini: boolean): string {
-    const value = (name: string): string => gemini
-        ? `\${GEMINI_CLI_SHIPWARDEN_${name}:-\${SHIPWARDEN_${name}:-$YARDMASTER_${name}}}`
-        : `\${SHIPWARDEN_${name}:-$YARDMASTER_${name}}`;
+    const value = (name: string): string =>
+        gemini ? `\${GEMINI_CLI_SHIPWARDEN_${name}:-\${SHIPWARDEN_${name}:-$YARDMASTER_${name}}}` : `\${SHIPWARDEN_${name}:-$YARDMASTER_${name}}`;
     const token = value('HOOK_TOKEN');
-    return `curl -s -m 2 -o /dev/null -X POST -H "X-ShipWarden-Token: ${token}" -H "X-Yardmaster-Token: ${token}" `
-        + `--data-binary @- "${value('HOOK_URL')}/hook/${value('SESSION_ID')}/${event}" || true`;
+    return (
+        `curl -s -m 2 -o /dev/null -X POST -H "X-ShipWarden-Token: ${token}" -H "X-Yardmaster-Token: ${token}" ` +
+        `--data-binary @- "${value('HOOK_URL')}/hook/${value('SESSION_ID')}/${event}" || true`
+    );
 }
 
 /** Returns the hook settings that ShipWarden gives to Claude Code with --settings. */
@@ -271,13 +275,11 @@ export const GEMINI_HOOK_NAME = 'shipwarden-agent-state';
  * of its values and adds ShipWarden's hooks after its hooks.
  */
 export function geminiHookSettings(base: unknown = {}): Record<string, unknown> {
-    const settings: Record<string, unknown> = base && typeof base === 'object' && !Array.isArray(base) ? { ...base as Record<string, unknown> } : {};
-    const baseHooks = settings.hooks && typeof settings.hooks === 'object' && !Array.isArray(settings.hooks)
-        ? settings.hooks as Record<string, unknown>
-        : {};
+    const settings: Record<string, unknown> = base && typeof base === 'object' && !Array.isArray(base) ? { ...(base as Record<string, unknown>) } : {};
+    const baseHooks = settings.hooks && typeof settings.hooks === 'object' && !Array.isArray(settings.hooks) ? (settings.hooks as Record<string, unknown>) : {};
     const hooks: Record<string, unknown> = { ...baseHooks };
     for (const event of GEMINI_HOOK_EVENTS) {
-        const own = Array.isArray(baseHooks[event]) ? baseHooks[event] as unknown[] : [];
+        const own = Array.isArray(baseHooks[event]) ? (baseHooks[event] as unknown[]) : [];
         const isTool = event === 'BeforeTool' || event === 'AfterTool';
         // Gemini CLI uses milliseconds for the timeout.
         const hook = { name: GEMINI_HOOK_NAME, type: 'command', command: hookCommand(event, true), timeout: 5000 };

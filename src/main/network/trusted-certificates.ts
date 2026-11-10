@@ -48,7 +48,10 @@ export class TrustedCertificates {
     /** The extra certificates of the last apply, without the defaults. */
     private extra: string[] = [];
 
-    constructor(private readonly bundleFile: string, private readonly deps: TrustDeps = nodeDeps) {}
+    constructor(
+        private readonly bundleFile: string,
+        private readonly deps: TrustDeps = nodeDeps
+    ) {}
 
     status(): TrustStatus {
         return this.current;
@@ -70,12 +73,13 @@ export class TrustedCertificates {
 
         const filePath = settings.caCertsFile?.trim() || shellFile?.trim();
         if (filePath) {
-            const source = settings.caCertsFile?.trim() ? 'setting' as const : 'shell' as const;
+            const source = settings.caCertsFile?.trim() ? ('setting' as const) : ('shell' as const);
             try {
                 const certs = pemBlocks(await this.deps.readFile(filePath));
-                status.file = certs.length > 0
-                    ? { path: filePath, source, count: certs.length }
-                    : { path: filePath, source, error: 'The file contains no PEM certificates ("-----BEGIN CERTIFICATE-----").' };
+                status.file =
+                    certs.length > 0
+                        ? { path: filePath, source, count: certs.length }
+                        : { path: filePath, source, error: 'The file contains no PEM certificates ("-----BEGIN CERTIFICATE-----").' };
                 extra.push(...certs);
             } catch (error) {
                 status.file = { path: filePath, source, error: `ShipWarden cannot read the file: ${error instanceof Error ? error.message : String(error)}` };

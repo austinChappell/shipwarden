@@ -12,16 +12,19 @@ describe('parseStatus', () => {
     });
 
     it('puts staged, unstaged, untracked and conflicted files in their lists', () => {
-        const status = parseStatus(z(
-            '1 M. N... 100644 100644 100644 aaa bbb src/staged.ts',
-            '1 .M N... 100644 100644 100644 aaa aaa src/changed.ts',
-            '1 MM N... 100644 100644 100644 aaa bbb both.ts',
-            '1 A. N... 000000 100644 100644 000 bbb new file.ts',
-            '1 .D N... 100644 100644 000000 aaa aaa gone.ts',
-            '2 R. N... 100644 100644 100644 aaa aaa R100 renamed.ts', 'old name.ts',
-            'u UU N... 100644 100644 100644 100644 a b c conflict.ts',
-            '? notes/todo.md'
-        ));
+        const status = parseStatus(
+            z(
+                '1 M. N... 100644 100644 100644 aaa bbb src/staged.ts',
+                '1 .M N... 100644 100644 100644 aaa aaa src/changed.ts',
+                '1 MM N... 100644 100644 100644 aaa bbb both.ts',
+                '1 A. N... 000000 100644 100644 000 bbb new file.ts',
+                '1 .D N... 100644 100644 000000 aaa aaa gone.ts',
+                '2 R. N... 100644 100644 100644 aaa aaa R100 renamed.ts',
+                'old name.ts',
+                'u UU N... 100644 100644 100644 100644 a b c conflict.ts',
+                '? notes/todo.md'
+            )
+        );
         expect(status.staged).toEqual([
             { path: 'both.ts', kind: 'modified' },
             { path: 'new file.ts', kind: 'added' },

@@ -20,11 +20,15 @@ describe('isLiveAgent', () => {
 
 describe('noteTargetOptions', () => {
     it('puts the running agents first, then the repository agent, then the other agents', () => {
-        const options = noteTargetOptions([
-            session({ id: 's1', agentState: 'working', agentPrompt: 'fix the login test' }),
-            session({ id: 's2', isAgent: false, title: 'shell', agentProgram: 'codex' }),
-            session({ id: 's3', isAgent: false, title: 'shell' })
-        ], agents, 'codex');
+        const options = noteTargetOptions(
+            [
+                session({ id: 's1', agentState: 'working', agentPrompt: 'fix the login test' }),
+                session({ id: 's2', isAgent: false, title: 'shell', agentProgram: 'codex' }),
+                session({ id: 's3', isAgent: false, title: 'shell' })
+            ],
+            agents,
+            'codex'
+        );
         expect(options.map(option => option.key)).toEqual(['s:s1', 's:s2', 'n:codex', 'n:claude']);
         expect(options[0].label).toBe('Claude Code · Working · fix the login test');
         expect(options[1].label).toBe('Codex');

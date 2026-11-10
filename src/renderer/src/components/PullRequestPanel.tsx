@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Bot, ChevronRight, CircleX, ExternalLink, GitPullRequest, RefreshCw, TriangleAlert } from 'lucide-react';
-import { hostLabel, undecidedCount, type BranchStatus, type CheckRun, type MergeMethod, type PullRequest, type PullRequestChange, type PullRequestFile, type RepoTarget, type ReviewEvent, type ReviewThread } from '@shared/github';
+import {
+    hostLabel,
+    undecidedCount,
+    type BranchStatus,
+    type CheckRun,
+    type MergeMethod,
+    type PullRequest,
+    type PullRequestChange,
+    type PullRequestFile,
+    type RepoTarget,
+    type ReviewEvent,
+    type ReviewThread
+} from '@shared/github';
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { seenStore } from '../seen-store';
@@ -13,7 +25,18 @@ import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { showContextMenu } from './ContextMenu';
 import { conflictPrompt, threadLine } from '../github/agent-prompts';
 import { bannerChecks, failedCheckNames, failedChecksTitle } from '../github/check-summary';
-import { autoMergeConfirm, descriptionChange, draftConfirm, hasConflicts, hasFooter, mergeConfirmTitle, MERGE_LABELS, reviewText, selectMergeMethod, stateConfirm } from '../github/merge-state';
+import {
+    autoMergeConfirm,
+    descriptionChange,
+    draftConfirm,
+    hasConflicts,
+    hasFooter,
+    mergeConfirmTitle,
+    MERGE_LABELS,
+    reviewText,
+    selectMergeMethod,
+    stateConfirm
+} from '../github/merge-state';
 import { conversationOf, reviewConfirmTitle, shownCommentIds } from '../github/review-state';
 import { CreatePullRequest } from './CreatePullRequest';
 import { BranchName, ConflictBadge, PullRequestCommitList, PullRequestDescription, PullRequestFileList, StateBadge } from './PullRequestParts';
@@ -47,7 +70,19 @@ interface Props {
     agentReview?: { running: boolean; run(): void };
 }
 
-export function PullRequestPanel({ target, status, loading, error, onRefresh, onOpenDiff, onSendToAgent, onSendChecksToAgent, variant = 'panel', checks: givenChecks, agentReview }: Props) {
+export function PullRequestPanel({
+    target,
+    status,
+    loading,
+    error,
+    onRefresh,
+    onOpenDiff,
+    onSendToAgent,
+    onSendChecksToAgent,
+    variant = 'panel',
+    checks: givenChecks,
+    agentReview
+}: Props) {
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
     // Without counts from the parent, the panel loads the checks itself, for the CI banner.
@@ -120,17 +155,20 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
     };
 
     const merge = async () => {
-        if (method && await confirmDialog({ title: mergeConfirmTitle(pr, method), confirmLabel: MERGE_LABELS[method] })) {
+        if (method && (await confirmDialog({ title: mergeConfirmTitle(pr, method), confirmLabel: MERGE_LABELS[method] }))) {
             run(() => window.shipwarden.github.merge(target, pr.number, pr.headRefOid, method));
         }
     };
 
     /** The actions that the user seldom needs: convert to draft and close. They are in a menu, away from the merge button. */
     const moreActions = async (button: Element) => {
-        const choice = await showContextMenu([
-            ...(pr.isDraft ? [] : [{ id: 'draft', label: 'Convert to Draft' }, { type: 'separator' as const }]),
-            { id: 'close', label: 'Close Pull Request', danger: true }
-        ], button);
+        const choice = await showContextMenu(
+            [
+                ...(pr.isDraft ? [] : [{ id: 'draft', label: 'Convert to Draft' }, { type: 'separator' as const }]),
+                { id: 'close', label: 'Close Pull Request', danger: true }
+            ],
+            button
+        );
         if (choice === 'draft') await setDraft(true);
         if (choice === 'close') await setState('closed');
     };
@@ -157,10 +195,11 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
         }
     };
 
-    const saveDescription = (title: string, text: string) => run(async () => {
-        await window.shipwarden.github.changePullRequest(target, pr.number, descriptionChange(pr, title, text));
-        setEditing(false);
-    });
+    const saveDescription = (title: string, text: string) =>
+        run(async () => {
+            await window.shipwarden.github.changePullRequest(target, pr.number, descriptionChange(pr, title, text));
+            setEditing(false);
+        });
 
     const openThread = (thread: ReviewThread) => {
         const file = files?.find(item => item.path === thread.path);
@@ -204,8 +243,8 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
             {actionError && <div className="form-error pr-section-error">{actionError}</div>}
             <DescriptionEditor pr={pr} busy={busy} onSave={saveDescription} onCancel={() => setEditing(false)} />
         </section>
-    ) : (pr.body.trim() || overview || pr.viewerCanUpdate) && (
-        <PullRequestDescription pr={pr} overview={overview} onEdit={() => setEditing(true)} />
+    ) : (
+        (pr.body.trim() || overview || pr.viewerCanUpdate) && <PullRequestDescription pr={pr} overview={overview} onEdit={() => setEditing(true)} />
     );
     const metaPart = <PullRequestMeta target={target} pr={pr} onRefresh={onRefresh} />;
     // Without a footer, an error of a change shows here.
@@ -226,40 +265,44 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
     return (
         <div className="pr-panel">
             <div className="pr-scroll">
-                {!overview && <div className="pr-header">
-                    <div className="pr-title-row">
-                        <StateBadge pr={pr} />
-                        <ConflictBadge pr={pr} />
-                        <button className="link-button" title={`Open on ${hostLabel(pr.host)}`} onClick={event => openLink(pr.url, event)}>
-                            #{pr.number} <ExternalLink size={12} strokeWidth={1.6} />
-                        </button>
-                        <button className="icon-button pr-refresh" title="Refresh" onClick={() => onRefresh()}>
-                            <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
-                        </button>
+                {!overview && (
+                    <div className="pr-header">
+                        <div className="pr-title-row">
+                            <StateBadge pr={pr} />
+                            <ConflictBadge pr={pr} />
+                            <button className="link-button" title={`Open on ${hostLabel(pr.host)}`} onClick={event => openLink(pr.url, event)}>
+                                #{pr.number} <ExternalLink size={12} strokeWidth={1.6} />
+                            </button>
+                            <button className="icon-button pr-refresh" title="Refresh" onClick={() => onRefresh()}>
+                                <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
+                            </button>
+                        </div>
+                        <h3 className="pr-title">{pr.title}</h3>
+                        <div className="pr-meta">
+                            {pr.author?.login ?? 'unknown'} {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'}{' '}
+                            into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
+                        </div>
+                        <div className="pr-meta">
+                            <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>
+                            <span className="dot-separator">·</span>
+                            {reviewText(pr)}
+                            <span className="dot-separator">·</span>
+                            {timeAgo(pr.createdAt)}
+                        </div>
                     </div>
-                    <h3 className="pr-title">{pr.title}</h3>
-                    <div className="pr-meta">
-                        {pr.author?.login ?? 'unknown'} {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
-                    </div>
-                    <div className="pr-meta">
-                        <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>
-                        <span className="dot-separator">·</span>{reviewText(pr)}
-                        <span className="dot-separator">·</span>{timeAgo(pr.createdAt)}
-                    </div>
-                </div>}
+                )}
 
                 {hasConflicts(pr) && (
                     <div className="pr-conflict-banner" role="alert">
                         <TriangleAlert size={16} strokeWidth={1.8} />
                         <div className="pr-conflict-text">
                             <strong>This branch has merge conflicts.</strong>
-                            <span>Resolve the conflicts with <code>{pr.baseRefName}</code> before you merge.</span>
+                            <span>
+                                Resolve the conflicts with <code>{pr.baseRefName}</code> before you merge.
+                            </span>
                         </div>
                         {onSendToAgent && (
-                            <button
-                                className="button"
-                                onClick={() => onSendToAgent(conflictPrompt(pr))}
-                            >
+                            <button className="button" onClick={() => onSendToAgent(conflictPrompt(pr))}>
                                 <Bot size={13} strokeWidth={1.6} /> Send to agent
                             </button>
                         )}
@@ -300,30 +343,37 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                             <PullRequestMeta target={target} pr={pr} onRefresh={onRefresh} card />
                         </aside>
                     </div>
-                ) : <>
-                {descriptionPart}
-                {metaPart}
-                {changeError}
+                ) : (
+                    <>
+                        {descriptionPart}
+                        {metaPart}
+                        {changeError}
 
-                {conversation.length > 0 && <PullRequestConversation items={conversation} />}
+                        {conversation.length > 0 && <PullRequestConversation items={conversation} />}
 
-                {!overview && pr.commits.length > 0 && (
-                    <section className="pr-section">
-                        <button className="section-toggle" aria-expanded={commitsOpen} onClick={() => setCommitsOpen(value => !value)}>
-                            <ChevronRight size={13} strokeWidth={1.8} className={`section-chevron${commitsOpen ? ' open' : ''}`} />Commits ({pr.commitCount})
-                        </button>
-                        {commitsOpen && <div className="pr-panel-commits"><PullRequestCommitList pr={pr} /></div>}
-                    </section>
+                        {!overview && pr.commits.length > 0 && (
+                            <section className="pr-section">
+                                <button className="section-toggle" aria-expanded={commitsOpen} onClick={() => setCommitsOpen(value => !value)}>
+                                    <ChevronRight size={13} strokeWidth={1.8} className={`section-chevron${commitsOpen ? ' open' : ''}`} />
+                                    Commits ({pr.commitCount})
+                                </button>
+                                {commitsOpen && (
+                                    <div className="pr-panel-commits">
+                                        <PullRequestCommitList pr={pr} />
+                                    </div>
+                                )}
+                            </section>
+                        )}
+
+                        {!overview && (
+                            <section className="pr-section">
+                                <PullRequestFileList target={target} pr={pr} files={files} onOpen={file => onOpenDiff(pr, file)} onError={setActionError} />
+                            </section>
+                        )}
+
+                        {threadsPart}
+                    </>
                 )}
-
-                {!overview && (
-                    <section className="pr-section">
-                        <PullRequestFileList target={target} pr={pr} files={files} onOpen={file => onOpenDiff(pr, file)} onError={setActionError} />
-                    </section>
-                )}
-
-                {threadsPart}
-                </>}
             </div>
 
             {pr.state === 'OPEN' && !overview && (
@@ -338,7 +388,8 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     {actionError && <div className="form-error">{actionError}</div>}
                     <div className="row-buttons">
                         <button className="button" disabled={busy} onClick={() => setState('open')}>
-                            <GitPullRequest size={14} strokeWidth={1.8} />Reopen pull request
+                            <GitPullRequest size={14} strokeWidth={1.8} />
+                            Reopen pull request
                         </button>
                     </div>
                 </div>

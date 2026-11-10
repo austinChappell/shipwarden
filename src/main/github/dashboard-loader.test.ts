@@ -23,7 +23,12 @@ const pr = (id: string, change: Record<string, unknown> = {}) => ({
 });
 
 const comment = (id: string, login: string, typename = 'User') => ({
-    id, url: `u-${id}`, createdAt: recent(), bodyText: `text ${id}`, bodyHTML: `<p>${id}</p>`, author: { __typename: typename, login }
+    id,
+    url: `u-${id}`,
+    createdAt: recent(),
+    bodyText: `text ${id}`,
+    bodyHTML: `<p>${id}</p>`,
+    author: { __typename: typename, login }
 });
 
 describe('DashboardLoader.dashboardPullRequests', () => {
@@ -38,24 +43,42 @@ describe('DashboardLoader.dashboardPullRequests', () => {
             'user:acme archived:false is:pr is:open draft:false review-requested:@me sort:updated-desc',
             'user:acme archived:false is:pr is:open author:@me sort:updated-desc'
         ]);
-        expect(result.reviewRequests).toEqual([{ repo: { owner: 'acme', name: 'api' }, number: 1, title: 'PR R1', url: 'https://github.com/acme/api/pull/R1', author: 'bo', updatedAt: 'u1', createdAt: 'c1' }]);
+        expect(result.reviewRequests).toEqual([
+            {
+                repo: { owner: 'acme', name: 'api' },
+                number: 1,
+                title: 'PR R1',
+                url: 'https://github.com/acme/api/pull/R1',
+                author: 'bo',
+                updatedAt: 'u1',
+                createdAt: 'c1'
+            }
+        ]);
         expect(result.myPullRequests.map(item => [item.number, item.reasons])).toEqual([[2, ['ci-failing']]]);
     });
 });
 
 describe('DashboardLoader.dashboardComments', () => {
-    const respond = (nodes: () => unknown[]) => (call: FakeCall) => queryHas(call, 'nodes(ids:')
-        ? { nodes: nodes() }
-        : { viewer: { login: 'me' }, search: { nodes: [pr('P1')] } };
+    const respond = (nodes: () => unknown[]) => (call: FakeCall) =>
+        queryHas(call, 'nodes(ids:') ? { nodes: nodes() } : { viewer: { login: 'me' }, search: { nodes: [pr('P1')] } };
 
     it('returns the new comments of other users and skips bots and the user', async () => {
-        const { client } = fakeClient(respond(() => [{
-            id: 'P1',
-            updatedAt: 'u1',
-            comments: { nodes: [comment('c1', 'bo'), comment('c2', 'dependabot[bot]'), comment('c3', 'ci', 'Bot')] },
-            reviews: { nodes: [{ ...comment('r1', 'bo'), bodyText: ' ', state: 'COMMENTED' }, { ...comment('r2', 'cy'), bodyText: '', state: 'APPROVED' }] },
-            reviewThreads: { nodes: [{ path: 'src/a.ts', comments: { nodes: [comment('t1', 'bo')] } }] }
-        }]));
+        const { client } = fakeClient(
+            respond(() => [
+                {
+                    id: 'P1',
+                    updatedAt: 'u1',
+                    comments: { nodes: [comment('c1', 'bo'), comment('c2', 'dependabot[bot]'), comment('c3', 'ci', 'Bot')] },
+                    reviews: {
+                        nodes: [
+                            { ...comment('r1', 'bo'), bodyText: ' ', state: 'COMMENTED' },
+                            { ...comment('r2', 'cy'), bodyText: '', state: 'APPROVED' }
+                        ]
+                    },
+                    reviewThreads: { nodes: [{ path: 'src/a.ts', comments: { nodes: [comment('t1', 'bo')] } }] }
+                }
+            ])
+        );
         const result = await new DashboardLoader(client).dashboardComments(undefined);
         expect(result.map(item => [item.id, item.path, item.reviewState]).sort()).toEqual([
             ['c1', undefined, undefined],
@@ -66,10 +89,12 @@ describe('DashboardLoader.dashboardComments', () => {
 
     it('loads the comments of a pull request again only after it changes', async () => {
         let loads = 0;
-        const { client, calls } = fakeClient(respond(() => {
-            loads++;
-            return [{ id: 'P1', updatedAt: 'u1', comments: { nodes: [] }, reviews: { nodes: [] }, reviewThreads: { nodes: [] } }];
-        }));
+        const { client, calls } = fakeClient(
+            respond(() => {
+                loads++;
+                return [{ id: 'P1', updatedAt: 'u1', comments: { nodes: [] }, reviews: { nodes: [] }, reviewThreads: { nodes: [] } }];
+            })
+        );
         const loader = new DashboardLoader(client);
         await loader.dashboardComments(undefined);
         await loader.dashboardComments(undefined);
@@ -79,9 +104,7 @@ describe('DashboardLoader.dashboardComments', () => {
 
     it('asks for the comments of at most 10 pull requests in one request', async () => {
         const many = Array.from({ length: 23 }, (_, index) => pr(`P${index + 1}`));
-        const { client, calls } = fakeClient(call => queryHas(call, 'nodes(ids:')
-            ? { nodes: [] }
-            : { viewer: { login: 'me' }, search: { nodes: many } });
+        const { client, calls } = fakeClient(call => (queryHas(call, 'nodes(ids:') ? { nodes: [] } : { viewer: { login: 'me' }, search: { nodes: many } }));
         await new DashboardLoader(client).dashboardComments(undefined);
         const sizes = calls.filter(call => queryHas(call, 'nodes(ids:')).map(call => (call.body as { ids: string[] }).ids.length);
         expect(sizes.sort((a, b) => a - b)).toEqual([3, 10, 10]);

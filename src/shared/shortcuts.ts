@@ -88,7 +88,15 @@ function digitOf(input: { key: string; code?: string }): string | undefined {
  * (select the next tab), ⌥⌘1 to ⌥⌘6 (open a view) and ⇧⌘0 (move the focus to the workspace).
  * Other keys return undefined.
  */
-export function shortcutAction(input: { type: string; meta: boolean; shift: boolean; control: boolean; alt: boolean; key: string; code?: string }): ShortcutAction | undefined {
+export function shortcutAction(input: {
+    type: string;
+    meta: boolean;
+    shift: boolean;
+    control: boolean;
+    alt: boolean;
+    key: string;
+    code?: string;
+}): ShortcutAction | undefined {
     if (input.type !== 'keyDown') return undefined;
     // ⌃Tab and ⌃⇧Tab have no ⌘. They are the only workspace keys with Control.
     if (input.control && !input.meta && !input.alt && (input.code === 'Tab' || input.key === 'Tab')) {
@@ -137,7 +145,15 @@ export type AppKeyAction = 'quit' | 'quitAndStop' | 'settings' | 'hide';
  * ⌘, (settings) and ⌘H (hide). A focused terminal takes all keys, so the menu does not get these keys. The main
  * process reads them before the page. Other keys return undefined.
  */
-export function appKeyAction(input: { type: string; meta: boolean; shift: boolean; control: boolean; alt: boolean; key: string; code?: string }): AppKeyAction | undefined {
+export function appKeyAction(input: {
+    type: string;
+    meta: boolean;
+    shift: boolean;
+    control: boolean;
+    alt: boolean;
+    key: string;
+    code?: string;
+}): AppKeyAction | undefined {
     if (input.type !== 'keyDown' || !input.meta || input.control) return undefined;
     const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
     if (key === 'q') {

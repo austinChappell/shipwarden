@@ -78,7 +78,10 @@ export function fetchMaxAge(force: unknown): number {
  * Returns the command of a new terminal and whether the agent reports its state.
  * An agent command gets the hook settings. Only an agent that got the hooks reports its state.
  */
-export function terminalCommand(options: Pick<CreateTerminalOptions, 'command' | 'isAgent'>, paths: HookSettingsPaths): { command?: string; reportsAgentState: boolean } {
+export function terminalCommand(
+    options: Pick<CreateTerminalOptions, 'command' | 'isAgent'>,
+    paths: HookSettingsPaths
+): { command?: string; reportsAgentState: boolean } {
     const command = options.isAgent && options.command ? withAgentHooks(options.command, paths) : options.command;
     return { command, reportsAgentState: !!options.isAgent && command !== options.command };
 }

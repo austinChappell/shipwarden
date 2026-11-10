@@ -81,7 +81,7 @@ interface Options {
 /** The actions that start terminals and agents, and that send prompts to agents. */
 export function useAgentActions({ sessions, setSessions, appSettings, selectedPath, selected, repoOfWorktree, activate, setError }: Options) {
     const showSession = (session: TerminalSession) => {
-        setSessions(list => list.some(item => item.id === session.id) ? list : [...list, session]);
+        setSessions(list => (list.some(item => item.id === session.id) ? list : [...list, session]));
         if (session.worktreePath) {
             activate(session.worktreePath, `t:${session.id}`);
         }
@@ -160,7 +160,7 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
             setError('ShipWarden did not send the note, because the agent is not in Settings › Agents.');
             return;
         }
-        const session = running ?? await startTerminal(worktree, definition ?? 'agent');
+        const session = running ?? (await startTerminal(worktree, definition ?? 'agent'));
         if (!session) {
             return;
         }
@@ -168,7 +168,11 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
         if (!running) {
             await waitForQuietOutput(session.id);
         }
-        if (!await waitForNoDialog(session.id, () => setError('The agent asks a question. Answer it in the agent tab. ShipWarden sends the prompt after that.'))) {
+        if (
+            !(await waitForNoDialog(session.id, () =>
+                setError('The agent asks a question. Answer it in the agent tab. ShipWarden sends the prompt after that.')
+            ))
+        ) {
             setError('ShipWarden did not send the prompt, because the agent still shows a question. Answer it and try again.');
             return;
         }
@@ -199,8 +203,9 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
             return;
         }
         try {
-            const lines = await Promise.all(checks.map(async check =>
-                checkLine(check, check.isActions ? await api.github.saveJobLog(root, check.id) : undefined)));
+            const lines = await Promise.all(
+                checks.map(async check => checkLine(check, check.isActions ? await api.github.saveJobLog(root, check.id) : undefined))
+            );
             await sendToAgent(checksPrompt(lines));
         } catch (err) {
             setError(errorText(err));
@@ -223,7 +228,12 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
 
     /** Runs a saved script of a repository in a new terminal tab of a worktree, with the variables of the setup script. */
     const runScript = async (repoPath: string, worktree: Worktree, script: RepoScript) => {
-        const command = setupCommand(script.command, { rootPath: repoPath, worktreePath: worktree.path, branch: worktree.branch, repoName: repoFolderName(repoPath) });
+        const command = setupCommand(script.command, {
+            rootPath: repoPath,
+            worktreePath: worktree.path,
+            branch: worktree.branch,
+            repoName: repoFolderName(repoPath)
+        });
         await startCommand(worktree.path, script.name, command, `The script "${script.name}" did not start`);
     };
 

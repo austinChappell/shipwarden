@@ -3,7 +3,14 @@ import type { PaneLayout } from '@shared/panes';
 import { parseLayout, pruneLayout } from './layout-store';
 
 const split: PaneLayout = {
-    root: { kind: 'split', id: 's1', direction: 'row', ratio: 0.5, first: { kind: 'leaf', id: 'p1', tab: 'f:src/a.ts' }, second: { kind: 'leaf', id: 'p2', tab: 't:x' } },
+    root: {
+        kind: 'split',
+        id: 's1',
+        direction: 'row',
+        ratio: 0.5,
+        first: { kind: 'leaf', id: 'p1', tab: 'f:src/a.ts' },
+        second: { kind: 'leaf', id: 'p2', tab: 't:x' }
+    },
     focused: 'p1'
 };
 

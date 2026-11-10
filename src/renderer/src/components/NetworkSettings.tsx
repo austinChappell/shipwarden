@@ -70,23 +70,28 @@ export function NetworkSettings({ settings, onSave }: Props) {
         <>
             <SettingsGroup
                 title="Trusted certificates"
-                description={(
+                description={
                     <>
-                        Use these settings on a network that inspects TLS traffic, for example a company VPN. ShipWarden trusts these certificates
-                        in addition to the default ones for GitHub, the task managers and the usage bar. A change restarts the task managers.
+                        Use these settings on a network that inspects TLS traffic, for example a company VPN. ShipWarden trusts these certificates in addition
+                        to the default ones for GitHub, the task managers and the usage bar. A change restarts the task managers.
                     </>
-                )}
+                }
                 card
             >
                 <SettingsRow
                     label="CA certificates file"
-                    description={(
+                    description={
                         <>
                             A PEM file with the CA certificates of your network.
-                            {!network.caCertsFile && status?.shellFile && <> Empty: ShipWarden uses NODE_EXTRA_CA_CERTS from your shell, <code>{status.shellFile}</code>.</>}
+                            {!network.caCertsFile && status?.shellFile && (
+                                <>
+                                    {' '}
+                                    Empty: ShipWarden uses NODE_EXTRA_CA_CERTS from your shell, <code>{status.shellFile}</code>.
+                                </>
+                            )}
                             {!network.caCertsFile && !status?.shellFile && <> Empty: only the default certificates.</>}
                         </>
-                    )}
+                    }
                 >
                     <div className="ca-file-row">
                         <input
@@ -98,39 +103,47 @@ export function NetworkSettings({ settings, onSave }: Props) {
                             onBlur={commitFile}
                             onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                         />
-                        <button className="button" onClick={() => void choose()}>Choose…</button>
+                        <button className="button" onClick={() => void choose()}>
+                            Choose…
+                        </button>
                     </div>
                     {fileStatus?.error && <div className="form-error">{fileStatus.error}</div>}
                     {fileStatus?.count !== undefined && (
                         <div className="panel-note">
-                            <CircleCheck size={12} strokeWidth={2} className="ok-icon" /> {fileStatus.count} certificate{fileStatus.count === 1 ? '' : 's'} from
-                            {' '}{fileStatus.source === 'shell' ? 'NODE_EXTRA_CA_CERTS' : 'the file'}.
+                            <CircleCheck size={12} strokeWidth={2} className="ok-icon" /> {fileStatus.count} certificate{fileStatus.count === 1 ? '' : 's'} from{' '}
+                            {fileStatus.source === 'shell' ? 'NODE_EXTRA_CA_CERTS' : 'the file'}.
                         </div>
                     )}
                 </SettingsRow>
                 <SettingsRow
                     label="Trust the macOS keychain"
                     description="Adds the certificates of the system keychain. IT departments often install the company CA there."
-                    control={(
+                    control={
                         <label className="switch" title={network.useSystemCertificates ? 'On' : 'Off'}>
-                            <input type="checkbox" checked={network.useSystemCertificates} onChange={event => void save({ useSystemCertificates: event.target.checked })} />
+                            <input
+                                type="checkbox"
+                                checked={network.useSystemCertificates}
+                                onChange={event => void save({ useSystemCertificates: event.target.checked })}
+                            />
                             <span />
                         </label>
-                    )}
+                    }
                 >
                     {status?.system?.error && <div className="form-error">ShipWarden cannot read the keychain: {status.system.error}</div>}
                     {status?.system?.count !== undefined && (
-                        <div className="panel-note"><CircleCheck size={12} strokeWidth={2} className="ok-icon" /> {status.system.count} certificates from the keychain.</div>
+                        <div className="panel-note">
+                            <CircleCheck size={12} strokeWidth={2} className="ok-icon" /> {status.system.count} certificates from the keychain.
+                        </div>
                     )}
                 </SettingsRow>
                 <SettingsRow
                     label="Test the connection"
                     description="Connects to GitHub and ClickUp with these certificates."
-                    control={(
+                    control={
                         <button className="button" disabled={testing} onClick={() => void test()}>
                             {testing && <LoaderCircle size={13} className="spin" />} Test
                         </button>
-                    )}
+                    }
                 >
                     {results?.map(result => (
                         <div key={result.name} className={`network-test ${result.ok ? 'ok' : 'failed'}`}>

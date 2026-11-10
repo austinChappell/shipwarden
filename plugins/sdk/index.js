@@ -3,7 +3,7 @@
 // The protocol: docs/task-plugin-protocol.md
 
 const HANDLERS = {
-    'initialize': 'initialize',
+    initialize: 'initialize',
     'scopes/list': 'listScopes',
     'collections/list': 'listCollections',
     'tasks/list': 'listTasks',

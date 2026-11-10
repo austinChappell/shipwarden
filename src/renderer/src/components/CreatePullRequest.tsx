@@ -19,7 +19,12 @@ export function CreatePullRequest({ target, status, onCreated }: { target: RepoT
 
     const create = async () => {
         if (typeof target !== 'string' || !title.trim()) return;
-        if (!(await confirmDialog({ title: `Create a ${draft ? 'draft ' : ''}pull request on ${host} for ${status.branch}?`, confirmLabel: 'Create pull request' }))) {
+        if (
+            !(await confirmDialog({
+                title: `Create a ${draft ? 'draft ' : ''}pull request on ${host} for ${status.branch}?`,
+                confirmLabel: 'Create pull request'
+            }))
+        ) {
             return;
         }
         setBusy(true);
@@ -36,7 +41,9 @@ export function CreatePullRequest({ target, status, onCreated }: { target: RepoT
 
     return (
         <div className="panel-message pr-create">
-            <p>No pull request for <code>{status.branch}</code>. Push the branch before you create one.</p>
+            <p>
+                No pull request for <code>{status.branch}</code>. Push the branch before you create one.
+            </p>
             {typeof target === 'string' && (
                 <div className="pr-create-form">
                     <input value={title} placeholder="Title" onChange={event => setTitle(event.target.value)} disabled={busy} />
@@ -48,7 +55,8 @@ export function CreatePullRequest({ target, status, onCreated }: { target: RepoT
                     {error && <div className="form-error">{error}</div>}
                     <div className="row-buttons">
                         <button className="button approve" disabled={busy || !title.trim()} onClick={create}>
-                            <GitPullRequest {...ICON} />Create pull request
+                            <GitPullRequest {...ICON} />
+                            Create pull request
                         </button>
                         <button className="button" onClick={event => openLink(webUrl, event)}>
                             Create on {host} <ExternalLink {...ICON} />

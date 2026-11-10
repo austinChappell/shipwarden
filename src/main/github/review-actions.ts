@@ -23,10 +23,9 @@ export async function changePullRequest(client: GitHubClient, repo: RepoRef, num
                     { id: change.pullRequestId, method: change.method.toUpperCase(), head: change.headSha }
                 );
             } else {
-                await client.graphql(
-                    'mutation($id: ID!) { disablePullRequestAutoMerge(input: { pullRequestId: $id }) { pullRequest { id } } }',
-                    { id: change.pullRequestId }
-                );
+                await client.graphql('mutation($id: ID!) { disablePullRequestAutoMerge(input: { pullRequestId: $id }) { pullRequest { id } } }', {
+                    id: change.pullRequestId
+                });
             }
             return;
         case 'assignee':
@@ -58,7 +57,15 @@ export function reviewBody(headSha: string, event: ReviewEvent, body: string, co
 }
 
 /** Sends a review with its pending line comments in one request. */
-export async function submitReview(client: GitHubClient, repo: RepoRef, number: number, headSha: string, event: ReviewEvent, body: string, comments: PendingComment[]): Promise<void> {
+export async function submitReview(
+    client: GitHubClient,
+    repo: RepoRef,
+    number: number,
+    headSha: string,
+    event: ReviewEvent,
+    body: string,
+    comments: PendingComment[]
+): Promise<void> {
     await client.rest('POST', `/repos/${repo.owner}/${repo.name}/pulls/${number}/reviews`, reviewBody(headSha, event, body, comments));
 }
 
@@ -78,7 +85,10 @@ export async function setThreadResolved(client: GitHubClient, threadId: string, 
 /** Marks a file of a pull request as viewed or not viewed, as the "Viewed" box on GitHub does. `pullRequestId` is the node ID. */
 export async function setFileViewed(client: GitHubClient, pullRequestId: string, path: string, viewed: boolean): Promise<void> {
     const mutation = viewed ? 'markFileAsViewed' : 'unmarkFileAsViewed';
-    await client.graphql(`mutation($id: ID!, $path: String!) { ${mutation}(input: { pullRequestId: $id, path: $path }) { clientMutationId } }`, { id: pullRequestId, path });
+    await client.graphql(`mutation($id: ID!, $path: String!) { ${mutation}(input: { pullRequestId: $id, path: $path }) { clientMutationId } }`, {
+        id: pullRequestId,
+        path
+    });
 }
 
 /** Merges a pull request. GitHub refuses the merge when the head is not `headSha`. */

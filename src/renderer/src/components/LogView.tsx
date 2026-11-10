@@ -74,7 +74,9 @@ function JobSteps({ progress, error }: { progress: JobProgress | undefined; erro
             {error && <div className="form-error">{error}</div>}
             {!progress && !error && <div className="panel-note job-steps-empty">Loading the steps…</div>}
             {progress && progress.steps.length === 0 && (
-                <div className="panel-note job-steps-empty">{progress.status === 'queued' ? 'The job waits for a runner.' : 'GitHub has not reported steps yet.'}</div>
+                <div className="panel-note job-steps-empty">
+                    {progress.status === 'queued' ? 'The job waits for a runner.' : 'GitHub has not reported steps yet.'}
+                </div>
             )}
             {progress?.steps.map(step => (
                 <div key={step.number} className={`job-step ${step.status}`}>
@@ -202,10 +204,24 @@ export function LogView({ target, check, onSendToAgent }: Props) {
                 <span className="diff-path">{check.name}</span>
                 <span className="check-duration">{formatDuration(check.startedAt, check.completedAt)}</span>
                 <span className="header-spacer" />
-                <button className="icon-button" title="Load the log again" onClick={load}><RefreshCw size={14} strokeWidth={1.6} /></button>
-                {check.status === 'completed' && <button className="icon-button" title="Run this job again" disabled={busy} onClick={rerun}><RotateCw size={14} strokeWidth={1.6} /></button>}
-                {onSendToAgent && <button className="icon-button" title="Send the log to the agent" onClick={() => onSendToAgent(check)}><Bot size={14} strokeWidth={1.6} /></button>}
-                {check.url && <button className="icon-button" title="Open on GitHub" onClick={event => openLink(check.url!, event)}><ExternalLink size={14} strokeWidth={1.6} /></button>}
+                <button className="icon-button" title="Load the log again" onClick={load}>
+                    <RefreshCw size={14} strokeWidth={1.6} />
+                </button>
+                {check.status === 'completed' && (
+                    <button className="icon-button" title="Run this job again" disabled={busy} onClick={rerun}>
+                        <RotateCw size={14} strokeWidth={1.6} />
+                    </button>
+                )}
+                {onSendToAgent && (
+                    <button className="icon-button" title="Send the log to the agent" onClick={() => onSendToAgent(check)}>
+                        <Bot size={14} strokeWidth={1.6} />
+                    </button>
+                )}
+                {check.url && (
+                    <button className="icon-button" title="Open on GitHub" onClick={event => openLink(check.url!, event)}>
+                        <ExternalLink size={14} strokeWidth={1.6} />
+                    </button>
+                )}
             </div>
             {message && <div className="editor-failure">{message}</div>}
             {logMissing && !logReady && <JobSteps progress={progress} error={progressError} />}

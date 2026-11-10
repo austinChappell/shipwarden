@@ -46,28 +46,34 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
     /** Changes when the user asks to load the collections again, for example after a failed request. */
     const [collectionsReload, setCollectionsReload] = useState(0);
 
-    const request: TaskRequest = useCallback(<T,>(method: string, params: unknown) => {
-        if (!connectionId) {
-            return Promise.reject(new Error('Select a task manager.'));
-        }
-        return api.request(connectionId, projectId, method, params) as Promise<T>;
-    }, [connectionId, projectId]);
+    const request: TaskRequest = useCallback(
+        <T>(method: string, params: unknown) => {
+            if (!connectionId) {
+                return Promise.reject(new Error('Select a task manager.'));
+            }
+            return api.request(connectionId, projectId, method, params) as Promise<T>;
+        },
+        [connectionId, projectId]
+    );
 
     // Load the task managers of the project, and select the last one that the user showed in this project.
     useEffect(() => {
         let cancelled = false;
         setConnections(cached(connectionsKey(projectId)));
         setConnectionId(cached(connectionIdKey(projectId)));
-        Promise.all([api.enabledConnections(), api.selectedConnection(projectId).catch(() => undefined)]).then(([list, saved]) => {
-            if (cancelled) return;
-            setConnections(current => same(current, remember(connectionsKey(projectId), list)));
-            setConnectionId(remember(connectionIdKey(projectId), pickConnection(list, saved)));
-        }, err => {
-            if (!cancelled) {
-                setConnections([]);
-                setSourceError(errorText(err));
+        Promise.all([api.enabledConnections(), api.selectedConnection(projectId).catch(() => undefined)]).then(
+            ([list, saved]) => {
+                if (cancelled) return;
+                setConnections(current => same(current, remember(connectionsKey(projectId), list)));
+                setConnectionId(remember(connectionIdKey(projectId), pickConnection(list, saved)));
+            },
+            err => {
+                if (!cancelled) {
+                    setConnections([]);
+                    setSourceError(errorText(err));
+                }
             }
-        });
+        );
         return () => {
             cancelled = true;
         };
@@ -89,17 +95,20 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
         const last = cached<TaskSource>(sourceKey(connectionId, projectId));
         setSource(last);
         if (last) setFilter(pickFilter(last.filters, lastFilter()));
-        api.source(connectionId, projectId).then(started => {
-            if (cancelled) return;
-            remember(sourceKey(connectionId, projectId), started);
-            setSource(current => same(current, started));
-            setFilter(pickFilter(started.filters, lastFilter()));
-        }, err => {
-            if (!cancelled) {
-                setSourceError(errorText(err));
-                setSource(null);
+        api.source(connectionId, projectId).then(
+            started => {
+                if (cancelled) return;
+                remember(sourceKey(connectionId, projectId), started);
+                setSource(current => same(current, started));
+                setFilter(pickFilter(started.filters, lastFilter()));
+            },
+            err => {
+                if (!cancelled) {
+                    setSourceError(errorText(err));
+                    setSource(null);
+                }
             }
-        });
+        );
         return () => {
             cancelled = true;
         };
@@ -129,22 +138,22 @@ export function useTaskSource(projectId: string, setSelectedId: (id: string | un
         setCollections(cached(collectionsKey(sourceConnection, projectId)));
         setSelection(lastSelection ? { connectionId: sourceConnection, id: lastSelection } : undefined);
         let cancelled = false;
-        Promise.all([
-            request<TaskCollection[]>('collections/list', {}),
-            api.selectedCollection(sourceConnection).catch(() => undefined)
-        ]).then(([list, saved]) => {
-            if (cancelled) return;
-            const sorted = remember(collectionsKey(sourceConnection, projectId), sortCollections(list));
-            setCollections(current => same(current, sorted));
-            const picked = pickCollection(sorted, saved);
-            if (picked) remember(selectionKey(sourceConnection, projectId), picked);
-            setSelection(current => nextSelection(current, sourceConnection, picked));
-        }, err => {
-            if (!cancelled) {
-                setCollections([]);
-                setListError(errorText(err));
+        Promise.all([request<TaskCollection[]>('collections/list', {}), api.selectedCollection(sourceConnection).catch(() => undefined)]).then(
+            ([list, saved]) => {
+                if (cancelled) return;
+                const sorted = remember(collectionsKey(sourceConnection, projectId), sortCollections(list));
+                setCollections(current => same(current, sorted));
+                const picked = pickCollection(sorted, saved);
+                if (picked) remember(selectionKey(sourceConnection, projectId), picked);
+                setSelection(current => nextSelection(current, sourceConnection, picked));
+            },
+            err => {
+                if (!cancelled) {
+                    setCollections([]);
+                    setListError(errorText(err));
+                }
             }
-        });
+        );
         return () => {
             cancelled = true;
         };

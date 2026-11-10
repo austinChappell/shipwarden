@@ -1,6 +1,21 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { baseName } from '@shared/files';
-import { closePane, findLeaf, focusedTab, focusSide, groupOf, insertNode, leafOfTab, leaves, pruneGroups, splitPane, tabLayout, type PaneLayout, type SplitGroups, type SplitSide } from '@shared/panes';
+import {
+    closePane,
+    findLeaf,
+    focusedTab,
+    focusSide,
+    groupOf,
+    insertNode,
+    leafOfTab,
+    leaves,
+    pruneGroups,
+    splitPane,
+    tabLayout,
+    type PaneLayout,
+    type SplitGroups,
+    type SplitSide
+} from '@shared/panes';
 import type { ShortcutAction } from '@shared/shortcuts';
 import { moveStripEntry, orderTabs } from '@shared/tab-order';
 import type { TerminalSession } from '@shared/terminal';
@@ -10,7 +25,21 @@ import { confirmDialog } from '../components/ConfirmDialog';
 import { documents } from '../editor/documents';
 import { terminalPool } from '../terminal/terminal-pool';
 import { agentStateStore } from '../terminal/agent-state-store';
-import { activeLayout, fileKey, isStripItemActive, isTabSelectAction, pickActiveTab, stripEntries, stripItemsOf, stripTargetIndex, upsertTab, withGroup, worktreeTabKeys, type ExtraTab, type TabKey } from './tabs';
+import {
+    activeLayout,
+    fileKey,
+    isStripItemActive,
+    isTabSelectAction,
+    pickActiveTab,
+    stripEntries,
+    stripItemsOf,
+    stripTargetIndex,
+    upsertTab,
+    withGroup,
+    worktreeTabKeys,
+    type ExtraTab,
+    type TabKey
+} from './tabs';
 import { errorText } from './worktree-edits';
 
 const api = window.shipwarden;
@@ -59,26 +88,31 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
     /** The diff and log tabs of each worktree. */
     const [extraTabs, setExtraTabs] = useState<Record<string, ExtraTab[]>>({});
 
-    useEffect(() => documents.onDirtyChange((root, path, dirty) => {
-        setDirtyFiles(set => {
-            const next = new Set(set);
-            if (dirty) {
-                next.add(fileKey(root, path));
-            } else {
-                next.delete(fileKey(root, path));
-            }
-            return next;
-        });
-    }), []);
-
-    const worktreeSessions = useMemo(
-        () => sessions.filter(session => session.worktreePath === selectedPath),
-        [sessions, selectedPath]
+    useEffect(
+        () =>
+            documents.onDirtyChange((root, path, dirty) => {
+                setDirtyFiles(set => {
+                    const next = new Set(set);
+                    if (dirty) {
+                        next.add(fileKey(root, path));
+                    } else {
+                        next.delete(fileKey(root, path));
+                    }
+                    return next;
+                });
+            }),
+        []
     );
+
+    const worktreeSessions = useMemo(() => sessions.filter(session => session.worktreePath === selectedPath), [sessions, selectedPath]);
     const worktreeFiles = (selectedPath && openFiles[selectedPath]) || [];
     const worktreeExtras = (selectedPath && extraTabs[selectedPath]) || [];
     const tabKeys: TabKey[] = orderTabs(
-        worktreeTabKeys(worktreeSessions.map(session => session.id), worktreeFiles, worktreeExtras),
+        worktreeTabKeys(
+            worktreeSessions.map(session => session.id),
+            worktreeFiles,
+            worktreeExtras
+        ),
         selectedPath ? tabOrders[selectedPath] : undefined
     );
     const activeTab = pickActiveTab(tabKeys, selectedPath ? activeTabs[selectedPath] : undefined);
@@ -103,11 +137,12 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
     const activate = (worktreePath: string, tab: TabKey) => setActiveTabs(map => ({ ...map, [worktreePath]: tab }));
 
     /** Returns the tab keys of a worktree, in the order of its tab strip. */
-    const tabKeysOf = (path: string): TabKey[] => worktreeTabKeys(
-        sessions.filter(session => session.worktreePath === path).map(session => session.id),
-        openFiles[path] ?? [],
-        extraTabs[path] ?? []
-    );
+    const tabKeysOf = (path: string): TabKey[] =>
+        worktreeTabKeys(
+            sessions.filter(session => session.worktreePath === path).map(session => session.id),
+            openFiles[path] ?? [],
+            extraTabs[path] ?? []
+        );
 
     const openExtra = (root: string, tab: ExtraTab) => {
         setExtraTabs(map => ({ ...map, [root]: upsertTab(map[root] ?? [], tab) }));
@@ -138,12 +173,15 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
     };
 
     const closeFile = async (root: string, path: string) => {
-        if (documents.isDirty(root, path) && !(await confirmDialog({
-            title: `"${baseName(path)}" has unsaved changes.`,
-            message: 'Close it and lose the changes?',
-            confirmLabel: 'Close without saving',
-            danger: true
-        }))) {
+        if (
+            documents.isDirty(root, path) &&
+            !(await confirmDialog({
+                title: `"${baseName(path)}" has unsaved changes.`,
+                message: 'Close it and lose the changes?',
+                confirmLabel: 'Close without saving',
+                danger: true
+            }))
+        ) {
             return;
         }
         documents.close(root, path);
@@ -205,8 +243,9 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
                 return;
             }
             const pane = document.querySelector(`.terminal-area [data-pane="${leaf.id}"]`);
-            const target = pane?.querySelector<HTMLElement>('.monaco-editor textarea')
-                ?? pane?.querySelector<HTMLElement>('textarea, input, select, button, a[href], [tabindex]:not([tabindex="-1"])');
+            const target =
+                pane?.querySelector<HTMLElement>('.monaco-editor textarea') ??
+                pane?.querySelector<HTMLElement>('textarea, input, select, button, a[href], [tabindex]:not([tabindex="-1"])');
             if (target) {
                 target.focus();
                 return;
@@ -267,8 +306,12 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
     /** Closes a split tab with all its panes. */
     const closeGroup = (group: PaneLayout) => {
         const tabs = leaves(group.root).map(leaf => leaf.tab);
-        void confirmDialog({ title: `Close this tab with its ${tabs.length} panes?`, message: 'Its terminals stop.', confirmLabel: 'Close tab', danger: true })
-            .then(ok => ok && tabs.forEach(closeTabView));
+        void confirmDialog({
+            title: `Close this tab with its ${tabs.length} panes?`,
+            message: 'Its terminals stop.',
+            confirmLabel: 'Close tab',
+            danger: true
+        }).then(ok => ok && tabs.forEach(closeTabView));
     };
 
     /** True when the tab can close: a running agent stops only after the user agrees. */
@@ -344,10 +387,48 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
     };
 
     return {
-        openFiles, setOpenFiles, activeTabs, setActiveTabs, panes, setPanes, extraTabs, setExtraTabs,
-        draggingTab, setDraggingTab, dropTarget, setDropTarget, dirtyFiles, reveal, focusRequest, setFocusRequest,
-        worktreeSessions, worktreeExtras, activeTab, groups, layout, split, activeFile, stripItems,
-        activate, tabKeysOf, openExtra, openFile, commitGroup, editableLayout, focusPane, focusBrowserPane, focusWorkspace, dropTab,
-        closeTabView, closePaneView, movePaneToTab, closeFromView, closeGroup, confirmClose, sessionExited, paneShortcut, moveStripItem
+        openFiles,
+        setOpenFiles,
+        activeTabs,
+        setActiveTabs,
+        panes,
+        setPanes,
+        extraTabs,
+        setExtraTabs,
+        draggingTab,
+        setDraggingTab,
+        dropTarget,
+        setDropTarget,
+        dirtyFiles,
+        reveal,
+        focusRequest,
+        setFocusRequest,
+        worktreeSessions,
+        worktreeExtras,
+        activeTab,
+        groups,
+        layout,
+        split,
+        activeFile,
+        stripItems,
+        activate,
+        tabKeysOf,
+        openExtra,
+        openFile,
+        commitGroup,
+        editableLayout,
+        focusPane,
+        focusBrowserPane,
+        focusWorkspace,
+        dropTab,
+        closeTabView,
+        closePaneView,
+        movePaneToTab,
+        closeFromView,
+        closeGroup,
+        confirmClose,
+        sessionExited,
+        paneShortcut,
+        moveStripItem
     };
 }

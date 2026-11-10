@@ -21,7 +21,14 @@ describe('mapTimeline', () => {
 
     it('removes the "closed" event of a merge', () => {
         const nodes: GraphQlTimelineNode[] = [
-            { __typename: 'MergedEvent', id: 'm', createdAt: at(5), actor: { login: 'ann' }, mergeRefName: 'main', commit: { abbreviatedOid: 'abc1234', url: 'u' } },
+            {
+                __typename: 'MergedEvent',
+                id: 'm',
+                createdAt: at(5),
+                actor: { login: 'ann' },
+                mergeRefName: 'main',
+                commit: { abbreviatedOid: 'abc1234', url: 'u' }
+            },
             { __typename: 'ClosedEvent', id: 'c', createdAt: at(5), actor: { login: 'ann' } },
             { __typename: 'ClosedEvent', id: 'c2', createdAt: at(1), actor: { login: 'bob' } }
         ];

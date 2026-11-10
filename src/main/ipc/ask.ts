@@ -8,7 +8,10 @@ import { agentForRepo } from '@shared/settings';
 import type { Services } from '../services';
 import { repoRefOf } from './args';
 
-type AskIpcDependencies = Pick<Services, 'askRunner' | 'answers' | 'codeAnswers' | 'projectWorktrees' | 'settings' | 'certificates' | 'shellReady' | 'networkReady'>;
+type AskIpcDependencies = Pick<
+    Services,
+    'askRunner' | 'answers' | 'codeAnswers' | 'projectWorktrees' | 'settings' | 'certificates' | 'shellReady' | 'networkReady'
+>;
 
 /** Registers the IPC handlers of the "Ask agent" boxes and their saved answers. */
 export function registerAskIpc(deps: AskIpcDependencies): void {
@@ -48,7 +51,9 @@ async function askAgent(deps: AskIpcDependencies, request: AskAgentRequest): Pro
     const agent = agentForRepo(await deps.settings.get(), repoPath);
     const command = printCommand(agent.command);
     if (!command) {
-        throw new Error(`ShipWarden can ask only Claude Code, Codex, Gemini CLI or opencode. The agent "${agent.name}" runs "${agent.command}". Select a different agent in Settings › Agents.`);
+        throw new Error(
+            `ShipWarden can ask only Claude Code, Codex, Gemini CLI or opencode. The agent "${agent.name}" runs "${agent.command}". Select a different agent in Settings › Agents.`
+        );
     }
     if (!cwd) {
         cwd = join(app.getPath('temp'), 'shipwarden-ask');

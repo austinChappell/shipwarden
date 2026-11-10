@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronRight, Copy, Folder, FolderInput, FolderOpen, FolderPlus, NotebookPen, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react';
-import { folderBaseName, folderMoveTargets, folderNameError, isInFolder, joinNotePath, noteMatches, noteNameError, normalizeTags, parentFolder, splitNotePath, tagOptions, uniqueNoteName, type NoteInfo } from '@shared/notes';
+import {
+    folderBaseName,
+    folderMoveTargets,
+    folderNameError,
+    isInFolder,
+    joinNotePath,
+    noteMatches,
+    noteNameError,
+    normalizeTags,
+    parentFolder,
+    splitNotePath,
+    tagOptions,
+    uniqueNoteName,
+    type NoteInfo
+} from '@shared/notes';
 import { monaco } from '../editor/monaco';
 import { fileIcon } from '../files/file-icons';
 import { treeKeyAction, type TreeRow } from '../files/tree-nav';
@@ -34,7 +48,13 @@ function writeSelected(name: string | undefined): void {
  * An input for a note name or a folder name. It selects the name without the extension, so the user can type a new
  * name at once.
  */
-function NameInput({ initial, onSubmit, onCancel, validate = noteNameError, placeholder = 'name.ext' }: {
+function NameInput({
+    initial,
+    onSubmit,
+    onCancel,
+    validate = noteNameError,
+    placeholder = 'name.ext'
+}: {
     initial: string;
     onSubmit(name: string): Promise<void>;
     onCancel(): void;
@@ -177,7 +197,9 @@ function TagPicker({ tags, allTags, onAdd, onRemoveLast }: { tags: string[]; all
                     </label>
                     <div className="combobox-list" role="listbox">
                         {options.length === 0 && (
-                            <div className="combobox-empty">{allTags.length ? 'No other tags. Type to create one.' : 'Type a name to create the first tag.'}</div>
+                            <div className="combobox-empty">
+                                {allTags.length ? 'No other tags. Type to create one.' : 'Type a name to create the first tag.'}
+                            </div>
                         )}
                         {options.map((option, index) => (
                             <div
@@ -189,9 +211,13 @@ function TagPicker({ tags, allTags, onAdd, onRemoveLast }: { tags: string[]; all
                                 onMouseDown={event => event.preventDefault()}
                                 onClick={() => choose(option.tag)}
                             >
-                                {option.create
-                                    ? <span className="combobox-label">Create tag <strong>#{option.tag}</strong></span>
-                                    : <span className="combobox-label">#{option.tag}</span>}
+                                {option.create ? (
+                                    <span className="combobox-label">
+                                        Create tag <strong>#{option.tag}</strong>
+                                    </span>
+                                ) : (
+                                    <span className="combobox-label">#{option.tag}</span>
+                                )}
                                 {option.create && <Plus size={13} strokeWidth={2} />}
                             </div>
                         ))}
@@ -209,15 +235,12 @@ function TagEditor({ tags, allTags, onChange }: { tags: string[]; allTags: strin
             {tags.map(tag => (
                 <span key={tag} className="note-tag">
                     #{tag}
-                    <button title={`Remove the tag ${tag}`} onClick={() => onChange(tags.filter(item => item !== tag))}><X size={11} strokeWidth={2} /></button>
+                    <button title={`Remove the tag ${tag}`} onClick={() => onChange(tags.filter(item => item !== tag))}>
+                        <X size={11} strokeWidth={2} />
+                    </button>
                 </span>
             ))}
-            <TagPicker
-                tags={tags}
-                allTags={allTags}
-                onAdd={tag => onChange(normalizeTags([...tags, tag]))}
-                onRemoveLast={() => onChange(tags.slice(0, -1))}
-            />
+            <TagPicker tags={tags} allTags={allTags} onAdd={tag => onChange(normalizeTags([...tags, tag]))} onRemoveLast={() => onChange(tags.slice(0, -1))} />
         </div>
     );
 }
@@ -290,13 +313,16 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
             clearTimeout(saveTimer.current);
             saveTimer.current = setTimeout(() => void flush(), SAVE_DELAY_MS);
         });
-        api.read(note.name).then(content => {
-            if (disposed) return;
-            model.setValue(content);
-            editor.updateOptions({ readOnly: false });
-            setState('saved');
-            editor.focus();
-        }, err => !disposed && setError(errorText(err)));
+        api.read(note.name).then(
+            content => {
+                if (disposed) return;
+                model.setValue(content);
+                editor.updateOptions({ readOnly: false });
+                setState('saved');
+                editor.focus();
+            },
+            err => !disposed && setError(errorText(err))
+        );
 
         return () => {
             disposed = true;
@@ -315,11 +341,14 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
     useEffect(() => {
         const model = modelRef.current;
         if (!model || dirty.current || state === 'loading') return;
-        api.read(note.name).then(content => {
-            if (!dirty.current && modelRef.current === model && content !== model.getValue()) {
-                model.setValue(content);
-            }
-        }, () => undefined);
+        api.read(note.name).then(
+            content => {
+                if (!dirty.current && modelRef.current === model && content !== model.getValue()) {
+                    model.setValue(content);
+                }
+            },
+            () => undefined
+        );
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [note.modifiedAt]);
 
@@ -362,24 +391,44 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
         <div className="note-pane">
             <header className="note-header">
                 <div className="note-title-row">
-                    {note.folder && <span className="note-title-folder" title={note.folder}><Folder size={13} strokeWidth={1.6} />{note.folder.split('/').join(' / ')} /</span>}
-                    {renaming
-                        ? <NameInput initial={note.fileName} onSubmit={rename} onCancel={() => setRenaming(false)} />
-                        : <button className="note-title" title="Rename the note" onClick={() => setRenaming(true)}>{note.fileName}</button>}
-                    <span className={`note-state ${state}`}>{state === 'saving' ? 'Saving…' : state === 'edited' ? 'Edited' : state === 'saved' ? 'Saved' : ''}</span>
+                    {note.folder && (
+                        <span className="note-title-folder" title={note.folder}>
+                            <Folder size={13} strokeWidth={1.6} />
+                            {note.folder.split('/').join(' / ')} /
+                        </span>
+                    )}
+                    {renaming ? (
+                        <NameInput initial={note.fileName} onSubmit={rename} onCancel={() => setRenaming(false)} />
+                    ) : (
+                        <button className="note-title" title="Rename the note" onClick={() => setRenaming(true)}>
+                            {note.fileName}
+                        </button>
+                    )}
+                    <span className={`note-state ${state}`}>
+                        {state === 'saving' ? 'Saving…' : state === 'edited' ? 'Edited' : state === 'saved' ? 'Saved' : ''}
+                    </span>
                     <span className="header-spacer" />
                     <label className="note-move" title="Move to a folder">
                         <FolderInput size={14} strokeWidth={1.6} />
                         <select value={note.folder} onChange={event => void move(event.target.value)}>
                             <option value="">No folder</option>
                             {folders.map(item => (
-                                <option key={item} value={item}>{'\u00a0\u00a0'.repeat(item.split('/').length - 1)}{item.slice(item.lastIndexOf('/') + 1)}</option>
+                                <option key={item} value={item}>
+                                    {'\u00a0\u00a0'.repeat(item.split('/').length - 1)}
+                                    {item.slice(item.lastIndexOf('/') + 1)}
+                                </option>
                             ))}
                         </select>
                     </label>
-                    <button className="icon-button" title={`Copy the path: ${path}`} onClick={() => void navigator.clipboard.writeText(path)}><Copy size={14} strokeWidth={1.6} /></button>
-                    <button className="icon-button" title="Reveal in Finder" onClick={() => api.reveal(note.name)}><FolderOpen size={14} strokeWidth={1.6} /></button>
-                    <button className="icon-button" title="Move to the Trash" onClick={() => void remove()}><Trash2 size={14} strokeWidth={1.6} /></button>
+                    <button className="icon-button" title={`Copy the path: ${path}`} onClick={() => void navigator.clipboard.writeText(path)}>
+                        <Copy size={14} strokeWidth={1.6} />
+                    </button>
+                    <button className="icon-button" title="Reveal in Finder" onClick={() => api.reveal(note.name)}>
+                        <FolderOpen size={14} strokeWidth={1.6} />
+                    </button>
+                    <button className="icon-button" title="Move to the Trash" onClick={() => void remove()}>
+                        <Trash2 size={14} strokeWidth={1.6} />
+                    </button>
                 </div>
                 <TagEditor tags={note.tags} allTags={allTags} onChange={onTags} />
                 {error && <div className="form-error">{error}</div>}
@@ -422,10 +471,7 @@ function movedPath(value: string, from: string, to: string): string {
 const depthOf = (folder: string) => (folder ? folder.split('/').length : 0);
 
 /** What the list creates or renames now. */
-type Editing =
-    | { kind: 'note'; folder: string; name: string }
-    | { kind: 'folder'; parent: string }
-    | { kind: 'renameFolder'; folder: string };
+type Editing = { kind: 'note'; folder: string; name: string } | { kind: 'folder'; parent: string } | { kind: 'renameFolder'; folder: string };
 
 /**
  * The Notes view: local files with any extension that are available in all projects, like the scratch files of
@@ -532,7 +578,9 @@ export function NotesView() {
     const deleteFolder = async (path: string) => {
         const count = (notes ?? []).filter(note => isInFolder(note.folder, path)).length;
         const inner = folders.filter(item => item.startsWith(`${path}/`)).length;
-        const parts = [count ? `${count} ${count === 1 ? 'note' : 'notes'}` : '', inner ? `${inner} ${inner === 1 ? 'folder' : 'folders'}` : ''].filter(Boolean);
+        const parts = [count ? `${count} ${count === 1 ? 'note' : 'notes'}` : '', inner ? `${inner} ${inner === 1 ? 'folder' : 'folders'}` : ''].filter(
+            Boolean
+        );
         const ok = await confirmDialog({
             title: `Move the folder "${folderBaseName(path)}" to the Trash?`,
             message: parts.length ? `Its ${parts.join(' and ')} go to the Trash too. You can get them back from the Trash.` : 'The folder is empty.',
@@ -604,7 +652,7 @@ export function NotesView() {
         }
     };
 
-    const indent = (depth: number) => ({ '--note-depth': depth } as CSSProperties);
+    const indent = (depth: number) => ({ '--note-depth': depth }) as CSSProperties;
     /** The keys of the rows in the tree. A folder key and a note key cannot be equal. */
     const folderKey = (path: string) => `folder:${path}`;
     const noteKey = (name: string) => `note:${name}`;
@@ -655,7 +703,11 @@ export function NotesView() {
                 <span className="note-row-main">
                     <span className="note-row-name">{note.fileName}</span>
                     <span className="note-row-meta">
-                        {note.tags.map(tag => <span key={tag} className="note-row-tag">#{tag}</span>)}
+                        {note.tags.map(tag => (
+                            <span key={tag} className="note-row-tag">
+                                #{tag}
+                            </span>
+                        ))}
                         <span>{timeAgo(note.modifiedAt)}</span>
                     </span>
                 </span>
@@ -667,7 +719,13 @@ export function NotesView() {
         <>
             {editing?.kind === 'folder' && editing.parent === inFolder && (
                 <div className="note-indented-input" style={indent(depthOf(inFolder))}>
-                    <NameInput initial="New folder" validate={folderNameError} placeholder="Folder name" onSubmit={name => createFolder(inFolder, name)} onCancel={() => setEditing(undefined)} />
+                    <NameInput
+                        initial="New folder"
+                        validate={folderNameError}
+                        placeholder="Folder name"
+                        onSubmit={name => createFolder(inFolder, name)}
+                        onCancel={() => setEditing(undefined)}
+                    />
                 </div>
             )}
             {editing?.kind === 'note' && editing.folder === inFolder && (
@@ -691,62 +749,85 @@ export function NotesView() {
         const empty = children.length === 0 && direct.length === 0 && !adding;
         return (
             <div key={path} className={`note-folder${dropTarget === path ? ' drop' : ''}`} {...dropProps(path)}>
-                {editing?.kind === 'renameFolder' && editing.folder === path
-                    ? (
-                        <div className="note-indented-input" style={indent(depth)}>
-                            <NameInput initial={name} validate={folderNameError} placeholder="Folder name" onSubmit={value => renameFolder(path, value)} onCancel={() => setEditing(undefined)} />
-                        </div>
-                    )
-                    : (
-                        <div
-                            className="note-folder-header"
-                            style={indent(depth)}
-                            title={path}
-                            tabIndex={0}
-                            role="button"
-                            aria-expanded={open}
-                            aria-label={`Folder ${name}`}
-                            data-nav-item
-                            data-tree-key={folderKey(path)}
-                            data-tree-folder
-                            data-tree-parent={parentFolder(path) ? folderKey(parentFolder(path)) : ''}
-                            onKeyDown={itemKeys(() => !filtering && setFolderOpen(path, !open))}
-                            draggable
-                            onDragStart={event => {
-                                event.dataTransfer.setData(FOLDER_DRAG_TYPE, path);
-                                event.dataTransfer.effectAllowed = 'move';
-                            }}
-                            onDragEnd={() => setDropTarget(undefined)}
-                            onClick={() => !filtering && setFolderOpen(path, !open)}
-                        >
-                            <ChevronRight size={13} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
-                            <Folder size={14} strokeWidth={1.6} className="note-folder-icon" />
-                            <span className="note-folder-name">{name}</span>
-                            <span className="note-folder-count">{subtree.length}</span>
-                            <span className="note-folder-actions" onClick={event => event.stopPropagation()}>
-                                <button className="icon-button" title={`New note in ${name}`} onClick={() => startNote(path)}><Plus size={13} strokeWidth={1.8} /></button>
-                                <button className="icon-button" title={`New folder in ${name}`} onClick={() => startFolder(path)}><FolderPlus size={13} strokeWidth={1.8} /></button>
-                                <button className="icon-button" title="Rename the folder" onClick={() => setEditing({ kind: 'renameFolder', folder: path })}><Pencil size={12} strokeWidth={1.8} /></button>
-                                {/* The keyboard alternative to a drag of the folder. */}
-                                <label className="note-move note-folder-move" title="Move the folder to a folder">
-                                    <FolderInput size={13} strokeWidth={1.8} />
-                                    <select aria-label={`Move ${name} to a folder`} value={parentFolder(path)} onChange={event => void moveFolder(path, event.target.value)}>
-                                        <option value="">Top level</option>
-                                        {folderMoveTargets(folders, path).map(item => (
-                                            <option key={item} value={item}>{'\u00a0\u00a0'.repeat(item.split('/').length - 1)}{folderBaseName(item)}</option>
-                                        ))}
-                                    </select>
-                                </label>
-                                <button className="icon-button" title="Move the folder to the Trash" onClick={() => void deleteFolder(path)}><Trash2 size={12} strokeWidth={1.8} /></button>
-                            </span>
-                        </div>
-                    )}
+                {editing?.kind === 'renameFolder' && editing.folder === path ? (
+                    <div className="note-indented-input" style={indent(depth)}>
+                        <NameInput
+                            initial={name}
+                            validate={folderNameError}
+                            placeholder="Folder name"
+                            onSubmit={value => renameFolder(path, value)}
+                            onCancel={() => setEditing(undefined)}
+                        />
+                    </div>
+                ) : (
+                    <div
+                        className="note-folder-header"
+                        style={indent(depth)}
+                        title={path}
+                        tabIndex={0}
+                        role="button"
+                        aria-expanded={open}
+                        aria-label={`Folder ${name}`}
+                        data-nav-item
+                        data-tree-key={folderKey(path)}
+                        data-tree-folder
+                        data-tree-parent={parentFolder(path) ? folderKey(parentFolder(path)) : ''}
+                        onKeyDown={itemKeys(() => !filtering && setFolderOpen(path, !open))}
+                        draggable
+                        onDragStart={event => {
+                            event.dataTransfer.setData(FOLDER_DRAG_TYPE, path);
+                            event.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onDragEnd={() => setDropTarget(undefined)}
+                        onClick={() => !filtering && setFolderOpen(path, !open)}
+                    >
+                        <ChevronRight size={13} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
+                        <Folder size={14} strokeWidth={1.6} className="note-folder-icon" />
+                        <span className="note-folder-name">{name}</span>
+                        <span className="note-folder-count">{subtree.length}</span>
+                        <span className="note-folder-actions" onClick={event => event.stopPropagation()}>
+                            <button className="icon-button" title={`New note in ${name}`} onClick={() => startNote(path)}>
+                                <Plus size={13} strokeWidth={1.8} />
+                            </button>
+                            <button className="icon-button" title={`New folder in ${name}`} onClick={() => startFolder(path)}>
+                                <FolderPlus size={13} strokeWidth={1.8} />
+                            </button>
+                            <button className="icon-button" title="Rename the folder" onClick={() => setEditing({ kind: 'renameFolder', folder: path })}>
+                                <Pencil size={12} strokeWidth={1.8} />
+                            </button>
+                            {/* The keyboard alternative to a drag of the folder. */}
+                            <label className="note-move note-folder-move" title="Move the folder to a folder">
+                                <FolderInput size={13} strokeWidth={1.8} />
+                                <select
+                                    aria-label={`Move ${name} to a folder`}
+                                    value={parentFolder(path)}
+                                    onChange={event => void moveFolder(path, event.target.value)}
+                                >
+                                    <option value="">Top level</option>
+                                    {folderMoveTargets(folders, path).map(item => (
+                                        <option key={item} value={item}>
+                                            {'\u00a0\u00a0'.repeat(item.split('/').length - 1)}
+                                            {folderBaseName(item)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                            <button className="icon-button" title="Move the folder to the Trash" onClick={() => void deleteFolder(path)}>
+                                <Trash2 size={12} strokeWidth={1.8} />
+                            </button>
+                        </span>
+                    </div>
+                )}
                 {open && (
                     <>
                         {inputs(path)}
                         {children.map(folderNode)}
                         {direct.map(noteRow)}
-                        {empty && !filtering && <div className="note-folder-empty" style={indent(depth + 1)}>Empty. Drag a note or a folder here, or use the + buttons.</div>}
+                        {empty && !filtering && (
+                            <div className="note-folder-empty" style={indent(depth + 1)}>
+                                Empty. Drag a note or a folder here, or use the + buttons.
+                            </div>
+                        )}
                     </>
                 )}
             </div>
@@ -764,12 +845,19 @@ export function NotesView() {
                     <h1 className="notes-heading">Notes</h1>
                     <label className="tasks-search">
                         <Search size={14} strokeWidth={1.6} />
-                        <input value={query} placeholder="Search names, folders and #tags" spellCheck={false} onChange={event => setQuery(event.target.value)} />
+                        <input
+                            value={query}
+                            placeholder="Search names, folders and #tags"
+                            spellCheck={false}
+                            onChange={event => setQuery(event.target.value)}
+                        />
                     </label>
                 </div>
                 <div className="tasks-header-group how">
                     <span className="header-spacer" />
-                    <button className="icon-button" title={`Open the notes folder: ${folder}`} onClick={() => api.reveal()}><FolderOpen size={15} strokeWidth={1.6} /></button>
+                    <button className="icon-button" title={`Open the notes folder: ${folder}`} onClick={() => api.reveal()}>
+                        <FolderOpen size={15} strokeWidth={1.6} />
+                    </button>
                     <button className="button notes-new" title="Make a folder at the top level" onClick={() => startFolder('')}>
                         <FolderPlus size={14} strokeWidth={1.8} /> New folder
                     </button>
@@ -803,7 +891,10 @@ export function NotesView() {
                     {notes?.length === 0 && folders.length === 0 && !editing && (
                         <div className="panel-message notes-empty">
                             <p>No notes yet.</p>
-                            <p>A note is a file with any extension, for example <code>queries.sql</code> or <code>todo.md</code>. The files are in <code>{folder || '~/.shipwarden/notes'}</code>. Folders are optional, and they can be in other folders.</p>
+                            <p>
+                                A note is a file with any extension, for example <code>queries.sql</code> or <code>todo.md</code>. The files are in{' '}
+                                <code>{folder || '~/.shipwarden/notes'}</code>. Folders are optional, and they can be in other folders.
+                            </p>
                         </div>
                     )}
                     {notes && notes.length > 0 && filtering && shown.length === 0 && <div className="panel-message">No note matches.</div>}
@@ -822,27 +913,27 @@ export function NotesView() {
                     label="Resize the note list"
                     maxAvailable={() => (document.querySelector<HTMLElement>('.notes-body')?.offsetWidth ?? Infinity) - 320}
                 />
-                {current
-                    ? (
-                        <NoteEditor
-                            key={current.name}
-                            note={current}
-                            folder={folder}
-                            folders={folders}
-                            allTags={allTags.map(([tag]) => tag)}
-                            onRenamed={name => {
-                                select(name);
-                                void load();
-                            }}
-                            onDeleted={() => {
-                                const next = shown.find(note => note.name !== current.name);
-                                select(next?.name);
-                                void load();
-                            }}
-                            onTags={tags => void setTags(current, tags)}
-                        />
-                    )
-                    : <div className="note-pane panel-message">{notes?.length ? 'Select a note.' : 'Create a note with New note.'}</div>}
+                {current ? (
+                    <NoteEditor
+                        key={current.name}
+                        note={current}
+                        folder={folder}
+                        folders={folders}
+                        allTags={allTags.map(([tag]) => tag)}
+                        onRenamed={name => {
+                            select(name);
+                            void load();
+                        }}
+                        onDeleted={() => {
+                            const next = shown.find(note => note.name !== current.name);
+                            select(next?.name);
+                            void load();
+                        }}
+                        onTags={tags => void setTags(current, tags)}
+                    />
+                ) : (
+                    <div className="note-pane panel-message">{notes?.length ? 'Select a note.' : 'Create a note with New note.'}</div>
+                )}
             </div>
         </div>
     );

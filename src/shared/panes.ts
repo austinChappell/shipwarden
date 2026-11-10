@@ -98,9 +98,11 @@ export function splitPane(layout: PaneLayout, leafId: string, tab: string, side:
     const created: PaneNode = { kind: 'leaf', id, tab };
     const direction = side === 'left' || side === 'right' ? 'row' : 'column';
     const before = side === 'left' || side === 'up';
-    const root = mapNode(base.root, node => (node.kind === 'leaf' && node.id === leafId
-        ? { kind: 'split', id: newPaneId(), direction, ratio: 0.5, first: before ? created : node, second: before ? node : created }
-        : undefined));
+    const root = mapNode(base.root, node =>
+        node.kind === 'leaf' && node.id === leafId
+            ? { kind: 'split', id: newPaneId(), direction, ratio: 0.5, first: before ? created : node, second: before ? node : created }
+            : undefined
+    );
     return { root, focused: id };
 }
 
@@ -158,9 +160,13 @@ export function focusSide(layout: PaneLayout, side: SplitSide): PaneLayout {
     let best: { id: string; distance: number; offset: number } | undefined;
     for (const rect of rects) {
         if (rect.id === current.id) continue;
-        const distance = side === 'left' ? current.left - rect.right
-            : side === 'right' ? rect.left - current.right
-                : side === 'up' ? current.top - rect.bottom
+        const distance =
+            side === 'left'
+                ? current.left - rect.right
+                : side === 'right'
+                  ? rect.left - current.right
+                  : side === 'up'
+                    ? current.top - rect.bottom
                     : rect.top - current.bottom;
         if (distance < -EDGE_TOLERANCE) continue;
         const [start, end] = horizontal ? [rect.top, rect.bottom] : [rect.left, rect.right];
@@ -227,9 +233,11 @@ export function insertNode(layout: PaneLayout, leafId: string, node: PaneNode, s
     if (!findLeaf(layout, leafId)) return layout;
     const direction = side === 'left' || side === 'right' ? 'row' : 'column';
     const before = side === 'left' || side === 'up';
-    const root = mapNode(layout.root, item => (item.kind === 'leaf' && item.id === leafId
-        ? { kind: 'split', id: newPaneId(), direction, ratio: 0.5, first: before ? node : item, second: before ? item : node }
-        : undefined));
+    const root = mapNode(layout.root, item =>
+        item.kind === 'leaf' && item.id === leafId
+            ? { kind: 'split', id: newPaneId(), direction, ratio: 0.5, first: before ? node : item, second: before ? item : node }
+            : undefined
+    );
     const ids = leaves(node).map(leaf => leaf.id);
     return { root, focused: focus && ids.includes(focus) ? focus : firstLeaf(node).id };
 }
@@ -264,9 +272,7 @@ export function setGroup(groups: SplitGroups, tab: string, layout: PaneLayout | 
 
 /** Removes the panes of tabs that do not exist, and the groups with fewer than two panes after that. */
 export function pruneGroups(groups: SplitGroups, tabs: string[]): SplitGroups {
-    return groups
-        .map(group => pruneLayout(group, tabs))
-        .filter((group): group is PaneLayout => !!group && group.root.kind === 'split');
+    return groups.map(group => pruneLayout(group, tabs)).filter((group): group is PaneLayout => !!group && group.root.kind === 'split');
 }
 
 export function normalizeGroups(value: unknown): SplitGroups {

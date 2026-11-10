@@ -26,7 +26,9 @@ describe('bracketedPaste', () => {
 
 describe('logPrompt', () => {
     it('names the job and the path of the log', () => {
-        expect(logPrompt('test', '/tmp/log.txt')).toBe('The CI job "test" failed on this branch. The full log is in /tmp/log.txt. Find the cause of the failure and fix it.');
+        expect(logPrompt('test', '/tmp/log.txt')).toBe(
+            'The CI job "test" failed on this branch. The full log is in /tmp/log.txt. Find the cause of the failure and fix it.'
+        );
     });
 });
 
@@ -47,12 +49,14 @@ describe('checksPrompt', () => {
     });
 
     it('counts the checks and puts each line between the first and the last line', () => {
-        expect(checksPrompt(['- "a"', '- "b"'])).toBe([
-            '2 CI checks failed on the pull request of this branch:',
-            '- "a"',
-            '- "b"',
-            'Find the cause of each failure and fix it. Run the tests, and then commit the fix.'
-        ].join('\n'));
+        expect(checksPrompt(['- "a"', '- "b"'])).toBe(
+            [
+                '2 CI checks failed on the pull request of this branch:',
+                '- "a"',
+                '- "b"',
+                'Find the cause of each failure and fix it. Run the tests, and then commit the fix.'
+            ].join('\n')
+        );
     });
 });
 

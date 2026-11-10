@@ -15,7 +15,10 @@ export const NETWORK_TEST_HOSTS = [
     { name: 'Azure DevOps', url: 'https://dev.azure.com/' }
 ];
 
-type SettingsIpcDependencies = Pick<Services, 'settings' | 'certificates' | 'tasks' | 'remote' | 'window' | 'shellReady' | 'networkReady' | 'updates' | 'usage'>;
+type SettingsIpcDependencies = Pick<
+    Services,
+    'settings' | 'certificates' | 'tasks' | 'remote' | 'window' | 'shellReady' | 'networkReady' | 'updates' | 'usage'
+>;
 
 /** Registers the IPC handlers of the settings, the network certificates, the updates and the plan usage. */
 export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
@@ -54,22 +57,27 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     });
     ipcMain.handle(IpcChannels.networkTest, async () => {
         await deps.networkReady;
-        return Promise.all(NETWORK_TEST_HOSTS.map(async host => {
-            try {
-                // Any HTTP answer shows that the TLS connection works. The status code does not matter.
-                await fetch(host.url, { method: 'HEAD', signal: AbortSignal.timeout(10_000) });
-                return { name: host.name, ok: true };
-            } catch (error) {
-                return { name: host.name, ok: false, error: networkErrorDetail(error) };
-            }
-        }));
+        return Promise.all(
+            NETWORK_TEST_HOSTS.map(async host => {
+                try {
+                    // Any HTTP answer shows that the TLS connection works. The status code does not matter.
+                    await fetch(host.url, { method: 'HEAD', signal: AbortSignal.timeout(10_000) });
+                    return { name: host.name, ok: true };
+                } catch (error) {
+                    return { name: host.name, ok: false, error: networkErrorDetail(error) };
+                }
+            })
+        );
     });
     ipcMain.handle(IpcChannels.networkChooseCaFile, async () => {
         const result = await showOpenDialog(window.get(), {
             title: 'Choose a CA Certificates File',
             buttonLabel: 'Choose',
             properties: ['openFile', 'showHiddenFiles'],
-            filters: [{ name: 'Certificates', extensions: ['pem', 'crt', 'cer'] }, { name: 'All Files', extensions: ['*'] }]
+            filters: [
+                { name: 'Certificates', extensions: ['pem', 'crt', 'cer'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
         });
         return result.canceled ? undefined : result.filePaths[0];
     });

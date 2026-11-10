@@ -48,9 +48,18 @@ export function Masonry({ children, minColumnWidth, gap, layoutKey }: Props) {
         <div ref={root} className="masonry" style={{ gap }}>
             {Array.from({ length: columns }, (_, column) => (
                 <div key={column} className="masonry-column" style={{ gap }}>
-                    {items.map((item, index) => ((placement[index] ?? index % columns) === column ? (
-                        <div key={index} ref={element => { itemRefs.current[index] = element; }}>{item}</div>
-                    ) : null))}
+                    {items.map((item, index) =>
+                        (placement[index] ?? index % columns) === column ? (
+                            <div
+                                key={index}
+                                ref={element => {
+                                    itemRefs.current[index] = element;
+                                }}
+                            >
+                                {item}
+                            </div>
+                        ) : null
+                    )}
                 </div>
             ))}
         </div>

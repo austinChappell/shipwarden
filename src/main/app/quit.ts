@@ -19,7 +19,9 @@ export interface QuitDependencies {
 export function stopSessionsQuestion(running: RunningSession[]): ConfirmRequest {
     const agents = running.filter(session => session.isAgent).length;
     const shells = running.length - agents;
-    const parts = [agents ? `${agents} ${agents === 1 ? 'agent' : 'agents'}` : '', shells ? `${shells} ${shells === 1 ? 'shell' : 'shells'}` : ''].filter(Boolean);
+    const parts = [agents ? `${agents} ${agents === 1 ? 'agent' : 'agents'}` : '', shells ? `${shells} ${shells === 1 ? 'shell' : 'shells'}` : ''].filter(
+        Boolean
+    );
     return {
         title: `Stop ${parts.join(' and ')} and quit?`,
         message: 'The processes stop now. Work that an agent did not finish stops too. A normal Quit (⌘Q) keeps the sessions running.',

@@ -1,15 +1,39 @@
 import { describe, expect, it } from 'vitest';
 import type { PullRequest } from '@shared/github';
 import {
-    autoMergeButtonText, autoMergeConfirm, canActOnMerge, descriptionChange, draftConfirm, hasConflicts, hasFooter,
-    mergeBlocker, mergeButtonState, mergeCardTitle, mergeConfirmTitle, reviewText, selectMergeMethod, stateConfirm
+    autoMergeButtonText,
+    autoMergeConfirm,
+    canActOnMerge,
+    descriptionChange,
+    draftConfirm,
+    hasConflicts,
+    hasFooter,
+    mergeBlocker,
+    mergeButtonState,
+    mergeCardTitle,
+    mergeConfirmTitle,
+    reviewText,
+    selectMergeMethod,
+    stateConfirm
 } from './merge-state';
 
 function pr(parts: Partial<PullRequest> = {}): PullRequest {
     return {
-        number: 7, title: 'Fix login', body: 'Text', state: 'OPEN', isDraft: false, mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN',
-        baseRefName: 'main', reviewDecision: null, allowedMergeMethods: ['merge', 'squash', 'rebase'], defaultMergeMethod: 'squash',
-        autoMerge: null, viewerCanMerge: true, viewerCanEnableAutoMerge: false, viewerCanUpdate: false,
+        number: 7,
+        title: 'Fix login',
+        body: 'Text',
+        state: 'OPEN',
+        isDraft: false,
+        mergeable: 'MERGEABLE',
+        mergeStateStatus: 'CLEAN',
+        baseRefName: 'main',
+        reviewDecision: null,
+        allowedMergeMethods: ['merge', 'squash', 'rebase'],
+        defaultMergeMethod: 'squash',
+        autoMerge: null,
+        viewerCanMerge: true,
+        viewerCanEnableAutoMerge: false,
+        viewerCanUpdate: false,
         ...parts
     } as PullRequest;
 }
@@ -101,12 +125,20 @@ describe('hasFooter', () => {
 describe('mergeCardTitle', () => {
     it('adds a question mark when a condition does not pass', () => {
         expect(mergeCardTitle([{ state: 'ok', text: 'a' }])).toBe('Ready to merge');
-        expect(mergeCardTitle([{ state: 'ok', text: 'a' }, { state: 'wait', text: 'b' }])).toBe('Ready to merge?');
+        expect(
+            mergeCardTitle([
+                { state: 'ok', text: 'a' },
+                { state: 'wait', text: 'b' }
+            ])
+        ).toBe('Ready to merge?');
     });
 });
 
 describe('autoMergeButtonText', () => {
-    const waitForReview = [{ state: 'ok' as const, text: 'No conflicts with main' }, { state: 'wait' as const, text: 'Approving review required' }];
+    const waitForReview = [
+        { state: 'ok' as const, text: 'No conflicts with main' },
+        { state: 'wait' as const, text: 'Approving review required' }
+    ];
 
     it('tells that the merge waits for an approval when only the review blocks it', () => {
         expect(autoMergeButtonText(pr({ reviewDecision: 'REVIEW_REQUIRED' }), waitForReview, true)).toBe('Auto-merge on approval');
@@ -140,8 +172,12 @@ describe('mergeButtonState', () => {
     });
 
     it('turns on auto-merge when the user cannot merge', () => {
-        expect(mergeButtonState(pr({ viewerCanMerge: false, isDraft: true }), 'merge', true, false))
-            .toEqual({ label: 'Enable auto-merge', disabled: false, title: undefined, merges: false });
+        expect(mergeButtonState(pr({ viewerCanMerge: false, isDraft: true }), 'merge', true, false)).toEqual({
+            label: 'Enable auto-merge',
+            disabled: false,
+            title: undefined,
+            merges: false
+        });
     });
 });
 

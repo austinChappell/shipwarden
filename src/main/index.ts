@@ -30,9 +30,7 @@ if (process.env.SHIPWARDEN_DEBUG_PORT) {
 
 // The viewers of images, PDF, audio and video files get the files through this protocol.
 // The scheme must be privileged before the app is ready. "stream" lets <video> and <audio> read byte ranges.
-protocol.registerSchemesAsPrivileged([
-    { scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
-]);
+protocol.registerSchemesAsPrivileged([{ scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 
 const mainWindow = new MainWindow();
 const services = createServices({ window: mainWindow, mainFolder: __dirname, onBrowserInput: (id, input) => browserKey(id, input) });
@@ -79,7 +77,7 @@ function sendShortcut(action: ShortcutAction): void {
 /** Stops all terminal sessions and the PTY host after the user confirms, then quits. */
 function quitAndStop(): Promise<void> {
     return quitAndStopSessions({
-        sessions: async () => terminals.isConnected() ? terminals.list().catch(() => []) : [],
+        sessions: async () => (terminals.isConnected() ? terminals.list().catch(() => []) : []),
         confirm: request => services.confirm.ask(request),
         shutdownHost: () => terminals.shutdownHost(),
         quit: () => app.quit()
@@ -132,16 +130,24 @@ app.whenReady().then(async () => {
     Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate({ openSettings, quitAndStopSessions: () => void quitAndStop(), sendShortcut })));
     writeAgentHookFiles(services.hookPaths, services.shellIntegration, join(app.getPath('userData'), 'shell-integration', 'zsh'));
     services.shellAgents.start();
-    protocol.handle(FILE_SCHEME, createFileProtocolHandler(worktree => services.projectWorktrees.check(worktree)));
+    protocol.handle(
+        FILE_SCHEME,
+        createFileProtocolHandler(worktree => services.projectWorktrees.check(worktree))
+    );
     registerIpc(services, runAppKey);
     createWindow();
-    void settings.get().then(all => services.remote.apply(all.remote)).catch(error => console.error('[remote] The phone server did not start:', error));
+    void settings
+        .get()
+        .then(all => services.remote.apply(all.remote))
+        .catch(error => console.error('[remote] The phone server did not start:', error));
     // The usage requests need the extra certificates on a network that inspects TLS traffic.
     void services.networkReady.then(() => services.usage.start());
     // The packaged app looks for updates. In development, the user can still check in Settings › About.
     if (app.isPackaged) void services.networkReady.then(() => services.updates.start());
     // Remove the copies of pull requests that the user did not open for some days.
-    void services.shellReady.then(() => services.reviewCheckouts.prune()).catch(error => console.warn('[review] The old pull request copies were not removed:', error));
+    void services.shellReady
+        .then(() => services.reviewCheckouts.prune())
+        .catch(error => console.warn('[review] The old pull request copies were not removed:', error));
 
     // On macOS, the app stays open with no windows. The agents continue to run.
     app.on('activate', () => {

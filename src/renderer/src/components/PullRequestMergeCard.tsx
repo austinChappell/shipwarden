@@ -27,7 +27,14 @@ interface Props {
 export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSelectMethod, onMerge, onAutoMerge, onDraft, onMoreActions }: Props) {
     const blocker = mergeBlocker(pr);
     const moreButton = pr.viewerCanUpdate && (
-        <button className="icon-button" title="More actions" aria-label="More actions" aria-haspopup="menu" disabled={busy} onClick={event => onMoreActions(event.currentTarget)}>
+        <button
+            className="icon-button"
+            title="More actions"
+            aria-label="More actions"
+            aria-haspopup="menu"
+            disabled={busy}
+            onClick={event => onMoreActions(event.currentTarget)}
+        >
             <Ellipsis size={15} strokeWidth={1.8} />
         </button>
     );
@@ -36,43 +43,48 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
     const mergeActions = pr.autoMerge ? (
         <>
             <div className="panel-note">
-                Auto-merge is on{pr.autoMerge.enabledBy ? ` (${pr.autoMerge.enabledBy})` : ''}.
-                GitHub merges the pull request with "{MERGE_LABELS[pr.autoMerge.method]}" when all the requirements pass.
+                Auto-merge is on{pr.autoMerge.enabledBy ? ` (${pr.autoMerge.enabledBy})` : ''}. GitHub merges the pull request with "
+                {MERGE_LABELS[pr.autoMerge.method]}" when all the requirements pass.
             </div>
             {pr.viewerCanDisableAutoMerge && (
                 <div className="merge-row">
-                    <button className="button" disabled={busy} onClick={() => onAutoMerge(false)}>Disable auto-merge</button>
+                    <button className="button" disabled={busy} onClick={() => onAutoMerge(false)}>
+                        Disable auto-merge
+                    </button>
                 </div>
             )}
         </>
-    ) : (pr.viewerCanMerge || pr.viewerCanEnableAutoMerge) && (
-        <>
-            {!overview && pr.viewerCanMerge && blocker && <div className="panel-note">{blocker}</div>}
-            {method && button && (
-                <div className="merge-row">
-                    {pr.viewerCanMerge && pr.viewerCanEnableAutoMerge && (
-                        <button className="button auto-merge-button" disabled={busy} onClick={() => onAutoMerge(true)}>
-                            {!overview && <GitMerge size={14} strokeWidth={1.8} />}
-                            {autoMergeButtonText(pr, conditions, overview)}
-                        </button>
-                    )}
-                    <MergeButton
-                        methods={pr.allowedMergeMethods}
-                        method={method}
-                        label={button.label}
-                        disabled={button.disabled}
-                        title={button.title}
-                        onSelect={onSelectMethod}
-                        onRun={button.merges ? onMerge : () => onAutoMerge(true)}
-                    />
-                </div>
-            )}
-        </>
+    ) : (
+        (pr.viewerCanMerge || pr.viewerCanEnableAutoMerge) && (
+            <>
+                {!overview && pr.viewerCanMerge && blocker && <div className="panel-note">{blocker}</div>}
+                {method && button && (
+                    <div className="merge-row">
+                        {pr.viewerCanMerge && pr.viewerCanEnableAutoMerge && (
+                            <button className="button auto-merge-button" disabled={busy} onClick={() => onAutoMerge(true)}>
+                                {!overview && <GitMerge size={14} strokeWidth={1.8} />}
+                                {autoMergeButtonText(pr, conditions, overview)}
+                            </button>
+                        )}
+                        <MergeButton
+                            methods={pr.allowedMergeMethods}
+                            method={method}
+                            label={button.label}
+                            disabled={button.disabled}
+                            title={button.title}
+                            onSelect={onSelectMethod}
+                            onRun={button.merges ? onMerge : () => onAutoMerge(true)}
+                        />
+                    </div>
+                )}
+            </>
+        )
     );
     const readyButton = pr.viewerCanUpdate && pr.isDraft && (
         <div className="merge-row">
             <button className="button" disabled={busy} onClick={() => onDraft(false)}>
-                <GitPullRequest size={14} strokeWidth={1.8} />Ready for review
+                <GitPullRequest size={14} strokeWidth={1.8} />
+                Ready for review
             </button>
         </div>
     );
@@ -88,7 +100,13 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
                 <ul className="merge-conditions">
                     {conditions.map(item => (
                         <li key={item.text} className={`merge-condition ${item.state}`}>
-                            {item.state === 'ok' ? <CircleCheck {...CONDITION_ICON} /> : item.state === 'fail' ? <CircleX {...CONDITION_ICON} /> : <Circle {...CONDITION_ICON} />}
+                            {item.state === 'ok' ? (
+                                <CircleCheck {...CONDITION_ICON} />
+                            ) : item.state === 'fail' ? (
+                                <CircleX {...CONDITION_ICON} />
+                            ) : (
+                                <Circle {...CONDITION_ICON} />
+                            )}
                             {item.text}
                         </li>
                     ))}

@@ -80,10 +80,14 @@ function moveSidebarFocus(event: ReactKeyboardEvent<HTMLElement>): void {
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
     const items = [...event.currentTarget.querySelectorAll<HTMLElement>(SIDEBAR_ITEM)];
     const after = (item: HTMLElement) => !!(target.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING);
-    const next = event.key === 'Home' ? items[0]
-        : event.key === 'End' ? items.at(-1)
-        : event.key === 'ArrowDown' ? items.find(after)
-        : items.filter(item => item !== target && !after(item)).at(-1);
+    const next =
+        event.key === 'Home'
+            ? items[0]
+            : event.key === 'End'
+              ? items.at(-1)
+              : event.key === 'ArrowDown'
+                ? items.find(after)
+                : items.filter(item => item !== target && !after(item)).at(-1);
     if (!next) return;
     event.preventDefault();
     next.focus();
@@ -169,7 +173,11 @@ function readCollapsed(): Set<string> {
 
 /** The agent state of a set of worktrees: the state that needs the user most. */
 function agentStateOf(sessions: TerminalSession[], paths: Set<string>): AgentState | undefined {
-    return worktreeAgentState(sessions.filter(session => (session.isAgent || runsAgent(session)) && session.worktreePath && paths.has(session.worktreePath)).map(session => session.agentState));
+    return worktreeAgentState(
+        sessions
+            .filter(session => (session.isAgent || runsAgent(session)) && session.worktreePath && paths.has(session.worktreePath))
+            .map(session => session.agentState)
+    );
 }
 
 /** The place where a dragged item goes: before or after another item. */
@@ -192,34 +200,37 @@ function useReorder(keys: readonly string[], onMove: (key: string, toIndex: numb
         setTarget(undefined);
     };
 
-    const itemProps = (key: string) => enabled ? {
-        draggable: true,
-        'aria-keyshortcuts': 'Alt+ArrowUp Alt+ArrowDown',
-        onDragStart: (event: DragEvent) => {
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', key);
-            setDragged(key);
-        },
-        onDragOver: (event: DragEvent<HTMLElement>) => {
-            if (dragged === undefined) return;
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
-            const box = event.currentTarget.getBoundingClientRect();
-            const after = event.clientY > box.top + box.height / 2;
-            if (target?.key !== key || target.after !== after) setTarget({ key, after });
-        },
-        onDrop: (event: DragEvent) => {
-            event.preventDefault();
-            if (dragged !== undefined && target) {
-                const from = keys.indexOf(dragged);
-                let to = keys.indexOf(target.key) + (target.after ? 1 : 0);
-                if (from < to) to -= 1;
-                if (from !== -1 && from !== to) onMove(dragged, to);
-            }
-            end();
-        },
-        onDragEnd: end
-    } : {};
+    const itemProps = (key: string) =>
+        enabled
+            ? {
+                  draggable: true,
+                  'aria-keyshortcuts': 'Alt+ArrowUp Alt+ArrowDown',
+                  onDragStart: (event: DragEvent) => {
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/plain', key);
+                      setDragged(key);
+                  },
+                  onDragOver: (event: DragEvent<HTMLElement>) => {
+                      if (dragged === undefined) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                      const box = event.currentTarget.getBoundingClientRect();
+                      const after = event.clientY > box.top + box.height / 2;
+                      if (target?.key !== key || target.after !== after) setTarget({ key, after });
+                  },
+                  onDrop: (event: DragEvent) => {
+                      event.preventDefault();
+                      if (dragged !== undefined && target) {
+                          const from = keys.indexOf(dragged);
+                          let to = keys.indexOf(target.key) + (target.after ? 1 : 0);
+                          if (from < to) to -= 1;
+                          if (from !== -1 && from !== to) onMove(dragged, to);
+                      }
+                      end();
+                  },
+                  onDragEnd: end
+              }
+            : {};
 
     const dropClass = (key: string) => {
         if (dragged === undefined) return '';
@@ -277,7 +288,10 @@ function useNow(hidden: Record<string, HiddenWorktree> | undefined): number {
 /** The text of a worktree that the sidebar search looks at. */
 function worktreeSearchText(worktree: Worktree, props: Props): string {
     const link = props.links[worktree.path];
-    return [worktreeLabel(worktree, props.worktreeNames), worktree.branch, basename(worktree.path), link?.key, link?.title].filter(Boolean).join('\n').toLowerCase();
+    return [worktreeLabel(worktree, props.worktreeNames), worktree.branch, basename(worktree.path), link?.key, link?.title]
+        .filter(Boolean)
+        .join('\n')
+        .toLowerCase();
 }
 
 /** The project name at the top of the sidebar. Its menu switches, creates, renames and deletes projects. */
@@ -334,19 +348,28 @@ function ProjectSwitcher(props: Props) {
             return;
         }
         const repos = active.repos.length;
-        if (await confirmDialog({
-            title: `Delete the project "${active.name}"?`,
-            message: `Its ${repos} ${repos === 1 ? 'repository stays' : 'repositories stay'} on disk, and agents continue to run. Only the list goes away.`,
-            confirmLabel: 'Delete project',
-            danger: true
-        })) {
+        if (
+            await confirmDialog({
+                title: `Delete the project "${active.name}"?`,
+                message: `Its ${repos} ${repos === 1 ? 'repository stays' : 'repositories stay'} on disk, and agents continue to run. Only the list goes away.`,
+                confirmLabel: 'Delete project',
+                danger: true
+            })
+        ) {
             run(() => props.onDeleteProject(active.id));
         }
     };
 
     return (
         <div className="project-switcher" ref={root}>
-            <button data-sidebar-item className="project-button" aria-haspopup="menu" aria-expanded={open} title="Switch the project. The project decides the repositories below." onClick={() => (open ? close() : setOpen(true))}>
+            <button
+                data-sidebar-item
+                className="project-button"
+                aria-haspopup="menu"
+                aria-expanded={open}
+                title="Switch the project. The project decides the repositories below."
+                onClick={() => (open ? close() : setOpen(true))}
+            >
                 <span className="project-button-name">{active?.name ?? 'Loading…'}</span>
                 <ChevronDown className="repo-chevron" size={13} strokeWidth={1.75} />
             </button>
@@ -391,15 +414,33 @@ function ProjectSwitcher(props: Props) {
                                     }
                                 }}
                             />
-                            <button type="submit" className="button primary" disabled={busy}>{form === 'create' ? 'Create' : 'Rename'}</button>
+                            <button type="submit" className="button primary" disabled={busy}>
+                                {form === 'create' ? 'Create' : 'Rename'}
+                            </button>
                         </form>
                     ) : (
                         <>
-                            <button role="menuitem" className="project-menu-item" onClick={() => { setName(''); setForm('create'); }}>
-                                <span className="project-menu-check" />New project…
+                            <button
+                                role="menuitem"
+                                className="project-menu-item"
+                                onClick={() => {
+                                    setName('');
+                                    setForm('create');
+                                }}
+                            >
+                                <span className="project-menu-check" />
+                                New project…
                             </button>
-                            <button role="menuitem" className="project-menu-item" onClick={() => { setName(active?.name ?? ''); setForm('rename'); }}>
-                                <span className="project-menu-check" />Rename “{active?.name}”…
+                            <button
+                                role="menuitem"
+                                className="project-menu-item"
+                                onClick={() => {
+                                    setName(active?.name ?? '');
+                                    setForm('rename');
+                                }}
+                            >
+                                <span className="project-menu-check" />
+                                Rename “{active?.name}”…
                             </button>
                             <button
                                 role="menuitem"
@@ -408,7 +449,8 @@ function ProjectSwitcher(props: Props) {
                                 title={projects.projects.length === 1 ? 'ShipWarden needs at least one project.' : undefined}
                                 onClick={remove}
                             >
-                                <span className="project-menu-check" />Delete “{active?.name}”…
+                                <span className="project-menu-check" />
+                                Delete “{active?.name}”…
                             </button>
                         </>
                     )}
@@ -452,7 +494,16 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
     const repoState = collapsed ? agentStateOf(sessions, new Set(shown.map(worktree => worktree.path))) : undefined;
     const hiddenState = hidden.length > 0 && !showHidden ? agentStateOf(sessions, new Set(hidden.map(worktree => worktree.path))) : undefined;
     /** True when the repository is collapsed and contains the selected worktree. */
-    const holdsSelection = collapsed && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.pipelinesActive && shown.some(worktree => worktree.path === selectedPath);
+    const holdsSelection =
+        collapsed &&
+        !parent.tasksActive &&
+        !parent.settingsActive &&
+        !parent.agentsActive &&
+        !parent.reviewActive &&
+        !parent.dashboardActive &&
+        !parent.notesActive &&
+        !parent.pipelinesActive &&
+        shown.some(worktree => worktree.path === selectedPath);
     const color = parent.repoColor(repo);
     const runningInRepo = collapsed && sessions.some(session => runsAgent(session) && shown.some(worktree => worktree.path === session.worktreePath));
 
@@ -486,9 +537,16 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                 <span className={`status-dot ${dotClass}`} title={dotTitle} />
                 <div className="worktree-text">
                     <div className="worktree-name">
-                        {isHidden && (hiddenEntry?.until
-                            ? <span className="worktree-hidden-mark" title={`Snoozed ${snoozeText(hiddenEntry.until, now)}`}><Clock size={11} strokeWidth={1.9} /></span>
-                            : <span className="worktree-hidden-mark" title="Hidden from the sidebar"><EyeOff size={11} strokeWidth={1.9} /></span>)}
+                        {isHidden &&
+                            (hiddenEntry?.until ? (
+                                <span className="worktree-hidden-mark" title={`Snoozed ${snoozeText(hiddenEntry.until, now)}`}>
+                                    <Clock size={11} strokeWidth={1.9} />
+                                </span>
+                            ) : (
+                                <span className="worktree-hidden-mark" title="Hidden from the sidebar">
+                                    <EyeOff size={11} strokeWidth={1.9} />
+                                </span>
+                            ))}
                         {name}
                     </div>
                     <div className="worktree-detail">
@@ -505,9 +563,16 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                                     parent.onOpenTask(worktree.path);
                                 }}
                             >
-                                {link.key ? `${link.key} · ` : ''}{link.title}
+                                {link.key ? `${link.key} · ` : ''}
+                                {link.title}
                             </button>
-                        ) : named ? (worktree.branch ?? basename(worktree.path)) : worktree.isMain ? 'main worktree' : basename(worktree.path)}
+                        ) : named ? (
+                            (worktree.branch ?? basename(worktree.path))
+                        ) : worktree.isMain ? (
+                            'main worktree'
+                        ) : (
+                            basename(worktree.path)
+                        )}
                     </div>
                 </div>
                 {pr && (
@@ -668,16 +733,20 @@ export function Sidebar(outerProps: Props) {
      * The repositories to show, each with its sorted worktrees. A search keeps a repository when its name or one of its
      * worktrees matches. A search also finds hidden worktrees. Without a search, the hidden worktrees go to `hidden`.
      */
-    const groups = useMemo(() => props.repos.flatMap(repo => {
-        const all = sortWorktrees(props.worktreesByRepo[repo] ?? [], props.worktreeSort, props.worktreeNames);
-        if (!search) {
-            const isHidden = (worktree: Worktree) => isHiddenAt(props.hiddenWorktrees?.[worktree.path], now);
-            return [{ repo, worktrees: all.filter(worktree => !isHidden(worktree)), hidden: all.filter(isHidden), total: all.length }];
-        }
-        const repoMatches = `${props.repoLabel(repo)}\n${basename(repo)}`.toLowerCase().includes(search);
-        const worktrees = repoMatches ? all : all.filter(worktree => worktreeSearchText(worktree, props).includes(search));
-        return repoMatches || worktrees.length > 0 ? [{ repo, worktrees, hidden: [], total: all.length }] : [];
-    }), [props.repos, props.worktreesByRepo, props.worktreeSort, props.worktreeNames, props.hiddenWorktrees, now, props.links, props.repoLabel, search]);
+    const groups = useMemo(
+        () =>
+            props.repos.flatMap(repo => {
+                const all = sortWorktrees(props.worktreesByRepo[repo] ?? [], props.worktreeSort, props.worktreeNames);
+                if (!search) {
+                    const isHidden = (worktree: Worktree) => isHiddenAt(props.hiddenWorktrees?.[worktree.path], now);
+                    return [{ repo, worktrees: all.filter(worktree => !isHidden(worktree)), hidden: all.filter(isHidden), total: all.length }];
+                }
+                const repoMatches = `${props.repoLabel(repo)}\n${basename(repo)}`.toLowerCase().includes(search);
+                const worktrees = repoMatches ? all : all.filter(worktree => worktreeSearchText(worktree, props).includes(search));
+                return repoMatches || worktrees.length > 0 ? [{ repo, worktrees, hidden: [], total: all.length }] : [];
+            }),
+        [props.repos, props.worktreesByRepo, props.worktreeSort, props.worktreeNames, props.hiddenWorktrees, now, props.links, props.repoLabel, search]
+    );
     /** The agents of all projects that still run, and the state that needs the user most. */
     const runningAgents = props.sessions.filter(session => runsAgent(session)).length;
     const agentsState = worktreeAgentState(props.sessions.filter(session => runsAgent(session)).map(session => session.agentState));
@@ -688,10 +757,11 @@ export function Sidebar(outerProps: Props) {
         const focus = () => {
             const root = asideRef.current;
             if (!root || !takeSidebarFocusRequest()) return;
-            const target = root.querySelector<HTMLElement>('.worktree-row.selected')
-                ?? root.querySelector<HTMLElement>('.nav-row.selected')
-                ?? root.querySelector<HTMLElement>('.repo-header.holds-selection')
-                ?? root.querySelector<HTMLElement>(SIDEBAR_ITEM);
+            const target =
+                root.querySelector<HTMLElement>('.worktree-row.selected') ??
+                root.querySelector<HTMLElement>('.nav-row.selected') ??
+                root.querySelector<HTMLElement>('.repo-header.holds-selection') ??
+                root.querySelector<HTMLElement>(SIDEBAR_ITEM);
             target?.focus();
             target?.scrollIntoView({ block: 'nearest' });
         };
@@ -699,20 +769,21 @@ export function Sidebar(outerProps: Props) {
         return onSidebarFocusRequest(focus);
     }, []);
 
-    const toggle = (repo: string) => setCollapsed(current => {
-        const next = new Set(current);
-        if (next.has(repo)) {
-            next.delete(repo);
-        } else {
-            next.add(repo);
-        }
-        try {
-            localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...next]));
-        } catch {
-            // The state stays for this session only.
-        }
-        return next;
-    });
+    const toggle = (repo: string) =>
+        setCollapsed(current => {
+            const next = new Set(current);
+            if (next.has(repo)) {
+                next.delete(repo);
+            } else {
+                next.add(repo);
+            }
+            try {
+                localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...next]));
+            } catch {
+                // The state stays for this session only.
+            }
+            return next;
+        });
 
     return (
         <aside className="sidebar" ref={asideRef} aria-label="Sidebar" onKeyDown={moveSidebarFocus}>
@@ -806,7 +877,9 @@ export function Sidebar(outerProps: Props) {
                 {search && groups.length === 0 && <li className="repo-empty repo-no-match">No repositories or worktrees match “{query.trim()}”.</li>}
                 {props.projects && props.repos.length === 0 && (
                     <li className="repo-empty">
-                        <button className="button" onClick={props.onAddRepo}>Add a repository</button>
+                        <button className="button" onClick={props.onAddRepo}>
+                            Add a repository
+                        </button>
                     </li>
                 )}
             </ul>

@@ -6,7 +6,6 @@ import * as path from 'path';
 import { GitWorktreeService } from './git-worktree-service';
 
 describe('GitWorktreeService', () => {
-
     let tmp: string;
     let repo: string;
     let service: GitWorktreeService;
@@ -146,8 +145,11 @@ describe('GitWorktreeService', () => {
 
         const matching = { enabled: true, mode: 'matching' as const, patterns: ['.env', '.env.*'], exclude: [] };
         expect(await service.ignoredMatches(repo, matching)).toEqual(['.env', 'apps/web/.env.local']);
-        expect(await service.ignoredMatches(repo, { ...matching, mode: 'allExcept', exclude: ['node_modules/'] }))
-            .toEqual(['.env', 'apps/web/.env.local', 'secret.key']);
+        expect(await service.ignoredMatches(repo, { ...matching, mode: 'allExcept', exclude: ['node_modules/'] })).toEqual([
+            '.env',
+            'apps/web/.env.local',
+            'secret.key'
+        ]);
         const worktree = await service.create({ repoPath: repo, branch: 'feat/copy' });
         const copied = await service.copyIgnored(repo, worktree.path, matching);
         expect(copied).toEqual(['.env', 'apps/web/.env.local']);
@@ -170,7 +172,6 @@ describe('GitWorktreeService', () => {
         expect(git(repo, 'branch', '--list', 'feat/*').trim()).toBe('');
     });
     describe('pulls the start branch before it deletes a branch', () => {
-
         let origin: string;
         let other: string;
         const commit = (cwd: string, message: string) =>

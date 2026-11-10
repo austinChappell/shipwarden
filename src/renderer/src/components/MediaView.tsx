@@ -24,7 +24,11 @@ function FileActions({ root, path, onError, canOpen }: { root: string; path: str
     return (
         <>
             {canOpen && (
-                <button className="icon-button" title="Open in the default app" onClick={() => files.openInDefaultApp(root, path).catch(error => onError(errorText(error)))}>
+                <button
+                    className="icon-button"
+                    title="Open in the default app"
+                    onClick={() => files.openInDefaultApp(root, path).catch(error => onError(errorText(error)))}
+                >
                     <ExternalLink size={14} strokeWidth={1.8} />
                 </button>
             )}
@@ -86,12 +90,16 @@ export function ImageView({ root, path, info, version, onError }: FileProps) {
 
     const sized = natural && natural.width > 0 && natural.height > 0;
     const style = sized
-        ? { width: natural.width * zoom, height: natural.height * zoom, imageRendering: zoom >= 2 ? 'pixelated' as const : undefined }
+        ? { width: natural.width * zoom, height: natural.height * zoom, imageRendering: zoom >= 2 ? ('pixelated' as const) : undefined }
         : { maxWidth: '100%', maxHeight: '100%' };
 
     const details = (
         <>
-            {sized && <span>{natural.width} × {natural.height}</span>}
+            {sized && (
+                <span>
+                    {natural.width} × {natural.height}
+                </span>
+            )}
             <span>{formatSize(info.size)}</span>
         </>
     );
@@ -102,7 +110,9 @@ export function ImageView({ root, path, info, version, onError }: FileProps) {
                 <button className={`button compact${mode === 'fit' ? ' selected' : ''}`} title="Fit the image in the view" onClick={() => setMode('fit')}>
                     <Maximize size={13} strokeWidth={1.8} /> Fit
                 </button>
-                <button className={`button compact${mode === 1 ? ' selected' : ''}`} title="Show the image at its real size" onClick={() => setMode(1)}>100%</button>
+                <button className={`button compact${mode === 1 ? ' selected' : ''}`} title="Show the image at its real size" onClick={() => setMode(1)}>
+                    100%
+                </button>
                 <button className="icon-button" title="Zoom out" onClick={() => setMode(clampZoom(stepZoom(zoom, -1)))}>
                     <ZoomOut size={14} strokeWidth={1.8} />
                 </button>

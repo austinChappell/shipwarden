@@ -63,7 +63,11 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
      * "/" separates the words, so "acme/api" also matches.
      */
     const shown = useMemo(() => {
-        const words = query.trim().toLowerCase().split(/[\s/]+/).filter(Boolean);
+        const words = query
+            .trim()
+            .toLowerCase()
+            .split(/[\s/]+/)
+            .filter(Boolean);
         if (!words.length) {
             return groups;
         }
@@ -168,7 +172,9 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
                             {selected.group && <span className="combobox-group-prefix">{selected.group} / </span>}
                             {selected.item.label}
                         </>
-                    ) : placeholder}
+                    ) : (
+                        placeholder
+                    )}
                 </span>
                 <ChevronDown size={13} strokeWidth={1.8} />
             </button>

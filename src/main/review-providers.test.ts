@@ -23,14 +23,15 @@ const REMOTES: Record<string, string> = {
 describe('ReviewProviders', () => {
     let folder: string;
     let legacyOwners: string[] | 'all' | undefined;
-    const create = () => new ReviewProviders({
-        file: join(folder, 'providers.json'),
-        secretsFile: join(folder, 'secrets.json'),
-        ready: Promise.resolve(),
-        legacyReviewOwners: async () => legacyOwners,
-        onChanged: () => undefined,
-        readRemote: async root => REMOTES[root] ?? ''
-    });
+    const create = () =>
+        new ReviewProviders({
+            file: join(folder, 'providers.json'),
+            secretsFile: join(folder, 'secrets.json'),
+            ready: Promise.resolve(),
+            legacyReviewOwners: async () => legacyOwners,
+            onChanged: () => undefined,
+            readRemote: async root => REMOTES[root] ?? ''
+        });
     /** A user with both providers, as an older version had them. */
     const createWithBoth = async () => {
         const providers = create();

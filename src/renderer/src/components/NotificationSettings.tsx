@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { Volume2 } from 'lucide-react';
-import { CI_SCOPES, NOTIFICATION_EVENTS, NOTIFICATION_SOUNDS, type CiScope, type NotificationEvent, type NotificationSettings as NotificationSettingsValue } from '@shared/notifications';
+import {
+    CI_SCOPES,
+    NOTIFICATION_EVENTS,
+    NOTIFICATION_SOUNDS,
+    type CiScope,
+    type NotificationEvent,
+    type NotificationSettings as NotificationSettingsValue
+} from '@shared/notifications';
 import type { AppSettings } from '@shared/settings';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
@@ -62,16 +69,31 @@ export function NotificationSettings({ settings, onSave }: Props) {
                 <SettingsRow
                     label="Also when ShipWarden is active"
                     description="Off: no notification while ShipWarden is the active app. An agent that you look at never sends one."
-                    control={<Switch checked={value.whenFocused} disabled={!value.enabled} title={value.whenFocused ? 'On' : 'Off'} onChange={whenFocused => void save({ whenFocused })} />}
+                    control={
+                        <Switch
+                            checked={value.whenFocused}
+                            disabled={!value.enabled}
+                            title={value.whenFocused ? 'On' : 'Off'}
+                            onChange={whenFocused => void save({ whenFocused })}
+                        />
+                    }
                 />
                 <SettingsRow
                     label="Test"
                     description="Sends a notification with the sound of “Agent needs input”. If nothing shows, allow notifications for ShipWarden in System Settings › Notifications."
-                    control={<button className="button" disabled={!value.enabled} onClick={test}>{tested ? 'Send again' : 'Send a test'}</button>}
+                    control={
+                        <button className="button" disabled={!value.enabled} onClick={test}>
+                            {tested ? 'Send again' : 'Send a test'}
+                        </button>
+                    }
                 />
             </SettingsGroup>
 
-            <SettingsGroup title="Events and sounds" description="Each event has its own switch and sound. “No sound” shows the notification without a sound." card>
+            <SettingsGroup
+                title="Events and sounds"
+                description="Each event has its own switch and sound. “No sound” shows the notification without a sound."
+                card
+            >
                 {NOTIFICATION_EVENTS.map(event => {
                     const current = value.events[event.id];
                     return (
@@ -79,7 +101,7 @@ export function NotificationSettings({ settings, onSave }: Props) {
                             key={event.id}
                             label={event.label}
                             description={event.description}
-                            control={(
+                            control={
                                 <div className="notification-controls">
                                     {event.id === 'ciFinished' && (
                                         <select
@@ -89,7 +111,11 @@ export function NotificationSettings({ settings, onSave }: Props) {
                                             title="Pull requests"
                                             onChange={change => void save({ ciScope: change.target.value as CiScope })}
                                         >
-                                            {CI_SCOPES.map(scope => <option key={scope.id} value={scope.id}>{scope.label}</option>)}
+                                            {CI_SCOPES.map(scope => (
+                                                <option key={scope.id} value={scope.id}>
+                                                    {scope.label}
+                                                </option>
+                                            ))}
                                         </select>
                                     )}
                                     <select
@@ -104,7 +130,11 @@ export function NotificationSettings({ settings, onSave }: Props) {
                                         }}
                                     >
                                         <option value="">No sound</option>
-                                        {NOTIFICATION_SOUNDS.map(sound => <option key={sound} value={sound}>{sound}</option>)}
+                                        {NOTIFICATION_SOUNDS.map(sound => (
+                                            <option key={sound} value={sound}>
+                                                {sound}
+                                            </option>
+                                        ))}
                                     </select>
                                     <button
                                         className="icon-button"
@@ -121,7 +151,7 @@ export function NotificationSettings({ settings, onSave }: Props) {
                                         onChange={enabled => void saveEvent(event.id, { enabled })}
                                     />
                                 </div>
-                            )}
+                            }
                         />
                     );
                 })}

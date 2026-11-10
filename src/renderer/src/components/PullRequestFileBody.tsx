@@ -34,7 +34,22 @@ interface FileBodyProps {
  * The "+" in the gutter starts a comment. GitHub's patch is enough for most files. Without it (a large file),
  * the view loads both versions of the file.
  */
-export const FileBody = memo(function FileBody({ target, pr, file, pending, composer, questions, highlight, diffStyle, mode, onComposer, onAsk, onQuestion, onRefresh, onGoToDefinition }: FileBodyProps) {
+export const FileBody = memo(function FileBody({
+    target,
+    pr,
+    file,
+    pending,
+    composer,
+    questions,
+    highlight,
+    diffStyle,
+    mode,
+    onComposer,
+    onAsk,
+    onQuestion,
+    onRefresh,
+    onGoToDefinition
+}: FileBodyProps) {
     const patch = useMemo(() => unifiedPatch(file), [file]);
     const [versions, setVersions] = useState<FileVersions | 'error'>();
     const canComment = pr.state === 'OPEN';
@@ -56,34 +71,39 @@ export const FileBody = memo(function FileBody({ target, pr, file, pending, comp
         [pr.threads, file.path, pending, questions, composer]
     );
 
-    const options = useMemo((): FileDiffOptions<Note, undefined> => ({
-        diffStyle,
-        themeType: mode,
-        disableFileHeader: true,
-        unsafeCSS: THEME_CSS,
-        overflow: 'wrap',
-        lineDiffType: 'word',
-        // A closed pull request takes no comments, but the agent can still answer questions about it.
-        enableGutterUtility: canComment || !!onAsk,
-        onGutterUtilityClick: range => onComposer(composerFromRange(range)),
-        // Only the new side is in the local copy of the pull request. A removed line has no definition there.
-        ...(onGoToDefinition ? {
-            onTokenClick: (token, event) => {
-                if (!event.metaKey || token.side !== 'additions') return;
-                event.preventDefault();
-                onGoToDefinition(file.path, token.lineNumber, token.lineCharStart + 1);
+    const options = useMemo(
+        (): FileDiffOptions<Note, undefined> => ({
+            diffStyle,
+            themeType: mode,
+            disableFileHeader: true,
+            unsafeCSS: THEME_CSS,
+            overflow: 'wrap',
+            lineDiffType: 'word',
+            // A closed pull request takes no comments, but the agent can still answer questions about it.
+            enableGutterUtility: canComment || !!onAsk,
+            onGutterUtilityClick: range => onComposer(composerFromRange(range)),
+            // Only the new side is in the local copy of the pull request. A removed line has no definition there.
+            ...(onGoToDefinition
+                ? ({
+                      onTokenClick: (token, event) => {
+                          if (!event.metaKey || token.side !== 'additions') return;
+                          event.preventDefault();
+                          onGoToDefinition(file.path, token.lineNumber, token.lineCharStart + 1);
+                      }
+                  } satisfies Partial<FileDiffOptions<Note, undefined>>)
+                : {}),
+            // The patch has only the lines near the changes. To show the hidden lines, the diff loads the two full files.
+            loadDiffFiles: async () => {
+                const result = await reviewStore.fileVersions(target, file, pr.baseRefOid, pr.headRefOid);
+                if (result.unavailable) throw new Error(`The full versions of ${file.path} are not available.`);
+                return {
+                    oldFile: { name: file.previousPath ?? file.path, contents: result.base },
+                    newFile: { name: file.path, contents: result.head }
+                };
             }
-        } satisfies Partial<FileDiffOptions<Note, undefined>> : {}),
-        // The patch has only the lines near the changes. To show the hidden lines, the diff loads the two full files.
-        loadDiffFiles: async () => {
-            const result = await reviewStore.fileVersions(target, file, pr.baseRefOid, pr.headRefOid);
-            if (result.unavailable) throw new Error(`The full versions of ${file.path} are not available.`);
-            return {
-                oldFile: { name: file.previousPath ?? file.path, contents: result.base },
-                newFile: { name: file.path, contents: result.head }
-            };
-        }
-    }), [diffStyle, mode, canComment, onAsk, onComposer, onGoToDefinition, target, file, pr.baseRefOid, pr.headRefOid]);
+        }),
+        [diffStyle, mode, canComment, onAsk, onComposer, onGoToDefinition, target, file, pr.baseRefOid, pr.headRefOid]
+    );
 
     const renderAnnotation = (annotation: DiffLineAnnotation<Note>): ReactNode => {
         const note = annotation.metadata;
@@ -124,12 +144,7 @@ export const FileBody = memo(function FileBody({ target, pr, file, pending, comp
             const question = note.question;
             return (
                 <div className="stream-zone">
-                    <QuestionZone
-                        question={question}
-                        headRefOid={pr.headRefOid}
-                        canComment={canComment}
-                        onAction={action => onQuestion(question, action)}
-                    />
+                    <QuestionZone question={question} headRefOid={pr.headRefOid} canComment={canComment} onAction={action => onQuestion(question, action)} />
                 </div>
             );
         }
@@ -156,16 +171,30 @@ export const FileBody = memo(function FileBody({ target, pr, file, pending, comp
     );
 
     if (patch) {
-        return <PatchDiff<Note, undefined> patch={patch} options={options} lineAnnotations={annotations} selectedLines={selectedLines} renderAnnotation={renderAnnotation} />;
+        return (
+            <PatchDiff<Note, undefined>
+                patch={patch}
+                options={options}
+                lineAnnotations={annotations}
+                selectedLines={selectedLines}
+                renderAnnotation={renderAnnotation}
+            />
+        );
     }
     if (!versions) {
-        return <div className="stream-file-note"><LoaderCircle size={13} className="spin" /> GitHub sent no patch for this large file. Loading both versions…</div>;
+        return (
+            <div className="stream-file-note">
+                <LoaderCircle size={13} className="spin" /> GitHub sent no patch for this large file. Loading both versions…
+            </div>
+        );
     }
     if (versions === 'error') {
         return (
             <div className="stream-file-note">
                 ShipWarden cannot show this file. It is possibly binary or too large.
-                <button className="link-button" onClick={event => openLink(`${pr.url}/files`, event)}>Open on GitHub <ExternalLink size={12} /></button>
+                <button className="link-button" onClick={event => openLink(`${pr.url}/files`, event)}>
+                    Open on GitHub <ExternalLink size={12} />
+                </button>
             </div>
         );
     }

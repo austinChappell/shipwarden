@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { HookSettingsPaths } from '@shared/agents';
 import {
-    changed, DEFAULT_LOG_LIMIT, FETCH_INTERVAL_MS, fetchMaxAge, isWebUrl, logLimit, newPullRequestOf, onlyStrings, optionalString,
-    repoRefOf, sameRepo, stringsOf, terminalCommand, validBounds
+    changed,
+    DEFAULT_LOG_LIMIT,
+    FETCH_INTERVAL_MS,
+    fetchMaxAge,
+    isWebUrl,
+    logLimit,
+    newPullRequestOf,
+    onlyStrings,
+    optionalString,
+    repoRefOf,
+    sameRepo,
+    stringsOf,
+    terminalCommand,
+    validBounds
 } from './args';
 
 describe('stringsOf', () => {
@@ -70,13 +82,16 @@ describe('isWebUrl', () => {
 
 describe('newPullRequestOf', () => {
     it('trims the title and keeps the base', () => {
-        expect(newPullRequestOf({ title: '  Fix the bug ', body: 'Text', base: 'develop', draft: true }))
-            .toEqual({ title: 'Fix the bug', body: 'Text', base: 'develop', draft: true });
+        expect(newPullRequestOf({ title: '  Fix the bug ', body: 'Text', base: 'develop', draft: true })).toEqual({
+            title: 'Fix the bug',
+            body: 'Text',
+            base: 'develop',
+            draft: true
+        });
     });
     it('gives defaults for missing and wrong fields', () => {
         expect(newPullRequestOf(undefined)).toEqual({ title: '', body: '', base: undefined, draft: false });
-        expect(newPullRequestOf({ title: 'A', base: '', draft: 'yes' as unknown as boolean }))
-            .toEqual({ title: 'A', body: '', base: undefined, draft: false });
+        expect(newPullRequestOf({ title: 'A', base: '', draft: 'yes' as unknown as boolean })).toEqual({ title: 'A', body: '', base: undefined, draft: false });
     });
 });
 

@@ -100,9 +100,23 @@ function Tab({ id, current, label, count, onSelect }: { id: ReviewTab; current: 
 /** The count of the Checks tab. Its color shows the result of the checks. */
 function CheckTabCount({ total, counts }: { total: number; counts: CheckCounts | undefined }) {
     if (!counts || counts.total === 0) return <span className="pr-tab-count">{total}</span>;
-    if (counts.failed > 0) return <span className="pr-tab-count failure" title={`${counts.failed} failed`}>{counts.total} <X size={11} strokeWidth={2.4} /></span>;
-    if (counts.running > 0) return <span className="pr-tab-count pending" title={`${counts.running} running`}>{counts.total}</span>;
-    return <span className="pr-tab-count success" title="All checks passed">{counts.total} <Check size={11} strokeWidth={2.4} /></span>;
+    if (counts.failed > 0)
+        return (
+            <span className="pr-tab-count failure" title={`${counts.failed} failed`}>
+                {counts.total} <X size={11} strokeWidth={2.4} />
+            </span>
+        );
+    if (counts.running > 0)
+        return (
+            <span className="pr-tab-count pending" title={`${counts.running} running`}>
+                {counts.total}
+            </span>
+        );
+    return (
+        <span className="pr-tab-count success" title="All checks passed">
+            {counts.total} <Check size={11} strokeWidth={2.4} />
+        </span>
+    );
 }
 
 /**
@@ -133,20 +147,22 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
         setCode(history => {
             if (!history) return { current: next, back: [] };
             const cursor = cursorRef.current;
-            const previous = cursor && cursor.path === history.current.path
-                ? { path: cursor.path, line: cursor.line, column: cursor.column, nonce: 0 }
-                : { ...history.current, action: undefined };
+            const previous =
+                cursor && cursor.path === history.current.path
+                    ? { path: cursor.path, line: cursor.line, column: cursor.column, nonce: 0 }
+                    : { ...history.current, action: undefined };
             return { current: next, back: [...history.back, previous].slice(-50) };
         });
     };
     const openCodeRef = useRef(openCode);
     openCodeRef.current = openCode;
 
-    const goBack = () => setCode(history => {
-        if (!history?.back.length) return history;
-        const previous = history.back[history.back.length - 1];
-        return { current: { ...previous, nonce: Date.now() }, back: history.back.slice(0, -1) };
-    });
+    const goBack = () =>
+        setCode(history => {
+            if (!history?.back.length) return history;
+            const previous = history.back[history.back.length - 1];
+            return { current: { ...previous, nonce: Date.now() }, back: history.back.slice(0, -1) };
+        });
 
     /** Gets the local copy of the pull request. The state of the copy shows in the code pane and the file side. */
     const ensureCheckout = () => {
@@ -273,14 +289,18 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
             <header className="review-pr-header">
                 {back}
                 <div className="review-pr-title">
-                    <h2>{pr.title} <span className="review-pr-number">#{pr.number}</span></h2>
+                    <h2>
+                        {pr.title} <span className="review-pr-number">#{pr.number}</span>
+                    </h2>
                     <div className="review-pr-actions">
                         {onNewWorktree && (
                             <button
                                 className="icon-button"
-                                title={pr.isCrossRepository
-                                    ? `The branch ${pr.headRefName} is in a fork. ShipWarden can make a worktree only from a branch of origin.`
-                                    : `Make a worktree from the branch ${pr.headRefName}`}
+                                title={
+                                    pr.isCrossRepository
+                                        ? `The branch ${pr.headRefName} is in a fork. ShipWarden can make a worktree only from a branch of origin.`
+                                        : `Make a worktree from the branch ${pr.headRefName}`
+                                }
                                 disabled={pr.isCrossRepository}
                                 onClick={() => onNewWorktree(pr)}
                             >
@@ -300,9 +320,11 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                     <StateBadge pr={pr} />
                     <ConflictBadge pr={pr} />
                     <span className="review-pr-summary">
-                        <strong>{pr.author?.login ?? 'unknown'}</strong> {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'}
-                        {' '}{pr.commitCount} commit{pr.commitCount === 1 ? '' : 's'} into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
-                        <span className="dot-separator">·</span>{timeAgo(pr.createdAt)}
+                        <strong>{pr.author?.login ?? 'unknown'}</strong>{' '}
+                        {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} {pr.commitCount} commit
+                        {pr.commitCount === 1 ? '' : 's'} into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
+                        <span className="dot-separator">·</span>
+                        {timeAgo(pr.createdAt)}
                     </span>
                 </div>
                 {agentReview && (
@@ -311,24 +333,35 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                             <>
                                 <LoaderCircle size={13} className="spin" />
                                 <span>The agent reviews the changes. This can take some minutes.</span>
-                                <button className="link-button" onClick={() => reviewStore.cancelAgentReview(repo, pr.number)}>Cancel</button>
+                                <button className="link-button" onClick={() => reviewStore.cancelAgentReview(repo, pr.number)}>
+                                    Cancel
+                                </button>
                             </>
                         )}
                         {agentReview.status === 'done' && (
                             <>
                                 <Bot size={13} strokeWidth={1.6} />
                                 <span>
-                                    {agentReview.agent} added {agentReview.comments} pending comment{agentReview.comments === 1 ? '' : 's'}
-                                    {' '}and a summary to your review{agentReview.notes ? ` (with ${agentReview.notes} note${agentReview.notes === 1 ? '' : 's'} that are not on a changed line)` : ''}.
-                                    {' '}Accept or remove each comment, then submit the review as yourself.
+                                    {agentReview.agent} added {agentReview.comments} pending comment{agentReview.comments === 1 ? '' : 's'} and a summary to
+                                    your review
+                                    {agentReview.notes
+                                        ? ` (with ${agentReview.notes} note${agentReview.notes === 1 ? '' : 's'} that are not on a changed line)`
+                                        : ''}
+                                    . Accept or remove each comment, then submit the review as yourself.
                                 </span>
-                                <button className="link-button" onClick={() => selectTab('files')}>Show comments</button>
-                                <button className="link-button" onClick={() => selectTab('overview')}>Show summary</button>
+                                <button className="link-button" onClick={() => selectTab('files')}>
+                                    Show comments
+                                </button>
+                                <button className="link-button" onClick={() => selectTab('overview')}>
+                                    Show summary
+                                </button>
                             </>
                         )}
                         {agentReview.status === 'error' && <span className="agent-review-error">The agent review failed: {agentReview.error}</span>}
                         {agentReview.status !== 'running' && (
-                            <button className="icon-button" title="Close" onClick={() => reviewStore.dismissAgentReview(repo, pr.number)}><X size={13} /></button>
+                            <button className="icon-button" title="Close" onClick={() => reviewStore.dismissAgentReview(repo, pr.number)}>
+                                <X size={13} />
+                            </button>
                         )}
                     </div>
                 )}
@@ -381,9 +414,11 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                         </div>
                         <ResizeHandle panel={sideWidth} edge="right" label="Resize the check list" maxAvailable={sideMax} />
                         <div className="review-content">
-                            {check
-                                ? <LogView key={check.id} target={repo} check={check} />
-                                : <div className="panel-message">Select a check to read its log.</div>}
+                            {check ? (
+                                <LogView key={check.id} target={repo} check={check} />
+                            ) : (
+                                <div className="panel-message">Select a check to read its log.</div>
+                            )}
                         </div>
                     </>
                 )}
@@ -394,8 +429,22 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                             <>
                                 <div className={`pr-side ${fileSide === 'all' ? 'pr-all-files' : 'pr-file-side'}`}>
                                     <div className="segmented compact pr-file-side-switch" role="radiogroup" aria-label="Files">
-                                        <button role="radio" aria-checked={fileSide === 'changed'} className={fileSide === 'changed' ? 'selected' : ''} onClick={() => changeFileSide('changed')}>Changed</button>
-                                        <button role="radio" aria-checked={fileSide === 'all'} className={fileSide === 'all' ? 'selected' : ''} onClick={() => changeFileSide('all')}>All files</button>
+                                        <button
+                                            role="radio"
+                                            aria-checked={fileSide === 'changed'}
+                                            className={fileSide === 'changed' ? 'selected' : ''}
+                                            onClick={() => changeFileSide('changed')}
+                                        >
+                                            Changed
+                                        </button>
+                                        <button
+                                            role="radio"
+                                            aria-checked={fileSide === 'all'}
+                                            className={fileSide === 'all' ? 'selected' : ''}
+                                            onClick={() => changeFileSide('all')}
+                                        >
+                                            All files
+                                        </button>
                                     </div>
                                     {fileError && <div className="form-error">{fileError}</div>}
                                     {fileSide === 'changed' && (
@@ -410,8 +459,8 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                                             />
                                         </section>
                                     )}
-                                    {fileSide === 'all' && (checkoutRoot
-                                        ? (
+                                    {fileSide === 'all' &&
+                                        (checkoutRoot ? (
                                             <FileExplorer
                                                 key={checkoutRoot}
                                                 root={checkoutRoot}
@@ -419,8 +468,9 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                                                 activePath={code?.current.path}
                                                 onOpenFile={(path, line) => openCode({ path, line })}
                                             />
-                                        )
-                                        : <CheckoutMessage checkout={checkout} onRetry={ensureCheckout} />)}
+                                        ) : (
+                                            <CheckoutMessage checkout={checkout} onRetry={ensureCheckout} />
+                                        ))}
                                 </div>
                                 <ResizeHandle panel={sideWidth} edge="right" label="Resize the file list" maxAvailable={sideMax} />
                             </>

@@ -27,6 +27,7 @@ export function registerNotesIpc({ notes, notifications, window }: Pick<Services
             void shell.openPath(notes.folder);
         }
     });
-    void notes.watch(() => window.send(IpcChannels.notesChanged)).catch(error =>
-        console.warn(`[notes] The notes folder is not watched: ${error instanceof Error ? error.message : String(error)}`));
+    void notes
+        .watch(() => window.send(IpcChannels.notesChanged))
+        .catch(error => console.warn(`[notes] The notes folder is not watched: ${error instanceof Error ? error.message : String(error)}`));
 }

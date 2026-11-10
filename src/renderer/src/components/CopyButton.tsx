@@ -23,7 +23,10 @@ export function CopyButton({ text, title, size = 14, className = 'icon-button' }
     const copy = (event: MouseEvent) => {
         // The button can be in a header that opens or closes on a click.
         event.stopPropagation();
-        navigator.clipboard.writeText(text).then(() => setCopied(true), () => undefined);
+        navigator.clipboard.writeText(text).then(
+            () => setCopied(true),
+            () => undefined
+        );
     };
 
     return (

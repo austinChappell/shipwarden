@@ -67,23 +67,34 @@ interface FileBodyProps {
 
 /** The diff of one changed file. */
 const FileBody = memo(function FileBody({ change, side, loaded, highlight, diffStyle, mode }: FileBodyProps) {
-    const options = useMemo(() => ({
-        diffStyle,
-        themeType: mode,
-        disableFileHeader: true,
-        overflow: 'wrap' as const,
-        lineDiffType: 'word' as const,
-        unsafeCSS: THEME_CSS
-    }), [diffStyle, mode]);
+    const options = useMemo(
+        () => ({
+            diffStyle,
+            themeType: mode,
+            disableFileHeader: true,
+            overflow: 'wrap' as const,
+            lineDiffType: 'word' as const,
+            unsafeCSS: THEME_CSS
+        }),
+        [diffStyle, mode]
+    );
 
     const selectedLines = useMemo(
-        () => (highlight ? { start: highlight.line, end: highlight.line, side: highlight.side === 'LEFT' ? 'deletions' as const : 'additions' as const } : null),
+        () =>
+            highlight
+                ? { start: highlight.line, end: highlight.line, side: highlight.side === 'LEFT' ? ('deletions' as const) : ('additions' as const) }
+                : null,
         [highlight?.line, highlight?.side]
     );
 
     const contents = loaded?.contents;
     if (loaded?.error && !contents) return <div className="stream-file-note">{loaded.error}</div>;
-    if (!contents) return <div className="stream-file-note"><LoaderCircle size={13} className="spin" /> Loading the diff…</div>;
+    if (!contents)
+        return (
+            <div className="stream-file-note">
+                <LoaderCircle size={13} className="spin" /> Loading the diff…
+            </div>
+        );
     if (contents.binary) return <div className="stream-file-note">This is a binary file. ShipWarden does not show its diff.</div>;
     if (contents.original === contents.modified) {
         return <div className="stream-file-note">No {side} changes in this file now.</div>;
@@ -175,10 +186,9 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
     // Load the two versions of each open file. While the search bar shows, load all files, so the search finds
     // text in the collapsed files too. A file loads again after each new `version`.
     useEffect(() => {
-        const todo = entries.filter(entry =>
-            (findOpen || (open[entry.key] ?? openByDefault))
-            && loaded[entry.key]?.version !== version
-            && loading.current.get(entry.key) !== version);
+        const todo = entries.filter(
+            entry => (findOpen || (open[entry.key] ?? openByDefault)) && loaded[entry.key]?.version !== version && loading.current.get(entry.key) !== version
+        );
         if (!todo.length) return;
         for (const entry of todo) loading.current.set(entry.key, version);
         let next = 0;
@@ -266,7 +276,15 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
     };
 
     if (!changes) {
-        return <div className="panel-message">{error ?? <><LoaderCircle size={14} className="spin" /> Reading the changes…</>}</div>;
+        return (
+            <div className="panel-message">
+                {error ?? (
+                    <>
+                        <LoaderCircle size={14} className="spin" /> Reading the changes…
+                    </>
+                )}
+            </div>
+        );
     }
 
     const fileCount = new Set(entries.map(entry => entry.change.path)).size;
@@ -287,19 +305,35 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
                 />
             )}
             <div className="files-stream-toolbar">
-                <span className="files-stream-count">
-                    {fileCount === 0 ? 'No changes' : `${fileCount} changed ${fileCount === 1 ? 'file' : 'files'}`}
-                </span>
+                <span className="files-stream-count">{fileCount === 0 ? 'No changes' : `${fileCount} changed ${fileCount === 1 ? 'file' : 'files'}`}</span>
                 <span className="header-spacer" />
                 {entries.length > 0 && (
                     <>
-                        <button className="link-button" onClick={() => setOpen(Object.fromEntries(entries.map(entry => [entry.key, false])))}>Collapse all</button>
-                        <button className="link-button" onClick={() => setOpen(Object.fromEntries(entries.map(entry => [entry.key, true])))}>Expand all</button>
+                        <button className="link-button" onClick={() => setOpen(Object.fromEntries(entries.map(entry => [entry.key, false])))}>
+                            Collapse all
+                        </button>
+                        <button className="link-button" onClick={() => setOpen(Object.fromEntries(entries.map(entry => [entry.key, true])))}>
+                            Expand all
+                        </button>
                     </>
                 )}
                 <div className="segmented compact" role="radiogroup" aria-label="Diff layout" onKeyDown={radioGroupKeys}>
-                    <button role="radio" aria-checked={diffStyle === 'unified'} className={diffStyle === 'unified' ? 'selected' : ''} onClick={() => changeStyle('unified')}>Unified</button>
-                    <button role="radio" aria-checked={diffStyle === 'split'} className={diffStyle === 'split' ? 'selected' : ''} onClick={() => changeStyle('split')}>Split</button>
+                    <button
+                        role="radio"
+                        aria-checked={diffStyle === 'unified'}
+                        className={diffStyle === 'unified' ? 'selected' : ''}
+                        onClick={() => changeStyle('unified')}
+                    >
+                        Unified
+                    </button>
+                    <button
+                        role="radio"
+                        aria-checked={diffStyle === 'split'}
+                        className={diffStyle === 'split' ? 'selected' : ''}
+                        onClick={() => changeStyle('split')}
+                    >
+                        Split
+                    </button>
                 </div>
                 <button
                     className="icon-button"
@@ -311,7 +345,9 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
                 >
                     <Search size={14} strokeWidth={1.6} />
                 </button>
-                <button className="icon-button" title="Load again" onClick={reloadAll}><RefreshCw size={14} strokeWidth={1.6} /></button>
+                <button className="icon-button" title="Load again" onClick={reloadAll}>
+                    <RefreshCw size={14} strokeWidth={1.6} />
+                </button>
             </div>
             {(actionError || error) && <div className="editor-failure">{actionError ?? error}</div>}
             {entries.length === 0 ? (
@@ -342,7 +378,8 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
                                             <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${expanded ? ' open' : ''}`} />
                                             <span className={`change-letter ${change.kind}`}>{changeLetter(change.kind)}</span>
                                             <span className="stream-file-path" title={change.path}>
-                                                {change.oldPath ? `${change.oldPath} → ` : ''}{change.path}
+                                                {change.oldPath ? `${change.oldPath} → ` : ''}
+                                                {change.path}
                                             </span>
                                         </button>
                                         <span className="change-actions worktree-changes-actions" onClick={event => event.stopPropagation()}>
@@ -352,12 +389,22 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
                                                 </button>
                                             )}
                                             {group === 'unstaged' && (
-                                                <button className="icon-button" title="Discard the changes" disabled={busy} onClick={() => void act(() => confirmDiscard(worktree, [change]))}>
+                                                <button
+                                                    className="icon-button"
+                                                    title="Discard the changes"
+                                                    disabled={busy}
+                                                    onClick={() => void act(() => confirmDiscard(worktree, [change]))}
+                                                >
                                                     <Undo2 size={13} strokeWidth={1.8} />
                                                 </button>
                                             )}
                                             {group === 'staged' ? (
-                                                <button className="icon-button" title="Unstage" disabled={busy} onClick={() => void act(() => window.shipwarden.git.unstage(worktree, [change.path]))}>
+                                                <button
+                                                    className="icon-button"
+                                                    title="Unstage"
+                                                    disabled={busy}
+                                                    onClick={() => void act(() => window.shipwarden.git.unstage(worktree, [change.path]))}
+                                                >
                                                     <Minus size={14} strokeWidth={2} />
                                                 </button>
                                             ) : (

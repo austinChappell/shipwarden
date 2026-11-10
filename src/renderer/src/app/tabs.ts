@@ -29,11 +29,7 @@ export function fileKey(root: string, path: string): string {
 
 /** Returns the tab keys of a worktree, in the order of its tab strip: terminals, then files, then the other tabs. */
 export function worktreeTabKeys(sessionIds: readonly string[], files: readonly string[], extras: readonly ExtraTab[]): TabKey[] {
-    return [
-        ...sessionIds.map(id => `t:${id}`),
-        ...files.map(path => `f:${path}`),
-        ...extras.map(tab => tab.key)
-    ];
+    return [...sessionIds.map(id => `t:${id}`), ...files.map(path => `f:${path}`), ...extras.map(tab => tab.key)];
 }
 
 /** Returns the requested tab when it exists. Else returns the first tab. */
@@ -62,7 +58,7 @@ export function stripItemsOf(tabKeys: readonly TabKey[], groups: SplitGroups, ac
         if (!group) {
             items.push({ key });
         } else if (!items.some(item => item.group === group)) {
-            const shown = leafOfTab(group, activeTab ?? '') ? activeTab! : focusedTab(group) ?? key;
+            const shown = leafOfTab(group, activeTab ?? '') ? activeTab! : (focusedTab(group) ?? key);
             items.push({ key: shown, group });
         }
     }
@@ -125,13 +121,22 @@ export function withoutKey<T>(map: Record<string, T>, key: string): Record<strin
  * The dropped tab goes to that side.
  */
 export function nearestSide(x: number, y: number): SplitSide {
-    const edges: [SplitSide, number][] = [['left', x], ['right', 1 - x], ['up', y], ['down', 1 - y]];
+    const edges: [SplitSide, number][] = [
+        ['left', x],
+        ['right', 1 - x],
+        ['up', y],
+        ['down', 1 - y]
+    ];
     return edges.reduce((best, item) => (item[1] < best[1] ? item : best))[0];
 }
 
 /** Returns the IDs of all browser tabs of all worktrees. */
 export function browserIds(extraTabs: Record<string, readonly ExtraTab[]>): Set<string> {
-    return new Set(Object.values(extraTabs).flat().flatMap(tab => (tab.kind === 'browser' ? [tab.id] : [])));
+    return new Set(
+        Object.values(extraTabs)
+            .flat()
+            .flatMap(tab => (tab.kind === 'browser' ? [tab.id] : []))
+    );
 }
 
 /** Returns the worktree that has the browser tab with this ID. */
@@ -141,6 +146,5 @@ export function worktreeOfBrowser(extraTabs: Record<string, readonly ExtraTab[]>
 
 /** Removes from the active tabs each file tab whose file is not open. Other tabs stay. */
 export function keepOpenFileTabs(activeTabs: Record<string, TabKey>, openFiles: Record<string, string[]>): Record<string, TabKey> {
-    return Object.fromEntries(Object.entries(activeTabs)
-        .filter(([root, tab]) => !tab.startsWith('f:') || openFiles[root]?.includes(tab.slice(2))));
+    return Object.fromEntries(Object.entries(activeTabs).filter(([root, tab]) => !tab.startsWith('f:') || openFiles[root]?.includes(tab.slice(2))));
 }

@@ -177,20 +177,28 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
             {connections?.length === 0 && !sourceError && (
                 <div className="panel-message">
                     <p>This project has no task managers.</p>
-                    <button className="button primary" onClick={onOpenSettings}>Set up task managers</button>
+                    <button className="button primary" onClick={onOpenSettings}>
+                        Set up task managers
+                    </button>
                 </div>
             )}
             {currentConnection && !currentConnection.configured && (
                 <div className="panel-message">
-                    <p>{currentConnection.name} needs its {missingSettingsText(currentConnection)}.</p>
-                    <button className="button primary" onClick={onOpenSettings}>Open the settings</button>
+                    <p>
+                        {currentConnection.name} needs its {missingSettingsText(currentConnection)}.
+                    </p>
+                    <button className="button primary" onClick={onOpenSettings}>
+                        Open the settings
+                    </button>
                 </div>
             )}
             {currentConnection?.configured && source === undefined && !sourceError && <div className="panel-message">Starting {currentConnection.name}…</div>}
             {sourceError && (
                 <div className="panel-message">
                     <div className="form-error">{sourceError}</div>
-                    <button className="button" onClick={onOpenSettings}>Open the settings</button>
+                    <button className="button" onClick={onOpenSettings}>
+                        Open the settings
+                    </button>
                 </div>
             )}
 

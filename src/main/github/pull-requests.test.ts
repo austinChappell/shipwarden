@@ -21,17 +21,26 @@ afterEach(() => {
 
 describe('fetchPullRequest', () => {
     it('loads the pull request and the timeline with the same variables', async () => {
-        const { client, calls } = fakeClient(call => queryHas(call, 'timelineItems')
-            ? { repository: { pullRequest: { timelineItems: { nodes: [{ __typename: 'ClosedEvent', id: 'e', createdAt: 'c', actor: { login: 'ann' } }] } } } }
-            : graphQlPullRequest());
+        const { client, calls } = fakeClient(call =>
+            queryHas(call, 'timelineItems')
+                ? {
+                      repository: {
+                          pullRequest: { timelineItems: { nodes: [{ __typename: 'ClosedEvent', id: 'e', createdAt: 'c', actor: { login: 'ann' } }] } }
+                      }
+                  }
+                : graphQlPullRequest()
+        );
         const pr = await fetchPullRequest(client, repo, 7);
-        expect(calls.map(call => call.body)).toEqual([{ owner: 'acme', name: 'api', number: 7 }, { owner: 'acme', name: 'api', number: 7 }]);
+        expect(calls.map(call => call.body)).toEqual([
+            { owner: 'acme', name: 'api', number: 7 },
+            { owner: 'acme', name: 'api', number: 7 }
+        ]);
         expect(pr.timeline).toEqual([{ id: 'e', createdAt: 'c', actor: 'ann', kind: 'closed' }]);
     });
 
     it('returns the pull request without a timeline when the timeline fails', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-        const { client } = fakeClient(call => queryHas(call, 'timelineItems') ? Promise.reject(new Error('timeout')) : graphQlPullRequest());
+        const { client } = fakeClient(call => (queryHas(call, 'timelineItems') ? Promise.reject(new Error('timeout')) : graphQlPullRequest()));
         const pr = await fetchPullRequest(client, repo, 7);
         expect(pr.number).toBe(7);
         expect(pr.timeline).toBeUndefined();
@@ -39,14 +48,16 @@ describe('fetchPullRequest', () => {
     });
 
     it('fails when the pull request query fails', async () => {
-        const { client } = fakeClient(call => queryHas(call, 'timelineItems') ? { repository: { pullRequest: null } } : Promise.reject(new GitHubError('GitHub returned 502.', 502)));
+        const { client } = fakeClient(call =>
+            queryHas(call, 'timelineItems') ? { repository: { pullRequest: null } } : Promise.reject(new GitHubError('GitHub returned 502.', 502))
+        );
         await expect(fetchPullRequest(client, repo, 7)).rejects.toMatchObject({ status: 502 });
     });
 });
 
 describe('createPullRequest', () => {
     it('uses the default branch of the repository when the request has no base', async () => {
-        const { client, calls } = fakeClient(call => call.method === 'GET' ? { default_branch: 'develop' } : { number: 12 });
+        const { client, calls } = fakeClient(call => (call.method === 'GET' ? { default_branch: 'develop' } : { number: 12 }));
         expect(await createPullRequest(client, repo, 'feature', { title: 'T', body: 'B', draft: true })).toBe(12);
         expect(calls).toEqual([
             { kind: 'rest', method: 'GET', path: '/repos/acme/api', body: undefined },
@@ -69,9 +80,17 @@ describe('fetchPullRequestFiles', () => {
     ];
 
     it('marks the viewed files and keeps the patch only when GitHub sends one', async () => {
-        const { client } = fakeClient(call => call.kind === 'paginate'
-            ? files
-            : { repository: { pullRequest: { files: { nodes: [{ path: 'src/new.ts', viewerViewedState: 'VIEWED' }], pageInfo: { hasNextPage: false, endCursor: null } } } } });
+        const { client } = fakeClient(call =>
+            call.kind === 'paginate'
+                ? files
+                : {
+                      repository: {
+                          pullRequest: {
+                              files: { nodes: [{ path: 'src/new.ts', viewerViewedState: 'VIEWED' }], pageInfo: { hasNextPage: false, endCursor: null } }
+                          }
+                      }
+                  }
+        );
         expect(await fetchPullRequestFiles(client, repo, 7)).toEqual([
             { path: 'src/a.ts', previousPath: undefined, status: 'modified', additions: 1, deletions: 0, viewed: false, patch: '@@ -1 +1 @@' },
             { path: 'src/new.ts', previousPath: 'src/old.ts', status: 'renamed', additions: 0, deletions: 0, viewed: true }
@@ -79,7 +98,7 @@ describe('fetchPullRequestFiles', () => {
     });
 
     it('marks no file as viewed when the viewed state fails', async () => {
-        const { client } = fakeClient(call => call.kind === 'paginate' ? files : Promise.reject(new Error('GraphQL failed')));
+        const { client } = fakeClient(call => (call.kind === 'paginate' ? files : Promise.reject(new Error('GraphQL failed'))));
         const result = await fetchPullRequestFiles(client, repo, 7);
         expect(result.map(file => file.viewed)).toEqual([false, false]);
     });
@@ -97,15 +116,18 @@ describe('fetchPullRequestFiles', () => {
 });
 
 describe('fetchFileVersions', () => {
-    const file = (change: Partial<PullRequestFile> = {}): PullRequestFile => ({ path: 'src/a b.ts', status: 'modified', additions: 1, deletions: 1, ...change });
+    const file = (change: Partial<PullRequestFile> = {}): PullRequestFile => ({
+        path: 'src/a b.ts',
+        status: 'modified',
+        additions: 1,
+        deletions: 1,
+        ...change
+    });
 
     it('reads the base and the head version with an encoded path', async () => {
-        const { client, calls } = fakeClient(call => call.path.includes('ref=base1') ? 'old' : 'new');
+        const { client, calls } = fakeClient(call => (call.path.includes('ref=base1') ? 'old' : 'new'));
         expect(await fetchFileVersions(client, repo, file(), 'base1', 'head1')).toEqual({ base: 'old', head: 'new' });
-        expect(calls.map(call => call.path)).toEqual([
-            '/repos/acme/api/contents/src/a%20b.ts?ref=base1',
-            '/repos/acme/api/contents/src/a%20b.ts?ref=head1'
-        ]);
+        expect(calls.map(call => call.path)).toEqual(['/repos/acme/api/contents/src/a%20b.ts?ref=base1', '/repos/acme/api/contents/src/a%20b.ts?ref=head1']);
     });
 
     it('reads the base of a renamed file at its old path', async () => {
@@ -122,7 +144,7 @@ describe('fetchFileVersions', () => {
     });
 
     it('gives an empty version when GitHub returns 404', async () => {
-        const { client } = fakeClient(call => call.path.includes('ref=base1') ? Promise.reject(new GitHubError('Not found', 404)) : 'new');
+        const { client } = fakeClient(call => (call.path.includes('ref=base1') ? Promise.reject(new GitHubError('Not found', 404)) : 'new'));
         expect(await fetchFileVersions(client, repo, file(), 'base1', 'head1')).toEqual({ base: '', head: 'new' });
     });
 
@@ -168,7 +190,7 @@ describe('fetchRepositories', () => {
 
 describe('fetchBranches', () => {
     it('puts the default branch first and does not repeat it', async () => {
-        const { client } = fakeClient(call => call.kind === 'rest' ? { default_branch: 'main' } : [{ name: 'a' }, { name: 'main' }, { name: 'b' }]);
+        const { client } = fakeClient(call => (call.kind === 'rest' ? { default_branch: 'main' } : [{ name: 'a' }, { name: 'main' }, { name: 'b' }]));
         expect(await fetchBranches(client, repo)).toEqual(['main', 'a', 'b']);
     });
 });

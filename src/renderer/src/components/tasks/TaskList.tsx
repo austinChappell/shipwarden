@@ -60,17 +60,18 @@ export function TaskStatusGroups({ groups, selectedId, isCollapsed, toggleGroup,
                     <span className="status-group-name">{group.name}</span>
                     <span className="status-group-count">{group.tasks.length}</span>
                 </button>
-                {!closed && group.tasks.map(task => (
-                    <TaskRow
-                        key={task.id}
-                        task={task}
-                        selected={task.id === selectedId}
-                        worktree={worktreeFor(task)}
-                        onSelect={onSelect}
-                        onSelectFromKeyboard={onSelectFromKeyboard}
-                        onOpenWorktree={onOpenWorktree}
-                    />
-                ))}
+                {!closed &&
+                    group.tasks.map(task => (
+                        <TaskRow
+                            key={task.id}
+                            task={task}
+                            selected={task.id === selectedId}
+                            worktree={worktreeFor(task)}
+                            onSelect={onSelect}
+                            onSelectFromKeyboard={onSelectFromKeyboard}
+                            onOpenWorktree={onOpenWorktree}
+                        />
+                    ))}
             </section>
         );
     });

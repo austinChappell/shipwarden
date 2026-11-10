@@ -25,10 +25,11 @@ describe('file protocol handler', () => {
     let base: string;
     let root: string;
     let outside: string;
-    const handler = () => createFileProtocolHandler(async value => {
-        if (value !== root) throw new Error('not known');
-        return value;
-    });
+    const handler = () =>
+        createFileProtocolHandler(async value => {
+            if (value !== root) throw new Error('not known');
+            return value;
+        });
     const get = (url: string, headers: Record<string, string> = {}) => handler()(new Request(url, { headers }));
 
     beforeEach(async () => {

@@ -33,11 +33,15 @@ describe('parseManifest', () => {
 
 describe('releaseNotes', () => {
     it('lists the commits without release and merge commits', () => {
-        const notes = releaseNotes('0.2.0', [
-            { hash: 'abcdef1234', subject: 'Add the updater' },
-            { hash: '1111111111', subject: 'Release v0.1.1' },
-            { hash: '2222222222', subject: 'Merge branch main' }
-        ], 'v0.1.1');
+        const notes = releaseNotes(
+            '0.2.0',
+            [
+                { hash: 'abcdef1234', subject: 'Add the updater' },
+                { hash: '1111111111', subject: 'Release v0.1.1' },
+                { hash: '2222222222', subject: 'Merge branch main' }
+            ],
+            'v0.1.1'
+        );
         expect(notes).toBe('## ShipWarden 0.2.0\n\n- Add the updater (abcdef1)\n\nChanges since v0.1.1.\n');
     });
 

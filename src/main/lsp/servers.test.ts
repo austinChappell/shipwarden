@@ -83,10 +83,12 @@ describe('installCommand', () => {
     });
 
     it('returns the command of the first tool that is in the PATH', async () => {
-        const result = await installCommand(definition([
-            { tool: 'first-tool', command: 'first-tool install' },
-            { tool: 'second-tool', command: 'second-tool install' }
-        ]));
+        const result = await installCommand(
+            definition([
+                { tool: 'first-tool', command: 'first-tool install' },
+                { tool: 'second-tool', command: 'second-tool install' }
+            ])
+        );
         expect(result).toBe('second-tool install');
     });
 

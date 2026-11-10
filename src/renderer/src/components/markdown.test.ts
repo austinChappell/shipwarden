@@ -19,7 +19,8 @@ describe('renderMarkdown', () => {
 describe('renderMarkdownFile', () => {
     it('gives the images new sources and removes the sources that the callback refuses', () => {
         const html = renderMarkdownFile('![a](img/a.png)\n\n![b](http://example.com/b.png)', source =>
-            source.startsWith('http:') ? undefined : `shipwarden-file://root/2f/${source}`);
+            source.startsWith('http:') ? undefined : `shipwarden-file://root/2f/${source}`
+        );
         expect(html).toContain('src="shipwarden-file://root/2f/img/a.png"');
         expect(html).not.toContain('http://example.com/b.png');
     });

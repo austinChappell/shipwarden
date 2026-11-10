@@ -51,8 +51,18 @@ export interface AgentAnswer {
 /** Returns the answer to a question in the form that goes to disk. */
 export function toSaved(question: AgentQuestion, repo: RepoRef, number: number, result: AgentAnswer, commit: string, answeredAt: number): SavedAnswer {
     return {
-        id: question.id, repo, number, path: question.path, side: question.side, startLine: question.startLine, line: question.line,
-        question: question.question, agent: result.agent, answer: result.answer, commit, answeredAt
+        id: question.id,
+        repo,
+        number,
+        path: question.path,
+        side: question.side,
+        startLine: question.startLine,
+        line: question.line,
+        question: question.question,
+        agent: result.agent,
+        answer: result.answer,
+        commit,
+        answeredAt
     };
 }
 
@@ -68,9 +78,11 @@ export function changeQuestion(list: AgentQuestion[], id: string, change: Partia
 
 /** Puts the answer on a running question. A question that does not run (for example a cancelled one) does not change. */
 export function answerQuestion(list: AgentQuestion[], id: string, result: AgentAnswer, commit: string, answeredAt: number): AgentQuestion[] {
-    return list.map(item => (item.id === id && item.status === 'running'
-        ? { ...item, status: 'done', agent: result.agent, answer: result.answer, commit, answeredAt, collapsed: false }
-        : item));
+    return list.map(item =>
+        item.id === id && item.status === 'running'
+            ? { ...item, status: 'done', agent: result.agent, answer: result.answer, commit, answeredAt, collapsed: false }
+            : item
+    );
 }
 
 /** Puts the error on a running question. A question that does not run does not change. */

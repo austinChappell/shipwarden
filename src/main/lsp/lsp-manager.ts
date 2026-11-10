@@ -55,7 +55,10 @@ export class LspManager {
      * @param send Sends a server message to the UI.
      * @param ready Resolves when the environment is ready, for example when the login shell PATH is known.
      */
-    constructor(private readonly send: (message: LspServerMessage) => void, private readonly ready: Promise<void>) {}
+    constructor(
+        private readonly send: (message: LspServerMessage) => void,
+        private readonly ready: Promise<void>
+    ) {}
 
     /** Starts the server for the language in the worktree, if necessary. Returns undefined when no server is available. */
     async ensure(root: string, languageId: string): Promise<LspServerInfo | undefined> {

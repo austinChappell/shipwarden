@@ -10,7 +10,9 @@ export function TaskLabels({ labels, limit }: { labels: Task['labels']; limit?: 
     return (
         <>
             {labels?.slice(0, limit).map(label => (
-                <span key={label.name} className="task-label" style={label.color ? { borderColor: label.color } : undefined}>{label.name}</span>
+                <span key={label.name} className="task-label" style={label.color ? { borderColor: label.color } : undefined}>
+                    {label.name}
+                </span>
             ))}
         </>
     );
