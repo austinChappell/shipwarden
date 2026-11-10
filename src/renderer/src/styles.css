@@ -344,6 +344,16 @@ button {
     flex-direction: column;
 }
 
+/* ⇧⌘0 can move the focus to the main area of a view. The ring then shows inside the area. */
+.workspace:focus {
+    outline: none;
+}
+
+.workspace:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: -2px;
+}
+
 .workspace-header {
     height: var(--titlebar-height);
     flex-shrink: 0;
@@ -432,6 +442,24 @@ button {
 
 .tab.dirty .tab-close:hover svg {
     visibility: visible;
+}
+
+/* A close button with the keyboard focus always shows its icon. */
+.tab .tab-close:focus-visible svg {
+    visibility: visible;
+}
+
+.tab.dirty .tab-close:focus-visible .tab-dirty-dot {
+    display: none;
+}
+
+.tab:focus {
+    outline: none;
+}
+
+.tab:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: -2px;
 }
 
 .tab-close:hover {

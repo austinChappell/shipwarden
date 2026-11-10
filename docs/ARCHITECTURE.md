@@ -270,6 +270,22 @@ release, and `UpdateNotice` (page) shows it. The install replaces the app bundle
   ⌘E shows or hides the right panel. A focused terminal takes all keys, so a menu shortcut alone does not work.
   The keys go through two ways: `before-input-event` in the main process (before the page and the menu), and a keydown
   listener of the page in the capture phase. Both send the same action. The File menu lists the keys.
+- Tab keys, as in Ghostty: ⌘1 to ⌘8 select that tab of the strip, and ⌘9 selects the last tab. ⇧⌘[ and ⇧⌘] select
+  the previous and the next tab. ⌃⇧Tab and ⌃Tab do the same. These keys work only in the worktree view. The tab
+  strip is a `tablist`. Left and Right move the focus between the tabs, Home and End go to the first and the last tab,
+  and Enter or Space selects the focused tab. ⌃⇧Left and ⌃⇧Right move the focused tab (`shared/tab-order.ts`). The
+  new order stays until the app quits. The right panel tabs and the tabs of a pull request in the Review view are
+  also tab lists with Left and Right (`renderer/src/tablist.ts`).
+- View keys: ⌥⌘1 Dashboard, ⌥⌘2 Agents, ⌥⌘3 Tasks, ⌥⌘4 Review, ⌥⌘5 Pipelines and ⌥⌘6 Notes. Option changes the
+  character of the key on macOS, so `shortcutAction` reads the code of the key (`Digit1`). ⌥⌘3 does nothing when the
+  project has no repositories, because the sidebar then shows no Tasks item. The Go menu lists the keys.
+- ⇧⌘0 moves the focus to the workspace: the focused pane of the worktree view (its terminal, its editor, its browser
+  page or its first control), else the main area of the view. ⌘0 stays the key of Actual Size in the View menu.
+  Escape in the sidebar also moves the focus to the workspace. Escape in a field or in an open menu of the sidebar
+  does not.
+- ⇧⌘M in a diff opens the comment box (`isCommentKey`). In the diff of a tab (`DiffView`), the box is for the line of
+  the cursor or the selected lines. The comment goes on the last line. The files stream of the Review view has no
+  cursor, so ⇧⌘M opens the box at the current search match (⌘F).
 - Back and forward (`shared/nav-history.ts`): ⌘[ goes back and ⌘] goes forward, as in a web browser. App adds an
   entry for each change of the view, the worktree or the active tab. A focus change in a split also adds an entry,
   because the tab of the focused pane is the active tab. So ⌘[ also goes back to the last pane. The settings page has
