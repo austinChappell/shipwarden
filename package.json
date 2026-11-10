@@ -15,11 +15,16 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome ci .",
+    "check:ios-contract": "sh scripts/check-ios-contract.sh",
     "postinstall": "node scripts/postinstall.mjs",
     "dist": "electron-vite build && electron-builder --mac",
     "dist:dir": "electron-vite build && electron-builder --mac --dir"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.3",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.19.2",

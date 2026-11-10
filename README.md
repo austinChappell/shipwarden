@@ -55,6 +55,9 @@ You need Node 24 or later and git.
 npm install        # also downloads Electron and fixes the node-pty helper
 npm run dev        # starts the app with hot reload. A change in the main process restarts the app.
 npm test           # runs the unit tests
+npm run check      # checks the format and runs the linter (Biome). CI runs it on each pull request.
+npm run format     # formats all files
+npm run check:ios-contract  # checks that the iPhone models agree with src/shared/remote.ts
 npm run typecheck
 npm run build      # builds to out/
 npm start          # runs the built app
