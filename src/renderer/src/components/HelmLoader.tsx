@@ -1,5 +1,41 @@
-import { useId } from 'react';
-import { LoaderCaption } from './SeaLoader';
+import { useEffect, useId, useState } from 'react';
+
+/** The texts that the loader shows in turn. */
+const PHRASES = [
+    'Hoisting the sails',
+    'Reading the charts',
+    'Checking the wind',
+    'Swabbing the deck',
+    'Sounding the depth',
+    'Trimming the sails',
+    'Watching the horizon'
+];
+
+/** The time in milliseconds that the loader shows one text. */
+const PHRASE_MS = 2400;
+
+/** The text below a loader. Without a label, the text changes every few seconds. */
+function LoaderCaption({ label, hint }: { label?: string; hint?: string }) {
+    const [index, setIndex] = useState(() => Math.floor(Math.random() * PHRASES.length));
+
+    useEffect(() => {
+        if (label) return;
+        const timer = window.setInterval(() => setIndex(value => (value + 1) % PHRASES.length), PHRASE_MS);
+        return () => window.clearInterval(timer);
+    }, [label]);
+
+    const text = label ?? PHRASES[index];
+
+    return (
+        <>
+            <div className="sea-loader-text">
+                <span key={text} className="sea-loader-label">{text}</span>
+                <span className="sea-loader-dots" aria-hidden="true"><i /><i /><i /></span>
+            </div>
+            {hint && <div className="sea-loader-hint">{hint}</div>}
+        </>
+    );
+}
 
 /** The angles of the 8 spokes, in degrees. */
 const SPOKES = [0, 45, 90, 135, 180, 225, 270, 315];
