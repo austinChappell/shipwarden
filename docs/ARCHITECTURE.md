@@ -493,6 +493,12 @@ Done:
 - The tree updates itself when files change on disk. One recursive watch covers each worktree.
 - Files open in Monaco tabs next to the terminal tabs. Cmd+S saves.
   An open file without unsaved changes reloads when an agent changes it.
+- The open files and the active tab of each worktree stay after a reload or a restart (`layout-store.ts`, in local
+  storage). A file that does not exist now does not get a tab. Each file also keeps its cursor and scroll position
+  (`editor/editor-positions.ts`). A closed tab or a removed worktree removes its positions.
+- A handle on the left edge of the right panel changes its width (`ResizeHandle`). The width stays in local storage.
+  The handle is a `separator` with `aria-valuenow`. Left and Right change the width, Shift makes bigger steps, End sets
+  the largest width, and Enter or Home sets the default width.
 - File viewers (`FileView`). The main process tells the kind of a file (`files.info`): from the extension, else from
   the first bytes (`shared/file-types.ts`).
   - Images (png, jpg, gif, webp, svg, bmp, ico, avif): fit, 100% and zoom (also ⌘ and the scroll wheel), the size in
@@ -529,7 +535,6 @@ Next:
 
 - Rename, code actions and signature help from the servers.
 - Downloads of language servers that are not installed.
-- Open files stay open after a reload. The panel width can change.
 
 ### GitHub (goals 3 and 4)
 

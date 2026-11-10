@@ -1,10 +1,27 @@
 import { useCallback, useEffect, useState, type KeyboardEvent, type PointerEvent } from 'react';
 
+/** The change of the width in pixels for one push of an arrow key. */
 const KEY_STEP = 16;
+/** The change of the width in pixels for one push of an arrow key with Shift. */
+const SHIFT_KEY_STEP = 64;
 
 /** Limits a width to the range from `min` to `max`. */
 export function clampWidth(width: number, min: number, max: number): number {
     return Math.round(Math.min(max, Math.max(min, width)));
+}
+
+/**
+ * Returns the new width for a key on a resize handle. Returns undefined for a key that does not resize.
+ * An arrow key that points away from the panel makes the panel wider. End sets the largest width.
+ * The caller limits the width. Enter and Home are not in this function, because they set the default width.
+ */
+export function resizeKeyWidth(width: number, max: number, edge: 'left' | 'right', key: string, shiftKey: boolean): number | undefined {
+    const step = shiftKey ? SHIFT_KEY_STEP : KEY_STEP;
+    const direction = edge === 'right' ? 1 : -1;
+    if (key === 'ArrowRight') return width + direction * step;
+    if (key === 'ArrowLeft') return width - direction * step;
+    if (key === 'End') return max;
+    return undefined;
 }
 
 function readWidth(storageKey: string, fallback: number, min: number, max: number): number {
@@ -50,7 +67,7 @@ interface Props {
 
 /**
  * A vertical handle that changes the width of a panel. Drag it, or focus it and push the arrow keys.
- * A double-click, Enter or Home sets the default width again.
+ * Shift makes bigger steps. End sets the largest width. A double-click, Enter or Home sets the default width again.
  */
 export function ResizeHandle({ panel, edge, label, maxAvailable }: Props) {
     const direction = edge === 'right' ? 1 : -1;
@@ -81,10 +98,13 @@ export function ResizeHandle({ panel, edge, label, maxAvailable }: Props) {
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        if (event.metaKey || event.ctrlKey || event.altKey) {
+            return;
+        }
+        const next = resizeKeyWidth(panel.width, panel.max, edge, event.key, event.shiftKey);
+        if (next !== undefined) {
             event.preventDefault();
-            const sign = event.key === 'ArrowRight' ? 1 : -1;
-            resize(panel.width + sign * direction * KEY_STEP);
+            resize(next);
         } else if (event.key === 'Enter' || event.key === 'Home') {
             event.preventDefault();
             panel.reset();
@@ -101,7 +121,7 @@ export function ResizeHandle({ panel, edge, label, maxAvailable }: Props) {
             aria-valuemin={panel.min}
             aria-valuemax={panel.max}
             tabIndex={0}
-            title={`${label}. Double-click or press Enter to reset.`}
+            title={`${label}. Shift with an arrow key makes bigger steps. Double-click or press Enter to reset.`}
             onPointerDown={onPointerDown}
             onDoubleClick={panel.reset}
             onKeyDown={onKeyDown}
