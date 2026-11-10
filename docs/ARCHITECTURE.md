@@ -695,7 +695,7 @@ Next:
   - When the review closes the PR, the page closes the models of the copy and stops its language servers. The copy stays.
 - Merge shows only for the user's own PRs. "Send to agent" is not available, because the PR has no worktree.
 - Images: an image of a private repository is a `github.com/user-attachments` link that works only with a GitHub login
-  session. The PR query also gets `bodyHTML`, which has signed `private-user-images` URLs (valid for some minutes).
+  session. The PR query also gets `bodyHTML`, which has signed `private-user-images` URLs (valid for a few minutes).
   `signedImageUrls` and `withSignedImages` put these URLs into the description, reviews and comments.
 
 #### Dashboard

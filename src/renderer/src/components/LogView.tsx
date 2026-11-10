@@ -156,7 +156,7 @@ export function LogView({ target, check, onSendToAgent }: Props) {
     }, [load]);
 
     // While the log is not ready, read the steps now and every 5 seconds (only while the window shows). When the job
-    // completes, load the log. GitHub can need some seconds to store it, so the next read tries again.
+    // completes, load the log. GitHub can need a few seconds to store it, so the next read tries again.
     useEffect(() => {
         if (logReady || !logMissing) return;
         let stopped = false;

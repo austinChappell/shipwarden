@@ -494,7 +494,7 @@ const ATTACHMENT_ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /**
  * Finds the signed image URLs in HTML that GitHub rendered, by attachment ID.
  * An image of a private repository is a `github.com/user-attachments` link, which works only with a GitHub
- * login session. The rendered HTML has a signed URL for the same image instead. It is valid for some minutes.
+ * login session. The rendered HTML has a signed URL for the same image instead. It is valid for a few minutes.
  */
 export function signedImageUrls(html: string[]): Map<string, string> {
     const urls = new Map<string, string>();

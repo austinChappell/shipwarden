@@ -10032,3 +10032,290 @@ button.pr-summary-cell:hover {
 .branch-copy.copied {
     opacity: 1;
 }
+
+/* The loading state with a boat on moving waves (SeaLoader). */
+.sea-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 28px 16px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.sea-loader.compact {
+    gap: 6px;
+    padding: 16px 12px;
+}
+
+.sea-loader-art {
+    width: 168px;
+    height: auto;
+    overflow: visible;
+    filter: drop-shadow(0 6px 14px color-mix(in srgb, var(--info) 18%, transparent));
+}
+
+.sea-loader.compact .sea-loader-art {
+    width: 120px;
+}
+
+.sea-loader-text {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+.sea-loader-label {
+    animation: sea-fade-in 0.4s ease-out;
+}
+
+.sea-loader-dots {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.sea-loader-dots i {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: sea-dot 1.2s ease-in-out infinite;
+}
+
+.sea-loader-dots i:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.sea-loader-dots i:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.sea-loader-hint {
+    max-width: 260px;
+    font-size: 11.5px;
+}
+
+.sea-wave {
+    transform-box: view-box;
+}
+
+.sea-wave.back {
+    opacity: 0.28;
+    animation: sea-wave-back 3.2s linear infinite;
+}
+
+.sea-wave.front {
+    opacity: 0.55;
+    animation: sea-wave-front 2.2s linear infinite;
+}
+
+.sea-boat-bob {
+    animation: sea-bob 2.2s ease-in-out infinite;
+}
+
+.sea-boat-rock {
+    transform-box: view-box;
+    transform-origin: 82px 56px;
+    animation: sea-rock 3.3s ease-in-out infinite;
+}
+
+.sea-flag {
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation: sea-flag 0.9s ease-in-out infinite alternate;
+}
+
+.sea-sun-ring {
+    transform-box: fill-box;
+    transform-origin: center;
+    opacity: 0.2;
+    animation: sea-sun 3s ease-in-out infinite;
+}
+
+.sea-gulls {
+    animation: sea-gulls 9s linear infinite;
+}
+
+.sea-bubble {
+    opacity: 0;
+    animation: sea-bubble 2.6s ease-out infinite;
+}
+
+.sea-bubble.b2 {
+    animation-delay: 0.9s;
+}
+
+.sea-bubble.b3 {
+    animation-delay: 1.7s;
+}
+
+@keyframes sea-wave-back {
+    to {
+        transform: translateX(-40px);
+    }
+}
+
+@keyframes sea-wave-front {
+    from {
+        transform: translateX(-56px);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes sea-bob {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(3px);
+    }
+}
+
+@keyframes sea-rock {
+    0%,
+    100% {
+        transform: rotate(-5deg);
+    }
+    50% {
+        transform: rotate(5deg);
+    }
+}
+
+@keyframes sea-flag {
+    from {
+        transform: scaleX(1);
+    }
+    to {
+        transform: scaleX(0.7) skewY(6deg);
+    }
+}
+
+@keyframes sea-sun {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.2;
+    }
+    50% {
+        transform: scale(1.35);
+        opacity: 0.06;
+    }
+}
+
+@keyframes sea-gulls {
+    from {
+        transform: translateX(-50px);
+    }
+    to {
+        transform: translateX(170px);
+    }
+}
+
+@keyframes sea-bubble {
+    0% {
+        opacity: 0;
+        transform: translateY(0);
+    }
+    20% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-14px);
+    }
+}
+
+@keyframes sea-dot {
+    0%,
+    100% {
+        opacity: 0.25;
+        transform: translateY(0);
+    }
+    40% {
+        opacity: 1;
+        transform: translateY(-3px);
+    }
+}
+
+@keyframes sea-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(3px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sea-loader *,
+    .sea-loader-art * {
+        animation: none !important;
+    }
+}
+
+/* The loader fills the review page while the pull request loads. */
+.review-pr > .sea-loader {
+    flex: 1;
+    justify-content: center;
+}
+
+/* The Dashboard shows one centered loader until the first refresh completes. */
+.dash-first-load {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 48px;
+}
+
+.dash-first-load .sea-loader-art {
+    width: 240px;
+}
+
+/* The helm loader (HelmLoader). It uses the text styles of the sea loader. */
+.helm-loader-art {
+    width: 112px;
+    height: 112px;
+    overflow: visible;
+    filter: drop-shadow(0 8px 18px color-mix(in srgb, var(--accent) 22%, transparent));
+}
+
+/* One swing: a fast start, then a slow stop. A short hold. Then the same swing in the other direction. */
+.helm-spin {
+    transform-box: view-box;
+    transform-origin: 50px 50px;
+    animation: helm-swing 5.6s infinite;
+}
+
+@keyframes helm-swing {
+    0% {
+        transform: rotate(-150deg);
+        animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+    }
+    44% {
+        transform: rotate(150deg);
+    }
+    50% {
+        transform: rotate(150deg);
+        animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+    }
+    94% {
+        transform: rotate(-150deg);
+    }
+    100% {
+        transform: rotate(-150deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .helm-spin {
+        animation: none;
+    }
+}

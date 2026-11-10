@@ -20,6 +20,7 @@ import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { mergeConditions } from './PullRequestSummary';
 import { showContextMenu } from './ContextMenu';
 import { CopyButton } from './CopyButton';
+import { SeaLoader } from './SeaLoader';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 
 interface Props {
@@ -333,7 +334,8 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
     };
 
     if (status === undefined) {
-        return <div className="panel-message">{error ?? (loading ? 'Loading the pull request…' : '')}</div>;
+        if (!error && loading) return <SeaLoader label="Loading the pull request" />;
+        return <div className="panel-message">{error ?? ''}</div>;
     }
     if (status === null) {
         return <div className="panel-message">This worktree has no GitHub or Azure Repos remote named "origin".</div>;

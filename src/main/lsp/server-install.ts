@@ -14,7 +14,7 @@ const BASEDPYRIGHT_REGISTRY_URL = 'https://registry.npmjs.org/basedpyright/lates
 const GOPLS_PACKAGE = 'golang.org/x/tools/gopls@latest';
 /** The subfolder of the managed folder for each server. It must agree with `managedPaths`. */
 const SERVER_FOLDERS: Record<string, string> = { 'rust-analyzer': 'rust-analyzer', python: 'basedpyright', gopls: 'gopls' };
-/** The time limit of "go install". The command compiles gopls, and that can take some minutes. */
+/** The time limit of "go install". The command compiles gopls, and that can take a few minutes. */
 const GO_INSTALL_TIMEOUT_MS = 15 * 60 * 1000;
 
 /**
@@ -285,7 +285,7 @@ export class ServerInstaller {
         if (!go) {
             throw new Error('Go is not in the PATH. Install Go from https://go.dev/dl, then restart ShipWarden.');
         }
-        report('Running go install. Go compiles gopls, and that can take some minutes');
+        report('Running go install. Go compiles gopls, and that can take a few minutes');
         const env = goInstallEnv(process.env, path.join(staging, 'bin'), await this.childCertificateEnv());
         try {
             await run(go, ['install', GOPLS_PACKAGE], { cwd: staging, env, timeout: GO_INSTALL_TIMEOUT_MS });
