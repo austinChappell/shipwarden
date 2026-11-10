@@ -4,11 +4,16 @@ import type { ShortcutAction } from '@shared/shortcuts';
 /** The actions of the menu items. */
 export interface MenuActions {
     openSettings(): void;
+    /** Opens Settings › About and checks for updates there. */
+    checkForUpdates(): void;
     quitAndStopSessions(): void;
     sendShortcut(action: ShortcutAction): void;
 }
 
-/** The macOS menu. It is the standard menu, with "Quit and Stop All Agents" after "Quit". */
+/**
+ * The macOS menu. It is the standard menu, with "Check for Updates" after "About" and "Quit and Stop All Agents" after
+ * "Quit".
+ */
 export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[] {
     const sendShortcut = (action: ShortcutAction) => () => actions.sendShortcut(action);
     return [
@@ -16,6 +21,7 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
             role: 'appMenu',
             submenu: [
                 { role: 'about' },
+                { label: 'Check for Updates…', accelerator: 'Shift+Command+U', click: () => actions.checkForUpdates() },
                 { type: 'separator' },
                 { label: 'Settings…', accelerator: 'CommandOrControl+,', click: () => actions.openSettings() },
                 { type: 'separator' },

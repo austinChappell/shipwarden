@@ -101,8 +101,11 @@ export function App() {
     const [error, setError] = useState<string>();
     const sidebarWidth = usePanelWidth('shipwarden.width.sidebar', 260, 180, 480);
     const explorerWidth = usePanelWidth('shipwarden.width.explorer', 300, 220, 720);
-    /** The section that the settings page opens on, for example the settings of one repository. */
-    const [settingsSection, setSettingsSection] = useState<string>();
+    /**
+     * The section that the settings page opens on, for example the settings of one repository. Each request is a new
+     * object, so the page selects the section again when the user selected another section after the last request.
+     */
+    const [settingsSection, setSettingsSection] = useState<{ id: string }>();
     /** A new hiding rule from a Dashboard comment, for Settings > Dashboard to fill in. */
     const [rulePrefill, setRulePrefill] = useState<{ author: string; text: string; nonce: number }>();
     /**
@@ -172,7 +175,7 @@ export function App() {
             return 'settings';
         });
     const openSettings = (section?: string) => {
-        setSettingsSection(section);
+        setSettingsSection(section ? { id: section } : undefined);
         showSettingsPage();
     };
     const closeSettings = useCallback(() => setMainView(viewBeforeSettings.current), []);
@@ -284,8 +287,11 @@ export function App() {
         });
         // An agent that the user started in a shell tab, for example with `claude` or `codex`.
         const offAgentProgram = api.terminals.onAgentProgram((id, program) => agentStateStore.setProgram(id, program));
-        // The "Settings…" menu item (⌘,) opens the settings page.
-        const offOpenSettings = api.app.onOpenSettings(showSettingsPage);
+        // The "Settings…" menu item (⌘,) opens the settings page. "Check for Updates…" (⇧⌘U) opens the About section.
+        const offOpenSettings = api.app.onOpenSettings(section => {
+            if (section) setSettingsSection({ id: section });
+            showSettingsPage();
+        });
         return () => {
             offOpenSettings();
             offExit();

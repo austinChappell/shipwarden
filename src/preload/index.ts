@@ -19,7 +19,7 @@ const api: ShipWardenApi = {
     app: {
         focus: () => ipcRenderer.send(IpcChannels.appFocus),
         info: () => ipcRenderer.invoke(IpcChannels.appInfo),
-        onOpenSettings: listener => subscribe<[]>(IpcChannels.appOpenSettings, listener),
+        onOpenSettings: listener => subscribe<[string | undefined]>(IpcChannels.appOpenSettings, listener),
         onShortcut: listener => subscribe<[ShortcutAction]>(IpcChannels.appShortcut, listener),
         onConfirmRequest: listener => subscribe<[number, ConfirmRequest]>(IpcChannels.appConfirmRequest, listener),
         answerConfirm: (id, confirmed) => ipcRenderer.send(IpcChannels.appConfirmAnswer, id, confirmed),

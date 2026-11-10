@@ -85,14 +85,14 @@ export interface ShipWardenApi {
         focus(): void;
         /** Facts about the app for the settings page. */
         info(): Promise<AppInfo>;
-        /** Listens for the "Settings…" menu item (⌘,). */
-        onOpenSettings(listener: () => void): () => void;
+        /** Listens for the "Settings…" (⌘,) and "Check for Updates…" (⇧⌘U) menu items. The section is undefined for ⌘,. */
+        onOpenSettings(listener: (section?: string) => void): () => void;
         /** The workspace shortcuts, for example ⌘T, ⌘W, ⌘D, ⌘[ and ⌘]. See `shortcutAction`. */
         onShortcut(listener: (action: ShortcutAction) => void): () => void;
         /** Questions from the main process. The page shows them in its own dialog and sends the answer with `answerConfirm`. */
         onConfirmRequest(listener: (id: number, request: ConfirmRequest) => void): () => void;
         answerConfirm(id: number, confirmed: boolean): void;
-        /** Runs an app key (⌘Q, ⇧⌥⌘Q, ⌘, or ⌘H) that the page got. The main process normally reads these keys first. */
+        /** Runs an app key (⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U or ⌘H) that the page got. The main process normally reads these keys first. */
         runKey(action: AppKeyAction): void;
     };
     git: {

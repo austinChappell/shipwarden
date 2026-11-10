@@ -61,13 +61,19 @@ function createWindow(): void {
     });
 }
 
-/** Shows the window and opens the settings page. */
-function openSettings(): void {
+/** Shows the window and opens the settings page. A section, for example "about", opens that section. */
+function openSettings(section?: string): void {
     if (!mainWindow.get()) {
         createWindow();
     }
     mainWindow.get()?.show();
-    mainWindow.send(IpcChannels.appOpenSettings);
+    mainWindow.send(IpcChannels.appOpenSettings, section);
+}
+
+/** Opens Settings › About and checks for updates. The About section shows the result of the check. */
+function checkForUpdates(): void {
+    openSettings('about');
+    void services.updates.check();
 }
 
 function sendShortcut(action: ShortcutAction): void {
@@ -84,11 +90,12 @@ function quitAndStop(): Promise<void> {
     });
 }
 
-/** Runs an app key of the macOS menu: ⌘Q, ⇧⌥⌘Q, ⌘, or ⌘H. */
+/** Runs an app key of the macOS menu: ⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U or ⌘H. */
 function runAppKey(action: AppKeyAction): void {
     if (action === 'quit') app.quit();
     else if (action === 'quitAndStop') void quitAndStop();
     else if (action === 'settings') openSettings();
+    else if (action === 'checkForUpdates') checkForUpdates();
     else if (action === 'hide') app.hide();
 }
 
@@ -127,7 +134,11 @@ function browserKey(id: string, input: Electron.Input): boolean {
 app.whenReady().then(async () => {
     await services.projects.load();
     mainWindow.applyAppearance((await settings.get()).appearance);
-    Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate({ openSettings, quitAndStopSessions: () => void quitAndStop(), sendShortcut })));
+    Menu.setApplicationMenu(
+        Menu.buildFromTemplate(
+            menuTemplate({ openSettings: () => openSettings(), checkForUpdates, quitAndStopSessions: () => void quitAndStop(), sendShortcut })
+        )
+    );
     writeAgentHookFiles(services.hookPaths, services.shellIntegration, join(app.getPath('userData'), 'shell-integration'));
     services.shellAgents.start();
     protocol.handle(

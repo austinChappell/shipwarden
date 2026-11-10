@@ -42,6 +42,9 @@ See [RELEASING.md](RELEASING.md). The Release workflow (`.github/workflows/relea
 and publishes a GitHub release with the notes and `shipwarden-update.json`. `UpdateService` (main) reads the latest
 release, and `UpdateNotice` (page) shows it. The install replaces the app bundle after the app quits.
 
+**ShipWarden → Check for Updates…** (⇧⌘U) opens Settings › About and checks for a new release. The About section
+shows the result.
+
 ## Stack
 
 - **Electron 45** with **electron-vite**. ShipWarden is a macOS app first.
