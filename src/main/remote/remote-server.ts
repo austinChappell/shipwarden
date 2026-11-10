@@ -8,7 +8,9 @@ import {
     type PairingOffer,
     type RemoteAgent,
     type RemoteDevice,
+    type RemoteErrorBody,
     type RemoteInput,
+    type RemotePairResponse,
     type RemoteSettings,
     type RemoteSnapshot,
     type RemoteStatus
@@ -313,7 +315,7 @@ export class RemoteServer {
             const status = error instanceof HttpError ? error.status : 500;
             const message = error instanceof Error ? error.message : String(error);
             if (status === 500) console.error('[remote] Request failed:', error);
-            sendJson(response, status, { error: message });
+            sendJson(response, status, { error: message } satisfies RemoteErrorBody);
         }
     }
 
@@ -329,7 +331,7 @@ export class RemoteServer {
             token: result.token,
             deviceId: result.device.id,
             mac: { name: this.options.backend.macName(), version: this.options.backend.version }
-        });
+        } satisfies RemotePairResponse);
     }
 
     private async snapshot(): Promise<RemoteSnapshot> {

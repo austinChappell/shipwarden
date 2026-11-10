@@ -57,7 +57,7 @@ For example: `SIMCTL_CHILD_SHIPWARDEN_PAIR_LINK="$(pbpaste)" xcrun simctl launch
 
 | File | Contents |
 |---|---|
-| `Models.swift` | The API types. They are the same as `src/shared/remote.ts`. Change both together. |
+| `Models.swift` | The API types. They are the same as `src/shared/remote.ts`. Change both together. `npm run check:ios-contract` (in the repository root) finds a difference. |
 | `APIClient.swift` | HTTPS with the pinned certificate, the event streams and the keychain |
 | `AppModel.swift` | The pairing, the connection and the agent list |
 | `Demo.swift` | The sample agents of the demo |

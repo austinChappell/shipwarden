@@ -201,6 +201,19 @@ export interface ScreenSnapshot {
     cursor: { x: number; y: number; visible: boolean };
 }
 
+/** The answer to `POST /v1/pair`. */
+export interface RemotePairResponse {
+    protocol: number;
+    token: string;
+    deviceId: string;
+    mac: { name: string; version: string };
+}
+
+/** The body of each answer with an error status. */
+export interface RemoteErrorBody {
+    error: string;
+}
+
 /** The keys that the phone can send. */
 export const REMOTE_KEYS = ['enter', 'escape', 'tab', 'shiftTab', 'up', 'down', 'left', 'right', 'backspace', 'ctrlC', 'ctrlD'] as const;
 export type RemoteKey = typeof REMOTE_KEYS[number];

@@ -670,7 +670,10 @@ Next:
 ### Mobile (goal 5)
 
 The iPhone app is in `ios/` (SwiftUI, iOS 17). It connects to the main process of the desktop app. The API types
-are in `src/shared/remote.ts` and again in `ios/ShipWarden/Models.swift`. Change both together.
+are in `src/shared/remote.ts` and again in `ios/ShipWarden/Models.swift`. Change both together. A contract check
+finds a difference: the unit tests write sample JSON from the TypeScript types to `ios/ContractFixtures`, and
+`npm run check:ios-contract` decodes the samples with `Models.swift` and encodes them again. After a change to
+`remote.ts`, run `UPDATE_CONTRACT_FIXTURES=1 npm test` and then the check.
 
 - **Server.** `RemoteServer` (`src/main/remote/`) is an HTTPS server on all interfaces, port 7429 by default. It runs
   only while Settings › Mobile has it on (`settings.remote`). It is in the main process, so ShipWarden must be open.

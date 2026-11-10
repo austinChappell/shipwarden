@@ -1,0 +1,46 @@
+{
+  "protocol": 1,
+  "mac": {
+    "name": "Studio",
+    "version": "0.1.5"
+  },
+  "projects": [
+    {
+      "id": "project-1",
+      "name": "Work",
+      "repos": [
+        {
+          "path": "/Users/ana/api",
+          "name": "api",
+          "worktrees": [
+            {
+              "path": "/Users/ana/api",
+              "name": "api",
+              "isMain": true
+            },
+            {
+              "path": "/Users/ana/.shipwarden/worktrees/api/draft",
+              "name": "draft",
+              "isMain": false,
+              "pullRequest": {
+                "number": 8,
+                "url": "https://github.com/acme/api/pull/8",
+                "isDraft": true,
+                "reviewDecision": null,
+                "checks": null
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "id": "session-2",
+      "title": "Shell",
+      "cwd": "/Users/ana/api",
+      "exited": true
+    }
+  ]
+}
