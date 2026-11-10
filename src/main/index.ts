@@ -1138,7 +1138,7 @@ app.whenReady().then(async () => {
     void networkReady.then(() => usage.start());
     // The packaged app looks for updates. In development, the user can still check in Settings › About.
     if (app.isPackaged) void networkReady.then(() => updates.start());
-    // Remove the copies of pull requests that the user did not open for some days.
+    // Remove the copies of pull requests that the user did not open for a few days.
     void shellReady.then(() => reviewCheckouts.prune()).catch(error => console.warn('[review] The old pull request copies were not removed:', error));
 
     // On macOS, the app stays open with no windows. The agents continue to run.

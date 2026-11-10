@@ -82,7 +82,7 @@ To review the app without a Mac:
 1. Open the app. The pairing screen shows.
 2. Tap "Try the demo" at the bottom.
 3. The Agents tab shows three sample agents. Tap "Login page loops after sign-in". It needs input.
-4. Tap "1" to allow the command. After some seconds, the agent is done.
+4. Tap "1" to allow the command. After a few seconds, the agent is done.
 5. Type a reply in the text field and tap the send button. The agent answers.
 6. On the Worktrees tab, open "fix-login-loop" and tap Approve. The pull request shows as approved.
 7. On the Mac tab, tap "Exit the demo and pair with a Mac" to go back to the pairing screen.

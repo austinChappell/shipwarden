@@ -424,7 +424,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
 
             {firstLoad && (
                 <div className="dash-first-load">
-                    <SeaLoader hint="The first load can take some seconds." />
+                    <SeaLoader hint="The first load can take a few seconds." />
                 </div>
             )}
             <div className="dash-scroll" hidden={firstLoad} onKeyDown={moveListFocus}>
@@ -573,7 +573,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                             </section>
 
                             {!commentsLoaded && !state.prCommentsError && (
-                                <div className="dash-card dash-line">Loading comments… The first load can take some seconds.</div>
+                                <div className="dash-card dash-line">Loading comments… The first load can take a few seconds.</div>
                             )}
                             {noComments && (
                                 <div className="dash-card dash-line">

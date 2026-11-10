@@ -63,7 +63,7 @@ export function CheckoutMessage({ checkout, onRetry }: { checkout: CheckoutState
         return (
             <div className="panel-message">
                 <LoaderCircle size={14} className="spin" />
-                {checkout.cloning ? ' ShipWarden clones the repository. This can take some minutes.' : ' ShipWarden gets the files of the pull request…'}
+                {checkout.cloning ? ' ShipWarden clones the repository. This can take a few minutes.' : ' ShipWarden gets the files of the pull request…'}
             </div>
         );
     }

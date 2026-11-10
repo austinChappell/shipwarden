@@ -311,7 +311,7 @@ export function ReviewPullRequest({ repo, status, pr, loading, error, onRefresh,
                         {agentReview.status === 'running' && (
                             <>
                                 <LoaderCircle size={13} className="spin" />
-                                <span>The agent reviews the changes. This can take some minutes.</span>
+                                <span>The agent reviews the changes. This can take a few minutes.</span>
                                 <button className="link-button" onClick={() => reviewStore.cancelAgentReview(repo, pr.number)}>Cancel</button>
                             </>
                         )}

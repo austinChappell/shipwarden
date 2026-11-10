@@ -223,7 +223,7 @@ Each task source has collections. `collections/list` and the `collection` parame
   in all repositories and after a restart. Without a choice, ShipWarden selects the collection with `default: true`,
   else the first one.
 - ShipWarden sends `collections/list` each time the source starts. If the tracker limits the request rate, keep the
-  result for some minutes. The ClickUp plugin keeps it for 10 minutes.
+  result for a few minutes. The ClickUp plugin keeps it for 10 minutes.
 - Filters (for example "Assigned to me") apply inside the selected collection.
 - A task ID must be unique in the source, not only in its collection. The GitHub plugin uses `owner/name#123`.
 

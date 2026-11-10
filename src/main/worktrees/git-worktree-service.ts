@@ -122,7 +122,7 @@ export class GitWorktreeService {
 
     /**
      * The branches that a new worktree can start from, the newest commit first, and the default start point. The
-     * default start point needs a fetch of "origin", so this can take some seconds.
+     * default start point needs a fetch of "origin", so this can take a few seconds.
      */
     async branches(repoPath: string): Promise<BranchList> {
         const main = (await this.list(repoPath)).find(worktree => worktree.isMain);
