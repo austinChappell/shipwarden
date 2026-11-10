@@ -6950,9 +6950,13 @@ button:focus-visible,
 /* The switch between the changed files and all files of the pull request. */
 .pr-file-side-switch {
     flex: none;
-    /* Keep the switch at the width of its buttons. Do not stretch it across the side. */
-    align-self: flex-start;
+    /* The switch fills the width of the side. Each button gets an equal part. */
+    align-self: stretch;
     margin: 8px 10px 0;
+}
+
+.segmented.compact.pr-file-side-switch button {
+    flex: 1 1 0;
 }
 
 /* All files: the file explorer of the local copy fills the side. */
