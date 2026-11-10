@@ -13,19 +13,19 @@ import {
 } from './processes';
 
 const PS = [
-    '    1     0   0.0  1000 10-01:00:00 /sbin/launchd',
-    '  100     1   0.5 20000    01:00:00 /Applications/ShipWarden.app/Contents/MacOS/ShipWarden',
-    '  101   100   0.0  5000    01:00:00 node typescript-language-server --stdio',
-    '  200     1   0.1  9000    02:00:00 /usr/local/bin/node pty-host.js',
-    '  300   200   0.0  3000       10:00 -zsh',
-    '  301   300   1.5 80000       09:00 npm run dev',
-    '  302   301   0,7 90000       08:59 node /wt/a/node_modules/.bin/vite',
-    '  303   302   0.0  4000       08:58 /wt/a/node_modules/esbuild --service',
-    '  400   200   0.0  3000       05:00 /bin/zsh -l',
-    '  500     1   0.0  7000       04:00 python3 -m http.server 8000',
-    '  501   500   0.0  1000       04:00 python3 worker.py',
-    '  600     1   0.0  2000       03:00 -zsh',
-    '  700     1   0.0  2000       02:00 node /other/server.js'
+    '    1     0     1     0   0.0  1000 10-01:00:00 /sbin/launchd',
+    '  100     1   100     0   0.5 20000    01:00:00 /Applications/ShipWarden.app/Contents/MacOS/ShipWarden',
+    '  101   100   101     0   0.0  5000    01:00:00 node typescript-language-server --stdio',
+    '  200     1   200     0   0.1  9000    02:00:00 /usr/local/bin/node pty-host.js',
+    '  300   200   300     0   0.0  3000       10:00 -zsh',
+    '  301   300   301     0   1.5 80000       09:00 npm run dev',
+    '  302   301   302     0   0,7 90000       08:59 node /wt/a/node_modules/.bin/vite',
+    '  303   302   303     0   0.0  4000       08:58 /wt/a/node_modules/esbuild --service',
+    '  400   200   400     0   0.0  3000       05:00 /bin/zsh -l',
+    '  500     1   500     0   0.0  7000       04:00 python3 -m http.server 8000',
+    '  501   500   501     0   0.0  1000       04:00 python3 worker.py',
+    '  600     1   600     0   0.0  2000       03:00 -zsh',
+    '  700     1   700     0   0.0  2000       02:00 node /other/server.js'
 ].join('\n');
 
 const LISTEN = ['p302', 'f22', 'n*:5173', 'f23', 'n[::1]:5173', 'p500', 'f3', 'n*:8000', 'p101', 'n127.0.0.1:9229'].join('\n');
@@ -73,7 +73,7 @@ describe('process parsing', () => {
     it('parses ps rows, also with a comma as the decimal mark', () => {
         const rows = parsePs(PS);
         expect(rows).toHaveLength(13);
-        expect(rows[5]).toEqual({ pid: 301, ppid: 300, cpu: 1.5, rssKb: 80000, elapsed: '09:00', command: 'npm run dev' });
+        expect(rows[5]).toEqual({ pid: 301, ppid: 300, pgid: 301, tpgid: 0, cpu: 1.5, rssKb: 80000, elapsed: '09:00', command: 'npm run dev' });
         expect(rows[6].cpu).toBe(0.7);
     });
 

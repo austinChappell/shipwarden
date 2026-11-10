@@ -1,5 +1,5 @@
 import type { AgentUpdate } from '@shared/agents';
-import { agentProcessesBelow, type AgentProgram } from '@shared/agent-programs';
+import { agentProcessesBelow, inForeground, type AgentProgram } from '@shared/agent-programs';
 import type { ProcessRow } from '@shared/processes';
 import type { TerminalSession } from '@shared/terminal';
 
@@ -21,6 +21,7 @@ export interface ShellAgentsDeps {
 /**
  * Finds the agents that the user starts in a shell tab, for example with `claude` or `codex`.
  * Each 2 seconds, it reads the process table and finds the agent processes below the shell of each tab.
+ * Only an agent in the foreground of the tab's terminal counts.
  * Codex has no hooks, so this is the only way to find it. A Claude Code agent also reports its state through the hooks.
  * A session of a host without the shell PID (a Yardmaster host) gets no agent program.
  */
@@ -87,8 +88,14 @@ export class ShellAgents {
         if (shells.length > 0) {
             const [hostPids, rows] = await Promise.all([this.deps.hostPids(), this.deps.processTable()]);
             const byShellPid = new Map(shells.map(session => [session.pid!, session.id]));
+            const byPid = new Map(rows.map(row => [row.pid, row]));
             for (const hostPid of hostPids) {
                 for (const agent of agentProcessesBelow(rows, hostPid)) {
+                    // A stopped or background agent does not run in the tab. The tab is a shell again.
+                    const row = byPid.get(agent.pid);
+                    if (!row || !inForeground(row)) {
+                        continue;
+                    }
                     const id = agent.ancestors.map(pid => byShellPid.get(pid)).find(Boolean);
                     if (id) {
                         found.set(id, agent.program);
