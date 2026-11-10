@@ -29,10 +29,10 @@ ShipWarden is an Electron app. It can open a repository, create and remove workt
 and run Claude Code or a shell in each worktree. The terminals use Ghostty's terminal
 engine (ghostty-web) and your Ghostty config. A Files panel shows the worktree, filters
 file names, searches file contents and opens files in a Monaco editor. Language servers
-give go to definition, find references, hover, completion and diagnostics. TypeScript works
-with no setup. For Rust, Python and Go, ShipWarden uses the language server in your PATH.
-When the server is missing, the editor offers to install it into the app's data folder.
-ShipWarden asks you before each download:
+give go to definition, find references, hover, completion, diagnostics, rename and quick
+fixes (code actions). TypeScript works with no setup. For Rust, Python and Go, ShipWarden
+uses the language server in your PATH. When the server is missing, the editor offers to
+install it into the app's data folder. ShipWarden asks you before each download:
 
 - Rust: the `rust-analyzer` binary of the latest GitHub release, for the CPU of your Mac.
 - Python: the `basedpyright` package from the npm registry. Node is not necessary.
@@ -44,6 +44,11 @@ The right panel also shows the pull request of the worktree's branch and its Git
 checks. You can review diffs with inline comments, approve, request changes, merge, read job
 logs, run jobs again and send a failed job or a review comment to the agent. ShipWarden uses
 your GitHub CLI login (`gh auth login`).
+
+The Agents view (⌥⌘2) shows all running agents in one list. Each row shows the state of the agent
+(needs input, blocked on CI, working or done), the time since its last output, and its pull request
+with the CI state. Click a row to open the agent's terminal. The header shows the plan usage of
+Claude and Codex. ShipWarden has no usage data for each agent.
 
 The Tasks view shows the tasks of a task tracker. Task trackers are plugins: GitHub Issues and
 ClickUp are built in, and anyone can write a plugin with the

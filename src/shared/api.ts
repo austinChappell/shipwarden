@@ -390,6 +390,8 @@ export interface ShipWardenApi {
         onInstallState(listener: (state: LspInstallState) => void): () => void;
         request(key: string, method: string, params: unknown): Promise<unknown>;
         notify(key: string, method: string, params: unknown): void;
+        /** Sends the result of a server request that has an `id`, for example "workspace/applyEdit". */
+        respond(id: number, result: unknown): void;
         onMessage(listener: (message: LspServerMessage) => void): () => void;
     };
     processes: {
@@ -570,6 +572,7 @@ export const IpcChannels = {
     lspMissing: 'lsp:missing',
     lspRequest: 'lsp:request',
     lspNotify: 'lsp:notify',
+    lspRespond: 'lsp:respond',
     lspMessage: 'lsp:message',
     lspInstall: 'lsp:install',
     lspInstallState: 'lsp:installState',

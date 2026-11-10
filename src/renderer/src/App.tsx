@@ -46,6 +46,7 @@ import { setupCommand } from '@shared/worktree-settings';
 import type { CreatedWorktree } from '@shared/worktrees';
 import type { ProjectsState } from '@shared/projects';
 import { pruneLayout, readLayout, writeLayout } from './layout-store';
+import { editorPositions } from './editor/editor-positions';
 import { closePane, findLeaf, focusSide, focusedTab, groupOf, insertNode, leafOfTab, leaves, pruneGroups, resizeSplit, setGroup, splitPane, tabLayout, type PaneLayout, type PaneNode, type SplitGroups, type SplitSide } from '@shared/panes';
 import { SplitDivider } from './components/SplitDivider';
 import { shortcutAction, type ShortcutAction, type ViewAction } from '@shared/shortcuts';
@@ -53,6 +54,7 @@ import { EMPTY_NAV_HISTORY, recordLocation, stepHistory, type NavLocation } from
 import { lspBridge } from './lsp/bridge';
 import { terminalPool } from './terminal/terminal-pool';
 import { agentStateStore } from './terminal/agent-state-store';
+import { outputActivity } from './terminal/output-activity';
 import { sessionListStore } from './terminal/session-list-store';
 import { ChangeDiffView } from './components/ChangeDiffView';
 import { WorktreeChangesView } from './components/WorktreeChangesView';
@@ -306,6 +308,8 @@ export function App() {
         }));
         const activeTabs = Object.fromEntries(Object.entries(saved.activeTabs)
             .filter(([root, tab]) => !tab.startsWith('f:') || openFiles[root]?.includes(tab.slice(2))));
+        // The cursor positions of files that did not open again are not necessary.
+        editorPositions.prune(list.map(worktree => worktree.path), openFiles);
         // Merge, so that the documents of another repository keep their tabs and can close normally.
         setOpenFiles(map => ({ ...map, ...openFiles }));
         setActiveTabs(map => ({ ...map, ...activeTabs }));
@@ -991,6 +995,7 @@ export function App() {
         }
         terminalPool.dispose(id);
         agentStateStore.delete(id);
+        outputActivity.delete(id);
         setSessions(list => list.filter(item => item.id !== id));
         // The host keeps an ended session for its output. The tab is gone, so the host can forget it.
         void api.terminals.kill(id).catch(() => undefined);
@@ -1169,6 +1174,7 @@ export function App() {
         await api.terminals.kill(session.id);
         terminalPool.dispose(session.id);
         agentStateStore.delete(session.id);
+        outputActivity.delete(session.id);
         setSessions(list => list.filter(item => item.id !== session.id));
     };
 
@@ -1207,6 +1213,7 @@ export function App() {
             return;
         }
         documents.close(root, path);
+        editorPositions.forget(root, path);
         setDirtyFiles(set => {
             const next = new Set(set);
             next.delete(fileKey(root, path));
@@ -1431,9 +1438,11 @@ export function App() {
             sessions.filter(session => session.worktreePath === worktree.path).forEach(session => {
                 terminalPool.dispose(session.id);
                 agentStateStore.delete(session.id);
+                outputActivity.delete(session.id);
             });
             setSessions(list => list.filter(session => session.worktreePath !== worktree.path));
             (openFiles[worktree.path] ?? []).forEach(path => documents.close(worktree.path, path));
+            editorPositions.forget(worktree.path);
             setExtraTabs(map => {
                 const next = { ...map };
                 delete next[worktree.path];

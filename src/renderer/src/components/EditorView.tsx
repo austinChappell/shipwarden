@@ -4,6 +4,7 @@ import { codeNotePrompt, type NoteTarget } from '@shared/code-note';
 import type { AgentDefinition } from '@shared/settings';
 import { codeQuestions, useCodeQuestions } from '../editor/code-questions';
 import { documents } from '../editor/documents';
+import { clampPosition, editorPositions } from '../editor/editor-positions';
 import { monaco } from '../editor/monaco';
 import { addReviewZone, ComposerZone, QuestionZone, removeReviewZones, type AgentQuestion, type NoteOptions, type QuestionAction, type ZoneHandle } from './DiffView';
 import { useMissingServer } from '../lsp/missing-servers';
@@ -57,6 +58,9 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
     // The box reads the newest values, so that a new render of the app does not open the box again.
     const noteRef = useRef({ agents, defaultAgentId, onSendNote });
     noteRef.current = { agents, defaultAgentId, onSendNote };
+    // The effect that opens the file reads this value, so that a reveal line does not open the file again.
+    const revealLineRef = useRef(revealLine);
+    revealLineRef.current = revealLine;
 
     useEffect(() => codeQuestions.load(root, path, reportError), [root, path]);
 
@@ -139,6 +143,14 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
                     return;
                 }
                 editor.setModel(model);
+                // Show the last cursor and scroll position of the file. A reveal line has priority.
+                const saved = editorPositions.get(root, path);
+                if (saved && !revealLineRef.current) {
+                    const position = clampPosition(saved, model.getLineCount());
+                    editor.setPosition({ lineNumber: position.line, column: position.column });
+                    editor.setScrollTop(position.scrollTop);
+                    editor.setScrollLeft(position.scrollLeft);
+                }
                 setReady(true);
                 // Wait for a pause in the typing, so the cards do not move with each key.
                 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -146,9 +158,19 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
                     clearTimeout(timer);
                     timer = setTimeout(() => setTextVersion(value => value + 1), 300);
                 });
+                // Record the position after the restore, so that the first events do not replace the saved position.
+                const savePosition = () => {
+                    const cursor = editor.getPosition();
+                    if (!cursor || editor.getModel() !== model) return;
+                    editorPositions.set(root, path, { line: cursor.lineNumber, column: cursor.column, scrollTop: editor.getScrollTop(), scrollLeft: editor.getScrollLeft() });
+                };
+                const cursorListener = editor.onDidChangeCursorPosition(savePosition);
+                const scrollListener = editor.onDidScrollChange(savePosition);
                 editor.onDidDispose(() => {
                     clearTimeout(timer);
                     listener.dispose();
+                    cursorListener.dispose();
+                    scrollListener.dispose();
                 });
                 editor.focus();
             },

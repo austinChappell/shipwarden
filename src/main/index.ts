@@ -691,6 +691,7 @@ function registerIpc(): void {
     ipcMain.handle(IpcChannels.lspInstall, async (_event, serverId: string) => { await shellReady; await serverInstaller.install(String(serverId)); });
     ipcMain.handle(IpcChannels.lspRequest, (_event, key: string, method: string, params: unknown) => lsp.request(key, method, params));
     ipcMain.on(IpcChannels.lspNotify, (_event, key: string, method: string, params: unknown) => lsp.notify(key, method, params));
+    ipcMain.on(IpcChannels.lspRespond, (_event, id: number, result: unknown) => lsp.respond(id, result));
 
     ipcMain.handle(IpcChannels.terminalsSettings, () => loadGhosttySettings());
     ipcMain.handle(IpcChannels.terminalsList, terminalSessions);

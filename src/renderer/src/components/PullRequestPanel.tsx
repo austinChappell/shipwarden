@@ -8,6 +8,9 @@ import { reviewStore, useReviewState } from '../github/review-store';
 import { seenStore } from '../seen-store';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
+import { CommentBody } from './CommentBody';
+import { threadSuggestionTarget } from '@shared/suggestion';
+import { applyThreadSuggestion } from '../github/suggestions';
 import { confirmDialog } from './ConfirmDialog';
 import { DescriptionEditor, EditDescriptionButton, PullRequestMeta } from './PullRequestDetails';
 import { MERGE_LABELS, MergeButton } from './MergeButton';
@@ -644,7 +647,14 @@ export function PullRequestPanel({ target, status, loading, error, onRefresh, on
                     {thread.comments.map(comment => (
                         <div key={comment.id} className="thread-comment">
                             <div className="comment-author">{comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span></div>
-                            <Markdown className="comment-body" text={comment.body} />
+                            <CommentBody
+                                body={comment.body}
+                                original={threadSuggestionTarget(thread)?.original}
+                                outdated={thread.isOutdated}
+                                onApply={typeof target === 'string' && threadSuggestionTarget(thread)
+                                    ? lines => applyThreadSuggestion(target, thread, lines)
+                                    : undefined}
+                            />
                         </div>
                     ))}
                     {replyTo === thread.id && (

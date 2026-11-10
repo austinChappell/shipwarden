@@ -1,4 +1,4 @@
-import type { RepoRef } from './github';
+import type { MergeMethod, RepoRef } from './github';
 import type { HiddenCommentRule } from './settings';
 
 /** The Dashboard shows comments from this number of days. Older comments do not count as new. */
@@ -24,7 +24,14 @@ export interface MyPullRequestItem {
     title: string;
     url: string;
     updatedAt: string;
+    createdAt?: string;
     reasons: MyPullRequestReason[];
+    /** The head commit. A merge from the Dashboard sends it, so GitHub refuses the merge after a new push. */
+    headSha?: string;
+    /** The merge method that the user used last in the repository. */
+    mergeMethod?: MergeMethod;
+    /** The number of review threads that are not resolved. */
+    unresolvedThreads?: number;
 }
 
 /** A comment or a review on a pull request, from another person. */
@@ -241,4 +248,101 @@ export function shortAge(iso: string, now = Date.now()): string {
     const days = Math.round(hours / 24);
     if (days < 14) return `${days}d`;
     return `${Math.round(days / 7)}w`;
+}
+
+/** A pull request of the user with no update in this number of days is stale. */
+export const DASHBOARD_STALE_DAYS = 30;
+
+const DAY_MS = 24 * 3600 * 1000;
+
+/** True when the pull request has no update in `DASHBOARD_STALE_DAYS` days. */
+export function isStalePullRequest(pr: Pick<MyPullRequestItem, 'updatedAt'>, now = Date.now()): boolean {
+    return now - Date.parse(pr.updatedAt) >= DASHBOARD_STALE_DAYS * DAY_MS;
+}
+
+/** The cards of the user's pull requests on the Dashboard. */
+export interface MyPullRequestBuckets {
+    ready: MyPullRequestItem[];
+    changes: MyPullRequestItem[];
+    /** CI fails or the branch has merge conflicts. */
+    blocked: MyPullRequestItem[];
+    stale: MyPullRequestItem[];
+}
+
+/**
+ * Puts each pull request of the user in one card. A stale pull request goes to `stale`, whatever its reasons.
+ * The other pull requests go to the card of their most urgent reason.
+ */
+export function bucketMyPullRequests(prs: MyPullRequestItem[], now = Date.now()): MyPullRequestBuckets {
+    const buckets: MyPullRequestBuckets = { ready: [], changes: [], blocked: [], stale: [] };
+    for (const pr of prs) {
+        if (isStalePullRequest(pr, now)) {
+            buckets.stale.push(pr);
+            continue;
+        }
+        const group = myPullRequestGroup(pr.reasons);
+        if (group === 'ready-to-merge') buckets.ready.push(pr);
+        else if (group === 'changes-requested') buckets.changes.push(pr);
+        else buckets.blocked.push(pr);
+    }
+    // The newest update first in the active cards. The oldest first in the stale card.
+    const newest = (a: MyPullRequestItem, b: MyPullRequestItem) => b.updatedAt.localeCompare(a.updatedAt);
+    buckets.ready.sort(newest);
+    buckets.changes.sort(newest);
+    buckets.blocked.sort(newest);
+    buckets.stale.sort((a, b) => -newest(a, b));
+    return buckets;
+}
+
+/** The urgency of an age, for its color: "fresh" under 7 days, "aging" under 21 days, "old" after. */
+export function ageLevel(iso: string, now = Date.now()): 'fresh' | 'aging' | 'old' {
+    const days = (now - Date.parse(iso)) / DAY_MS;
+    if (days < 7) return 'fresh';
+    if (days < 21) return 'aging';
+    return 'old';
+}
+
+/** The fields that the Dashboard filter compares with the query. */
+export interface FilterablePullRequest {
+    title: string;
+    repo: RepoRef;
+    number: number;
+    author?: string | null;
+}
+
+/**
+ * True when the pull request matches the filter text of the Dashboard. Each word of the query must be in the title,
+ * the ticket, the repository, the number ("#12") or the author. The comparison ignores case.
+ */
+export function matchesDashboardQuery(pr: FilterablePullRequest, query: string): boolean {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return true;
+    const ticket = parsePullRequestTitle(pr.title).ticket ?? '';
+    const haystack = [pr.title, ticket, pr.repo.owner, pr.repo.name, `#${pr.number}`, pr.author ?? ''].join(' ').toLowerCase();
+    return words.every(word => haystack.includes(word));
+}
+
+export type ReviewSort = 'author' | 'oldest' | 'repo';
+
+/** A group of review requests: an author or a repository. A list without groups has one group with an empty key. */
+export interface ReviewGroup<T> {
+    key: string;
+    items: T[];
+}
+
+/**
+ * Sorts the review requests for the Dashboard. "author" and "repo" make groups, the largest group first, and the
+ * newest item first in each group. "oldest" makes one list, the oldest item first. The age is the creation time.
+ */
+export function groupReviewRequests<T extends { author: string | null; repo: RepoRef; createdAt: string }>(items: T[], sort: ReviewSort): ReviewGroup<T>[] {
+    const oldest = (a: T, b: T) => a.createdAt.localeCompare(b.createdAt);
+    if (sort === 'oldest') return items.length ? [{ key: '', items: [...items].sort(oldest) }] : [];
+    const keyOf = (item: T) => (sort === 'author' ? item.author ?? 'unknown' : item.repo.name);
+    const groups = new Map<string, T[]>();
+    for (const item of items) {
+        groups.set(keyOf(item), [...(groups.get(keyOf(item)) ?? []), item]);
+    }
+    return [...groups.entries()]
+        .map(([key, list]) => ({ key, items: list.sort((a, b) => -oldest(a, b)) }))
+        .sort((a, b) => b.items.length - a.items.length || a.key.localeCompare(b.key));
 }

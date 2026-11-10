@@ -213,6 +213,7 @@ const api: ShipWardenApi = {
         onInstallState: listener => subscribe<[LspInstallState]>(IpcChannels.lspInstallState, listener),
         request: (key, method, params) => ipcRenderer.invoke(IpcChannels.lspRequest, key, method, params),
         notify: (key, method, params) => ipcRenderer.send(IpcChannels.lspNotify, key, method, params),
+        respond: (id, result) => ipcRenderer.send(IpcChannels.lspRespond, id, result),
         onMessage: listener => subscribe<[LspServerMessage]>(IpcChannels.lspMessage, listener)
     },
     processes: {
