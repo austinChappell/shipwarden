@@ -15,7 +15,7 @@ describe('cloneRepo', () => {
     /** The folder of each clone has the "origin" remote of acme/api. Other folders have no GitHub remote. */
     const options = (cloneUrl = () => origin) => ({
         cloneUrl,
-        githubRepoFor: async (root: string) => (existsSync(path.join(root, '.git')) && root.endsWith('api') ? repo : null)
+        repoFor: async (root: string) => (existsSync(path.join(root, '.git')) && root.endsWith('api') ? repo : null)
     });
 
     beforeEach(async () => {

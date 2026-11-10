@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ExternalLink, LoaderCircle, Play, RefreshCw, RotateCw, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
-import type { CheckConclusion, CheckRun, CheckStatus, GitHubRepoInfo, RepoRef, RepoTarget, Workflow } from '@shared/github';
+import {
+    hostLabel,
+    parseRepoId,
+    pipelinesWebUrl,
+    repoId,
+    type CheckConclusion,
+    type CheckRun,
+    type CheckStatus,
+    type GitHubRepoInfo,
+    type RepoRef,
+    type RepoTarget,
+    type SourceHostKind,
+    type Workflow
+} from '@shared/github';
 import { dispatchInputs, runIsActive, type WorkflowInput, type WorkflowRun } from '@shared/pipelines';
 import { errorText, formatDuration, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
@@ -20,15 +33,15 @@ const ACTIVE_POLL_MS = 8_000;
 const IDLE_POLL_MS = 60_000;
 
 /** The cache keys. The view shows cached data immediately and loads new data in the background. */
-const reposKey = (githubKey: string) => cacheKey('pipelines.repos', githubKey);
+const reposKey = (reviewKey: string) => cacheKey('pipelines.repos', reviewKey);
 const branchesKey = (repo: string) => cacheKey('pipelines.branches', repo);
 const workflowsKey = (repo: string) => cacheKey('pipelines.workflows', repo);
 const runsKey = (repo: string, workflowId: number | undefined) => cacheKey('pipelines.runs', repo, workflowId);
 const jobsKey = (repo: string, runId: number) => cacheKey('pipelines.jobs', repo, runId);
 
 interface Props {
-    /** A key for the GitHub providers of Settings › Code review. Undefined: not loaded yet. Null: no GitHub provider is on. */
-    githubKey: string | null | undefined;
+    /** A key for the providers of Settings › Code review. Undefined: not loaded yet. Null: no provider is on. */
+    reviewKey: string | null | undefined;
     onOpenSettings(): void;
 }
 
@@ -89,6 +102,8 @@ function InputField({ input, value, onChange }: { input: WorkflowInput; value: s
 interface RunDialogProps {
     /** The repository: a worktree path, or the owner and name. */
     repo: RepoTarget;
+    /** The host of the repository. Undefined means GitHub. */
+    host?: SourceHostKind;
     workflow: Workflow;
     branches: string[] | undefined;
     onClose(): void;
@@ -99,7 +114,7 @@ interface RunDialogProps {
  * The dialog that starts a workflow: the branch and the inputs of its `workflow_dispatch` trigger.
  * Each branch can have another version of the workflow file, so the inputs load again for another branch.
  */
-export function RunDialog({ repo, workflow, branches, onClose, onStarted }: RunDialogProps) {
+export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }: RunDialogProps) {
     const [branch, setBranch] = useState(branches?.[0] ?? '');
     const [inputs, setInputs] = useState<WorkflowInput[] | undefined>(workflow.inputs);
     const [values, setValues] = useState<Record<string, string>>({});
@@ -121,7 +136,11 @@ export function RunDialog({ repo, workflow, branches, onClose, onStarted }: RunD
                 if (!current) return;
                 const found = list.find(item => item.id === workflow.id);
                 if (!found?.dispatchable) {
-                    setError(`The workflow on "${branch}" cannot start by hand: it has no workflow_dispatch trigger.`);
+                    setError(
+                        host === 'azure'
+                            ? `The pipeline cannot start on "${branch}". It is possibly turned off.`
+                            : `The workflow on "${branch}" cannot start by hand: it has no workflow_dispatch trigger.`
+                    );
                     setInputs([]);
                 } else {
                     setError(undefined);
@@ -205,7 +224,13 @@ export function RunDialog({ repo, workflow, branches, onClose, onStarted }: RunD
                 </div>
                 <footer className="modal-footer">
                     <span className="panel-note">
-                        GitHub starts the workflow on <code>{workflow.path}</code> of the branch.
+                        {host === 'azure' ? (
+                            <>Azure DevOps queues a build of the pipeline on the branch.</>
+                        ) : (
+                            <>
+                                GitHub starts the workflow on <code>{workflow.path}</code> of the branch.
+                            </>
+                        )}
                     </span>
                     <button className="button" onClick={onClose}>
                         Cancel
@@ -220,10 +245,11 @@ export function RunDialog({ repo, workflow, branches, onClose, onStarted }: RunD
 }
 
 /**
- * The Pipelines view: the workflows of a GitHub repository, their runs, the jobs and logs of a run, and a dialog
- * that starts a workflow with a `workflow_dispatch` trigger. Other providers (GitLab, Azure DevOps) can come later.
+ * The Pipelines view: the workflows of a repository, their runs, the jobs and logs of a run, and a dialog that starts a
+ * workflow. On GitHub, the workflows are GitHub Actions and a workflow starts by hand with a `workflow_dispatch` trigger.
+ * On Azure DevOps, the workflows are the pipelines (build definitions) of the repository, and a run is one build.
  */
-export function PipelinesView({ githubKey, onOpenSettings }: Props) {
+export function PipelinesView({ reviewKey, onOpenSettings }: Props) {
     const [repos, setRepos] = useState<GitHubRepoInfo[]>();
     const [repo, setRepo] = useState<string | undefined>(readRepo);
     const [workflows, setWorkflows] = useState<Workflow[]>();
@@ -240,34 +266,31 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
     const workflowWidth = usePanelWidth('shipwarden.width.pipelineWorkflows', 230, 180, 400);
     const runsWidth = usePanelWidth('shipwarden.width.pipelineRuns', 380, 260, 640);
 
-    const repoRef = useMemo<RepoRef | undefined>(() => {
-        if (!repo) return undefined;
-        const [owner, name] = repo.split('/');
-        return { owner, name };
-    }, [repo]);
+    const repoRef = useMemo<RepoRef | undefined>(() => (repo ? parseRepoId(repo) : undefined), [repo]);
+    const host = hostLabel(repoRef?.host);
 
     useEffect(() => {
-        if (!githubKey) return;
+        if (!reviewKey) return;
         let current = true;
-        setRepos(cached(reposKey(githubKey)));
+        setRepos(cached(reposKey(reviewKey)));
         github.repositories().then(
             list => {
                 if (!current) return;
-                setRepos(remember(reposKey(githubKey), list));
-                setRepo(value => (value && list.some(item => `${item.owner}/${item.name}` === value) ? value : list[0] && `${list[0].owner}/${list[0].name}`));
+                setRepos(remember(reposKey(reviewKey), list));
+                setRepo(value => (value && list.some(item => repoId(item) === value) ? value : list[0] && repoId(list[0])));
             },
             err => current && setError(errorText(err))
         );
         return () => {
             current = false;
         };
-    }, [githubKey]);
+    }, [reviewKey]);
 
     // The workflows and branches of the repository. The workflows come from the default branch.
     useEffect(() => {
         if (!repoRef) return;
         let current = true;
-        const id = `${repoRef.owner}/${repoRef.name}`;
+        const id = repoId(repoRef);
         setWorkflows(cached(workflowsKey(id)));
         setBranches(cached(branchesKey(id)));
         setWorkflowId(undefined);
@@ -300,7 +323,7 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
         setLoading(true);
         try {
             const list = await github.workflowRuns(repoRef, workflowId);
-            if (id === request.current) setRuns(remember(runsKey(`${repoRef.owner}/${repoRef.name}`, workflowId), list));
+            if (id === request.current) setRuns(remember(runsKey(repoId(repoRef), workflowId), list));
         } catch (err) {
             if (id === request.current) setError(errorText(err));
         } finally {
@@ -310,7 +333,7 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
 
     // The runs show their cached list immediately, and load the new list in the background.
     useEffect(() => {
-        setRuns(repoRef ? cached(runsKey(`${repoRef.owner}/${repoRef.name}`, workflowId)) : undefined);
+        setRuns(repoRef ? cached(runsKey(repoId(repoRef), workflowId)) : undefined);
         void loadRuns();
     }, [repoRef, workflowId, loadRuns]);
 
@@ -325,13 +348,13 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
     const loadJobs = useCallback(async () => {
         if (!repoRef || !runId) return;
         try {
-            setJobs(remember(jobsKey(`${repoRef.owner}/${repoRef.name}`, runId), await github.runJobs(repoRef, runId)));
+            setJobs(remember(jobsKey(repoId(repoRef), runId), await github.runJobs(repoRef, runId)));
         } catch (err) {
             setActionError(errorText(err));
         }
     }, [repoRef, runId]);
     useEffect(() => {
-        setJobs(repoRef && runId ? cached(jobsKey(`${repoRef.owner}/${repoRef.name}`, runId)) : undefined);
+        setJobs(repoRef && runId ? cached(jobsKey(repoId(repoRef), runId)) : undefined);
         setJob(undefined);
         setActionError(undefined);
         void loadJobs();
@@ -352,16 +375,16 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
         }
     };
 
-    if (githubKey === undefined) {
+    if (reviewKey === undefined) {
         return <div className="pipelines-view" />;
     }
-    if (githubKey === null) {
+    if (reviewKey === null) {
         return (
             <div className="pipelines-view">
                 <div className="review-empty">
                     <WorkflowIcon size={30} strokeWidth={1.3} />
                     <h2>Pipelines</h2>
-                    <p>Add a GitHub provider to see the workflows of its repositories. The Review view uses the same providers.</p>
+                    <p>Add a GitHub or Azure DevOps provider to see the pipelines of its repositories. The Review view uses the same providers.</p>
                     <button className="button primary" onClick={onOpenSettings}>
                         Open Settings › Code review
                     </button>
@@ -373,7 +396,7 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
     const groups = sortedGroups(
         repos ?? [],
         item => item.owner,
-        item => ({ value: `${item.owner}/${item.name}`, label: item.name })
+        item => ({ value: repoId(item), label: item.name })
     );
     const workflowName = (id: number) => workflows?.find(item => item.id === id)?.name;
     const style = { '--pipeline-workflows-width': `${workflowWidth.width}px`, '--pipeline-runs-width': `${runsWidth.width}px` } as CSSProperties;
@@ -401,8 +424,10 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
                     {repoRef && (
                         <button
                             className="icon-button"
-                            title="Open the Actions of the repository on GitHub"
-                            onClick={event => openLink(`https://github.com/${repoRef.owner}/${repoRef.name}/actions`, event)}
+                            title={
+                                repoRef.host === 'azure' ? 'Open the pipelines of the project on Azure DevOps' : 'Open the Actions of the repository on GitHub'
+                            }
+                            onClick={event => openLink(pipelinesWebUrl(repoRef), event)}
                         >
                             <ExternalLink size={15} strokeWidth={1.6} />
                         </button>
@@ -416,21 +441,25 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
 
             <div className="pipelines-body" style={style}>
                 <nav className="pipeline-workflows" onKeyDown={moveListFocus}>
-                    <div className="section-title">Workflows</div>
+                    <div className="section-title">{repoRef?.host === 'azure' ? 'Pipelines' : 'Workflows'}</div>
                     <button
                         className={`pipeline-workflow${workflowId === undefined ? ' selected' : ''}`}
                         data-nav-item
                         aria-pressed={workflowId === undefined}
                         onClick={() => setWorkflowId(undefined)}
                     >
-                        <span className="pipeline-workflow-name">All workflows</span>
+                        <span className="pipeline-workflow-name">{repoRef?.host === 'azure' ? 'All pipelines' : 'All workflows'}</span>
                     </button>
                     {!workflows && !error && (
                         <div className="panel-note">
                             <LoaderCircle size={12} className="spin" /> Loading…
                         </div>
                     )}
-                    {workflows?.length === 0 && <div className="panel-note">This repository has no workflows in .github/workflows.</div>}
+                    {workflows?.length === 0 && (
+                        <div className="panel-note">
+                            {repoRef?.host === 'azure' ? 'This repository has no pipelines.' : 'This repository has no workflows in .github/workflows.'}
+                        </div>
+                    )}
                     {workflows?.map(workflow => (
                         <div
                             key={workflow.id}
@@ -551,7 +580,7 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
                                         </button>
                                     )}
                                     <button className="button" onClick={event => openLink(selectedRun.url, event)}>
-                                        <ExternalLink size={12} strokeWidth={2} /> GitHub
+                                        <ExternalLink size={12} strokeWidth={2} /> {host}
                                     </button>
                                 </div>
                                 {actionError && <div className="form-error">{actionError}</div>}
@@ -592,13 +621,14 @@ export function PipelinesView({ githubKey, onOpenSettings }: Props) {
             {dialog && repoRef && (
                 <RunDialog
                     repo={repoRef}
+                    host={repoRef.host}
                     workflow={dialog}
                     branches={branches}
                     onClose={() => setDialog(undefined)}
                     onStarted={() => {
                         setDialog(undefined);
                         setWorkflowId(dialog.id);
-                        // GitHub makes the run a few seconds after the dispatch.
+                        // The host makes the run a few seconds after the dispatch.
                         setTimeout(() => void loadRuns(), 2500);
                         setTimeout(() => void loadRuns(), 7000);
                     }}

@@ -21,16 +21,42 @@ export interface ReviewCheckoutStatus {
 /** The characters that GitHub allows in an owner or a repository name. */
 const NAME_PATTERN = /^[A-Za-z0-9_.-]+$/;
 
+/**
+ * The characters that are not safe in a part of an Azure Repos name. Azure DevOps permits spaces and more punctuation
+ * than GitHub, but a folder name must not have a path separator or a control character.
+ */
+const AZURE_UNSAFE = /[/\\:*?"<>|\u0000-\u001f]/;
+
 /** True when the value can be a folder name. The value must not be "." or "..". */
 export function isSafeRepoPart(value: string): boolean {
     return NAME_PATTERN.test(value) && value !== '.' && value !== '..';
 }
 
-/** Returns the repository as a valid `RepoRef`. Throws an error when the owner or the name is not valid. */
+/** True when the value is a part of an Azure Repos name (organization, project or repository) that can be a folder name. */
+export function isSafeAzurePart(value: string): boolean {
+    return !!value && !AZURE_UNSAFE.test(value) && value.trim() === value && value !== '.' && value !== '..';
+}
+
+/** True when the name of the repository can be a folder name. */
+export function isSafeRepoName(repo: Pick<RepoRef, 'name' | 'host'>): boolean {
+    return repo.host === 'azure' ? isSafeAzurePart(repo.name) : isSafeRepoPart(repo.name);
+}
+
+/**
+ * Returns the repository as a valid `RepoRef`. Throws an error when the owner or the name is not valid.
+ * The owner of an Azure Repos repository is "organization/project".
+ */
 export function checkRepoRef(value: unknown): RepoRef {
     const repo = value as Partial<RepoRef> | undefined;
     const owner = String(repo?.owner ?? '');
     const name = String(repo?.name ?? '');
+    if (repo?.host === 'azure') {
+        const parts = owner.split('/');
+        if (parts.length !== 2 || !parts.every(isSafeAzurePart) || !isSafeAzurePart(name)) {
+            throw new Error(`"${owner}/${name}" is not a valid Azure Repos repository name.`);
+        }
+        return { owner, name, host: 'azure' };
+    }
     if (!isSafeRepoPart(owner) || !isSafeRepoPart(name)) {
         throw new Error(`"${owner}/${name}" is not a valid repository name.`);
     }
@@ -55,7 +81,10 @@ export function checkCommitSha(value: unknown): string {
     return sha;
 }
 
-/** The key of a pull request in the checkout index, for example "octo/app#12". Owner and name are in lowercase. */
+/**
+ * The key of a pull request in the checkout index, for example "octo/app#12" or "azure:contoso/web/app#12".
+ * Owner and name are in lowercase.
+ */
 export function reviewCheckoutKey(repo: RepoRef, number: number): string {
-    return `${repo.owner.toLowerCase()}/${repo.name.toLowerCase()}#${number}`;
+    return `${repo.host === 'azure' ? 'azure:' : ''}${repo.owner.toLowerCase()}/${repo.name.toLowerCase()}#${number}`;
 }

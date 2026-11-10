@@ -76,6 +76,20 @@ describe('ReviewProviders', () => {
         expect((await providers.for({ owner: 'acme', name: 'api' })).kind).toBe('github');
     });
 
+    it('sends an Azure reference of the Review view to the Azure DevOps provider', async () => {
+        const { providers } = await createWithBoth();
+        expect((await providers.for({ owner: 'contoso/Web', name: 'shop', host: 'azure' })).kind).toBe('azure');
+    });
+
+    it('finds the repository of a worktree on each host', async () => {
+        const providers = create();
+        expect(await providers.repoFor('/work/shop')).toEqual({ owner: 'contoso/Web', name: 'shop', host: 'azure' });
+        expect(await providers.repoFor('/work/acme')).toEqual({ owner: 'acme', name: 'api' });
+        expect(await providers.repoFor('/work/none')).toBeNull();
+        // The task plugins read only GitHub repositories.
+        expect(await providers.githubRepoFor('/work/shop')).toBeNull();
+    });
+
     it('selects the GitHub provider whose scope has the owner', async () => {
         const { providers } = await createWithBoth();
         const work = await providers.add('github', 'Work');

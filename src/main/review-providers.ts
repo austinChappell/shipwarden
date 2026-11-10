@@ -1,8 +1,20 @@
 import { execFile } from 'child_process';
 import { randomUUID } from 'crypto';
-import { parseAzureRemote } from '@shared/azure-devops';
+import { azureRepoOf, azureRepoRef, parseAzureRemote } from '@shared/azure-devops';
 import type { DashboardPullRequests, PullRequestCommentItem } from '@shared/dashboard';
-import { parseGitHubRemote, type BranchStatus, type BranchSummary, type GitHubOwner, type GitHubRepoInfo, type RepoRef, type RepoTarget } from '@shared/github';
+import {
+    parseGitHubRemote,
+    repoId,
+    type BranchStatus,
+    type BranchSummary,
+    type GitHubOwner,
+    type GitHubRepoInfo,
+    type PullRequestFilter,
+    type PullRequestSummary,
+    type RepoRef,
+    type RepoTarget
+} from '@shared/github';
+import type { RepoPullRequests } from '@shared/review-queue';
 import {
     normalizeScope,
     pickProvider,
@@ -63,6 +75,11 @@ export interface ReviewProvidersOptions {
     onChanged(): void;
     /** Reads the "origin" remote of a worktree. Tests replace it. */
     readRemote?(root: string): Promise<string>;
+    /**
+     * Returns the repositories of the projects. Their Azure Repos remotes tell which Azure DevOps organizations to read
+     * when a provider has all organizations.
+     */
+    projectRepos?(): Promise<string[]>;
 }
 
 /**
@@ -223,7 +240,7 @@ export class ReviewProviders {
         return runtime.service.owners();
     }
 
-    /** Selects the provider of a target: a worktree path, or a GitHub repository of the Review view. */
+    /** Selects the provider of a target: a worktree path, or a repository of the Review view or the Pipelines view. */
     async for(target: RepoTarget): Promise<SourceHost> {
         const { kind, organization } = await this.routeOf(target);
         const provider = pickProvider(await this.providers(), kind, organization);
@@ -244,33 +261,54 @@ export class ReviewProviders {
         return host ? host.branchSummaries(root) : {};
     }
 
-    /** Returns the GitHub service for a repository of the Review view. */
-    async github(repo: RepoRef): Promise<GitHubService> {
-        const provider = pickProvider(await this.providers(), 'github', repo.owner);
-        if (!provider) {
-            throw new Error('No GitHub provider is on. Add one in Settings › Code review.');
-        }
-        return ((await this.runtime(provider)) as GitHubRuntime).service;
-    }
-
     /** Returns the GitHub repository of a worktree from its "origin" remote. Returns null for other remotes. */
     async githubRepoFor(root: string): Promise<RepoRef | null> {
         return parseGitHubRemote(await this.remoteOf(root)) ?? null;
     }
 
-    /** Returns the repositories of all GitHub providers that are on, each in its scope. The newest push comes first. */
+    /** Returns the GitHub or Azure Repos repository of a worktree from its "origin" remote. Returns null for other remotes. */
+    async repoFor(root: string): Promise<RepoRef | null> {
+        const url = await this.remoteOf(root);
+        const azure = parseAzureRemote(url);
+        return azure ? azureRepoRef(azure) : (parseGitHubRemote(url) ?? null);
+    }
+
+    /** Returns the open pull requests of a repository of the Review view, from the provider of its host. */
+    async repoPullRequests(repo: RepoRef): Promise<RepoPullRequests> {
+        const runtime = await this.runtimeFor(repo);
+        return runtime.kind === 'github' ? runtime.service.repoPullRequests(repo) : runtime.host.repoPullRequests(repo);
+    }
+
+    /** Returns the pull requests of a repository of the Review view for a filter, from the provider of its host. */
+    async pullRequests(repo: RepoRef, filter: PullRequestFilter, query?: string): Promise<PullRequestSummary[]> {
+        const runtime = await this.runtimeFor(repo);
+        return runtime.kind === 'github' ? runtime.service.pullRequests(repo, filter, query) : runtime.host.pullRequests(repo, filter, query);
+    }
+
+    /**
+     * Returns the repositories of all providers that are on, each in its scope. The newest push comes first.
+     * The repositories without a push time (Azure Repos gives none) come last, in the order of their names.
+     */
     async repositories(): Promise<GitHubRepoInfo[]> {
-        const lists = await this.eachGitHub((service, provider) => service.repositories(provider.scope));
+        const lists = await this.eachProvider(
+            (service, provider) => service.repositories(provider.scope),
+            async (host, provider) => host.repositories(provider.scope, await this.projectOrganizations())
+        );
         const unique = new Map<string, GitHubRepoInfo>();
         for (const repo of lists.flat()) {
-            const key = `${repo.owner}/${repo.name}`.toLowerCase();
+            const key = repoId(repo).toLowerCase();
             if (!unique.has(key)) unique.set(key, repo);
         }
-        return [...unique.values()].sort((a, b) => (b.pushedAt ?? '').localeCompare(a.pushedAt ?? ''));
+        return [...unique.values()].sort(
+            (a, b) => (b.pushedAt ?? '').localeCompare(a.pushedAt ?? '') || repoId(a).toLowerCase().localeCompare(repoId(b).toLowerCase())
+        );
     }
 
     async dashboardPullRequests(): Promise<DashboardPullRequests> {
-        const results = await this.eachGitHub((service, provider) => service.dashboardPullRequests(provider.scope ?? 'all'));
+        const results = await this.eachProvider(
+            (service, provider) => service.dashboardPullRequests(provider.scope ?? 'all'),
+            async (host, provider) => host.dashboardPullRequests(provider.scope, await this.projectOrganizations())
+        );
         const byUrl = <T extends { url: string; updatedAt: string }>(items: T[]) =>
             [...new Map(items.map(item => [item.url, item])).values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
         return {
@@ -295,19 +333,48 @@ export class ReviewProviders {
      * Calls `call` for each GitHub provider that is on, at the same time.
      * When a call fails, the error names the provider, so that the user knows which token to fix.
      */
-    private async eachGitHub<T>(call: (service: GitHubService, provider: StoredReviewProvider) => Promise<T>): Promise<T[]> {
-        const providers = (await this.providers()).filter(provider => provider.enabled && provider.kind === 'github');
+    private eachGitHub<T>(call: (service: GitHubService, provider: StoredReviewProvider) => Promise<T>): Promise<T[]> {
+        return this.eachProvider(call);
+    }
+
+    /**
+     * Calls `github` for each GitHub provider and `azure` for each Azure DevOps provider that is on, at the same time.
+     * Without `azure`, the Azure DevOps providers stay out.
+     * When a call fails, the error names the provider, so that the user knows which token to fix.
+     */
+    private async eachProvider<T>(
+        github: (service: GitHubService, provider: StoredReviewProvider) => Promise<T>,
+        azure?: (host: AzureDevOpsService, provider: StoredReviewProvider) => Promise<T>
+    ): Promise<T[]> {
+        const providers = (await this.providers()).filter(provider => provider.enabled && (provider.kind === 'github' || (provider.kind === 'azure' && azure)));
         return Promise.all(
             providers.map(async provider => {
-                const runtime = (await this.runtime(provider)) as GitHubRuntime;
+                const runtime = await this.runtime(provider);
                 try {
-                    return await call(runtime.service, provider);
+                    return runtime.kind === 'github' ? await github(runtime.service, provider) : await azure!(runtime.host, provider);
                 } catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
                     throw new Error(providers.length > 1 ? `${provider.name}: ${message}` : message);
                 }
             })
         );
+    }
+
+    /** Returns the Azure DevOps organizations of the Azure Repos remotes of the project repositories. */
+    private async projectOrganizations(): Promise<string[]> {
+        const repos = (await this.options.projectRepos?.().catch((): string[] => [])) ?? [];
+        const organizations = await Promise.all(repos.map(async root => parseAzureRemote(await this.remoteOf(root))?.organization));
+        return [...new Set(organizations.filter((name): name is string => !!name))];
+    }
+
+    /** Returns the runtime of the provider of a repository of the Review view. */
+    private async runtimeFor(repo: RepoRef): Promise<Runtime> {
+        const { kind, organization } = await this.routeOf(repo);
+        const provider = pickProvider(await this.providers(), kind, organization);
+        if (!provider) {
+            throw new Error(`No ${providerKindName(kind)} provider is on. Add one in Settings › Code review.`);
+        }
+        return this.runtime(provider);
     }
 
     private async optionalHost(root: string): Promise<SourceHost | undefined> {
@@ -317,11 +384,12 @@ export class ReviewProviders {
     }
 
     /**
-     * Returns the kind and the organization of a target. A repository of the Review view is on GitHub.
+     * Returns the kind and the organization of a target. A repository of the Review view goes to the provider of its host.
      * A worktree with a remote that is not on Azure Repos goes to GitHub, as in older versions.
      */
     private async routeOf(target: RepoTarget): Promise<{ kind: ReviewProviderKind; organization?: string }> {
         if (typeof target === 'object' && target) {
+            if (target.host === 'azure') return { kind: 'azure', organization: azureRepoOf(target)?.organization };
             return { kind: 'github', organization: target.owner };
         }
         const url = await this.remoteOf(String(target));

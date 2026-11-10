@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { CircleCheck, CircleX, Clock, RefreshCw, Search } from 'lucide-react';
+import { parseRepoId, repoId, repoLabel } from '@shared/github';
 import { isWaiting, summarizeRepo, ageLevel, type QueueItem, type RepoReviewSummary } from '@shared/review-queue';
 import { shortAge } from '@shared/dashboard';
 import { timeAgo } from '../util';
@@ -28,6 +29,11 @@ interface WaitingRow {
 interface IdleRow {
     id: string;
     meta: string;
+}
+
+/** The name of a repository for the UI, from its ID. An Azure Repos repository shows as "organization/project/name". */
+function label(id: string): string {
+    return repoLabel(parseRepoId(id));
 }
 
 function matches(id: string, words: string[]): boolean {
@@ -67,7 +73,7 @@ function RepoChecks({ summary }: { summary: RepoReviewSummary }) {
 
 /**
  * The entry page of the Review view. The top part shows the repositories with pull requests that wait on the user.
- * The bottom part shows the other repositories: of the projects, or all repositories of the GitHub providers.
+ * The bottom part shows the other repositories: of the projects, or all repositories of the providers.
  */
 export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSettings }: Props) {
     const state = useReviewOverview();
@@ -98,8 +104,8 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
 
     const idle = useMemo<IdleRow[]>(() => {
         const busy = new Set(waiting.map(row => row.id.toLowerCase()));
-        const ids = all ? (state.catalog ?? []).map(repo => `${repo.owner}/${repo.name}`) : state.projectRepos;
-        const pushed = new Map((state.catalog ?? []).map(repo => [`${repo.owner}/${repo.name}`.toLowerCase(), repo.pushedAt]));
+        const ids = all ? (state.catalog ?? []).map(repoId) : state.projectRepos;
+        const pushed = new Map((state.catalog ?? []).map(repo => [repoId(repo).toLowerCase(), repo.pushedAt]));
         return ids
             .filter(id => !busy.has(id.toLowerCase()))
             .map(id => {
@@ -229,11 +235,11 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                                 className="review-grid review-repo-row"
                                 data-nav-item
                                 data-repo={id.toLowerCase()}
-                                aria-label={`${id}: ${summary.toReview} to review, ${summary.reReview} to review again, ${summary.yourPrs} of your pull requests`}
+                                aria-label={`${label(id)}: ${summary.toReview} to review, ${summary.reReview} to review again, ${summary.yourPrs} of your pull requests`}
                                 onClick={() => onSelect(id)}
                             >
                                 <span className="review-repo-name">
-                                    <strong>{id}</strong>
+                                    <strong>{label(id)}</strong>
                                     <span className="review-repo-meta">
                                         <Dotted
                                             parts={[
@@ -268,7 +274,7 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                         <h3 className="review-section-title">Nothing waiting · {shownIdle.length}</h3>
                         {shownIdle.map(row => (
                             <button key={row.id} className="review-idle-row" data-nav-item data-repo={row.id.toLowerCase()} onClick={() => onSelect(row.id)}>
-                                <span className="review-idle-name">{row.id}</span>
+                                <span className="review-idle-name">{label(row.id)}</span>
                                 <span className="review-idle-meta">{row.meta}</span>
                             </button>
                         ))}

@@ -42,15 +42,15 @@ export interface DashboardNews {
 }
 
 interface Scope {
-    /** A key for the GitHub providers and their scopes (see `githubScopeKey`). */
-    githubKey: string | null | undefined;
+    /** A key for the providers and their scopes (see `reviewScopeKey`). */
+    reviewKey: string | null | undefined;
     projectId: string | undefined;
 }
 
 /** Loads the items of the Dashboard for the whole app, so that the sidebar can show the count in all views. */
 class DashboardStore {
     private state: DashboardState = { tasks: [], loading: false };
-    private scope: Scope = { githubKey: undefined, projectId: undefined };
+    private scope: Scope = { reviewKey: undefined, projectId: undefined };
     private request = 0;
     private readonly listeners = new Set<() => void>();
     private readonly newsListeners = new Set<(news: DashboardNews) => void>();
@@ -176,12 +176,12 @@ class DashboardStore {
 export const dashboardStore = new DashboardStore();
 
 /** Loads the Dashboard when the scope changes, and again every few minutes. */
-export function useDashboardLoader(ready: boolean, githubKey: string | null | undefined, projectId: string | undefined): void {
+export function useDashboardLoader(ready: boolean, reviewKey: string | null | undefined, projectId: string | undefined): void {
     useEffect(() => {
-        if (ready && githubKey !== undefined) {
-            dashboardStore.setScope({ githubKey, projectId });
+        if (ready && reviewKey !== undefined) {
+            dashboardStore.setScope({ reviewKey, projectId });
         }
-    }, [ready, githubKey, projectId]);
+    }, [ready, reviewKey, projectId]);
     useEffect(() => {
         if (!ready) return;
         const timer = setInterval(() => void dashboardStore.refresh(), REFRESH_MS);

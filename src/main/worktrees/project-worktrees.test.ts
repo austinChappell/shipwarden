@@ -18,7 +18,7 @@ function service(change: Partial<ProjectWorktreesOptions> = {}) {
             return worktrees[repo] ?? [];
         },
         isReviewCheckout: async path => path === '/review/acme-api-7',
-        githubRepoFor: async root => remotes[root] ?? null,
+        repoFor: async root => remotes[root] ?? null,
         ...change
     });
     return { projectWorktrees, reads };
@@ -68,7 +68,7 @@ describe('ProjectWorktrees.localClone', () => {
 
     it('ignores a repository whose remote fails', async () => {
         const { projectWorktrees } = service({
-            githubRepoFor: async root => {
+            repoFor: async root => {
                 if (root === '/code/api') throw new Error('No remote.');
                 return { owner: 'acme', name: 'web' };
             }

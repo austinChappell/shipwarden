@@ -1,7 +1,7 @@
 import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { RepoRef } from '@shared/github';
+import { cloneUrl, pullRequestRef, type RepoRef } from '@shared/github';
 import { reviewCheckoutKey, type ReviewCheckout, type ReviewCheckoutStatus } from '@shared/review-checkout';
 import { JsonStore } from '../tasks/json-store';
 
@@ -166,7 +166,7 @@ export class ReviewCheckouts {
         await this.queue(source, async () => {
             if (!(await this.hasCommit(source, sha))) {
                 // A pull request from a fork also has this ref in the base repository.
-                await this.git(source, ['fetch', '--quiet', '--no-tags', 'origin', `refs/pull/${number}/head`], { timeout: FETCH_TIMEOUT_MS });
+                await this.git(source, ['fetch', '--quiet', '--no-tags', 'origin', pullRequestRef(repo, number)], { timeout: FETCH_TIMEOUT_MS });
                 if (!(await this.hasCommit(source, sha))) {
                     throw new Error(`The commit ${sha.slice(0, 7)} is not the head of pull request #${number} now. Refresh the pull request and try again.`);
                 }
@@ -198,7 +198,7 @@ export class ReviewCheckouts {
             if (await this.exists(path.join(target, '.git'))) return target;
             await fs.rm(target, { recursive: true, force: true });
             await fs.mkdir(path.dirname(target), { recursive: true });
-            const url = `https://github.com/${repo.owner}/${repo.name}.git`;
+            const url = cloneUrl(repo);
             try {
                 // --filter=blob:none: git gets the file contents only for the commits that a checkout needs.
                 await this.git(path.dirname(target), ['clone', '--quiet', '--no-checkout', '--filter=blob:none', url, target], { timeout: CLONE_TIMEOUT_MS });
@@ -256,11 +256,17 @@ export class ReviewCheckouts {
     }
 
     private checkoutPath(repo: RepoRef, number: number): string {
-        return path.join(this.options.folder, repo.owner.toLowerCase(), repo.name.toLowerCase(), `pr-${number}`);
+        return path.join(this.repoFolder(repo), `pr-${number}`);
     }
 
-    private clonePath(repo: Pick<RepoRef, 'owner' | 'name'>): string {
-        return path.join(this.options.folder, repo.owner.toLowerCase(), repo.name.toLowerCase(), 'repo');
+    private clonePath(repo: Pick<RepoRef, 'owner' | 'name' | 'host'>): string {
+        return path.join(this.repoFolder(repo), 'repo');
+    }
+
+    /** The folder of a repository: <folder>/<owner>/<name>, or <folder>/azure/<organization>/<project>/<name> for Azure Repos. */
+    private repoFolder(repo: Pick<RepoRef, 'owner' | 'name' | 'host'>): string {
+        const parts = repo.host === 'azure' ? ['azure', ...repo.owner.split('/'), repo.name] : [repo.owner, repo.name];
+        return path.join(this.options.folder, ...parts.map(part => part.toLowerCase()));
     }
 
     /** Returns the checkouts of the index. An index file that is not correct gives an empty object. */

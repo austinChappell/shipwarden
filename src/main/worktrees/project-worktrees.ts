@@ -9,8 +9,8 @@ export interface ProjectWorktreesOptions {
     worktreePaths(repo: string): Promise<string[]>;
     /** Returns true for the copy of a pull request in the Review view. */
     isReviewCheckout(path: string): Promise<boolean>;
-    /** Returns the GitHub repository of the "origin" remote, or null. */
-    githubRepoFor(root: string): Promise<RepoRef | null>;
+    /** Returns the GitHub or Azure Repos repository of the "origin" remote, or null. */
+    repoFor(root: string): Promise<RepoRef | null>;
 }
 
 /**
@@ -36,10 +36,10 @@ export class ProjectWorktrees {
         throw new Error(`"${value}" is not a worktree of a project.`);
     }
 
-    /** Returns the main worktree of a project repository whose "origin" remote is the GitHub repository. */
+    /** Returns the main worktree of a project repository whose "origin" remote is the repository. */
     async localClone(repo: RepoRef): Promise<string | undefined> {
         for (const root of new Set(await this.options.projectRepos())) {
-            const ref = await this.options.githubRepoFor(root).catch(() => null);
+            const ref = await this.options.repoFor(root).catch(() => null);
             if (ref && sameRepo(ref, repo)) {
                 return root;
             }

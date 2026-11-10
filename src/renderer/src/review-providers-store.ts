@@ -46,12 +46,12 @@ export function useReviewProviders(): ReviewProviderInfo[] | undefined {
 }
 
 /**
- * Returns a key for the GitHub providers that are on and their scopes. The key changes when the repositories
- * of the Review view can change. Undefined: the list did not load yet. Null: no GitHub provider is on.
+ * Returns a key for the providers that are on (GitHub and Azure DevOps) and their scopes. The key changes when the
+ * repositories of the Review view can change. Undefined: the list did not load yet. Null: no provider is on.
  */
-export function githubScopeKey(providers: ReviewProviderInfo[] | undefined): string | null | undefined {
+export function reviewScopeKey(providers: ReviewProviderInfo[] | undefined): string | null | undefined {
     if (!providers) return undefined;
-    const github = providers.filter(provider => provider.enabled && provider.kind === 'github');
-    if (github.length === 0) return null;
-    return JSON.stringify(github.map(provider => [provider.id, provider.scope ?? null, provider.cliAccount ?? null, provider.tokenSaved]));
+    const enabled = providers.filter(provider => provider.enabled);
+    if (enabled.length === 0) return null;
+    return JSON.stringify(enabled.map(provider => [provider.id, provider.kind, provider.scope ?? null, provider.cliAccount ?? null, provider.tokenSaved]));
 }

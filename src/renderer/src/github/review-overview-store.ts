@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
-import type { GitHubRepoInfo } from '@shared/github';
+import { parseRepoId, repoId, type GitHubRepoInfo } from '@shared/github';
 import { reviewQueue, type QueueItem, type RepoPullRequests } from '@shared/review-queue';
 import { cacheKey, cached, remember } from '../data-cache';
 import { dashboardStore } from '../dashboard-store';
@@ -13,7 +13,7 @@ const STALE_MS = 30 * 1000;
 const PARALLEL = 3;
 
 export interface RepoEntry {
-    /** "owner/name", as GitHub writes it. */
+    /** The ID of the repository (see `repoId`), for example "owner/name". */
     id: string;
     data?: RepoPullRequests;
     error?: string;
@@ -22,13 +22,13 @@ export interface RepoEntry {
 }
 
 export interface ReviewOverviewState {
-    /** All repositories of the GitHub providers. Undefined until the first load. */
+    /** All repositories of the providers. Undefined until the first load. */
     catalog?: GitHubRepoInfo[];
     catalogError?: string;
     catalogLoading: boolean;
-    /** The GitHub repositories ("owner/name") of the local repositories, in sidebar order. */
+    /** The IDs of the repositories of the local repositories, in sidebar order. */
     projectRepos: string[];
-    /** The loaded repositories, by the lower-case "owner/name". */
+    /** The loaded repositories, by the lower-case ID. */
     repos: Record<string, RepoEntry>;
 }
 
@@ -45,7 +45,7 @@ function lower(id: string): string {
  */
 class ReviewOverviewStore {
     private state: ReviewOverviewState = { catalogLoading: false, projectRepos: [], repos: {} };
-    private githubKey: string | null | undefined;
+    private reviewKey: string | null | undefined;
     private paths: string[] = [];
     private readonly listeners = new Set<() => void>();
     private readonly requests = new Map<string, number>();
@@ -65,32 +65,32 @@ class ReviewOverviewStore {
         return () => this.listeners.delete(listener);
     };
 
-    /** Sets the GitHub providers and the local repositories. A change loads the data again. */
-    setScope(githubKey: string | null | undefined, paths: string[]): void {
-        const keyChanged = githubKey !== this.githubKey;
+    /** Sets the providers and the local repositories. A change loads the data again. */
+    setScope(reviewKey: string | null | undefined, paths: string[]): void {
+        const keyChanged = reviewKey !== this.reviewKey;
         const pathsChanged = paths.join('\n') !== this.paths.join('\n');
-        this.githubKey = githubKey;
+        this.reviewKey = reviewKey;
         this.paths = paths;
         if (keyChanged) {
             this.waiting.length = 0;
             this.requests.clear();
             this.set({ catalog: undefined, catalogError: undefined, repos: {} });
         }
-        if (!githubKey) return;
+        if (!reviewKey) return;
         if (keyChanged) void this.loadCatalog();
         if (keyChanged || pathsChanged) void this.resolveProjects();
     }
 
     /** Loads all repositories again. */
     refreshAll(): void {
-        if (!this.githubKey) return;
+        if (!this.reviewKey) return;
         void this.loadCatalog();
         Object.keys(this.state.repos).forEach(key => this.queue(key));
     }
 
     /** Loads a repository when it is not loaded, or when its data is older than `maxAge`. */
     ensure(id: string, maxAge = STALE_MS): void {
-        if (!this.githubKey) return;
+        if (!this.reviewKey) return;
         const entry = this.state.repos[lower(id)];
         if (!entry) {
             this.setRepo(id, { loading: false });
@@ -108,7 +108,7 @@ class ReviewOverviewStore {
 
     private async loadCatalog(): Promise<void> {
         const id = ++this.catalogRequest;
-        const key = this.githubKey;
+        const key = this.reviewKey;
         const cacheId = cacheKey('review.repos', key);
         if (!this.state.catalog) this.set({ catalog: cached(cacheId) });
         this.set({ catalogLoading: true });
@@ -122,7 +122,7 @@ class ReviewOverviewStore {
         }
     }
 
-    /** Finds the GitHub repository of each local repository, from its "origin" remote. */
+    /** Finds the GitHub or Azure Repos repository of each local repository, from its "origin" remote. */
     private async resolveProjects(): Promise<void> {
         const paths = this.paths;
         const fromCache = paths.flatMap(path => cached<string | null>(repoOfKey(path)) ?? []);
@@ -130,7 +130,7 @@ class ReviewOverviewStore {
         const ids = await Promise.all(
             paths.map(async path => {
                 const ref = await window.shipwarden.github.repoOf(path).catch(() => null);
-                return remember(repoOfKey(path), ref && `${ref.owner}/${ref.name}`);
+                return remember(repoOfKey(path), ref && repoId(ref));
             })
         );
         if (paths !== this.paths) return;
@@ -146,9 +146,9 @@ class ReviewOverviewStore {
     /** Tracks the repositories with a review request or a pull request of the user. */
     private trackDashboard(): void {
         const pullRequests = dashboardStore.get().pullRequests;
-        if (!pullRequests || !this.githubKey) return;
+        if (!pullRequests || !this.reviewKey) return;
         for (const item of [...pullRequests.reviewRequests, ...pullRequests.myPullRequests]) {
-            this.ensure(`${item.repo.owner}/${item.repo.name}`, REFRESH_MS);
+            this.ensure(repoId(item.repo), REFRESH_MS);
         }
     }
 
@@ -174,10 +174,9 @@ class ReviewOverviewStore {
         if (!entry) return;
         const request = ++this.nextRequest;
         this.requests.set(key, request);
-        const [owner, name] = entry.id.split('/');
         this.setRepo(entry.id, { loading: true });
         try {
-            const data = await window.shipwarden.github.repoPullRequests({ owner, name });
+            const data = await window.shipwarden.github.repoPullRequests(parseRepoId(entry.id));
             if (this.requests.get(key) === request) this.setRepo(entry.id, { data, error: undefined, loading: false, loadedAt: Date.now() });
         } catch (error) {
             if (this.requests.get(key) === request) this.setRepo(entry.id, { error: errorText(error), loading: false, loadedAt: Date.now() });
@@ -199,10 +198,10 @@ class ReviewOverviewStore {
 export const reviewOverviewStore = new ReviewOverviewStore();
 
 /** Loads the Review data when the scope changes, and again every few minutes. */
-export function useReviewOverviewLoader(ready: boolean, githubKey: string | null | undefined, paths: string[]): void {
+export function useReviewOverviewLoader(ready: boolean, reviewKey: string | null | undefined, paths: string[]): void {
     useEffect(() => {
-        if (ready && githubKey !== undefined) reviewOverviewStore.setScope(githubKey, paths);
-    }, [ready, githubKey, paths]);
+        if (ready && reviewKey !== undefined) reviewOverviewStore.setScope(reviewKey, paths);
+    }, [ready, reviewKey, paths]);
     useEffect(() => {
         if (!ready) return;
         const timer = setInterval(() => reviewOverviewStore.refreshAll(), REFRESH_MS);
@@ -214,7 +213,7 @@ export function useReviewOverview(): ReviewOverviewState {
     return useSyncExternalStore(reviewOverviewStore.subscribe, reviewOverviewStore.get);
 }
 
-/** Returns the loaded data of one repository ("owner/name"). */
+/** Returns the loaded data of one repository (see `repoId`). */
 export function useRepoEntry(id: string | undefined): RepoEntry | undefined {
     const state = useReviewOverview();
     return id ? state.repos[lower(id)] : undefined;
