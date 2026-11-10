@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
     applyStartStatus,
+    assigneeOptions,
+    ME,
     boardColumns,
     branchNameForTask,
     collapsedByDefault,
@@ -11,6 +13,7 @@ import {
     pickCollection,
     sortCollections,
     statusForColumn,
+    taskHasAssignee,
     taskMatches,
     taskPrompt,
     type StatusCategory,
@@ -267,5 +270,46 @@ describe('taskMatches', () => {
         ['login logout', false]
     ])('matches the search text %j', (query, expected) => {
         expect(taskMatches(item, query)).toBe(expected);
+    });
+});
+
+describe('taskHasAssignee', () => {
+    const open: Task = task('ENG-1', 'No owner');
+    const empty: Task = { ...task('ENG-2', 'Empty list'), assignees: [] };
+    const sam: Task = { ...task('ENG-3', 'Sam only'), assignees: [{ id: '7', name: 'Sam Lee' }] };
+    const pair: Task = { ...task('ENG-4', 'Two people'), assignees: [{ id: '7', name: 'Sam Lee' }, { name: 'Ana Ruiz' }] };
+    const all = [open, empty, sam, pair];
+
+    it.each([
+        [{ people: [], unassigned: false }, [true, true, true, true]],
+        [{ people: [], unassigned: true }, [true, true, false, false]],
+        [{ people: ['7'], unassigned: false }, [false, false, true, true]],
+        [{ people: ['name:Ana Ruiz'], unassigned: false }, [false, false, false, true]],
+        [{ people: ['name:Ana Ruiz'], unassigned: true }, [true, true, false, true]],
+        [{ people: ['8'], unassigned: false }, [false, false, false, false]]
+    ])('applies the filter %j', (filter, expected) => {
+        expect(all.map(item => taskHasAssignee(item, filter))).toEqual(expected);
+    });
+
+    it('finds the user of the connection with the key of "me"', () => {
+        const filter = { people: [ME], unassigned: false };
+        expect(all.map(item => taskHasAssignee(item, filter, '7'))).toEqual([false, false, true, true]);
+        expect(taskHasAssignee(sam, filter)).toBe(false);
+    });
+});
+
+describe('assigneeOptions', () => {
+    it('gives each person one time, in alphabetical order', () => {
+        const tasks: Task[] = [
+            { ...task('A', 'a'), assignees: [{ name: 'sam Lee' }, { id: '1', name: 'Ana Ruiz', avatarUrl: 'pic' }] },
+            task('B', 'b'),
+            { ...task('C', 'c'), assignees: [{ id: '1', name: 'Ana Ruiz' }, { name: 'Bo Chen' }] }
+        ];
+        expect(
+            assigneeOptions(tasks, [
+                { id: '1', name: 'Ana Ruiz' },
+                { id: '2', name: 'Zoe' }
+            ])
+        ).toEqual([{ id: '1', name: 'Ana Ruiz', avatarUrl: 'pic' }, { name: 'Bo Chen' }, { name: 'sam Lee' }, { id: '2', name: 'Zoe' }]);
     });
 });

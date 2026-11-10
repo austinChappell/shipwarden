@@ -1,6 +1,6 @@
 // A ShipWarden task plugin for ClickUp. Each ClickUp list is a collection.
 import { log, networkDetail, runPlugin } from '../sdk/index.js';
-import { busiestList, listStatusOrder, matchesQuery, rateLimitWait, toCollections, toComment, toStatus, toTask } from './map.js';
+import { busiestList, listStatusOrder, matchesQuery, rateLimitWait, toCollections, toComment, toDetails, toPerson, toStatus, toTask } from './map.js';
 
 const API = 'https://api.clickup.com/api/v2';
 
@@ -21,6 +21,8 @@ let collectionsLoad;
 /** The statuses of each list, with the time of the load. */
 const listStatuses = new Map();
 const LIST_CACHE_MS = 10 * 60 * 1000;
+/** The members of each list, with the time of the load. */
+const listMembers = new Map();
 /** The comments of each task, with the "date_updated" of the task at the load. A task without a change needs no new request. */
 const commentCache = new Map();
 /** The number of times that a request is sent again after a 429 response. */
@@ -33,6 +35,34 @@ const MAX_INITIALIZE_WAIT_MS = 20_000;
 const SPACE_CONCURRENCY = 3;
 /** The Dashboard reads the comments of this number of recently changed tasks, at most, in each workspace. */
 const ACTIVITY_TASKS = 40;
+
+/** Returns the members of a ClickUp list. The plugin keeps them for 10 minutes. */
+async function membersOfList(listId) {
+    const cached = listMembers.get(listId);
+    if (cached && Date.now() - cached.at < LIST_CACHE_MS) {
+        return cached.members;
+    }
+    const { members } = await clickup('GET', `/list/${listId}/member`);
+    listMembers.set(listId, { members, at: Date.now() });
+    return members;
+}
+
+/** The path of the list of a task, for example "Engineering / Projects / Sprint 12". It uses the loaded collections, so it sends no request. */
+function locationOf(task) {
+    const listId = task.list?.id === undefined ? undefined : String(task.list.id);
+    const collection = collectionsCache?.collections.find(item => item.id === listId);
+    if (collection) {
+        return collection.path ? `${collection.path} / ${collection.name}` : collection.name;
+    }
+    const folder = task.folder && !task.folder.hidden ? task.folder.name : undefined;
+    return [folder, task.list?.name].filter(Boolean).join(' / ') || undefined;
+}
+
+/** Loads one task with its subtasks, and converts it with the description and the details. */
+async function loadTask(id) {
+    const task = await clickup('GET', `/task/${id}?include_markdown_description=true&include_subtasks=true`);
+    return { ...toTask(task, { withDescription: true }), details: toDetails(task, locationOf(task)) };
+}
 
 /** Returns the comments of a task with the replies of each comment. */
 async function commentsWithReplies(taskId) {
@@ -170,11 +200,11 @@ runPlugin({
         }
         log(`ClickUp plugin ready for ${teams.map(team => `"${team.name}"`).join(', ')}.`);
         return {
-            fields: [{ id: 'dueDate', label: 'Due', type: 'date' }],
+            // The assignee filter of ShipWarden selects the people in the loaded tasks, so the filters select only open or closed tasks.
             filters: [
-                { id: 'assigned', label: 'Assigned to me', default: true },
-                { id: 'open', label: 'All open tasks' },
-                { id: 'all', label: 'All tasks, with closed' }
+                { id: 'open', label: 'Open tasks', default: true },
+                { id: 'closed', label: 'Closed tasks' },
+                { id: 'all', label: 'Open and closed tasks' }
             ]
         };
     },
@@ -198,28 +228,40 @@ runPlugin({
         return collectionsLoad;
     },
 
-    async listTasks({ collection, filter = 'assigned', query, cursor }) {
+    /** "open": the open tasks. "closed": the closed and done tasks. "all": both. ShipWarden filters the assignees itself. */
+    async listTasks({ collection, filter = 'open', query, cursor }) {
         if (!collection) {
             throw new Error('Select a ClickUp list.');
         }
         const page = Number(cursor ?? 0);
-        const assignee = filter === 'assigned' ? `&assignees[]=${userId}` : '';
-        const includeClosed = filter === 'all';
-        const result = await clickup('GET', `/list/${collection}/task?page=${page}&order_by=updated&subtasks=true&include_closed=${includeClosed}${assignee}`);
+        const includeClosed = filter === 'all' || filter === 'closed';
+        // ClickUp sets "date_done" when a task gets a closed or done status, so "date_done_gt=0" gives only those tasks.
+        const doneOnly = filter === 'closed' ? '&date_done_gt=0' : '';
+        const result = await clickup('GET', `/list/${collection}/task?page=${page}&order_by=updated&subtasks=true&include_closed=${includeClosed}${doneOnly}`);
+        const closed = task => task.status?.type === 'closed' || task.status?.type === 'done';
         return {
-            tasks: result.tasks.filter(task => matchesQuery(task, query)).map(task => toTask(task)),
+            tasks: result.tasks.filter(task => matchesQuery(task, query) && (filter !== 'closed' || closed(task))).map(task => toTask(task)),
             // ClickUp returns 100 tasks per page. "last_page" is true on the last page.
             nextCursor: result.last_page === false ? String(page + 1) : undefined
         };
     },
 
     async getTask({ id }) {
-        return toTask(await clickup('GET', `/task/${id}?include_markdown_description=true`), { withDescription: true });
+        return loadTask(id);
     },
 
     async updateTask({ id, status }) {
         await clickup('PUT', `/task/${id}`, { status });
-        return toTask(await clickup('GET', `/task/${id}?include_markdown_description=true`), { withDescription: true });
+        return loadTask(id);
+    },
+
+    /** The members of the list: the people that can be assignees of its tasks. */
+    async listPeople({ collection }) {
+        if (!collection) {
+            return { people: [], me: String(userId) };
+        }
+        const members = await membersOfList(collection);
+        return { people: members.map(toPerson), me: String(userId) };
     },
 
     /** The statuses of the list, in its workflow order. */

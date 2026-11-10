@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { ExternalLink, List, Plus, RefreshCw, Search, Settings, SquareKanban } from 'lucide-react';
-import type { ConnectionInfo, TaskCollection, TaskSource } from '@shared/tasks';
+import type { AssigneeFilter, ConnectionInfo, TaskCollection, TaskPerson, TaskSource } from '@shared/tasks';
 import { openLink } from '../../links';
 import { Combobox, sortedGroups } from '../Combobox';
+import { AssigneeFilterPicker } from './AssigneeFilterPicker';
 import { collectionPlaceholder, collectionTitle, type ViewMode } from './task-view-logic';
 
 interface PickerProps {
@@ -58,6 +59,14 @@ interface Props {
     selectCollection(id: string): void;
     filter: string | undefined;
     setFilter(filter: string): void;
+    /** The people that the assignee filter lists. */
+    people: TaskPerson[];
+    /** The person key of the user of the connection, if the plugin sends it. */
+    me: string | undefined;
+    /** True when the plugin selects the tasks by assignee. Then the filter has "Me". */
+    assigneesSupported: boolean;
+    assignee: AssigneeFilter;
+    setAssignee(value: AssigneeFilter): void;
     viewMode: ViewMode;
     changeViewMode(mode: ViewMode): void;
     query: string;
@@ -69,7 +78,7 @@ interface Props {
     onOpenSettings(): void;
 }
 
-/** The header of the Tasks view: the task manager, the collection, the filter, the view mode and the search. */
+/** The header of the Tasks view: the task manager, the collection, the filter, the assignee, the view mode and the search. */
 export function TasksHeader(props: Props) {
     const { connections, connectionId, currentConnection, source, filter, viewMode, query, loading } = props;
     return (
@@ -101,6 +110,15 @@ export function TasksHeader(props: Props) {
                             </option>
                         ))}
                     </select>
+                )}
+                {source && (
+                    <AssigneeFilterPicker
+                        people={props.people}
+                        me={props.me}
+                        showMe={props.assigneesSupported}
+                        value={props.assignee}
+                        onChange={props.setAssignee}
+                    />
                 )}
                 {source && (
                     <div className="segmented compact view-switch" role="group" aria-label="View">

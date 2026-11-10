@@ -45,6 +45,7 @@ export const taskQueryKeys = {
     collections: (connectionId: string | undefined) => ['tasks', 'collections', connectionId] as const,
     list: (connectionId: string | undefined, collection: string | undefined, filter: string | undefined) =>
         ['tasks', 'list', connectionId, collection, filter] as const,
+    people: (connectionId: string | undefined, collection: string | undefined) => ['tasks', 'people', connectionId, collection] as const,
     statusOrder: (connectionId: string | undefined, collection: string | undefined) => ['tasks', 'statusOrder', connectionId, collection] as const,
     detail: (connectionId: string | undefined, taskId: string | undefined) => ['tasks', 'detail', connectionId, taskId] as const
 };
@@ -167,4 +168,68 @@ export function collectionTitle(current: Pick<TaskCollection, 'name' | 'path'> |
 /** The placeholder of the collection picker. Undefined collections are still in load. */
 export function collectionPlaceholder(collections: readonly TaskCollection[] | undefined): string {
     return !collections ? 'Loading collections…' : collections.length === 0 ? 'No collections' : 'Select a collection';
+}
+
+/**
+ * The initials of a name, at most two letters: "Sam Lee" gives "SL", "sam" gives "S". An empty name gives "?".
+ * An email address uses only the part before "@".
+ */
+export function personInitials(name: string): string {
+    const words = name
+        .replace(/@.*/, '')
+        .split(/[\s._@-]+/)
+        .map(word => word.trim())
+        .filter(Boolean);
+    const letters = words.length > 1 ? [words[0], words[words.length - 1]] : words;
+    return letters.map(word => [...word][0].toUpperCase()).join('') || '?';
+}
+
+/** A time in milliseconds as hours and minutes, for example "2h 30m", "45m" or "0m". */
+export function formatDuration(milliseconds: number): string {
+    const minutes = Math.round(milliseconds / 60_000);
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    if (hours === 0) return `${rest}m`;
+    return rest ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
+/**
+ * A date of the task details as text. "YYYY-MM-DD" is a day without a time, in the local time zone.
+ * An ISO time also shows the time of day.
+ */
+export function formatDay(value: string, locale?: string): string {
+    const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (day) {
+        return new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3])).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString(locale, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+/** A size in bytes as text, for example "120 B", "4.2 KB" or "3.1 MB". */
+export function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    const units = ['KB', 'MB', 'GB'];
+    let value = bytes / 1024;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+    return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+/** The number of done items and all items of the checklists. */
+export function checklistProgress(checklists: readonly { items: readonly { done: boolean }[] }[]): { done: number; total: number } {
+    const items = checklists.flatMap(list => list.items);
+    return { done: items.filter(item => item.done).length, total: items.length };
+}
+
+/** True when a custom field has no value. A check box always has a value. */
+export function customFieldEmpty(field: { type: string; value?: unknown; people?: unknown[]; labels?: unknown[] }): boolean {
+    if (field.type === 'boolean') return false;
+    if (field.type === 'people') return !field.people?.length;
+    if (field.type === 'labels') return !field.labels?.length;
+    return field.value === undefined || field.value === null || field.value === '';
 }

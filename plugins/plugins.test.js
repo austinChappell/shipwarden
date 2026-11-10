@@ -106,7 +106,8 @@ describe('ClickUp mapping', () => {
         expect(result.priority).toEqual({ name: 'high', level: 2 });
         expect(result.updatedAt).toBe('2025-11-07T00:00:00.000Z');
         expect(result.description).toBe('# Steps');
-        expect(result.fields).toEqual({ dueDate: null });
+        expect(result.fields).toBeUndefined();
+        expect(result.assignees).toEqual([{ id: undefined, name: 'Austin', avatarUrl: undefined }]);
     });
 
     it('maps the status types to categories', () => {
@@ -327,5 +328,111 @@ describe('Azure DevOps mapping', () => {
             '*Note* ![shot](https://x/y.png) @Ann'
         );
         expect(azure.htmlToMarkdown('Plain text')).toBe('Plain text');
+    });
+});
+
+describe('ClickUp task details', () => {
+    const field = (type, value, extra = {}) => ({ id: 'f1', name: 'Field', type, value, ...extra });
+
+    it.each([
+        [field('number', '0'), { type: 'number', value: 0 }],
+        [field('number', undefined), { type: 'number' }],
+        [field('emoji', '3', { type_config: { count: 5 } }), { type: 'rating', max: 5, value: 3 }],
+        [field('emoji', undefined, { type_config: { count: 4 } }), { type: 'rating', max: 4 }],
+        [field('checkbox', 'true'), { type: 'boolean', value: true }],
+        [field('checkbox', undefined), { type: 'boolean', value: false }],
+        [field('url', 'https://example.com'), { type: 'url', value: 'https://example.com' }],
+        [field('short_text', ''), { type: 'text' }],
+        [
+            field('drop_down', 1, {
+                type_config: {
+                    options: [
+                        { id: 'a', name: 'Low', orderindex: 0 },
+                        { id: 'b', name: 'High', color: '#f00', orderindex: 1 }
+                    ]
+                }
+            }),
+            { type: 'labels', labels: [{ name: 'High', color: '#f00' }] }
+        ],
+        [
+            field('labels', ['b'], {
+                type_config: {
+                    options: [
+                        { id: 'a', label: 'One' },
+                        { id: 'b', label: 'Two' }
+                    ]
+                }
+            }),
+            { type: 'labels', labels: [{ name: 'Two', color: undefined }] }
+        ],
+        [field('users', [{ id: 7, username: 'Sam' }]), { type: 'people', people: [{ id: '7', name: 'Sam', avatarUrl: undefined }] }],
+        [field('users', []), { type: 'people' }],
+        [field('manual_progress', { percent_completed: 40 }), { type: 'progress', value: 40 }]
+    ])('maps a custom field %#', (input, expected) => {
+        expect(clickup.toCustomField(input)).toEqual({ id: 'f1', label: 'Field', ...expected });
+    });
+
+    it('gives a day without a time, and an ISO time with a time', () => {
+        const ms = new Date(2026, 10, 3, 4, 0).getTime();
+        expect(clickup.dayOrTime(String(ms), false)).toBe('2026-11-03');
+        expect(clickup.dayOrTime(String(ms), true)).toBe(new Date(ms).toISOString());
+        expect(clickup.dayOrTime(null, true)).toBeUndefined();
+    });
+
+    it('maps the dependencies and the linked tasks from the view of the task', () => {
+        const links = clickup.toLinks({
+            id: 't1',
+            dependencies: [
+                { task_id: 't1', depends_on: 't2' },
+                { task_id: 't3', depends_on: 't1' }
+            ],
+            linked_tasks: [{ task_id: 't1', link_id: 't4' }]
+        });
+        expect(links.map(link => [link.relation, link.task.id])).toEqual([
+            ['blocked_by', 't2'],
+            ['blocks', 't3'],
+            ['related', 't4']
+        ]);
+    });
+
+    it('maps the details of a task', () => {
+        const details = clickup.toDetails(
+            {
+                id: 't1',
+                creator: { id: 1, username: 'Austin', profilePicture: 'https://example.com/a.png' },
+                date_created: '1762473600000',
+                time_estimate: 3600000,
+                parent: 'p1',
+                subtasks: [{ id: 's1', name: 'Write tests', status: { status: 'to do', type: 'open' }, assignees: [] }],
+                checklists: [
+                    {
+                        name: 'Steps',
+                        items: [
+                            { name: 'Two', resolved: true, orderindex: 1 },
+                            { name: 'One', resolved: false, orderindex: 0 }
+                        ]
+                    }
+                ],
+                attachments: [{ title: 'shot.png', url: 'https://example.com/shot.png', size: '120', thumbnail_small: 'https://example.com/t.png' }],
+                custom_fields: [],
+                watchers: []
+            },
+            'Engineering / Projects'
+        );
+        expect(details.location).toBe('Engineering / Projects');
+        expect(details.creator).toEqual({ id: '1', name: 'Austin', avatarUrl: 'https://example.com/a.png' });
+        expect(details.createdAt).toBe('2025-11-07T00:00:00.000Z');
+        expect(details.timeEstimate).toBe(3600000);
+        expect(details.parent).toEqual({ id: 'p1', url: 'https://app.clickup.com/t/p1' });
+        expect(details.subtasks[0]).toMatchObject({ id: 's1', title: 'Write tests', url: 'https://app.clickup.com/t/s1' });
+        expect(details.checklists[0].items.map(item => [item.name, item.done])).toEqual([
+            ['One', false],
+            ['Two', true]
+        ]);
+        expect(details.attachments).toEqual([
+            { name: 'shot.png', url: 'https://example.com/shot.png', size: 120, thumbnailUrl: 'https://example.com/t.png', createdAt: undefined }
+        ]);
+        expect(details.customFields).toBeUndefined();
+        expect(details.watchers).toBeUndefined();
     });
 });

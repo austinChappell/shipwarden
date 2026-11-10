@@ -15,6 +15,8 @@ export interface Status {
 }
 
 export interface Person {
+    /** The ID of the person in the tracker. The assignee filter uses it to find the people of "people/list" in the tasks. */
+    id?: string;
     name: string;
     avatarUrl?: string;
 }
@@ -36,6 +38,74 @@ export interface Task {
     updatedAt?: string;
     description?: string;
     fields?: Record<string, string | number | boolean | null>;
+    /** More facts for the task details. Only tasks/get sends them. */
+    details?: TaskDetails;
+}
+
+/** A reference to another task, for example a subtask or a dependency. The view shows the ID when the title is absent. */
+export interface TaskRef {
+    id: string;
+    key?: string;
+    title?: string;
+    url?: string;
+    status?: Status;
+    assignees?: Person[];
+}
+
+/** The relation of a linked task to this task. "blocks": this task blocks it. "blocked_by": this task waits on it. */
+export type TaskRelation = 'blocks' | 'blocked_by' | 'related';
+
+export interface TaskChecklist {
+    name: string;
+    items: { name: string; done: boolean; assignee?: Person }[];
+}
+
+export interface TaskAttachment {
+    name: string;
+    url: string;
+    /** The size in bytes. */
+    size?: number;
+    thumbnailUrl?: string;
+    createdAt?: string;
+}
+
+/**
+ * A custom field of the tracker, with its value. The fields can be different for each task, so the task sends them.
+ * An empty field has no `value`, no `people` and no `labels`.
+ */
+export interface TaskCustomField {
+    id: string;
+    label: string;
+    type: 'text' | 'number' | 'date' | 'url' | 'boolean' | 'rating' | 'people' | 'labels' | 'progress';
+    /** "date": an ISO time, or a date as "YYYY-MM-DD". "rating": the number of stars. "progress": a percentage from 0 to 100. */
+    value?: string | number | boolean | null;
+    people?: Person[];
+    labels?: Label[];
+    /** "rating": the highest number of stars. */
+    max?: number;
+}
+
+/** More facts of one task for the task details. Only tasks/get sends them. All parts are optional. */
+export interface TaskDetails {
+    /** The location of the task in the tracker, for example "Engineering / Projects / The Repair Shop". */
+    location?: string;
+    creator?: Person;
+    createdAt?: string;
+    /** An ISO time, or a date as "YYYY-MM-DD" when the tracker has no time. */
+    startDate?: string;
+    /** An ISO time, or a date as "YYYY-MM-DD" when the tracker has no time. */
+    dueDate?: string;
+    /** The estimate in milliseconds. */
+    timeEstimate?: number;
+    /** The tracked time in milliseconds. */
+    timeSpent?: number;
+    watchers?: Person[];
+    parent?: TaskRef;
+    subtasks?: TaskRef[];
+    links?: { relation: TaskRelation; task: TaskRef }[];
+    checklists?: TaskChecklist[];
+    attachments?: TaskAttachment[];
+    customFields?: TaskCustomField[];
 }
 
 /**
@@ -92,6 +162,11 @@ export interface Capabilities {
     scopes?: boolean;
     /** The plugin returns new comments from other people for the Dashboard ("activity/list"). */
     activity?: boolean;
+    /**
+     * The plugin lists the people of a collection ("people/list"). The assignee filter of ShipWarden then lists them
+     * and has "Me", so the plugin filters need no "Assigned to me".
+     */
+    assignees?: boolean;
 }
 
 /** A comment from another person on a task of the user, for the Dashboard. */
@@ -138,6 +213,8 @@ export interface Handlers {
     /** Returns the collections in the scope. Each task source must have collections. */
     listCollections(params: Record<string, never>): Promise<Collection[]>;
     listTasks(params: { collection: string; filter?: string; query?: string; cursor?: string }): Promise<{ tasks: Task[]; nextCursor?: string }>;
+    /** Returns the people that can be assignees in the collection. `me` is the ID of the user of the connection. */
+    listPeople?(params: { collection: string }): Promise<{ people: Person[]; me?: string }>;
     getTask(params: { id: string }): Promise<Task>;
     /** Changes a task. `title` and `description` come only when the plugin has the capability "edit". */
     updateTask?(params: { id: string; status?: string; title?: string; description?: string }): Promise<Task>;

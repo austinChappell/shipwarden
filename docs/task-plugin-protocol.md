@@ -123,6 +123,40 @@ interface Task {
   updatedAt?: string;    // ISO 8601
   description?: string;  // Markdown. tasks/list can leave it out. tasks/get must supply it.
   fields?: Record<string, string | number | boolean | null>;
+  details?: TaskDetails; // More facts for the task details. Only tasks/get sends them. See below.
+}
+
+// More facts of one task. All parts are optional. The task details show the parts that the plugin sends.
+// A date is an ISO time, or "YYYY-MM-DD" when the tracker has no time.
+interface TaskDetails {
+  location?: string;     // For example "Engineering / Projects / The Repair Shop".
+  creator?: Person;
+  createdAt?: string;
+  startDate?: string;
+  dueDate?: string;
+  timeEstimate?: number; // Milliseconds.
+  timeSpent?: number;    // Milliseconds.
+  watchers?: Person[];
+  parent?: TaskRef;
+  subtasks?: TaskRef[];
+  links?: { relation: 'blocks' | 'blocked_by' | 'related'; task: TaskRef }[];
+  checklists?: { name: string; items: { name: string; done: boolean; assignee?: Person }[] }[];
+  attachments?: { name: string; url: string; size?: number; thumbnailUrl?: string; createdAt?: string }[];
+  customFields?: CustomField[];
+}
+
+// Another task. Without a title, ShipWarden uses the title of a loaded task with the same ID, or shows the ID.
+interface TaskRef { id: string; key?: string; title?: string; url?: string; status?: Status; assignees?: Person[] }
+
+// A custom field and its value. An empty field has no value, no people and no labels.
+interface CustomField {
+  id: string;
+  label: string;
+  type: 'text' | 'number' | 'date' | 'url' | 'boolean' | 'rating' | 'people' | 'labels' | 'progress';
+  value?: string | number | boolean | null; // rating: the number of stars. progress: 0 to 100.
+  people?: Person[];
+  labels?: Label[];
+  max?: number;          // rating: the highest number of stars.
 }
 
 // A collection of tasks with one status workflow. The task view shows one collection at a time.
@@ -143,7 +177,7 @@ interface Status {
   order?: number;        // The position in the workflow. Only used without tasks/statusOrder.
 }
 
-interface Person { name: string; avatarUrl?: string }
+interface Person { id?: string; name: string; avatarUrl?: string }  // id: needed for the assignee filter.
 interface Label { name: string; color?: string }
 
 interface Comment { id: string; author?: Person; body: string; createdAt?: string }
@@ -184,6 +218,7 @@ interface FilterDefinition {
 | `comments/create` | `{ taskId: string, body: string }` | `Comment` |
 | `tasks/action` | `{ taskId: string, actionId: string }` | `{ message?: string }` |
 | `activity/list` | `{ since: string }` (an ISO time) | `{ comments: ActivityComment[] }`: new comments from other people on the user's tasks |
+| `people/list` | `{ collection: string }` | `{ people: Person[], me?: string }`: the people that can be assignees |
 | `shutdown` | none | `null` |
 
 ### Create, edit and delete
@@ -202,6 +237,23 @@ The SDK sets `create` and `delete` from the handlers `createTask` and `deleteTas
 the `initialize` result, because `updateTask` can exist without title and description changes.
 
 These additions do not change the protocol version. A plugin without the capabilities works as before.
+
+### Assignees
+
+This request is optional. ShipWarden sends it only when the plugin has the capability `assignees`. The SDK sets
+it from the handler `listPeople`.
+
+- `people/list` returns the people that can be assignees of the tasks in a collection, each with an `id`. `me` is the
+  ID of the user of the connection. The assignee filter lists the people and has "Me".
+- ShipWarden filters the loaded tasks by assignee itself. A change of the filter sends no request to the plugin.
+- The person `id` in `Task.assignees` must be the same as in `people/list`.
+- A plugin with this capability does not need an "Assigned to me" filter. Its filters select other things, for
+  example open or closed tasks.
+
+`Task.details` is also optional. The task details show the parts that `tasks/get` sends.
+
+These additions do not change the protocol version. A plugin without the capability works as before. Its assignee
+filter lists the people of the loaded tasks.
 
 ### Activity (the Dashboard)
 

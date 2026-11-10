@@ -4,8 +4,9 @@ import { timeAgo } from '../../util';
 import { openLink } from '../../links';
 import { Markdown } from '../Markdown';
 import { formatField } from './task-view-logic';
-import { FieldRow, StatusDot, TaskLabels } from './TaskParts';
+import { FieldRow, StatusDot, TaskAvatar, TaskLabels } from './TaskParts';
 import { TaskActions } from './TaskActions';
+import { AttachmentsSection, ChecklistsSection, CustomFieldsSection, DetailMetaRows, RelatedTasksSection } from './TaskDetailSections';
 import type { useTaskDetail } from './use-task-detail';
 
 interface Props {
@@ -20,14 +21,30 @@ interface Props {
     repoLabel(repo: string): string;
     onOpenWorktree(path: string): void;
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
+    /** A loaded task with the ID, for the titles of subtasks and linked tasks. */
+    findTask(id: string): Task | undefined;
+    /** Opens another task in the details, for example a subtask. */
+    onOpenTask(id: string): void;
 }
 
-/** The detail panel of the selected task. The list and the board both show it at the right. */
-export function TaskDetails({ source, selectedId, state, worktreeFor, repos, startRepo, chooseStartRepo, repoLabel, onOpenWorktree, onStartTask }: Props) {
+/** The details of the selected task. The board and the list show them in a large dialog. */
+export function TaskDetails({
+    source,
+    selectedId,
+    state,
+    worktreeFor,
+    repos,
+    startRepo,
+    chooseStartRepo,
+    repoLabel,
+    onOpenWorktree,
+    onStartTask,
+    findTask,
+    onOpenTask
+}: Props) {
     const { detail, statuses, comments, commentText, setCommentText, busy, detailError, editing, setEditing } = state;
     return (
         <>
-            {!selectedId && <div className="panel-message">Select a task.</div>}
             {selectedId && !detail && !detailError && (
                 <div className="panel-message">
                     <LoaderCircle size={14} className="spin" /> Loading…
@@ -106,86 +123,108 @@ export function TaskDetails({ source, selectedId, state, worktreeFor, repos, sta
                         runAction={state.runAction}
                     />
 
-                    <div className="task-meta">
-                        <span className="task-meta-label">Status</span>
-                        {source.capabilities.update && statuses.length > 0 ? (
-                            <select
-                                className="tasks-select"
-                                value={detail.status.id}
-                                disabled={busy}
-                                onChange={event => state.changeStatus(event.target.value)}
-                            >
-                                {statuses.map(status => (
-                                    <option key={status.id} value={status.id}>
-                                        {status.name}
-                                    </option>
-                                ))}
-                            </select>
-                        ) : (
-                            <span>
-                                <StatusDot status={detail.status} /> {detail.status.name}
-                            </span>
-                        )}
-                        <span className="task-meta-label">Assignees</span>
-                        <span>{detail.assignees?.length ? detail.assignees.map(person => person.name).join(', ') : '—'}</span>
-                        {detail.priority && (
-                            <>
-                                <span className="task-meta-label">Priority</span>
-                                <span>{detail.priority.name}</span>
-                            </>
-                        )}
-                        {detail.labels && detail.labels.length > 0 && (
-                            <>
-                                <span className="task-meta-label">Labels</span>
-                                <span className="task-labels">
-                                    <TaskLabels labels={detail.labels} />
+                    <div className="task-detail-body">
+                        <div className="task-meta">
+                            <span className="task-meta-label">Status</span>
+                            {source.capabilities.update && statuses.length > 0 ? (
+                                <select
+                                    className="tasks-select"
+                                    value={detail.status.id}
+                                    disabled={busy}
+                                    onChange={event => state.changeStatus(event.target.value)}
+                                >
+                                    {statuses.map(status => (
+                                        <option key={status.id} value={status.id}>
+                                            {status.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <span>
+                                    <StatusDot status={detail.status} /> {detail.status.name}
                                 </span>
-                            </>
-                        )}
-                        {source.fields.map(field => (
-                            <FieldRow key={field.id} label={field.label} value={formatField(detail.fields?.[field.id], field.type)} />
-                        ))}
-                        {detail.updatedAt && (
-                            <>
-                                <span className="task-meta-label">Updated</span>
-                                <span>{timeAgo(detail.updatedAt)}</span>
-                            </>
-                        )}
-                    </div>
-
-                    {!editing &&
-                        (detail.description?.trim() ? (
-                            <Markdown className="task-description" text={detail.description} />
-                        ) : (
-                            <div className="task-description">No description.</div>
-                        ))}
-
-                    {source.capabilities.comments && (
-                        <section className="task-comments">
-                            <div className="section-title">
-                                Comments <span>{comments.length}</span>
-                            </div>
-                            {comments.map(comment => (
-                                <div key={comment.id} className="thread-comment">
-                                    <div className="comment-author">
-                                        {comment.author?.name ?? 'unknown'} {comment.createdAt && <span>{timeAgo(comment.createdAt)}</span>}
-                                    </div>
-                                    <Markdown className="comment-body" text={comment.body} />
-                                </div>
+                            )}
+                            <span className="task-meta-label">Assignees</span>
+                            {detail.assignees?.length ? (
+                                <span className="task-people">
+                                    {detail.assignees.map(person => (
+                                        <span key={person.id ?? person.name} className="task-person">
+                                            <TaskAvatar person={person} size={20} />
+                                            {person.name}
+                                        </span>
+                                    ))}
+                                </span>
+                            ) : (
+                                <span>Unassigned</span>
+                            )}
+                            {detail.priority && (
+                                <>
+                                    <span className="task-meta-label">Priority</span>
+                                    <span>{detail.priority.name}</span>
+                                </>
+                            )}
+                            {detail.labels && detail.labels.length > 0 && (
+                                <>
+                                    <span className="task-meta-label">Labels</span>
+                                    <span className="task-labels">
+                                        <TaskLabels labels={detail.labels} />
+                                    </span>
+                                </>
+                            )}
+                            <DetailMetaRows details={detail.details} />
+                            {source.fields.map(field => (
+                                <FieldRow key={field.id} label={field.label} value={formatField(detail.fields?.[field.id], field.type)} />
                             ))}
-                            <textarea
-                                className="review-body"
-                                value={commentText}
-                                placeholder="Add a comment"
-                                onChange={event => setCommentText(event.target.value)}
-                            />
-                            <div className="row-buttons">
-                                <button className="button" disabled={busy || !commentText.trim()} onClick={state.addComment}>
-                                    Comment
-                                </button>
-                            </div>
-                        </section>
-                    )}
+                            {detail.updatedAt && (
+                                <>
+                                    <span className="task-meta-label">Updated</span>
+                                    <span>{timeAgo(detail.updatedAt)}</span>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="task-detail-main">
+                            {!editing &&
+                                (detail.description?.trim() ? (
+                                    <Markdown className="task-description" text={detail.description} />
+                                ) : (
+                                    <div className="task-description">No description.</div>
+                                ))}
+
+                            <CustomFieldsSection key={detail.id} fields={detail.details?.customFields} />
+                            <RelatedTasksSection details={detail.details} findTask={findTask} onOpenTask={onOpenTask} />
+                            <ChecklistsSection checklists={detail.details?.checklists} />
+                            <AttachmentsSection attachments={detail.details?.attachments} />
+
+                            {source.capabilities.comments && (
+                                <section className="task-comments">
+                                    <div className="section-title">
+                                        Comments <span>{comments.length}</span>
+                                    </div>
+                                    {comments.map(comment => (
+                                        <div key={comment.id} className="thread-comment">
+                                            <div className="comment-author">
+                                                {comment.author && <TaskAvatar person={comment.author} size={18} />}
+                                                {comment.author?.name ?? 'unknown'} {comment.createdAt && <span>{timeAgo(comment.createdAt)}</span>}
+                                            </div>
+                                            <Markdown className="comment-body" text={comment.body} />
+                                        </div>
+                                    ))}
+                                    <textarea
+                                        className="review-body"
+                                        value={commentText}
+                                        placeholder="Add a comment"
+                                        onChange={event => setCommentText(event.target.value)}
+                                    />
+                                    <div className="row-buttons">
+                                        <button className="button" disabled={busy || !commentText.trim()} onClick={state.addComment}>
+                                            Comment
+                                        </button>
+                                    </div>
+                                </section>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </>
