@@ -12197,3 +12197,265 @@ button.pr-summary-cell:hover {
 .automation-limit .automation-check {
     margin-left: 6px;
 }
+
+/* Text for screen readers only. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* The welcome page (first start, and Help › Show Welcome). It uses the settings page layout. */
+
+.welcome-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.welcome-step {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 14px;
+}
+
+.welcome-step-body {
+    min-width: 0;
+}
+
+.welcome-step-body h2 {
+    margin: 2px 0 8px;
+    color: var(--text-strong);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.welcome-step-body > p {
+    margin: 0 0 10px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.welcome-step.blocked .welcome-step-body > p:first-of-type {
+    color: var(--muted);
+}
+
+.welcome-marker {
+    color: var(--muted);
+}
+
+.welcome-marker.number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.welcome-marker.number.blocked {
+    border-color: var(--border);
+    color: var(--muted);
+}
+
+.welcome-marker.ok,
+.welcome-icon.ok {
+    color: var(--ok);
+}
+
+.welcome-marker.warning,
+.welcome-icon.warning {
+    color: var(--accent);
+}
+
+.welcome-marker.problem,
+.welcome-icon.problem {
+    color: var(--danger);
+}
+
+.welcome-icon {
+    flex: none;
+    color: var(--muted);
+}
+
+.welcome-terms {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 14px;
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.welcome-terms dt {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.welcome-terms dd {
+    margin: 0;
+    color: var(--muted);
+}
+
+.welcome-actions,
+.welcome-fixes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.welcome-actions .button,
+.welcome-fixes .button,
+.settings-group-actions .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.welcome-command {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+
+.welcome-command-label {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.welcome-command-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.welcome-command code,
+.welcome-agent code {
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--raised);
+    color: var(--text-strong);
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
+    user-select: text;
+}
+
+.welcome-repos {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0 0 10px;
+    padding: 0;
+    list-style: none;
+    color: var(--text-strong);
+    font-size: 13px;
+}
+
+.welcome-repos li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.welcome-agents {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.welcome-agents legend {
+    margin-bottom: 10px;
+    padding: 0;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.welcome-agent {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    cursor: pointer;
+}
+
+.welcome-agent:hover {
+    border-color: var(--muted);
+}
+
+.welcome-agent.selected {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+}
+
+.welcome-agent:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.welcome-agent input {
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.welcome-agent-name {
+    color: var(--text-strong);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.welcome-agent-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.welcome-step .settings-group-header {
+    margin-bottom: 8px;
+}
+
+.welcome-step .settings-row-body {
+    margin-top: 8px;
+}
+
+/* The clone dialog of the welcome page and the empty worktree area. */
+.clone-repo-dialog {
+    width: min(480px, calc(100vw - 32px));
+}
+
+.clone-repo-dialog .modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.clone-repo-dialog .settings-input {
+    width: 100%;
+}

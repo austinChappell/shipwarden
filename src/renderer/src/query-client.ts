@@ -66,6 +66,8 @@ export const keyRoots = {
     tasks: ['tasks'],
     /** The usage limits of the agent providers. */
     usage: ['usage'],
+    /** The setup checks of the welcome page. They load only on request, and a fix updates one entry. */
+    setup: ['setup'],
     /** The state of the app updates. */
     updates: ['updates'],
     /** The state of the network certificates. */

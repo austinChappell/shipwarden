@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialOnboarding, normalizeOnboarding } from './onboarding';
+import { changeOnboarding, initialOnboarding, normalizeOnboarding } from './onboarding';
 
 describe('normalizeOnboarding', () => {
     it('returns undefined for a missing value, so the main process can set the first state', () => {
@@ -42,5 +42,15 @@ describe('initialOnboarding', () => {
     it('shows the welcome page only to a user without repositories', () => {
         expect(initialOnboarding(false)).toEqual({ welcome: 'new' });
         expect(initialOnboarding(true)).toEqual({ welcome: 'done' });
+    });
+});
+
+describe('changeOnboarding', () => {
+    it('keeps the other values', () => {
+        expect(changeOnboarding({ welcome: 'new', tourSeen: 1 }, { welcome: 'skipped' })).toEqual({ welcome: 'skipped', tourSeen: 1 });
+    });
+
+    it('treats a missing state as "done"', () => {
+        expect(changeOnboarding(undefined, { tourSeen: 1 })).toEqual({ welcome: 'done', tourSeen: 1 });
     });
 });

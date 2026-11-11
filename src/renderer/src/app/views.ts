@@ -2,7 +2,7 @@ import type { NavLocation, ViewRoute } from '@shared/nav-history';
 import type { ViewAction } from '@shared/shortcuts';
 
 /** A view of the center area. */
-export type MainView = 'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'automations' | 'graph' | 'settings';
+export type MainView = 'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'automations' | 'graph' | 'settings' | 'welcome';
 
 /** A view that is not the settings page. The settings page goes back to one of these views. */
 export type ContentView = Exclude<MainView, 'settings'>;
@@ -21,9 +21,11 @@ export const VIEW_OF_ACTION: Record<ViewAction, 'dashboard' | 'agents' | 'tasks'
 /**
  * Returns the view that the saved layout keeps. The settings page saves the view below it.
  * The graph page is not saved, because its repository is not in the layout. The worktree view goes in its place.
+ * The welcome page is not saved. The onboarding state decides if it shows at the start. The Dashboard goes in its place.
  */
-export function viewToSave(mainView: MainView, viewBeforeSettings: ContentView): Exclude<ContentView, 'graph'> {
+export function viewToSave(mainView: MainView, viewBeforeSettings: ContentView): Exclude<ContentView, 'graph' | 'welcome'> {
     const view = mainView === 'settings' ? viewBeforeSettings : mainView;
+    if (view === 'welcome') return 'dashboard';
     return view === 'graph' ? 'worktree' : view;
 }
 

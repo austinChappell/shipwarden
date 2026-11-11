@@ -1,6 +1,6 @@
 # Plan: onboarding and tutorial
 
-Status: phase 1 done. Branch: `onboarding`.
+Status: phases 1 and 2 done. Branch: `onboarding`, then one branch for each phase (`onboarding-2`, …).
 
 This document is the brief for the onboarding work. Give it to Claude at the start of each session:
 
@@ -218,4 +218,6 @@ We decided these in phase 1.
   check cannot find an alias. Agents and local repositories work without GitHub.
 - The notifications check reads only the ShipWarden setting. Electron cannot read the macOS permission.
 - Phase 2 adds the TanStack Query hook for the check results (`api.setup.check`), together with the welcome page.
+- Phase 2: the welcome page opens when `welcome` is 'new', also when the user added a repository on the page and
+  restarted the app before the last step. The page then shows the progress, and the user can finish or skip.
 - Phase 3 adds the one-time "Take a short tour of ShipWarden?" notice for current users, together with the tour.

@@ -11,6 +11,11 @@ describe('viewToSave', () => {
         expect(viewToSave('settings', 'graph')).toBe('worktree');
     });
 
+    it('saves the Dashboard in place of the welcome page', () => {
+        expect(viewToSave('welcome', 'review')).toBe('dashboard');
+        expect(viewToSave('settings', 'welcome')).toBe('dashboard');
+    });
+
     it('saves other views as they are', () => {
         expect(viewToSave('tasks', 'dashboard')).toBe('tasks');
     });

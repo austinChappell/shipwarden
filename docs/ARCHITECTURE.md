@@ -370,7 +370,7 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 
 ### Onboarding
 
-The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu.
+The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu. Phase 2 adds the welcome page.
 
 - **State.** `settings.onboarding` (`src/shared/onboarding.ts`): `welcome` ('new', 'done' or 'skipped'), `tourSeen`
   (a tour version), `checklist` (the steps that are done) and `checklistClosed`. `normalizeOnboarding` keeps a missing
@@ -388,6 +388,18 @@ The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup chec
   - Repository: the number of repositories in the active project.
   - Notifications: `settings.notifications.enabled`. Electron cannot read the macOS permission.
   A check that fails gives 'unknown' and does not stop the other checks.
+- **Welcome page.** `WelcomeView` is the view `welcome` of the center area, with the layout of the settings page. The
+  sidebar stays, so a fix button can open a settings section, and the close button of the settings page comes back.
+  - It opens at the start when `onboarding.welcome` is 'new' (`shouldOpenWelcome`), after the saved view of the
+    project. Help › Show Welcome opens it at all times. The saved layout never keeps it (`viewToSave`).
+  - The steps: the words of ShipWarden, the tool checks, a repository (add, or clone with `CloneRepoDialog` and
+    `projects.pullRepo`), the default agent, links to Appearance and Task managers, and "Create a worktree and start an
+    agent". `welcomeStepStates` (`src/shared/welcome.ts`) gives the state of each step.
+  - "Skip setup" saves 'skipped'. The start button saves 'done' and opens the New worktree dialog.
+  - The check results are in TanStack Query (`useSetupChecks`, key `setup`). They load one time and never on a timer or
+    on focus. A fix updates one entry: the repository and notification results come from the page state, a new default
+    agent checks the agent again, and a fix that leaves the page (Settings or a web page) checks its check again when
+    the page shows again. "Check again" in the tools group runs all checks.
 - **Help menu.** Show Welcome, Take the Tour and Keyboard Shortcuts send `app:help` to the page. ShipWarden on GitHub
   opens the README page.
 - **Test data folder.** `SHIPWARDEN_USER_DATA_DIR` calls `app.setPath('userData', …)` before the app reads data. The app

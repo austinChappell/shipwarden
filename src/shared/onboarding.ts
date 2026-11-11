@@ -54,3 +54,11 @@ export function initialOnboarding(hasRepos: boolean): OnboardingSettings {
 
 /** The items of the Help menu that the page handles: the welcome page, the tour and the keyboard shortcuts. */
 export type HelpAction = 'welcome' | 'tour' | 'shortcuts';
+
+/**
+ * Returns the onboarding state with a change, for `settings.update`. The settings store replaces the full object, so the
+ * other values must stay. A missing state counts as 'done'.
+ */
+export function changeOnboarding(current: OnboardingSettings | undefined, change: Partial<OnboardingSettings>): OnboardingSettings {
+    return { ...(current ?? { welcome: 'done' }), ...change };
+}
