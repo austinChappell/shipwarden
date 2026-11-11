@@ -27,6 +27,7 @@ import { automationEngine } from './automations/engine';
 import { useAutomationEngine } from './automations/use-automation-engine';
 import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
+import { AutomationButtons } from './automations/AutomationButtons';
 import { useDashboardCount, useDashboardLoader } from './dashboard-store';
 import { useReviewOverviewLoader, useReviewQueue } from './github/review-overview-store';
 import { reviewScopeKey, useReviewProviders } from './review-providers-store';
@@ -931,6 +932,13 @@ export function App() {
                             )}
                             <div className="header-actions">
                                 {selected && selectedRepo && (
+                                    <AutomationButtons
+                                        variant="menu"
+                                        target={{ entity: 'worktree', repoPath: selectedRepo, worktree: selected, link: links[selected.path] }}
+                                        onError={setError}
+                                    />
+                                )}
+                                {selected && selectedRepo && (
                                     <ScriptsMenu
                                         repoName={repoLabel(selectedRepo)}
                                         scripts={appSettings.repos[selectedRepo]?.scripts ?? []}
@@ -1048,6 +1056,15 @@ export function App() {
                             github={github}
                             onOpenFile={(path, line) => openFile(path, line)}
                             onOpenDiff={openDiff}
+                            renderPrAutomations={
+                                selected && selectedRepo
+                                    ? pr => (
+                                          <AutomationButtons
+                                              target={{ entity: 'pullRequest', repoPath: selectedRepo, worktree: selected, pr, link: links[selected.path] }}
+                                          />
+                                      )
+                                    : undefined
+                            }
                             onSendToAgent={sendToAgent}
                             onSendLogToAgent={check => void agents.sendLogToAgent(check)}
                             onSendChecksToAgent={agents.sendChecksToAgent}

@@ -175,6 +175,7 @@ const api: ShipWardenApi = {
         seed: (automationId, keys, scope) => ipcRenderer.invoke(IpcChannels.automationsSeed, automationId, keys, scope),
         setScheduleRun: (automationId, at) => ipcRenderer.invoke(IpcChannels.automationsSetScheduleRun, automationId, at),
         clearHistory: () => ipcRenderer.invoke(IpcChannels.automationsClearHistory),
+        http: request => ipcRenderer.invoke(IpcChannels.automationsHttp, request),
         onChanged: listener => subscribe<[]>(IpcChannels.automationsChanged, listener)
     },
     notes: {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { onExplorerFocusRequest } from '../files/explorer-focus';
 import { CircleCheck, Files, GitCommitVertical, GitPullRequest, Plug, Workflow } from 'lucide-react';
 import type { CheckRun, DiffSide, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
@@ -34,6 +34,8 @@ interface Props {
     onOpenAllChanges(): void;
     /** Opens the pull request of the branch in the Review view. Without it, the PR tab has no "Open in Review" button. */
     onOpenInReview?(repo: RepoRef, pr: PullRequest): void;
+    /** The buttons of the manual pull request automations. The PR tab shows them under the header. */
+    renderPrAutomations?(pr: PullRequest): ReactNode;
 }
 
 /** True when the text is the name of a tab of the right panel. */
@@ -134,6 +136,7 @@ export function RightPanel(props: Props) {
                     onSendToAgent={props.onSendToAgent}
                     onSendChecksToAgent={props.onSendChecksToAgent}
                     onOpenInReview={openInReview && status ? pr => openInReview(status.repo, pr) : undefined}
+                    renderAutomations={props.renderPrAutomations}
                 />
             )}
             {tab === 'changes' && (

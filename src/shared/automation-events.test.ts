@@ -57,7 +57,7 @@ describe('ciFailedEvents', () => {
                 target: 'pr:/repo#7',
                 worktreePath: '/wt/feature',
                 branch: 'feature',
-                pr: { number: 7, title: 'Add login', url: 'https://github.com/o/r/pull/7', headSha: 'abc' }
+                pr: { number: 7, title: 'Add login', url: 'https://github.com/o/r/pull/7', headSha: 'abc', isDraft: false }
             })
         ]);
     });
@@ -196,10 +196,10 @@ describe('manual events', () => {
     });
 
     it('selects the target by the trigger', () => {
-        expect(manualTarget('pr.comment')).toBe('worktree');
-        expect(manualTarget('agent.done')).toBe('worktree');
-        expect(manualTarget('task.new')).toBe('task');
-        expect(manualTarget('schedule')).toBe('none');
+        expect(manualTarget({ type: 'pr.comment' })).toBe('worktree');
+        expect(manualTarget({ type: 'agent.done' })).toBe('worktree');
+        expect(manualTarget({ type: 'task.new' })).toBe('task');
+        expect(manualTarget({ type: 'schedule', days: [1], time: '08:00' })).toBe('none');
     });
 });
 
