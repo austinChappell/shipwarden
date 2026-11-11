@@ -136,6 +136,8 @@ export function App() {
     const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
     /** False until the settings load. The appearance waits for them, so the start does not show the default theme. */
     const [settingsLoaded, setSettingsLoaded] = useState(false);
+    /** False until the start-up effect selects the first view. A new user sees the welcome page only after that. */
+    const [startupDone, setStartupDone] = useState(false);
     const { mode, palette } = useAppearance(settingsLoaded ? appSettings.appearance : undefined);
     /** The task of each worktree, by worktree path. */
     const links = useTaskLinks();
@@ -423,26 +425,30 @@ export function App() {
     // biome-ignore lint/correctness/useExhaustiveDependencies: The start-up effect runs one time. project.setProjects only sets state, so an old copy is correct.
     useEffect(() => {
         (async () => {
-            const [state, terminalSettings, existing] = await Promise.all([api.projects.get(), api.terminals.settings(), api.terminals.list()]);
-            setSettings(terminalSettings);
-            const loaded = api.settings
-                .get()
-                .then(
-                    value => {
-                        setAppSettings(value);
-                        return value;
-                    },
-                    () => undefined
-                )
-                .finally(() => setSettingsLoaded(true));
-            setSessions(existing);
-            project.setProjects(state);
-            await showProject(
-                state,
-                existing.map(session => session.id)
-            );
-            // A new user sees the welcome page. It comes after the saved view of the project, so the saved view does not replace it.
-            if (shouldOpenWelcome((await loaded)?.onboarding)) setMainView('welcome');
+            try {
+                const [state, terminalSettings, existing] = await Promise.all([api.projects.get(), api.terminals.settings(), api.terminals.list()]);
+                setSettings(terminalSettings);
+                const loaded = api.settings
+                    .get()
+                    .then(
+                        value => {
+                            setAppSettings(value);
+                            return value;
+                        },
+                        () => undefined
+                    )
+                    .finally(() => setSettingsLoaded(true));
+                setSessions(existing);
+                project.setProjects(state);
+                await showProject(
+                    state,
+                    existing.map(session => session.id)
+                );
+                // A new user sees the welcome page. It comes after the saved view of the project, so the saved view does not replace it.
+                if (shouldOpenWelcome((await loaded)?.onboarding)) setMainView('welcome');
+            } finally {
+                setStartupDone(true);
+            }
         })();
         const offExit = api.terminals.onExit(id => sessionExitedRef.current(id));
         // The agent state goes to its own store, not to `sessions`: an agent reports it at each tool call, and a
@@ -638,9 +644,14 @@ export function App() {
             setError
         });
 
+    // The cover hides the app layout until the first view is known. Without it, a new user sees the layout for a moment
+    // before the welcome page opens. A current user sees the cover only until the settings load.
+    const startCover = !startupDone && (!settingsLoaded || shouldOpenWelcome(appSettings.onboarding));
+
     return (
         <SidebarContext.Provider value={{ collapsed: sidebarCollapsed, toggle: toggleSidebar }}>
             <div className="app-shell">
+                {startCover && <div className="welcome-cover" aria-hidden="true" />}
                 <div
                     className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${mainView === 'worktree' && selectedPath ? ' has-right-toggle' : ''}${rightPanelShown ? ' right-panel-shown' : ''}`}
                     style={{ '--sidebar-width': `${sidebarWidth.width}px`, '--explorer-width': `${explorerWidth.width}px` } as CSSProperties}
@@ -852,6 +863,10 @@ export function App() {
                                     const repo = repos[0];
                                     setMainView(worktrees.length > 0 ? 'worktree' : 'dashboard');
                                     if (repo) setNewWorktree({ repo });
+                                }}
+                                onLater={() => {
+                                    void saveOnboarding({ welcome: 'done' }).catch(err => setError(errorText(err)));
+                                    setMainView(worktrees.length > 0 ? 'worktree' : 'dashboard');
                                 }}
                                 onSkip={() => {
                                     void saveOnboarding({ welcome: 'skipped' }).catch(err => setError(errorText(err)));
