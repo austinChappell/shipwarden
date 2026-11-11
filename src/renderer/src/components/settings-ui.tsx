@@ -50,3 +50,13 @@ export function SettingsRow({ label, description, control, children }: RowProps)
         </div>
     );
 }
+
+/** An on/off switch for a settings row. */
+export function Switch({ checked, title, disabled, onChange }: { checked: boolean; title: string; disabled?: boolean; onChange(value: boolean): void }) {
+    return (
+        <label className="switch" title={title}>
+            <input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />
+            <span />
+        </label>
+    );
+}

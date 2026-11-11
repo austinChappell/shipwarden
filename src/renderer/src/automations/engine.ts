@@ -151,6 +151,8 @@ export class AutomationEngine {
     private readonly lastTaskPoll = new Map<string, number>();
     /** The runs whose actions run now. */
     private readonly executing = new Set<string>();
+    /** The worktrees of the manual runs, by path. `context.places` does not always contain them. */
+    private readonly manualPlaces = new Map<string, EnginePlace>();
     private started = false;
     private ticking = false;
     private heldTimer: ReturnType<typeof setTimeout> | undefined;
@@ -359,17 +361,7 @@ export class AutomationEngine {
         now: number
     ): Promise<void> {
         const request = <T>(method: string, params: unknown) => api.tasks.request(connectionId, method, params) as Promise<T>;
-        const source = await queryClient.fetchQuery<TaskSource>({
-            queryKey: taskQueryKeys.source(connectionId),
-            queryFn: () => api.tasks.source(connectionId)
-        });
-        const filter = source.filters.find(item => item.default)?.id ?? source.filters[0]?.id;
-        // The Tasks view uses the same key, so the view shows the new list and sends no request.
-        const tasks = await queryClient.fetchQuery({
-            queryKey: taskQueryKeys.list(connectionId, collectionId, filter),
-            queryFn: () => loadTaskList(request, collectionId, filter),
-            staleTime: TASK_POLL_MS
-        });
+        const { source, tasks } = await loadCollectionTasks(connectionId, collectionId);
         let me: string | undefined;
         if (trigger.assignedToMe && source.capabilities.assignees) {
             const people = await queryClient.fetchQuery({
@@ -486,6 +478,36 @@ export class AutomationEngine {
         return updated;
     }
 
+    /**
+     * Starts a manual run of an automation for an event that `manual*Event` made. The run ignores the trigger, the
+     * status "off", the approval, the pause and the limits. A dry-run automation records a dry run only.
+     * `place` is the worktree of the event. The engine does not know the worktrees of other projects while no
+     * automation is on.
+     */
+    async runNow(automationId: string, event: AutomationEvent, place?: EnginePlace): Promise<void> {
+        const context = this.ready;
+        if (!context) throw new Error('The automations did not load yet. Try again in a few seconds.');
+        const automation = context.automations.find(item => item.id === automationId);
+        if (!automation) throw new Error('The automation does not exist anymore.');
+        if (place) this.manualPlaces.set(place.worktree.path, place);
+        const now = Date.now();
+        const dryRun = automation.status === 'dry-run';
+        const claimed = await this.claim({
+            id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+            automationId: automation.id,
+            automationName: automation.name,
+            status: dryRun ? 'dry-run' : 'running',
+            event: { ...event, manual: true },
+            createdAt: now,
+            updatedAt: now,
+            ...(dryRun ? { detail: `A dry run. The automation would: ${describeActions(automation.actions)}.` } : {}),
+            ...(event.worktreePath ? { worktreePath: event.worktreePath } : {})
+        });
+        if (!claimed) throw new Error('The run did not start. Try again.');
+        // Do not wait for the actions. They can take minutes. The run history shows the result and the errors.
+        if (!dryRun) void this.execute(claimed);
+    }
+
     /** Runs a pending run that the user approved. */
     async approve(runId: string): Promise<void> {
         const run = cachedRunState().runs.find(item => item.id === runId);
@@ -547,12 +569,13 @@ export class AutomationEngine {
                 await this.update(run.id, { status: 'failed', detail: 'The automation does not exist anymore.' });
                 return;
             }
-            if (automation.status === 'off') {
+            const manual = run.event.manual === true;
+            if (automation.status === 'off' && !manual) {
                 await this.update(run.id, { status: 'skipped', detail: 'The automation is off.' });
                 return;
             }
             const overTokens =
-                run.status === 'held' ? tokenLimitReached(cachedRunState().runs, automation, context.settings.dailyTokens, Date.now()) : undefined;
+                run.status === 'held' && !manual ? tokenLimitReached(cachedRunState().runs, automation, context.settings.dailyTokens, Date.now()) : undefined;
             if (overTokens) {
                 await this.update(run.id, { status: 'skipped', detail: overTokens });
                 return;
@@ -659,7 +682,9 @@ export class AutomationEngine {
         values: Record<string, string | undefined>
     ): Promise<string> {
         const event = run.event;
-        const place = event.worktreePath ? context.places.find(item => item.worktree.path === event.worktreePath) : undefined;
+        const place = event.worktreePath
+            ? (context.places.find(item => item.worktree.path === event.worktreePath) ?? this.manualPlaces.get(event.worktreePath))
+            : undefined;
         switch (action.type) {
             case 'sendToAgent': {
                 if (!place) throw new Error('The worktree does not exist anymore.');
@@ -785,6 +810,25 @@ export class AutomationEngine {
     }
 }
 
+/**
+ * Reads the task source and the tasks of one collection, with the default filter. The Tasks view uses the same keys,
+ * so the view shows the new list and sends no request. A list that is newer than TASK_POLL_MS does not load again.
+ */
+export async function loadCollectionTasks(connectionId: string, collectionId: string): Promise<{ source: TaskSource; tasks: Task[] }> {
+    const request = <T>(method: string, params: unknown) => api.tasks.request(connectionId, method, params) as Promise<T>;
+    const source = await queryClient.fetchQuery<TaskSource>({
+        queryKey: taskQueryKeys.source(connectionId),
+        queryFn: () => api.tasks.source(connectionId)
+    });
+    const filter = source.filters.find(item => item.default)?.id ?? source.filters[0]?.id;
+    const tasks = await queryClient.fetchQuery({
+        queryKey: taskQueryKeys.list(connectionId, collectionId, filter),
+        queryFn: () => loadTaskList(request, collectionId, filter),
+        staleTime: TASK_POLL_MS
+    });
+    return { source, tasks };
+}
+
 /** The start of the turn of a prompt that ShipWarden just sent. A small margin covers the clocks of the agent and the app. */
 function turnStart(): number {
     return Date.now() - 2000;
@@ -799,7 +843,7 @@ function agentBusy(session: TerminalSession): boolean {
 }
 
 /** A short text of the actions, for a dry run. */
-function describeActions(actions: readonly AutomationAction[]): string {
+export function describeActions(actions: readonly AutomationAction[]): string {
     return actions.map(action => ACTION_TYPES.find(item => item.type === action.type)?.label.toLowerCase() ?? action.type).join(', then ');
 }
 

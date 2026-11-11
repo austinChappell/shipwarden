@@ -28,6 +28,16 @@ describe('normalizeOnboarding', () => {
         expect(normalizeOnboarding({ welcome: 'done', checklistClosed: false })).toEqual({ welcome: 'done' });
     });
 
+    it('keeps the tip state and removes wrong tip values', () => {
+        const tips = { welcome: 'done', tipsOff: true, tipsClosed: ['dashboard'], recentTips: ['automations', 'quit'], tipClosedAt: 1_800_000_000_000 };
+        expect(normalizeOnboarding(tips)).toEqual(tips);
+        expect(normalizeOnboarding({ welcome: 'done', tipsOff: 'yes', tipsClosed: 'dashboard', recentTips: [1, ''], tipClosedAt: 'now' })).toEqual({
+            welcome: 'done'
+        });
+        expect(normalizeOnboarding({ welcome: 'done', tipsOff: false, tipsClosed: [] })).toEqual({ welcome: 'done' });
+        expect(normalizeOnboarding({ welcome: 'done', tipsClosed: ['tasks', 1, '', 'tasks'] })).toEqual({ welcome: 'done', tipsClosed: ['tasks'] });
+    });
+
     it('keeps only the checklist steps that are done', () => {
         expect(normalizeOnboarding({ welcome: 'done', checklist: { addRepository: true, startAgent: false, openAgents: 'true' } })).toEqual({
             welcome: 'done',

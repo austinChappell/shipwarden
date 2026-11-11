@@ -74,6 +74,8 @@ export const keyRoots = {
     network: ['network'],
     /** The listening ports of each worktree, for the sidebar. */
     worktreePorts: ['worktreePorts'],
+    /** The worktrees of each repository folder. Local data: no request goes to a service. */
+    worktrees: ['worktrees'],
     /** The automation files and the run history. Local data: no request goes to a service. */
     automations: ['automations']
 } as const;

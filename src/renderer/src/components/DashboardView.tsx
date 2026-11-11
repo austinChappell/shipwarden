@@ -47,6 +47,7 @@ import { MERGE_LABELS } from './MergeButton';
 import { HelmLoader } from './HelmLoader';
 import { confirmDialog } from './ConfirmDialog';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
+import { InlineTip } from './Tips';
 
 export type ReviewTabRequest = 'overview' | 'checks' | 'files';
 
@@ -601,6 +602,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
             <div className="dash-scroll" hidden={firstLoad} onKeyDown={moveListFocus}>
                 <div className="dash-page">
                     {checklist}
+                    {reviewKey !== null && <InlineTip id="dashboard" />}
                     {reviewKey === null && (
                         <div className="dash-connect">
                             <EmptyState

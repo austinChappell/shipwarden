@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
+import type { Worktree } from '@shared/worktrees';
+import { keyRoots } from '../query-client';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
@@ -62,7 +65,10 @@ interface Props {
     tab?: ReviewTab;
     /** Tells the history entry that a different tab shows. */
     onSelectTab?(tab: ReviewTab): void;
-    /** Opens the New worktree dialog on the head branch of the pull request. Without it, the button does not show. */
+    /**
+     * Opens the worktree of the head branch of the pull request. When no worktree has the branch, it opens the New worktree
+     * dialog on the branch. Without it, the button and the link do not show.
+     */
     onNewWorktree?(pr: PullRequest): void;
     /**
      * Sends a prompt to the agent of the worktree of the head branch. Without it, or when no project has the repository,
@@ -80,23 +86,36 @@ interface Props {
 }
 
 /**
- * True when a project has a clone of the repository, false when no project has one. Undefined while the check runs.
- * The check runs again when the projects change.
+ * The main worktree of the project repository that is a clone of the repository. Null when no project has a clone.
+ * Undefined while the check runs. The check runs again when the projects change.
  */
-function useRepoInProject(repo: RepoRef, projects: ProjectsState | undefined): boolean | undefined {
-    const [inProject, setInProject] = useState<boolean>();
+function useRepoClone(repo: RepoRef, projects: ProjectsState | undefined): string | null | undefined {
+    const [clone, setClone] = useState<string | null>();
     useEffect(() => {
         if (!projects) return;
         let current = true;
         window.shipwarden.projects.findRepo(repo).then(
-            root => current && setInProject(root !== null),
-            () => current && setInProject(undefined)
+            root => current && setClone(root),
+            () => current && setClone(undefined)
         );
         return () => {
             current = false;
         };
     }, [repo, projects]);
-    return inProject;
+    return clone;
+}
+
+/**
+ * The worktree of the clone that has the branch. Undefined when no worktree has it, or while the list loads.
+ * The sidebar writes the worktree lists of the active project into the cache, so a new worktree shows at once.
+ */
+function useBranchWorktree(clone: string | null | undefined, branch: string | undefined): Worktree | undefined {
+    const { data } = useQuery({
+        queryKey: [...keyRoots.worktrees, clone],
+        queryFn: () => window.shipwarden.worktrees.list(clone ?? ''),
+        enabled: !!clone
+    });
+    return branch ? data?.find(worktree => worktree.branch === branch) : undefined;
 }
 
 /** True when the text is the name of a tab of a pull request. */
@@ -196,7 +215,9 @@ export function ReviewPullRequest({
         setCommitSha(commit.oid);
         selectTab('commits');
     };
-    const inProject = useRepoInProject(repo, projects);
+    const clone = useRepoClone(repo, projects);
+    const inProject = clone === undefined ? undefined : clone !== null;
+    const branchWorktree = useBranchWorktree(clone, pr?.headRefName);
     const [pullOpen, setPullOpen] = useState(false);
     const [file, setFile] = useState<{ file: PullRequestFile; line?: number; side?: DiffSide; nonce: number }>();
     const [check, setCheck] = useState<CheckRun>();
@@ -377,7 +398,16 @@ export function ReviewPullRequest({
                                 <FolderInput size={14} strokeWidth={1.6} /> Pull into project
                             </button>
                         )}
-                        {onNewWorktree && (
+                        {onNewWorktree && branchWorktree && (
+                            <button
+                                className="link-button review-pr-worktree"
+                                title={`Open the worktree ${branchWorktree.path}`}
+                                onClick={() => onNewWorktree(pr)}
+                            >
+                                <FolderGit2 size={14} strokeWidth={1.6} /> Open worktree
+                            </button>
+                        )}
+                        {onNewWorktree && !branchWorktree && (
                             <button
                                 className="icon-button"
                                 title={
