@@ -1,8 +1,8 @@
 import { localDateTime, type AutomationEvent, type TriggerType } from './automations';
 import type { MyPullRequestItem, PullRequestCommentItem } from './dashboard';
-import { repoId, type BranchSummary, type RepoRef } from './github';
+import { repoId, type BranchSummary, type MergedPullRequest, type RepoRef } from './github';
 import { ciChanges } from './notifications';
-import type { Task } from './tasks';
+import type { Task, TaskLink } from './tasks';
 import type { Worktree } from './worktrees';
 
 /**
@@ -16,6 +16,26 @@ export interface WorktreePlace {
     worktree: Pick<Worktree, 'path' | 'branch' | 'isMain'>;
 }
 
+/**
+ * Returns the worktrees that can have a merged pull request: a worktree with a branch, not the main worktree, not
+ * locked, and without an open pull request in `openSummaries`.
+ */
+export function mergeCandidates<T extends { repo: string; worktree: Pick<Worktree, 'branch' | 'isMain' | 'locked'> }>(
+    places: readonly T[],
+    openSummaries: Record<string, Record<string, BranchSummary>>
+): T[] {
+    return places.filter(({ repo, worktree }) => worktree.branch && !worktree.isMain && !worktree.locked && !openSummaries[repo]?.[worktree.branch]);
+}
+
+/**
+ * Returns the merged pull request of a worktree. The HEAD of the worktree must be the head commit of the pull request.
+ * A worktree with commits after the merge, or a new worktree on a branch name of an old pull request, has none.
+ */
+export function mergedPullRequestOf(worktree: Pick<Worktree, 'branch' | 'head'>, merged: Record<string, MergedPullRequest>): MergedPullRequest | undefined {
+    const pr = worktree.branch ? merged[worktree.branch] : undefined;
+    return pr && worktree.head && pr.headSha === worktree.head ? pr : undefined;
+}
+
 /** Returns the worktree of a branch in a repository. The main worktree does not count: automations do not act on it. */
 export function worktreeOnBranch(places: readonly WorktreePlace[], repo: string, branch: string | undefined): WorktreePlace | undefined {
     if (!branch) return undefined;
@@ -23,7 +43,7 @@ export function worktreeOnBranch(places: readonly WorktreePlace[], repo: string,
 }
 
 function prOf(summary: BranchSummary) {
-    return { number: summary.number, title: summary.title, url: summary.url, headSha: summary.headSha };
+    return { number: summary.number, title: summary.title, url: summary.url, headSha: summary.headSha, isDraft: summary.isDraft };
 }
 
 function prLabel(number: number, title: string | undefined): string {
@@ -221,10 +241,14 @@ export function manualWorktreeEvent(
     trigger: TriggerType,
     place: WorktreePlace,
     summary: BranchSummary | undefined,
-    at: number
+    at: number,
+    taskLink?: TaskLink
 ): AutomationEvent {
     const branch = place.worktree.branch;
     return {
+        ...(taskLink
+            ? { taskLink: { title: taskLink.title, ...(taskLink.key ? { key: taskLink.key } : {}), ...(taskLink.url ? { url: taskLink.url } : {}) } }
+            : {}),
         trigger,
         key: manualKey(automationId, at),
         // A manual run does not use the runs of the automatic limit of the pull request.
@@ -240,24 +264,44 @@ export function manualWorktreeEvent(
     };
 }
 
-/** The event of a manual run on a task, for a "task.new" trigger. */
+/** The facts of a pull request that the pull request panel knows. */
+export interface PullRequestFacts {
+    number: number;
+    title?: string;
+    url: string;
+    headSha?: string;
+    isDraft?: boolean;
+    author?: string;
+    base?: string;
+    state?: string;
+    body?: string;
+}
+
+/** The event of a manual pull request button. `place` is the worktree of the branch of the pull request. */
+export function manualPullRequestEvent(automationId: string, place: WorktreePlace, pr: PullRequestFacts, at: number, taskLink?: TaskLink): AutomationEvent {
+    const event = manualWorktreeEvent(automationId, 'manual', place, undefined, at, taskLink);
+    return { ...event, label: prLabel(pr.number, pr.title), hasPullRequest: true, pr };
+}
+
+/** The event of a manual run on a task, for a "task.new" trigger or a manual task button. */
 export function manualTaskEvent(
     automationId: string,
     task: Task,
     connectionId: string,
     pluginId: string,
     repoPath: string | undefined,
-    at: number
+    at: number,
+    trigger: TriggerType = 'task.new'
 ): AutomationEvent {
     const event = taskEvent(task, connectionId, pluginId, repoPath, at);
-    return { ...event, key: manualKey(automationId, at), target: `manual:${event.target}`, manual: true };
+    return { ...event, trigger, key: manualKey(automationId, at), target: `manual:${event.target}`, manual: true };
 }
 
-/** The event of a manual run of a schedule. The time is now. */
-export function manualScheduleEvent(automationId: string, repoPath: string | undefined, at: number): AutomationEvent {
+/** The event of a manual run of a schedule, or of a manual automation without an entity. The time is now. */
+export function manualScheduleEvent(automationId: string, repoPath: string | undefined, at: number, trigger: TriggerType = 'schedule'): AutomationEvent {
     const { date, time } = localDateTime(new Date(at));
     return {
-        trigger: 'schedule',
+        trigger,
         key: manualKey(automationId, at),
         target: `manual:schedule:${automationId}`,
         label: `${date} ${time}`,

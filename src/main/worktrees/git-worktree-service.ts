@@ -165,8 +165,12 @@ export class GitWorktreeService {
      * Deletes a local branch. Without `force`, ShipWarden first pulls the newest commits of the start branch of
      * the branch. Then git refuses a branch with commits that are not merged, and the result says so, so
      * the user can choose. A failed pull does not stop the delete. The remote branch stays.
+     *
+     * `mergedHead` is the head commit of a merged pull request of the branch. A squash merge or a rebase merge does not
+     * put the commits of the branch into the start branch. When the branch points at `mergedHead`, the pull request
+     * contains all the commits of the branch, so ShipWarden deletes it.
      */
-    async deleteBranch(repoPath: string, branch: string, force = false): Promise<{ deleted: boolean; notMerged?: boolean }> {
+    async deleteBranch(repoPath: string, branch: string, force = false, mergedHead?: string): Promise<{ deleted: boolean; notMerged?: boolean }> {
         const bases = force ? [] : await this.pullBase(repoPath, branch);
         try {
             await this.git(repoPath, ['branch', force ? '-D' : '-d', '--', branch]);
@@ -183,6 +187,10 @@ export class GitWorktreeService {
                 await this.git(repoPath, ['branch', '-D', '--', branch]);
                 return { deleted: true };
             }
+        }
+        if (mergedHead && (await this.branchHead(repoPath, branch)) === mergedHead) {
+            await this.git(repoPath, ['branch', '-D', '--', branch]);
+            return { deleted: true };
         }
         return { deleted: false, notMerged: true };
     }
@@ -369,6 +377,15 @@ export class GitWorktreeService {
             }
         }
         return undefined;
+    }
+
+    /** The commit SHA of a local branch, or undefined when the branch does not exist. */
+    protected async branchHead(repoPath: string, branch: string): Promise<string | undefined> {
+        try {
+            return (await this.git(repoPath, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`])).trim() || undefined;
+        } catch {
+            return undefined;
+        }
     }
 
     protected async branchExists(repoPath: string, branch: string): Promise<boolean> {

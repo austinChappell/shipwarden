@@ -350,6 +350,21 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                     }
                 />
                 <SettingsRow
+                    label="Remove merged worktrees"
+                    description="Removes a worktree and its local branch after its pull request is merged. ShipWarden also checks for merged pull requests every 15 minutes, so it finds merges that happened while the app was closed. A worktree with uncommitted changes or new commits stays. The remote branch stays."
+                    control={
+                        <label className="switch" title={value.removeMerged ? 'On' : 'Off'}>
+                            <input
+                                type="checkbox"
+                                aria-label="Remove merged worktrees"
+                                checked={value.removeMerged}
+                                onChange={event => void save({ removeMerged: event.target.checked })}
+                            />
+                            <span />
+                        </label>
+                    }
+                />
+                <SettingsRow
                     label="Copy ignored files"
                     description="Copies git-ignored files, for example .env, from the main worktree into each new worktree."
                     control={
