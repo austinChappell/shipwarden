@@ -270,6 +270,21 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                     <FolderField value={value.directory} placeholder={defaultFolder} onSave={directory => void save({ directory })} />
                 </SettingsRow>
                 <SettingsRow
+                    label="Close stale shells"
+                    description="Closes a shell tab with no input and no output for 7 days. A shell that runs a command stays open. Agent tabs stay open."
+                    control={
+                        <label className="switch" title={value.closeStaleShells ? 'On' : 'Off'}>
+                            <input
+                                type="checkbox"
+                                aria-label="Close stale shells"
+                                checked={value.closeStaleShells}
+                                onChange={event => void save({ closeStaleShells: event.target.checked })}
+                            />
+                            <span />
+                        </label>
+                    }
+                />
+                <SettingsRow
                     label="Copy ignored files"
                     description="Copies git-ignored files, for example .env, from the main worktree into each new worktree."
                     control={

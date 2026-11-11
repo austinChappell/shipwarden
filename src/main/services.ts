@@ -26,6 +26,7 @@ import { NotificationService } from './notifications';
 import { buildSocketPath, ptyHostSocketFolder, ptyHostSocketPath } from './pty-host/protocol';
 import { hostBuildId, PtyHostClient } from './pty-host/pty-host-client';
 import { ProcessService } from './processes/process-service';
+import { StaleShellCloser } from './terminal/stale-shells';
 import { bundlePathOf, UpdateService } from './updates/update-service';
 import { GitChangesService } from './git/git-changes-service';
 import { GitWorktreeService } from './worktrees/git-worktree-service';
@@ -357,6 +358,14 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         processes.terminate(pids).catch(error => console.error('[processes] Cannot stop the processes of a terminal:', error));
     }
 
+    /** Closes the shell tabs with no input and no output for 7 days (Settings › Worktrees). */
+    const staleShells = new StaleShellCloser({
+        enabled: async () => (await settings.get()).worktrees.closeStaleShells,
+        sessions: () => (terminals.isConnected() ? terminalSessions() : Promise.resolve([])),
+        processTable: () => processes.table(),
+        close: killTerminal
+    });
+
     /** The setup checks of the welcome page and the checklist. They reuse the PATH check and the token order of the app. */
     const setupChecks = new SetupChecks({
         checkCommand: command => checkCommand(command, shellReady),
@@ -395,6 +404,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         shellAgents,
         terminalSessions,
         killTerminal,
+        staleShells,
         usage,
         settings,
         seen,

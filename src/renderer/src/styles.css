@@ -349,7 +349,8 @@ button {
     background: var(--purple);
 }
 
-.worktree-pr {
+.worktree-pr,
+.worktree-shells {
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;

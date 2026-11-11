@@ -3,14 +3,14 @@ import type { PullRequest, RepoRef } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
 import type { AppSettings, AgentDefinition, RepoScript } from '@shared/settings';
 import { applyStartStatus, branchNameForTask, taskPrompt, type StartStatusResult, type Task, type TaskLink } from '@shared/tasks';
-import type { TerminalSession } from '@shared/terminal';
-import { snoozeEnd, type CreatedWorktree, type HiddenWorktree, type Worktree } from '@shared/worktrees';
+import { isOpenShell, openShellCount, type TerminalSession } from '@shared/terminal';
+import { snoozeEnd, worktreeLabel, type CreatedWorktree, type HiddenWorktree, type Worktree } from '@shared/worktrees';
 import { confirmDialog, promptDialog } from '../components/ConfirmDialog';
 import { showContextMenu } from '../components/ContextMenu';
 import type { GraphWorktreeStart } from '../components/GitGraphView';
 import type { NewWorktreeRequest } from '../components/NewWorktreeDialog';
 import { documents } from '../editor/documents';
-import { agentStateStore } from '../terminal/agent-state-store';
+import { agentStateStore, withAgentStore } from '../terminal/agent-state-store';
 import { terminalPool } from '../terminal/terminal-pool';
 import { withoutKey, type ExtraTab } from './tabs';
 import type { MainView } from './views';
@@ -386,11 +386,33 @@ export function useWorktreeActions(options: Options) {
     };
 
     /** The context menu of a worktree in the sidebar. */
+    /**
+     * Closes the shell tabs of a worktree after the user agrees. Agent tabs and shells with an agent in them stay open.
+     * Each tab closes when the exit event of its session gets to the page.
+     */
+    const closeShells = async (worktree: Worktree) => {
+        const shells = withAgentStore(options.sessions).filter(session => session.worktreePath === worktree.path && isOpenShell(session));
+        if (!shells.length) return;
+        const count = shells.length === 1 ? '1 shell' : `${shells.length} shells`;
+        const ok = await confirmDialog({
+            title: `Close ${count} in "${worktreeLabel(worktree, appSettings.worktreeNames)}"?`,
+            message: 'The commands that run in them stop. Agent tabs stay open.',
+            confirmLabel: 'Close',
+            danger: true
+        });
+        if (!ok) return;
+        const results = await Promise.allSettled(shells.map(session => api.terminals.kill(session.id)));
+        const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+        if (failed) setError(errorText(failed.reason));
+    };
+
     const worktreeMenu = async (repoPath: string, worktree: Worktree) => {
         const link = links[worktree.path];
-        const choice = await showContextMenu(worktreeMenuItems(worktree, link?.key, !!link, appSettings.hiddenWorktrees?.[worktree.path], Date.now()));
+        const shells = openShellCount(withAgentStore(options.sessions), worktree.path);
+        const choice = await showContextMenu(worktreeMenuItems(worktree, link?.key, !!link, appSettings.hiddenWorktrees?.[worktree.path], Date.now(), shells));
         if (choice === 'task') openLinkedTask(worktree.path);
         if (choice === 'rename') await renameWorktree(worktree);
+        if (choice === 'closeShells') await closeShells(worktree);
         try {
             if (choice === 'show') await setWorktreeHidden(worktree.path, undefined);
             if (choice === 'hide') await setWorktreeHidden(worktree.path, {});

@@ -65,6 +65,11 @@ export interface TerminalSession {
     rows?: number;
     exited: boolean;
     exitCode?: number;
+    /**
+     * The time of the last input or output, in milliseconds. Sessions of an older PTY host do not have it.
+     * The app uses it to find stale shells.
+     */
+    lastActiveAt?: number;
     /** The state that the agent reports through hooks. It is undefined for a shell or an agent without hooks. */
     agentState?: AgentState;
     /** A short text about the state: what the agent does now, its question, or its last message. */
@@ -94,6 +99,27 @@ export function runsAgent(session: Pick<TerminalSession, 'isAgent' | 'exited' | 
         return false;
     }
     return session.isAgent || !!session.agentProgram || (!!session.agentState && session.agentState !== 'exited');
+}
+
+/** Returns true when the session is a shell tab that runs and has no agent in it. */
+export function isOpenShell(session: Pick<TerminalSession, 'isAgent' | 'exited' | 'agentState' | 'agentProgram'>): boolean {
+    return !session.exited && !runsAgent(session);
+}
+
+/** Returns the number of open shell tabs of a worktree. */
+export function openShellCount(sessions: readonly TerminalSession[], worktreePath: string): number {
+    return sessions.filter(session => session.worktreePath === worktreePath && isOpenShell(session)).length;
+}
+
+/** A shell with no input and no output for this time is stale. The app can close it (Settings › Worktrees). */
+export const STALE_SHELL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Returns true when the session is a stale shell: a shell tab of a worktree with no input and no output for `STALE_SHELL_MS`.
+ * A session without `lastActiveAt` (from an older PTY host) is never stale.
+ */
+export function isStaleShell(session: TerminalSession, now: number): boolean {
+    return !!session.worktreePath && isOpenShell(session) && session.lastActiveAt !== undefined && now - session.lastActiveAt >= STALE_SHELL_MS;
 }
 
 export interface CreateTerminalOptions {
