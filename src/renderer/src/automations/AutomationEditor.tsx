@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import {
     ACTION_TRIGGERS,
     ACTION_TYPES,
@@ -20,10 +20,13 @@ import {
     type Automation,
     type AutomationAction,
     type AutomationStatus,
+    type LabelRepo,
     type Trigger,
     type TriggerType
 } from '@shared/automations';
 import type { AgentDefinition } from '@shared/settings';
+import type { TaskCollection } from '@shared/tasks';
+import { Combobox, sortedGroups } from '../components/Combobox';
 import { collectionsQueryOptions, connectionsQueryOptions } from '../components/tasks/use-task-source';
 import { SettingsGroup, SettingsRow } from '../components/settings-ui';
 import { errorText } from '../util';
@@ -272,8 +275,14 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
             >
                 {singleRepo ? (
                     <SettingsRow
-                        label="Repository"
-                        description={needsRepo(draft) ? undefined : 'Optional for these actions.'}
+                        label={trigger.type === 'task.new' ? 'Default repository' : 'Repository'}
+                        description={
+                            trigger.type === 'task.new'
+                                ? 'The repository of a task when no label rule below matches. Empty: a task without a matching label does not run.'
+                                : needsRepo(draft)
+                                  ? undefined
+                                  : 'Optional for these actions.'
+                        }
                         control={
                             <select
                                 className="settings-input"
@@ -308,6 +317,14 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                             ))}
                         </div>
                     </SettingsRow>
+                )}
+                {trigger.type === 'task.new' && (
+                    <LabelRepoFields
+                        rules={draft.binding.labelRepos ?? []}
+                        repos={repoChoices}
+                        repoLabel={repo => (repos.includes(repo) ? repoLabel(repo) : `${repo} (not in a project)`)}
+                        onChange={rules => change({ binding: { ...draft.binding, labelRepos: rules.length > 0 ? rules : undefined } })}
+                    />
                 )}
                 {isWorktreeTrigger(trigger.type) && (
                     <SettingsRow
@@ -446,6 +463,13 @@ function TaskSourceFields({ draft, change }: { draft: Automation; change(patch: 
     const connections = useQuery(connectionsQueryOptions());
     const connectionId = draft.binding.connectionId;
     const collections = useQuery({ ...collectionsQueryOptions(connectionId), enabled: !!connectionId, staleTime: 5 * 60_000 });
+    const selected = draft.binding.collections ?? [];
+    const list = collections.data?.list ?? [];
+    // A selected collection that the task manager does not show now stays in the list, so you can remove it.
+    const choices: TaskCollection[] = [
+        ...list,
+        ...selected.filter(item => !list.some(other => other.id === item.id)).map(item => ({ id: item.id, name: item.name ?? item.id }))
+    ];
     return (
         <>
             <SettingsRow
@@ -456,7 +480,7 @@ function TaskSourceFields({ draft, change }: { draft: Automation; change(patch: 
                         value={connectionId ?? ''}
                         onChange={event =>
                             change({
-                                binding: { ...draft.binding, connectionId: event.target.value || undefined, collectionId: undefined, collectionName: undefined }
+                                binding: { ...draft.binding, connectionId: event.target.value || undefined, collections: undefined }
                             })
                         }
                     >
@@ -471,29 +495,90 @@ function TaskSourceFields({ draft, change }: { draft: Automation; change(patch: 
             />
             {connectionId && (
                 <SettingsRow
-                    label="Collection"
-                    description="ShipWarden reads its tasks every 5 minutes. The tasks that match when the automation starts do not run. Only later tasks run."
+                    label="Collections"
+                    description="ShipWarden reads the tasks of each collection every 5 minutes. The tasks that match when the automation starts do not run. Only later tasks run."
                     control={
-                        <select
-                            className="settings-input"
-                            value={draft.binding.collectionId ?? ''}
-                            onChange={event => {
-                                const collection = collections.data?.list.find(item => item.id === event.target.value);
-                                change({ binding: { ...draft.binding, collectionId: collection?.id, collectionName: collection?.name } });
+                        <Combobox
+                            value={undefined}
+                            values={selected.map(item => item.id)}
+                            groups={sortedGroups(
+                                choices,
+                                collection => collection.path ?? '',
+                                collection => ({ value: collection.id, label: collection.name })
+                            )}
+                            placeholder={collections.isPending ? 'Loading…' : 'Select collections'}
+                            searchPlaceholder="Search collections"
+                            onChange={id => {
+                                const next = selected.some(item => item.id === id)
+                                    ? selected.filter(item => item.id !== id)
+                                    : [...selected, { id, name: list.find(item => item.id === id)?.name }];
+                                change({ binding: { ...draft.binding, collections: next.length > 0 ? next : undefined } });
                             }}
-                        >
-                            <option value="">{collections.isPending ? 'Loading…' : 'Select a collection'}</option>
-                            {collections.data?.list.map(collection => (
-                                <option key={collection.id} value={collection.id}>
-                                    {collection.path ? `${collection.path} / ${collection.name}` : collection.name}
-                                </option>
-                            ))}
-                        </select>
+                        />
                     }
                 />
             )}
             {collections.error && <div className="form-error">{errorText(collections.error)}</div>}
         </>
+    );
+}
+
+interface LabelRepoProps {
+    rules: LabelRepo[];
+    repos: string[];
+    repoLabel(repo: string): string;
+    onChange(rules: LabelRepo[]): void;
+}
+
+/** The rules that select the repository of a task by its label. */
+function LabelRepoFields({ rules, repos, repoLabel, onChange }: LabelRepoProps) {
+    const setRule = (index: number, patch: Partial<LabelRepo>) => onChange(rules.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)));
+    return (
+        <SettingsRow
+            label="Repository by label"
+            description='A task with the label goes to the repository. For example, the label "api" selects the repository of the API. The first rule that matches applies.'
+        >
+            <div className="automation-label-repos">
+                {rules.map((rule, index) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: The rules have no IDs. The index is their place in the list.
+                    <div key={index} className="automation-label-repo">
+                        <input
+                            className="settings-input"
+                            placeholder="Label"
+                            aria-label="Label"
+                            value={rule.label}
+                            onChange={event => setRule(index, { label: event.target.value })}
+                        />
+                        <select
+                            className="settings-input"
+                            aria-label="Repository"
+                            value={rule.repo}
+                            onChange={event => setRule(index, { repo: event.target.value })}
+                        >
+                            <option value="">Select a repository</option>
+                            {repos.map(repo => (
+                                <option key={repo} value={repo}>
+                                    {repoLabel(repo)}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            type="button"
+                            className="icon-button"
+                            title="Remove the rule"
+                            aria-label="Remove the rule"
+                            onClick={() => onChange(rules.filter((_, i) => i !== index))}
+                        >
+                            <Trash2 size={14} strokeWidth={1.7} />
+                        </button>
+                    </div>
+                ))}
+                <button type="button" className="button" onClick={() => onChange([...rules, { label: '', repo: '' }])}>
+                    <Plus size={13} strokeWidth={1.8} />
+                    Add a rule
+                </button>
+            </div>
+        </SettingsRow>
     );
 }
 

@@ -28,6 +28,11 @@ export function sortedGroups<T>(items: T[], groupOf: (item: T) => string, toItem
 
 interface Props {
     value: string | undefined;
+    /**
+     * The selected values of a multi-select. With this prop, a click on an item calls `onChange` with the value of the item,
+     * and the popover stays open. The caller adds or removes the value. `value` is not used.
+     */
+    values?: string[];
     groups: ComboboxGroup[];
     onChange(value: string): void;
     /** The text on the button when no item is selected, for example while the list loads. */
@@ -38,8 +43,8 @@ interface Props {
     className?: string;
 }
 
-/** A select with a search field, for long lists in groups. */
-export function Combobox({ value, groups, onChange, placeholder, searchPlaceholder = 'Search', disabled, title, className }: Props) {
+/** A select with a search field, for long lists in groups. With `values`, it is a multi-select. */
+export function Combobox({ value, values, groups, onChange, placeholder, searchPlaceholder = 'Search', disabled, title, className }: Props) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
@@ -47,6 +52,16 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
     const list = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
     const id = useId();
+
+    const multiple = values !== undefined;
+    const isSelected = (item: ComboboxItem) => (multiple ? values.includes(item.value) : item.value === value);
+
+    /** The text on the button of a multi-select: the labels of the selected items. */
+    const multipleText = useMemo(() => {
+        if (!values?.length) return undefined;
+        const labels = groups.flatMap(group => group.items).filter(item => values.includes(item.value));
+        return labels.map(item => item.label).join(', ') || undefined;
+    }, [groups, values]);
 
     const selected = useMemo(() => {
         for (const group of groups) {
@@ -105,7 +120,7 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
 
     const show = () => {
         setQuery('');
-        const index = flat.findIndex(item => item.value === value);
+        const index = flat.findIndex(item => (multiple ? values.includes(item.value) : item.value === value));
         setActive(Math.max(0, index));
         setOpen(true);
     };
@@ -117,6 +132,10 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
     };
 
     const choose = (item: ComboboxItem) => {
+        if (multiple) {
+            onChange(item.value);
+            return;
+        }
         hide();
         if (item.value !== value) {
             onChange(item.value);
@@ -168,7 +187,9 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
                 onClick={() => (open ? setOpen(false) : show())}
             >
                 <span className="combobox-value">
-                    {selected ? (
+                    {multiple ? (
+                        (multipleText ?? placeholder)
+                    ) : selected ? (
                         <>
                             {selected.group && <span className="combobox-group-prefix">{selected.group} / </span>}
                             {selected.item.label}
@@ -199,7 +220,7 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
                             onKeyDown={onKey}
                         />
                     </label>
-                    <div className="combobox-list" role="listbox" id={`${id}-list`} ref={list}>
+                    <div className="combobox-list" role="listbox" aria-multiselectable={multiple || undefined} id={`${id}-list`} ref={list}>
                         {flat.length === 0 && <div className="combobox-empty">No matches</div>}
                         {shown.map(group => (
                             <div key={group.label} role="group" aria-label={group.label || undefined}>
@@ -212,13 +233,13 @@ export function Combobox({ value, groups, onChange, placeholder, searchPlacehold
                                             key={item.value}
                                             id={`${id}-option-${position}`}
                                             role="option"
-                                            aria-selected={item.value === value}
+                                            aria-selected={isSelected(item)}
                                             className={`combobox-option${position === active ? ' active' : ''}`}
                                             onMouseMove={() => setActive(position)}
                                             onClick={() => choose(item)}
                                         >
                                             <span className="combobox-label">{item.label}</span>
-                                            {item.value === value && <Check size={13} strokeWidth={2} />}
+                                            {isSelected(item) && <Check size={13} strokeWidth={2} />}
                                         </div>
                                     );
                                 })}

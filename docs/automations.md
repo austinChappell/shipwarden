@@ -14,7 +14,8 @@ valid shows under "Files with problems", with the reason.
 A file has two parts:
 
 - **The definition** is portable: the trigger, the conditions, the actions and the limits.
-- **The status and the binding** belong to your Mac: the repository folders, the task manager and the collection.
+- **The status and the binding** belong to your Mac: the repository folders, the task manager, the collections and the
+  label rules.
 
 "Export to a file…" and "Copy as JSON" write only the definition. The text has no paths and no IDs of your Mac. "Import"
 reads a file or the clipboard, and opens the editor. You select the binding there. An imported automation always starts
@@ -55,11 +56,32 @@ An export has `kind` and no `status` or `binding`.
 | `pr.conflict` | The pull request of a worktree branch has merge conflicts. | |
 | `pr.merged` | The pull request of a worktree branch is merged. | |
 | `agent.done` | An agent ends its turn. | `withoutPullRequest` |
-| `task.new` ("Task matches") | A task of the bound collection agrees with the filters for the first time: a new task, or a change such as a new label, a new assignee or a new status. Other changes do not count. A done or canceled task never counts. Each task runs one time only. | `labels`, `assignedToMe`, `status` |
+| `task.new` ("Task matches") | A task of a bound collection agrees with the filters for the first time: a new task, or a change such as a new label, a new assignee or a new status. Other changes do not count. A done or canceled task never counts. Each task runs one time only. | `labels`, `assignedToMe`, `status` |
 | `schedule` | A time of day (`"HH:MM"`, local time) on the selected days (`0` is Sunday). | `days`, `time` |
 
 The pull request triggers and `agent.done` act only on worktrees with a branch, not on the main worktree.
 `conditions.branchPattern` limits them to branches that match a pattern. `*` matches any text.
+
+## Task automations
+
+A `task.new` automation reads the tasks of one or more collections, for example ClickUp lists. Select them in the
+"Collections" field. A task that is in two collections starts one run only.
+
+A label of the task can select the repository. Add a rule in "Repository by label", for example the label `api` and the
+repository of the API. The first rule with a label of the task applies. The labels ignore case. A task with no matching
+rule goes to the default repository. When there is no default repository, that task does not run. It runs when it gets a
+label with a rule.
+
+```json
+"binding": {
+  "connectionId": "clickup",
+  "collections": [{ "id": "901", "name": "Sprint" }, { "id": "902", "name": "Backlog" }],
+  "repos": ["/Users/me/code/app"],
+  "labelRepos": [{ "label": "api", "repo": "/Users/me/code/api" }]
+}
+```
+
+A file of an older version has `collectionId` and `collectionName`. ShipWarden reads them as one collection.
 
 ## Actions
 
@@ -85,7 +107,8 @@ trigger. A variable that the trigger does not give becomes empty text.
 - A run that sends a prompt waits while the agent works. It runs when the agent finishes its turn.
 - Each event runs one time only, also after a restart.
 - A new automation starts as a dry run. A dry run records what the automation would do, and does nothing.
-- A new `task.new` automation records the tasks that match when it starts. Only later tasks start agents.
+- A new `task.new` automation records the tasks that match when it starts. Only later tasks start agents. A collection
+  that you add later does the same.
 - A schedule time that passes while ShipWarden is closed does not run later.
 - The Automations view can pause all automations. Automations also pause while the plan usage of Claude or Codex is at
   or above a limit: a whole number from 5% to 100% (90% by default). "No limit" turns the check off, for example

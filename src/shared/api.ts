@@ -352,8 +352,11 @@ export interface ShipWardenApi {
          * writes and output count. Cache reads do not count.
          */
         countTokens(transcript: string, from: number, to?: number): Promise<TokenCount>;
-        /** Records event keys as fired without runs, for the first task list of an automation. */
-        seed(automationId: string, keys: string[]): Promise<void>;
+        /**
+         * Records event keys as fired without runs, for the first task list of an automation. `scope` is the entry for
+         * `seeded`, for example "<automation ID>|<collection ID>". The default is the automation ID.
+         */
+        seed(automationId: string, keys: string[], scope?: string): Promise<void>;
         setScheduleRun(automationId: string, at: number): Promise<void>;
         /** Removes the closed runs from the history. */
         clearHistory(): Promise<void>;

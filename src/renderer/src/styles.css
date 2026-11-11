@@ -12155,6 +12155,41 @@ button.pr-summary-cell:hover {
     width: auto;
 }
 
+/* The collections of a task automation: a multi-select with the size of the other fields. */
+.automation-editor .combobox {
+    width: 240px;
+    max-width: none;
+}
+
+.automation-editor .combobox-button {
+    padding: 6px 9px;
+    background: var(--bg);
+    color: var(--text-strong);
+}
+
+.automation-label-repos {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.automation-label-repo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.automation-label-repo input {
+    width: 140px;
+}
+
+.automation-label-repos > .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
 .automation-number {
     width: 72px;
 }
