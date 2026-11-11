@@ -27,6 +27,7 @@ import {
     type Trigger,
     type TriggerType
 } from '@shared/automations';
+import { AGENT_MODES, type AgentMode } from '@shared/agent-modes';
 import type { AgentDefinition } from '@shared/settings';
 import type { TaskCollection } from '@shared/tasks';
 import { Combobox, sortedGroups } from '../components/Combobox';
@@ -648,22 +649,37 @@ function ActionFields({ index, count, action, trigger, allowed, agents, onChange
                         )}
                     </>
                 )}
-                {action.type === 'startAgent' && (
+                {(action.type === 'sendToAgent' || action.type === 'startAgent') && (
                     <div className="automation-inline">
-                        <span className="automation-field">
-                            Agent{' '}
-                            <Select
+                        {action.type === 'startAgent' && (
+                            <span className="automation-field">
+                                Agent{' '}
+                                <Select
+                                    className="settings-input"
+                                    aria-label="Agent"
+                                    value={action.agentId ?? ''}
+                                    options={[
+                                        { value: '', label: 'The agent of the repository' },
+                                        ...agents.map(agent => ({ value: agent.id, label: agent.name }))
+                                    ]}
+                                    onChange={agentId => onChange({ ...action, agentId: agentId || undefined })}
+                                />
+                            </span>
+                        )}
+                        <span className="automation-field" title={AGENT_MODES.find(item => item.mode === action.mode)?.description}>
+                            Mode{' '}
+                            <Select<AgentMode | ''>
                                 className="settings-input"
-                                aria-label="Agent"
-                                value={action.agentId ?? ''}
-                                options={[
-                                    { value: '', label: 'The agent of the repository' },
-                                    ...agents.map(agent => ({ value: agent.id, label: agent.name }))
-                                ]}
-                                onChange={agentId => onChange({ ...action, agentId: agentId || undefined })}
+                                aria-label="Mode"
+                                value={action.mode ?? ''}
+                                options={[{ value: '', label: 'Default agent setting' }, ...AGENT_MODES.map(item => ({ value: item.mode, label: item.label }))]}
+                                onChange={mode => {
+                                    const { mode: _mode, ...rest } = action;
+                                    onChange(mode ? { ...rest, mode } : rest);
+                                }}
                             />
                         </span>
-                        {trigger === 'schedule' && (
+                        {action.type === 'startAgent' && trigger === 'schedule' && (
                             <label>
                                 Branch{' '}
                                 <input
@@ -674,6 +690,12 @@ function ActionFields({ index, count, action, trigger, allowed, agents, onChange
                                 />
                             </label>
                         )}
+                    </div>
+                )}
+                {action.type === 'sendToAgent' && action.mode && (
+                    <div className="automation-variables">
+                        A new agent starts in this mode. A running Claude Code agent changes to it before the prompt. Other running agents cannot change their
+                        mode, so the run fails.
                     </div>
                 )}
                 {action.type === 'runHeadless' && (

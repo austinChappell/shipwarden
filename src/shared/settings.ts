@@ -11,6 +11,7 @@ import { DEFAULT_APPEARANCE, normalizeAppearance, type Appearance } from './them
 import { normalizeHiddenWorktrees, type HiddenWorktree } from './worktrees';
 import { DEFAULT_REMOTE_SETTINGS, normalizeRemoteSettings, type RemoteSettings } from './remote';
 import { normalizeOnboarding, type OnboardingSettings } from './onboarding';
+import { isAgentMode, type AgentMode } from './agent-modes';
 
 /**
  * An agent that the Agent button can start, for example Claude Code. The command runs in an interactive login shell,
@@ -20,6 +21,8 @@ export interface AgentDefinition {
     id: string;
     name: string;
     command: string;
+    /** The permission mode of a new session. An automation can set another mode. Without it, the agent uses its own setting. */
+    mode?: AgentMode;
 }
 
 /** The colors that a repository can have. Each one is readable on light and dark themes. */
@@ -213,7 +216,7 @@ function normalizeAgents(raw: Record<string, unknown>): { agents: AgentDefinitio
         if (!agent || !id || !command || agents.some(existing => existing.id === id)) {
             continue;
         }
-        agents.push({ id, name: cleanName(agent.name) ?? agentTitle(command), command });
+        agents.push({ id, name: cleanName(agent.name) ?? agentTitle(command), command, ...(isAgentMode(agent.mode) ? { mode: agent.mode } : {}) });
     }
     if (agents.length === 0) {
         // Settings from before the agent list have one "agentCommand". It becomes the default agent.

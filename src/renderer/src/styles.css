@@ -5765,6 +5765,10 @@ button:focus-visible,
     font-size: 12px;
 }
 
+.agent-mode-select {
+    flex: 0 0 150px;
+}
+
 .agent-setting .settings-check {
     margin: 6px 0 0 96px;
 }

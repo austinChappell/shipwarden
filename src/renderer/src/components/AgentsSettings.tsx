@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { CircleAlert, CircleCheck, Plus, Trash2 } from 'lucide-react';
+import { AGENT_MODES, modesOf, type AgentMode } from '@shared/agent-modes';
+import { agentProgramOf } from '@shared/agent-programs';
 import { hookAgentOf } from '@shared/agents';
 import { cleanCommand, commandProgram, missingDefaultAgents, type AgentDefinition, type AppSettings, type CommandCheck } from '@shared/settings';
 import { errorText } from '../util';
+import { Select } from './Select';
 import { SettingsGroup } from './settings-ui';
 
 const api = window.shipwarden;
@@ -62,7 +65,7 @@ interface RowProps {
     onRemove(): void;
 }
 
-/** One agent: the default choice, the name and the command. A change saves when the field loses focus. */
+/** One agent: the default choice, the name, the command, and the mode. A text change saves when the field loses focus. */
 function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemove }: RowProps) {
     const [name, setName] = useState(agent.name);
     const [command, setCommand] = useState(agent.command);
@@ -77,8 +80,17 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
         }
         const nextName = name.trim() || agent.name;
         if (nextName !== agent.name || cleaned !== agent.command) {
-            onChange({ ...agent, name: nextName, command: cleaned });
+            // A new program can lack the mode of the old program. Then the agent uses its own setting.
+            const keepMode = agent.mode && modesOf(agentProgramOf(cleaned)).includes(agent.mode);
+            const { mode: _mode, ...rest } = agent;
+            onChange({ ...rest, name: nextName, command: cleaned, ...(keepMode ? { mode: agent.mode } : {}) });
         }
+    };
+
+    const modes = modesOf(agentProgramOf(agent.command));
+    const changeMode = (value: AgentMode | '') => {
+        const { mode: _mode, ...rest } = agent;
+        onChange(value ? { ...rest, mode: value } : rest);
     };
 
     return (
@@ -105,6 +117,22 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                     onChange={event => setCommand(event.target.value)}
                     onBlur={commit}
                     onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+                />
+                <Select<AgentMode | ''>
+                    className="settings-input agent-mode-select"
+                    aria-label="Agent mode"
+                    title={
+                        modes.length > 0
+                            ? 'The permission mode of a new session. An automation can set another mode.'
+                            : 'ShipWarden sets a mode only for Claude Code, Codex, Gemini CLI, and opencode.'
+                    }
+                    disabled={modes.length === 0}
+                    value={agent.mode ?? ''}
+                    options={[
+                        { value: '', label: 'Own setting' },
+                        ...AGENT_MODES.filter(item => modes.includes(item.mode)).map(item => ({ value: item.mode, label: item.label }))
+                    ]}
+                    onChange={changeMode}
                 />
                 <button
                     className="icon-button"
@@ -157,7 +185,9 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
     return (
         <SettingsGroup
             title="Agents"
-            description="The agents that the Agent button can start. Each one runs in your login shell, so your PATH applies. A repository can use another agent than the default in its repository settings."
+            description={
+                'The agents that the Agent button can start. Each one runs in your login shell, so your PATH applies. A repository can use another agent than the default in its repository settings. The mode is the permission mode of a new session. With "Own setting", the agent uses its own configuration.'
+            }
             card
         >
             {settings.agents.map(agent => (
