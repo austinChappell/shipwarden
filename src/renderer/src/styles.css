@@ -5329,20 +5329,6 @@ button:focus-visible,
     color: var(--muted);
 }
 
-.agents-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    margin-top: 80px;
-    color: var(--muted);
-    text-align: center;
-}
-
-.agents-empty p {
-    margin: 0;
-}
-
 /* The ShipWarden name and mark at the top of the sidebar */
 
 .brand {
@@ -12589,6 +12575,98 @@ button.pr-summary-cell:hover {
 .update-notice.tour-offer {
     top: calc(var(--titlebar-height) + 12px);
     bottom: auto;
+}
+
+/* The empty state of a view (EmptyState): an icon, a title, one sentence and one action. */
+.empty-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    max-width: 440px;
+    margin: 90px auto 0;
+    padding: 0 16px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.empty-state > .empty-view {
+    margin-top: 0;
+}
+
+.empty-view.compact {
+    gap: 6px;
+    margin: 24px auto;
+    font-size: 12.5px;
+}
+
+.empty-view h2 {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.empty-view.compact h2 {
+    font-size: 14px;
+}
+
+.empty-view p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.empty-view-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.empty-view-actions .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.empty-view-hint {
+    font-size: 12px;
+}
+
+.empty-view-hint kbd,
+.empty-view p kbd {
+    padding: 0 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--raised);
+    color: var(--text);
+    font: inherit;
+    white-space: nowrap;
+}
+
+.empty-view > * {
+    max-width: 100%;
+}
+
+.empty-view-path {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
+}
+
+/* The card at the top of the Dashboard when no code review account is set up. */
+.dash-connect {
+    margin-bottom: 18px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: var(--panel);
 }
 
 /* The optional settings of the welcome page. They open on the page, so the user does not leave it. */

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueries, type UseQueryResult } from '@tanstack/react-query';
-import { Bot, ChevronRight } from 'lucide-react';
+import { Bot, ChevronRight, Play } from 'lucide-react';
+import { EmptyState } from './EmptyState';
 import {
     ciStateOf,
     ciText,
@@ -39,6 +40,8 @@ interface Props {
     repoColor(repo: string): RepoColor | undefined;
     /** Shows the tab of the agent. `projectId` is the project of the agent's worktree, if ShipWarden found one. */
     onOpen(session: TerminalSession, projectId: string | undefined): void;
+    /** Goes to a place where the user can start an agent: the selected worktree, the New worktree dialog or "Add a repository". */
+    onStartAgent(): void;
 }
 
 /** Where a worktree is: its repository and its branch. */
@@ -94,7 +97,7 @@ function usageText(usage: readonly ProviderUsage[]): string | undefined {
  * its last output, a name for the work (the linked task, the last prompt or the branch), what the agent does now,
  * the pull request with its CI state, and where the agent runs.
  */
-export function AgentsView({ sessions: sessionList, projects, links, repoLabel, repoColor, onOpen }: Props) {
+export function AgentsView({ sessions: sessionList, projects, links, repoLabel, repoColor, onOpen, onStartAgent }: Props) {
     const [places, setPlaces] = useState<Record<string, Place>>({});
     // The plan usage of the agents. ShipWarden has no usage for each agent, only for each sign-in.
     const usage = useUsage();
@@ -209,11 +212,18 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
             </header>
             <div className="agents-scroll" onKeyDown={moveListFocus}>
                 {agents.length === 0 && (
-                    <div className="agents-empty">
-                        <Bot size={28} strokeWidth={1.4} />
-                        <p>No agents run now.</p>
-                        <p className="panel-note">Start one from a worktree with the Agent button, or from a task with "Start in worktree".</p>
-                    </div>
+                    <EmptyState
+                        icon={Bot}
+                        title="No agents run now"
+                        actions={
+                            <button className="button primary" onClick={onStartAgent}>
+                                <Play size={13} strokeWidth={1.8} aria-hidden="true" /> Start an agent in a worktree
+                            </button>
+                        }
+                        hint="You can also start an agent from a task with “Start in worktree”."
+                    >
+                        This view shows all agents of all projects and their state. Start an agent in a worktree to see it here.
+                    </EmptyState>
                 )}
                 {groups.map(group => {
                     const headingId = `agents-group-${group.id ?? 'other'}`;

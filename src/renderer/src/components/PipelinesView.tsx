@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, LoaderCircle, Play, RefreshCw, RotateCw, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
+import { EmptyState } from './EmptyState';
 import {
     hostLabel,
     parseRepoId,
@@ -296,14 +297,17 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
     if (reviewKey === null) {
         return (
             <div className="pipelines-view">
-                <div className="review-empty">
-                    <WorkflowIcon size={30} strokeWidth={1.3} />
-                    <h2>Pipelines</h2>
-                    <p>Add a GitHub or Azure DevOps provider to see the pipelines of its repositories. The Review view uses the same providers.</p>
-                    <button className="button primary" onClick={onOpenSettings}>
-                        Open Settings › Code review
-                    </button>
-                </div>
+                <EmptyState
+                    icon={WorkflowIcon}
+                    title="No code review account"
+                    actions={
+                        <button className="button primary" onClick={onOpenSettings}>
+                            Open Settings › Code review
+                        </button>
+                    }
+                >
+                    Add a GitHub or Azure DevOps account to see the pipelines of its repositories. The Review view uses the same accounts.
+                </EmptyState>
             </div>
         );
     }
@@ -369,7 +373,9 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                     )}
                     {workflows?.length === 0 && (
                         <div className="panel-note">
-                            {repoRef?.host === 'azure' ? 'This repository has no pipelines.' : 'This repository has no workflows in .github/workflows.'}
+                            {repoRef?.host === 'azure'
+                                ? 'This repository has no pipelines.'
+                                : 'This repository has no workflows. GitHub Actions runs the YAML files in .github/workflows when you push, and this view shows their runs.'}
                         </div>
                     )}
                     {workflows?.map(workflow => (

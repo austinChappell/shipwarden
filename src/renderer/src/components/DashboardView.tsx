@@ -8,12 +8,14 @@ import {
     ExternalLink,
     EyeOff,
     Filter,
+    GitPullRequest,
     LayoutDashboard,
     MessageSquare,
     RefreshCw,
     Search,
     Settings2
 } from 'lucide-react';
+import { EmptyState } from './EmptyState';
 import {
     ageLevel,
     bucketMyPullRequests,
@@ -49,6 +51,10 @@ import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 export type ReviewTabRequest = 'overview' | 'checks' | 'files';
 
 interface Props {
+    /** The key of the code review accounts. Null: no account is set up, so the Dashboard has no pull requests. */
+    reviewKey: string | null | undefined;
+    /** Opens Settings › Code review. */
+    onOpenReviewSettings(): void;
     /** Opens a pull request in the Review view. */
     onOpenPullRequest(repo: RepoRef, number: number, tab: ReviewTabRequest): void;
     /** The hidden authors and the hiding rules of Settings > Dashboard. */
@@ -389,7 +395,7 @@ function groupBy<T>(items: T[], key: (item: T) => string): [string, T[]][] {
  * The review requests and the new comments on pull requests and tasks on the right.
  * A comment is new until the user sees it in ShipWarden.
  */
-export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreateRule, onOpenSettings }: Props) {
+export function DashboardView({ reviewKey, onOpenReviewSettings, onOpenPullRequest, filter, onHideAuthor, onCreateRule, onOpenSettings }: Props) {
     const state = useDashboard();
     useSeenVersion();
     const [query, setQuery] = useState('');
@@ -592,6 +598,27 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
             )}
             <div className="dash-scroll" hidden={firstLoad} onKeyDown={moveListFocus}>
                 <div className="dash-page">
+                    {reviewKey === null && (
+                        <div className="dash-connect">
+                            <EmptyState
+                                icon={GitPullRequest}
+                                title="Connect GitHub or Azure DevOps"
+                                size="compact"
+                                actions={
+                                    <button className="button primary" onClick={onOpenReviewSettings}>
+                                        Open Settings › Code review
+                                    </button>
+                                }
+                                hint={
+                                    <>
+                                        For GitHub, ShipWarden can use the login of the GitHub CLI. Run <kbd>gh auth login</kbd> in a terminal.
+                                    </>
+                                }
+                            >
+                                The Dashboard shows your pull requests, the review requests and new comments. It needs a code review account.
+                            </EmptyState>
+                        </div>
+                    )}
                     <div className="dash-stats">
                         <StatCard
                             tone="review"

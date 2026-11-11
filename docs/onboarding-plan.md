@@ -1,6 +1,6 @@
 # Plan: onboarding and tutorial
 
-Status: phases 1 to 3 done. Branch: `onboarding`, then one branch for each phase (`onboarding-2`, …).
+Status: phases 1 to 4 done. Branch: `onboarding`, then one branch for each phase (`onboarding-2`, …).
 
 This document is the brief for the onboarding work. Give it to Claude at the start of each session:
 
@@ -222,4 +222,8 @@ We decided these in phase 1.
   the user does not leave it.
 - Phase 2: the welcome page opens when `welcome` is 'new', also when the user added a repository on the page and
   restarted the app before the last step. The page then shows the progress, and the user can finish or skip.
+- Phase 4: the Review and Dashboard empty states show when no code review account is set up (`reviewKey === null`).
+  They name `gh auth login` and open Settings › Code review. They do not run the setup checks, because the checks run
+  only on request. A GitHub task connection exists by default, so the Tasks empty state shows only when the user
+  removes all task managers.
 - Phase 3 adds the one-time "Take a short tour of ShipWarden?" notice for current users, together with the tour.

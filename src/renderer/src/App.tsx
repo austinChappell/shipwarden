@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ListTodo, PanelRight } from 'lucide-react';
+import { FolderDown, FolderGit2, FolderPlus, GitBranchPlus, ListTodo, PanelRight, Play, SquareTerminal } from 'lucide-react';
+import { EmptyState } from './components/EmptyState';
+import { CloneRepoDialog } from './components/CloneRepoDialog';
+import { startAgentAction } from './app/empty-states';
 import type { PullRequest, PullRequestFile } from '@shared/github';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } from './components/RightPanel';
@@ -139,6 +142,8 @@ export function App() {
      * start point. Without a start point, the dialog starts from the default branch.
      */
     const [newWorktree, setNewWorktree] = useState<NewWorktreeTarget>();
+    /** True while the clone dialog of the empty worktree area shows. */
+    const [cloneOpen, setCloneOpen] = useState(false);
     /** The name of a repository in the UI: its name from the repository settings, else its folder name. */
     const repoLabel = (repo: string) => repoDisplayName(appSettings, repo);
 
@@ -720,6 +725,8 @@ export function App() {
                     {mainView === 'dashboard' && (
                         <main className="workspace">
                             <DashboardView
+                                reviewKey={reviewKey}
+                                onOpenReviewSettings={() => openSettings('review')}
                                 key={viewEntry}
                                 onOpenPullRequest={openPullRequest}
                                 filter={commentFilter}
@@ -745,6 +752,15 @@ export function App() {
                                 repoLabel={repoLabel}
                                 repoColor={repo => appSettings.repos[repo]?.color}
                                 onOpen={openAgent}
+                                onStartAgent={() => {
+                                    const action = startAgentAction(selectedPath, repos.length);
+                                    if (action === 'worktree') setMainView('worktree');
+                                    else if (action === 'newWorktree') setNewWorktree({ repo: selectedRepo ?? repos[0] });
+                                    else {
+                                        setMainView('worktree');
+                                        void project.addRepo();
+                                    }
+                                }}
                             />
                         </main>
                     )}
@@ -866,24 +882,63 @@ export function App() {
                                 />
                             ) : (
                                 <div className="empty-state">
-                                    {repos.length === 0 && (
-                                        <>
-                                            <div className="empty-title">{activeProject ? `${activeProject.name} has no repositories` : 'Loading…'}</div>
-                                            {activeProject && (
-                                                <button className="button primary" onClick={project.addRepo}>
-                                                    Add a repository
-                                                </button>
-                                            )}
-                                        </>
+                                    {!activeProject && <div className="empty-title">Loading…</div>}
+                                    {activeProject && repos.length === 0 && (
+                                        <EmptyState
+                                            icon={FolderGit2}
+                                            title={`${activeProject.name} has no repositories`}
+                                            actions={
+                                                <>
+                                                    <button className="button primary" onClick={project.addRepo}>
+                                                        <FolderPlus size={13} strokeWidth={1.8} aria-hidden="true" /> Add a repository
+                                                    </button>
+                                                    <button className="button" onClick={() => setCloneOpen(true)}>
+                                                        <FolderDown size={13} strokeWidth={1.8} aria-hidden="true" /> Clone a repository
+                                                    </button>
+                                                </>
+                                            }
+                                        >
+                                            Add a git repository from your Mac, or clone one from GitHub. Then create worktrees and start agents in them.
+                                        </EmptyState>
                                     )}
                                     {repos.length > 0 && selected && (
-                                        <>
-                                            <div className="empty-title">{selected.branch ?? selected.path}</div>
-                                            <div className="empty-detail">{selected.path}</div>
-                                            <button className="button primary" data-tour="agent" onClick={() => startTerminal(selected, 'agent')}>
-                                                Start {agentForRepo(appSettings, selectedRepo).name}
-                                            </button>
-                                        </>
+                                        <EmptyState
+                                            icon={SquareTerminal}
+                                            title={selected.branch ?? selected.path}
+                                            actions={
+                                                <button className="button primary" data-tour="agent" onClick={() => startTerminal(selected, 'agent')}>
+                                                    <Play size={13} strokeWidth={1.8} aria-hidden="true" /> Start {agentForRepo(appSettings, selectedRepo).name}
+                                                </button>
+                                            }
+                                            hint={
+                                                <>
+                                                    Press <kbd>⌘T</kbd> for a shell tab. Press <kbd>⌘N</kbd> for a new worktree.
+                                                </>
+                                            }
+                                        >
+                                            <span className="empty-view-path" title={selected.path}>
+                                                {selected.path}
+                                            </span>
+                                            This worktree has no tabs. Start an agent to give it work.
+                                        </EmptyState>
+                                    )}
+                                    {repos.length > 0 && !selected && (
+                                        <EmptyState
+                                            icon={GitBranchPlus}
+                                            title="No worktree is selected"
+                                            actions={
+                                                <button className="button primary" onClick={() => setNewWorktree({ repo: selectedRepo ?? repos[0] })}>
+                                                    <GitBranchPlus size={13} strokeWidth={1.8} aria-hidden="true" /> Create a worktree
+                                                </button>
+                                            }
+                                            hint={
+                                                <>
+                                                    Press <kbd>⌘N</kbd> for a new worktree.
+                                                </>
+                                            }
+                                        >
+                                            Select a worktree in the sidebar, or create a worktree for a new branch.
+                                        </EmptyState>
                                     )}
                                 </div>
                             )}
@@ -914,6 +969,13 @@ export function App() {
                             onOpenAllChanges={openAllChanges}
                             // The Review view needs a provider that is on, so the button needs one.
                             onOpenInReview={reviewKey ? (repo, pr) => openPullRequest(repo, pr.number, 'overview') : undefined}
+                        />
+                    )}
+                    {cloneOpen && activeProject && (
+                        <CloneRepoDialog
+                            projectName={activeProject.name}
+                            onClose={() => setCloneOpen(false)}
+                            onClone={repo => project.pullRepo(repo, { projectId: activeProject.id })}
                         />
                     )}
                     {newWorktree && (
