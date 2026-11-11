@@ -305,7 +305,16 @@ export interface Handlers {
      */
     statusOrder?(params: { collection: string }): Promise<{ statuses: Status[] }>;
     listComments?(params: { taskId: string }): Promise<Comment[]>;
-    createComment?(params: { taskId: string; body: string }): Promise<Comment>;
+    /**
+     * Adds a comment. Each mention is in the body as "@" and the name of the person. Each reference to another task is in
+     * the body as its `text` (the key, or the URL). The plugin can change them to native mentions and links.
+     */
+    createComment?(params: {
+        taskId: string;
+        body: string;
+        mentions?: { id: string; name: string }[];
+        references?: { id: string; text: string; url?: string }[];
+    }): Promise<Comment>;
     runAction?(params: { taskId: string; actionId: string }): Promise<{ message?: string }>;
     /**
      * Returns the comments from other people on the user's tasks that are newer than `since` (an ISO time).

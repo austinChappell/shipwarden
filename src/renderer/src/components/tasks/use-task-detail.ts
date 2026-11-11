@@ -1,6 +1,6 @@
 import { useEffect, useState, type SetStateAction } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { OptionPart, Task, TaskComment, TaskOptions, TaskSource, TaskStatus, TaskUpdate } from '@shared/tasks';
+import type { CommentInput, OptionPart, Task, TaskComment, TaskOptions, TaskSource, TaskStatus, TaskUpdate } from '@shared/tasks';
 import { taskSeenKey } from '@shared/dashboard';
 import { errorText, optionalErrorText } from '../../util';
 import { seenStore } from '../../seen-store';
@@ -23,6 +23,8 @@ export interface TaskEdit {
 }
 
 const NO_STATUSES: TaskStatus[] = [];
+/** The time that the options of a part stay fresh: a few minutes. */
+const OPTIONS_STALE_MS = 5 * 60 * 1000;
 const NO_COMMENTS: TaskComment[] = [];
 
 /** The details of the selected task, its statuses and comments, and the actions on the task. */
@@ -105,18 +107,22 @@ export function useTaskDetail({ source, selectedId, setSelectedId, request, setT
     const changeStatus = (statusId: string) => updateTask({ status: statusId });
 
     /** Loads the options of a part of the selected task. The view keeps them for a few minutes. */
-    const loadOptions = (part: OptionPart) =>
-        queryClient.fetchQuery({
-            queryKey: taskQueryKeys.options(source?.connectionId, detail?.id, part),
-            queryFn: () => request<TaskOptions>('tasks/options', { id: detail?.id, part }),
-            staleTime: 5 * 60 * 1000
-        });
+    const loadOptions = (part: OptionPart) => queryClient.fetchQuery(optionsQuery(part));
 
-    const addComment = () =>
+    /** The query of the options of a part, for `useQuery` and `fetchQuery`. */
+    const optionsQuery = (part: OptionPart) => ({
+        queryKey: taskQueryKeys.options(source?.connectionId, detail?.id, part),
+        queryFn: () => request<TaskOptions>('tasks/options', { id: detail?.id, part }),
+        staleTime: OPTIONS_STALE_MS
+    });
+
+    /** Adds the comment in the box. `links` has the people and the tasks that the user picked with "@" and "#". */
+    const addComment = (links: Pick<CommentInput, 'mentions' | 'references'> = {}) =>
         detail &&
         commentText.trim() &&
         act(async () => {
-            const created = await request<TaskComment>('comments/create', { taskId: detail.id, body: commentText.trim() });
+            const input: CommentInput = { taskId: detail.id, body: commentText.trim(), ...links };
+            const created = await request<TaskComment>('comments/create', input);
             patchDetail(current => ({ ...current, comments: [...current.comments, created] }));
             setCommentText('');
         });
@@ -180,6 +186,7 @@ export function useTaskDetail({ source, selectedId, setSelectedId, request, setT
         act,
         updateTask,
         loadOptions,
+        optionsQuery,
         changeStatus,
         addComment,
         runAction,

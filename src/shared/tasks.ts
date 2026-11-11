@@ -196,6 +196,19 @@ export interface StatusOrder {
     statuses: TaskStatus[];
 }
 
+/**
+ * The params of comments/create. The body is Markdown.
+ * - Each mention is in the body as "@" and the name of the person, for example "@Ann Lee".
+ * - Each reference is in the body as its `text`: the key of the task, or its URL when the task has no key.
+ * A plugin can change them to the native mentions and links of the tracker. A plugin that ignores them posts the body as it is.
+ */
+export interface CommentInput {
+    taskId: string;
+    body: string;
+    mentions?: { id: string; name: string }[];
+    references?: { id: string; text: string; url?: string }[];
+}
+
 export interface TaskComment {
     id: string;
     author?: TaskPerson;

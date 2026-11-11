@@ -30,6 +30,10 @@ import {
     checklistProgress,
     customFieldEmpty,
     addLabelOptions,
+    commentLinks,
+    rankPeople,
+    rankTasks,
+    referenceText,
     dayInputValue,
     editableParts,
     parseDuration
@@ -365,5 +369,49 @@ describe('task edits', () => {
             { id: 'bug', name: 'bug' },
             { id: 'ui', name: 'ui', color: '#fff' }
         ]);
+    });
+});
+
+describe('comment mentions', () => {
+    const task = (id: string, title: string, key?: string) => ({ id, key, title, status: { id: 's', name: 'S', category: 'todo' as const } });
+
+    it('ranks people by name', () => {
+        const people = [
+            { id: '1', name: 'Bob Ann' },
+            { id: '2', name: 'Ann Lee' },
+            { id: '3', name: 'Joanna' },
+            { id: '4', name: 'Zed' }
+        ];
+        expect(rankPeople(people, 'ann').map(person => person.id)).toEqual(['2', '1', '3']);
+        expect(rankPeople(people, '').map(person => person.id)).toEqual(['1', '2', '3', '4']);
+    });
+
+    it('ranks tasks by key and title and leaves out the open task', () => {
+        const tasks = [task('a', 'Fix login', 'ENG-1'), task('b', 'Login page', 'ENG-2'), task('c', 'Add ENG docs')];
+        expect(rankTasks(tasks, 'eng-2').map(item => item.id)).toEqual(['b']);
+        expect(rankTasks(tasks, 'login', 'b').map(item => item.id)).toEqual(['a']);
+    });
+
+    it('uses the key, the URL or the ID as the reference text', () => {
+        expect(referenceText({ id: '1', key: 'ENG-1', url: 'u' })).toBe('ENG-1');
+        expect(referenceText({ id: '1', url: 'u' })).toBe('u');
+        expect(referenceText({ id: '1' })).toBe('1');
+    });
+
+    it('keeps only the mentions and references that are still in the body', () => {
+        const result = commentLinks(
+            'Hi @Ann Lee, see ENG-1',
+            [
+                { id: '2', name: 'Ann Lee' },
+                { id: '2', name: 'Ann Lee' },
+                { id: '4', name: 'Zed' }
+            ],
+            [
+                { id: 'a', text: 'ENG-1' },
+                { id: 'b', text: 'ENG-2' }
+            ]
+        );
+        expect(result).toEqual({ mentions: [{ id: '2', name: 'Ann Lee' }], references: [{ id: 'a', text: 'ENG-1' }] });
+        expect(commentLinks('plain', [], [])).toEqual({});
     });
 });

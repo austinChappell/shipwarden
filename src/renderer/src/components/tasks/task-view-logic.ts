@@ -1,4 +1,5 @@
 import type {
+    CommentInput,
     ConnectionInfo,
     EditableParts,
     FilterDefinition,
@@ -8,6 +9,7 @@ import type {
     TaskComment,
     TaskLabel,
     TaskLink,
+    TaskOption,
     TaskOptions,
     TaskSource,
     TaskStatus
@@ -321,4 +323,57 @@ export function parseDuration(text: string): number | null | undefined {
     const parts = [...value.matchAll(/(\d+(?:\.\d+)?)\s*([wdhm])/g)];
     if (parts.length === 0 || value.replace(/(\d+(?:\.\d+)?)\s*([wdhm])/g, '').trim() !== '') return undefined;
     return Math.round(parts.reduce((total, part) => total + Number(part[1]) * DURATION_UNITS[part[2]], 0));
+}
+
+/** Changes the text to lower case and removes accents, so "José" matches "jose". */
+function fold(text: string): string {
+    return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
+/**
+ * Returns the items that match the query, in three groups: the text starts with the query, a word of the text starts
+ * with the query, and the text contains the query. The order of `items` stays in each group.
+ */
+function rankByText<T>(items: readonly T[], texts: (item: T) => string[], query: string, limit: number): T[] {
+    const needle = fold(query.trim());
+    const groups: T[][] = [[], [], []];
+    for (const item of items) {
+        const values = texts(item).map(fold);
+        if (values.some(value => value.startsWith(needle))) groups[0].push(item);
+        else if (values.some(value => value.split(/[^\p{L}\p{N}]+/u).some(word => word.startsWith(needle)))) groups[1].push(item);
+        else if (values.some(value => value.includes(needle))) groups[2].push(item);
+    }
+    return groups.flat().slice(0, limit);
+}
+
+/** Returns the people that match an "@" query, by name. */
+export function rankPeople(people: readonly TaskOption[], query: string, limit = 8): TaskOption[] {
+    return rankByText(people, person => [person.name], query, limit);
+}
+
+/** Returns the tasks that match a "#" query, by key or title. The task with `exclude` as ID is not in the result. */
+export function rankTasks(tasks: readonly Task[], query: string, exclude?: string, limit = 8): Task[] {
+    return rankByText(
+        tasks.filter(task => task.id !== exclude),
+        task => [task.key ?? '', task.title],
+        query,
+        limit
+    );
+}
+
+/** The text of a task reference in a comment: the key of the task, or its URL, or its ID. */
+export function referenceText(task: Pick<Task, 'id' | 'key' | 'url'>): string {
+    return task.key ?? task.url ?? task.id;
+}
+
+/** Returns the mentions and the references that are still in the body of a comment. */
+export function commentLinks(
+    body: string,
+    mentions: readonly { id: string; name: string }[],
+    references: readonly { id: string; text: string; url?: string }[]
+): Pick<CommentInput, 'mentions' | 'references'> {
+    const unique = <T extends { id: string }>(items: readonly T[]) => [...new Map(items.map(item => [item.id, item])).values()];
+    const kept = unique(mentions).filter(person => body.includes(`@${person.name}`));
+    const linked = unique(references).filter(reference => body.includes(reference.text));
+    return { ...(kept.length ? { mentions: kept } : {}), ...(linked.length ? { references: linked } : {}) };
 }

@@ -223,7 +223,7 @@ interface FilterDefinition {
 | `tasks/statuses` | `{ id?: string }` (the statuses that apply to a task) | `Status[]` |
 | `tasks/statusOrder` | `{ collection: string }` | `{ statuses: Status[] }` |
 | `comments/list` | `{ taskId: string }` | `Comment[]` |
-| `comments/create` | `{ taskId: string, body: string }` | `Comment` |
+| `comments/create` | `{ taskId: string, body: string, mentions?: Mention[], references?: Reference[] }` | `Comment` |
 | `tasks/action` | `{ taskId: string, actionId: string }` | `{ message?: string }` |
 | `activity/list` | `{ since: string }` (an ISO time) | `{ comments: ActivityComment[] }`: new comments from other people on the user's tasks |
 | `people/list` | `{ collection: string }` | `{ people: Person[], me?: string }`: the people that can be assignees |
@@ -288,6 +288,21 @@ interface TaskUpdate {
 - A custom field value: "labels" and "people" send a list of option IDs. A single "labels" field (without `multiple`)
   sends a list with at most one ID. "date" sends "YYYY-MM-DD". "rating" and "progress" send a number.
 - Without `editable`, the capability `edit` gives the title and the description, as before.
+
+### Mentions and task references in comments
+
+In the comment box, "@" lists the people of the task and "#" lists the loaded tasks. ShipWarden puts the choice in the
+body and also sends it in the params:
+
+```ts
+interface Mention { id: string; name: string }              // In the body as "@" + name, for example "@Ann Lee".
+interface Reference { id: string; text: string; url?: string } // In the body as `text`: the task key, else the URL.
+```
+
+- The people come from `tasks/options` with `"assignees"`, so a plugin with the capability `options` gets the "@" list.
+- A plugin can change a mention to a native mention that sends a notification, and a reference to a native link.
+  The ClickUp plugin does this. A plugin that ignores `mentions` and `references` posts the body as it is.
+- `mentions` and `references` contain only the items that are still in the body when the user sends the comment.
 
 ### Assignees
 

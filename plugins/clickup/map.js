@@ -331,6 +331,51 @@ export function customFieldRequest(field, value) {
     }
 }
 
+/**
+ * Splits the body of a comment into ClickUp comment parts. "@" and the name of a mentioned person becomes a tag.
+ * The text of a task reference becomes the URL of the task. The other text stays text.
+ */
+export function commentParts(body, mentions = [], references = []) {
+    const tokens = [
+        ...mentions.map(person => ({ text: `@${person.name}`, part: { type: 'tag', user: { id: Number(person.id) } } })),
+        ...references.map(reference => ({ text: reference.text, part: { text: reference.url ?? taskUrl(reference.id) } }))
+    ]
+        .filter(token => token.text.length > 1)
+        // A longer token wins over a shorter token that starts at the same place, for example "@Ann Lee" over "@Ann".
+        .sort((a, b) => b.text.length - a.text.length);
+    const parts = [];
+    const addText = text => {
+        if (!text) return;
+        const last = parts[parts.length - 1];
+        if (last && last.type === undefined) last.text += text;
+        else parts.push({ text });
+    };
+    let rest = String(body);
+    while (rest) {
+        let best;
+        for (const token of tokens) {
+            const index = rest.indexOf(token.text);
+            if (index >= 0 && (best === undefined || index < best.index)) best = { index, token };
+        }
+        if (!best) {
+            addText(rest);
+            break;
+        }
+        addText(rest.slice(0, best.index));
+        if (best.token.part.type) parts.push(best.token.part);
+        else addText(best.token.part.text);
+        rest = rest.slice(best.index + best.token.text.length);
+    }
+    return parts;
+}
+
+/** The plain text of comment parts. A tag becomes "@" and the name of the person again. */
+export function plainComment(parts, mentions = []) {
+    return parts
+        .map(part => (part.type === 'tag' ? `@${mentions.find(person => Number(person.id) === part.user.id)?.name ?? part.user.id}` : part.text))
+        .join('');
+}
+
 export function toComment(comment) {
     return {
         id: String(comment.id),

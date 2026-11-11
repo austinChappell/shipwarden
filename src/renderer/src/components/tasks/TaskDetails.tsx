@@ -2,14 +2,14 @@ import { ExternalLink, LoaderCircle, Trash2 } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { timeAgo } from '../../util';
 import { openLink } from '../../links';
-import { Markdown } from '../Markdown';
 import { Select } from '../Select';
 import { editableParts, formatField } from './task-view-logic';
-import { FieldRow, StatusDot, TaskAvatar } from './TaskParts';
+import { FieldRow, StatusDot } from './TaskParts';
 import { TaskActions } from './TaskActions';
 import { AttachmentsSection, ChecklistsSection, CustomFieldsSection, DetailMetaRows, RelatedTasksSection } from './TaskDetailSections';
 import { EditableMetaRows } from './TaskMetaEditors';
-import { DescriptionCard, TaskCard, TaskTitle } from './TaskBody';
+import { DescriptionCard, TaskTitle } from './TaskBody';
+import { TaskComments } from './TaskComments';
 import type { useTaskDetail } from './use-task-detail';
 
 interface Props {
@@ -26,6 +26,8 @@ interface Props {
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
     /** A loaded task with the ID, for the titles of subtasks and linked tasks. */
     findTask(id: string): Task | undefined;
+    /** The loaded tasks. The comment box links to them with "#". */
+    tasks: readonly Task[];
     /** Opens another task in the details, for example a subtask. */
     onOpenTask(id: string): void;
 }
@@ -43,9 +45,10 @@ export function TaskDetails({
     onOpenWorktree,
     onStartTask,
     findTask,
+    tasks,
     onOpenTask
 }: Props) {
-    const { detail, statuses, comments, commentText, setCommentText, busy, detailError, editing, setEditing } = state;
+    const { detail, statuses, busy, detailError, editing, setEditing } = state;
     const editable = detail ? editableParts(detail, source.capabilities) : {};
     return (
         <>
@@ -144,30 +147,7 @@ export function TaskDetails({
                             />
                             <AttachmentsSection attachments={detail.details?.attachments} />
 
-                            {source.capabilities.comments && (
-                                <TaskCard title="Comments" count={comments.length} className="task-comments">
-                                    {comments.map(comment => (
-                                        <div key={comment.id} className="thread-comment">
-                                            <div className="comment-author">
-                                                {comment.author && <TaskAvatar person={comment.author} size={18} />}
-                                                {comment.author?.name ?? 'unknown'} {comment.createdAt && <span>{timeAgo(comment.createdAt)}</span>}
-                                            </div>
-                                            <Markdown className="comment-body" text={comment.body} />
-                                        </div>
-                                    ))}
-                                    <textarea
-                                        className="review-body"
-                                        value={commentText}
-                                        placeholder="Add a comment"
-                                        onChange={event => setCommentText(event.target.value)}
-                                    />
-                                    <div className="row-buttons">
-                                        <button className="button" disabled={busy || !commentText.trim()} onClick={state.addComment}>
-                                            Comment
-                                        </button>
-                                    </div>
-                                </TaskCard>
-                            )}
+                            {source.capabilities.comments && <TaskComments state={state} canLoadPeople={!!source.capabilities.options} tasks={tasks} />}
                         </div>
                     </div>
                 </div>

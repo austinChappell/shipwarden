@@ -518,3 +518,27 @@ describe('ClickUp edits', () => {
         expect(clickup.customFieldRequest({ type: 'short_text' }, null)).toEqual({ clear: true });
     });
 });
+
+describe('ClickUp comment mentions', () => {
+    const mentions = [
+        { id: '7', name: 'Ann' },
+        { id: '8', name: 'Ann Lee' }
+    ];
+    const references = [{ id: 'abc', text: 'ENG-1' }];
+
+    it('makes tags for the mentions and URLs for the task references', () => {
+        const parts = clickup.commentParts('Hi @Ann Lee and @Ann, see ENG-1.', mentions, references);
+        expect(parts).toEqual([
+            { text: 'Hi ' },
+            { type: 'tag', user: { id: 8 } },
+            { text: ' and ' },
+            { type: 'tag', user: { id: 7 } },
+            { text: ', see https://app.clickup.com/t/abc.' }
+        ]);
+        expect(clickup.plainComment(parts, mentions)).toBe('Hi @Ann Lee and @Ann, see https://app.clickup.com/t/abc.');
+    });
+
+    it('keeps a body without mentions as one text part', () => {
+        expect(clickup.commentParts('Plain text', [], [])).toEqual([{ text: 'Plain text' }]);
+    });
+});
