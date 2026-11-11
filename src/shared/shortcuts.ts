@@ -213,3 +213,149 @@ export function pendingCommentStep(input: {
     if (key === 'p') return -1;
     return undefined;
 }
+
+/** The groups of the Keyboard Shortcuts page, in the order of the page. */
+export const SHORTCUT_GROUPS = ['Worktrees and tabs', 'Splits', 'Views', 'Panels and focus', 'History', 'App', 'Terminal and review'] as const;
+
+export type ShortcutGroup = (typeof SHORTCUT_GROUPS)[number];
+
+/** The text of a shortcut on the Keyboard Shortcuts page. `keys` has one or more key combinations, for example "⇧⌘D". */
+export interface ShortcutInfo {
+    label: string;
+    keys: readonly string[];
+    group: ShortcutGroup;
+}
+
+/**
+ * The text of each workspace shortcut. The type needs an entry for each action, and a test checks that each key
+ * combination gives its action in `shortcutAction`. So the Keyboard Shortcuts page cannot get out of date.
+ */
+export const SHORTCUT_INFO: Record<ShortcutAction, ShortcutInfo> = {
+    newWorktree: { label: 'New worktree', keys: ['⌘N'], group: 'Worktrees and tabs' },
+    newTab: { label: 'New shell tab', keys: ['⌘T'], group: 'Worktrees and tabs' },
+    close: { label: 'Close the pane, or the tab with one pane', keys: ['⌘W'], group: 'Worktrees and tabs' },
+    selectTab1: { label: 'Select tab 1', keys: ['⌘1'], group: 'Worktrees and tabs' },
+    selectTab2: { label: 'Select tab 2', keys: ['⌘2'], group: 'Worktrees and tabs' },
+    selectTab3: { label: 'Select tab 3', keys: ['⌘3'], group: 'Worktrees and tabs' },
+    selectTab4: { label: 'Select tab 4', keys: ['⌘4'], group: 'Worktrees and tabs' },
+    selectTab5: { label: 'Select tab 5', keys: ['⌘5'], group: 'Worktrees and tabs' },
+    selectTab6: { label: 'Select tab 6', keys: ['⌘6'], group: 'Worktrees and tabs' },
+    selectTab7: { label: 'Select tab 7', keys: ['⌘7'], group: 'Worktrees and tabs' },
+    selectTab8: { label: 'Select tab 8', keys: ['⌘8'], group: 'Worktrees and tabs' },
+    selectLastTab: { label: 'Select the last tab', keys: ['⌘9'], group: 'Worktrees and tabs' },
+    previousTab: { label: 'Select the previous tab', keys: ['⇧⌘[', '⌃⇧Tab'], group: 'Worktrees and tabs' },
+    nextTab: { label: 'Select the next tab', keys: ['⇧⌘]', '⌃Tab'], group: 'Worktrees and tabs' },
+    right: { label: 'Split right', keys: ['⌘D'], group: 'Splits' },
+    down: { label: 'Split down', keys: ['⇧⌘D'], group: 'Splits' },
+    focusLeft: { label: 'Select the split at the left', keys: ['⌥⌘←'], group: 'Splits' },
+    focusRight: { label: 'Select the split at the right', keys: ['⌥⌘→'], group: 'Splits' },
+    focusUp: { label: 'Select the split above', keys: ['⌥⌘↑'], group: 'Splits' },
+    focusDown: { label: 'Select the split below', keys: ['⌥⌘↓'], group: 'Splits' },
+    viewDashboard: { label: 'Dashboard', keys: ['⌥⌘1'], group: 'Views' },
+    viewAgents: { label: 'Agents', keys: ['⌥⌘2'], group: 'Views' },
+    viewTasks: { label: 'Tasks', keys: ['⌥⌘3'], group: 'Views' },
+    viewReview: { label: 'Review', keys: ['⌥⌘4'], group: 'Views' },
+    viewPipelines: { label: 'Pipelines', keys: ['⌥⌘5'], group: 'Views' },
+    viewNotes: { label: 'Notes', keys: ['⌥⌘6'], group: 'Views' },
+    viewAutomations: { label: 'Automations', keys: ['⌥⌘7'], group: 'Views' },
+    toggleSidebar: { label: 'Show or hide the sidebar', keys: ['⌘B'], group: 'Panels and focus' },
+    focusSidebar: { label: 'Move the focus to the sidebar', keys: ['⇧⌘B'], group: 'Panels and focus' },
+    toggleRightPanel: { label: 'Show or hide the right panel', keys: ['⌘E'], group: 'Panels and focus' },
+    focusExplorer: { label: 'Move the focus to the file explorer', keys: ['⇧⌘E'], group: 'Panels and focus' },
+    focusWorkspace: { label: 'Move the focus to the workspace', keys: ['⇧⌘0'], group: 'Panels and focus' },
+    back: { label: 'Back', keys: ['⌘['], group: 'History' },
+    forward: { label: 'Forward', keys: ['⌘]'], group: 'History' }
+};
+
+/** The text of each app key. A test checks each key combination with `appKeyAction`. */
+export const APP_KEY_INFO: Record<AppKeyAction, ShortcutInfo> = {
+    settings: { label: 'Settings', keys: ['⌘,'], group: 'App' },
+    checkForUpdates: { label: 'Check for updates', keys: ['⇧⌘U'], group: 'App' },
+    hide: { label: 'Hide ShipWarden', keys: ['⌘H'], group: 'App' },
+    quit: { label: 'Quit ShipWarden. The agents continue to run.', keys: ['⌘Q'], group: 'App' },
+    quitAndStop: { label: 'Quit and stop all agents', keys: ['⇧⌥⌘Q'], group: 'App' }
+};
+
+/** The keys of a terminal and a diff. A test checks each key combination with its function. */
+export const OTHER_KEY_INFO = {
+    clear: { label: 'Clear the terminal screen and scrollback', keys: ['⌘K'], group: 'Terminal and review' },
+    pasteImage: { label: 'Paste an image into Claude Code or Codex', keys: ['⌃V'], group: 'Terminal and review' },
+    comment: { label: 'Comment on the selected lines of a diff', keys: ['⇧⌘M'], group: 'Terminal and review' }
+} as const satisfies Record<string, ShortcutInfo>;
+
+/** Returns all shortcuts, in the order of the groups. Each entry is one action. */
+export function allShortcuts(): ShortcutInfo[] {
+    const all = [...Object.values(SHORTCUT_INFO), ...Object.values(APP_KEY_INFO), ...Object.values(OTHER_KEY_INFO)];
+    return SHORTCUT_GROUPS.flatMap(group => all.filter(item => item.group === group));
+}
+
+/** A row of the Keyboard Shortcuts page. A range row shows its first and last key, for example "⌘1 to ⌘8". */
+export interface ShortcutRow extends ShortcutInfo {
+    range?: boolean;
+}
+
+/** The tab actions that the page shows as one row. */
+const TAB_RANGE: readonly ShortcutAction[] = ['selectTab1', 'selectTab2', 'selectTab3', 'selectTab4', 'selectTab5', 'selectTab6', 'selectTab7', 'selectTab8'];
+
+/** Returns the rows of the Keyboard Shortcuts page: all shortcuts, with ⌘1 to ⌘8 in one row. */
+export function shortcutRows(): ShortcutRow[] {
+    const tabs = new Set(TAB_RANGE.map(action => SHORTCUT_INFO[action]));
+    const rows: ShortcutRow[] = [];
+    for (const item of allShortcuts()) {
+        if (!tabs.has(item)) rows.push(item);
+        else if (item === SHORTCUT_INFO.selectTab1) {
+            rows.push({
+                label: 'Select tab 1 to 8',
+                keys: [SHORTCUT_INFO.selectTab1.keys[0], SHORTCUT_INFO.selectTab8.keys[0]],
+                group: item.group,
+                range: true
+            });
+        }
+    }
+    return rows;
+}
+
+/** A key combination as the key event of a browser or of Electron gives it. */
+export interface ParsedKeys {
+    meta: boolean;
+    shift: boolean;
+    control: boolean;
+    alt: boolean;
+    key: string;
+    code: string;
+}
+
+const KEY_CODES: Record<string, { key: string; code: string }> = {
+    '[': { key: '[', code: 'BracketLeft' },
+    ']': { key: ']', code: 'BracketRight' },
+    ',': { key: ',', code: 'Comma' },
+    '←': { key: 'ArrowLeft', code: 'ArrowLeft' },
+    '→': { key: 'ArrowRight', code: 'ArrowRight' },
+    '↑': { key: 'ArrowUp', code: 'ArrowUp' },
+    '↓': { key: 'ArrowDown', code: 'ArrowDown' },
+    Tab: { key: 'Tab', code: 'Tab' }
+};
+
+/**
+ * Reads a key combination of the Keyboard Shortcuts page, for example "⇧⌘D", into the key event that it makes.
+ * Returns undefined for text that is not a key combination.
+ */
+export function parseKeys(text: string): ParsedKeys | undefined {
+    const match = /^([⌃⌥⇧⌘]*)(.+)$/u.exec(text);
+    if (!match) return undefined;
+    const modifiers = match[1];
+    const name = match[2];
+    let key: string;
+    let code: string;
+    if (KEY_CODES[name]) ({ key, code } = KEY_CODES[name]);
+    else if (/^[A-Z]$/.test(name)) [key, code] = [name.toLowerCase(), `Key${name}`];
+    else if (/^\d$/.test(name)) [key, code] = [name, `Digit${name}`];
+    else return undefined;
+    return { meta: modifiers.includes('⌘'), shift: modifiers.includes('⇧'), control: modifiers.includes('⌃'), alt: modifiers.includes('⌥'), key, code };
+}
+
+/** Splits a key combination into its keys for the page, for example "⇧⌘D" into "⇧", "⌘" and "D". */
+export function keyParts(text: string): string[] {
+    const match = /^([⌃⌥⇧⌘]*)(.+)$/u.exec(text);
+    return match ? [...match[1], match[2]] : [text];
+}

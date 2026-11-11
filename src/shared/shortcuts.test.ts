@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { appKeyAction, isClearKey, isCommentKey, isCtrlV, isImageOnlyPaste, pendingCommentStep, shortcutAction } from './shortcuts';
+import {
+    allShortcuts,
+    APP_KEY_INFO,
+    appKeyAction,
+    isClearKey,
+    isCommentKey,
+    isCtrlV,
+    isImageOnlyPaste,
+    keyParts,
+    OTHER_KEY_INFO,
+    parseKeys,
+    pendingCommentStep,
+    SHORTCUT_GROUPS,
+    SHORTCUT_INFO,
+    shortcutAction,
+    shortcutRows
+} from './shortcuts';
 
 const key = (change: Partial<Parameters<typeof shortcutAction>[0]>) =>
     shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: false, key: 'd', code: 'KeyD', ...change });
@@ -257,5 +273,62 @@ describe('pendingCommentStep', () => {
 
     it('returns undefined for other keys', () => {
         expect(pendingCommentStep({ ...press, key: 'j', code: 'KeyJ' })).toBeUndefined();
+    });
+});
+
+describe('the Keyboard Shortcuts page', () => {
+    const asInput = (keys: string) => {
+        const parsed = parseKeys(keys);
+        if (!parsed) throw new Error(`"${keys}" is not a key combination.`);
+        return { type: 'keyDown', ...parsed };
+    };
+    const asEvent = (keys: string) => {
+        const parsed = asInput(keys);
+        return { key: parsed.key, code: parsed.code, metaKey: parsed.meta, ctrlKey: parsed.control, altKey: parsed.alt, shiftKey: parsed.shift };
+    };
+
+    it('lists keys that give their workspace action', () => {
+        for (const [action, info] of Object.entries(SHORTCUT_INFO)) {
+            expect(info.keys.length).toBeGreaterThan(0);
+            for (const keys of info.keys) expect(shortcutAction(asInput(keys)), keys).toBe(action);
+        }
+    });
+
+    it('lists keys that give their app action', () => {
+        for (const [action, info] of Object.entries(APP_KEY_INFO)) {
+            for (const keys of info.keys) expect(appKeyAction(asInput(keys)), keys).toBe(action);
+        }
+    });
+
+    it('lists the terminal and diff keys that their functions accept', () => {
+        expect(OTHER_KEY_INFO.clear.keys.every(keys => isClearKey(asEvent(keys)))).toBe(true);
+        expect(OTHER_KEY_INFO.pasteImage.keys.every(keys => isCtrlV(asEvent(keys)))).toBe(true);
+        expect(OTHER_KEY_INFO.comment.keys.every(keys => isCommentKey(asEvent(keys)))).toBe(true);
+    });
+
+    it('gives each key combination to one item only', () => {
+        const keys = allShortcuts().flatMap(item => item.keys);
+        expect(new Set(keys).size).toBe(keys.length);
+    });
+
+    it('lists the groups in order and leaves no group empty', () => {
+        const groups = [...new Set(allShortcuts().map(item => item.group))];
+        expect(groups).toEqual([...SHORTCUT_GROUPS]);
+    });
+
+    it('shows ⌘1 to ⌘8 in one row', () => {
+        const rows = shortcutRows();
+        expect(rows.filter(row => row.label.startsWith('Select tab'))).toEqual([
+            { label: 'Select tab 1 to 8', keys: ['⌘1', '⌘8'], group: 'Worktrees and tabs', range: true }
+        ]);
+        expect(rows).toHaveLength(allShortcuts().length - 7);
+    });
+
+    it('reads and splits key combinations', () => {
+        expect(parseKeys('⇧⌘D')).toEqual({ meta: true, shift: true, control: false, alt: false, key: 'd', code: 'KeyD' });
+        expect(parseKeys('⌥⌘←')).toMatchObject({ alt: true, key: 'ArrowLeft' });
+        expect(parseKeys('⌘?')).toBeUndefined();
+        expect(keyParts('⇧⌥⌘Q')).toEqual(['⇧', '⌥', '⌘', 'Q']);
+        expect(keyParts('⌃Tab')).toEqual(['⌃', 'Tab']);
     });
 });

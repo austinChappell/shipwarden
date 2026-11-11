@@ -28,7 +28,7 @@ describe('ensureOnboarding', () => {
         const settings = store({ agents: [{ id: 'a', name: 'Aider', command: 'aider' }], defaultAgentId: 'a' });
         await ensureOnboarding({ settings, hasRepos: async () => true });
         const after = await settings.get();
-        expect(after.onboarding).toEqual({ welcome: 'done' });
+        expect(after.onboarding).toEqual({ welcome: 'done', checklistClosed: true });
         expect(after.defaultAgentId).toBe('a');
     });
 

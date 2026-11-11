@@ -12536,10 +12536,11 @@ button.pr-summary-cell:hover {
     }
 }
 
-/* The tour offer sits below the title bar, so it does not cover the update notice at the bottom. */
+/* The tour offer sits below the title bar, so it does not cover the update notice at the bottom. A dialog covers it. */
 .update-notice.tour-offer {
     top: calc(var(--titlebar-height) + 12px);
     bottom: auto;
+    z-index: 90;
 }
 
 /* The empty state of a view (EmptyState): an icon, a title, one sentence and one action. */
@@ -12632,4 +12633,194 @@ button.pr-summary-cell:hover {
     border: 1px dashed var(--border);
     border-radius: 10px;
     background: var(--panel);
+}
+
+/* The Keyboard Shortcuts dialog (Help › Keyboard Shortcuts). */
+.shortcuts-dialog {
+    width: min(620px, calc(100vw - 32px));
+    max-height: min(760px, calc(100vh - 48px));
+}
+
+.shortcuts-dialog .modal-body {
+    overflow-y: auto;
+}
+
+.shortcuts-search {
+    margin-bottom: 14px;
+}
+
+.shortcuts-group + .shortcuts-group {
+    margin-top: 16px;
+}
+
+.shortcuts-group h3 {
+    margin: 0 0 6px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.shortcuts-group dl {
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+}
+
+.shortcut-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 7px 12px;
+}
+
+.shortcut-row + .shortcut-row {
+    border-top: 1px solid var(--border);
+}
+
+.shortcut-row dt {
+    color: var(--text);
+    font-size: 12.5px;
+}
+
+.shortcut-row dd {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.shortcut-choice,
+.shortcut-caps {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.shortcut-or {
+    margin-right: 4px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.shortcut-keys kbd {
+    min-width: 20px;
+    padding: 1px 5px;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--raised);
+    color: var(--text-strong);
+    font: inherit;
+    font-size: 12px;
+    text-align: center;
+}
+
+/* The getting started checklist at the top of the Dashboard. */
+.checklist-card {
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+    border-radius: 10px;
+    background: var(--panel);
+}
+
+.checklist-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--accent);
+}
+
+.checklist-header h2 {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.checklist-progress {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.checklist-bar {
+    display: block;
+    width: 100%;
+    height: 4px;
+    margin: 10px 0 6px;
+    overflow: hidden;
+    border: none;
+    border-radius: 2px;
+    background: var(--raised);
+    appearance: none;
+}
+
+.checklist-bar::-webkit-progress-bar {
+    background: var(--raised);
+}
+
+.checklist-bar::-webkit-progress-value {
+    border-radius: 2px;
+    background: var(--accent);
+}
+
+.checklist-steps {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.checklist-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+}
+
+.checklist-step + .checklist-step {
+    border-top: 1px solid var(--border);
+}
+
+.checklist-icon {
+    flex: none;
+    color: var(--muted);
+}
+
+.checklist-icon.done {
+    color: var(--ok);
+}
+
+.checklist-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.checklist-label {
+    color: var(--text-strong);
+    font-size: 13px;
+}
+
+.checklist-step.done .checklist-label {
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
+.checklist-detail {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.checklist-step .button {
+    flex: none;
+    white-space: nowrap;
 }

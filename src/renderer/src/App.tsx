@@ -40,6 +40,10 @@ import { agentForRepo, DEFAULT_SETTINGS, repoDisplayName, type AppSettings } fro
 import { changeOnboarding, type HelpAction, type OnboardingSettings } from '@shared/onboarding';
 import { shouldOpenWelcome } from '@shared/welcome';
 import { shouldOfferTour, TOUR_STEPS, TOUR_VERSION, type TourStep } from '@shared/tour';
+import { shouldShowChecklist, updatedChecklist, type ChecklistStepId } from '@shared/checklist';
+import { runsAgent } from '@shared/terminal';
+import { ChecklistCard } from './components/ChecklistCard';
+import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { Tour, TourOffer } from './components/Tour';
 import { WelcomeView } from './components/WelcomeView';
 import { leafOfTab, resizeSplit } from '@shared/panes';
@@ -311,9 +315,16 @@ export function App() {
     const automationsCount = useAutomationRuns().state.runs.filter(run => run.status === 'pending').length;
 
     /** Saves a change of the onboarding state. The other values of the state stay. */
-    const saveOnboarding = async (change: Partial<OnboardingSettings>) => {
-        const next = await api.settings.update({ onboarding: changeOnboarding(appSettings.onboarding, change) });
-        setAppSettings(next);
+    const onboardingSaves = useRef<Promise<unknown>>(Promise.resolve());
+    const saveOnboarding = (change: Partial<OnboardingSettings>): Promise<void> => {
+        // The saves run one after the other, and each one reads the newest state first. Two saves at the same time (for
+        // example "No thanks" and a checklist step) then both stay.
+        const save = onboardingSaves.current.then(async () => {
+            const current = (await api.settings.get()).onboarding;
+            setAppSettings(await api.settings.update({ onboarding: changeOnboarding(current, change) }));
+        });
+        onboardingSaves.current = save.catch(() => undefined);
+        return save;
     };
     /** True while the guided tour shows. */
     const [tourOpen, setTourOpen] = useState(false);
@@ -344,10 +355,39 @@ export function App() {
         }
         void saveOnboarding({ tourSeen: TOUR_VERSION }).catch(err => setError(errorText(err)));
     };
+    /** True while the Keyboard Shortcuts dialog shows. */
+    const [shortcutsOpen, setShortcutsOpen] = useState(false);
     /** Runs an item of the Help menu. */
     const help = (action: HelpAction) => {
         if (action === 'welcome') setMainView('welcome');
         else if (action === 'tour') startTour();
+        else if (action === 'shortcuts') setShortcutsOpen(true);
+    };
+
+    // The getting started checklist marks a step done when the user does its action.
+    const checklistShows = settingsLoaded && shouldShowChecklist(appSettings.onboarding);
+    const checklistFacts = {
+        hasRepository: project.allRepos.length > 0,
+        hasWorktree: worktrees.some(worktree => !worktree.isMain),
+        hasAgent: sessions.some(runsAgent),
+        agentsViewOpen: mainView === 'agents',
+        hasPullRequest: repos.some(repo =>
+            (worktreesByRepo[repo] ?? []).some(worktree => !worktree.isMain && !!worktree.branch && !!project.summaries[repo]?.[worktree.branch])
+        )
+    };
+    const checklistChange = checklistShows ? updatedChecklist(appSettings.onboarding?.checklist, checklistFacts) : undefined;
+    const checklistKey = checklistChange ? JSON.stringify(checklistChange) : undefined;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: checklistKey holds the content of checklistChange.
+    useEffect(() => {
+        if (checklistChange) void saveOnboarding({ checklist: checklistChange }).catch(err => setError(errorText(err)));
+    }, [checklistKey]);
+    /** The button of a checklist step that is not done. */
+    const checklistAction = (step: ChecklistStepId): { label: string; run(): void } | undefined => {
+        if (step === 'addRepository') return { label: 'Add a repository', run: () => void project.addRepo() };
+        if (step === 'createWorktree' && repos.length > 0) return { label: 'Create a worktree', run: () => setNewWorktree({ repo: selectedRepo ?? repos[0] }) };
+        if (step === 'startAgent' && selected) return { label: 'Show the worktree', run: () => setMainView('worktree') };
+        if (step === 'openAgents') return { label: 'Open Agents', run: () => enterView('agents') };
+        return undefined;
     };
     const helpRef = useRef(help);
     helpRef.current = help;
@@ -727,6 +767,15 @@ export function App() {
                             <DashboardView
                                 reviewKey={reviewKey}
                                 onOpenReviewSettings={() => openSettings('review')}
+                                checklist={
+                                    checklistShows ? (
+                                        <ChecklistCard
+                                            checklist={appSettings.onboarding?.checklist}
+                                            actionOf={checklistAction}
+                                            onClose={() => void saveOnboarding({ checklistClosed: true }).catch(err => setError(errorText(err)))}
+                                        />
+                                    ) : undefined
+                                }
                                 key={viewEntry}
                                 onOpenPullRequest={openPullRequest}
                                 filter={commentFilter}
@@ -1017,6 +1066,7 @@ export function App() {
                 )}
                 <StatusBar />
                 {tourOpen && <Tour steps={TOUR_STEPS} onPrepare={prepareTourStep} onClose={endTour} />}
+                {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
                 {!tourOpen && settingsLoaded && shouldOfferTour(appSettings.onboarding, mainView === 'welcome') && (
                     <TourOffer onStart={startTour} onDecline={() => void saveOnboarding({ tourSeen: TOUR_VERSION }).catch(err => setError(errorText(err)))} />
                 )}

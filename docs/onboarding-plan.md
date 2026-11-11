@@ -1,6 +1,6 @@
 # Plan: onboarding and tutorial
 
-Status: phases 1 to 4 done. Branch: `onboarding`, then one branch for each phase (`onboarding-2`, …).
+Status: all five phases done. Branch: `onboarding`, then one branch for each phase (`onboarding-2`, …).
 
 This document is the brief for the onboarding work. Give it to Claude at the start of each session:
 
@@ -224,4 +224,6 @@ We decided these in phase 1.
   They name `gh auth login` and open Settings › Code review. They do not run the setup checks, because the checks run
   only on request. A GitHub task connection exists by default, so the Tasks empty state shows only when the user
   removes all task managers.
+- Phase 5: the shortcuts page is a dialog. It shows ⌘1 to ⌘8 in one row. The checklist shows only for new users: a
+  current user gets `checklistClosed: true` at the first start.
 - Phase 3 adds the one-time "Take a short tour of ShipWarden?" notice for current users, together with the tour.
