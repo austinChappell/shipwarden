@@ -6,6 +6,7 @@ import { changePullRequest } from '../github/pull-request-mutations';
 import { keyRoots } from '../query-client';
 import { errorText, optionalErrorText } from '../util';
 import { applyMetaChanges, metaChangeKey, type MetaChange } from './pr-meta-changes';
+import { MentionTextarea } from './MentionTextarea';
 
 /**
  * The users and the labels that the user can add to the pull requests of a repository. The list loads when the user
@@ -497,13 +498,7 @@ export function DescriptionEditor({
             }}
         >
             <input className="pr-title-input" value={title} placeholder="Title" onChange={event => setTitle(event.target.value)} />
-            <textarea
-                autoFocus
-                className="review-body pr-body-input"
-                value={body}
-                placeholder="Description (Markdown)"
-                onChange={event => setBody(event.target.value)}
-            />
+            <MentionTextarea autoFocus className="review-body pr-body-input" value={body} placeholder="Description (Markdown)" onValueChange={setBody} />
             <div className="row-buttons">
                 <button className="button" onClick={onCancel}>
                     Cancel

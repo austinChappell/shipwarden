@@ -6,6 +6,8 @@ import { createPullRequest } from '../github/pull-request-mutations';
 import { optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
+import { MentionTextarea } from './MentionTextarea';
+import { MentionContext, mentionSourceOfRepo } from './mention-context';
 
 const ICON = { size: 15, strokeWidth: 1.6 };
 
@@ -62,7 +64,9 @@ export function CreatePullRequest({
             {typeof target === 'string' && (
                 <div className="pr-create-form">
                     <input value={title} placeholder="Title" onChange={event => setTitle(event.target.value)} disabled={busy} />
-                    <textarea className="review-body" value={body} placeholder="Description" onChange={event => setBody(event.target.value)} disabled={busy} />
+                    <MentionContext value={mentionSourceOfRepo(target, { ...status.repo, host: status.host })}>
+                        <MentionTextarea className="review-body" value={body} placeholder="Description" onValueChange={setBody} disabled={busy} />
+                    </MentionContext>
                     <label className="scope-option">
                         <input type="checkbox" checked={draft} onChange={event => setDraft(event.target.checked)} disabled={busy} />
                         Draft

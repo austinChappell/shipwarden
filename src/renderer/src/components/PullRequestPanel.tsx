@@ -49,6 +49,7 @@ import { PullRequestMergeCard } from './PullRequestMergeCard';
 import { PullRequestReviewCard } from './PullRequestReviewCard';
 import { PullRequestConversation, PullRequestThreads } from './PullRequestThreads';
 import { reactionActions } from './Reactions';
+import { MentionContext, mentionSourceOf } from './mention-context';
 
 export { BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, StateBadge } from './PullRequestParts';
 export { hasConflicts, reviewText } from '../github/merge-state';
@@ -281,142 +282,145 @@ export function PullRequestPanel({
     );
 
     return (
-        <div className="pr-panel">
-            <div className="pr-scroll">
-                {!overview && (
-                    <div className="pr-header">
-                        <div className="pr-title-row">
-                            <StateBadge pr={pr} />
-                            <ConflictBadge pr={pr} />
-                            <button className="link-button" title={`Open on ${hostLabel(pr.host)}`} onClick={event => openLink(pr.url, event)}>
-                                #{pr.number} <ExternalLink size={12} strokeWidth={1.6} />
-                            </button>
-                            {onOpenInReview && pr.host !== 'azure' && (
-                                <button className="icon-button" title="Open in Review" onClick={() => onOpenInReview(pr)}>
-                                    <Maximize2 size={14} strokeWidth={1.6} />
+        <MentionContext value={mentionSourceOf(target, pr)}>
+            <div className="pr-panel">
+                <div className="pr-scroll">
+                    {!overview && (
+                        <div className="pr-header">
+                            <div className="pr-title-row">
+                                <StateBadge pr={pr} />
+                                <ConflictBadge pr={pr} />
+                                <button className="link-button" title={`Open on ${hostLabel(pr.host)}`} onClick={event => openLink(pr.url, event)}>
+                                    #{pr.number} <ExternalLink size={12} strokeWidth={1.6} />
                                 </button>
-                            )}
-                            <button className="icon-button pr-refresh" title="Refresh" onClick={() => onRefresh()}>
-                                <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
-                            </button>
-                        </div>
-                        <h3 className="pr-title">{pr.title}</h3>
-                        <div className="pr-meta">
-                            {pr.author?.login ?? 'unknown'} {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'}{' '}
-                            into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
-                        </div>
-                        <div className="pr-meta">
-                            <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>
-                            <span className="dot-separator">·</span>
-                            {reviewText(pr)}
-                            <span className="dot-separator">·</span>
-                            {timeAgo(pr.createdAt)}
-                        </div>
-                    </div>
-                )}
-
-                {hasConflicts(pr) && (
-                    <div className="pr-conflict-banner" role="alert">
-                        <TriangleAlert size={16} strokeWidth={1.8} />
-                        <div className="pr-conflict-text">
-                            <strong>This branch has merge conflicts.</strong>
-                            <span>
-                                Resolve the conflicts with <code>{pr.baseRefName}</code> before you merge.
-                            </span>
-                        </div>
-                        {onSendToAgent && (
-                            <button className="button" onClick={() => onSendToAgent(conflictPrompt(pr))}>
-                                <Bot size={13} strokeWidth={1.6} /> Send to agent
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {failedChecks.length > 0 && (
-                    <div className="pr-conflict-banner" role="alert">
-                        <CircleX size={16} strokeWidth={1.8} />
-                        <div className="pr-conflict-text">
-                            <strong>{failedChecksTitle(failedChecks.length)}</strong>
-                            <span>{failedCheckNames(failedChecks)}</span>
-                        </div>
-                        {onSendChecksToAgent && (
-                            <button className="button" onClick={() => onSendChecksToAgent(failedChecks)}>
-                                <Bot size={13} strokeWidth={1.6} /> Send to agent
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {overview ? (
-                    <div className="pr-overview-columns">
-                        <div className="pr-overview-main">
-                            {descriptionPart}
-                            {changeError}
-                            <PullRequestTimeline pr={pr} reactions={reactionActions(target, pr)} onOpenCommit={onOpenCommit} />
-                            {threadsPart}
-                        </div>
-                        <aside className="pr-overview-aside">
-                            {pr.state === 'OPEN' && (
-                                <>
-                                    {actionError && <div className="form-error">{actionError}</div>}
-                                    {reviewCard}
-                                    {mergeCard}
-                                </>
-                            )}
-                            <PullRequestMeta target={target} pr={pr} onRefresh={onRefresh} card />
-                        </aside>
-                    </div>
-                ) : (
-                    <>
-                        {descriptionPart}
-                        {metaPart}
-                        {changeError}
-
-                        {conversation.length > 0 && <PullRequestConversation items={conversation} reactions={reactionActions(target, pr)} />}
-
-                        {!overview && pr.commits.length > 0 && (
-                            <section className="pr-section">
-                                <button className="section-toggle" aria-expanded={commitsOpen} onClick={() => setCommitsOpen(value => !value)}>
-                                    <ChevronRight size={13} strokeWidth={1.8} className={`section-chevron${commitsOpen ? ' open' : ''}`} />
-                                    Commits ({pr.commitCount})
-                                </button>
-                                {commitsOpen && (
-                                    <div className="pr-panel-commits">
-                                        <PullRequestCommitList pr={pr} />
-                                    </div>
+                                {onOpenInReview && pr.host !== 'azure' && (
+                                    <button className="icon-button" title="Open in Review" onClick={() => onOpenInReview(pr)}>
+                                        <Maximize2 size={14} strokeWidth={1.6} />
+                                    </button>
                                 )}
-                            </section>
-                        )}
+                                <button className="icon-button pr-refresh" title="Refresh" onClick={() => onRefresh()}>
+                                    <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
+                                </button>
+                            </div>
+                            <h3 className="pr-title">{pr.title}</h3>
+                            <div className="pr-meta">
+                                {pr.author?.login ?? 'unknown'}{' '}
+                                {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} into{' '}
+                                <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
+                            </div>
+                            <div className="pr-meta">
+                                <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>
+                                <span className="dot-separator">·</span>
+                                {reviewText(pr)}
+                                <span className="dot-separator">·</span>
+                                {timeAgo(pr.createdAt)}
+                            </div>
+                        </div>
+                    )}
 
-                        {!overview && (
-                            <section className="pr-section">
-                                <PullRequestFileList target={target} pr={pr} files={files} onOpen={file => onOpenDiff(pr, file)} onError={setFilesError} />
-                            </section>
-                        )}
+                    {hasConflicts(pr) && (
+                        <div className="pr-conflict-banner" role="alert">
+                            <TriangleAlert size={16} strokeWidth={1.8} />
+                            <div className="pr-conflict-text">
+                                <strong>This branch has merge conflicts.</strong>
+                                <span>
+                                    Resolve the conflicts with <code>{pr.baseRefName}</code> before you merge.
+                                </span>
+                            </div>
+                            {onSendToAgent && (
+                                <button className="button" onClick={() => onSendToAgent(conflictPrompt(pr))}>
+                                    <Bot size={13} strokeWidth={1.6} /> Send to agent
+                                </button>
+                            )}
+                        </div>
+                    )}
 
-                        {threadsPart}
-                    </>
+                    {failedChecks.length > 0 && (
+                        <div className="pr-conflict-banner" role="alert">
+                            <CircleX size={16} strokeWidth={1.8} />
+                            <div className="pr-conflict-text">
+                                <strong>{failedChecksTitle(failedChecks.length)}</strong>
+                                <span>{failedCheckNames(failedChecks)}</span>
+                            </div>
+                            {onSendChecksToAgent && (
+                                <button className="button" onClick={() => onSendChecksToAgent(failedChecks)}>
+                                    <Bot size={13} strokeWidth={1.6} /> Send to agent
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {overview ? (
+                        <div className="pr-overview-columns">
+                            <div className="pr-overview-main">
+                                {descriptionPart}
+                                {changeError}
+                                <PullRequestTimeline pr={pr} reactions={reactionActions(target, pr)} onOpenCommit={onOpenCommit} />
+                                {threadsPart}
+                            </div>
+                            <aside className="pr-overview-aside">
+                                {pr.state === 'OPEN' && (
+                                    <>
+                                        {actionError && <div className="form-error">{actionError}</div>}
+                                        {reviewCard}
+                                        {mergeCard}
+                                    </>
+                                )}
+                                <PullRequestMeta target={target} pr={pr} onRefresh={onRefresh} card />
+                            </aside>
+                        </div>
+                    ) : (
+                        <>
+                            {descriptionPart}
+                            {metaPart}
+                            {changeError}
+
+                            {conversation.length > 0 && <PullRequestConversation items={conversation} reactions={reactionActions(target, pr)} />}
+
+                            {!overview && pr.commits.length > 0 && (
+                                <section className="pr-section">
+                                    <button className="section-toggle" aria-expanded={commitsOpen} onClick={() => setCommitsOpen(value => !value)}>
+                                        <ChevronRight size={13} strokeWidth={1.8} className={`section-chevron${commitsOpen ? ' open' : ''}`} />
+                                        Commits ({pr.commitCount})
+                                    </button>
+                                    {commitsOpen && (
+                                        <div className="pr-panel-commits">
+                                            <PullRequestCommitList pr={pr} />
+                                        </div>
+                                    )}
+                                </section>
+                            )}
+
+                            {!overview && (
+                                <section className="pr-section">
+                                    <PullRequestFileList target={target} pr={pr} files={files} onOpen={file => onOpenDiff(pr, file)} onError={setFilesError} />
+                                </section>
+                            )}
+
+                            {threadsPart}
+                        </>
+                    )}
+                </div>
+
+                {pr.state === 'OPEN' && !overview && (
+                    <div className="pr-footer">
+                        {actionError && <div className="form-error pr-footer-error">{actionError}</div>}
+                        {reviewCard}
+                        {mergeCard}
+                    </div>
+                )}
+                {pr.state === 'CLOSED' && pr.viewerCanUpdate && (
+                    <div className="pr-footer">
+                        {actionError && <div className="form-error">{actionError}</div>}
+                        <div className="row-buttons">
+                            <button className="button" disabled={busy} onClick={() => setState('open')}>
+                                <GitPullRequest size={14} strokeWidth={1.8} />
+                                Reopen pull request
+                            </button>
+                        </div>
+                    </div>
                 )}
             </div>
-
-            {pr.state === 'OPEN' && !overview && (
-                <div className="pr-footer">
-                    {actionError && <div className="form-error pr-footer-error">{actionError}</div>}
-                    {reviewCard}
-                    {mergeCard}
-                </div>
-            )}
-            {pr.state === 'CLOSED' && pr.viewerCanUpdate && (
-                <div className="pr-footer">
-                    {actionError && <div className="form-error">{actionError}</div>}
-                    <div className="row-buttons">
-                        <button className="button" disabled={busy} onClick={() => setState('open')}>
-                            <GitPullRequest size={14} strokeWidth={1.8} />
-                            Reopen pull request
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
+        </MentionContext>
     );
 }

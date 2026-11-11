@@ -45,6 +45,8 @@ export const keyRoots = {
     pullRequestFiles: ['github', 'pullRequestFiles'],
     /** The pull requests that a worktree branch can link to. */
     pullRequestCandidates: ['github', 'pullRequestCandidates'],
+    /** The issues and the pull requests for a "#" reference in a comment, by repository and query. */
+    issueReferences: ['github', 'issueReferences'],
     /** The pull request and CI state of each branch of a repository. */
     branchSummaries: ['github', 'branchSummaries'],
     /** The pull request and CI state of one worktree branch. */

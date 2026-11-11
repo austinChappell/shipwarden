@@ -10,6 +10,7 @@ import {
     type MergeMethod,
     type NewPullRequest,
     type PendingComment,
+    type IssueReference,
     type PullRequestCandidates,
     type PullRequestChange,
     type PullRequest,
@@ -120,6 +121,11 @@ export class GitHubService {
     /** Returns the users that the user can assign or ask for a review, and the labels of the repository. */
     async pullRequestCandidates(repo: RepoRef): Promise<PullRequestCandidates> {
         return pulls.fetchPullRequestCandidates(this.client, repo);
+    }
+
+    /** Returns the issues and the pull requests of the repository that match a "#" reference. */
+    async issueReferences(repo: RepoRef, query: string): Promise<IssueReference[]> {
+        return pulls.fetchIssueReferences(this.client, repo, query);
     }
 
     /** Makes one change to a pull request: the details, an assignee, a reviewer or a label. */

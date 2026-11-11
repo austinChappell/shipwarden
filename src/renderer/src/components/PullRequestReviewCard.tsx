@@ -1,7 +1,8 @@
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useId, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Bot, Check, LoaderCircle, MessageSquare } from 'lucide-react';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, ReviewEvent } from '@shared/github';
 import { decisionEvents, firstUndecided, pendingText, REVIEW_EVENT_TEXT, reviewButtons, reviewEvents, undecidedText } from '../github/review-state';
+import { MentionTextarea } from './MentionTextarea';
 
 interface Props {
     pr: PullRequest;
@@ -20,6 +21,7 @@ interface Props {
 
 /** The card where the user writes a review and submits it. The Overview tab shows it in the side column. */
 export function PullRequestReviewCard({ pr, overview, body, onBody, pending, files, busy, onSubmit, onOpenDiff, agentReview }: Props) {
+    const summaryId = useId();
     const events = reviewEvents(pr);
     const { undecided, canComment, canDecide } = reviewButtons({ events, body, pending, busy });
     const first = firstUndecided(pending, files);
@@ -74,11 +76,11 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
                     <span className="footer-card-title">Your review</span>
                     {pendingPill}
                 </header>
-                <textarea
+                <MentionTextarea
                     className="review-body"
                     value={body}
                     placeholder="Write a summary of your review (optional)"
-                    onChange={event => onBody(event.target.value)}
+                    onValueChange={onBody}
                     onKeyDown={onReviewKey}
                 />
                 {undecidedNote}
@@ -94,13 +96,14 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
                 {pr.viewerIsRequested && <span className="review-requested">Requested from you</span>}
             </header>
             {pendingPill && <div>{pendingPill}</div>}
-            <label className="side-card-field">
+            <label className="side-card-field" htmlFor={summaryId}>
                 <span>Summary (optional)</span>
-                <textarea
+                <MentionTextarea
+                    id={summaryId}
                     className="review-body"
                     value={body}
                     placeholder={pr.author?.login ? `Leave a note for ${pr.author.login}…` : 'Leave a note…'}
-                    onChange={event => onBody(event.target.value)}
+                    onValueChange={onBody}
                     onKeyDown={onReviewKey}
                 />
             </label>

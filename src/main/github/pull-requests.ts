@@ -9,6 +9,7 @@ import {
     type GitHubUser,
     type NewPullRequest,
     type PullRequest,
+    type IssueReference,
     type PullRequestCandidates,
     type PullRequestFile,
     type PullRequestFilter,
@@ -79,6 +80,60 @@ export async function fetchPullRequestCandidates(client: GitHubClient, repo: Rep
         name: repo.name
     });
     return { users: data.repository.assignableUsers.nodes, labels: data.repository.labels.nodes };
+}
+
+const REFERENCE_FIELDS = `__typename
+    ... on Issue { number title state }
+    ... on PullRequest { number title state isDraft }`;
+
+type GraphQlReference = { __typename?: string; number?: number; title?: string; state?: IssueReference['state']; isDraft?: boolean } | null;
+
+function mapReference(node: GraphQlReference): IssueReference | null {
+    if (!node || typeof node.number !== 'number' || !node.state) return null;
+    return {
+        number: node.number,
+        title: node.title ?? '',
+        kind: node.__typename === 'PullRequest' ? 'pullRequest' : 'issue',
+        state: node.state,
+        ...(node.isDraft ? { isDraft: true } : {})
+    };
+}
+
+async function searchReferences(client: GitHubClient, search: string, first: number): Promise<IssueReference[]> {
+    const data = await client.graphql<{ search: { nodes: GraphQlReference[] } }>(
+        `query($search: String!, $first: Int!) { search(query: $search, type: ISSUE, first: $first) { nodes { ${REFERENCE_FIELDS} } } }`,
+        { search, first }
+    );
+    return data.search.nodes.map(mapReference).filter((item): item is IssueReference => item !== null);
+}
+
+/**
+ * Returns the issues and the pull requests of the repository for a "#" reference, the most recently updated first.
+ * - An empty query gives the most recent items.
+ * - A number gives the item with that number first, and then the recent items whose number starts with the digits.
+ * - Other text gives the items with the words in the title.
+ */
+export async function fetchIssueReferences(client: GitHubClient, repo: RepoRef, query: string): Promise<IssueReference[]> {
+    const text = query.trim().replace(/["\\]/g, '');
+    const scope = `repo:${repo.owner}/${repo.name} sort:updated-desc`;
+    if (!/^\d{1,9}$/.test(text)) {
+        return searchReferences(client, text ? `${scope} in:title ${text}` : scope, 20);
+    }
+    const [exact, recent] = await Promise.all([
+        client
+            .graphql<{ repository: { issueOrPullRequest: GraphQlReference } }>(
+                `query($owner: String!, $name: String!, $number: Int!) {
+                  repository(owner: $owner, name: $name) { issueOrPullRequest(number: $number) { ${REFERENCE_FIELDS} } }
+                }`,
+                { owner: repo.owner, name: repo.name, number: Number(text) }
+            )
+            .then(data => mapReference(data.repository.issueOrPullRequest))
+            // GitHub returns an error when no issue or pull request has the number.
+            .catch(() => null),
+        searchReferences(client, scope, 50)
+    ]);
+    const matches = recent.filter(item => item.number !== exact?.number && String(item.number).startsWith(text));
+    return [...(exact ? [exact] : []), ...matches].slice(0, 20);
 }
 
 /** Returns the changed files of a pull request. A failed load of the viewed state gives no viewed files. */

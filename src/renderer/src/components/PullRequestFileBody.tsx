@@ -13,6 +13,7 @@ import { openLink } from '../links';
 import { THEME_CSS, type DiffStyle } from './diff-style';
 import { ComposerZone, PendingZone, QuestionZone, ThreadZone } from './ReviewZones';
 import { reactionActions } from './Reactions';
+import { MentionContext, mentionSourceOf } from './mention-context';
 
 interface FileBodyProps {
     target: RepoTarget;
@@ -58,6 +59,7 @@ export const FileBody = memo(function FileBody({
     onSendToAgent
 }: FileBodyProps) {
     const patch = useMemo(() => unifiedPatch(file), [file]);
+    const mentions = useMemo(() => mentionSourceOf(target, pr), [target, pr]);
     const [versions, setVersions] = useState<FileVersions | 'error'>();
     const canComment = pr.state === 'OPEN';
 
@@ -112,8 +114,11 @@ export const FileBody = memo(function FileBody({
         [diffStyle, mode, canComment, onAsk, onComposer, onGoToDefinition, target, file, pr.baseRefOid, pr.headRefOid]
     );
 
-    const renderAnnotation = (annotation: DiffLineAnnotation<Note>): ReactNode => {
-        const note = annotation.metadata;
+    const renderAnnotation = (annotation: DiffLineAnnotation<Note>): ReactNode => (
+        <MentionContext value={mentions}>{renderNote(annotation.metadata)}</MentionContext>
+    );
+
+    const renderNote = (note: Note): ReactNode => {
         // Keys in a comment box must not go to the diff.
         const stop = (event: React.KeyboardEvent) => event.stopPropagation();
         if (note.kind === 'thread') {
