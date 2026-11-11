@@ -1027,7 +1027,7 @@ export function usageAboveLimit(usage: readonly ProviderUsage[], limit: number |
 
 /**
  * Returns the tokens of one usage object of Claude Code that count for a limit: the input, the cache writes and the
- * output. Cache reads do not count. They cost about a tenth of new input, and they would fill a limit fast.
+ * output. Cache reads do not count. They cost a small part of the price of new input (2.5% to 10%, by model), and they would fill a limit fast.
  */
 export function countedTokens(usage: unknown): number {
     if (!usage || typeof usage !== 'object') return 0;
