@@ -68,6 +68,20 @@ agents and their terminal screens, the worktrees with their pull requests and CI
 can reply to an agent, answer its questions and approve a pull request. Turn it on in
 Settings › Mobile and pair the phone with the QR code. See [ios/README.md](ios/README.md).
 
+## Install and get started
+
+ShipWarden is for Macs with Apple silicon. Do these steps in this order:
+
+1. Install `git`, the GitHub CLI and an agent, for example Claude Code. Then run `gh auth login`.
+2. Download the DMG from the [releases page](https://github.com/austinChappell/shipwarden/releases).
+   Install ShipWarden from it.
+3. In the sidebar, click **Add a repository**. Select a local clone.
+4. Open **Settings › Code review**. Add a GitHub or Azure DevOps provider. The Dashboard stays empty
+   until you do this.
+5. Press ⌘N. Type a branch name. Click **Create worktree**. An agent starts in the new worktree.
+
+For all the steps, see [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
+
 ## Development
 
 You need Node 24 or later and git.
