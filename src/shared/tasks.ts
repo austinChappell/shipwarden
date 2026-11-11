@@ -281,6 +281,12 @@ export interface TaskSource {
         activity?: boolean;
         /** "people/list": the assignee filter lists the people of the collection and has "Me". */
         assignees?: boolean;
+        /**
+         * Without a saved choice, ShipWarden selects only the collection with `default: true`. Without one, the user
+         * selects a collection. The GitHub plugin uses it, so a project without a GitHub repository does not show the
+         * issues of a repository that has nothing to do with it.
+         */
+        defaultCollectionOnly?: boolean;
     };
     fields: FieldDefinition[];
     actions: ActionDefinition[];
@@ -439,11 +445,12 @@ export function sortCollections<T extends TaskCollection>(collections: readonly 
 }
 
 /** Selects the collection to show: the saved choice if it still exists, else the plugin's default, else the first collection. */
-export function pickCollection(collections: readonly TaskCollection[], saved: string | undefined): string | undefined {
+export function pickCollection(collections: readonly TaskCollection[], saved: string | undefined, defaultOnly = false): string | undefined {
     if (saved && collections.some(collection => collection.id === saved)) {
         return saved;
     }
-    return (collections.find(collection => collection.default) ?? collections[0])?.id;
+    const preferred = collections.find(collection => collection.default);
+    return (preferred ?? (defaultOnly ? undefined : collections[0]))?.id;
 }
 
 /** Done and canceled groups start collapsed, so that the open work is visible first. */

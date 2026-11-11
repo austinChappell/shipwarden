@@ -167,6 +167,12 @@ export interface Capabilities {
      * and has "Me", so the plugin filters need no "Assigned to me".
      */
     assignees?: boolean;
+    /**
+     * Without a saved choice, ShipWarden selects only the collection with `default: true`. Without one, the user selects
+     * a collection. The plugin sets this capability itself. Use it when the first collection can have nothing to do with
+     * the projects, for example the GitHub repositories of the user.
+     */
+    defaultCollectionOnly?: boolean;
 }
 
 /** A comment from another person on a task of the user, for the Dashboard. */

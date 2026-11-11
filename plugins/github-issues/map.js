@@ -96,3 +96,20 @@ export function stateChange(statusId) {
             throw new Error(`The status "${statusId}" does not exist for GitHub issues.`);
     }
 }
+
+/**
+ * Loads the pages of a list with 100 items on each page, at most `maxPages` pages. The first page comes first. When
+ * it is full, the other pages load at the same time, so the list needs two round trips and not one for each page.
+ * The list stops at the first page that is not full.
+ */
+export async function loadPages(fetchPage, maxPages, pageSize = 100) {
+    const first = await fetchPage(1);
+    if (first.length < pageSize || maxPages <= 1) return first;
+    const rest = await Promise.all(Array.from({ length: maxPages - 1 }, (_, index) => fetchPage(index + 2)));
+    const items = [...first];
+    for (const page of rest) {
+        items.push(...page);
+        if (page.length < pageSize) break;
+    }
+    return items;
+}

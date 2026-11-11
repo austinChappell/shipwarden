@@ -58,6 +58,16 @@ describe('collections', () => {
         expect(pickCollection([], undefined)).toBeUndefined();
     });
 
+    it('selects only the default collection when the source asks for it', () => {
+        const collections = [
+            { id: 'a', name: 'A' },
+            { id: 'b', name: 'B' }
+        ];
+        expect(pickCollection(collections, undefined, true)).toBeUndefined();
+        expect(pickCollection(collections, 'b', true)).toBe('b');
+        expect(pickCollection([...collections, { id: 'c', name: 'C', default: true }], undefined, true)).toBe('c');
+    });
+
     it('sorts collections without a path first, then by path and name', () => {
         const sorted = sortCollections([
             { id: '1', name: 'Trello Archive', path: 'Archive' },

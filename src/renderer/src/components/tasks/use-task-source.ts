@@ -106,7 +106,10 @@ export function useTaskSource(setSelectedId: (id: string | undefined) => void) {
     // Load the collections of the source. The view selects the saved one, the plugin's default or the first one.
     const collectionsQuery = useQuery({ ...collectionsQueryOptions(readySource?.connectionId), enabled: !!readySource });
     const collections = readySource ? (collectionsQuery.data?.list ?? (collectionsQuery.isError ? [] : undefined)) : undefined;
-    const collection = readySource && collectionsQuery.data ? pickCollection(collectionsQuery.data.list, collectionsQuery.data.saved) : undefined;
+    const collection =
+        readySource && collectionsQuery.data
+            ? pickCollection(collectionsQuery.data.list, collectionsQuery.data.saved, readySource.capabilities.defaultCollectionOnly)
+            : undefined;
     const collectionsError = readySource ? optionalErrorText(collectionsQuery.error) : undefined;
 
     /** Selects a collection. The main process remembers it for the task source, in all repositories and after a restart. */

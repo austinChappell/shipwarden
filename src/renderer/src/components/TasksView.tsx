@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ListTodo } from 'lucide-react';
+import { FolderSearch, ListTodo } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import type { ViewRoute } from '@shared/nav-history';
 import {
@@ -15,7 +15,7 @@ import {
     type TaskLink
 } from '@shared/tasks';
 import { moveListFocus } from '../keyboard/list-nav';
-import { missingSettingsText, taskLabel, worktreeForTask } from './tasks/task-view-logic';
+import { missingSettingsText, taskLabel, taskListState, worktreeForTask } from './tasks/task-view-logic';
 import { useTaskSource } from './tasks/use-task-source';
 import { useTaskList } from './tasks/use-task-list';
 import { useTaskDetail } from './tasks/use-task-detail';
@@ -58,6 +58,8 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
 
     const sourceState = useTaskSource(setSelectedId);
     const { connections, connectionId, source, sourceError, collection, request } = sourceState;
+    /** What the task list shows before the tasks: the collections load, the user must select one, or there are none. */
+    const listState = taskListState(sourceState.collections, collection);
     connectionRef.current = connectionId;
     /** The task of the history entry when the view opens. It opens as an open request, because its task manager can be a different one. */
     const [restore] = useState(() => {
@@ -238,7 +240,26 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                 </div>
             )}
 
-            {source && prefs.viewMode === 'board' && (
+            {source && listState === 'choose' && (
+                <EmptyState icon={FolderSearch} title="Select a collection">
+                    {source.name} has no default collection for the repositories of this project. Select a collection in the menu above to see its tasks.
+                </EmptyState>
+            )}
+            {source && listState === 'empty' && (
+                <EmptyState
+                    icon={FolderSearch}
+                    title="No collections"
+                    actions={
+                        <button className="button" onClick={onOpenSettings}>
+                            Open Settings › Task managers
+                        </button>
+                    }
+                >
+                    {source.name} has no collections that you can access. Check the scope of the task manager in the settings.
+                </EmptyState>
+            )}
+
+            {source && listState !== 'choose' && listState !== 'empty' && prefs.viewMode === 'board' && (
                 <div className="tasks-body board-mode">
                     <div className="task-board">
                         {listError && <div className="form-error task-list-error">{listError}</div>}
@@ -252,7 +273,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
                 </div>
             )}
 
-            {source && prefs.viewMode === 'list' && (
+            {source && listState !== 'choose' && listState !== 'empty' && prefs.viewMode === 'list' && (
                 <div className="tasks-body">
                     <div className="task-list" onKeyDown={moveListFocus}>
                         {listError && <div className="form-error task-list-error">{listError}</div>}

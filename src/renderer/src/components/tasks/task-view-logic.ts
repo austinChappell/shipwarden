@@ -165,6 +165,21 @@ export function collectionTitle(current: Pick<TaskCollection, 'name' | 'path'> |
     return current ? `Collection: ${current.path ? `${current.path} / ` : ''}${current.name}` : 'Collection';
 }
 
+/**
+ * The state of the task list before the tasks load:
+ * - collections: the collections still load.
+ * - empty: the source has no collections.
+ * - choose: the user must select a collection, because the source has no default (`defaultCollectionOnly`).
+ * - tasks: a collection is selected, so the tasks load or show.
+ */
+export type TaskListState = 'collections' | 'empty' | 'choose' | 'tasks';
+
+export function taskListState(collections: readonly TaskCollection[] | undefined, collection: string | undefined): TaskListState {
+    if (collection) return 'tasks';
+    if (!collections) return 'collections';
+    return collections.length === 0 ? 'empty' : 'choose';
+}
+
 /** The placeholder of the collection picker. Undefined collections are still in load. */
 export function collectionPlaceholder(collections: readonly TaskCollection[] | undefined): string {
     return !collections ? 'Loading collections…' : collections.length === 0 ? 'No collections' : 'Select a collection';
