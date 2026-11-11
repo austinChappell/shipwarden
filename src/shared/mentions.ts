@@ -1,5 +1,6 @@
 /**
  * The "@" and "#" references in a comment box: "@login" tags a user, and "#123" links to an issue or a pull request.
+ * After "@", the user can type a part of the login or a part of the name. A name query can contain spaces, as in "@mona lis".
  * These functions find the reference at the cursor and put the selected item into the text.
  */
 
@@ -7,17 +8,21 @@
 export interface ActiveMention {
     /** "@" for a user, "#" for an issue or a pull request. */
     trigger: '@' | '#';
-    /** The text after the trigger, up to the cursor. */
+    /** The text after the trigger, up to the cursor. After "@", it can contain single spaces, for a full name. */
     query: string;
     /** The index of the trigger in the text. */
     start: number;
 }
 
 /**
- * A trigger at the start of the text, or after a space or "(", and then up to 39 word characters or "-".
- * 39 is the maximum length of a GitHub login.
+ * A trigger at the start of the text, or after a space or "(". The groups are:
+ * 1. "@" and a query for a user. The first word has up to 39 letters, digits, "_", "-", "." or "'". 39 is the maximum
+ *    length of a GitHub login. Up to 3 more words can follow, each after one space, for a full name such as
+ *    "j. r. o'neil". One space can end the query.
+ * 2. "#" and up to 39 letters, digits, "_" or "-", for an issue or a pull request.
+ * The letters include letters with accents.
  */
-const ACTIVE_PATTERN = /(?<![^\s(])([@#])([\w-]{0,39})$/;
+const ACTIVE_PATTERN = /(?<![^\s(])(?:@([\p{L}\p{N}_.'-]{0,39}(?: [\p{L}\p{N}_.'-]+){0,3} ?)|#([\p{L}\p{N}_-]{0,39}))$/u;
 
 /** Returns the reference that ends at the cursor. Returns undefined in a code block or in inline code. */
 export function activeMention(text: string, caret: number): ActiveMention | undefined {
@@ -26,7 +31,7 @@ export function activeMention(text: string, caret: number): ActiveMention | unde
     if (!match) return undefined;
     const start = match.index;
     if (insideCode(before.slice(0, start))) return undefined;
-    return { trigger: match[1] as '@' | '#', query: match[2], start };
+    return match[1] !== undefined ? { trigger: '@', query: match[1], start } : { trigger: '#', query: match[2], start };
 }
 
 /** True when the end of the text is in a fenced code block or in inline code. */
@@ -48,23 +53,62 @@ export function applyMention(text: string, caret: number, mention: ActiveMention
     return { text: text.slice(0, mention.start) + inserted + after, caret: mention.start + inserted.length + (space ? 0 : 1) };
 }
 
+/** True when the query can be the start of a GitHub login: letters, digits, "_" and "-", with no spaces. */
+export function isLoginQuery(query: string): boolean {
+    return /^[\p{L}\p{N}_-]*$/u.test(query);
+}
+
+/** A user in the "@" list. */
+export interface MentionUser {
+    login: string;
+    /** The full name of the user on GitHub, for example "Mona Lisa". Many users have no name. */
+    name?: string;
+}
+
+/** Changes the text to lower case and removes accents, so "José" matches "jose". */
+function fold(text: string): string {
+    return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
 /**
- * Returns the logins that match the query, with no duplicates (case is not important).
- * The logins that start with the query come first. The order of `logins` stays in each group.
+ * Returns the users that match the query, with no duplicates (case is not important).
+ * The query matches the login or a word of the name, as on GitHub. The function puts the users in three groups:
+ * 1. The login starts with the query.
+ * 2. A word of the name starts with the query. A query with spaces must match from that word on, so "mona lis" and
+ *    "lisa" match "Mona Lisa", but "mona x" does not.
+ * 3. The login or the name contains the query.
+ * A login has no spaces, so a query with a space matches only names.
+ * The order of `users` stays in each group.
+ * When a login occurs two times, the function keeps the first position and the first name that it finds.
  */
-export function rankLogins(logins: string[], query: string, limit = 8): string[] {
-    const needle = query.toLowerCase();
-    const seen = new Set<string>();
-    const starts: string[] = [];
-    const contains: string[] = [];
-    for (const login of logins) {
-        const key = login.toLowerCase();
-        if (!login || seen.has(key)) continue;
-        seen.add(key);
-        if (key.startsWith(needle)) starts.push(login);
-        else if (key.includes(needle)) contains.push(login);
+export function rankUsers(users: MentionUser[], query: string, limit = 8): MentionUser[] {
+    const needle = fold(query).replace(/\s+/g, ' ');
+    const unique = new Map<string, MentionUser>();
+    for (const user of users) {
+        if (!user.login) continue;
+        const key = user.login.toLowerCase();
+        const known = unique.get(key);
+        if (!known) unique.set(key, { login: user.login, name: user.name || undefined });
+        else if (!known.name && user.name) known.name = user.name;
     }
-    return [...starts, ...contains].slice(0, limit);
+    const groups: MentionUser[][] = [[], [], []];
+    for (const user of unique.values()) {
+        const login = user.login.toLowerCase();
+        const name = fold(user.name ?? '')
+            .trim()
+            .replace(/\s+/g, ' ');
+        if (login.startsWith(needle)) groups[0].push(user);
+        else if (nameStartsAt(name, needle)) groups[1].push(user);
+        else if (login.includes(needle) || name.includes(needle)) groups[2].push(user);
+    }
+    return groups.flat().slice(0, limit);
+}
+
+/** True when a word of the name starts with the query. A query with spaces must match the words that follow too. */
+function nameStartsAt(name: string, needle: string): boolean {
+    if (!needle.includes(' ')) return name.split(/[^\p{L}\p{N}]+/u).some(word => word.startsWith(needle));
+    const words = name.split(' ');
+    return words.some((_, index) => words.slice(index).join(' ').startsWith(needle));
 }
 
 /** The web address of the repository of a pull request, from the address of the pull request. */

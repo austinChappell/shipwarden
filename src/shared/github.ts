@@ -180,6 +180,8 @@ export type DiffSide = 'LEFT' | 'RIGHT';
 export interface GitHubUser {
     login: string;
     avatarUrl?: string;
+    /** The full name of the user. Only the list of assignable users has it. Many users have no name. */
+    name?: string;
 }
 
 /** A reaction to a comment. The names are the names of the GitHub API. */

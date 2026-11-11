@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { AtSign, CircleCheck, CircleDot, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft } from 'lucide-react';
 import { targetKey, type IssueReference } from '@shared/github';
-import { activeMention, applyMention, rankLogins, type ActiveMention } from '@shared/mentions';
+import { activeMention, applyMention, isLoginQuery, rankUsers, type ActiveMention } from '@shared/mentions';
 import { keyRoots, queryClient, STALE_MS } from '../query-client';
 import { caretRect } from './caret-position';
 import { MentionContext, type MentionSource } from './mention-context';
@@ -19,6 +19,8 @@ interface MentionItem {
     key: string;
     insert: string;
     label: string;
+    /** The full name of the user, after the login. */
+    name?: string;
     detail?: string;
     reference?: IssueReference;
 }
@@ -39,6 +41,9 @@ export function MentionTextarea({ value, onValueChange, ref, onKeyDown, onBlur, 
     const [dismissed, setDismissed] = useState<number>();
     const [active, setActive] = useState(0);
     const items = useMentionItems(source, mention);
+    // After a space, ".", or "'", the user can type a full name, or can continue the sentence after a complete login.
+    // Then the list shows only when a name matches, so "@ann thanks" and "@ann." close it.
+    const open = !!mention && (items.list.length > 0 || mention.trigger === '#' || isLoginQuery(mention.query));
 
     const setRefs = (node: HTMLTextAreaElement | null) => {
         boxRef.current = node;
@@ -68,7 +73,7 @@ export function MentionTextarea({ value, onValueChange, ref, onKeyDown, onBlur, 
     };
 
     const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (mention && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        if (mention && open && !event.metaKey && !event.ctrlKey && !event.altKey) {
             const count = items.list.length;
             let handled = true;
             if (event.key === 'ArrowDown' && count) setActive(index => (index + 1) % count);
@@ -109,7 +114,7 @@ export function MentionTextarea({ value, onValueChange, ref, onKeyDown, onBlur, 
                 aria-autocomplete={source ? 'list' : undefined}
                 {...rest}
             />
-            {mention && boxRef.current && (
+            {mention && open && boxRef.current && (
                 <MentionList
                     box={boxRef.current}
                     mention={mention}
@@ -154,13 +159,15 @@ function useMentionItems(source: MentionSource | undefined, mention: ActiveMenti
 
     if (!source || !mention) return { list: [], status: undefined };
     if (mention.trigger === '@') {
-        const logins = [...source.people, ...(candidates.data?.users.map(user => user.login) ?? [])];
+        // The people of the pull request have no names. rankUsers takes their names from the repository users.
+        const users = [...source.people.map(login => ({ login })), ...(candidates.data?.users ?? [])];
         const people = new Set(source.people.map(login => login.toLowerCase()));
-        const list = rankLogins(logins, mention.query).map(login => ({
-            key: login,
-            insert: `@${login}`,
-            label: login,
-            detail: people.has(login.toLowerCase()) ? 'In this pull request' : undefined
+        const list = rankUsers(users, mention.query).map(user => ({
+            key: user.login,
+            insert: `@${user.login}`,
+            label: user.login,
+            name: user.name,
+            detail: people.has(user.login.toLowerCase()) ? 'In this pull request' : undefined
         }));
         const status = list.length ? undefined : candidates.isError ? 'ShipWarden cannot load the users.' : candidates.isFetching ? 'Loading…' : 'No matches';
         return { list, status };
@@ -252,7 +259,10 @@ function MentionList({
                     onClick={() => onPick(item)}
                 >
                     {item.reference ? <ReferenceIcon reference={item.reference} /> : <AtSign size={13} strokeWidth={1.8} className="mention-icon" />}
-                    <span className="combobox-label">{item.label}</span>
+                    <span className="combobox-label">
+                        {item.label}
+                        {item.name && <span className="mention-name">{item.name}</span>}
+                    </span>
                     {item.detail && <span className="mention-detail">{item.detail}</span>}
                 </div>
             ))}

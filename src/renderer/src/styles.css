@@ -5934,6 +5934,12 @@ button:focus-visible,
     color: var(--muted);
 }
 
+/* The full name of a user, after the login. */
+.mention-name {
+    margin-left: 6px;
+    color: var(--muted);
+}
+
 /* A user ("@login") or an issue ("#123") in a comment. */
 .markdown a.mention-link {
     color: var(--text-strong);

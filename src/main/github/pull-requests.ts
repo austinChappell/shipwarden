@@ -71,15 +71,18 @@ export async function fetchBranchSummaries(client: GitHubClient, repo: RepoRef):
 export async function fetchPullRequestCandidates(client: GitHubClient, repo: RepoRef): Promise<PullRequestCandidates> {
     const query = `query($owner: String!, $name: String!) {
           repository(owner: $owner, name: $name) {
-            assignableUsers(first: 100) { nodes { login avatarUrl } }
+            assignableUsers(first: 100) { nodes { login avatarUrl name } }
             labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color description } }
           }
         }`;
-    const data = await client.graphql<{ repository: { assignableUsers: { nodes: GitHubUser[] }; labels: { nodes: GitHubLabel[] } } }>(query, {
+    type Node = { login: string; avatarUrl?: string; name?: string | null };
+    const data = await client.graphql<{ repository: { assignableUsers: { nodes: Node[] }; labels: { nodes: GitHubLabel[] } } }>(query, {
         owner: repo.owner,
         name: repo.name
     });
-    return { users: data.repository.assignableUsers.nodes, labels: data.repository.labels.nodes };
+    // GitHub sends null or "" when the user has no name.
+    const users = data.repository.assignableUsers.nodes.map(({ name, ...user }): GitHubUser => (name ? { ...user, name } : user));
+    return { users, labels: data.repository.labels.nodes };
 }
 
 const REFERENCE_FIELDS = `__typename
