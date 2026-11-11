@@ -15,7 +15,10 @@ import { keyRoots, queryClient } from '../query-client';
 import { applyMerged } from './review-overview-store';
 import {
     changedPullRequest,
+    cachedPullRequest,
+    changesMergeState,
     invalidatePullRequest,
+    mergeStateMayBeOld,
     mergedPullRequest,
     reviewedPullRequest,
     reviewStateOf,
@@ -61,9 +64,14 @@ export async function changePullRequest(target: RepoTarget, pr: PullRequest, cha
     writePullRequest(queryClient, pr, current => changedPullRequest(current, change, knownLabels, viewerOf(queryClient, current)));
 }
 
+/** The time between the review and the second load, when the merge state of the first load can be old. */
+export const MERGE_STATE_RELOAD_MS = 3_000;
+
 /**
- * Submits a review with the pending comments. The comments become new threads on the host. Their IDs are not known
- * here, and a reply needs them. Thus a review with comments loads the pull request again.
+ * Submits a review with the pending comments. The pull request loads again in two cases:
+ * - The review has comments. The comments become new threads on the host. A reply needs their IDs, and the IDs are not known here.
+ * - The review approves or blocks. The host calculates the new merge state, and the merge button needs it.
+ *   When the merge state of that load can be old, the pull request loads one more time after MERGE_STATE_RELOAD_MS.
  */
 export async function submitReview(target: RepoTarget, pr: PullRequest, event: ReviewEvent, body: string, comments: PendingComment[]): Promise<void> {
     await api().submitReview(target, pr.number, pr.headRefOid, event, body, comments);
@@ -72,8 +80,14 @@ export async function submitReview(target: RepoTarget, pr: PullRequest, event: R
         state: reviewStateOf(event),
         submittedAt
     });
-    if (comments.length > 0) {
+    if (comments.length > 0 || changesMergeState(event)) {
         await invalidatePullRequest(queryClient, pr.url);
+    }
+    if (changesMergeState(event)) {
+        const loaded = cachedPullRequest(queryClient, pr.url);
+        if (loaded && mergeStateMayBeOld(loaded)) {
+            setTimeout(() => void invalidatePullRequest(queryClient, pr.url), MERGE_STATE_RELOAD_MS);
+        }
     }
 }
 

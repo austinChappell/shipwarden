@@ -56,6 +56,29 @@ function blocks(event: ReviewEvent): boolean {
 }
 
 /**
+ * True for a review event that can change the merge state. The host calculates the merge state, for example the branch
+ * rules and the permission to merge. The cache cannot know the new state.
+ */
+export function changesMergeState(event: ReviewEvent): boolean {
+    return approves(event) || blocks(event);
+}
+
+/**
+ * True when the merge state of the host can be old after a review. The host calculates the merge state some time after
+ * the review. Until then, the state is UNKNOWN, or it does not agree with the review decision:
+ * - The decision is APPROVED and the merge is BLOCKED.
+ * - The decision is CHANGES_REQUESTED and the merge is CLEAN.
+ * Other branch rules can also block a merge. Thus this function can be true for a correct state, and one more load is necessary.
+ */
+export function mergeStateMayBeOld(pr: PullRequest): boolean {
+    if (pr.state !== 'OPEN') return false;
+    if (pr.mergeable === 'UNKNOWN' || pr.mergeStateStatus === 'UNKNOWN') return true;
+    if (pr.reviewDecision === 'APPROVED') return pr.mergeStateStatus === 'BLOCKED';
+    if (pr.reviewDecision === 'CHANGES_REQUESTED') return pr.mergeStateStatus === 'CLEAN';
+    return false;
+}
+
+/**
  * Returns the review decision after a review of the user.
  * A block always sets CHANGES_REQUESTED. An approval sets APPROVED, except when the decision is CHANGES_REQUESTED:
  * the changes request of another reviewer can still apply. A comment does not change the decision.
