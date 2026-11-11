@@ -30,7 +30,8 @@ import { WorktreeSettings } from './WorktreeSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { RepoSettingsPage } from './RepoSettingsPage';
 import { TaskManagersSettings } from './TaskManagersSettings';
-import { SettingsGroup, SettingsRow } from './settings-ui';
+import { SettingsGroup, SettingsRow, Switch } from './settings-ui';
+import { changeOnboarding } from '@shared/onboarding';
 import { UpdateSettings } from './UpdateNotice';
 
 type FixedSection = 'appearance' | 'notifications' | 'dashboard' | 'tasks' | 'review' | 'worktrees' | 'agents' | 'terminal' | 'network' | 'mobile' | 'about';
@@ -234,6 +235,25 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
                                 mode={mode}
                                 onChange={appearance => onSave({ appearance }).catch(err => setStatus(errorText(err)))}
                             />
+                        )}
+                        {current.id === 'appearance' && (
+                            <SettingsGroup title="Tips" description="Tips show the features of ShipWarden that are easy to miss." card>
+                                <SettingsRow
+                                    label="Show tips"
+                                    description="A tip in the corner of the window when ShipWarden starts, and tips in the views. A closed tip in a view does not show again."
+                                    control={
+                                        <Switch
+                                            checked={!settings.onboarding?.tipsOff}
+                                            title={settings.onboarding?.tipsOff ? 'Off' : 'On'}
+                                            onChange={on =>
+                                                onSave({ onboarding: changeOnboarding(settings.onboarding, { tipsOff: !on }) }).catch(err =>
+                                                    setStatus(errorText(err))
+                                                )
+                                            }
+                                        />
+                                    }
+                                />
+                            </SettingsGroup>
                         )}
                         {current.id === 'tasks' && <TaskManagersSettings />}
                         {current.id === 'review' && <CodeReviewSettings />}

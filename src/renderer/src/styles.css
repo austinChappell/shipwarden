@@ -12921,3 +12921,98 @@ button.pr-summary-cell:hover {
 .welcome-optional .settings-group-header > div:first-child {
     flex: 1 1 260px;
 }
+
+/* The notices in the bottom-right corner (CornerNotice) stack in a column. The update notice is at the bottom. */
+.corner-notices {
+    position: fixed;
+    right: 16px;
+    bottom: 36px;
+    z-index: 150;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.corner-notices > * {
+    pointer-events: auto;
+}
+
+.corner-notices > .update-notice {
+    position: static;
+    order: 1;
+}
+
+/* The tip notice (TipNotice). It uses the frame of the update notice, above the update notice. */
+.corner-notices > .update-notice.tip-notice {
+    order: 0;
+    align-items: flex-start;
+}
+
+.tip-notice .update-notice-icon {
+    margin-top: 2px;
+}
+
+.tip-notice-label {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.tip-notice-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.tip-notice-close {
+    flex: none;
+}
+
+/* A tip in a view (InlineTip). The user can close it for all time. */
+.inline-tip {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+    font-size: 12px;
+}
+
+.inline-tip-icon {
+    flex: none;
+    margin-top: 1px;
+    color: var(--accent);
+}
+
+.inline-tip-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    color: var(--muted);
+}
+
+.inline-tip-text strong {
+    color: var(--text-strong);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.inline-tip .button {
+    flex: none;
+    white-space: nowrap;
+}
+
+.inline-tip.inset {
+    margin: 10px 16px;
+}
+
+.task-board > .inline-tip {
+    margin: 10px 16px 0;
+}

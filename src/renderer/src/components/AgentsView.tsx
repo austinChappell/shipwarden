@@ -27,6 +27,7 @@ import type { TaskLink } from '@shared/tasks';
 import { runsAgent, type TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
 import { moveListFocus } from '../keyboard/list-nav';
+import { InlineTip } from './Tips';
 
 const api = window.shipwarden;
 
@@ -211,6 +212,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                 )}
             </header>
             <div className="agents-scroll" onKeyDown={moveListFocus}>
+                {agents.length > 0 && <InlineTip id="agents" />}
                 {agents.length === 0 && (
                     <EmptyState
                         icon={Bot}

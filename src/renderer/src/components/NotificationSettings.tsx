@@ -10,20 +10,11 @@ import {
 } from '@shared/notifications';
 import type { AppSettings } from '@shared/settings';
 import { errorText } from '../util';
-import { SettingsGroup, SettingsRow } from './settings-ui';
+import { SettingsGroup, SettingsRow, Switch } from './settings-ui';
 
 interface Props {
     settings: AppSettings;
     onSave(change: Partial<AppSettings>): Promise<void>;
-}
-
-function Switch({ checked, title, disabled, onChange }: { checked: boolean; title: string; disabled?: boolean; onChange(value: boolean): void }) {
-    return (
-        <label className="switch" title={title}>
-            <input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />
-            <span />
-        </label>
-    );
 }
 
 /** The notification settings: on or off, while ShipWarden is active or not, a switch and a sound for each event, and the pull requests for CI. */

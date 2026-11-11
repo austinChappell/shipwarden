@@ -22,6 +22,7 @@ import { seenStore, useIsSeen } from '../seen-store';
 import { overviewKeys, refreshRepo, useRepoEntry } from '../github/review-overview-store';
 import { Combobox, type ComboboxGroup } from './Combobox';
 import { ChecksLabel, Dotted, KeyLegend, focusedData, useInitialFocus, usePageKeys } from './ReviewParts';
+import { InlineTip } from './Tips';
 
 export type RepoTab = 'needs' | 'mine' | 'open' | 'merged';
 
@@ -397,6 +398,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
             </div>
 
             <div className="review-list" ref={listRef} onKeyDown={moveListFocus}>
+                <InlineTip id="review" inset />
                 {entry?.error && <div className="form-error task-list-error">{entry.error}</div>}
                 {!data && !entry?.error && current !== 'merged' && <div className="panel-message">Loading pull requests…</div>}
 
