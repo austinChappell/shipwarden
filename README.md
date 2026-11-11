@@ -68,6 +68,11 @@ repository, choose your agent and start the first agent. Help › Show Welcome o
 the main parts of the window. Help › Take the Tour starts it at all times. Help › Keyboard Shortcuts lists all keys.
 A new user also gets a getting started checklist on the Dashboard.
 
+Tips show the features that are easy to miss. At each start, one random tip from a list of 20 shows in the
+bottom-right corner. While ShipWarden stays open, a new tip shows 12 hours after you close the last one. A tip does not
+show again within 10 tips. Some views have their own tip, for example the Dashboard. Close a tip in a view, and it does not show again.
+Turn off the tips in the corner notice or in Settings › Appearance › Tips.
+
 The iPhone app (`ios/`) connects to ShipWarden on your Mac over your network. It shows the
 agents and their terminal screens, the worktrees with their pull requests and CI state. You
 can reply to an agent, answer its questions and approve a pull request. Turn it on in

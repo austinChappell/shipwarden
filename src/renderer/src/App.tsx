@@ -37,7 +37,7 @@ import { useAppearance } from './theme/appearance';
 import { StatusBar } from './components/StatusBar';
 import { ErrorBanner } from './components/ErrorBanner';
 import { agentForRepo, DEFAULT_SETTINGS, repoDisplayName, type AppSettings } from '@shared/settings';
-import { changeOnboarding, type HelpAction, type OnboardingSettings } from '@shared/onboarding';
+import { changeOnboarding, type HelpAction } from '@shared/onboarding';
 import { shouldOpenWelcome } from '@shared/welcome';
 import { shouldOfferTour, TOUR_STEPS, TOUR_VERSION, type TourStep } from '@shared/tour';
 import { shouldShowChecklist, updatedChecklist, type ChecklistStepId } from '@shared/checklist';
@@ -45,6 +45,9 @@ import { runsAgent } from '@shared/terminal';
 import { ChecklistCard } from './components/ChecklistCard';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { Tour, TourOffer } from './components/Tour';
+import { TipNotice, useProvideTips } from './components/Tips';
+import { useTips, type OnboardingChange } from './app/use-tips';
+import type { TipAction } from '@shared/tips';
 import { WelcomeView } from './components/WelcomeView';
 import { leafOfTab, resizeSplit } from '@shared/panes';
 import type { ShortcutAction, ViewAction } from '@shared/shortcuts';
@@ -316,12 +319,13 @@ export function App() {
 
     /** Saves a change of the onboarding state. The other values of the state stay. */
     const onboardingSaves = useRef<Promise<unknown>>(Promise.resolve());
-    const saveOnboarding = (change: Partial<OnboardingSettings>): Promise<void> => {
+    const saveOnboarding = (change: OnboardingChange): Promise<void> => {
         // The saves run one after the other, and each one reads the newest state first. Two saves at the same time (for
         // example "No thanks" and a checklist step) then both stay.
         const save = onboardingSaves.current.then(async () => {
             const current = (await api.settings.get()).onboarding;
-            setAppSettings(await api.settings.update({ onboarding: changeOnboarding(current, change) }));
+            const values = typeof change === 'function' ? change(current) : change;
+            setAppSettings(await api.settings.update({ onboarding: changeOnboarding(current, values) }));
         });
         onboardingSaves.current = save.catch(() => undefined);
         return save;
@@ -389,6 +393,25 @@ export function App() {
         if (step === 'openAgents') return { label: 'Open Agents', run: () => enterView('agents') };
         return undefined;
     };
+    // The tips: one tip in the corner at each start (and 12 hours after a close), and the inline tips in the views. They wait while the welcome page, the
+    // tour, the tour offer or a dialog shows. The tip notice stacks above the update notice.
+    const tourOffered = settingsLoaded && shouldOfferTour(appSettings.onboarding, mainView === 'welcome');
+    const runTipAction = (action: TipAction) => {
+        if (action.kind === 'view') enterView(action.view);
+        else if (action.kind === 'settings') openSettings(action.section);
+        else if (action.kind === 'shortcuts') setShortcutsOpen(true);
+        else if (repos.length > 0) setNewWorktree({ repo: selectedRepo ?? repos[0] });
+        else void project.addRepo();
+    };
+    const tips = useTips({
+        onboarding: appSettings.onboarding,
+        settingsLoaded,
+        blocked: mainView === 'welcome' || tourOpen || tourOffered || shortcutsOpen || !!newWorktree,
+        saveOnboarding,
+        runAction: runTipAction,
+        onError: err => setError(errorText(err))
+    });
+    useProvideTips(tips.inline);
     const helpRef = useRef(help);
     helpRef.current = help;
 
@@ -1068,7 +1091,8 @@ export function App() {
                 <StatusBar />
                 {tourOpen && <Tour steps={TOUR_STEPS} onPrepare={prepareTourStep} onClose={endTour} />}
                 {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
-                {!tourOpen && settingsLoaded && shouldOfferTour(appSettings.onboarding, mainView === 'welcome') && (
+                {tips.notice && <TipNotice tip={tips.notice.tip} onRun={runTipAction} onClose={tips.notice.close} onTurnOff={tips.notice.turnOff} />}
+                {!tourOpen && tourOffered && (
                     <TourOffer onStart={startTour} onDecline={() => void saveOnboarding({ tourSeen: TOUR_VERSION }).catch(err => setError(errorText(err)))} />
                 )}
             </div>

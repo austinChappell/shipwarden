@@ -26,6 +26,7 @@ import { TaskStatusGroups } from './tasks/TaskList';
 import { TaskBoardColumns } from './tasks/TaskBoard';
 import { TaskDetails } from './tasks/TaskDetails';
 import { TaskDialog } from './tasks/TaskDialog';
+import { InlineTip } from './Tips';
 
 interface Props {
     /** The ShipWarden project. The view uses it only for the repository of "Start in worktree". */
@@ -262,6 +263,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
             {source && listState !== 'choose' && listState !== 'empty' && prefs.viewMode === 'board' && (
                 <div className="tasks-body board-mode">
                     <div className="task-board">
+                        <InlineTip id="tasks" />
                         {listError && <div className="form-error task-list-error">{listError}</div>}
                         {listed === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
                         {listed !== undefined && (
@@ -276,6 +278,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
             {source && listState !== 'choose' && listState !== 'empty' && prefs.viewMode === 'list' && (
                 <div className="tasks-body">
                     <div className="task-list" onKeyDown={moveListFocus}>
+                        <InlineTip id="tasks" inset />
                         {listError && <div className="form-error task-list-error">{listError}</div>}
                         {listed === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
                         {listed?.length === 0 && <div className="panel-message">No tasks in this collection.</div>}

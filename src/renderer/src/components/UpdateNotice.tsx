@@ -7,6 +7,7 @@ import { confirmDialog } from './ConfirmDialog';
 import { Markdown } from './Markdown';
 import { openLink } from '../links';
 import { useModal } from './use-modal';
+import { CornerNotice } from './CornerNotice';
 import { keyRoots } from '../query-client';
 
 const DISMISS_KEY = 'shipwarden.updateDismissed';
@@ -108,18 +109,20 @@ function CheckResultNotice({ result, onClose }: { result: CheckResult; onClose()
     }, [result, onClose]);
     const Icon = result.ok ? CheckCircle2 : AlertCircle;
     return (
-        <div className={`update-notice${result.ok ? '' : ' error'}`} role="status">
-            <Icon size={18} strokeWidth={1.8} className="update-notice-icon" />
-            <div className="update-notice-text">
-                <strong>{result.ok ? 'No updates available' : 'The update check failed'}</strong>
-                <span className="update-notice-detail">{result.text}</span>
+        <CornerNotice>
+            <div className={`update-notice${result.ok ? '' : ' error'}`} role="status">
+                <Icon size={18} strokeWidth={1.8} className="update-notice-icon" />
+                <div className="update-notice-text">
+                    <strong>{result.ok ? 'No updates available' : 'The update check failed'}</strong>
+                    <span className="update-notice-detail">{result.text}</span>
+                </div>
+                <div className="update-notice-buttons">
+                    <button className="icon-button" title="Close" onClick={onClose}>
+                        <X size={14} strokeWidth={1.8} />
+                    </button>
+                </div>
             </div>
-            <div className="update-notice-buttons">
-                <button className="icon-button" title="Close" onClick={onClose}>
-                    <X size={14} strokeWidth={1.8} />
-                </button>
-            </div>
-        </div>
+        </CornerNotice>
     );
 }
 
@@ -181,44 +184,47 @@ export function UpdateNotice() {
 
     return (
         <>
-            <div className="update-notice" role="status">
-                <ArrowUpCircle size={18} strokeWidth={1.8} className="update-notice-icon" />
-                <div className="update-notice-text">
-                    <strong>ShipWarden {state.update.version} is available</strong>
-                    {state.status === 'downloading' && (
-                        <span className="update-progress">
-                            <span style={{ width: `${Math.round((state.progress ?? 0) * 100)}%` }} />
+            <CornerNotice>
+                <div className="update-notice" role="status">
+                    <ArrowUpCircle size={18} strokeWidth={1.8} className="update-notice-icon" />
+                    <div className="update-notice-text">
+                        <strong>ShipWarden {state.update.version} is available</strong>
+                        {state.status === 'downloading' && (
+                            <span className="update-progress">
+                                <span style={{ width: `${Math.round((state.progress ?? 0) * 100)}%` }} />
+                            </span>
+                        )}
+                        <span className="update-notice-detail">
+                            {state.status === 'downloading' && `Downloading… ${Math.round((state.progress ?? 0) * 100)}%`}
+                            {state.status === 'installing' && 'Checking the update. ShipWarden restarts soon.'}
+                            {failed && state.error}
+                            {state.status === 'available' &&
+                                `You have ${state.current}.${state.canInstall ? '' : ' Only the installed app can update itself.'}`}
                         </span>
-                    )}
-                    <span className="update-notice-detail">
-                        {state.status === 'downloading' && `Downloading… ${Math.round((state.progress ?? 0) * 100)}%`}
-                        {state.status === 'installing' && 'Checking the update. ShipWarden restarts soon.'}
-                        {failed && state.error}
-                        {state.status === 'available' && `You have ${state.current}.${state.canInstall ? '' : ' Only the installed app can update itself.'}`}
-                    </span>
-                </div>
-                {!busy && (
-                    <div className="update-notice-buttons">
-                        <button className="link-button" onClick={() => setNotes(true)}>
-                            Release notes
-                        </button>
-                        {state.canInstall && state.status === 'available' && (
-                            <button className="button primary" onClick={() => void installUpdate(state).catch(() => undefined)}>
-                                Update and restart
-                            </button>
-                        )}
-                        {failed && (
-                            <button className="button" onClick={() => void window.shipwarden.updates.check()}>
-                                Try again
-                            </button>
-                        )}
-                        <button className="icon-button" title="Later. The notice shows again for the next version." onClick={later}>
-                            <X size={14} strokeWidth={1.8} />
-                        </button>
                     </div>
-                )}
-                {busy && <LoaderCircle size={15} className="spin" />}
-            </div>
+                    {!busy && (
+                        <div className="update-notice-buttons">
+                            <button className="link-button" onClick={() => setNotes(true)}>
+                                Release notes
+                            </button>
+                            {state.canInstall && state.status === 'available' && (
+                                <button className="button primary" onClick={() => void installUpdate(state).catch(() => undefined)}>
+                                    Update and restart
+                                </button>
+                            )}
+                            {failed && (
+                                <button className="button" onClick={() => void window.shipwarden.updates.check()}>
+                                    Try again
+                                </button>
+                            )}
+                            <button className="icon-button" title="Later. The notice shows again for the next version." onClick={later}>
+                                <X size={14} strokeWidth={1.8} />
+                            </button>
+                        </div>
+                    )}
+                    {busy && <LoaderCircle size={15} className="spin" />}
+                </div>
+            </CornerNotice>
             {notes && <NotesDialog state={state} onClose={() => setNotes(false)} />}
         </>
     );

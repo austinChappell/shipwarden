@@ -370,7 +370,7 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 
 ### Onboarding
 
-The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu. Phase 2 adds the welcome page. Phase 3 adds the guided tour. Phase 4 adds the empty states. Phase 5 adds the Keyboard Shortcuts page and the checklist.
+The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu. Phase 2 adds the welcome page. Phase 3 adds the guided tour. Phase 4 adds the empty states. Phase 5 adds the Keyboard Shortcuts page and the checklist. The tips come after the five phases.
 
 - **State.** `settings.onboarding` (`src/shared/onboarding.ts`): `welcome` ('new', 'done' or 'skipped'), `tourSeen`
   (a tour version), `checklist` (the steps that are done) and `checklistClosed`. `normalizeOnboarding` keeps a missing
@@ -434,6 +434,23 @@ The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup chec
   `checklistClosed`. A current user gets `checklistClosed` at the first start, so only new users see the card.
 - **Saves.** `saveOnboarding` runs the saves one after the other, and each save reads the newest state first. Two
   changes at the same time (for example "No thanks" and a checklist step) then both stay.
+- **Tips.** The tip text and the pure rules are in `src/shared/tips.ts`. The state is in `settings.onboarding`:
+  `tipsOff`, `tipsClosed` (the inline tips that the user closed), `recentTips` (the last 9 notice tips) and
+  `tipClosedAt` (the time of the last close of the notice). The tips are on by default.
+  - `TipNotice` (`components/Tips.tsx`) shows one tip of `NOTICE_TIPS` in the bottom-right corner. It has no "next"
+    button. `useTips` (`app/use-tips.ts`) shows a tip at each start of the app. While the app stays open, it shows a new
+    tip 12 hours after the user closed the last one (`shouldShowTipNotice`). It checks when the settings load, when
+    the window gets the focus and each 5 minutes. `pickTip` picks a random tip that is not in `recentTips`, so a tip
+    does not show again within 10 notices.
+    It does not show while the welcome page, the tour, the tour offer or a dialog shows.
+  - The corner notices (the update notice, the result of ⇧⌘U and the tip) go into one container through `CornerNotice`
+    (`components/CornerNotice.tsx`), a portal to `.corner-notices`. They stack in a column. The CSS `order` puts the
+    update notice at the bottom and the tip above it.
+  - `InlineTip` shows a tip of `INLINE_TIPS` in its view (Dashboard, Agents, Tasks, Review, Automations). It reads the
+    tip state from a small store that App.tsx fills (`useProvideTips`), so the views need no new props. Its close button
+    adds its ID to `tipsClosed`.
+  - The tip buttons open a view, a settings section, the New worktree dialog or the Keyboard Shortcuts page
+    (`TipAction`).
 - **Help menu.** Show Welcome, Take the Tour and Keyboard Shortcuts send `app:help` to the page. ShipWarden on GitHub
   opens the README page.
 - **Test data folder.** `SHIPWARDEN_USER_DATA_DIR` calls `app.setPath('userData', …)` before the app reads data. The app

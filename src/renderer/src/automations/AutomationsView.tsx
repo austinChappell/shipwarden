@@ -34,6 +34,7 @@ import { AutomationEditor, STATUS_OPTIONS } from './AutomationEditor';
 import { LimitField } from './LimitField';
 import { patchRunState, removeAutomation, saveAutomation, useAutomationList, useAutomationRuns } from './automation-queries';
 import { automationEngine } from './engine';
+import { InlineTip } from '../components/Tips';
 
 const api = window.shipwarden.automations;
 
@@ -240,6 +241,7 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                         ~/.shipwarden/automations that you can export and share.
                     </p>
 
+                    <InlineTip id="automations" />
                     {error && <div className="form-error">{error}</div>}
                     {notice && <div className="automation-notice">{notice}</div>}
 
