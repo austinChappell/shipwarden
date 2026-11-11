@@ -3,6 +3,7 @@ import type { ConnectionInfo, StatusGroup, Task, TaskLink } from '@shared/tasks'
 import {
     acceptsDrop,
     collectionPlaceholder,
+    taskListState,
     collectionTitle,
     connectionStateOf,
     formatField,
@@ -247,6 +248,13 @@ describe('labels and text', () => {
         expect(collectionPlaceholder(undefined)).toBe('Loading collections…');
         expect(collectionPlaceholder([])).toBe('No collections');
         expect(collectionPlaceholder([{ id: '1', name: 'One' }])).toBe('Select a collection');
+    });
+
+    it('tells the task list what to show before the tasks load', () => {
+        expect(taskListState(undefined, undefined)).toBe('collections');
+        expect(taskListState([], undefined)).toBe('empty');
+        expect(taskListState([{ id: '1', name: 'One' }], undefined)).toBe('choose');
+        expect(taskListState([{ id: '1', name: 'One' }], '1')).toBe('tasks');
     });
 });
 

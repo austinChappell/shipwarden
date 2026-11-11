@@ -1,7 +1,7 @@
 // A ShipWarden task plugin for GitHub issues. Each repository is a collection.
 import { execFile } from 'node:child_process';
 import { log, networkDetail, runPlugin } from '../sdk/index.js';
-import { onlyIssues, parseTaskId, stateChange, STATUSES, toCollections, toComment, toTask } from './map.js';
+import { loadPages, onlyIssues, parseTaskId, stateChange, STATUSES, toCollections, toComment, toTask } from './map.js';
 
 const API = 'https://api.github.com';
 const PAGE_SIZE = 50;
@@ -75,6 +75,9 @@ runPlugin({
         login = (await github('GET', '/user')).login;
         log(`GitHub Issues plugin ready as ${login}.`);
         return {
+            // Without a GitHub repository in the projects, the user selects a repository. ShipWarden does not select
+            // the first repository of the list, because it has nothing to do with the projects.
+            capabilities: { defaultCollectionOnly: true },
             fields: [
                 { id: 'author', label: 'Author', type: 'text' },
                 { id: 'milestone', label: 'Milestone', type: 'text' },
@@ -96,14 +99,10 @@ runPlugin({
 
     /** Each repository with issues in the scope is a collection. The first GitHub repository of the projects is the default. */
     async listCollections() {
-        const repos = [];
-        for (let page = 1; page <= MAX_REPO_PAGES; page++) {
-            const items = await github('GET', `/user/repos?per_page=100&page=${page}&sort=pushed&affiliation=owner,collaborator,organization_member`);
-            repos.push(...items);
-            if (items.length < 100) {
-                break;
-            }
-        }
+        const repos = await loadPages(
+            page => github('GET', `/user/repos?per_page=100&page=${page}&sort=pushed&affiliation=owner,collaborator,organization_member`),
+            MAX_REPO_PAGES
+        );
         const inScope = repo => !owners || owners.includes(repo.split('/')[0].toLowerCase());
         const defaultRepo = projectRepos.find(inScope);
         const collections = toCollections(repos, defaultRepo).filter(collection => inScope(collection.id));

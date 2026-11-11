@@ -100,7 +100,8 @@ Result:
     comments?: boolean,        // comments/list and comments/create
     actions?: boolean,         // tasks/action
     scopes?: boolean,          // scopes/list
-    activity?: boolean         // activity/list
+    activity?: boolean,        // activity/list
+    defaultCollectionOnly?: boolean // Without a saved choice, select only the collection with `default: true`
   },
   fields?: FieldDefinition[],  // Extra fields that the task view shows.
   actions?: ActionDefinition[],// Buttons that the task view shows.
@@ -277,7 +278,9 @@ Each task source has collections. `collections/list` and the `collection` parame
   GitHub repository, a Linear team (not a Linear project), a Jira project.
 - The user selects one collection in the task view. ShipWarden remembers the last choice for each source (plugin),
   in all repositories and after a restart. Without a choice, ShipWarden selects the collection with `default: true`,
-  else the first one.
+  else the first one. With the capability `defaultCollectionOnly`, ShipWarden selects no collection when none has
+  `default: true`, and the user selects one. The GitHub plugin uses it, because the first repository of the user can
+  have nothing to do with the projects.
 - ShipWarden sends `collections/list` each time the source starts. If the tracker limits the request rate, keep the
   result for a few minutes. The ClickUp plugin keeps it for 10 minutes.
 - Filters (for example "Assigned to me") apply inside the selected collection.

@@ -82,6 +82,34 @@ describe('GitHub Issues mapping', () => {
     });
 });
 
+describe('GitHub Issues repository pages', () => {
+    const pages = sizes => {
+        const calls = [];
+        const fetchPage = async page => {
+            calls.push(page);
+            return Array.from({ length: sizes[page - 1] ?? 0 }, (_, index) => `${page}-${index}`);
+        };
+        return { calls, fetchPage };
+    };
+
+    it('loads one page when the first page is not full', async () => {
+        const { calls, fetchPage } = pages([40]);
+        expect(await github.loadPages(fetchPage, 3)).toHaveLength(40);
+        expect(calls).toEqual([1]);
+    });
+
+    it('loads the other pages at the same time after a full first page', async () => {
+        const { calls, fetchPage } = pages([100, 100, 7]);
+        expect(await github.loadPages(fetchPage, 3)).toHaveLength(207);
+        expect(calls).toEqual([1, 2, 3]);
+    });
+
+    it('stops at the first page that is not full', async () => {
+        const { fetchPage } = pages([100, 30, 100]);
+        expect(await github.loadPages(fetchPage, 3)).toHaveLength(130);
+    });
+});
+
 describe('ClickUp mapping', () => {
     const task = {
         id: 'abc123',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MenuItemConstructorOptions } from 'electron';
-import type { ShortcutAction } from '@shared/shortcuts';
+import { SHORTCUT_INFO, type ShortcutAction } from '@shared/shortcuts';
 import { menuTemplate, PROJECT_URL } from './menu';
 
 /** Returns the menu template and the actions that its items called. */
@@ -82,5 +82,28 @@ describe('menuTemplate', () => {
         expect(tabs.map(entry => entry.accelerator)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9].map(digit => `Command+${digit}`));
         tabs.forEach(click);
         expect(calls).toEqual([...[1, 2, 3, 4, 5, 6, 7, 8].map(digit => `shortcut:selectTab${digit}`), 'shortcut:selectLastTab']);
+    });
+
+    it('shows the same keys as the Keyboard Shortcuts page', () => {
+        // "Shift+Alt+Command+D" becomes "⇧⌥⌘D", the order of the page.
+        const symbols = (accelerator: string) => {
+            const parts = accelerator.split('+');
+            const key = parts.pop() ?? '';
+            const names: Record<string, string> = { Left: '←', Right: '→', Up: '↑', Down: '↓' };
+            const has = (name: string) => parts.includes(name);
+            return `${has('Control') ? '⌃' : ''}${has('Alt') ? '⌥' : ''}${has('Shift') ? '⇧' : ''}${has('Command') || has('CommandOrControl') ? '⌘' : ''}${names[key] ?? key}`;
+        };
+        const { calls, template } = recordActions();
+        let checked = 0;
+        for (const entry of allItems(template)) {
+            if (!entry.accelerator || !entry.click) continue;
+            calls.length = 0;
+            click(entry);
+            const action = calls[0]?.startsWith('shortcut:') ? (calls[0].slice('shortcut:'.length) as ShortcutAction) : undefined;
+            if (!action) continue;
+            expect(SHORTCUT_INFO[action].keys, `${entry.label}`).toContain(symbols(String(entry.accelerator)));
+            checked++;
+        }
+        expect(checked).toBeGreaterThan(20);
     });
 });

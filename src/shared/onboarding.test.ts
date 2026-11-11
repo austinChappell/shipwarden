@@ -41,7 +41,7 @@ describe('normalizeOnboarding', () => {
 describe('initialOnboarding', () => {
     it('shows the welcome page only to a user without repositories', () => {
         expect(initialOnboarding(false)).toEqual({ welcome: 'new' });
-        expect(initialOnboarding(true)).toEqual({ welcome: 'done' });
+        expect(initialOnboarding(true)).toEqual({ welcome: 'done', checklistClosed: true });
     });
 });
 

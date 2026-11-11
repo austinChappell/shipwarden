@@ -370,7 +370,7 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 
 ### Onboarding
 
-The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu. Phase 2 adds the welcome page. Phase 3 adds the guided tour. Phase 4 adds the empty states.
+The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu. Phase 2 adds the welcome page. Phase 3 adds the guided tour. Phase 4 adds the empty states. Phase 5 adds the Keyboard Shortcuts page and the checklist.
 
 - **State.** `settings.onboarding` (`src/shared/onboarding.ts`): `welcome` ('new', 'done' or 'skipped'), `tourSeen`
   (a tour version), `checklist` (the steps that are done) and `checklistClosed`. `normalizeOnboarding` keeps a missing
@@ -424,6 +424,16 @@ The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup chec
   - Review and Pipelines: no code review account (Open Settings › Code review). The Dashboard shows the same fix in a
     card at the top, because its task comments work without an account. The hint names `gh auth login`.
   - Pipelines: a repository without workflows gets one sentence about GitHub Actions.
+- **Keyboard Shortcuts.** `ShortcutsDialog` (Help › Keyboard Shortcuts) shows `shortcutRows()` from
+  `src/shared/shortcuts.ts`. `SHORTCUT_INFO` is a `Record<ShortcutAction, …>`, so a new action does not compile
+  without its text. Tests send each listed key through `shortcutAction`, `appKeyAction` and the terminal key
+  functions, and check that each menu accelerator is in the list. So the page cannot get out of date.
+- **Checklist.** `ChecklistCard` at the top of the Dashboard. `updatedChecklist` (`src/shared/checklist.ts`) marks a
+  step done from the state of the app: a repository, a worktree that is not the main worktree, a running agent, the
+  Agents view, and a worktree branch with a pull request. A step stays done. The close button saves
+  `checklistClosed`. A current user gets `checklistClosed` at the first start, so only new users see the card.
+- **Saves.** `saveOnboarding` runs the saves one after the other, and each save reads the newest state first. Two
+  changes at the same time (for example "No thanks" and a checklist step) then both stay.
 - **Help menu.** Show Welcome, Take the Tour and Keyboard Shortcuts send `app:help` to the page. ShipWarden on GitHub
   opens the README page.
 - **Test data folder.** `SHIPWARDEN_USER_DATA_DIR` calls `app.setPath('userData', …)` before the app reads data. The app

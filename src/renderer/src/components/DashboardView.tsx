@@ -55,6 +55,8 @@ interface Props {
     reviewKey: string | null | undefined;
     /** Opens Settings › Code review. */
     onOpenReviewSettings(): void;
+    /** The getting started checklist card. It shows at the top of the page. */
+    checklist?: ReactNode;
     /** Opens a pull request in the Review view. */
     onOpenPullRequest(repo: RepoRef, number: number, tab: ReviewTabRequest): void;
     /** The hidden authors and the hiding rules of Settings > Dashboard. */
@@ -395,7 +397,7 @@ function groupBy<T>(items: T[], key: (item: T) => string): [string, T[]][] {
  * The review requests and the new comments on pull requests and tasks on the right.
  * A comment is new until the user sees it in ShipWarden.
  */
-export function DashboardView({ reviewKey, onOpenReviewSettings, onOpenPullRequest, filter, onHideAuthor, onCreateRule, onOpenSettings }: Props) {
+export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOpenPullRequest, filter, onHideAuthor, onCreateRule, onOpenSettings }: Props) {
     const state = useDashboard();
     useSeenVersion();
     const [query, setQuery] = useState('');
@@ -598,6 +600,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, onOpenPullReque
             )}
             <div className="dash-scroll" hidden={firstLoad} onKeyDown={moveListFocus}>
                 <div className="dash-page">
+                    {checklist}
                     {reviewKey === null && (
                         <div className="dash-connect">
                             <EmptyState

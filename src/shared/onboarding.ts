@@ -46,10 +46,11 @@ function normalizeChecklist(raw: unknown): Record<string, boolean> | undefined {
 
 /**
  * Returns the first onboarding state of a user without one.
- * A current user (with a repository) does not see the welcome page. A new user (without a repository) sees it.
+ * A current user (with a repository) does not see the welcome page or the checklist. A new user (without a repository)
+ * sees both.
  */
 export function initialOnboarding(hasRepos: boolean): OnboardingSettings {
-    return { welcome: hasRepos ? 'done' : 'new' };
+    return hasRepos ? { welcome: 'done', checklistClosed: true } : { welcome: 'new' };
 }
 
 /** The items of the Help menu that the page handles: the welcome page, the tour and the keyboard shortcuts. */
