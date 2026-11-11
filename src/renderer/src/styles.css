@@ -12824,3 +12824,65 @@ button.pr-summary-cell:hover {
     flex: none;
     white-space: nowrap;
 }
+
+/* The optional settings of the welcome page. They open on the page, so the user does not leave it. */
+.welcome-optional {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+}
+
+.welcome-optional + .welcome-optional {
+    margin-top: 8px;
+}
+
+.welcome-optional summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    color: var(--text-strong);
+    font-size: 13px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.welcome-optional summary::-webkit-details-marker {
+    display: none;
+}
+
+.welcome-optional summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+
+.welcome-optional-chevron {
+    color: var(--muted);
+    transition: transform 0.15s ease;
+}
+
+.welcome-optional[open] .welcome-optional-chevron {
+    transform: rotate(90deg);
+}
+
+.welcome-optional-body {
+    padding: 4px 16px 16px;
+    border-top: 1px solid var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .welcome-optional-chevron {
+        transition: none;
+    }
+}
+
+/* The welcome page is narrower than the settings page. A group header puts its controls below the title when they do not fit. */
+.welcome-optional .settings-group-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.welcome-optional .settings-group-header > div:first-child {
+    flex: 1 1 260px;
+}
