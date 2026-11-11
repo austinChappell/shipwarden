@@ -34,6 +34,9 @@ import { useAppearance } from './theme/appearance';
 import { StatusBar } from './components/StatusBar';
 import { ErrorBanner } from './components/ErrorBanner';
 import { agentForRepo, DEFAULT_SETTINGS, repoDisplayName, type AppSettings } from '@shared/settings';
+import { changeOnboarding, type HelpAction, type OnboardingSettings } from '@shared/onboarding';
+import { shouldOpenWelcome } from '@shared/welcome';
+import { WelcomeView } from './components/WelcomeView';
 import { leafOfTab, resizeSplit } from '@shared/panes';
 import type { ShortcutAction, ViewAction } from '@shared/shortcuts';
 import { lspBridge } from './lsp/bridge';
@@ -44,6 +47,7 @@ import { SidebarContext, SidebarToggle } from './components/SidebarToggle';
 import { requestSidebarFocus } from './sidebar-focus';
 import { useBrowserStates } from './browser/browser-store';
 import { openLink } from './links';
+import { errorText } from './util';
 import { BLANK_PAGE } from '@shared/browser';
 import { PaneTree } from './app/PaneTree';
 import { TabStrip } from './app/TabStrip';
@@ -299,6 +303,18 @@ export function App() {
     });
     const automationsCount = useAutomationRuns().state.runs.filter(run => run.status === 'pending').length;
 
+    /** Saves a change of the onboarding state. The other values of the state stay. */
+    const saveOnboarding = async (change: Partial<OnboardingSettings>) => {
+        const next = await api.settings.update({ onboarding: changeOnboarding(appSettings.onboarding, change) });
+        setAppSettings(next);
+    };
+    /** Runs an item of the Help menu. */
+    const help = (action: HelpAction) => {
+        if (action === 'welcome') setMainView('welcome');
+    };
+    const helpRef = useRef(help);
+    helpRef.current = help;
+
     // The effect below registers the IPC listeners one time. The refs give the listeners the functions of the newest render.
     const sessionExitedRef = useRef(tabs.sessionExited);
     sessionExitedRef.current = tabs.sessionExited;
@@ -309,9 +325,15 @@ export function App() {
         (async () => {
             const [state, terminalSettings, existing] = await Promise.all([api.projects.get(), api.terminals.settings(), api.terminals.list()]);
             setSettings(terminalSettings);
-            api.settings
+            const loaded = api.settings
                 .get()
-                .then(setAppSettings, () => undefined)
+                .then(
+                    value => {
+                        setAppSettings(value);
+                        return value;
+                    },
+                    () => undefined
+                )
                 .finally(() => setSettingsLoaded(true));
             setSessions(existing);
             project.setProjects(state);
@@ -319,6 +341,8 @@ export function App() {
                 state,
                 existing.map(session => session.id)
             );
+            // A new user sees the welcome page. It comes after the saved view of the project, so the saved view does not replace it.
+            if (shouldOpenWelcome((await loaded)?.onboarding)) setMainView('welcome');
         })();
         const offExit = api.terminals.onExit(id => sessionExitedRef.current(id));
         // The agent state goes to its own store, not to `sessions`: an agent reports it at each tool call, and a
@@ -334,8 +358,11 @@ export function App() {
         const offAgentProgram = api.terminals.onAgentProgram((id, program) => agentStateStore.setProgram(id, program));
         // The "Settings…" menu item (⌘,) opens the settings page.
         const offOpenSettings = api.app.onOpenSettings(section => openSettingsRef.current(section));
+        // The items of the Help menu.
+        const offHelp = api.app.onHelp(action => helpRef.current(action));
         return () => {
             offOpenSettings();
+            offHelp();
             offExit();
             offAgentState();
             offAgentProgram();
@@ -686,6 +713,30 @@ export function App() {
                                 repoLabel={repoLabel}
                                 repoColor={repo => appSettings.repos[repo]?.color}
                                 onOpen={openAgent}
+                            />
+                        </main>
+                    )}
+                    {mainView === 'welcome' && (
+                        <main className="workspace">
+                            <WelcomeView
+                                settings={appSettings}
+                                mode={mode}
+                                repos={repos}
+                                projectName={activeProject?.name}
+                                onSave={async change => setAppSettings(await api.settings.update(change))}
+                                onOpenSettings={section => openSettings(section)}
+                                onAddRepo={() => void project.addRepo()}
+                                onCloneRepo={repo => (activeProject ? project.pullRepo(repo, { projectId: activeProject.id }) : Promise.resolve(false))}
+                                onStart={() => {
+                                    void saveOnboarding({ welcome: 'done' }).catch(err => setError(errorText(err)));
+                                    const repo = repos[0];
+                                    setMainView(worktrees.length > 0 ? 'worktree' : 'dashboard');
+                                    if (repo) setNewWorktree({ repo });
+                                }}
+                                onSkip={() => {
+                                    void saveOnboarding({ welcome: 'skipped' }).catch(err => setError(errorText(err)));
+                                    setMainView('dashboard');
+                                }}
                             />
                         </main>
                     )}

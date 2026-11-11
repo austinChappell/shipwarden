@@ -63,6 +63,9 @@ remove the worktree after its pull request merges. Each automation is a JSON fil
 you can export and share. Runs can wait for your approval, and limits stop loops. See
 [docs/automations.md](docs/automations.md).
 
+At the first start, a welcome page checks your tools (git, the agent and GitHub access), helps you add or clone a
+repository, choose your agent and start the first agent. Help › Show Welcome opens it again.
+
 The iPhone app (`ios/`) connects to ShipWarden on your Mac over your network. It shows the
 agents and their terminal screens, the worktrees with their pull requests and CI state. You
 can reply to an agent, answer its questions and approve a pull request. Turn it on in
