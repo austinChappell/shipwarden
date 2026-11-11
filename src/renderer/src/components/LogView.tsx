@@ -7,6 +7,7 @@ import { errorText, formatDuration, optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
 import { ciActions, ciKeys, isFailedConclusion, useCiAction } from '../github/ci-queries';
+import { claimLogFind, isFindShortcut, type LogFindOwner, openLogFind, releaseLogFind } from './log-find';
 
 interface Props {
     target: RepoTarget;
@@ -94,6 +95,7 @@ function JobSteps({ progress, error }: { progress: JobProgress | undefined; erro
 
 /** Shows the log of one GitHub Actions job. While the job runs, it shows the live steps of the job instead. */
 export function LogView({ target, check, onSendToAgent, onBack }: Props) {
+    const rootRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | undefined>(undefined);
     const action = useCiAction();
@@ -167,6 +169,39 @@ export function LogView({ target, check, onSendToAgent, onBack }: Props) {
         };
     }, []);
 
+    // ⌘F opens the search bar of the editor. The log owns ⌘F when it opens and after each click or focus in it.
+    // A click or a focus in a different place removes the ownership. The capture phase gets the key before the editor.
+    useEffect(() => {
+        const finder: LogFindOwner = {
+            open() {
+                const editor = editorRef.current;
+                const container = containerRef.current;
+                // The editor is hidden while the live steps show, or while a different panel covers the log.
+                if (!editor || !container || container.getClientRects().length === 0) return false;
+                editor.focus();
+                void editor.getAction('actions.find')?.run();
+                return true;
+            }
+        };
+        claimLogFind(finder);
+        const onTouch = (event: Event) => {
+            if (event.target instanceof Node && rootRef.current?.contains(event.target)) claimLogFind(finder);
+            else releaseLogFind(finder);
+        };
+        const onKey = (event: KeyboardEvent) => {
+            if (isFindShortcut(event)) openLogFind(event);
+        };
+        window.addEventListener('pointerdown', onTouch, true);
+        window.addEventListener('focusin', onTouch, true);
+        window.addEventListener('keydown', onKey, true);
+        return () => {
+            releaseLogFind(finder);
+            window.removeEventListener('pointerdown', onTouch, true);
+            window.removeEventListener('focusin', onTouch, true);
+            window.removeEventListener('keydown', onKey, true);
+        };
+    }, []);
+
     // The editor shows each new log. This effect comes after the effect that makes the editor.
     useEffect(() => {
         const editor = editorRef.current;
@@ -197,7 +232,7 @@ export function LogView({ target, check, onSendToAgent, onBack }: Props) {
     };
 
     return (
-        <div className="editor">
+        <div className="editor" ref={rootRef}>
             <div className="diff-header">
                 {onBack && (
                     <button className="icon-button" title="Back to the checks" onClick={onBack}>
