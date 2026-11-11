@@ -768,6 +768,7 @@ export function App() {
                         <main className="workspace">
                             <WelcomeView
                                 settings={appSettings}
+                                mode={mode}
                                 repos={repos}
                                 projectName={activeProject?.name}
                                 onSave={async change => setAppSettings(await api.settings.update(change))}
