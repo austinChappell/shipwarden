@@ -1,8 +1,10 @@
 import type {
+    AssigneeFilter,
     CommentInput,
     ConnectionInfo,
     EditableParts,
     FilterDefinition,
+    LabelFilter,
     StatusGroup,
     Task,
     TaskCollection,
@@ -14,7 +16,7 @@ import type {
     TaskSource,
     TaskStatus
 } from '@shared/tasks';
-import { linkMatchesTask, statusKey } from '@shared/tasks';
+import { linkMatchesTask, showsAllAssignees, showsAllLabels, statusKey } from '@shared/tasks';
 
 /** The list (grouped) or the board (a column for each status). */
 export type ViewMode = 'list' | 'board';
@@ -376,4 +378,13 @@ export function commentLinks(
     const kept = unique(mentions).filter(person => body.includes(`@${person.name}`));
     const linked = unique(references).filter(reference => body.includes(reference.text));
     return { ...(kept.length ? { mentions: kept } : {}), ...(linked.length ? { references: linked } : {}) };
+}
+
+/** The message when the search, the assignee filter or the label filter hides all tasks. */
+export function noMatchText(query: string, assignee: AssigneeFilter, label: LabelFilter): string {
+    const text = query.trim();
+    const filters = [!showsAllAssignees(assignee) && 'assignees', !showsAllLabels(label) && 'labels'].filter(Boolean);
+    const selected = filters.length ? ` with the selected ${filters.join(' and ')}` : '';
+    if (text) return `No tasks${selected} match “${text}”.`;
+    return `No tasks${selected} in this collection.`;
 }

@@ -10,6 +10,7 @@ import {
     groupStatus,
     isGroupCollapsed,
     missingSettingsText,
+    noMatchText,
     neighborColumn,
     parseCollapseState,
     parseViewMode,
@@ -413,5 +414,21 @@ describe('comment mentions', () => {
         );
         expect(result).toEqual({ mentions: [{ id: '2', name: 'Ann Lee' }], references: [{ id: 'a', text: 'ENG-1' }] });
         expect(commentLinks('plain', [], [])).toEqual({});
+    });
+});
+
+describe('noMatchText', () => {
+    const allPeople = { people: [], unassigned: false };
+    const somePeople = { people: ['7'], unassigned: false };
+    const allLabels = { labels: [], unlabeled: false };
+    const someLabels = { labels: ['bug'], unlabeled: false };
+
+    it.each([
+        ['login', allPeople, allLabels, 'No tasks match “login”.'],
+        ['login', somePeople, allLabels, 'No tasks with the selected assignees match “login”.'],
+        ['', allPeople, someLabels, 'No tasks with the selected labels in this collection.'],
+        ['', somePeople, someLabels, 'No tasks with the selected assignees and labels in this collection.']
+    ])('tells which filters hide the tasks for %j', (query, assignee, label, expected) => {
+        expect(noMatchText(query, assignee, label)).toBe(expected);
     });
 });

@@ -1,10 +1,20 @@
 import { useMemo } from 'react';
 import { ExternalLink, List, Plus, RefreshCw, Search, Settings, SquareKanban } from 'lucide-react';
-import type { AssigneeFilter, ConnectionInfo, TaskCollection, TaskPerson, TaskSource } from '@shared/tasks';
+import {
+    showsAllLabels,
+    type AssigneeFilter,
+    type ConnectionInfo,
+    type LabelFilter,
+    type TaskCollection,
+    type TaskLabel,
+    type TaskPerson,
+    type TaskSource
+} from '@shared/tasks';
 import { openLink } from '../../links';
 import { Combobox, sortedGroups } from '../Combobox';
 import { Select } from '../Select';
 import { AssigneeFilterPicker } from './AssigneeFilterPicker';
+import { LabelFilterPicker } from './LabelFilterPicker';
 import { collectionPlaceholder, collectionTitle, type ViewMode } from './task-view-logic';
 
 interface PickerProps {
@@ -68,6 +78,10 @@ interface Props {
     assigneesSupported: boolean;
     assignee: AssigneeFilter;
     setAssignee(value: AssigneeFilter): void;
+    /** The labels that the label filter lists. */
+    labels: TaskLabel[];
+    label: LabelFilter;
+    setLabel(value: LabelFilter): void;
     viewMode: ViewMode;
     changeViewMode(mode: ViewMode): void;
     query: string;
@@ -79,7 +93,7 @@ interface Props {
     onOpenSettings(): void;
 }
 
-/** The header of the Tasks view: the task manager, the collection, the filter, the assignee, the view mode and the search. */
+/** The header of the Tasks view: the task manager, the collection, the filter, the assignee, the label, the view mode and the search. */
 export function TasksHeader(props: Props) {
     const { connections, connectionId, currentConnection, source, filter, viewMode, query, loading } = props;
     return (
@@ -115,6 +129,10 @@ export function TasksHeader(props: Props) {
                         value={props.assignee}
                         onChange={props.setAssignee}
                     />
+                )}
+                {/* Tasks without labels give an empty list. Then the filter shows only while it hides tasks. */}
+                {source && (props.labels.length > 0 || !showsAllLabels(props.label)) && (
+                    <LabelFilterPicker labels={props.labels} value={props.label} onChange={props.setLabel} />
                 )}
                 {source && (
                     <div className="segmented compact view-switch" role="group" aria-label="View">
