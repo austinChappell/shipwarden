@@ -5,6 +5,7 @@ import { isAutomationId, type AutomationRun } from '@shared/automations';
 import type { Services } from '../services';
 import type { RunChange } from '../automations/automation-store';
 import { TokenCounter } from '../automations/token-counter';
+import { sendHttpRequest } from '../automations/http-request';
 import { showOpenDialog } from './dialogs';
 import { onlyStrings, optionalString } from './args';
 
@@ -12,7 +13,7 @@ import { onlyStrings, optionalString } from './args';
 const MAX_IMPORT_BYTES = 256 * 1024;
 
 /** Registers the IPC handlers of the automations and their runs, and starts to watch the automations folder. */
-export function registerAutomationIpc({ automations, window }: Pick<Services, 'automations' | 'window'>): void {
+export function registerAutomationIpc({ automations, window, networkReady }: Pick<Services, 'automations' | 'window' | 'networkReady'>): void {
     ipcMain.handle(IpcChannels.automationsList, () => automations.list());
     ipcMain.handle(IpcChannels.automationsSave, (_event, automation: unknown, previousId: unknown) => automations.save(automation, optionalString(previousId)));
     ipcMain.handle(IpcChannels.automationsRemove, (_event, id: unknown) => automations.remove(String(id)));
@@ -70,6 +71,7 @@ export function registerAutomationIpc({ automations, window }: Pick<Services, 'a
         automations.setScheduleRun(String(automationId), typeof at === 'number' && Number.isFinite(at) ? at : Date.now())
     );
     ipcMain.handle(IpcChannels.automationsClearHistory, () => automations.clearHistory());
+    ipcMain.handle(IpcChannels.automationsHttp, (_event, request: unknown) => sendHttpRequest(request, networkReady));
     void automations
         .watch(() => window.send(IpcChannels.automationsChanged))
         .catch(error => console.warn(`[automations] The automations folder is not watched: ${error instanceof Error ? error.message : String(error)}`));

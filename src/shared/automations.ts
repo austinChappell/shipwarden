@@ -1,6 +1,18 @@
 import type { Task } from './tasks';
 import { PROVIDER_NAMES, type ProviderUsage } from './usage';
 import { AGENT_MODES, isAgentMode, type AgentMode } from './agent-modes';
+import {
+    ConditionError,
+    MAX_NESTING,
+    conditionHolds,
+    conditionTexts,
+    globRegex,
+    normalizeCondition,
+    templateVariables,
+    type Condition
+} from './automation-templates';
+
+export { renderTemplate } from './automation-templates';
 
 /**
  * Automations: rules of the form "when this event occurs, do these actions".
@@ -19,9 +31,27 @@ export const AUTOMATION_FORMAT_VERSION = 1;
 /** The value of the "kind" field. It marks a JSON text as a ShipWarden automation. */
 export const AUTOMATION_KIND = 'shipwarden.automation';
 
-export type TriggerType = 'ci.failed' | 'pr.comment' | 'pr.conflict' | 'pr.merged' | 'agent.done' | 'task.new' | 'schedule';
+export type TriggerType = 'ci.failed' | 'pr.comment' | 'pr.conflict' | 'pr.merged' | 'agent.done' | 'task.new' | 'schedule' | 'manual';
+
+/**
+ * The thing that a manual automation acts on. Its button shows in the view of that thing:
+ * - worktree: the header of the worktree.
+ * - pullRequest: the pull request panel of a worktree.
+ * - task: the details of a task.
+ * - none: only the play button in the Automations view.
+ */
+export type ManualEntity = 'worktree' | 'pullRequest' | 'task' | 'none';
+
+export const MANUAL_ENTITIES: { entity: ManualEntity; label: string; description: string }[] = [
+    { entity: 'worktree', label: 'Worktree', description: 'A button in the header of each worktree.' },
+    { entity: 'pullRequest', label: 'Pull request', description: 'A button in the pull request panel of each worktree.' },
+    { entity: 'task', label: 'Task', description: 'A button in the details of each task.' },
+    { entity: 'none', label: 'Nothing', description: 'Only the play button in the Automations view.' }
+];
 
 export type Trigger =
+    /** The user clicks the button of the automation in the view of the entity, or the play button. */
+    | { type: 'manual'; entity: ManualEntity; button?: string }
     /** The checks of the pull request of a worktree branch went from waiting to a failure. */
     | { type: 'ci.failed' }
     /** Another person commented on, or reviewed, the pull request of a worktree branch. */
@@ -37,9 +67,40 @@ export type Trigger =
     /** A time of day on the selected days of the week. `days` has 0 (Sunday) to 6 (Saturday). `time` is "HH:MM". */
     | { type: 'schedule'; days: number[]; time: string };
 
-export type ActionType = 'sendToAgent' | 'startAgent' | 'runHeadless' | 'moveTask' | 'removeWorktree' | 'notify';
+export type ActionType = 'sendToAgent' | 'startAgent' | 'runHeadless' | 'moveTask' | 'removeWorktree' | 'notify' | 'http' | 'if' | 'stop';
+
+export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+export type HttpMethod = (typeof HTTP_METHODS)[number];
+
+/** A header of an HTTP request. The value can contain variables and secrets. */
+export interface HttpHeader {
+    name: string;
+    value: string;
+}
+
+/** The default and the largest time limit of an HTTP request, in seconds. */
+export const HTTP_TIMEOUT_DEFAULT = 30;
+export const HTTP_TIMEOUT_MAX = 300;
 
 export type AutomationAction =
+    /**
+     * Sends an HTTP request from the main process. The address, the headers and the body can contain variables and
+     * secrets ("{{secret.NAME}}"). The later actions get the answer as "http.*" variables. A status outside 200 to 299
+     * stops the run, unless `allowFailure` is true.
+     */
+    | {
+          type: 'http';
+          method: HttpMethod;
+          url: string;
+          headers?: HttpHeader[];
+          body?: string;
+          allowFailure?: boolean;
+          timeoutSeconds?: number;
+      }
+    /** Runs the `then` actions when the condition agrees, else the `else` actions. */
+    | { type: 'if'; condition: Condition; then: AutomationAction[]; else?: AutomationAction[] }
+    /** Stops the run. With `fail`, the run fails. `reason` goes into the run history. */
+    | { type: 'stop'; reason?: string; fail?: boolean }
     /**
      * Sends the prompt to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs.
      * With `mode`, the agent works in that permission mode. See `AgentMode`.
@@ -83,6 +144,12 @@ export interface AutomationLimits {
 export interface AutomationConditions {
     /** Only branches that match this pattern. "*" matches any text. Empty: all branches. */
     branchPattern?: string;
+    /**
+     * The run starts only when this condition agrees. It uses the variables that the event gives without a request:
+     * not "checks", not "http.*" and not the details of the task of a worktree. An "If" action can use all variables.
+     * For a manual automation, the button shows only when the condition agrees.
+     */
+    when?: Condition;
 }
 
 /** The portable part of an automation. An export contains only these fields. */
@@ -126,6 +193,11 @@ export interface AutomationBinding {
     collections?: BoundCollection[];
     /** The repository of a task by its label, for a "task.new" trigger. The first rule with a label of the task applies. */
     labelRepos?: LabelRepo[];
+    /**
+     * The secret values of the HTTP requests, by name. "{{secret.NAME}}" gives the value, only in the fields of an HTTP
+     * request. An export never contains them.
+     */
+    secrets?: Record<string, string>;
 }
 
 export interface Automation extends AutomationDefinition {
@@ -158,7 +230,12 @@ export const TRIGGER_TYPES: { type: TriggerType; label: string; description: str
         description:
             'A task of a collection agrees with the filters for the first time: a new task, or a task that gets the label, the assignee or the status. A done task never counts.'
     },
-    { type: 'schedule', label: 'Schedule', description: 'A time of day on the selected days.' }
+    { type: 'schedule', label: 'Schedule', description: 'A time of day on the selected days.' },
+    {
+        type: 'manual',
+        label: 'Manual (a button)',
+        description: 'You click a button in the view of a worktree, a pull request or a task. The automation does not run by itself.'
+    }
 ];
 
 export const ACTION_TYPES: { type: ActionType; label: string; description: string }[] = [
@@ -167,25 +244,126 @@ export const ACTION_TYPES: { type: ActionType; label: string; description: strin
     { type: 'runHeadless', label: 'Ask an agent', description: 'Runs the agent in print mode. The agent does not change files.' },
     { type: 'moveTask', label: 'Move the task', description: 'Moves the task to a status.' },
     { type: 'removeWorktree', label: 'Remove the worktree', description: 'Removes the worktree. Git refuses a worktree with changes.' },
-    { type: 'notify', label: 'Show a notification', description: 'Shows a macOS notification.' }
+    { type: 'notify', label: 'Show a notification', description: 'Shows a macOS notification.' },
+    {
+        type: 'http',
+        label: 'Send an HTTP request',
+        description: 'Sends a request to a web address. The next actions get the answer as {{http.status}}, {{http.body}} and {{http.json.…}}.'
+    },
+    { type: 'if', label: 'If', description: 'Runs some actions when a condition agrees, and other actions when it does not agree.' },
+    { type: 'stop', label: 'Stop', description: 'Stops the run. The next actions do not run.' }
 ];
 
 /** The triggers of events about a worktree branch. */
 const WORKTREE_TRIGGERS: readonly TriggerType[] = ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done'];
 
-/** The triggers that each action can follow. An action needs the data of its trigger, for example a worktree. */
+/**
+ * The triggers that each action can follow. An action needs the data of its trigger, for example a worktree.
+ * A manual trigger uses `MANUAL_ACTIONS` instead, by its entity.
+ */
 export const ACTION_TRIGGERS: Record<ActionType, readonly TriggerType[]> = {
     sendToAgent: ['ci.failed', 'pr.comment', 'pr.conflict', 'agent.done'],
     startAgent: ['task.new', 'schedule'],
     runHeadless: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
     moveTask: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new'],
     removeWorktree: ['pr.merged'],
-    notify: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule']
+    notify: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
+    http: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
+    if: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
+    stop: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule']
 };
+
+/** The entities of a manual trigger that each action can act on. */
+const MANUAL_ACTIONS: Record<ActionType, readonly ManualEntity[]> = {
+    sendToAgent: ['worktree', 'pullRequest'],
+    startAgent: ['task', 'none'],
+    runHeadless: ['worktree', 'pullRequest', 'task', 'none'],
+    moveTask: ['worktree', 'pullRequest', 'task'],
+    removeWorktree: ['worktree', 'pullRequest'],
+    notify: ['worktree', 'pullRequest', 'task', 'none'],
+    http: ['worktree', 'pullRequest', 'task', 'none'],
+    if: ['worktree', 'pullRequest', 'task', 'none'],
+    stop: ['worktree', 'pullRequest', 'task', 'none']
+};
+
+/** True when the action can follow the trigger. */
+export function actionAllowed(type: ActionType, trigger: Trigger): boolean {
+    return trigger.type === 'manual' ? MANUAL_ACTIONS[type].includes(trigger.entity) : ACTION_TRIGGERS[type].includes(trigger.type);
+}
 
 /** True when the trigger is about a worktree branch. These triggers use `binding.repos` as a filter. */
 export function isWorktreeTrigger(type: TriggerType): boolean {
     return WORKTREE_TRIGGERS.includes(type);
+}
+
+/** True when the trigger acts on worktrees: a pull request or agent trigger, or a manual worktree or pull request button. */
+export function actsOnWorktrees(trigger: Trigger): boolean {
+    return isWorktreeTrigger(trigger.type) || (trigger.type === 'manual' && (trigger.entity === 'worktree' || trigger.entity === 'pullRequest'));
+}
+
+/** True when the trigger acts on tasks: "task.new", or a manual task button. */
+export function actsOnTasks(trigger: Trigger): boolean {
+    return trigger.type === 'task.new' || (trigger.type === 'manual' && trigger.entity === 'task');
+}
+
+/** Returns all actions, also the actions in "If" actions, in order. */
+export function flattenActions(actions: readonly AutomationAction[]): AutomationAction[] {
+    return actions.flatMap(action => (action.type === 'if' ? [action, ...flattenActions(action.then), ...flattenActions(action.else ?? [])] : [action]));
+}
+
+/** Returns all texts of an automation that can contain variables: the prompts, the fields of the actions and the conditions. */
+export function automationTexts(automation: Pick<AutomationDefinition, 'actions' | 'conditions'>): string[] {
+    const texts = flattenActions(automation.actions).flatMap(action => {
+        switch (action.type) {
+            case 'sendToAgent':
+            case 'runHeadless':
+                return [action.prompt];
+            case 'startAgent':
+                return [action.prompt, action.branch ?? ''];
+            case 'notify':
+                return [action.title, action.body ?? ''];
+            case 'http':
+                return [action.url, action.body ?? '', ...(action.headers ?? []).map(header => header.value)];
+            case 'if':
+                return conditionTexts(action.condition);
+            case 'stop':
+                return [action.reason ?? ''];
+            default:
+                return [];
+        }
+    });
+    return automation.conditions?.when ? [...texts, ...conditionTexts(automation.conditions.when)] : texts;
+}
+
+/** True when a text of the automation uses a variable with this name or this prefix, for example "task." or "checks". */
+export function usesVariable(automation: Pick<AutomationDefinition, 'actions' | 'conditions'>, prefix: string): boolean {
+    return automationTexts(automation).some(text => templateVariables(text).some(name => name === prefix || name.startsWith(prefix)));
+}
+
+/** The names of the secrets that the HTTP requests of the automation use. */
+export function usedSecrets(automation: Pick<AutomationDefinition, 'actions'>): string[] {
+    const names = flattenActions(automation.actions)
+        .filter(action => action.type === 'http')
+        .flatMap(action => [action.url, action.body ?? '', ...(action.headers ?? []).map(header => header.value)])
+        .flatMap(templateVariables)
+        .filter(name => name.startsWith(SECRET_PREFIX))
+        .map(name => name.slice(SECRET_PREFIX.length));
+    return [...new Set(names)];
+}
+
+const SECRET_PREFIX = 'secret.';
+/** The text that the run history shows for a secret. */
+export const SECRET_MASK = '•••';
+
+/** The values of the secrets as variables. With `masked`, each value is SECRET_MASK, for the run history. */
+export function secretVariables(binding: AutomationBinding, masked = false): Record<string, string> {
+    return Object.fromEntries(Object.entries(binding.secrets ?? {}).map(([name, value]) => [`${SECRET_PREFIX}${name}`, masked ? SECRET_MASK : value]));
+}
+
+/** True when the conditions of the automation agree with the values. An automation without conditions agrees. */
+export function conditionsAgree(automation: Pick<AutomationDefinition, 'conditions'>, values: Record<string, string | undefined>): boolean {
+    const when = automation.conditions?.when;
+    return !when || conditionHolds(when, values);
 }
 
 /**
@@ -199,13 +377,43 @@ export function taskRepo(binding: AutomationBinding, task: Pick<Task, 'labels'>)
 
 /** True when the trigger needs one repository in the binding: a task trigger or a schedule that starts agents or asks agents. */
 export function needsRepo(automation: Pick<AutomationDefinition, 'trigger' | 'actions'>): boolean {
-    if (automation.trigger.type === 'task.new') return automation.actions.some(action => action.type === 'startAgent');
-    if (automation.trigger.type === 'schedule') return automation.actions.some(action => action.type === 'startAgent' || action.type === 'runHeadless');
+    const actions = flattenActions(automation.actions);
+    const trigger = automation.trigger;
+    if (actsOnTasks(trigger)) return actions.some(action => action.type === 'startAgent');
+    if (trigger.type === 'schedule' || (trigger.type === 'manual' && trigger.entity === 'none')) {
+        return actions.some(action => action.type === 'startAgent' || action.type === 'runHeadless');
+    }
     return false;
 }
 
-/** The variables of the prompts, for each trigger. The editor shows them. */
-export const TRIGGER_VARIABLES: Record<TriggerType, { name: string; description: string }[]> = {
+export interface VariableInfo {
+    name: string;
+    description: string;
+}
+
+/** The variables of an HTTP answer. They have values after an "HTTP request" action. */
+export const HTTP_VARIABLES: VariableInfo[] = [
+    { name: 'http.status', description: 'The status of the last HTTP answer, for example 200' },
+    { name: 'http.ok', description: '"true" when the status of the last HTTP answer is 200 to 299' },
+    { name: 'http.body', description: 'The body of the last HTTP answer' },
+    { name: 'http.json.NAME', description: 'A value of a JSON answer, for example http.json.data.id or http.json.items.0.name' }
+];
+
+/** The variables of each manual entity. */
+const ENTITY_VARIABLES: Record<ManualEntity, () => VariableInfo[]> = {
+    worktree: () => [...worktreeVariables(), ...prVariables(' (when the branch has one)'), ...linkedTaskVariables()],
+    pullRequest: () => [...prVariables(), ...prDetailVariables(), ...worktreeVariables(), ...linkedTaskVariables()],
+    task: () => [...taskVariables(), { name: 'repo', description: 'The name of the repository' }, ...timeVariables()],
+    none: () => [{ name: 'repo', description: 'The name of the repository' }, ...timeVariables()]
+};
+
+/** Returns the variables of a trigger. The editor shows them. */
+export function triggerVariables(trigger: Trigger): VariableInfo[] {
+    return trigger.type === 'manual' ? ENTITY_VARIABLES[trigger.entity]() : TRIGGER_VARIABLES[trigger.type];
+}
+
+/** The variables of the prompts, for each trigger. The editor shows them. A manual trigger uses `triggerVariables`. */
+export const TRIGGER_VARIABLES: Record<Exclude<TriggerType, 'manual'>, VariableInfo[]> = {
     'ci.failed': [{ name: 'checks', description: 'One line for each failed check, with the path of its saved log' }, ...prVariables(), ...worktreeVariables()],
     'pr.comment': [
         { name: 'comment.author', description: 'The author of the comment' },
@@ -219,11 +427,7 @@ export const TRIGGER_VARIABLES: Record<TriggerType, { name: string; description:
     'pr.merged': [...prVariables(), ...worktreeVariables()],
     'agent.done': [{ name: 'agent.message', description: 'The last message of the agent' }, ...worktreeVariables()],
     'task.new': [
-        { name: 'task.key', description: 'The key of the task, for example ENG-12' },
-        { name: 'task.title', description: 'The title of the task' },
-        { name: 'task.url', description: 'The web address of the task' },
-        { name: 'task.description', description: 'The description of the task' },
-        { name: 'task.status', description: 'The status of the task' },
+        ...taskVariables(),
         { name: 'branch', description: 'The branch of the new worktree' },
         { name: 'repo', description: 'The name of the repository' },
         { name: 'date', description: 'The date, for example 2026-11-10' }
@@ -236,38 +440,70 @@ export const TRIGGER_VARIABLES: Record<TriggerType, { name: string; description:
     ]
 };
 
-function prVariables() {
+function prVariables(note = ''): VariableInfo[] {
     return [
-        { name: 'pr.number', description: 'The number of the pull request' },
-        { name: 'pr.title', description: 'The title of the pull request' },
-        { name: 'pr.url', description: 'The web address of the pull request' }
+        { name: 'pr.number', description: `The number of the pull request${note}` },
+        { name: 'pr.title', description: `The title of the pull request${note}` },
+        { name: 'pr.url', description: `The web address of the pull request${note}` },
+        { name: 'pr.draft', description: `"true" for a draft pull request${note}` }
     ];
 }
 
-function worktreeVariables() {
+/** The variables that only the pull request panel gives. */
+function prDetailVariables(): VariableInfo[] {
+    return [
+        { name: 'pr.author', description: 'The login of the author of the pull request' },
+        { name: 'pr.base', description: 'The base branch of the pull request' },
+        { name: 'pr.state', description: 'The state of the pull request: OPEN, MERGED or CLOSED' },
+        { name: 'pr.body', description: 'The description of the pull request' }
+    ];
+}
+
+function worktreeVariables(): VariableInfo[] {
     return [
         { name: 'branch', description: 'The branch of the worktree' },
         { name: 'repo', description: 'The name of the repository' },
         { name: 'worktree', description: 'The folder of the worktree' },
-        { name: 'date', description: 'The date, for example 2026-11-10' }
+        ...timeVariables()
     ];
 }
 
-const VARIABLE_PATTERN = /\{\{\s*([\w.]+)\s*\}\}/g;
-
-/** Replaces each "{{name}}" with its value. A variable without a value becomes an empty string. */
-export function renderTemplate(template: string, values: Record<string, string | undefined>): string {
-    return template.replace(VARIABLE_PATTERN, (_match, name: string) => values[name] ?? '');
+function timeVariables(): VariableInfo[] {
+    return [
+        { name: 'date', description: 'The date, for example 2026-11-10' },
+        { name: 'time', description: 'The time, for example 08:00' }
+    ];
 }
 
-/** Returns the variables of the text that the trigger does not give, one time each. */
-export function unknownVariables(template: string, trigger: TriggerType): string[] {
-    const known = new Set(TRIGGER_VARIABLES[trigger].map(variable => variable.name));
-    const unknown = new Set<string>();
-    for (const match of template.matchAll(VARIABLE_PATTERN)) {
-        if (!known.has(match[1])) unknown.add(match[1]);
-    }
-    return [...unknown];
+function taskVariables(): VariableInfo[] {
+    return [
+        { name: 'task.key', description: 'The key of the task, for example ENG-12' },
+        { name: 'task.title', description: 'The title of the task' },
+        { name: 'task.url', description: 'The web address of the task' },
+        { name: 'task.description', description: 'The description of the task' },
+        { name: 'task.status', description: 'The status of the task' },
+        { name: 'task.labels', description: 'The labels of the task, separated by commas' },
+        { name: 'task.assignees', description: 'The assignees of the task, separated by commas' },
+        { name: 'task.priority', description: 'The priority of the task' }
+    ];
+}
+
+/** The variables of the task of a worktree. The key and the title are always known. The others need a request. */
+function linkedTaskVariables(): VariableInfo[] {
+    return taskVariables().map(variable => ({ ...variable, description: `${variable.description} of the worktree, if it has one` }));
+}
+
+/**
+ * Returns the variables of the text that the trigger does not give, one time each. The "http.*" variables are always
+ * known. The "secret.*" variables are known only with `secrets`, for the fields of an HTTP request.
+ */
+export function unknownVariables(template: string, trigger: Trigger, options: { secrets?: readonly string[] } = {}): string[] {
+    const known = new Set(triggerVariables(trigger).map(variable => variable.name));
+    return templateVariables(template).filter(name => {
+        if (known.has(name) || name.startsWith('http.')) return false;
+        if (name.startsWith(SECRET_PREFIX) && options.secrets) return false;
+        return true;
+    });
 }
 
 /* ------------------------------------------------------------------------------------------------------------------ */
@@ -364,14 +600,47 @@ function normalizeTrigger(value: unknown): Trigger {
                 throw new AutomationError('A schedule needs a time in the form HH:MM, for example 08:00.');
             return { type: 'schedule', days, time: raw.time };
         }
+        case 'manual': {
+            const entity = MANUAL_ENTITIES.find(item => item.entity === raw.entity)?.entity;
+            if (!entity) {
+                throw new AutomationError(`A manual trigger needs an entity. Use one of: ${MANUAL_ENTITIES.map(item => item.entity).join(', ')}.`);
+            }
+            const button = text(raw.button, 40)?.replace(/\s+/g, ' ').trim();
+            return { type: 'manual', entity, ...(button ? { button } : {}) };
+        }
         default:
             throw new AutomationError(`The trigger "${String(raw.type ?? '')}" is not known. Use one of: ${TRIGGER_TYPES.map(item => item.type).join(', ')}.`);
     }
 }
 
-function normalizeAction(value: unknown, index: number): AutomationAction {
+/** Checks a condition and gives its error the type of the automation errors. */
+function condition(value: unknown, place: string): Condition {
+    try {
+        return normalizeCondition(value, place);
+    } catch (error) {
+        if (error instanceof ConditionError) throw new AutomationError(error.message);
+        throw error;
+    }
+}
+
+/** The most actions in one list. */
+const MAX_ACTIONS = 50;
+const HEADER_NAME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+
+/** Checks a list of actions. `prefix` names the place of a nested list, for example "Action 2, then". */
+function normalizeActions(value: unknown, prefix: string, depth: number, required: boolean): AutomationAction[] {
+    if (!Array.isArray(value)) {
+        if (required) throw new AutomationError('The automation needs one or more actions.');
+        return [];
+    }
+    if (required && value.length === 0) throw new AutomationError('The automation needs one or more actions.');
+    if (value.length > MAX_ACTIONS) throw new AutomationError(`A list of actions can have ${MAX_ACTIONS} actions at most.`);
+    return value.map((item, index) => normalizeAction(item, index, prefix, depth));
+}
+
+function normalizeAction(value: unknown, index: number, prefix = '', depth = 0): AutomationAction {
     const raw = record(value);
-    const place = `Action ${index + 1}`;
+    const place = `${prefix}Action ${index + 1}`;
     const prompt = () => {
         const result = text(raw.prompt);
         if (!result) throw new AutomationError(`${place} needs a prompt.`);
@@ -405,6 +674,46 @@ function normalizeAction(value: unknown, index: number): AutomationAction {
             if (!title) throw new AutomationError(`${place} needs a title.`);
             const body = text(raw.body, 1000);
             return { type: 'notify', title, ...(body ? { body } : {}) };
+        }
+        case 'http': {
+            const method = HTTP_METHODS.find(item => item === String(raw.method ?? 'GET').toUpperCase());
+            if (!method) throw new AutomationError(`${place} has the method "${String(raw.method)}". Use one of: ${HTTP_METHODS.join(', ')}.`);
+            const url = text(raw.url, 4000)?.trim();
+            if (!url) throw new AutomationError(`${place} needs a web address.`);
+            // A variable can give the start of the address, so only an address without variables gets a full check.
+            if (!url.startsWith('{{') && !/^https?:\/\//i.test(url))
+                throw new AutomationError(`${place} needs an address that starts with http:// or https://.`);
+            const headers: HttpHeader[] = [];
+            for (const item of Array.isArray(raw.headers) ? raw.headers : []) {
+                const name = text(record(item).name, 200)?.trim();
+                if (!name) continue;
+                if (!HEADER_NAME_PATTERN.test(name)) throw new AutomationError(`${place} has the header name "${name}", which is not valid.`);
+                const headerValue = record(item).value;
+                headers.push({ name, value: typeof headerValue === 'string' ? headerValue.slice(0, 4000) : '' });
+            }
+            const body = text(raw.body);
+            const timeout = typeof raw.timeoutSeconds === 'number' && Number.isFinite(raw.timeoutSeconds) ? Math.round(raw.timeoutSeconds) : undefined;
+            return {
+                type: 'http',
+                method,
+                url,
+                ...(headers.length > 0 ? { headers } : {}),
+                ...(body && method !== 'GET' ? { body } : {}),
+                ...(raw.allowFailure === true ? { allowFailure: true } : {}),
+                ...(timeout !== undefined && timeout !== HTTP_TIMEOUT_DEFAULT ? { timeoutSeconds: Math.min(HTTP_TIMEOUT_MAX, Math.max(1, timeout)) } : {})
+            };
+        }
+        case 'if': {
+            if (depth >= MAX_NESTING) throw new AutomationError(`${place} is in more than ${MAX_NESTING} levels of "If" actions.`);
+            if (raw.condition === undefined) throw new AutomationError(`${place} needs a condition.`);
+            const then = normalizeActions(raw.then, `${place}, then: `, depth + 1, false);
+            const otherwise = normalizeActions(raw.else, `${place}, else: `, depth + 1, false);
+            if (then.length === 0 && otherwise.length === 0) throw new AutomationError(`${place} needs one or more actions in "then" or "else".`);
+            return { type: 'if', condition: condition(raw.condition, place), then, ...(otherwise.length > 0 ? { else: otherwise } : {}) };
+        }
+        case 'stop': {
+            const reason = text(raw.reason, 1000)?.trim();
+            return { type: 'stop', ...(reason ? { reason } : {}), ...(raw.fail === true ? { fail: true } : {}) };
         }
         default:
             throw new AutomationError(`${place} has the type "${String(raw.type ?? '')}". Use one of: ${ACTION_TYPES.map(item => item.type).join(', ')}.`);
@@ -452,24 +761,27 @@ export function normalizeDefinition(value: unknown): AutomationDefinition {
     const name = text(raw.name, MAX_NAME_LENGTH)?.replace(/\s+/g, ' ').trim();
     if (!name) throw new AutomationError(`The automation needs a name of 1 to ${MAX_NAME_LENGTH} characters.`);
     const trigger = normalizeTrigger(raw.trigger);
-    if (!Array.isArray(raw.actions) || raw.actions.length === 0) throw new AutomationError('The automation needs one or more actions.');
-    const actions = raw.actions.map(normalizeAction);
-    for (const [index, action] of actions.entries()) {
-        if (!ACTION_TRIGGERS[action.type].includes(trigger.type)) {
+    const actions = normalizeActions(raw.actions, '', 0, true);
+    for (const action of flattenActions(actions)) {
+        if (!actionAllowed(action.type, trigger)) {
             const label = ACTION_TYPES.find(item => item.type === action.type)?.label ?? action.type;
-            const triggerLabel = TRIGGER_TYPES.find(item => item.type === trigger.type)?.label ?? trigger.type;
-            throw new AutomationError(`Action ${index + 1} ("${label}") cannot follow the trigger "${triggerLabel}".`);
+            throw new AutomationError(`The action "${label}" cannot follow the trigger "${describeTrigger(trigger)}".`);
         }
     }
     const description = text(raw.description, 1000)?.trim();
-    const branchPattern = text(record(raw.conditions).branchPattern, 200)?.trim();
+    const rawConditions = record(raw.conditions);
+    const branchPattern = text(rawConditions.branchPattern, 200)?.trim();
+    const when = rawConditions.when === undefined ? undefined : condition(rawConditions.when, 'The conditions');
+    // An empty group agrees always, so it is the same as no condition.
+    const hasWhen = when && !('all' in when && when.all.length === 0);
+    const conditions: AutomationConditions = { ...(branchPattern ? { branchPattern } : {}), ...(hasWhen ? { when } : {}) };
     return {
         version: AUTOMATION_FORMAT_VERSION,
         id: isAutomationId(raw.id) ? raw.id : slugId(name),
         name,
         ...(description ? { description } : {}),
         trigger,
-        ...(branchPattern ? { conditions: { branchPattern } } : {}),
+        ...(Object.keys(conditions).length > 0 ? { conditions } : {}),
         actions,
         limits: normalizeLimits(raw.limits)
     };
@@ -498,18 +810,31 @@ function normalizeLabelRepos(value: unknown): LabelRepo[] {
     return result;
 }
 
-function normalizeBinding(value: unknown, trigger: TriggerType): AutomationBinding {
+/** The name of a secret: a letter or "_", then letters, digits and "_". */
+export const SECRET_NAME_PATTERN = /^[A-Za-z_]\w{0,63}$/;
+
+function normalizeSecrets(value: unknown): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (const [name, secret] of Object.entries(record(value))) {
+        if (SECRET_NAME_PATTERN.test(name) && typeof secret === 'string' && secret.length <= 4000) result[name] = secret;
+    }
+    return result;
+}
+
+function normalizeBinding(value: unknown, trigger: Trigger): AutomationBinding {
     const raw = record(value);
     const repos = names(raw.repos)?.filter(repo => repo.startsWith('/'));
     const connectionId = text(raw.connectionId, 200);
     const collections = normalizeCollections(raw);
     // Only a task trigger uses the label rules.
-    const labelRepos = trigger === 'task.new' ? normalizeLabelRepos(raw.labelRepos) : [];
+    const labelRepos = actsOnTasks(trigger) ? normalizeLabelRepos(raw.labelRepos) : [];
+    const secrets = normalizeSecrets(raw.secrets);
     return {
         ...(repos && repos.length > 0 ? { repos } : {}),
         ...(connectionId ? { connectionId } : {}),
         ...(collections.length > 0 ? { collections } : {}),
-        ...(labelRepos.length > 0 ? { labelRepos } : {})
+        ...(labelRepos.length > 0 ? { labelRepos } : {}),
+        ...(Object.keys(secrets).length > 0 ? { secrets } : {})
     };
 }
 
@@ -518,7 +843,7 @@ export function normalizeAutomation(value: unknown): Automation {
     const raw = record(value);
     const status: AutomationStatus = raw.status === 'on' || raw.status === 'dry-run' ? raw.status : 'off';
     const definition = normalizeDefinition(value);
-    return { ...definition, status, binding: normalizeBinding(raw.binding, definition.trigger.type) };
+    return { ...definition, status, binding: normalizeBinding(raw.binding, definition.trigger) };
 }
 
 /**
@@ -535,6 +860,8 @@ export function bindingProblems(automation: Automation, knownRepos: readonly str
     if (automation.trigger.type === 'task.new' && (!automation.binding.connectionId || !automation.binding.collections?.length)) {
         problems.push('Select a task manager and a collection.');
     }
+    const missingSecrets = usedSecrets(automation).filter(name => !automation.binding.secrets?.[name]);
+    if (missingSecrets.length > 0) problems.push(`Set the value of the secret ${missingSecrets.join(', ')}.`);
     return problems;
 }
 
@@ -721,6 +1048,13 @@ export function defaultAction(type: ActionType): AutomationAction {
             return { type };
         case 'notify':
             return { type, title: '' };
+        case 'http':
+            return { type, method: 'POST', url: 'https://', body: '{\n  "text": {{pr.title|json}}\n}' };
+        case 'if':
+            // biome-ignore lint/suspicious/noThenProperty: "then" is a list of actions, not a function, so the object is not a promise.
+            return { type, condition: { all: [] }, then: [{ type: 'notify', title: 'The condition agrees' }] };
+        case 'stop':
+            return { type };
     }
 }
 
@@ -731,6 +1065,8 @@ export function defaultTrigger(type: TriggerType): Trigger {
             return { type, days: [1, 2, 3, 4, 5], time: '08:00' };
         case 'task.new':
             return { type, assignedToMe: true };
+        case 'manual':
+            return { type, entity: 'pullRequest' };
         default:
             return { type } as Trigger;
     }
@@ -758,10 +1094,23 @@ export interface AutomationEvent {
     branch?: string;
     /** The agent session of an "agent.done" event. */
     sessionId?: string;
-    pr?: { number: number; title?: string; url: string; headSha?: string };
+    pr?: {
+        number: number;
+        title?: string;
+        url: string;
+        headSha?: string;
+        isDraft?: boolean;
+        /** Only the pull request panel gives the fields below. */
+        author?: string;
+        base?: string;
+        state?: string;
+        body?: string;
+    };
     comment?: { id: string; author: string; body: string; url: string; path?: string; reviewState?: string };
-    /** The matching task of a "task.new" event. */
+    /** The matching task of a "task.new" event, or the task of a manual task button. */
     task?: Task;
+    /** The task of the worktree, from its link. The engine loads the full task when an action needs it. */
+    taskLink?: { key?: string; title: string; url?: string };
     connectionId?: string;
     pluginId?: string;
     /** True when the branch has an open pull request. Only "agent.done" sets it. */
@@ -781,24 +1130,39 @@ export interface AutomationEvent {
 export type ManualTarget = 'worktree' | 'task' | 'none';
 
 /** Returns what the user must select before a manual run of an automation with this trigger. */
-export function manualTarget(type: TriggerType): ManualTarget {
-    if (isWorktreeTrigger(type)) return 'worktree';
-    return type === 'task.new' ? 'task' : 'none';
-}
-
-/** Converts a pattern with "*" to a regular expression. The match ignores case. */
-function patternRegex(pattern: string): RegExp {
-    const escaped = pattern
-        .split('*')
-        .map(part => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
-        .join('.*');
-    return new RegExp(`^${escaped}$`, 'i');
+export function manualTarget(trigger: Trigger): ManualTarget {
+    if (actsOnWorktrees(trigger)) return 'worktree';
+    return actsOnTasks(trigger) ? 'task' : 'none';
 }
 
 /** True when the branch matches the pattern. An empty pattern matches all branches. */
 export function branchMatches(pattern: string | undefined, branch: string | undefined): boolean {
     if (!pattern?.trim()) return true;
-    return !!branch && patternRegex(pattern.trim()).test(branch);
+    return !!branch && globRegex(pattern.trim()).test(branch);
+}
+
+/**
+ * Returns the manual automations whose button shows for the entity: the status is not "off", and the repository and
+ * the branch agree with the binding and the branch pattern. The caller also checks `conditionsAgree`.
+ */
+export function manualAutomationsFor(
+    automations: readonly Automation[],
+    entity: ManualEntity,
+    target: { repoPath?: string; branch?: string } = {}
+): Automation[] {
+    return automations.filter(automation => {
+        const trigger = automation.trigger;
+        if (automation.status === 'off' || trigger.type !== 'manual' || trigger.entity !== entity) return false;
+        if (entity !== 'worktree' && entity !== 'pullRequest') return true;
+        const repos = automation.binding.repos ?? [];
+        if (repos.length > 0 && (!target.repoPath || !repos.includes(target.repoPath))) return false;
+        return branchMatches(automation.conditions?.branchPattern, target.branch);
+    });
+}
+
+/** The text of the button of a manual automation: its button text, or else its name. */
+export function buttonLabel(automation: Pick<Automation, 'name' | 'trigger'>): string {
+    return (automation.trigger.type === 'manual' && automation.trigger.button) || automation.name;
 }
 
 /** True when the task agrees with the filters of a "task.new" trigger. `me` is the person key of the user, if known. */
@@ -889,17 +1253,35 @@ export function eventVariables(event: AutomationEvent, extra: Record<string, str
         'pr.number': event.pr ? String(event.pr.number) : undefined,
         'pr.title': event.pr?.title,
         'pr.url': event.pr?.url,
+        'pr.draft': event.pr?.isDraft === undefined ? undefined : String(event.pr.isDraft),
+        'pr.author': event.pr?.author,
+        'pr.base': event.pr?.base,
+        'pr.state': event.pr?.state,
+        'pr.body': event.pr?.body,
         'comment.author': event.comment?.author,
         'comment.body': event.comment?.body,
         'comment.url': event.comment?.url,
         'comment.path': event.comment?.path,
-        'task.key': event.task?.key ?? event.task?.id,
-        'task.title': event.task?.title,
-        'task.url': event.task?.url,
-        'task.description': event.task?.description?.trim() || '(The task has no description.)',
-        'task.status': event.task?.status.name,
+        'task.key': event.task ? (event.task.key ?? event.task.id) : event.taskLink?.key,
+        'task.title': event.task?.title ?? event.taskLink?.title,
+        'task.url': event.task?.url ?? event.taskLink?.url,
+        ...(event.task ? taskValues(event.task) : {}),
         'agent.message': event.agentMessage,
         ...extra
+    };
+}
+
+/** The variables of a task that only the full task gives. */
+export function taskValues(task: Task): Record<string, string | undefined> {
+    return {
+        'task.key': task.key ?? task.id,
+        'task.title': task.title,
+        'task.url': task.url,
+        'task.description': task.description?.trim() || '(The task has no description.)',
+        'task.status': task.status.name,
+        'task.labels': (task.labels ?? []).map(label => label.name).join(', '),
+        'task.assignees': (task.assignees ?? []).map(person => person.name).join(', '),
+        'task.priority': task.priority?.name
     };
 }
 
@@ -1099,6 +1481,15 @@ export function describeTrigger(trigger: Trigger): string {
             return trigger.withoutPullRequest ? `${label} without a pull request` : label;
         case 'pr.comment':
             return trigger.reviewsOnly ? 'New pull request review' : label;
+        case 'manual': {
+            const places: Record<ManualEntity, string> = {
+                worktree: 'a button on worktrees',
+                pullRequest: 'a button on pull requests',
+                task: 'a button on tasks',
+                none: 'the play button only'
+            };
+            return `Manual: ${places[trigger.entity]}`;
+        }
         default:
             return label;
     }

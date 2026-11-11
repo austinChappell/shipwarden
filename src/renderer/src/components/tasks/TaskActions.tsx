@@ -1,5 +1,6 @@
 import { GitBranch, Play } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
+import { AutomationButtons } from '../../automations/AutomationButtons';
 import { Select } from '../Select';
 import { targetRepo as pickTargetRepo } from './task-view-logic';
 
@@ -75,6 +76,14 @@ export function TaskActions({
                     {action.label}
                 </button>
             ))}
+            <AutomationButtons
+                target={{ entity: 'task', task, connectionId: source.connectionId, pluginId: source.pluginId }}
+                onError={message =>
+                    act(() => {
+                        throw new Error(message);
+                    })
+                }
+            />
         </div>
     );
 }

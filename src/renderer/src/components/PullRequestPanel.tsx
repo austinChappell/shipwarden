@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Bot, ChevronRight, CircleX, ExternalLink, GitPullRequest, Maximize2, RefreshCw, TriangleAlert } from 'lucide-react';
 import {
@@ -83,6 +83,8 @@ interface Props {
     onOpenInReview?(pr: PullRequest): void;
     /** Shows the diff of one commit. Without it, a commit in the timeline is a link to the host. */
     onOpenCommit?(commit: PullRequestCommit): void;
+    /** The buttons of the manual pull request automations, under the header. */
+    renderAutomations?(pr: PullRequest): ReactNode;
 }
 
 export function PullRequestPanel({
@@ -98,7 +100,8 @@ export function PullRequestPanel({
     checks: givenChecks,
     agentReview,
     onOpenInReview,
-    onOpenCommit
+    onOpenCommit,
+    renderAutomations
 }: Props) {
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
@@ -315,6 +318,7 @@ export function PullRequestPanel({
                                 <span className="dot-separator">·</span>
                                 {timeAgo(pr.createdAt)}
                             </div>
+                            {renderAutomations?.(pr)}
                         </div>
                     )}
 

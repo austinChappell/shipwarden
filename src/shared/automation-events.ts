@@ -2,7 +2,7 @@ import { localDateTime, type AutomationEvent, type TriggerType } from './automat
 import type { MyPullRequestItem, PullRequestCommentItem } from './dashboard';
 import { repoId, type BranchSummary, type RepoRef } from './github';
 import { ciChanges } from './notifications';
-import type { Task } from './tasks';
+import type { Task, TaskLink } from './tasks';
 import type { Worktree } from './worktrees';
 
 /**
@@ -23,7 +23,7 @@ export function worktreeOnBranch(places: readonly WorktreePlace[], repo: string,
 }
 
 function prOf(summary: BranchSummary) {
-    return { number: summary.number, title: summary.title, url: summary.url, headSha: summary.headSha };
+    return { number: summary.number, title: summary.title, url: summary.url, headSha: summary.headSha, isDraft: summary.isDraft };
 }
 
 function prLabel(number: number, title: string | undefined): string {
@@ -221,10 +221,14 @@ export function manualWorktreeEvent(
     trigger: TriggerType,
     place: WorktreePlace,
     summary: BranchSummary | undefined,
-    at: number
+    at: number,
+    taskLink?: TaskLink
 ): AutomationEvent {
     const branch = place.worktree.branch;
     return {
+        ...(taskLink
+            ? { taskLink: { title: taskLink.title, ...(taskLink.key ? { key: taskLink.key } : {}), ...(taskLink.url ? { url: taskLink.url } : {}) } }
+            : {}),
         trigger,
         key: manualKey(automationId, at),
         // A manual run does not use the runs of the automatic limit of the pull request.
@@ -240,24 +244,44 @@ export function manualWorktreeEvent(
     };
 }
 
-/** The event of a manual run on a task, for a "task.new" trigger. */
+/** The facts of a pull request that the pull request panel knows. */
+export interface PullRequestFacts {
+    number: number;
+    title?: string;
+    url: string;
+    headSha?: string;
+    isDraft?: boolean;
+    author?: string;
+    base?: string;
+    state?: string;
+    body?: string;
+}
+
+/** The event of a manual pull request button. `place` is the worktree of the branch of the pull request. */
+export function manualPullRequestEvent(automationId: string, place: WorktreePlace, pr: PullRequestFacts, at: number, taskLink?: TaskLink): AutomationEvent {
+    const event = manualWorktreeEvent(automationId, 'manual', place, undefined, at, taskLink);
+    return { ...event, label: prLabel(pr.number, pr.title), hasPullRequest: true, pr };
+}
+
+/** The event of a manual run on a task, for a "task.new" trigger or a manual task button. */
 export function manualTaskEvent(
     automationId: string,
     task: Task,
     connectionId: string,
     pluginId: string,
     repoPath: string | undefined,
-    at: number
+    at: number,
+    trigger: TriggerType = 'task.new'
 ): AutomationEvent {
     const event = taskEvent(task, connectionId, pluginId, repoPath, at);
-    return { ...event, key: manualKey(automationId, at), target: `manual:${event.target}`, manual: true };
+    return { ...event, trigger, key: manualKey(automationId, at), target: `manual:${event.target}`, manual: true };
 }
 
-/** The event of a manual run of a schedule. The time is now. */
-export function manualScheduleEvent(automationId: string, repoPath: string | undefined, at: number): AutomationEvent {
+/** The event of a manual run of a schedule, or of a manual automation without an entity. The time is now. */
+export function manualScheduleEvent(automationId: string, repoPath: string | undefined, at: number, trigger: TriggerType = 'schedule'): AutomationEvent {
     const { date, time } = localDateTime(new Date(at));
     return {
-        trigger: 'schedule',
+        trigger,
         key: manualKey(automationId, at),
         target: `manual:schedule:${automationId}`,
         label: `${date} ${time}`,

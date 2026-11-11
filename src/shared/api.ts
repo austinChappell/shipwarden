@@ -51,7 +51,8 @@ import type { GraphLog, GraphScope } from './git-graph';
 import type { BranchList, CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings } from './worktree-settings';
 import type { BrowserBounds, BrowserState } from './browser';
-import type { Automation, AutomationList, AutomationRun, AutomationRunState, TokenCount } from './automations';
+import type { Automation, AutomationList, AutomationRun, AutomationRunState, HttpMethod, TokenCount } from './automations';
+import type { HttpResponse } from './automation-templates';
 
 /** Where a click on a notification goes. */
 export type NotificationTarget = { view: 'worktree'; worktreePath: string; sessionId?: string } | { view: 'dashboard' } | { view: 'automations' };
@@ -371,6 +372,11 @@ export interface ShipWardenApi {
         setScheduleRun(automationId: string, at: number): Promise<void>;
         /** Removes the closed runs from the history. */
         clearHistory(): Promise<void>;
+        /**
+         * Sends the HTTP request of an automation action from the main process, with the trusted certificates of
+         * Settings › Network. The answer keeps at most 1 MB of the body. Throws an error when no answer comes.
+         */
+        http(request: { method: HttpMethod; url: string; headers: Record<string, string>; body?: string; timeoutSeconds?: number }): Promise<HttpResponse>;
         /** Called when a file in the automations folder changes, also from another app. */
         onChanged(listener: () => void): () => void;
     };
@@ -643,6 +649,7 @@ export const IpcChannels = {
     automationsSeed: 'automations:seed',
     automationsSetScheduleRun: 'automations:setScheduleRun',
     automationsClearHistory: 'automations:clearHistory',
+    automationsHttp: 'automations:http',
     automationsChanged: 'automations:changed',
     notesFolder: 'notes:folder',
     notesList: 'notes:list',
