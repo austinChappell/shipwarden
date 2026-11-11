@@ -5,6 +5,7 @@ import type { CopyIgnoredSettings, RepoWorktreeSettings } from '@shared/worktree
 import { CopyEditor, CopyPreview, FolderField } from './WorktreeSettings';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { Select } from './Select';
 import { radioGroupKeys } from './keyboard';
 
 interface Props {
@@ -73,14 +74,15 @@ export function RepoSettingsPage({ repo, settings, onSave }: Props) {
                     label="Default agent"
                     description="The agent that the Agent button and Start in worktree start in this repository. Add agents in Settings > Agents."
                     control={
-                        <select className="tasks-select" value={current.agentId ?? ''} onChange={event => update({ agentId: event.target.value || undefined })}>
-                            <option value="">Global default ({defaultAgent.name})</option>
-                            {settings.agents.map(agent => (
-                                <option key={agent.id} value={agent.id}>
-                                    {agent.name}
-                                </option>
-                            ))}
-                        </select>
+                        <Select
+                            className="tasks-select"
+                            value={current.agentId ?? ''}
+                            options={[
+                                { value: '', label: `Global default (${defaultAgent.name})` },
+                                ...settings.agents.map(agent => ({ value: agent.id, label: agent.name }))
+                            ]}
+                            onChange={agentId => update({ agentId: agentId || undefined })}
+                        />
                     }
                 />
                 <SettingsRow

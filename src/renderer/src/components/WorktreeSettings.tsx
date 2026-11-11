@@ -11,6 +11,7 @@ import {
 import { WORKTREE_SORT_LABELS, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { Select } from './Select';
 import { radioGroupKeys } from './keyboard';
 
 /** Splits the text of the patterns field into patterns, one on each line. */
@@ -193,18 +194,13 @@ function directionLabel(by: WorktreeSortKey, direction: WorktreeSort['direction'
 function SortControl({ sort, onSave }: { sort: WorktreeSort; onSave(sort: WorktreeSort): void }) {
     return (
         <div className="worktree-sort-control">
-            <select
+            <Select
                 className="tasks-select"
                 aria-label="Sort worktrees by"
                 value={sort.by}
-                onChange={event => onSave({ ...sort, by: event.target.value as WorktreeSortKey })}
-            >
-                {SORT_KEYS.map(by => (
-                    <option key={by} value={by}>
-                        {WORKTREE_SORT_LABELS[by]}
-                    </option>
-                ))}
-            </select>
+                options={SORT_KEYS.map(by => ({ value: by, label: WORKTREE_SORT_LABELS[by] }))}
+                onChange={by => onSave({ ...sort, by })}
+            />
             <div className="segmented compact" role="radiogroup" aria-label="Sort direction" onKeyDown={radioGroupKeys}>
                 {(['asc', 'desc'] as const).map(direction => (
                     <button
@@ -293,13 +289,12 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                             {repos.length > 1 && (
                                 <div className="copy-preview-repo">
                                     Preview in
-                                    <select className="tasks-select" value={previewRepo} onChange={event => setPreviewRepo(event.target.value)}>
-                                        {repos.map(repo => (
-                                            <option key={repo} value={repo}>
-                                                {repoDisplayName(settings, repo)}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <Select
+                                        className="tasks-select"
+                                        value={previewRepo}
+                                        options={repos.map(repo => ({ value: repo, label: repoDisplayName(settings, repo) }))}
+                                        onChange={setPreviewRepo}
+                                    />
                                 </div>
                             )}
                             {previewRepo && settings.repos[previewRepo]?.worktrees?.copyIgnored && (

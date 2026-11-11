@@ -29,6 +29,7 @@ import type { TaskCollection } from '@shared/tasks';
 import { Combobox, sortedGroups } from '../components/Combobox';
 import { collectionsQueryOptions, connectionsQueryOptions } from '../components/tasks/use-task-source';
 import { SettingsGroup, SettingsRow } from '../components/settings-ui';
+import { Select } from '../components/Select';
 import { errorText } from '../util';
 import { LimitField } from './LimitField';
 
@@ -158,13 +159,12 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                     label="Trigger"
                     description={TRIGGER_TYPES.find(item => item.type === trigger.type)?.description}
                     control={
-                        <select className="settings-input" value={trigger.type} onChange={event => setTriggerType(event.target.value as TriggerType)}>
-                            {TRIGGER_TYPES.map(item => (
-                                <option key={item.type} value={item.type}>
-                                    {item.label}
-                                </option>
-                            ))}
-                        </select>
+                        <Select
+                            className="settings-input"
+                            value={trigger.type}
+                            options={TRIGGER_TYPES.map(item => ({ value: item.type, label: item.label }))}
+                            onChange={setTriggerType}
+                        />
                     }
                 />
                 {trigger.type === 'pr.comment' && (
@@ -284,18 +284,15 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                   : 'Optional for these actions.'
                         }
                         control={
-                            <select
+                            <Select
                                 className="settings-input"
                                 value={draft.binding.repos?.[0] ?? ''}
-                                onChange={event => change({ binding: { ...draft.binding, repos: event.target.value ? [event.target.value] : undefined } })}
-                            >
-                                <option value="">Select a repository</option>
-                                {repoChoices.map(repo => (
-                                    <option key={repo} value={repo}>
-                                        {repos.includes(repo) ? repoLabel(repo) : `${repo} (not in a project)`}
-                                    </option>
-                                ))}
-                            </select>
+                                options={[
+                                    { value: '', label: 'Select a repository' },
+                                    ...repoChoices.map(repo => ({ value: repo, label: repos.includes(repo) ? repoLabel(repo) : `${repo} (not in a project)` }))
+                                ]}
+                                onChange={repo => change({ binding: { ...draft.binding, repos: repo ? [repo] : undefined } })}
+                            />
                         }
                     />
                 ) : (
@@ -359,20 +356,14 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                 <SettingsRow
                     label="Add an action"
                     control={
-                        <select
+                        <Select<ActionType | ''>
                             className="settings-input"
                             value=""
-                            onChange={event => {
-                                if (event.target.value) change({ actions: [...draft.actions, defaultAction(event.target.value as ActionType)] });
+                            options={[{ value: '', label: 'Select an action' }, ...allowedActions.map(item => ({ value: item.type, label: item.label }))]}
+                            onChange={type => {
+                                if (type) change({ actions: [...draft.actions, defaultAction(type)] });
                             }}
-                        >
-                            <option value="">Select an action</option>
-                            {allowedActions.map(item => (
-                                <option key={item.type} value={item.type}>
-                                    {item.label}
-                                </option>
-                            ))}
-                        </select>
+                        />
                     }
                 />
             </SettingsGroup>
@@ -475,22 +466,19 @@ function TaskSourceFields({ draft, change }: { draft: Automation; change(patch: 
             <SettingsRow
                 label="Task manager"
                 control={
-                    <select
+                    <Select
                         className="settings-input"
                         value={connectionId ?? ''}
-                        onChange={event =>
+                        options={[
+                            { value: '', label: connections.isPending ? 'Loading…' : 'Select a task manager' },
+                            ...(connections.data?.list ?? []).map(connection => ({ value: connection.id, label: connection.name }))
+                        ]}
+                        onChange={id =>
                             change({
-                                binding: { ...draft.binding, connectionId: event.target.value || undefined, collections: undefined }
+                                binding: { ...draft.binding, connectionId: id || undefined, collections: undefined }
                             })
                         }
-                    >
-                        <option value="">{connections.isPending ? 'Loading…' : 'Select a task manager'}</option>
-                        {connections.data?.list.map(connection => (
-                            <option key={connection.id} value={connection.id}>
-                                {connection.name}
-                            </option>
-                        ))}
-                    </select>
+                    />
                 }
             />
             {connectionId && (
@@ -549,19 +537,13 @@ function LabelRepoFields({ rules, repos, repoLabel, onChange }: LabelRepoProps) 
                             value={rule.label}
                             onChange={event => setRule(index, { label: event.target.value })}
                         />
-                        <select
+                        <Select
                             className="settings-input"
                             aria-label="Repository"
                             value={rule.repo}
-                            onChange={event => setRule(index, { repo: event.target.value })}
-                        >
-                            <option value="">Select a repository</option>
-                            {repos.map(repo => (
-                                <option key={repo} value={repo}>
-                                    {repoLabel(repo)}
-                                </option>
-                            ))}
-                        </select>
+                            options={[{ value: '', label: 'Select a repository' }, ...repos.map(repo => ({ value: repo, label: repoLabel(repo) }))]}
+                            onChange={repo => setRule(index, { repo })}
+                        />
                         <button
                             type="button"
                             className="icon-button"
@@ -607,13 +589,12 @@ function ActionFields({ index, count, action, trigger, allowed, agents, onChange
                     <div className="settings-row-description">{ACTION_TYPES.find(item => item.type === action.type)?.description}</div>
                 </div>
                 <div className="settings-row-control automation-action-tools">
-                    <select className="settings-input" value={action.type} onChange={event => onChange(defaultAction(event.target.value as ActionType))}>
-                        {allowed.map(type => (
-                            <option key={type} value={type}>
-                                {ACTION_TYPES.find(item => item.type === type)?.label}
-                            </option>
-                        ))}
-                    </select>
+                    <Select
+                        className="settings-input"
+                        value={action.type}
+                        options={allowed.map(type => ({ value: type, label: ACTION_TYPES.find(item => item.type === type)?.label ?? type }))}
+                        onChange={type => onChange(defaultAction(type))}
+                    />
                     <button type="button" className="icon-button" title="Move up" disabled={index === 0} onClick={() => onMove(-1)}>
                         <ArrowUp size={14} />
                     </button>
@@ -650,21 +631,19 @@ function ActionFields({ index, count, action, trigger, allowed, agents, onChange
                 )}
                 {action.type === 'startAgent' && (
                     <div className="automation-inline">
-                        <label>
+                        <span className="automation-field">
                             Agent{' '}
-                            <select
+                            <Select
                                 className="settings-input"
+                                aria-label="Agent"
                                 value={action.agentId ?? ''}
-                                onChange={event => onChange({ ...action, agentId: event.target.value || undefined })}
-                            >
-                                <option value="">The agent of the repository</option>
-                                {agents.map(agent => (
-                                    <option key={agent.id} value={agent.id}>
-                                        {agent.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                                options={[
+                                    { value: '', label: 'The agent of the repository' },
+                                    ...agents.map(agent => ({ value: agent.id, label: agent.name }))
+                                ]}
+                                onChange={agentId => onChange({ ...action, agentId: agentId || undefined })}
+                            />
+                        </span>
                         {trigger === 'schedule' && (
                             <label>
                                 Branch{' '}

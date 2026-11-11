@@ -101,6 +101,7 @@ Result:
     actions?: boolean,         // tasks/action
     scopes?: boolean,          // scopes/list
     activity?: boolean,        // activity/list
+    options?: boolean,         // tasks/options
     defaultCollectionOnly?: boolean // Without a saved choice, select only the collection with `default: true`
   },
   fields?: FieldDefinition[],  // Extra fields that the task view shows.
@@ -125,6 +126,7 @@ interface Task {
   description?: string;  // Markdown. tasks/list can leave it out. tasks/get must supply it.
   fields?: Record<string, string | number | boolean | null>;
   details?: TaskDetails; // More facts for the task details. Only tasks/get sends them. See below.
+  editable?: EditableParts; // The parts that tasks/update can change. Only tasks/get sends it. See "Edit the parts of a task".
 }
 
 // More facts of one task. All parts are optional. The task details show the parts that the plugin sends.
@@ -141,7 +143,7 @@ interface TaskDetails {
   parent?: TaskRef;
   subtasks?: TaskRef[];
   links?: { relation: 'blocks' | 'blocked_by' | 'related'; task: TaskRef }[];
-  checklists?: { name: string; items: { name: string; done: boolean; assignee?: Person }[] }[];
+  checklists?: { name: string; items: { id?: string; name: string; done: boolean; assignee?: Person }[] }[];
   attachments?: { name: string; url: string; size?: number; thumbnailUrl?: string; createdAt?: string }[];
   customFields?: CustomField[];
 }
@@ -158,6 +160,9 @@ interface CustomField {
   people?: Person[];
   labels?: Label[];
   max?: number;          // rating: the highest number of stars.
+  editable?: boolean;    // tasks/update can change the field.
+  multiple?: boolean;    // labels: more than one option is possible.
+  options?: Option[];    // labels: the options. Without them, tasks/options with "custom:<field ID>" returns them.
 }
 
 // A collection of tasks with one status workflow. The task view shows one collection at a time.
@@ -179,7 +184,8 @@ interface Status {
 }
 
 interface Person { id?: string; name: string; avatarUrl?: string }  // id: needed for the assignee filter.
-interface Label { name: string; color?: string }
+interface Label { id?: string; name: string; color?: string }  // id: the option ID for tasks/update. Absent: the name.
+interface Option { id: string; name: string; color?: string; avatarUrl?: string }
 
 interface Comment { id: string; author?: Person; body: string; createdAt?: string }
 
@@ -210,13 +216,14 @@ interface FilterDefinition {
 | `collections/list` | `{}` | `Collection[]` (required), only in the scope |
 | `tasks/list` | `{ collection: string, filter?: string, query?: string, cursor?: string }` | `{ tasks: Task[], nextCursor?: string }` |
 | `tasks/get` | `{ id: string }` | `Task` |
-| `tasks/update` | `{ id: string, status?: string, title?: string, description?: string }` | `Task` |
+| `tasks/update` | `TaskUpdate` (see "Edit the parts of a task") | `Task` |
+| `tasks/options` | `{ id: string, part: string }` | `{ options: Option[], create?: boolean }` |
 | `tasks/create` | `{ collection: string, title: string, description?: string, status?: string }` | `Task` |
 | `tasks/delete` | `{ id: string }` | `null` |
 | `tasks/statuses` | `{ id?: string }` (the statuses that apply to a task) | `Status[]` |
 | `tasks/statusOrder` | `{ collection: string }` | `{ statuses: Status[] }` |
 | `comments/list` | `{ taskId: string }` | `Comment[]` |
-| `comments/create` | `{ taskId: string, body: string }` | `Comment` |
+| `comments/create` | `{ taskId: string, body: string, mentions?: Mention[], references?: Reference[] }` | `Comment` |
 | `tasks/action` | `{ taskId: string, actionId: string }` | `{ message?: string }` |
 | `activity/list` | `{ since: string }` (an ISO time) | `{ comments: ActivityComment[] }`: new comments from other people on the user's tasks |
 | `people/list` | `{ collection: string }` | `{ people: Person[], me?: string }`: the people that can be assignees |
@@ -238,6 +245,64 @@ The SDK sets `create` and `delete` from the handlers `createTask` and `deleteTas
 the `initialize` result, because `updateTask` can exist without title and description changes.
 
 These additions do not change the protocol version. A plugin without the capabilities works as before.
+
+### Edit the parts of a task
+
+These additions are optional. A plugin without them works as before.
+
+`tasks/get` returns `editable` with the parts that `tasks/update` can change. The task details then show an editor
+for each part. A custom field has its own `editable` flag.
+
+```ts
+interface EditableParts {
+  title?: boolean; description?: boolean;
+  assignees?: boolean; labels?: boolean; priority?: boolean;
+  startDate?: boolean; dueDate?: boolean; timeEstimate?: boolean;
+  checklists?: boolean;  // The done state of the checklist items. The items must have an `id`.
+}
+
+// A missing part does not change. Null clears a part.
+interface TaskUpdate {
+  id: string;
+  status?: string;              // A status ID.
+  title?: string;
+  description?: string;
+  assignees?: string[];         // The complete new list of option IDs (person IDs).
+  labels?: string[];            // The complete new list of option IDs. A new label has its name as the ID.
+  priority?: string | null;     // The option ID: the level as a string, for example "2".
+  startDate?: string | null;    // "YYYY-MM-DD".
+  dueDate?: string | null;      // "YYYY-MM-DD".
+  timeEstimate?: number | null; // Milliseconds.
+  customField?: { id: string; value: string | number | boolean | string[] | null };
+  checklistItem?: { id: string; done: boolean };
+}
+```
+
+- ShipWarden sends one change at a time, when the user changes a part. The result is the complete task, as
+  `tasks/get` returns it.
+- `tasks/options` (capability `options`) returns the choices for a part: `"assignees"`, `"labels"`, `"priority"` or
+  `"custom:<field ID>"` for a "people" or "labels" custom field without `options`. With `create: true`, the user can
+  type a new option. ShipWarden sends its name as the ID. ShipWarden keeps the options for a few minutes.
+- The option IDs of the current values must match: `Person.id` for the assignees, `Label.id` (or the name) for the
+  labels, and the level of the priority.
+- A custom field value: "labels" and "people" send a list of option IDs. A single "labels" field (without `multiple`)
+  sends a list with at most one ID. "date" sends "YYYY-MM-DD". "rating" and "progress" send a number.
+- Without `editable`, the capability `edit` gives the title and the description, as before.
+
+### Mentions and task references in comments
+
+In the comment box, "@" lists the people of the task and "#" lists the loaded tasks. ShipWarden puts the choice in the
+body and also sends it in the params:
+
+```ts
+interface Mention { id: string; name: string }              // In the body as "@" + name, for example "@Ann Lee".
+interface Reference { id: string; text: string; url?: string } // In the body as `text`: the task key, else the URL.
+```
+
+- The people come from `tasks/options` with `"assignees"`, so a plugin with the capability `options` gets the "@" list.
+- A plugin can change a mention to a native mention that sends a notification, and a reference to a native link.
+  The ClickUp plugin does this. A plugin that ignores `mentions` and `references` posts the body as it is.
+- `mentions` and `references` contain only the items that are still in the body when the user sends the comment.
 
 ### Assignees
 

@@ -1,5 +1,6 @@
 import { GitBranch, Play } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
+import { Select } from '../Select';
 import { targetRepo as pickTargetRepo } from './task-view-logic';
 
 interface Props {
@@ -59,18 +60,13 @@ export function TaskActions({
                         Start in worktree
                     </button>
                     {repos.length > 1 && (
-                        <select
+                        <Select
                             className="tasks-select"
                             value={targetRepo}
                             title="The repository of the new worktree"
-                            onChange={event => chooseStartRepo(event.target.value)}
-                        >
-                            {repos.map(repo => (
-                                <option key={repo} value={repo}>
-                                    {repoLabel(repo)}
-                                </option>
-                            ))}
-                        </select>
+                            options={repos.map(repo => ({ value: repo, label: repoLabel(repo) }))}
+                            onChange={chooseStartRepo}
+                        />
                     )}
                 </>
             )}

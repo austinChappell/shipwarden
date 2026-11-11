@@ -1,4 +1,19 @@
-import type { ConnectionInfo, FilterDefinition, StatusGroup, Task, TaskCollection, TaskComment, TaskLink, TaskStatus } from '@shared/tasks';
+import type {
+    CommentInput,
+    ConnectionInfo,
+    EditableParts,
+    FilterDefinition,
+    StatusGroup,
+    Task,
+    TaskCollection,
+    TaskComment,
+    TaskLabel,
+    TaskLink,
+    TaskOption,
+    TaskOptions,
+    TaskSource,
+    TaskStatus
+} from '@shared/tasks';
 import { linkMatchesTask, statusKey } from '@shared/tasks';
 
 /** The list (grouped) or the board (a column for each status). */
@@ -47,7 +62,8 @@ export const taskQueryKeys = {
         ['tasks', 'list', connectionId, collection, filter] as const,
     people: (connectionId: string | undefined, collection: string | undefined) => ['tasks', 'people', connectionId, collection] as const,
     statusOrder: (connectionId: string | undefined, collection: string | undefined) => ['tasks', 'statusOrder', connectionId, collection] as const,
-    detail: (connectionId: string | undefined, taskId: string | undefined) => ['tasks', 'detail', connectionId, taskId] as const
+    detail: (connectionId: string | undefined, taskId: string | undefined) => ['tasks', 'detail', connectionId, taskId] as const,
+    options: (connectionId: string | undefined, taskId: string | undefined, part: string) => ['tasks', 'options', connectionId, taskId, part] as const
 };
 
 /** The board is the default view. The list shows only when the user selected it. */
@@ -247,4 +263,117 @@ export function customFieldEmpty(field: { type: string; value?: unknown; people?
     if (field.type === 'people') return !field.people?.length;
     if (field.type === 'labels') return !field.labels?.length;
     return field.value === undefined || field.value === null || field.value === '';
+}
+
+/**
+ * The parts of a task that the user can change. Without `editable` from the plugin, the capability "edit" gives the
+ * title and the description. Without the capability "update", nothing can change.
+ */
+export function editableParts(task: Task, capabilities: TaskSource['capabilities']): EditableParts {
+    if (!capabilities.update) return {};
+    return task.editable ?? (capabilities.edit ? { title: true, description: true } : {});
+}
+
+/** The parts of an updated task that the task list shows. */
+export function listPatch(updated: Task): Partial<Task> {
+    return {
+        title: updated.title,
+        status: updated.status,
+        assignees: updated.assignees,
+        labels: updated.labels,
+        priority: updated.priority,
+        updatedAt: updated.updatedAt
+    };
+}
+
+/** The option ID of a label: its ID, or else its name. */
+export function labelId(label: TaskLabel): string {
+    return label.id ?? label.name;
+}
+
+/** Adds the labels of a task that the options do not have, for example a label that the user created. */
+export function addLabelOptions(current: TaskOptions, labels: readonly TaskLabel[]): TaskOptions {
+    const known = new Set(current.options.map(option => option.id));
+    const added = labels.filter(label => !known.has(labelId(label)));
+    return added.length
+        ? { ...current, options: [...current.options, ...added.map(label => ({ id: labelId(label), name: label.name, color: label.color }))] }
+        : current;
+}
+
+/** The value of a date input, "YYYY-MM-DD", for a date of the task details. An ISO time gives its day in the local time zone. */
+export function dayInputValue(value: string | undefined): string {
+    if (!value) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (number: number) => String(number).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+const DURATION_UNITS: Record<string, number> = { w: 5 * 8 * 3_600_000, d: 8 * 3_600_000, h: 3_600_000, m: 60_000 };
+
+/**
+ * Reads a duration as milliseconds, for example "1h 30m", "90m", "1.5h" or "2d". A number without a unit is hours.
+ * A day is 8 hours and a week is 5 days, as in the trackers. Returns null for empty text and undefined for text that is not valid.
+ */
+export function parseDuration(text: string): number | null | undefined {
+    const value = text.trim().toLowerCase();
+    if (!value) return null;
+    if (/^\d+(\.\d+)?$/.test(value)) return Math.round(Number(value) * DURATION_UNITS.h);
+    const parts = [...value.matchAll(/(\d+(?:\.\d+)?)\s*([wdhm])/g)];
+    if (parts.length === 0 || value.replace(/(\d+(?:\.\d+)?)\s*([wdhm])/g, '').trim() !== '') return undefined;
+    return Math.round(parts.reduce((total, part) => total + Number(part[1]) * DURATION_UNITS[part[2]], 0));
+}
+
+/** Changes the text to lower case and removes accents, so "José" matches "jose". */
+function fold(text: string): string {
+    return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
+/**
+ * Returns the items that match the query, in three groups: the text starts with the query, a word of the text starts
+ * with the query, and the text contains the query. The order of `items` stays in each group.
+ */
+function rankByText<T>(items: readonly T[], texts: (item: T) => string[], query: string, limit: number): T[] {
+    const needle = fold(query.trim());
+    const groups: T[][] = [[], [], []];
+    for (const item of items) {
+        const values = texts(item).map(fold);
+        if (values.some(value => value.startsWith(needle))) groups[0].push(item);
+        else if (values.some(value => value.split(/[^\p{L}\p{N}]+/u).some(word => word.startsWith(needle)))) groups[1].push(item);
+        else if (values.some(value => value.includes(needle))) groups[2].push(item);
+    }
+    return groups.flat().slice(0, limit);
+}
+
+/** Returns the people that match an "@" query, by name. */
+export function rankPeople(people: readonly TaskOption[], query: string, limit = 8): TaskOption[] {
+    return rankByText(people, person => [person.name], query, limit);
+}
+
+/** Returns the tasks that match a "#" query, by key or title. The task with `exclude` as ID is not in the result. */
+export function rankTasks(tasks: readonly Task[], query: string, exclude?: string, limit = 8): Task[] {
+    return rankByText(
+        tasks.filter(task => task.id !== exclude),
+        task => [task.key ?? '', task.title],
+        query,
+        limit
+    );
+}
+
+/** The text of a task reference in a comment: the key of the task, or its URL, or its ID. */
+export function referenceText(task: Pick<Task, 'id' | 'key' | 'url'>): string {
+    return task.key ?? task.url ?? task.id;
+}
+
+/** Returns the mentions and the references that are still in the body of a comment. */
+export function commentLinks(
+    body: string,
+    mentions: readonly { id: string; name: string }[],
+    references: readonly { id: string; text: string; url?: string }[]
+): Pick<CommentInput, 'mentions' | 'references'> {
+    const unique = <T extends { id: string }>(items: readonly T[]) => [...new Map(items.map(item => [item.id, item])).values()];
+    const kept = unique(mentions).filter(person => body.includes(`@${person.name}`));
+    const linked = unique(references).filter(reference => body.includes(reference.text));
+    return { ...(kept.length ? { mentions: kept } : {}), ...(linked.length ? { references: linked } : {}) };
 }

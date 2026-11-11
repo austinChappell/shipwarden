@@ -28,6 +28,9 @@ import { TaskDetails } from './tasks/TaskDetails';
 import { TaskDialog } from './tasks/TaskDialog';
 import { InlineTip } from './Tips';
 
+/** An empty task list. A constant keeps the props of the details the same between renders. */
+const NO_TASKS: Task[] = [];
+
 interface Props {
     /** The ShipWarden project. The view uses it only for the repository of "Start in worktree". */
     projectId: string;
@@ -165,6 +168,7 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
             onOpenWorktree={onOpenWorktree}
             onStartTask={onStartTask}
             findTask={id => tasks?.find(task => task.id === id)}
+            tasks={tasks ?? NO_TASKS}
             onOpenTask={setSelectedId}
         />
     );

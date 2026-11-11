@@ -22,6 +22,8 @@ export interface Person {
 }
 
 export interface Label {
+    /** The option ID of the label for tasks/update. Without it, the name is the ID. */
+    id?: string;
     name: string;
     color?: string;
 }
@@ -40,6 +42,57 @@ export interface Task {
     fields?: Record<string, string | number | boolean | null>;
     /** More facts for the task details. Only tasks/get sends them. */
     details?: TaskDetails;
+    /** The parts of the task that tasks/update can change. Only tasks/get sends it. */
+    editable?: EditableParts;
+}
+
+/**
+ * The parts of a task that tasks/update can change. Absent means false. The custom fields have their own `editable` flag.
+ * Without this object, the capability "edit" gives the title and the description.
+ */
+export interface EditableParts {
+    title?: boolean;
+    description?: boolean;
+    assignees?: boolean;
+    labels?: boolean;
+    priority?: boolean;
+    startDate?: boolean;
+    dueDate?: boolean;
+    timeEstimate?: boolean;
+    /** The done state of the checklist items. The items must have an ID. */
+    checklists?: boolean;
+}
+
+/** A choice for a part of a task: a person, a label, a priority or an option of a custom field. */
+export interface TaskOption {
+    id: string;
+    name: string;
+    color?: string;
+    avatarUrl?: string;
+}
+
+/** A new value of a custom field. "labels" and "people": a list of option IDs. An empty value is null. */
+export type CustomFieldValue = string | number | boolean | string[] | null;
+
+/**
+ * The params of tasks/update. A missing part does not change. Null clears a part.
+ * Lists (assignees and labels) are the complete new list of option IDs. A date is "YYYY-MM-DD".
+ * The priority is an option ID: the level as a string.
+ */
+export interface TaskUpdate {
+    id: string;
+    status?: string;
+    title?: string;
+    description?: string;
+    assignees?: string[];
+    labels?: string[];
+    priority?: string | null;
+    startDate?: string | null;
+    dueDate?: string | null;
+    /** Milliseconds. */
+    timeEstimate?: number | null;
+    customField?: { id: string; value: CustomFieldValue };
+    checklistItem?: { id: string; done: boolean };
 }
 
 /** A reference to another task, for example a subtask or a dependency. The view shows the ID when the title is absent. */
@@ -57,7 +110,8 @@ export type TaskRelation = 'blocks' | 'blocked_by' | 'related';
 
 export interface TaskChecklist {
     name: string;
-    items: { name: string; done: boolean; assignee?: Person }[];
+    /** `id`: the ID for tasks/update. Without it, the item cannot change. */
+    items: { id?: string; name: string; done: boolean; assignee?: Person }[];
 }
 
 export interface TaskAttachment {
@@ -83,6 +137,12 @@ export interface TaskCustomField {
     labels?: Label[];
     /** "rating": the highest number of stars. */
     max?: number;
+    /** True when tasks/update can change the field. */
+    editable?: boolean;
+    /** "labels": more than one option is possible. */
+    multiple?: boolean;
+    /** "labels": the options. Without them, tasks/options with "custom:<field ID>" returns the options. */
+    options?: TaskOption[];
 }
 
 /** More facts of one task for the task details. Only tasks/get sends them. All parts are optional. */
@@ -167,6 +227,8 @@ export interface Capabilities {
      * and has "Me", so the plugin filters need no "Assigned to me".
      */
     assignees?: boolean;
+    /** The plugin returns the options of a part of a task ("tasks/options"). The SDK sets it from `listOptions`. */
+    options?: boolean;
     /**
      * Without a saved choice, ShipWarden selects only the collection with `default: true`. Without one, the user selects
      * a collection. The plugin sets this capability itself. Use it when the first collection can have nothing to do with
@@ -222,8 +284,16 @@ export interface Handlers {
     /** Returns the people that can be assignees in the collection. `me` is the ID of the user of the connection. */
     listPeople?(params: { collection: string }): Promise<{ people: Person[]; me?: string }>;
     getTask(params: { id: string }): Promise<Task>;
-    /** Changes a task. `title` and `description` come only when the plugin has the capability "edit". */
-    updateTask?(params: { id: string; status?: string; title?: string; description?: string }): Promise<Task>;
+    /**
+     * Changes a task and returns it as tasks/get does. ShipWarden sends only the parts that the task marks in `editable`.
+     * `title` and `description` also come when the plugin has the capability "edit".
+     */
+    updateTask?(params: TaskUpdate): Promise<Task>;
+    /**
+     * Returns the choices for a part of a task. `part` is "assignees", "labels", "priority" or "custom:<field ID>".
+     * `create`: the user can type a new option, for example a new label. Then ShipWarden sends its name as the ID.
+     */
+    listOptions?(params: { id: string; part: string }): Promise<{ options: TaskOption[]; create?: boolean }>;
     /** Makes a task in a collection. Without `status`, the task gets the first status of the workflow. */
     createTask?(params: { collection: string; title: string; description?: string; status?: string }): Promise<Task>;
     /** Deletes a task. */
@@ -235,7 +305,16 @@ export interface Handlers {
      */
     statusOrder?(params: { collection: string }): Promise<{ statuses: Status[] }>;
     listComments?(params: { taskId: string }): Promise<Comment[]>;
-    createComment?(params: { taskId: string; body: string }): Promise<Comment>;
+    /**
+     * Adds a comment. Each mention is in the body as "@" and the name of the person. Each reference to another task is in
+     * the body as its `text` (the key, or the URL). The plugin can change them to native mentions and links.
+     */
+    createComment?(params: {
+        taskId: string;
+        body: string;
+        mentions?: { id: string; name: string }[];
+        references?: { id: string; text: string; url?: string }[];
+    }): Promise<Comment>;
     runAction?(params: { taskId: string; actionId: string }): Promise<{ message?: string }>;
     /**
      * Returns the comments from other people on the user's tasks that are newer than `since` (an ISO time).

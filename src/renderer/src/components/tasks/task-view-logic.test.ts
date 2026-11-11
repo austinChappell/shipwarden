@@ -28,7 +28,15 @@ import {
     formatDay,
     formatBytes,
     checklistProgress,
-    customFieldEmpty
+    customFieldEmpty,
+    addLabelOptions,
+    commentLinks,
+    rankPeople,
+    rankTasks,
+    referenceText,
+    dayInputValue,
+    editableParts,
+    parseDuration
 } from './task-view-logic';
 
 const task = (id: string, status = 'to do', extra: Partial<Task> = {}): Task => ({
@@ -325,5 +333,85 @@ describe('customFieldEmpty', () => {
         [{ type: 'labels', labels: [{}] }, false]
     ])('checks %j', (field, expected) => {
         expect(customFieldEmpty(field)).toBe(expected);
+    });
+});
+
+describe('task edits', () => {
+    const task = { id: 't', title: 'T', status: { id: 's', name: 'S', category: 'todo' as const } };
+
+    it('reads a duration', () => {
+        expect(parseDuration('1h 30m')).toBe(5_400_000);
+        expect(parseDuration('90m')).toBe(5_400_000);
+        expect(parseDuration('1.5')).toBe(5_400_000);
+        expect(parseDuration('2d')).toBe(16 * 3_600_000);
+        expect(parseDuration('  ')).toBeNull();
+        expect(parseDuration('soon')).toBeUndefined();
+        expect(parseDuration('1h soon')).toBeUndefined();
+    });
+
+    it('gives the day of a date for a date input', () => {
+        expect(dayInputValue('2026-11-03')).toBe('2026-11-03');
+        expect(dayInputValue(new Date(2026, 10, 3, 15).toISOString())).toBe('2026-11-03');
+        expect(dayInputValue(undefined)).toBe('');
+        expect(dayInputValue('nope')).toBe('');
+    });
+
+    it('finds the editable parts', () => {
+        expect(editableParts(task, {})).toEqual({});
+        expect(editableParts(task, { update: true, edit: true })).toEqual({ title: true, description: true });
+        expect(editableParts({ ...task, editable: { labels: true } }, { update: true, edit: true })).toEqual({ labels: true });
+    });
+
+    it('adds new labels to the cached options', () => {
+        const current = { options: [{ id: 'bug', name: 'bug' }], create: true };
+        expect(addLabelOptions(current, [{ name: 'bug' }])).toBe(current);
+        expect(addLabelOptions(current, [{ name: 'bug' }, { name: 'ui', color: '#fff' }]).options).toEqual([
+            { id: 'bug', name: 'bug' },
+            { id: 'ui', name: 'ui', color: '#fff' }
+        ]);
+    });
+});
+
+describe('comment mentions', () => {
+    const task = (id: string, title: string, key?: string) => ({ id, key, title, status: { id: 's', name: 'S', category: 'todo' as const } });
+
+    it('ranks people by name', () => {
+        const people = [
+            { id: '1', name: 'Bob Ann' },
+            { id: '2', name: 'Ann Lee' },
+            { id: '3', name: 'Joanna' },
+            { id: '4', name: 'Zed' }
+        ];
+        expect(rankPeople(people, 'ann').map(person => person.id)).toEqual(['2', '1', '3']);
+        expect(rankPeople(people, '').map(person => person.id)).toEqual(['1', '2', '3', '4']);
+    });
+
+    it('ranks tasks by key and title and leaves out the open task', () => {
+        const tasks = [task('a', 'Fix login', 'ENG-1'), task('b', 'Login page', 'ENG-2'), task('c', 'Add ENG docs')];
+        expect(rankTasks(tasks, 'eng-2').map(item => item.id)).toEqual(['b']);
+        expect(rankTasks(tasks, 'login', 'b').map(item => item.id)).toEqual(['a']);
+    });
+
+    it('uses the key, the URL or the ID as the reference text', () => {
+        expect(referenceText({ id: '1', key: 'ENG-1', url: 'u' })).toBe('ENG-1');
+        expect(referenceText({ id: '1', url: 'u' })).toBe('u');
+        expect(referenceText({ id: '1' })).toBe('1');
+    });
+
+    it('keeps only the mentions and references that are still in the body', () => {
+        const result = commentLinks(
+            'Hi @Ann Lee, see ENG-1',
+            [
+                { id: '2', name: 'Ann Lee' },
+                { id: '2', name: 'Ann Lee' },
+                { id: '4', name: 'Zed' }
+            ],
+            [
+                { id: 'a', text: 'ENG-1' },
+                { id: 'b', text: 'ENG-2' }
+            ]
+        );
+        expect(result).toEqual({ mentions: [{ id: '2', name: 'Ann Lee' }], references: [{ id: 'a', text: 'ENG-1' }] });
+        expect(commentLinks('plain', [], [])).toEqual({});
     });
 });

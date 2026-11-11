@@ -23,10 +23,16 @@ import { itemKeys } from '../keyboard/list-nav';
 import { errorText, timeAgo } from '../util';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
+import { Select, type SelectOption } from './Select';
 
 const api = window.shipwarden.notes;
 const SELECTED_KEY = 'shipwarden.note';
 const SAVE_DELAY_MS = 500;
+
+/** Returns the option of a folder in a list of folders. Two spaces for each level show the depth of the folder. */
+function folderOption(folder: string): SelectOption {
+    return { value: folder, label: '\u00a0\u00a0'.repeat(folder.split('/').length - 1) + folderBaseName(folder) };
+}
 
 function readSelected(): string | undefined {
     try {
@@ -409,18 +415,16 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
                         {state === 'saving' ? 'Saving…' : state === 'edited' ? 'Edited' : state === 'saved' ? 'Saved' : ''}
                     </span>
                     <span className="header-spacer" />
-                    <label className="note-move" title="Move to a folder">
+                    <Select
+                        className="note-move"
+                        title="Move to a folder"
+                        aria-label="Move to a folder"
+                        value={note.folder}
+                        options={[{ value: '', label: 'No folder' }, ...folders.map(item => folderOption(item))]}
+                        onChange={folder => void move(folder)}
+                    >
                         <FolderInput size={14} strokeWidth={1.6} />
-                        <select value={note.folder} onChange={event => void move(event.target.value)}>
-                            <option value="">No folder</option>
-                            {folders.map(item => (
-                                <option key={item} value={item}>
-                                    {'\u00a0\u00a0'.repeat(item.split('/').length - 1)}
-                                    {item.slice(item.lastIndexOf('/') + 1)}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                    </Select>
                     <button className="icon-button" title={`Copy the path: ${path}`} onClick={() => void navigator.clipboard.writeText(path)}>
                         <Copy size={14} strokeWidth={1.6} />
                     </button>
@@ -811,22 +815,16 @@ export function NotesView({ route, onRoute }: Props) {
                                 <Pencil size={12} strokeWidth={1.8} />
                             </button>
                             {/* The keyboard alternative to a drag of the folder. */}
-                            <label className="note-move note-folder-move" title="Move the folder to a folder">
+                            <Select
+                                className="note-move note-folder-move"
+                                title="Move the folder to a folder"
+                                aria-label={`Move ${name} to a folder`}
+                                value={parentFolder(path)}
+                                options={[{ value: '', label: 'Top level' }, ...folderMoveTargets(folders, path).map(item => folderOption(item))]}
+                                onChange={folder => void moveFolder(path, folder)}
+                            >
                                 <FolderInput size={13} strokeWidth={1.8} />
-                                <select
-                                    aria-label={`Move ${name} to a folder`}
-                                    value={parentFolder(path)}
-                                    onChange={event => void moveFolder(path, event.target.value)}
-                                >
-                                    <option value="">Top level</option>
-                                    {folderMoveTargets(folders, path).map(item => (
-                                        <option key={item} value={item}>
-                                            {'\u00a0\u00a0'.repeat(item.split('/').length - 1)}
-                                            {folderBaseName(item)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
+                            </Select>
                             <button className="icon-button" title="Move the folder to the Trash" onClick={() => void deleteFolder(path)}>
                                 <Trash2 size={12} strokeWidth={1.8} />
                             </button>

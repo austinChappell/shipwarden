@@ -1,12 +1,15 @@
-import { ExternalLink, LoaderCircle, Pencil, Trash2 } from 'lucide-react';
+import { ExternalLink, LoaderCircle, Trash2 } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { timeAgo } from '../../util';
 import { openLink } from '../../links';
-import { Markdown } from '../Markdown';
-import { formatField } from './task-view-logic';
-import { FieldRow, StatusDot, TaskAvatar, TaskLabels } from './TaskParts';
+import { Select } from '../Select';
+import { editableParts, formatField } from './task-view-logic';
+import { FieldRow, StatusDot } from './TaskParts';
 import { TaskActions } from './TaskActions';
 import { AttachmentsSection, ChecklistsSection, CustomFieldsSection, DetailMetaRows, RelatedTasksSection } from './TaskDetailSections';
+import { EditableMetaRows } from './TaskMetaEditors';
+import { DescriptionCard, TaskTitle } from './TaskBody';
+import { TaskComments } from './TaskComments';
 import type { useTaskDetail } from './use-task-detail';
 
 interface Props {
@@ -23,6 +26,8 @@ interface Props {
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
     /** A loaded task with the ID, for the titles of subtasks and linked tasks. */
     findTask(id: string): Task | undefined;
+    /** The loaded tasks. The comment box links to them with "#". */
+    tasks: readonly Task[];
     /** Opens another task in the details, for example a subtask. */
     onOpenTask(id: string): void;
 }
@@ -40,9 +45,11 @@ export function TaskDetails({
     onOpenWorktree,
     onStartTask,
     findTask,
+    tasks,
     onOpenTask
 }: Props) {
-    const { detail, statuses, comments, commentText, setCommentText, busy, detailError, editing, setEditing } = state;
+    const { detail, statuses, busy, detailError, editing, setEditing } = state;
+    const editable = detail ? editableParts(detail, source.capabilities) : {};
     return (
         <>
             {selectedId && !detail && !detailError && (
@@ -61,52 +68,13 @@ export function TaskDetails({
                             </button>
                         )}
                         <span className="header-spacer" />
-                        {source.capabilities.edit && !editing && (
-                            <button
-                                className="icon-button"
-                                title="Edit the title and the description"
-                                disabled={busy}
-                                onClick={() => setEditing({ title: detail.title, description: detail.description ?? '' })}
-                            >
-                                <Pencil size={14} strokeWidth={1.6} />
-                            </button>
-                        )}
                         {source.capabilities.delete && (
                             <button className="icon-button" title="Delete the task" disabled={busy} onClick={state.deleteTask}>
                                 <Trash2 size={14} strokeWidth={1.6} />
                             </button>
                         )}
                     </div>
-                    {editing ? (
-                        <div className="task-edit">
-                            <input
-                                className="pr-title-input"
-                                value={editing.title}
-                                placeholder="Title"
-                                aria-label="Title"
-                                autoFocus
-                                onChange={event => setEditing({ ...editing, title: event.target.value })}
-                                onKeyDown={event => event.key === 'Enter' && state.saveEdit()}
-                            />
-                            <textarea
-                                className="review-body task-edit-description"
-                                value={editing.description}
-                                placeholder="Description (Markdown)"
-                                aria-label="Description"
-                                onChange={event => setEditing({ ...editing, description: event.target.value })}
-                            />
-                            <div className="row-buttons">
-                                <button className="button" disabled={busy} onClick={() => setEditing(undefined)}>
-                                    Cancel
-                                </button>
-                                <button className="button primary" disabled={busy || !editing.title.trim()} onClick={state.saveEdit}>
-                                    Save
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <h2 className="task-detail-title">{detail.title}</h2>
-                    )}
+                    <TaskTitle key={detail.id} title={detail.title} editable={!!editable.title} busy={busy} onSave={state.saveTitle} />
 
                     <TaskActions
                         task={detail}
@@ -127,51 +95,20 @@ export function TaskDetails({
                         <div className="task-meta">
                             <span className="task-meta-label">Status</span>
                             {source.capabilities.update && statuses.length > 0 ? (
-                                <select
-                                    className="tasks-select"
+                                <Select
                                     value={detail.status.id}
                                     disabled={busy}
-                                    onChange={event => state.changeStatus(event.target.value)}
-                                >
-                                    {statuses.map(status => (
-                                        <option key={status.id} value={status.id}>
-                                            {status.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    aria-label="Status"
+                                    options={statuses.map(status => ({ value: status.id, label: status.name, icon: <StatusDot status={status} /> }))}
+                                    onChange={state.changeStatus}
+                                />
                             ) : (
                                 <span>
                                     <StatusDot status={detail.status} /> {detail.status.name}
                                 </span>
                             )}
-                            <span className="task-meta-label">Assignees</span>
-                            {detail.assignees?.length ? (
-                                <span className="task-people">
-                                    {detail.assignees.map(person => (
-                                        <span key={person.id ?? person.name} className="task-person">
-                                            <TaskAvatar person={person} size={20} />
-                                            {person.name}
-                                        </span>
-                                    ))}
-                                </span>
-                            ) : (
-                                <span>Unassigned</span>
-                            )}
-                            {detail.priority && (
-                                <>
-                                    <span className="task-meta-label">Priority</span>
-                                    <span>{detail.priority.name}</span>
-                                </>
-                            )}
-                            {detail.labels && detail.labels.length > 0 && (
-                                <>
-                                    <span className="task-meta-label">Labels</span>
-                                    <span className="task-labels">
-                                        <TaskLabels labels={detail.labels} />
-                                    </span>
-                                </>
-                            )}
-                            <DetailMetaRows details={detail.details} />
+                            <EditableMetaRows task={detail} editable={editable} canLoad={!!source.capabilities.options} busy={busy} state={state} />
+                            <DetailMetaRows details={detail.details} editable={editable} />
                             {source.fields.map(field => (
                                 <FieldRow key={field.id} label={field.label} value={formatField(detail.fields?.[field.id], field.type)} />
                             ))}
@@ -184,45 +121,33 @@ export function TaskDetails({
                         </div>
 
                         <div className="task-detail-main">
-                            {!editing &&
-                                (detail.description?.trim() ? (
-                                    <Markdown className="task-description" text={detail.description} />
-                                ) : (
-                                    <div className="task-description">No description.</div>
-                                ))}
+                            <DescriptionCard
+                                description={detail.description}
+                                editable={!!editable.description}
+                                busy={busy}
+                                draft={editing}
+                                setDraft={setEditing}
+                                onSave={state.saveEdit}
+                            />
 
-                            <CustomFieldsSection key={detail.id} fields={detail.details?.customFields} />
+                            <CustomFieldsSection
+                                key={detail.id}
+                                fields={detail.details?.customFields}
+                                canUpdate={!!source.capabilities.update}
+                                canLoad={!!source.capabilities.options}
+                                busy={busy}
+                                onChange={(id, value) => state.updateTask({ customField: { id, value } })}
+                                loadOptions={state.loadOptions}
+                            />
                             <RelatedTasksSection details={detail.details} findTask={findTask} onOpenTask={onOpenTask} />
-                            <ChecklistsSection checklists={detail.details?.checklists} />
+                            <ChecklistsSection
+                                checklists={detail.details?.checklists}
+                                busy={busy}
+                                onToggle={editable.checklists ? (id, done) => state.updateTask({ checklistItem: { id, done } }) : undefined}
+                            />
                             <AttachmentsSection attachments={detail.details?.attachments} />
 
-                            {source.capabilities.comments && (
-                                <section className="task-comments">
-                                    <div className="section-title">
-                                        Comments <span>{comments.length}</span>
-                                    </div>
-                                    {comments.map(comment => (
-                                        <div key={comment.id} className="thread-comment">
-                                            <div className="comment-author">
-                                                {comment.author && <TaskAvatar person={comment.author} size={18} />}
-                                                {comment.author?.name ?? 'unknown'} {comment.createdAt && <span>{timeAgo(comment.createdAt)}</span>}
-                                            </div>
-                                            <Markdown className="comment-body" text={comment.body} />
-                                        </div>
-                                    ))}
-                                    <textarea
-                                        className="review-body"
-                                        value={commentText}
-                                        placeholder="Add a comment"
-                                        onChange={event => setCommentText(event.target.value)}
-                                    />
-                                    <div className="row-buttons">
-                                        <button className="button" disabled={busy || !commentText.trim()} onClick={state.addComment}>
-                                            Comment
-                                        </button>
-                                    </div>
-                                </section>
-                            )}
+                            {source.capabilities.comments && <TaskComments state={state} canLoadPeople={!!source.capabilities.options} tasks={tasks} />}
                         </div>
                     </div>
                 </div>

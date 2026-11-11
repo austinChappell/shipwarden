@@ -1,4 +1,4 @@
-import { useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type Ref, type TextareaHTMLAttributes } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref, type TextareaHTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { AtSign, CircleCheck, CircleDot, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft } from 'lucide-react';
@@ -8,14 +8,32 @@ import { keyRoots, queryClient, STALE_MS } from '../query-client';
 import { caretRect } from './caret-position';
 import { MentionContext, type MentionSource } from './mention-context';
 
+/** The rows of the list and a status text, for example "Loading…" or "No matches". */
+export interface MentionItems {
+    list: MentionItem[];
+    status: string | undefined;
+}
+
+/**
+ * Returns the rows of the list for the reference at the cursor. The component calls it on each render. A function that
+ * calls hooks must be the same function on each render.
+ */
+export type MentionItemsHook = (mention: ActiveMention | undefined) => MentionItems;
+
 interface Props extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChange'> {
     value: string;
     onValueChange(value: string): void;
     ref?: Ref<HTMLTextAreaElement>;
+    /** The rows for "@" and "#". Without it, the rows come from the GitHub repository of the `MentionContext`. */
+    useItems?: MentionItemsHook;
+    /** Called when the user puts a row into the text. */
+    onPick?(item: MentionItem): void;
+    /** The names of the lists for screen readers. */
+    listLabels?: { '@': string; '#': string };
 }
 
 /** One row of the list. `insert` is the text that goes into the comment. */
-interface MentionItem {
+export interface MentionItem {
     key: string;
     insert: string;
     label: string;
@@ -23,6 +41,8 @@ interface MentionItem {
     name?: string;
     detail?: string;
     reference?: IssueReference;
+    /** The icon of the row. Without it, the row shows the icon of its GitHub reference or an "@". */
+    icon?: ReactNode;
 }
 
 /** The time after the last key before the "#" list loads. */
@@ -33,14 +53,17 @@ const SEARCH_DELAY_MS = 200;
  * opens a list of issues and pull requests. ↑ and ↓ select an item. Enter or Tab puts it in the text. Esc closes the list.
  * Without a provider, the box is a plain text box.
  */
-export function MentionTextarea({ value, onValueChange, ref, onKeyDown, onBlur, onSelect, ...rest }: Props) {
-    const source = useContext(MentionContext);
+export function MentionTextarea({ value, onValueChange, ref, onKeyDown, onBlur, onSelect, useItems = useMentionItems, onPick, listLabels, ...rest }: Props) {
+    const context = useContext(MentionContext);
+    const custom = useItems !== useMentionItems;
+    /** True when the box has lists: in a GitHub repository, or with its own rows. */
+    const source = custom || !!context;
     const boxRef = useRef<HTMLTextAreaElement | null>(null);
     const [mention, setMention] = useState<ActiveMention>();
     /** The start of the reference that the user closed with Esc. The list stays closed for it. */
     const [dismissed, setDismissed] = useState<number>();
     const [active, setActive] = useState(0);
-    const items = useMentionItems(source, mention);
+    const items = useItems(mention);
     // After a space, ".", or "'", the user can type a full name, or can continue the sentence after a complete login.
     // Then the list shows only when a name matches, so "@ann thanks" and "@ann." close it.
     const open = !!mention && (items.list.length > 0 || mention.trigger === '#' || isLoginQuery(mention.query));
@@ -65,6 +88,7 @@ export function MentionTextarea({ value, onValueChange, ref, onKeyDown, onBlur, 
         if (!box || !mention) return;
         const next = applyMention(value, box.selectionStart, mention, item.insert);
         onValueChange(next.text);
+        onPick?.(item);
         setMention(undefined);
         requestAnimationFrame(() => {
             box.focus();
@@ -123,6 +147,7 @@ export function MentionTextarea({ value, onValueChange, ref, onKeyDown, onBlur, 
                     active={active}
                     onPick={pick}
                     onHover={setActive}
+                    labels={listLabels}
                 />
             )}
         </>
@@ -130,7 +155,11 @@ export function MentionTextarea({ value, onValueChange, ref, onKeyDown, onBlur, 
 }
 
 /** The items of the list: users for "@", issues and pull requests for "#". The data loads only when the list needs it. */
-function useMentionItems(source: MentionSource | undefined, mention: ActiveMention | undefined) {
+function useMentionItems(mention: ActiveMention | undefined): MentionItems {
+    return useGitHubItems(useContext(MentionContext), mention);
+}
+
+function useGitHubItems(source: MentionSource | undefined, mention: ActiveMention | undefined): MentionItems {
     const repoKey = source ? targetKey(source.target) : '';
     const wantsPeople = !!source && mention?.trigger === '@';
     // The same query as the assignee and reviewer pickers, so the list loads one time for each repository and session.
@@ -208,7 +237,8 @@ function MentionList({
     status,
     active,
     onPick,
-    onHover
+    onHover,
+    labels = { '@': 'Users', '#': 'Issues and pull requests' }
 }: {
     box: HTMLTextAreaElement;
     mention: ActiveMention;
@@ -217,6 +247,7 @@ function MentionList({
     active: number;
     onPick(item: MentionItem): void;
     onHover(index: number): void;
+    labels?: { '@': string; '#': string };
 }) {
     const [position, setPosition] = useState<{ left: number; top?: number; bottom?: number }>();
     const listRef = useRef<HTMLDivElement>(null);
@@ -243,7 +274,7 @@ function MentionList({
             ref={listRef}
             className="mention-list"
             role="listbox"
-            aria-label={mention.trigger === '@' ? 'Users' : 'Issues and pull requests'}
+            aria-label={labels[mention.trigger]}
             style={{ left: position.left, top: position.top, bottom: position.bottom, width: LIST_WIDTH, maxHeight: LIST_MAX_HEIGHT }}
             // A click in the list must not take the focus from the text box.
             onMouseDown={event => event.preventDefault()}
@@ -258,7 +289,8 @@ function MentionList({
                     onMouseEnter={() => onHover(index)}
                     onClick={() => onPick(item)}
                 >
-                    {item.reference ? <ReferenceIcon reference={item.reference} /> : <AtSign size={13} strokeWidth={1.8} className="mention-icon" />}
+                    {item.icon ??
+                        (item.reference ? <ReferenceIcon reference={item.reference} /> : <AtSign size={13} strokeWidth={1.8} className="mention-icon" />)}
                     <span className="combobox-label">
                         {item.label}
                         {item.name && <span className="mention-name">{item.name}</span>}

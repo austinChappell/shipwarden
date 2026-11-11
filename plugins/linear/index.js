@@ -9,7 +9,11 @@ import {
     errorText,
     ISSUE_FIELDS,
     issueFilter,
+    issueInput,
+    labelOptions,
+    memberOptions,
     oldestFirst,
+    PRIORITIES,
     retryDelay,
     STATE_FIELDS,
     teamStatusOrder,
@@ -44,6 +48,12 @@ let scopeIds;
 let collectionsCache;
 /** The workflow states of each team, with the time of the load. */
 const teamStates = new Map();
+/** The labels that the issues of each team can have, with the time of the load. */
+const teamLabels = new Map();
+/** The members of each team, with the time of the load. */
+const teamMembers = new Map();
+/** The team ID of each issue that the plugin loaded. The options of an issue come from its team. */
+const teamOfIssue = new Map();
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -144,9 +154,67 @@ async function statesOfTeam(teamId) {
     return states;
 }
 
+/** Returns the value of `key` in `cache`. When the value is absent or older than 10 minutes, `load` gets it again. */
+async function cached(cache, key, load) {
+    const entry = cache.get(key);
+    if (entry && Date.now() - entry.at < CACHE_MS) {
+        return entry.value;
+    }
+    const value = await load();
+    cache.set(key, { value, at: Date.now() });
+    return value;
+}
+
+/** Keeps the team of an issue, and converts the issue to a task with the description, the details and the editable parts. */
+function fullTask(issue) {
+    if (issue.team?.id) {
+        teamOfIssue.set(issue.id, issue.team.id);
+    }
+    return toTask(issue, { withDescription: true });
+}
+
 async function loadIssue(id) {
     const data = await linear(`query Issue($id: String!) { issue(id: $id) { ${ISSUE_FIELDS} description } }`, { id });
-    return toTask(data.issue, { withDescription: true });
+    return fullTask(data.issue);
+}
+
+/** Returns the team ID of an issue. */
+async function teamOf(id) {
+    const known = teamOfIssue.get(id);
+    if (known) {
+        return known;
+    }
+    const data = await linear('query IssueTeam($id: String!) { issue(id: $id) { id team { id } } }', { id });
+    teamOfIssue.set(id, data.issue.team.id);
+    // The ShipWarden task ID is the UUID of the issue. Linear also accepts the identifier, so keep both keys.
+    teamOfIssue.set(data.issue.id, data.issue.team.id);
+    return data.issue.team.id;
+}
+
+/** Returns the labels of a team and the labels of the workspace. The plugin keeps them for 10 minutes. */
+function labelsOfTeam(teamId) {
+    return cached(teamLabels, teamId, () =>
+        allPages(
+            `query Labels($filter: IssueLabelFilter, $first: Int, $after: String) {
+                issueLabels(filter: $filter, first: $first, after: $after) { nodes { id name color isGroup } ${PAGE_INFO} }
+            }`,
+            { filter: { or: [{ team: { id: { eq: teamId } } }, { team: { null: true } }] } },
+            data => data.issueLabels
+        )
+    );
+}
+
+/** Returns the members of a team. The plugin keeps them for 10 minutes. */
+function membersOfTeam(teamId) {
+    return cached(teamMembers, teamId, () =>
+        allPages(
+            `query Members($id: String!, $first: Int, $after: String) {
+                team(id: $id) { members(first: $first, after: $after) { nodes { id name displayName avatarUrl active } ${PAGE_INFO} } }
+            }`,
+            { id: teamId },
+            data => data.team.members
+        )
+    );
 }
 
 /** Changes an issue and returns the task. `input` is an IssueUpdateInput. */
@@ -160,7 +228,7 @@ async function changeIssue(id, input) {
     if (!data.issueUpdate.success || !data.issueUpdate.issue) {
         throw new Error('Linear did not change the issue.');
     }
-    return toTask(data.issueUpdate.issue, { withDescription: true });
+    return fullTask(data.issueUpdate.issue);
 }
 
 runPlugin({
@@ -180,6 +248,7 @@ runPlugin({
         }
         log(`Linear plugin ready for "${viewer.organization.name}" as ${viewer.displayName || viewer.name}.`);
         return {
+            capabilities: { edit: true },
             fields: [
                 { id: 'branchName', label: 'Branch', type: 'text' },
                 { id: 'project', label: 'Project', type: 'text' },
@@ -236,6 +305,9 @@ runPlugin({
             }`,
             { filter: issueFilter(collection, filter, query), first: PAGE_SIZE, after: cursor || undefined }
         );
+        for (const issue of data.issues.nodes) {
+            teamOfIssue.set(issue.id, issue.team.id);
+        }
         return {
             tasks: data.issues.nodes.map(issue => toTask(issue)),
             nextCursor: data.issues.pageInfo.hasNextPage ? data.issues.pageInfo.endCursor : undefined
@@ -246,11 +318,31 @@ runPlugin({
         return loadIssue(id);
     },
 
-    async updateTask({ id, status }) {
-        if (!status) {
-            return loadIssue(id);
+    /** Changes the status, the title, the description, the assignee, the labels, the priority or the due date. */
+    async updateTask(params) {
+        const input = issueInput(params);
+        if (Object.keys(input).length === 0) {
+            return loadIssue(params.id);
         }
-        return changeIssue(id, { stateId: status });
+        return changeIssue(params.id, input);
+    },
+
+    /**
+     * The choices for a part of an issue. The assignees: the active members of the team. The labels: the labels of the
+     * team and of the workspace, without group labels. The priority: the four Linear priorities.
+     * The user cannot type a new label, because Linear sets labels only by ID.
+     */
+    async listOptions({ id, part }) {
+        if (part === 'priority') {
+            return { options: PRIORITIES };
+        }
+        if (part === 'assignees') {
+            return { options: memberOptions(await membersOfTeam(await teamOf(id))) };
+        }
+        if (part === 'labels') {
+            return { options: labelOptions(await labelsOfTeam(await teamOf(id))) };
+        }
+        throw new Error(`Linear issues have no options for "${part}".`);
     },
 
     /** The workflow states of the team, in workflow order. */
@@ -263,8 +355,7 @@ runPlugin({
         if (!id) {
             return [];
         }
-        const data = await linear('query IssueTeam($id: String!) { issue(id: $id) { team { id } } }', { id });
-        const states = await statesOfTeam(data.issue.team.id);
+        const states = await statesOfTeam(await teamOf(id));
         return [...states].map(toStatus).sort((a, b) => a.order - b.order);
     },
 

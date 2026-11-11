@@ -200,16 +200,21 @@ export function workItemUrl(baseUrl, project, id) {
     return `${baseUrl}/${encodeURIComponent(project)}/_workitems/edit/${id}`;
 }
 
-function person(identity) {
+/**
+ * Converts an identity to a person. The ID is the unique name (usually the email), because "System.AssignedTo"
+ * accepts it.
+ */
+export function person(identity) {
     if (!identity) {
         return undefined;
     }
     if (typeof identity === 'string') {
         // An old API version gives "Display Name <email>".
-        return { name: identity.replace(/\s*<[^>]*>$/, '') };
+        const email = /<([^>]*)>$/.exec(identity)?.[1];
+        return { ...(email ? { id: email } : {}), name: identity.replace(/\s*<[^>]*>$/, '') };
     }
     // The avatar URL needs the token, so the task view cannot show it. The plugin leaves it out.
-    return { name: identity.displayName ?? identity.uniqueName ?? 'Unknown' };
+    return { ...(identity.uniqueName ? { id: identity.uniqueName } : {}), name: identity.displayName ?? identity.uniqueName ?? 'Unknown' };
 }
 
 /** Splits the "System.Tags" field ("tag one; tag two") into labels. */
@@ -222,6 +227,203 @@ export function toLabels(tags) {
 }
 
 const PRIORITY_NAMES = { 1: 'Critical', 2: 'High', 3: 'Medium', 4: 'Low' };
+
+/** The priorities of the standard processes as options. The ID is the value of "Microsoft.VSTS.Common.Priority". */
+export const PRIORITIES = Object.entries(PRIORITY_NAMES).map(([id, name]) => ({ id, name }));
+
+/** The reference names of the work item fields that tasks/update changes. */
+export const FIELDS = {
+    title: 'System.Title',
+    state: 'System.State',
+    description: 'System.Description',
+    reproSteps: 'Microsoft.VSTS.TCM.ReproSteps',
+    acceptanceCriteria: 'Microsoft.VSTS.Common.AcceptanceCriteria',
+    assignedTo: 'System.AssignedTo',
+    tags: 'System.Tags',
+    priority: 'Microsoft.VSTS.Common.Priority',
+    startDate: 'Microsoft.VSTS.Scheduling.StartDate',
+    dueDate: 'Microsoft.VSTS.Scheduling.DueDate',
+    targetDate: 'Microsoft.VSTS.Scheduling.TargetDate',
+    originalEstimate: 'Microsoft.VSTS.Scheduling.OriginalEstimate',
+    completedWork: 'Microsoft.VSTS.Scheduling.CompletedWork'
+};
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Converts the members of the teams of a project to options, without groups and without duplicates.
+ * `memberLists` has one list for each team, from GET /_apis/projects/{project}/teams/{team}/members.
+ */
+export function memberOptions(memberLists) {
+    const byId = new Map();
+    for (const member of memberLists.flat()) {
+        const identity = member?.identity;
+        if (!identity?.uniqueName || identity.isContainer) {
+            continue;
+        }
+        const key = identity.uniqueName.toLowerCase();
+        if (!byId.has(key)) {
+            byId.set(key, { id: identity.uniqueName, name: identity.displayName || identity.uniqueName });
+        }
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Returns the field of the due date for a work item type: "Due Date" when the type has it, else "Target Date". */
+export function dueDateField(typeFields) {
+    if (typeFields.has(FIELDS.dueDate)) {
+        return FIELDS.dueDate;
+    }
+    return typeFields.has(FIELDS.targetDate) ? FIELDS.targetDate : undefined;
+}
+
+/**
+ * Returns the details of a work item: the creator, the dates and the times. Azure keeps the estimate and the
+ * completed work in hours.
+ */
+export function toDetails(item) {
+    const fields = item.fields ?? {};
+    const hours = value => (typeof value === 'number' && Number.isFinite(value) ? Math.round(value * HOUR_MS) : undefined);
+    const details = {
+        location: fields['System.AreaPath'] || undefined,
+        creator: person(fields['System.CreatedBy']),
+        createdAt: fields['System.CreatedDate'] || undefined,
+        startDate: fields[FIELDS.startDate] || undefined,
+        dueDate: fields[FIELDS.dueDate] || fields[FIELDS.targetDate] || undefined,
+        timeEstimate: hours(fields[FIELDS.originalEstimate]),
+        timeSpent: hours(fields[FIELDS.completedWork])
+    };
+    return Object.fromEntries(Object.entries(details).filter(([, value]) => value !== undefined));
+}
+
+/**
+ * Returns the parts of a work item that tasks/update can change. `typeFields` is a set of the field reference names
+ * of the work item type. The description is editable only when the task description comes from "Description" alone,
+ * because the task shows "Repro Steps" and "Acceptance Criteria" in the same text.
+ */
+export function editableParts(item, typeFields) {
+    const fields = item.fields ?? {};
+    const empty = field => typeof fields[field] !== 'string' || !fields[field].trim();
+    return {
+        title: true,
+        description: !typeFields.has(FIELDS.reproSteps) && empty(FIELDS.reproSteps) && empty(FIELDS.acceptanceCriteria),
+        assignees: true,
+        labels: true,
+        priority: typeFields.has(FIELDS.priority),
+        startDate: typeFields.has(FIELDS.startDate),
+        dueDate: !!dueDateField(typeFields),
+        timeEstimate: typeFields.has(FIELDS.originalEstimate)
+    };
+}
+
+/** Converts "YYYY-MM-DD" to the ISO time of local midnight. The Azure web form also saves a date as midnight of the user's time zone. */
+export function localMidnight(day) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day));
+    if (!match) {
+        throw new Error(`The date "${day}" is not valid. Use the form YYYY-MM-DD.`);
+    }
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).toISOString();
+}
+
+/**
+ * Converts Markdown to simple HTML: paragraphs and line breaks. The plugin uses it only when Azure DevOps does not
+ * accept Markdown in a field, for example an old Azure DevOps Server.
+ */
+export function markdownToHtml(markdown) {
+    const escapeHtml = text => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(markdown ?? '')
+        .trim()
+        .split(/\n{2,}/)
+        .filter(Boolean)
+        .map(paragraph => `<div>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</div>`)
+        .join('');
+}
+
+/**
+ * Converts a tasks/update request to JSON Patch operations for PATCH /_apis/wit/workitems/{id}.
+ * `typeFields` is a set of the field reference names of the work item type.
+ * A work item has one assignee. The task dialog can send more than one, so the last ID is the new assignee.
+ * `htmlDescription`: write the description as HTML, not as Markdown.
+ */
+export function workItemPatch(update, typeFields, { htmlDescription = false } = {}) {
+    if (update.customField !== undefined) {
+        throw new Error('ShipWarden cannot change the custom fields of Azure DevOps work items.');
+    }
+    if (update.checklistItem !== undefined) {
+        throw new Error('Azure DevOps work items do not have checklists.');
+    }
+    const operations = [];
+    const set = (field, value) => operations.push({ op: 'add', path: `/fields/${field}`, value });
+    const clear = field => operations.push({ op: 'remove', path: `/fields/${field}` });
+    const need = (field, name) => {
+        if (!field || !typeFields.has(field)) {
+            throw new Error(`This work item type does not have ${name}.`);
+        }
+        return field;
+    };
+    if (update.status) {
+        set(FIELDS.state, update.status);
+    }
+    if (update.title !== undefined) {
+        if (!String(update.title ?? '').trim()) {
+            throw new Error('A work item must have a title.');
+        }
+        set(FIELDS.title, String(update.title).trim());
+    }
+    if (update.description !== undefined) {
+        const text = update.description ?? '';
+        if (htmlDescription) {
+            set(FIELDS.description, markdownToHtml(text));
+        } else {
+            set(FIELDS.description, text);
+            operations.push({ op: 'add', path: `/multilineFieldsFormat/${FIELDS.description}`, value: 'Markdown' });
+        }
+    }
+    if (update.assignees !== undefined) {
+        set(FIELDS.assignedTo, update.assignees?.at(-1) ?? '');
+    }
+    if (update.labels !== undefined) {
+        set(FIELDS.tags, [...new Set((update.labels ?? []).map(tag => tag.trim()).filter(Boolean))].join('; '));
+    }
+    if (update.priority !== undefined) {
+        const field = need(FIELDS.priority, 'a priority');
+        if (update.priority === null) {
+            clear(field);
+        } else {
+            const level = Number(update.priority);
+            if (!Number.isInteger(level) || level < 1) {
+                throw new Error(`The priority "${update.priority}" is not valid. Use a level from 1 (critical) to 4 (low).`);
+            }
+            set(field, level);
+        }
+    }
+    for (const [part, field, name] of [
+        ['startDate', FIELDS.startDate, 'a start date'],
+        ['dueDate', dueDateField(typeFields), 'a due date or a target date']
+    ]) {
+        if (update[part] !== undefined) {
+            need(field, name);
+            if (update[part] === null) {
+                clear(field);
+            } else {
+                set(field, localMidnight(update[part]));
+            }
+        }
+    }
+    if (update.timeEstimate !== undefined) {
+        const field = need(FIELDS.originalEstimate, 'an original estimate');
+        if (update.timeEstimate === null) {
+            clear(field);
+        } else {
+            const hours = Number(update.timeEstimate) / HOUR_MS;
+            if (!Number.isFinite(hours) || hours < 0) {
+                throw new Error('The estimate is not valid.');
+            }
+            set(field, Math.round(hours * 100) / 100);
+        }
+    }
+    return operations;
+}
 
 /**
  * Converts a work item to a task. `states` are the states of the work item type, to give the status its color and

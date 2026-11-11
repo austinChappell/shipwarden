@@ -47,7 +47,11 @@ export function toCollections(repos, defaultRepo) {
         }));
 }
 
-export function toTask(issue, { withDescription = false } = {}) {
+/**
+ * Converts an issue to a task. `editable` gives the parts that tasks/update can change. Only tasks/get sends it.
+ * The ID of an assignee is the login. A label has no ID, because the name is the option ID.
+ */
+export function toTask(issue, { withDescription = false, editable } = {}) {
     const repo = issueRepo(issue);
     return {
         id: repo ? `${repo}#${issue.number}` : String(issue.number),
@@ -55,7 +59,7 @@ export function toTask(issue, { withDescription = false } = {}) {
         title: issue.title,
         url: issue.html_url,
         status: issueStatus(issue),
-        assignees: (issue.assignees ?? []).map(user => ({ name: user.login, avatarUrl: user.avatar_url })),
+        assignees: (issue.assignees ?? []).map(toPerson),
         labels: (issue.labels ?? []).map(label =>
             typeof label === 'string' ? { name: label } : { name: label.name, color: label.color ? `#${label.color}` : undefined }
         ),
@@ -65,8 +69,66 @@ export function toTask(issue, { withDescription = false } = {}) {
             author: issue.user?.login ?? null,
             comments: issue.comments ?? 0,
             milestone: issue.milestone?.title ?? null
-        }
+        },
+        ...(editable ? { editable } : {})
     };
+}
+
+/** Converts a GitHub user to a person or an option. The ID is the login, because the REST API assigns issues by login. */
+export function toPerson(user) {
+    return { id: user.login, name: user.login, avatarUrl: user.avatar_url };
+}
+
+/** Converts a repository label to an option. The name is the ID, because the REST API sets labels by name. */
+export function labelOption(label) {
+    return { id: label.name, name: label.name, color: label.color ? `#${label.color}` : undefined };
+}
+
+/**
+ * Returns the parts of an issue that the user can change. `permissions` comes from GET /repos/{owner}/{repo}.
+ * Triage access gives the labels and the assignees. Write access also gives the title and the body.
+ * The author of an issue can always change its title and body.
+ */
+export function editableParts(issue, permissions, login) {
+    const write = !!(permissions?.admin || permissions?.maintain || permissions?.push);
+    const triage = write || !!permissions?.triage;
+    const author = !!login && issue.user?.login?.toLowerCase() === login.toLowerCase();
+    return { title: write || author, description: write || author, assignees: triage, labels: triage };
+}
+
+/**
+ * Converts a tasks/update request to the body of PATCH /repos/{owner}/{repo}/issues/{number}.
+ * GitHub issues have no priority, no dates, no estimate, no custom fields and no checklists.
+ */
+export function issueChange({ status, title, description, assignees, labels, ...rest }) {
+    for (const part of ['priority', 'startDate', 'dueDate', 'timeEstimate', 'customField', 'checklistItem']) {
+        if (rest[part] !== undefined) {
+            throw new Error(`GitHub issues do not have the part "${part}".`);
+        }
+    }
+    const body = status ? stateChange(status) : {};
+    if (title !== undefined) {
+        if (!String(title).trim()) {
+            throw new Error('An issue must have a title.');
+        }
+        body.title = String(title).trim();
+    }
+    if (description !== undefined) {
+        body.body = description ?? '';
+    }
+    if (assignees !== undefined) {
+        body.assignees = assignees ?? [];
+    }
+    if (labels !== undefined) {
+        body.labels = labels ?? [];
+    }
+    return body;
+}
+
+/** Returns the label names that are not in the labels of the repository. The comparison ignores the case, as GitHub does. */
+export function missingLabels(names, repoLabels) {
+    const known = new Set(repoLabels.map(label => label.name.toLowerCase()));
+    return [...new Set(names)].filter(name => !known.has(name.toLowerCase()));
 }
 
 export function toComment(comment) {

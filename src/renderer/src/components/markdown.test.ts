@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { headingSlug, linkReferences, renderMarkdown, renderMarkdownFile } from './Markdown';
 
 describe('renderMarkdown', () => {
+    it('shows the check boxes of a task list as marks', () => {
+        const html = renderMarkdown('- [x] Done\n- [ ] Open\n\n<input type="checkbox" checked>');
+        expect(html).toContain('<span class="md-check on" role="img" aria-label="Done"></span> Done');
+        expect(html).toContain('<span class="md-check" role="img" aria-label="Not done"></span> Open');
+        expect(html).not.toContain('<input');
+    });
+
     it('removes the backslash escapes of ClickUp Markdown', () => {
         const html = renderMarkdown('GET /api/search\\_by\\_email\n\n1\\. Require a role.');
         expect(html).toContain('search_by_email');

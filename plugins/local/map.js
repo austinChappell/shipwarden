@@ -97,21 +97,68 @@ export function parseTaskId(id) {
     return { collection: text.slice(0, index), number };
 }
 
-/** Converts a stored task to a protocol task. */
+/** The option ID of the "archived" label. The label shows the state of the task. The user cannot add or remove it. */
+export const ARCHIVED_LABEL_ID = ':archived';
+
+/** The priorities of a local task. The ID is the level. */
+export const PRIORITIES = [
+    { id: '1', name: 'Urgent', color: '#f07178' },
+    { id: '2', name: 'High', color: '#e6b450' },
+    { id: '3', name: 'Normal', color: '#59c2ff' },
+    { id: '4', name: 'Low', color: '#8b949e' }
+];
+
+/** The parts of a local task that tasks/update can change. */
+export const EDITABLE = { title: true, description: true, labels: true, priority: true, startDate: true, dueDate: true, timeEstimate: true };
+
+/** Converts a stored task to a protocol task. `withDescription`: the result of tasks/get, with the details. */
 export function toTask(stored, collection, statuses, { withDescription = false } = {}) {
+    const priority = PRIORITIES.find(item => item.id === String(stored.priority));
+    // The field "createdAt" shows the time of creation, so the details do not have it.
+    const details = {
+        startDate: stored.startDate,
+        dueDate: stored.dueDate,
+        timeEstimate: stored.timeEstimate
+    };
     return {
         id: taskId(collection, stored.number),
         key: `${KEY_PREFIX}-${stored.number}`,
         title: stored.title,
         status: statusFor(statuses, stored.status),
-        labels: stored.archived ? [{ name: 'archived', color: CATEGORY_COLORS.canceled }] : [],
+        labels: [
+            ...(Array.isArray(stored.labels) ? stored.labels : []).map(name => ({ name: String(name) })),
+            ...(stored.archived ? [{ id: ARCHIVED_LABEL_ID, name: 'archived', color: CATEGORY_COLORS.canceled }] : [])
+        ],
+        ...(priority ? { priority: { name: priority.name, level: Number(priority.id) } } : {}),
         updatedAt: stored.updatedAt,
         description: withDescription ? (stored.description ?? '') : undefined,
         fields: {
             createdAt: stored.createdAt ?? null,
             comments: stored.comments?.length ?? 0
-        }
+        },
+        ...(withDescription ? { details, editable: EDITABLE } : {})
     };
+}
+
+/** Returns a clean list of label names: without the "archived" label, empty names and duplicates. */
+export function cleanLabels(labels) {
+    if (!Array.isArray(labels)) {
+        throw new Error('The labels must be a list.');
+    }
+    const names = labels
+        .filter(label => label !== ARCHIVED_LABEL_ID)
+        .map(label => String(label).replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+    return [...new Map(names.map(name => [name.toLowerCase(), name])).values()];
+}
+
+/** Returns a valid day "YYYY-MM-DD", or undefined for null. */
+export function cleanDay(day) {
+    if (day === null) return undefined;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day))) {
+        throw new Error(`The date "${day}" is not valid. Use the form YYYY-MM-DD.`);
+    }
+    return String(day);
 }
 
 export function toComment(stored) {

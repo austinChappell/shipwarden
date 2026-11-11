@@ -4,6 +4,7 @@ import { ChevronRight, LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import type { ConnectionChange, ConnectionInfo, PluginInfo } from '@shared/tasks';
 import { optionalErrorText } from '../util';
 import { SettingsGroup } from './settings-ui';
+import { Select } from './Select';
 import { confirmDialog } from './ConfirmDialog';
 import { connectionAdded, connectionChanged, connectionRemoved, connectionSettingsSaved, taskManagerKeys } from './task-managers-cache';
 
@@ -271,14 +272,13 @@ export function TaskManagersSettings() {
                 description="All projects use the task managers that are on. Open one to change its settings and the workspaces or organizations it includes."
                 actions={
                     <div className="add-connection">
-                        <select className="tasks-select" value={adding} aria-label="Task manager to add" onChange={event => setAdding(event.target.value)}>
-                            <option value="">Add a task manager…</option>
-                            {plugins.map(plugin => (
-                                <option key={plugin.id} value={plugin.id}>
-                                    {plugin.name}
-                                </option>
-                            ))}
-                        </select>
+                        <Select
+                            className="tasks-select"
+                            value={adding}
+                            aria-label="Task manager to add"
+                            options={[{ value: '', label: 'Add a task manager…' }, ...plugins.map(plugin => ({ value: plugin.id, label: plugin.name }))]}
+                            onChange={setAdding}
+                        />
                         <button className="button" disabled={!adding} onClick={add}>
                             <Plus size={13} strokeWidth={1.8} />
                             Add

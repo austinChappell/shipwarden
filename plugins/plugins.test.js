@@ -51,7 +51,7 @@ describe('GitHub Issues mapping', () => {
             title: 'Fix login',
             url: 'https://github.com/o/r/issues/7',
             status: github.STATUSES.notPlanned,
-            assignees: [{ name: 'ann', avatarUrl: 'a.png' }],
+            assignees: [{ id: 'ann', name: 'ann', avatarUrl: 'a.png' }],
             labels: [{ name: 'bug', color: '#d73a4a' }],
             updatedAt: '2026-11-07T00:00:00Z',
             description: 'Body',
@@ -256,7 +256,7 @@ describe('Azure DevOps mapping', () => {
             title: 'Fix the login page',
             url: 'https://dev.azure.com/contoso/Fabrikam%20Fiber/_workitems/edit/299',
             status: { id: 'Active', name: 'Active', color: '#007acc', category: 'in_progress' },
-            assignees: [{ name: 'Jamal Hartnett' }],
+            assignees: [{ id: 'jamal@example.com', name: 'Jamal Hartnett' }],
             labels: [{ name: 'frontend' }, { name: 'urgent' }],
             priority: { name: 'High', level: 2 },
             updatedAt: '2026-11-07T10:00:00.12Z',
@@ -363,14 +363,15 @@ describe('ClickUp task details', () => {
     const field = (type, value, extra = {}) => ({ id: 'f1', name: 'Field', type, value, ...extra });
 
     it.each([
-        [field('number', '0'), { type: 'number', value: 0 }],
-        [field('number', undefined), { type: 'number' }],
-        [field('emoji', '3', { type_config: { count: 5 } }), { type: 'rating', max: 5, value: 3 }],
-        [field('emoji', undefined, { type_config: { count: 4 } }), { type: 'rating', max: 4 }],
-        [field('checkbox', 'true'), { type: 'boolean', value: true }],
-        [field('checkbox', undefined), { type: 'boolean', value: false }],
-        [field('url', 'https://example.com'), { type: 'url', value: 'https://example.com' }],
-        [field('short_text', ''), { type: 'text' }],
+        [field('number', '0'), { type: 'number', editable: true, value: 0 }],
+        [field('number', undefined), { type: 'number', editable: true }],
+        [field('emoji', '3', { type_config: { count: 5 } }), { type: 'rating', editable: true, max: 5, value: 3 }],
+        [field('emoji', undefined, { type_config: { count: 4 } }), { type: 'rating', editable: true, max: 4 }],
+        [field('checkbox', 'true'), { type: 'boolean', editable: true, value: true }],
+        [field('checkbox', undefined), { type: 'boolean', editable: true, value: false }],
+        [field('url', 'https://example.com'), { type: 'url', editable: true, value: 'https://example.com' }],
+        [field('short_text', ''), { type: 'text', editable: true }],
+        [field('formula', '3'), { type: 'text', value: '3' }],
         [
             field('drop_down', 1, {
                 type_config: {
@@ -380,7 +381,15 @@ describe('ClickUp task details', () => {
                     ]
                 }
             }),
-            { type: 'labels', labels: [{ name: 'High', color: '#f00' }] }
+            {
+                type: 'labels',
+                editable: true,
+                options: [
+                    { id: 'a', name: 'Low', color: undefined },
+                    { id: 'b', name: 'High', color: '#f00' }
+                ],
+                labels: [{ id: 'b', name: 'High', color: '#f00' }]
+            }
         ],
         [
             field('labels', ['b'], {
@@ -391,11 +400,21 @@ describe('ClickUp task details', () => {
                     ]
                 }
             }),
-            { type: 'labels', labels: [{ name: 'Two', color: undefined }] }
+            {
+                type: 'labels',
+                editable: true,
+                multiple: true,
+                options: [
+                    { id: 'a', name: 'One', color: undefined },
+                    { id: 'b', name: 'Two', color: undefined }
+                ],
+                labels: [{ id: 'b', name: 'Two', color: undefined }]
+            }
         ],
-        [field('users', [{ id: 7, username: 'Sam' }]), { type: 'people', people: [{ id: '7', name: 'Sam', avatarUrl: undefined }] }],
-        [field('users', []), { type: 'people' }],
-        [field('manual_progress', { percent_completed: 40 }), { type: 'progress', value: 40 }]
+        [field('users', [{ id: 7, username: 'Sam' }]), { type: 'people', editable: true, people: [{ id: '7', name: 'Sam', avatarUrl: undefined }] }],
+        [field('users', []), { type: 'people', editable: true }],
+        [field('manual_progress', { percent_completed: 40 }), { type: 'progress', editable: true, value: 40 }],
+        [field('automatic_progress', { percent_completed: 40 }), { type: 'progress', value: 40 }]
     ])('maps a custom field %#', (input, expected) => {
         expect(clickup.toCustomField(input)).toEqual({ id: 'f1', label: 'Field', ...expected });
     });
@@ -435,9 +454,10 @@ describe('ClickUp task details', () => {
                 checklists: [
                     {
                         name: 'Steps',
+                        id: 'c1',
                         items: [
-                            { name: 'Two', resolved: true, orderindex: 1 },
-                            { name: 'One', resolved: false, orderindex: 0 }
+                            { id: 'i2', name: 'Two', resolved: true, orderindex: 1 },
+                            { id: 'i1', name: 'One', resolved: false, orderindex: 0 }
                         ]
                     }
                 ],
@@ -453,14 +473,72 @@ describe('ClickUp task details', () => {
         expect(details.timeEstimate).toBe(3600000);
         expect(details.parent).toEqual({ id: 'p1', url: 'https://app.clickup.com/t/p1' });
         expect(details.subtasks[0]).toMatchObject({ id: 's1', title: 'Write tests', url: 'https://app.clickup.com/t/s1' });
-        expect(details.checklists[0].items.map(item => [item.name, item.done])).toEqual([
-            ['One', false],
-            ['Two', true]
+        expect(details.checklists[0].items.map(item => [item.id, item.name, item.done])).toEqual([
+            ['c1/i1', 'One', false],
+            ['c1/i2', 'Two', true]
         ]);
         expect(details.attachments).toEqual([
             { name: 'shot.png', url: 'https://example.com/shot.png', size: 120, thumbnailUrl: 'https://example.com/t.png', createdAt: undefined }
         ]);
         expect(details.customFields).toBeUndefined();
         expect(details.watchers).toBeUndefined();
+    });
+});
+
+describe('ClickUp edits', () => {
+    it('finds the IDs to add and to remove', () => {
+        expect(clickup.listChange([1, 2, 3], ['2', '4'])).toEqual({ add: ['4'], rem: ['1', '3'] });
+    });
+
+    it('splits a checklist item ID', () => {
+        expect(clickup.parseChecklistItemId('c1/i1')).toEqual({ checklistId: 'c1', itemId: 'i1' });
+        expect(() => clickup.parseChecklistItemId('i1')).toThrow('not valid');
+    });
+
+    it('converts a day to noon in the local time zone', () => {
+        expect(clickup.dayToMilliseconds('2026-11-03')).toBe(new Date(2026, 10, 3, 12).getTime());
+        expect(clickup.dayToMilliseconds(null)).toBeNull();
+        expect(() => clickup.dayToMilliseconds('11/03/2026')).toThrow('not valid');
+    });
+
+    it('makes the request for a custom field value', () => {
+        const users = { type: 'users', value: [{ id: 1 }, { id: 2 }] };
+        expect(clickup.customFieldRequest(users, ['2', '3'])).toEqual({ body: { value: { add: ['3'], rem: ['1'] } } });
+        expect(clickup.customFieldRequest({ type: 'checkbox' }, false)).toEqual({ body: { value: false } });
+        expect(clickup.customFieldRequest({ type: 'number' }, '4.5')).toEqual({ body: { value: 4.5 } });
+        expect(() => clickup.customFieldRequest({ type: 'number' }, 'x')).toThrow('not a number');
+        expect(clickup.customFieldRequest({ type: 'drop_down' }, ['b'])).toEqual({ body: { value: 'b' } });
+        expect(clickup.customFieldRequest({ type: 'labels' }, ['a', 'b'])).toEqual({ body: { value: ['a', 'b'] } });
+        expect(clickup.customFieldRequest({ type: 'manual_progress' }, 30)).toEqual({ body: { value: { current: 30 } } });
+        expect(clickup.customFieldRequest({ type: 'date' }, '2026-11-03')).toEqual({
+            body: { value: new Date(2026, 10, 3, 12).getTime(), value_options: { time: false } }
+        });
+        expect(clickup.customFieldRequest({ type: 'text' }, 'Hi')).toEqual({ body: { value: 'Hi' } });
+        expect(clickup.customFieldRequest({ type: 'drop_down' }, [])).toEqual({ clear: true });
+        expect(clickup.customFieldRequest({ type: 'short_text' }, null)).toEqual({ clear: true });
+    });
+});
+
+describe('ClickUp comment mentions', () => {
+    const mentions = [
+        { id: '7', name: 'Ann' },
+        { id: '8', name: 'Ann Lee' }
+    ];
+    const references = [{ id: 'abc', text: 'ENG-1' }];
+
+    it('makes tags for the mentions and URLs for the task references', () => {
+        const parts = clickup.commentParts('Hi @Ann Lee and @Ann, see ENG-1.', mentions, references);
+        expect(parts).toEqual([
+            { text: 'Hi ' },
+            { type: 'tag', user: { id: 8 } },
+            { text: ' and ' },
+            { type: 'tag', user: { id: 7 } },
+            { text: ', see https://app.clickup.com/t/abc.' }
+        ]);
+        expect(clickup.plainComment(parts, mentions)).toBe('Hi @Ann Lee and @Ann, see https://app.clickup.com/t/abc.');
+    });
+
+    it('keeps a body without mentions as one text part', () => {
+        expect(clickup.commentParts('Plain text', [], [])).toEqual([{ text: 'Plain text' }]);
     });
 });

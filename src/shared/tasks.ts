@@ -21,6 +21,13 @@ export interface TaskPerson {
     avatarUrl?: string;
 }
 
+export interface TaskLabel {
+    /** The option ID of the label for tasks/update. Without it, the name is the ID. */
+    id?: string;
+    name: string;
+    color?: string;
+}
+
 export interface Task {
     id: string;
     key?: string;
@@ -28,13 +35,73 @@ export interface Task {
     url?: string;
     status: TaskStatus;
     assignees?: TaskPerson[];
-    labels?: { name: string; color?: string }[];
+    labels?: TaskLabel[];
+    /** level: 1 is the highest. The option ID of the priority for tasks/update is the level as a string. */
     priority?: { name: string; level: number };
     updatedAt?: string;
     description?: string;
     fields?: Record<string, string | number | boolean | null>;
     /** More facts for the task details. Only tasks/get sends them. */
     details?: TaskDetails;
+    /** The parts of the task that tasks/update can change. Only tasks/get sends it. */
+    editable?: EditableParts;
+}
+
+/**
+ * The parts of a task that tasks/update can change. Absent means false.
+ * The custom fields have their own `editable` flag. Without this object, the capability "edit" gives the title and the description.
+ */
+export interface EditableParts {
+    title?: boolean;
+    description?: boolean;
+    assignees?: boolean;
+    labels?: boolean;
+    priority?: boolean;
+    startDate?: boolean;
+    dueDate?: boolean;
+    timeEstimate?: boolean;
+    /** The done state of the checklist items. The items must have an ID. */
+    checklists?: boolean;
+}
+
+/** The parts of a task that have a list of options. tasks/options returns the options. "custom:<field ID>" is a custom field. */
+export type OptionPart = 'assignees' | 'labels' | 'priority' | `custom:${string}`;
+
+/** A choice for a part of a task, for example a person, a label or a priority. */
+export interface TaskOption {
+    id: string;
+    name: string;
+    color?: string;
+    avatarUrl?: string;
+}
+
+/** The result of tasks/options. `create`: the user can type a new option. Then the ID of the new option is its name. */
+export interface TaskOptions {
+    options: TaskOption[];
+    create?: boolean;
+}
+
+/** A new value of a custom field. "labels" and "people": a list of option IDs. An empty value is null. */
+export type CustomFieldValue = string | number | boolean | string[] | null;
+
+/**
+ * The params of tasks/update. A missing part does not change. Null clears a part.
+ * Lists (assignees and labels) are the complete new list of option IDs. A date is "YYYY-MM-DD".
+ */
+export interface TaskUpdate {
+    id: string;
+    status?: string;
+    title?: string;
+    description?: string;
+    assignees?: string[];
+    labels?: string[];
+    priority?: string | null;
+    startDate?: string | null;
+    dueDate?: string | null;
+    /** Milliseconds. */
+    timeEstimate?: number | null;
+    customField?: { id: string; value: CustomFieldValue };
+    checklistItem?: { id: string; done: boolean };
 }
 
 /** A reference to another task, for example a subtask or a dependency. The view shows the ID when the title is absent. */
@@ -52,7 +119,8 @@ export type TaskRelation = 'blocks' | 'blocked_by' | 'related';
 
 export interface TaskChecklist {
     name: string;
-    items: { name: string; done: boolean; assignee?: TaskPerson }[];
+    /** `id`: the ID for tasks/update. Without it, the item cannot change. */
+    items: { id?: string; name: string; done: boolean; assignee?: TaskPerson }[];
 }
 
 export interface TaskAttachment {
@@ -75,9 +143,15 @@ export interface TaskCustomField {
     /** "date": an ISO time, or a date as "YYYY-MM-DD". "rating": the number of stars. "progress": a percentage from 0 to 100. */
     value?: string | number | boolean | null;
     people?: TaskPerson[];
-    labels?: { name: string; color?: string }[];
+    labels?: TaskLabel[];
     /** "rating": the highest number of stars. */
     max?: number;
+    /** True when tasks/update can change the field. */
+    editable?: boolean;
+    /** "labels": more than one option is possible. */
+    multiple?: boolean;
+    /** "labels": the options. Without them, tasks/options with "custom:<field ID>" returns the options. */
+    options?: TaskOption[];
 }
 
 /** More facts of one task for the task details. Only tasks/get sends them. All parts are optional. */
@@ -120,6 +194,19 @@ export interface TaskCollection {
 /** The result of the tasks/statusOrder adapter: the workflow order of the statuses of one collection. */
 export interface StatusOrder {
     statuses: TaskStatus[];
+}
+
+/**
+ * The params of comments/create. The body is Markdown.
+ * - Each mention is in the body as "@" and the name of the person, for example "@Ann Lee".
+ * - Each reference is in the body as its `text`: the key of the task, or its URL when the task has no key.
+ * A plugin can change them to the native mentions and links of the tracker. A plugin that ignores them posts the body as it is.
+ */
+export interface CommentInput {
+    taskId: string;
+    body: string;
+    mentions?: { id: string; name: string }[];
+    references?: { id: string; text: string; url?: string }[];
 }
 
 export interface TaskComment {
@@ -281,6 +368,8 @@ export interface TaskSource {
         activity?: boolean;
         /** "people/list": the assignee filter lists the people of the collection and has "Me". */
         assignees?: boolean;
+        /** "tasks/options": the options of the assignees, the labels, the priority and the custom fields. */
+        options?: boolean;
         /**
          * Without a saved choice, ShipWarden selects only the collection with `default: true`. Without one, the user
          * selects a collection. The GitHub plugin uses it, so a project without a GitHub repository does not show the
