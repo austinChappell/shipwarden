@@ -372,6 +372,9 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                                 {automation.binding.repos?.length ? ` · ${automation.binding.repos.map(repoLabel).join(', ')}` : ''}
                                                 {tokensOf(automation.id) > 0 ? ` · ${formatTokens(tokensOf(automation.id))} tokens today` : ''}
                                                 {automation.limits.dailyTokens !== undefined ? ` (limit ${formatTokens(automation.limits.dailyTokens)})` : ''}
+                                                {automation.limits.pauseAtUsage !== undefined
+                                                    ? ` · pauses at ${automation.limits.pauseAtUsage}% plan usage`
+                                                    : ''}
                                             </div>
                                             {automation.description && <div className="settings-row-description">{automation.description}</div>}
                                             {problems.length > 0 && <div className="automation-warning">{problems.join(' ')}</div>}

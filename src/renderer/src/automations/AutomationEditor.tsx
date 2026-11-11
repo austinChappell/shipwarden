@@ -9,6 +9,9 @@ import {
     TOKEN_LIMIT_MAX,
     TOKEN_LIMIT_MIN,
     TOKEN_LIMIT_STEP,
+    USAGE_LIMIT_MAX,
+    USAGE_LIMIT_MIN,
+    USAGE_LIMIT_STEP,
     bindingProblems,
     defaultAction,
     defaultTrigger,
@@ -400,6 +403,22 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                             unit="tokens"
                             label="Tokens each day for this automation"
                             onSave={dailyTokens => change({ limits: { ...draft.limits, dailyTokens: dailyTokens ?? undefined } })}
+                        />
+                    }
+                />
+                <SettingsRow
+                    label="Pause at plan usage"
+                    description="This automation starts no runs while the plan usage of Claude or Codex is at or above this percent. The limit for all automations also applies."
+                    control={
+                        <LimitField
+                            value={draft.limits.pauseAtUsage ?? null}
+                            fallback={70}
+                            min={USAGE_LIMIT_MIN}
+                            max={USAGE_LIMIT_MAX}
+                            step={USAGE_LIMIT_STEP}
+                            unit="%"
+                            label="Pause this automation at plan usage, in percent"
+                            onSave={pauseAtUsage => change({ limits: { ...draft.limits, pauseAtUsage: pauseAtUsage ?? undefined } })}
                         />
                     }
                 />

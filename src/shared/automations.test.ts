@@ -25,6 +25,7 @@ import {
     uniqueId,
     unknownVariables,
     usageAboveLimit,
+    planUsageReached,
     countedTokens,
     formatTokens,
     tokenLimitReached,
@@ -374,6 +375,23 @@ describe('usageAboveLimit', () => {
         expect(usageAboveLimit(usage, 95)).toBeUndefined();
         expect(usageAboveLimit([{ ...usage[0], status: 'error' }], 5)).toBeUndefined();
         expect(usageAboveLimit(usage, null)).toBeUndefined();
+    });
+
+    it('uses the lower limit of the automation and of all automations', () => {
+        const limits = { approval: 'auto' as const, maxRunsPerTarget: 3, maxRunning: 2 };
+        expect(planUsageReached(usage, { limits: { ...limits, pauseAtUsage: 80 } }, 95)).toBe(
+            'The plan usage of Claude (5h) is 93%. This automation pauses at 80%.'
+        );
+        expect(planUsageReached(usage, { limits: { ...limits, pauseAtUsage: 80 } }, null)).toMatch(/This automation pauses at 80%/);
+        expect(planUsageReached(usage, { limits: { ...limits, pauseAtUsage: 95 } }, 90)).toMatch(/Automations pause at 90%/);
+        expect(planUsageReached(usage, { limits }, 90)).toMatch(/Automations pause at 90%/);
+        expect(planUsageReached(usage, { limits: { ...limits, pauseAtUsage: 95 } }, null)).toBeUndefined();
+    });
+
+    it('keeps a valid usage limit of an automation', () => {
+        expect(normalizeDefinition({ ...automation(), limits: { pauseAtUsage: 72.4 } }).limits.pauseAtUsage).toBe(72);
+        expect(normalizeDefinition({ ...automation(), limits: { pauseAtUsage: 500 } }).limits.pauseAtUsage).toBe(100);
+        expect(normalizeDefinition({ ...automation(), limits: { pauseAtUsage: 'x' } }).limits).not.toHaveProperty('pauseAtUsage');
     });
 });
 

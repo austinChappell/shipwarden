@@ -14,7 +14,7 @@ import {
     tokenLimitReached,
     taskMatchesTrigger,
     taskRepo,
-    usageAboveLimit,
+    planUsageReached,
     type Automation,
     type AutomationAction,
     type AutomationEvent,
@@ -440,7 +440,7 @@ export class AutomationEngine {
             if (!stopped) await this.claim(run('skipped', LIMIT_DETAIL));
             return;
         }
-        const overUsage = usageAboveLimit(context.usage, context.settings.pauseAtUsage);
+        const overUsage = planUsageReached(context.usage, automation, context.settings.pauseAtUsage);
         if (overUsage) {
             await this.claim(run('skipped', overUsage));
             return;
@@ -574,10 +574,14 @@ export class AutomationEngine {
                 await this.update(run.id, { status: 'skipped', detail: 'The automation is off.' });
                 return;
             }
-            const overTokens =
-                run.status === 'held' && !manual ? tokenLimitReached(cachedRunState().runs, automation, context.settings.dailyTokens, Date.now()) : undefined;
-            if (overTokens) {
-                await this.update(run.id, { status: 'skipped', detail: overTokens });
+            // A held run waited. The usage or the tokens can be above a limit now.
+            const overLimit =
+                run.status === 'held' && !manual
+                    ? (planUsageReached(context.usage, automation, context.settings.pauseAtUsage) ??
+                      tokenLimitReached(cachedRunState().runs, automation, context.settings.dailyTokens, Date.now()))
+                    : undefined;
+            if (overLimit) {
+                await this.update(run.id, { status: 'skipped', detail: overLimit });
                 return;
             }
             const hold = this.holdReason(context, automation, run);
