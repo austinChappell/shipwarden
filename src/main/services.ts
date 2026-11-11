@@ -21,6 +21,7 @@ import { loadLoginShellPath, loginShellCaFile } from './shell-env';
 import { TrustedCertificates } from './network/trusted-certificates';
 import { NotesService } from './notes/notes-service';
 import { AutomationStore } from './automations/automation-store';
+import { PlanStore } from './plans/plan-store';
 import { LEGACY_NAMES } from './legacy-migration';
 import { NotificationService } from './notifications';
 import { buildSocketPath, ptyHostSocketFolder, ptyHostSocketPath } from './pty-host/protocol';
@@ -378,6 +379,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     });
 
     const askRunner = new AskAgentRunner();
+    const plans = new PlanStore(join(userData, 'plans.json'));
     const confirm = new ConfirmDialogs(() => window.get());
     const hookPaths = hookSettingsPaths(userData);
     /** The shell setup that adds the hook settings to a `claude`, `gemini` or `opencode` that the user types in a shell tab. */
@@ -419,6 +421,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         remote,
         projectWorktrees,
         askRunner,
+        plans,
         confirm,
         hookPaths,
         shellIntegration,

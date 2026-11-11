@@ -54,6 +54,7 @@ import type { CopyIgnoredSettings } from './worktree-settings';
 import type { BrowserBounds, BrowserState } from './browser';
 import type { Automation, AutomationList, AutomationRun, AutomationRunState, HttpMethod, TokenCount } from './automations';
 import type { HttpResponse } from './automation-templates';
+import type { Plan, PlanExploreRequest, PlanExploreResult } from './plans';
 
 /** Where a click on a notification goes. */
 export type NotificationTarget = { view: 'worktree'; worktreePath: string; sessionId?: string } | { view: 'dashboard' } | { view: 'automations' };
@@ -335,6 +336,17 @@ export interface ShipWardenApi {
         /** The user and the organizations of a GitHub provider. */
         githubOwners(id: string): Promise<GitHubOwner[]>;
         onChanged(listener: () => void): () => void;
+    };
+    plans: {
+        /** The plans of all projects, the newest change first. */
+        list(): Promise<Plan[]>;
+        /** Writes a plan and returns the saved copy. */
+        save(plan: Plan): Promise<Plan>;
+        remove(id: string): Promise<void>;
+        /** Runs the agent in print mode on all repositories of the project. The agent does not change files. */
+        explore(request: PlanExploreRequest): Promise<PlanExploreResult>;
+        /** Stops an exploration that runs. */
+        cancelExplore(id: string): Promise<void>;
     };
     automations: {
         /** The automations in ~/.shipwarden/automations, and the files that ShipWarden could not read. */
@@ -638,6 +650,11 @@ export const IpcChannels = {
     reviewProvidersTest: 'reviewProviders:test',
     reviewProvidersGitHubOwners: 'reviewProviders:githubOwners',
     reviewProvidersChanged: 'reviewProviders:changed',
+    plansList: 'plans:list',
+    plansSave: 'plans:save',
+    plansRemove: 'plans:remove',
+    plansExplore: 'plans:explore',
+    plansCancelExplore: 'plans:cancelExplore',
     automationsList: 'automations:list',
     automationsSave: 'automations:save',
     automationsRemove: 'automations:remove',
