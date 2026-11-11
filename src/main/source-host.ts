@@ -4,6 +4,7 @@ import type {
     CheckRun,
     CommitFiles,
     FileVersions,
+    IssueReference,
     JobProgress,
     MergeMethod,
     NewPullRequest,
@@ -51,6 +52,8 @@ export interface SourceHost {
     merge(target: RepoTarget, number: number, headSha: string, method: MergeMethod): Promise<void>;
     changePullRequest(target: RepoTarget, number: number, change: PullRequestChange): Promise<void>;
     pullRequestCandidates(target: RepoTarget): Promise<PullRequestCandidates>;
+    /** The issues and the pull requests that match a "#" reference in a comment. A host without this feature returns an empty list. */
+    issueReferences(target: RepoTarget, query: string): Promise<IssueReference[]>;
     checks(target: RepoTarget, sha: string): Promise<CheckRun[]>;
     jobProgress(target: RepoTarget, jobId: number): Promise<JobProgress>;
     jobLog(target: RepoTarget, jobId: number): Promise<string>;
@@ -119,6 +122,9 @@ export class GitHubHost implements SourceHost {
     }
     async pullRequestCandidates(target: RepoTarget) {
         return this.github.pullRequestCandidates(await this.repoOf(target));
+    }
+    async issueReferences(target: RepoTarget, query: string) {
+        return this.github.issueReferences(await this.repoOf(target), query);
     }
     async checks(target: RepoTarget, sha: string) {
         return this.github.checks(await this.repoOf(target), sha);

@@ -19,6 +19,7 @@ import type {
     NewPullRequest,
     PendingComment,
     PullRequest,
+    IssueReference,
     PullRequestCandidates,
     PullRequestChange,
     PullRequestFile,
@@ -281,6 +282,8 @@ export interface ShipWardenApi {
         setFileViewed(target: RepoTarget, pullRequestId: string, path: string, viewed: boolean): Promise<void>;
         /** The users that the user can assign or ask for a review, and the labels of the repository. */
         pullRequestCandidates(target: RepoTarget): Promise<PullRequestCandidates>;
+        /** The issues and the pull requests that match a "#" reference in a comment, the most recently updated first. */
+        issueReferences(target: RepoTarget, query: string): Promise<IssueReference[]>;
         /** Changes the details, an assignee, a reviewer or a label of a pull request. */
         changePullRequest(target: RepoTarget, number: number, change: PullRequestChange): Promise<void>;
         /** The repositories of all GitHub providers that are on, each in the organizations of its scope. */
@@ -545,6 +548,7 @@ export const IpcChannels = {
     githubPullRequest: 'github:pullRequest',
     githubSetFileViewed: 'github:setFileViewed',
     githubPullRequestCandidates: 'github:pullRequestCandidates',
+    githubIssueReferences: 'github:issueReferences',
     githubChangePullRequest: 'github:changePullRequest',
     githubRepositories: 'github:repositories',
     githubRepoOf: 'github:repoOf',

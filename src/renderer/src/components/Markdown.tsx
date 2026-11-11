@@ -1,7 +1,9 @@
-import { useMemo, type MouseEvent } from 'react';
+import { useContext, useMemo, type MouseEvent } from 'react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { azureImageUrl } from '@shared/azure-image-url';
+import { splitReferences } from '@shared/mentions';
+import { MentionContext } from './mention-context';
 import { openLink } from '../links';
 
 interface Props {
@@ -82,6 +84,40 @@ export function withAzureImages(html: string): string {
     return template.innerHTML;
 }
 
+/**
+ * Changes each "@login" to a link to the GitHub user, and each "#123" to a link to the issue or the pull request in the repository.
+ * The text in links and in code does not change. The function changes the HTML after DOMPurify and adds only links with safe addresses.
+ */
+export function linkReferences(html: string, repoUrl: string): string {
+    if (!/[@#]/.test(html)) return html;
+    const template = document.createElement('template');
+    // The content of a template is inert. The images do not load and no code runs here.
+    template.innerHTML = html;
+    const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.parentElement?.closest('a, code, pre')) nodes.push(node as Text);
+    }
+    for (const node of nodes) {
+        const parts = splitReferences(node.data);
+        if (parts.length === 1 && parts[0].kind === 'text') continue;
+        const fragment = document.createDocumentFragment();
+        for (const part of parts) {
+            if (part.kind === 'text') {
+                fragment.append(part.text);
+                continue;
+            }
+            const link = document.createElement('a');
+            link.className = 'mention-link';
+            link.href = part.kind === 'user' ? `https://github.com/${part.login}` : `${repoUrl}/issues/${part.number}`;
+            link.textContent = part.text;
+            fragment.append(link);
+        }
+        node.replaceWith(fragment);
+    }
+    return template.innerHTML;
+}
+
 /** Removes scripts, event handlers, styles and forms from HTML. */
 export function sanitizeHtml(html: string): string {
     return DOMPurify.sanitize(html, { FORBID_TAGS: ['style', 'form', 'input', 'button', 'iframe'], FORBID_ATTR: ['style'] });
@@ -89,7 +125,13 @@ export function sanitizeHtml(html: string): string {
 
 /** Shows Markdown from a task tracker or GitHub. Links open in the default browser, and with ⇧⌘-click in the in-app browser. */
 export function Markdown({ text, className, html: rendered }: Props) {
-    const html = useMemo(() => withAzureImages(rendered !== undefined ? sanitizeHtml(rendered) : renderMarkdown(text)), [text, rendered]);
+    // In a GitHub pull request, "@login" and "#123" in the text become links. HTML that GitHub rendered has its own links.
+    const repoUrl = useContext(MentionContext)?.repoUrl;
+    const html = useMemo(() => {
+        if (rendered !== undefined) return withAzureImages(sanitizeHtml(rendered));
+        const html = renderMarkdown(text);
+        return withAzureImages(repoUrl ? linkReferences(html, repoUrl) : html);
+    }, [text, rendered, repoUrl]);
 
     const onClick = (event: MouseEvent<HTMLDivElement>) => {
         const link = (event.target as HTMLElement).closest('a');

@@ -30,6 +30,7 @@ import {
     type NewPullRequest,
     type PendingComment,
     type PullRequest,
+    type IssueReference,
     type PullRequestCandidates,
     type PullRequestChange,
     type PullRequestFile,
@@ -708,6 +709,11 @@ export class AzureDevOpsService implements SourceHost {
         const identities = members.value.map(member => member.identity).filter(identity => !identity.isContainer);
         this.members.set(this.membersKey(repo.ref), identities);
         return { users: identities.map(userOf).filter((user): user is GitHubUser => !!user), labels: [] };
+    }
+
+    /** Azure DevOps uses a different syntax for references in comments. The comment box shows no "#" list for Azure DevOps. */
+    async issueReferences(): Promise<IssueReference[]> {
+        return [];
     }
 
     /** The newest builds of the repository, newest first. */

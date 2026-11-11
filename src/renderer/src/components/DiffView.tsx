@@ -11,6 +11,7 @@ import { seenStore } from '../seen-store';
 import { errorText } from '../util';
 import { ComposerZone, PendingZone, ThreadZone } from './ReviewZones';
 import { reactionActions } from './Reactions';
+import { MentionContext, mentionSourceOf } from './mention-context';
 
 export {
     ComposerZone,
@@ -282,8 +283,10 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onSendToAg
         const editorFor = (side: DiffSide) => (side === 'LEFT' ? diff.getOriginalEditor() : diff.getModifiedEditor());
         const handles: ZoneHandle[] = [];
 
+        // Each zone has its own React root, so the zone content needs its own mention provider.
+        const mentions = mentionSourceOf(target, pr);
         const addZone = (side: DiffSide, line: number, content: React.ReactNode, focus = false) =>
-            handles.push(addReviewZone(editorFor(side), line, content, { focus }));
+            handles.push(addReviewZone(editorFor(side), line, <MentionContext value={mentions}>{content}</MentionContext>, { focus }));
 
         for (const thread of threadsWithLine(pr.threads, file.path)) {
             addZone(

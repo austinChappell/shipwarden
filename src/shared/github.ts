@@ -403,6 +403,17 @@ export interface PullRequestCandidates {
     labels: GitHubLabel[];
 }
 
+/** An issue or a pull request that a comment can link to with "#123". */
+export interface IssueReference {
+    number: number;
+    title: string;
+    kind: 'issue' | 'pullRequest';
+    /** OPEN or CLOSED. A pull request can also be MERGED. */
+    state: 'OPEN' | 'CLOSED' | 'MERGED';
+    /** True for a draft pull request. */
+    isDraft?: boolean;
+}
+
 /** One change to a pull request. */
 export type PullRequestChange =
     | { kind: 'details'; title?: string; body?: string; state?: 'open' | 'closed' }

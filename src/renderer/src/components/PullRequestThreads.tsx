@@ -11,6 +11,7 @@ import { applyThreadSuggestion } from '../github/suggestions';
 import { replyToThread, setThreadResolved } from '../github/pull-request-mutations';
 import { REVIEW_STATE_TEXT } from './PullRequestTimeline';
 import { Reactions, reactionActions, type ReactionActions } from './Reactions';
+import { MentionTextarea } from './MentionTextarea';
 
 interface Props {
     target: RepoTarget;
@@ -87,7 +88,7 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
                     ))}
                     {replyTo === thread.id && (
                         <div className="reply-box">
-                            <textarea autoFocus value={replyText} placeholder="Reply" onChange={event => setReplyText(event.target.value)} />
+                            <MentionTextarea autoFocus value={replyText} placeholder="Reply" onValueChange={setReplyText} />
                             <div className="row-buttons">
                                 <button className="button" onClick={() => setReplyTo(undefined)}>
                                     Cancel

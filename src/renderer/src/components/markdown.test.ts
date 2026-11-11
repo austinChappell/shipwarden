@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { headingSlug, renderMarkdown, renderMarkdownFile } from './Markdown';
+import { headingSlug, linkReferences, renderMarkdown, renderMarkdownFile } from './Markdown';
 
 describe('renderMarkdown', () => {
     it('removes the backslash escapes of ClickUp Markdown', () => {
@@ -46,5 +46,20 @@ describe('headingSlug', () => {
     it('makes GitHub style anchors', () => {
         expect(headingSlug('Hello, World')).toBe('hello-world');
         expect(headingSlug('API v2.0 (beta)')).toBe('api-v20-beta');
+    });
+});
+
+describe('linkReferences', () => {
+    const repo = 'https://github.com/acme/app';
+
+    it('links users and issues', () => {
+        const html = linkReferences(renderMarkdown('cc @octocat about #12'), repo);
+        expect(html).toContain('<a class="mention-link" href="https://github.com/octocat">@octocat</a>');
+        expect(html).toContain('<a class="mention-link" href="https://github.com/acme/app/issues/12">#12</a>');
+    });
+
+    it('does not change code, links and email addresses', () => {
+        const html = linkReferences(renderMarkdown('`@octocat` [#12](https://example.com) a@b.com\n\n```\n#3\n```'), repo);
+        expect(html).not.toContain('mention-link');
     });
 });

@@ -14,6 +14,7 @@ import { suggestionBlock, threadSuggestionTarget } from '@shared/suggestion';
 import { applyThreadSuggestion } from '../github/suggestions';
 import { radioGroupKeys } from './keyboard';
 import { Reactions, type ReactionActions } from './Reactions';
+import { MentionTextarea } from './MentionTextarea';
 
 export type { AgentQuestion, ComposerMode, QuestionAction };
 
@@ -66,7 +67,7 @@ export function ThreadZone({
                     <Reactions subjectId={comment.id} reactions={comment.reactions} actions={reactions} />
                 </div>
             ))}
-            {replying && <textarea autoFocus value={text} placeholder="Reply" onChange={event => setText(event.target.value)} />}
+            {replying && <MentionTextarea autoFocus value={text} placeholder="Reply" onValueChange={setText} />}
             {error && <div className="form-error">{error}</div>}
             <div className="thread-actions">
                 {replying ? (
@@ -129,10 +130,10 @@ export function PendingZone({
                     : ' goes out as your comment with your next review'}
             </div>
             {editing ? (
-                <textarea
+                <MentionTextarea
                     autoFocus
                     value={text}
-                    onChange={event => setText(event.target.value)}
+                    onValueChange={setText}
                     onKeyDown={event => {
                         if (event.key === 'Escape') setEditing(false);
                         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) save();
@@ -298,13 +299,13 @@ export function ComposerZone({
                     ))}
                 </div>
             )}
-            <textarea
+            <MentionTextarea
                 ref={textRef}
                 autoFocus
                 value={text}
                 placeholder={placeholder}
                 aria-label={placeholder}
-                onChange={event => setText(event.target.value)}
+                onValueChange={setText}
                 onKeyDown={event => {
                     if (event.key === 'Escape') onCancel();
                     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit();
