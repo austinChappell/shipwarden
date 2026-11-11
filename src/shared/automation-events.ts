@@ -1,4 +1,4 @@
-import type { AutomationEvent } from './automations';
+import { localDateTime, type AutomationEvent, type TriggerType } from './automations';
 import type { MyPullRequestItem, PullRequestCommentItem } from './dashboard';
 import { repoId, type BranchSummary, type RepoRef } from './github';
 import { ciChanges } from './notifications';
@@ -200,6 +200,71 @@ export function agentDoneEvent(
         hasPullRequest: !!summary,
         ...(summary ? { pr: prOf(summary) } : {}),
         ...(update.message ? { agentMessage: update.message } : {})
+    };
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ */
+/* Manual runs                                                                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
+
+/** The key of a manual run. Each manual run has a new key, so the same target can run again. */
+function manualKey(automationId: string, at: number): string {
+    return `manual:${automationId}:${at}`;
+}
+
+/**
+ * The event of a manual run on a worktree, for a pull request or agent trigger. `summary` is the open pull request
+ * of the branch, if there is one. The values of a comment and of the last agent message stay empty.
+ */
+export function manualWorktreeEvent(
+    automationId: string,
+    trigger: TriggerType,
+    place: WorktreePlace,
+    summary: BranchSummary | undefined,
+    at: number
+): AutomationEvent {
+    const branch = place.worktree.branch;
+    return {
+        trigger,
+        key: manualKey(automationId, at),
+        // A manual run does not use the runs of the automatic limit of the pull request.
+        target: `manual:${place.worktree.path}`,
+        label: summary ? prLabel(summary.number, summary.title) : (branch ?? place.worktree.path),
+        at,
+        repoPath: place.repo,
+        worktreePath: place.worktree.path,
+        branch,
+        hasPullRequest: !!summary,
+        manual: true,
+        ...(summary ? { pr: prOf(summary) } : {})
+    };
+}
+
+/** The event of a manual run on a task, for a "task.new" trigger. */
+export function manualTaskEvent(
+    automationId: string,
+    task: Task,
+    connectionId: string,
+    pluginId: string,
+    repoPath: string | undefined,
+    at: number
+): AutomationEvent {
+    const event = taskEvent(task, connectionId, pluginId, repoPath, at);
+    return { ...event, key: manualKey(automationId, at), target: `manual:${event.target}`, manual: true };
+}
+
+/** The event of a manual run of a schedule. The time is now. */
+export function manualScheduleEvent(automationId: string, repoPath: string | undefined, at: number): AutomationEvent {
+    const { date, time } = localDateTime(new Date(at));
+    return {
+        trigger: 'schedule',
+        key: manualKey(automationId, at),
+        target: `manual:schedule:${automationId}`,
+        label: `${date} ${time}`,
+        at,
+        time,
+        manual: true,
+        ...(repoPath ? { repoPath, worktreePath: repoPath } : {})
     };
 }
 
