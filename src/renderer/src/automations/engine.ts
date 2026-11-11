@@ -7,11 +7,13 @@ import {
     eventVariables,
     firedKey,
     localDateTime,
+    needsRepo,
     renderTemplate,
     runsForTarget,
     startOfDay,
     tokenLimitReached,
     taskMatchesTrigger,
+    taskRepo,
     usageAboveLimit,
     type Automation,
     type AutomationAction,
@@ -19,6 +21,7 @@ import {
     type AutomationRun,
     type AutomationSettings,
     type RunStatus,
+    type Trigger,
     type TriggerType
 } from '@shared/automations';
 import {
@@ -317,60 +320,91 @@ export class AutomationEngine {
         }
     }
 
-    /** Reads the collection of each "Task matches" automation, at most one time in TASK_POLL_MS. */
+    /** Reads the collections of each "Task matches" automation, at most one time in TASK_POLL_MS. */
     private async pollTasks(context: EngineContext): Promise<void> {
         const now = Date.now();
         for (const automation of this.active('task.new')) {
             const trigger = automation.trigger;
-            const { connectionId, collectionId } = automation.binding;
-            if (trigger.type !== 'task.new' || !connectionId || !collectionId) continue;
+            const { connectionId, collections } = automation.binding;
+            if (trigger.type !== 'task.new' || !connectionId || !collections?.length) continue;
             if (now - (this.lastTaskPoll.get(automation.id) ?? 0) < TASK_POLL_MS) continue;
             this.lastTaskPoll.set(automation.id, now);
-            try {
-                const request = <T>(method: string, params: unknown) => api.tasks.request(connectionId, method, params) as Promise<T>;
-                const source = await queryClient.fetchQuery<TaskSource>({
-                    queryKey: taskQueryKeys.source(connectionId),
-                    queryFn: () => api.tasks.source(connectionId)
-                });
-                const filter = source.filters.find(item => item.default)?.id ?? source.filters[0]?.id;
-                // The Tasks view uses the same key, so the view shows the new list and sends no request.
-                const tasks = await queryClient.fetchQuery({
-                    queryKey: taskQueryKeys.list(connectionId, collectionId, filter),
-                    queryFn: () => loadTaskList(request, collectionId, filter),
-                    staleTime: TASK_POLL_MS
-                });
-                let me: string | undefined;
-                if (trigger.assignedToMe && source.capabilities.assignees) {
-                    const people = await queryClient.fetchQuery({
-                        queryKey: taskQueryKeys.people(connectionId, collectionId),
-                        queryFn: () => request<{ people: TaskPerson[]; me?: string }>('people/list', { collection: collectionId }),
-                        staleTime: PEOPLE_STALE_MS
-                    });
-                    me = people.me;
+            const reseed = this.needsSeed.has(automation.id);
+            // A task can be in two collections, for example a ClickUp task in two lists. It starts one run only.
+            const dispatched = new Set<string>();
+            let failed = false;
+            for (const [index, collection] of collections.entries()) {
+                try {
+                    await this.pollCollection(context, automation, trigger, connectionId, collection.id, index === 0, reseed, dispatched, now);
+                } catch (error) {
+                    failed = true;
+                    console.warn(`[automations] "${automation.name}" did not read the tasks of ${collection.name ?? collection.id}: ${errorText(error)}`);
                 }
-                const links = Object.values(context.links);
-                const matches = tasks.filter(task => taskMatchesTrigger(trigger, task, me) && !links.some(link => linkMatchesTask(link, connectionId, task)));
-                const state = cachedRunState();
-                if (!state.seeded.includes(automation.id) || this.needsSeed.has(automation.id)) {
-                    // The first list: these tasks were there before the automation. Only later tasks start runs.
-                    const keys = matches.map(task => taskKey(connectionId, task.id));
-                    await api.automations.seed(automation.id, keys);
-                    this.needsSeed.delete(automation.id);
-                    patchRunState(current => ({
-                        ...current,
-                        seeded: [...new Set([...current.seeded, automation.id])],
-                        fired: { ...current.fired, ...Object.fromEntries(keys.map(key => [firedKey(automation.id, { key }), now])) }
-                    }));
-                    continue;
-                }
-                const repoPath = automation.binding.repos?.[0];
-                for (const task of matches) {
-                    const event = taskEvent(task, connectionId, source.pluginId, repoPath, now);
-                    if (state.fired[firedKey(automation.id, event)] === undefined) this.dispatch(event, [automation]);
-                }
-            } catch (error) {
-                console.warn(`[automations] "${automation.name}" did not read its tasks: ${errorText(error)}`);
             }
+            // A collection that failed must record its list on the next poll, so keep the flag.
+            if (!failed) this.needsSeed.delete(automation.id);
+        }
+    }
+
+    /** Reads one collection of a "Task matches" automation and starts a run for each new task that matches. */
+    private async pollCollection(
+        context: EngineContext,
+        automation: Automation,
+        trigger: Extract<Trigger, { type: 'task.new' }>,
+        connectionId: string,
+        collectionId: string,
+        first: boolean,
+        reseed: boolean,
+        dispatched: Set<string>,
+        now: number
+    ): Promise<void> {
+        const request = <T>(method: string, params: unknown) => api.tasks.request(connectionId, method, params) as Promise<T>;
+        const source = await queryClient.fetchQuery<TaskSource>({
+            queryKey: taskQueryKeys.source(connectionId),
+            queryFn: () => api.tasks.source(connectionId)
+        });
+        const filter = source.filters.find(item => item.default)?.id ?? source.filters[0]?.id;
+        // The Tasks view uses the same key, so the view shows the new list and sends no request.
+        const tasks = await queryClient.fetchQuery({
+            queryKey: taskQueryKeys.list(connectionId, collectionId, filter),
+            queryFn: () => loadTaskList(request, collectionId, filter),
+            staleTime: TASK_POLL_MS
+        });
+        let me: string | undefined;
+        if (trigger.assignedToMe && source.capabilities.assignees) {
+            const people = await queryClient.fetchQuery({
+                queryKey: taskQueryKeys.people(connectionId, collectionId),
+                queryFn: () => request<{ people: TaskPerson[]; me?: string }>('people/list', { collection: collectionId }),
+                staleTime: PEOPLE_STALE_MS
+            });
+            me = people.me;
+        }
+        const links = Object.values(context.links);
+        const matches = tasks.filter(task => taskMatchesTrigger(trigger, task, me) && !links.some(link => linkMatchesTask(link, connectionId, task)));
+        const state = cachedRunState();
+        const scope = `${automation.id}|${collectionId}`;
+        // An older version recorded one entry for the automation. That entry is for its first collection.
+        const seeded = state.seeded.includes(scope) || (first && state.seeded.includes(automation.id));
+        if (!seeded || reseed) {
+            // The first list: these tasks were there before the automation. Only later tasks start runs.
+            const keys = matches.map(task => taskKey(connectionId, task.id));
+            await api.automations.seed(automation.id, keys, scope);
+            patchRunState(current => ({
+                ...current,
+                seeded: [...new Set([...current.seeded, scope])],
+                fired: { ...current.fired, ...Object.fromEntries(keys.map(key => [firedKey(automation.id, { key }), now])) }
+            }));
+            return;
+        }
+        const needs = needsRepo(automation);
+        for (const task of matches) {
+            const repoPath = taskRepo(automation.binding, task);
+            // A task without a repository waits. It runs when it gets a label with a repository.
+            if (needs && !repoPath) continue;
+            const event = taskEvent(task, connectionId, source.pluginId, repoPath, now);
+            if (dispatched.has(event.key) || state.fired[firedKey(automation.id, event)] !== undefined) continue;
+            dispatched.add(event.key);
+            this.dispatch(event, [automation]);
         }
     }
 
@@ -637,7 +671,7 @@ export class AutomationEngine {
                 return `Sent the prompt to ${session.title} in ${place.worktree.branch ?? place.worktree.path}.`;
             }
             case 'startAgent': {
-                const repoPath = automation.binding.repos?.[0];
+                const repoPath = event.repoPath ?? automation.binding.repos?.[0];
                 if (!repoPath) throw new Error('The automation has no repository. Select one in the editor.');
                 const started =
                     event.trigger === 'task.new' && event.task && event.connectionId && event.pluginId
@@ -658,7 +692,7 @@ export class AutomationEngine {
                 return `Started ${started.session.title} in a new worktree on ${started.worktree.branch ?? started.worktree.path}.`;
             }
             case 'runHeadless': {
-                const folder = event.worktreePath ?? automation.binding.repos?.[0];
+                const folder = event.worktreePath ?? event.repoPath ?? automation.binding.repos?.[0];
                 if (!folder) throw new Error('The automation has no repository. Select one in the editor.');
                 const result = await api.ask.run({
                     id: `automation-${run.id}`,

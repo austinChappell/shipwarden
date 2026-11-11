@@ -63,7 +63,9 @@ export function registerAutomationIpc({ automations, window }: Pick<Services, 'a
     ipcMain.handle(IpcChannels.automationsRuns, () => automations.runState());
     ipcMain.handle(IpcChannels.automationsClaim, (_event, run: AutomationRun) => automations.claim(run));
     ipcMain.handle(IpcChannels.automationsUpdateRun, (_event, id: unknown, change: RunChange) => automations.updateRun(String(id), runChangeOf(change)));
-    ipcMain.handle(IpcChannels.automationsSeed, (_event, automationId: unknown, keys: unknown) => automations.seed(String(automationId), onlyStrings(keys)));
+    ipcMain.handle(IpcChannels.automationsSeed, (_event, automationId: unknown, keys: unknown, scope: unknown) =>
+        automations.seed(String(automationId), onlyStrings(keys), typeof scope === 'string' ? scope : undefined)
+    );
     ipcMain.handle(IpcChannels.automationsSetScheduleRun, (_event, automationId: unknown, at: unknown) =>
         automations.setScheduleRun(String(automationId), typeof at === 'number' && Number.isFinite(at) ? at : Date.now())
     );

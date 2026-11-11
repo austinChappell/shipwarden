@@ -91,16 +91,32 @@ export interface AutomationDefinition {
 /** "on": the automation runs. "dry-run": it records what it would do, and does nothing. "off": it does not run. */
 export type AutomationStatus = 'on' | 'dry-run' | 'off';
 
+/** A collection (for example a ClickUp list) of a "task.new" binding. */
+export interface BoundCollection {
+    id: string;
+    /** The display name of the collection, for the UI. */
+    name?: string;
+}
+
+/** A rule of a "task.new" binding: a task with the label goes to the repository. */
+export interface LabelRepo {
+    label: string;
+    repo: string;
+}
+
 /** The local part of an automation. An export does not contain it. */
 export interface AutomationBinding {
-    /** The repository folders. Pull request and agent triggers: only these repositories (empty: all). Tasks and schedules: the first one. */
+    /**
+     * The repository folders. Pull request and agent triggers: only these repositories (empty: all).
+     * Tasks and schedules: the first one. For tasks, it is the repository when no rule of `labelRepos` matches.
+     */
     repos?: string[];
     /** The task connection of a "task.new" trigger. */
     connectionId?: string;
-    /** The collection (for example a ClickUp list) of a "task.new" trigger. */
-    collectionId?: string;
-    /** The display name of the collection, for the UI. */
-    collectionName?: string;
+    /** The collections of a "task.new" trigger. ShipWarden reads the tasks of each one. */
+    collections?: BoundCollection[];
+    /** The repository of a task by its label, for a "task.new" trigger. The first rule with a label of the task applies. */
+    labelRepos?: LabelRepo[];
 }
 
 export interface Automation extends AutomationDefinition {
@@ -161,6 +177,15 @@ export const ACTION_TRIGGERS: Record<ActionType, readonly TriggerType[]> = {
 /** True when the trigger is about a worktree branch. These triggers use `binding.repos` as a filter. */
 export function isWorktreeTrigger(type: TriggerType): boolean {
     return WORKTREE_TRIGGERS.includes(type);
+}
+
+/**
+ * Returns the repository of a task: the repository of the first rule with a label of the task, or else the first
+ * repository of the binding. Undefined when there is neither.
+ */
+export function taskRepo(binding: AutomationBinding, task: Pick<Task, 'labels'>): string | undefined {
+    const labels = new Set((task.labels ?? []).map(label => label.name.toLowerCase()));
+    return binding.labelRepos?.find(rule => labels.has(rule.label.toLowerCase()))?.repo ?? binding.repos?.[0];
 }
 
 /** True when the trigger needs one repository in the binding: a task trigger or a schedule that starts agents or asks agents. */
@@ -433,17 +458,41 @@ export function normalizeDefinition(value: unknown): AutomationDefinition {
     };
 }
 
-function normalizeBinding(value: unknown): AutomationBinding {
+function normalizeCollections(raw: Record<string, unknown>): BoundCollection[] {
+    // A file of an older version has one collection in "collectionId" and "collectionName".
+    const items = Array.isArray(raw.collections) ? raw.collections : [{ id: raw.collectionId, name: raw.collectionName }];
+    const result: BoundCollection[] = [];
+    for (const item of items) {
+        const id = text(record(item).id, 200);
+        const name = text(record(item).name, 200);
+        if (id && !result.some(other => other.id === id)) result.push({ id, ...(name ? { name } : {}) });
+    }
+    return result;
+}
+
+function normalizeLabelRepos(value: unknown): LabelRepo[] {
+    const result: LabelRepo[] = [];
+    for (const item of Array.isArray(value) ? value : []) {
+        const label = text(record(item).label, 200)?.trim();
+        const repo = text(record(item).repo, 1000);
+        if (!label || !repo?.startsWith('/')) continue;
+        if (!result.some(other => other.label.toLowerCase() === label.toLowerCase())) result.push({ label, repo });
+    }
+    return result;
+}
+
+function normalizeBinding(value: unknown, trigger: TriggerType): AutomationBinding {
     const raw = record(value);
     const repos = names(raw.repos)?.filter(repo => repo.startsWith('/'));
     const connectionId = text(raw.connectionId, 200);
-    const collectionId = text(raw.collectionId, 200);
-    const collectionName = text(raw.collectionName, 200);
+    const collections = normalizeCollections(raw);
+    // Only a task trigger uses the label rules.
+    const labelRepos = trigger === 'task.new' ? normalizeLabelRepos(raw.labelRepos) : [];
     return {
         ...(repos && repos.length > 0 ? { repos } : {}),
         ...(connectionId ? { connectionId } : {}),
-        ...(collectionId ? { collectionId } : {}),
-        ...(collectionName ? { collectionName } : {})
+        ...(collections.length > 0 ? { collections } : {}),
+        ...(labelRepos.length > 0 ? { labelRepos } : {})
     };
 }
 
@@ -451,7 +500,8 @@ function normalizeBinding(value: unknown): AutomationBinding {
 export function normalizeAutomation(value: unknown): Automation {
     const raw = record(value);
     const status: AutomationStatus = raw.status === 'on' || raw.status === 'dry-run' ? raw.status : 'off';
-    return { ...normalizeDefinition(value), status, binding: normalizeBinding(raw.binding) };
+    const definition = normalizeDefinition(value);
+    return { ...definition, status, binding: normalizeBinding(raw.binding, definition.trigger.type) };
 }
 
 /**
@@ -461,10 +511,11 @@ export function normalizeAutomation(value: unknown): Automation {
 export function bindingProblems(automation: Automation, knownRepos: readonly string[]): string[] {
     const problems: string[] = [];
     const repos = automation.binding.repos ?? [];
-    const missing = repos.filter(repo => !knownRepos.includes(repo));
+    const ruleRepos = automation.binding.labelRepos?.map(rule => rule.repo) ?? [];
+    const missing = [...new Set([...repos, ...ruleRepos])].filter(repo => !knownRepos.includes(repo));
     if (missing.length > 0) problems.push(`No project has the repository ${missing.join(', ')}.`);
-    if (needsRepo(automation) && repos.length === 0) problems.push('Select a repository.');
-    if (automation.trigger.type === 'task.new' && (!automation.binding.connectionId || !automation.binding.collectionId)) {
+    if (needsRepo(automation) && repos.length === 0 && ruleRepos.length === 0) problems.push('Select a repository.');
+    if (automation.trigger.type === 'task.new' && (!automation.binding.connectionId || !automation.binding.collections?.length)) {
         problems.push('Select a task manager and a collection.');
     }
     return problems;
@@ -899,7 +950,10 @@ export interface AutomationRunState {
     fired: Record<string, number>;
     /** The time of the last run of each schedule automation. */
     scheduleRuns: Record<string, number>;
-    /** The task automations that recorded their first list. The tasks of the first list do not start runs. */
+    /**
+     * The task automations that recorded their first list. The tasks of the first list do not start runs.
+     * An entry is "<automation ID>|<collection ID>". An entry of an older version is the automation ID only.
+     */
     seeded: string[];
 }
 

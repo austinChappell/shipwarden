@@ -135,15 +135,15 @@ export class AutomationStore {
 
     /**
      * Records the keys of events as fired, without runs. A "Task matches" automation does this for the tasks of its first
-     * list, so that only tasks that come later start agents.
+     * list, so that only tasks that come later start agents. `scope` is the entry for `seeded`. The default is the automation ID.
      */
-    async seed(automationId: string, keys: string[]): Promise<void> {
+    async seed(automationId: string, keys: string[], scope = automationId): Promise<void> {
         const now = Date.now();
         await this.runs.update(value => {
             const state = normalizeRunState(value);
             const fired = { ...state.fired };
             for (const key of keys) fired[firedKey(automationId, { key })] ??= now;
-            return { ...state, fired, seeded: [...new Set([...state.seeded, automationId])] };
+            return { ...state, fired, seeded: [...new Set([...state.seeded, scope])] };
         });
     }
 

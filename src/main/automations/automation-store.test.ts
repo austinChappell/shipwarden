@@ -98,6 +98,9 @@ describe('AutomationStore', () => {
         await store.setScheduleRun('daily', 42);
         const state = await store.runState();
         expect(state.seeded).toEqual(['fix-ci']);
+        await store.seed('fix-ci', ['task:c:1'], 'fix-ci|list-1');
+        expect(await store.claim(run('y', 'task:c:1'))).toBeNull();
+        expect((await store.runState()).seeded).toEqual(['fix-ci', 'fix-ci|list-1']);
         expect(state.scheduleRuns).toEqual({ daily: 42 });
         await store.clearHistory();
         expect((await store.runState()).runs).toEqual([]);

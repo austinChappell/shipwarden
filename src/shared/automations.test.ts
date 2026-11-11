@@ -21,6 +21,7 @@ import {
     runsForTarget,
     slugId,
     taskMatchesTrigger,
+    taskRepo,
     uniqueId,
     unknownVariables,
     usageAboveLimit,
@@ -309,6 +310,47 @@ describe('runs', () => {
 
     it('makes one fired key for each automation and event', () => {
         expect(firedKey('a', { key: 'k' })).toBe('a|k');
+    });
+});
+
+describe('task bindings', () => {
+    const taskRule = (binding: Automation['binding']) =>
+        automation({ trigger: { type: 'task.new' }, actions: [{ type: 'startAgent', prompt: 'x' }], binding: { connectionId: 'c', ...binding } });
+
+    it('reads the single collection of an older file as a list', () => {
+        const result = normalizeAutomation({ ...taskRule({}), binding: { connectionId: 'c', collectionId: 'l1', collectionName: 'Sprint' } });
+        expect(result.binding).toEqual({ connectionId: 'c', collections: [{ id: 'l1', name: 'Sprint' }] });
+    });
+
+    it('keeps valid label rules once for each label, and only for a task trigger', () => {
+        const labelRepos = [
+            { label: ' api ', repo: '/api' },
+            { label: 'API', repo: '/other' },
+            { label: 'web', repo: 'relative' },
+            { label: '', repo: '/x' }
+        ];
+        expect(normalizeAutomation(taskRule({ labelRepos })).binding.labelRepos).toEqual([{ label: 'api', repo: '/api' }]);
+        expect(normalizeAutomation(automation({ binding: { labelRepos } })).binding.labelRepos).toBeUndefined();
+    });
+
+    it('selects the repository of the first matching label, or else the default repository', () => {
+        const binding = {
+            repos: ['/main'],
+            labelRepos: [
+                { label: 'web', repo: '/web' },
+                { label: 'agent', repo: '/api' }
+            ]
+        };
+        expect(taskRepo(binding, task)).toBe('/api');
+        expect(taskRepo(binding, { labels: [{ name: 'docs' }] })).toBe('/main');
+        expect(taskRepo({ labelRepos: binding.labelRepos }, { labels: [] })).toBeUndefined();
+    });
+
+    it('accepts label rules in place of a default repository', () => {
+        const rule = taskRule({ collections: [{ id: 'l1' }], labelRepos: [{ label: 'api', repo: '/repo' }] });
+        expect(bindingProblems(rule, ['/repo'])).toEqual([]);
+        expect(bindingProblems(rule, [])).toEqual(['No project has the repository /repo.']);
+        expect(bindingProblems({ ...rule, binding: { connectionId: 'c', collections: [{ id: 'l1' }] } }, ['/repo'])).toEqual(['Select a repository.']);
     });
 });
 

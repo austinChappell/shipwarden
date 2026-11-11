@@ -342,7 +342,9 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                             <div className="settings-row-description">
                                                 {describeTrigger(automation.trigger)}
                                                 {automation.limits.approval === 'ask' ? ' · asks first' : ''}
-                                                {automation.binding.collectionName ? ` · ${automation.binding.collectionName}` : ''}
+                                                {automation.binding.collections?.length
+                                                    ? ` · ${automation.binding.collections.map(item => item.name ?? item.id).join(', ')}`
+                                                    : ''}
                                                 {automation.binding.repos?.length ? ` · ${automation.binding.repos.map(repoLabel).join(', ')}` : ''}
                                                 {tokensOf(automation.id) > 0 ? ` · ${formatTokens(tokensOf(automation.id))} tokens today` : ''}
                                                 {automation.limits.dailyTokens !== undefined ? ` (limit ${formatTokens(automation.limits.dailyTokens)})` : ''}
