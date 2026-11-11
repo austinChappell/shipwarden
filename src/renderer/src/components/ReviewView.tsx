@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { GitPullRequest, X } from 'lucide-react';
+import { EmptyState } from './EmptyState';
 import { parseRepoId, repoId, type BranchStatus, type CheckRun, type PullRequest, type RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { QueueItem } from '@shared/review-queue';
@@ -176,14 +177,22 @@ export function ReviewView({
     if (reviewKey === null) {
         return (
             <div className="review-view">
-                <div className="review-empty">
-                    <GitPullRequest size={30} strokeWidth={1.3} />
-                    <h2>Review pull requests</h2>
-                    <p>Add a GitHub or Azure DevOps provider to see its pull requests here.</p>
-                    <button className="button primary" onClick={onOpenSettings}>
-                        Open Settings › Code review
-                    </button>
-                </div>
+                <EmptyState
+                    icon={GitPullRequest}
+                    title="No code review account"
+                    actions={
+                        <button className="button primary" onClick={onOpenSettings}>
+                            Open Settings › Code review
+                        </button>
+                    }
+                    hint={
+                        <>
+                            For GitHub, ShipWarden can use the login of the GitHub CLI. Run <kbd>gh auth login</kbd> in a terminal.
+                        </>
+                    }
+                >
+                    Add a GitHub or Azure DevOps account to see the pull requests that wait for your review.
+                </EmptyState>
             </div>
         );
     }

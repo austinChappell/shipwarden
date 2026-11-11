@@ -370,7 +370,7 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 
 ### Onboarding
 
-The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu. Phase 2 adds the welcome page. Phase 3 adds the guided tour.
+The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu. Phase 2 adds the welcome page. Phase 3 adds the guided tour. Phase 4 adds the empty states.
 
 - **State.** `settings.onboarding` (`src/shared/onboarding.ts`): `welcome` ('new', 'done' or 'skipped'), `tourSeen`
   (a tour version), `checklist` (the steps that are done) and `checklistClosed`. `normalizeOnboarding` keeps a missing
@@ -413,6 +413,16 @@ The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup chec
   - Finished or closed, the tour saves `onboarding.tourSeen = TOUR_VERSION`. `TourOffer` asks one time ("Take a
     short tour of ShipWarden?") when the welcome page is done or skipped and `tourSeen` is lower than
     `TOUR_VERSION`. So current users get the offer, and new users get it after the welcome page.
+- **Empty states.** `EmptyState` (`components/EmptyState.tsx`) gives each empty view an icon, a title, one sentence
+  and one action, so all views look the same:
+  - Worktree area: no repositories (Add or Clone a repository), no selected worktree (Create a worktree, ⌘N), and a
+    worktree without tabs (Start the agent, with a hint for ⌘T and ⌘N).
+  - Agents: "Start an agent in a worktree". `startAgentAction` shows the selected worktree, opens the New worktree
+    dialog, or adds a repository first.
+  - Tasks: no task manager (Open Settings › Task managers).
+  - Review and Pipelines: no code review account (Open Settings › Code review). The Dashboard shows the same fix in a
+    card at the top, because its task comments work without an account. The hint names `gh auth login`.
+  - Pipelines: a repository without workflows gets one sentence about GitHub Actions.
 - **Help menu.** Show Welcome, Take the Tour and Keyboard Shortcuts send `app:help` to the page. ShipWarden on GitHub
   opens the README page.
 - **Test data folder.** `SHIPWARDEN_USER_DATA_DIR` calls `app.setPath('userData', …)` before the app reads data. The app

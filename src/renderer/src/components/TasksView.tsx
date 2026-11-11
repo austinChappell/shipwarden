@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ListTodo } from 'lucide-react';
+import { EmptyState } from './EmptyState';
 import type { ViewRoute } from '@shared/nav-history';
 import {
     assigneeOptions,
@@ -204,12 +206,17 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
 
             {connections === undefined && !sourceError && <div className="panel-message">Loading the task managers…</div>}
             {connections?.length === 0 && !sourceError && (
-                <div className="panel-message">
-                    <p>This project has no task managers.</p>
-                    <button className="button primary" onClick={onOpenSettings}>
-                        Set up task managers
-                    </button>
-                </div>
+                <EmptyState
+                    icon={ListTodo}
+                    title="No task manager"
+                    actions={
+                        <button className="button primary" onClick={onOpenSettings}>
+                            Open Settings › Task managers
+                        </button>
+                    }
+                >
+                    Connect GitHub Issues, ClickUp or a plugin to see your tasks here. “Start in worktree” then gives a task to a new agent.
+                </EmptyState>
             )}
             {currentConnection && !currentConnection.configured && (
                 <div className="panel-message">
