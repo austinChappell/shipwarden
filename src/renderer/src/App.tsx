@@ -864,6 +864,10 @@ export function App() {
                                     setMainView(worktrees.length > 0 ? 'worktree' : 'dashboard');
                                     if (repo) setNewWorktree({ repo });
                                 }}
+                                onLater={() => {
+                                    void saveOnboarding({ welcome: 'done' }).catch(err => setError(errorText(err)));
+                                    setMainView(worktrees.length > 0 ? 'worktree' : 'dashboard');
+                                }}
                                 onSkip={() => {
                                     void saveOnboarding({ welcome: 'skipped' }).catch(err => setError(errorText(err)));
                                     setMainView('dashboard');

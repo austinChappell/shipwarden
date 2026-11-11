@@ -53,6 +53,8 @@ interface Props {
     onCloneRepo(repo: RepoRef): Promise<boolean>;
     /** Closes the page for all time and opens the New worktree dialog. */
     onStart(): void;
+    /** Closes the page for all time and opens no dialog. The user starts the first agent later. */
+    onLater(): void;
     /** Closes the page for all time. */
     onSkip(): void;
 }
@@ -116,7 +118,7 @@ function usesArrowKeys(target: EventTarget | null): boolean {
  * settings and the first worktree. The fix buttons can open the settings page. The close button of the settings page
  * comes back here, to the same step.
  */
-export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpenSettings, onAddRepo, onCloneRepo, onStart, onSkip }: Props) {
+export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpenSettings, onAddRepo, onCloneRepo, onStart, onLater, onSkip }: Props) {
     const queryClient = useQueryClient();
     const { checks, error, loading, checking, recheck, recheckAll } = useSetupChecks();
     const [cloneOpen, setCloneOpen] = useState(false);
@@ -357,6 +359,15 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                                 aria-describedby="welcome-start-note"
                             >
                                 <Play size={14} strokeWidth={2} aria-hidden="true" /> Create a worktree and start an agent
+                            </button>
+                            <button
+                                className="welcome-later"
+                                onClick={() => {
+                                    lastStep = 0;
+                                    onLater();
+                                }}
+                            >
+                                Do this later
                             </button>
                         </div>
                         <p id="welcome-start-note" className="welcome-note">

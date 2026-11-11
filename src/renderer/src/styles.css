@@ -13755,6 +13755,26 @@ button.pr-summary-cell:hover {
     cursor: pointer;
 }
 
+.welcome-later {
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.welcome-later:hover {
+    background: color-mix(in srgb, var(--text-strong) 8%, transparent);
+    color: var(--text-strong);
+}
+
+.welcome-later:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
 .welcome-back:hover:not(:disabled) {
     background: color-mix(in srgb, var(--text-strong) 8%, transparent);
     color: var(--text-strong);
