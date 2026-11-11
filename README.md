@@ -99,6 +99,7 @@ You need Node 24 or later and git.
 ```sh
 npm install        # also downloads Electron and fixes the node-pty helper
 npm run dev        # starts the app with hot reload. A change in the main process restarts the app.
+npm run dev:fresh  # starts the app with empty app data in /tmp/sw-fresh, to test the onboarding
 npm test           # runs the unit tests
 npm run check      # checks the format and runs the linter (Biome). CI runs it on each pull request.
 npm run format     # formats all files
@@ -131,16 +132,18 @@ Environment variables:
 
 #### Test a first start
 
-Do not delete `~/Library/Application Support/ShipWarden` to test a first start. Start the app with a separate data folder:
+Do not delete `~/Library/Application Support/ShipWarden` to test a first start. Start the app with a separate, empty data folder:
 
 ```sh
-SHIPWARDEN_USER_DATA_DIR=/tmp/sw-fresh npm run dev
+npm run dev:fresh
 ```
+
+This script deletes `/tmp/sw-fresh` and then runs `SHIPWARDEN_USER_DATA_DIR=/tmp/sw-fresh npm run dev`. To keep the data of the last test, run that second command yourself.
 
 - The app does not copy the old Yardmaster data into this folder, and it does not connect to the PTY host of the old name.
 - The PTY host socket is in the data folder, so the app starts a second PTY host. Quit it with ⇧⌥⌘Q after the test.
 - The worktrees, notes, plugins and automations in `~/.shipwarden` are still your real folders.
-- Delete the folder to start again from the first start.
+- `npm run dev:fresh` deletes the folder each time, so each run is a first start.
 
 ### Repo layout
 
