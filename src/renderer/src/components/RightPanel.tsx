@@ -26,7 +26,6 @@ interface Props {
     github: BranchStatusState;
     onOpenFile(path: string, line?: number): void;
     onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number, side?: DiffSide): void;
-    onOpenLog(check: CheckRun): void;
     onSendToAgent(prompt: string): void;
     onSendLogToAgent(check: CheckRun): void;
     onSendChecksToAgent(checks: CheckRun[]): void;
@@ -150,17 +149,11 @@ export function RightPanel(props: Props) {
                     onOpenFile={path => props.onOpenFile(path)}
                 />
             )}
-            {tab === 'pipelines' && <PipelinesPanel key={props.root} root={props.root} branch={git.changes?.branch} onOpenLog={props.onOpenLog} />}
-            {tab === 'processes' && <ProcessesPanel key={props.root} worktreePath={props.root} onShowTerminal={props.onShowTerminal} />}
-            {tab === 'checks' && (
-                <ChecksPanel
-                    key={props.root}
-                    target={props.root}
-                    status={props.github.status}
-                    onOpenLog={props.onOpenLog}
-                    onSendLogToAgent={props.onSendLogToAgent}
-                />
+            {tab === 'pipelines' && (
+                <PipelinesPanel key={props.root} root={props.root} branch={git.changes?.branch} onSendLogToAgent={props.onSendLogToAgent} />
             )}
+            {tab === 'processes' && <ProcessesPanel key={props.root} worktreePath={props.root} onShowTerminal={props.onShowTerminal} />}
+            {tab === 'checks' && <ChecksPanel key={props.root} target={props.root} status={props.github.status} onSendLogToAgent={props.onSendLogToAgent} />}
         </aside>
     );
 }

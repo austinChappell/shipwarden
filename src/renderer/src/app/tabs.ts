@@ -1,17 +1,16 @@
-import type { CheckRun, PullRequest, PullRequestFile } from '@shared/github';
+import type { PullRequest, PullRequestFile } from '@shared/github';
 import type { ChangeSide, FileChange } from '@shared/git';
 import { focusedTab, groupOf, leafOfTab, leaves, setGroup, type PaneLayout, type SplitGroups, type SplitSide } from '@shared/panes';
 
 /**
  * A tab is a terminal session ("t:<id>"), a file ("f:<relative path>"),
- * a pull request diff ("d:<relative path>"), a CI job log ("l:<job id>") or an in-app browser tab ("b:<view id>").
+ * a pull request diff ("d:<relative path>") or an in-app browser tab ("b:<view id>").
  */
 export type TabKey = string;
 
-/** A diff tab, a log tab or a browser tab. */
+/** A diff tab, a changes tab or a browser tab. */
 export type ExtraTab =
     | { key: TabKey; kind: 'diff'; pr: PullRequest; file: PullRequestFile; line?: number; nonce?: number }
-    | { key: TabKey; kind: 'log'; check: CheckRun }
     | { key: TabKey; kind: 'change'; change: FileChange; side: ChangeSide }
     | { key: TabKey; kind: 'changes' }
     | { key: TabKey; kind: 'browser'; id: string };

@@ -2218,6 +2218,12 @@ textarea.review-body {
     flex-direction: column;
 }
 
+.checks-log {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
 .checks-header {
     display: flex;
     flex-direction: column;
@@ -10129,7 +10135,16 @@ button.gg-ref:hover {
 }
 
 .pipelines-panel {
+    position: relative;
     container-type: inline-size;
+}
+
+/* The log of a job covers the list of runs. */
+.pp-log {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: var(--panel);
 }
 
 /* A very narrow panel shows only the icon of the Run button, so the header fits on one row. */

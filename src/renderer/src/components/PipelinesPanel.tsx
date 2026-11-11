@@ -5,6 +5,7 @@ import type { CheckRun, Workflow } from '@shared/github';
 import { runIsActive, type WorkflowRun } from '@shared/pipelines';
 import { formatDuration, optionalErrorText, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
+import { LogView } from './LogView';
 import { confirmDialog } from './ConfirmDialog';
 import { RunDialog, RunIcon } from './PipelinesView';
 import { openLink } from '../links';
@@ -19,8 +20,8 @@ interface Props {
     root: string;
     /** The branch of the worktree. Undefined for a detached HEAD. */
     branch: string | undefined;
-    /** Opens the log of a job in a tab, with the live steps while it runs. */
-    onOpenLog(job: CheckRun): void;
+    /** Sends the log of a job to the agent of the worktree. */
+    onSendLogToAgent?(job: CheckRun): void;
 }
 
 /** One run: a row that opens its jobs, with Cancel or Run again, and a link to GitHub. */
@@ -126,7 +127,12 @@ function RunRow({
  * branches (the runs of the branch of the worktree have a tag), their jobs, and the workflows that the user can start
  * by hand.
  */
-export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
+export function PipelinesPanel({ root, branch, onSendLogToAgent }: Props) {
+    /** The job whose log shows on top of the list. The list stays below it, so its open runs and scroll stay. */
+    const [logJob, setLogJob] = useState<CheckRun>();
+    // The newest state of the job, so that the log loads again when the job completes. The run row shares this cache.
+    const logJobsQuery = useQuery({ ...runJobsQuery(root, logJob?.runId, false, POLL_ACTIVE_MS), enabled: !!logJob?.runId });
+    const liveJob = logJob && (logJobsQuery.data?.find(job => job.id === logJob.id) ?? logJob);
     const [running, setRunning] = useState<Workflow>();
     const [showWorkflows, setShowWorkflows] = useState(false);
     const runsQuery = useQuery(workflowRunsQuery(root, undefined, POLL_ACTIVE_MS));
@@ -206,9 +212,15 @@ export function PipelinesPanel({ root, branch, onOpenLog }: Props) {
                 )}
                 {runs?.length === 0 && <div className="panel-note pp-note">The repository has no workflow runs.</div>}
                 {runs?.map(run => (
-                    <RunRow key={run.id} root={root} run={run} ownBranch={!!branch && run.branch === branch} onOpenLog={onOpenLog} />
+                    <RunRow key={run.id} root={root} run={run} ownBranch={!!branch && run.branch === branch} onOpenLog={setLogJob} />
                 ))}
             </div>
+
+            {liveJob && (
+                <div className="pp-log">
+                    <LogView key={liveJob.id} target={root} check={liveJob} onSendToAgent={onSendLogToAgent} onBack={() => setLogJob(undefined)} />
+                </div>
+            )}
 
             {running && (
                 <RunDialog

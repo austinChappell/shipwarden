@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Bot, CircleCheck, CircleDashed, CircleMinus, CircleX, ExternalLink, LoaderCircle, RefreshCw, RotateCw } from 'lucide-react';
+import { ArrowLeft, Bot, CircleCheck, CircleDashed, CircleMinus, CircleX, ExternalLink, LoaderCircle, RefreshCw, RotateCw } from 'lucide-react';
 import type { CheckRun, JobProgress, JobStep, RepoTarget } from '@shared/github';
 import { monaco } from '../editor/monaco';
 import { errorText, formatDuration, optionalErrorText } from '../util';
@@ -13,6 +13,8 @@ interface Props {
     check: CheckRun;
     /** Sends the log to the agent of the worktree. Without it (in the Review view), the button does not show. */
     onSendToAgent?(check: CheckRun): void;
+    /** Closes the log. Without it, the header has no back button. */
+    onBack?(): void;
 }
 
 let languageRegistered = false;
@@ -91,7 +93,7 @@ function JobSteps({ progress, error }: { progress: JobProgress | undefined; erro
 }
 
 /** Shows the log of one GitHub Actions job. While the job runs, it shows the live steps of the job instead. */
-export function LogView({ target, check, onSendToAgent }: Props) {
+export function LogView({ target, check, onSendToAgent, onBack }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | undefined>(undefined);
     const action = useCiAction();
@@ -197,6 +199,11 @@ export function LogView({ target, check, onSendToAgent }: Props) {
     return (
         <div className="editor">
             <div className="diff-header">
+                {onBack && (
+                    <button className="icon-button" title="Back to the checks" onClick={onBack}>
+                        <ArrowLeft size={14} strokeWidth={1.6} />
+                    </button>
+                )}
                 <span className={`check-dot ${check.conclusion ?? check.status}`} />
                 <span className="diff-path">{check.name}</span>
                 <span className="check-duration">{formatDuration(check.startedAt, check.completedAt)}</span>
