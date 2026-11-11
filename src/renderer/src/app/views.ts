@@ -2,7 +2,19 @@ import type { NavLocation, ViewRoute } from '@shared/nav-history';
 import type { ViewAction } from '@shared/shortcuts';
 
 /** A view of the center area. */
-export type MainView = 'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'automations' | 'graph' | 'settings' | 'welcome';
+export type MainView =
+    | 'dashboard'
+    | 'worktree'
+    | 'tasks'
+    | 'agents'
+    | 'review'
+    | 'pipelines'
+    | 'notes'
+    | 'automations'
+    | 'plans'
+    | 'graph'
+    | 'settings'
+    | 'welcome';
 
 /** A view that is not the settings page. The settings page goes back to one of these views. */
 export type ContentView = Exclude<MainView, 'settings'>;

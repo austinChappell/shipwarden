@@ -25,6 +25,9 @@ import { AutomationsView } from './automations/AutomationsView';
 import { useAutomationRuns } from './automations/automation-queries';
 import { automationEngine } from './automations/engine';
 import { useAutomationEngine } from './automations/use-automation-engine';
+import { PlansView } from './plans/PlansView';
+import { usePlans } from './plans/plan-queries';
+import { planRunner } from './plans/plan-runner';
 import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
 import { useDashboardCount, useDashboardLoader } from './dashboard-store';
@@ -319,6 +322,22 @@ export function App() {
     });
     const automationsCount = useAutomationRuns().state.runs.filter(run => run.status === 'pending').length;
 
+    // The plans execute their steps while the app is open. The runner gets the state of the app here.
+    const { plans, loaded: plansLoaded } = usePlans();
+    planRunner.setContext({
+        ready: settingsLoaded && plansLoaded,
+        sessions,
+        notifications: appSettings.notifications,
+        repoLabel,
+        actions: {
+            promptAgent: agents.promptAgent,
+            prepareWorktree: agents.prepareWorktree,
+            refreshWorktrees: project.refreshWorktrees,
+            moveTaskToStatus: worktreeActions.moveTaskToStatus
+        }
+    });
+    const plansCount = plans.reduce((count, plan) => count + plan.steps.filter(step => step.status === 'attention' || step.status === 'failed').length, 0);
+
     /** Saves a change of the onboarding state. The other values of the state stay. */
     const onboardingSaves = useRef<Promise<unknown>>(Promise.resolve());
     const saveOnboarding = (change: OnboardingChange): Promise<void> => {
@@ -456,6 +475,7 @@ export function App() {
         const offAgentState = api.terminals.onAgentState((id, update) => {
             agentStateStore.set(id, update);
             automationEngine.onAgentState(id, update);
+            planRunner.onAgentState(id, update);
             if (update.state === 'waiting' || update.state === 'done') {
                 notifyAgentRef.current(id, update.state, update.message);
             }
@@ -689,6 +709,9 @@ export function App() {
                             automationsActive={mainView === 'automations'}
                             automationsCount={automationsCount}
                             onOpenAutomations={() => enterView('automations')}
+                            plansActive={mainView === 'plans'}
+                            plansCount={plansCount}
+                            onOpenPlans={() => enterView('plans')}
                             dashboardActive={mainView === 'dashboard'}
                             dashboardCount={dashboardCount}
                             onOpenDashboard={() => enterView('dashboard')}
@@ -793,6 +816,18 @@ export function App() {
                                 repoLabel={repoLabel}
                                 onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
                                 onOpenNotes={() => enterView('notes')}
+                            />
+                        </main>
+                    )}
+                    {mainView === 'plans' && activeProject && (
+                        <main className="workspace">
+                            <PlansView
+                                key={`${activeProject.id}:${viewEntry}`}
+                                project={activeProject}
+                                repoLabel={repoLabel}
+                                route={routeOf('plans')}
+                                onRoute={route => setRoute('plans', route)}
+                                onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
                             />
                         </main>
                     )}

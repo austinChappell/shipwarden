@@ -7,7 +7,7 @@ import { normalizeGroups, type SplitGroups } from '@shared/panes';
  */
 export interface SavedLayout {
     selectedPath?: string;
-    mainView?: 'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'automations';
+    mainView?: 'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'automations' | 'plans';
     /** The open files of each worktree, as paths relative to the worktree. */
     openFiles: Record<string, string[]>;
     /** The active tab of each worktree. */
@@ -49,7 +49,8 @@ export function parseLayout(text: string | null): SavedLayout {
         raw.mainView === 'review' ||
         raw.mainView === 'pipelines' ||
         raw.mainView === 'notes' ||
-        raw.mainView === 'automations'
+        raw.mainView === 'automations' ||
+        raw.mainView === 'plans'
     ) {
         layout.mainView = raw.mainView;
     }

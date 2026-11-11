@@ -26,12 +26,18 @@ export function registerProjectIpc({
     projects,
     projectWorktrees,
     reviewProviders,
+    plans,
     window
-}: Pick<Services, 'projects' | 'projectWorktrees' | 'reviewProviders' | 'window'>): void {
+}: Pick<Services, 'projects' | 'projectWorktrees' | 'reviewProviders' | 'plans' | 'window'>): void {
     ipcMain.handle(IpcChannels.projectsGet, () => projects.get());
     ipcMain.handle(IpcChannels.projectsCreate, (_event, name: string) => projects.create(String(name)));
     ipcMain.handle(IpcChannels.projectsRename, (_event, id: string, name: string) => projects.rename(id, String(name)));
-    ipcMain.handle(IpcChannels.projectsDelete, (_event, id: string) => projects.delete(id));
+    ipcMain.handle(IpcChannels.projectsDelete, async (_event, id: string) => {
+        const state = await projects.delete(id);
+        // The plans of the project have no place to show anymore.
+        await plans.removeProject(id);
+        return state;
+    });
     ipcMain.handle(IpcChannels.projectsSetActive, (_event, id: string) => projects.setActive(id));
     ipcMain.handle(IpcChannels.projectsRemoveRepo, (_event, id: string, repo: string) => projects.removeRepo(id, repo));
     ipcMain.handle(IpcChannels.projectsMove, (_event, id: string, toIndex: number) => projects.move(id, Number(toIndex)));

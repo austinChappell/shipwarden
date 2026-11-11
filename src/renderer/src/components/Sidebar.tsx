@@ -26,7 +26,8 @@ import {
     Settings,
     SquareTerminal,
     X,
-    Zap
+    Zap,
+    ClipboardList
 } from 'lucide-react';
 import { AGENT_STATE_LABELS, worktreeAgentState, type AgentState } from '@shared/agents';
 import type { BranchSummary } from '@shared/github';
@@ -127,6 +128,10 @@ interface Props {
     /** The number of automation runs that wait for the user's approval. */
     automationsCount: number;
     onOpenAutomations(): void;
+    plansActive: boolean;
+    /** The number of plan steps that wait for the user. */
+    plansCount: number;
+    onOpenPlans(): void;
     dashboardActive: boolean;
     /** The number of items on the Dashboard that need the user. */
     dashboardCount: number;
@@ -516,6 +521,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
         !parent.dashboardActive &&
         !parent.notesActive &&
         !parent.automationsActive &&
+        !parent.plansActive &&
         !parent.pipelinesActive &&
         shown.some(worktree => worktree.path === selectedPath);
     const color = parent.repoColor(repo);
@@ -538,7 +544,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
         return (
             <li
                 key={worktree.path}
-                className={`worktree-row${isHidden ? ' hidden-worktree' : ''}${worktree.path === selectedPath && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.automationsActive && !parent.pipelinesActive ? ' selected' : ''}`}
+                className={`worktree-row${isHidden ? ' hidden-worktree' : ''}${worktree.path === selectedPath && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.automationsActive && !parent.plansActive && !parent.pipelinesActive ? ' selected' : ''}`}
                 title={worktree.path}
                 tabIndex={0}
                 role="button"
@@ -869,6 +875,15 @@ export function Sidebar(outerProps: Props) {
                 {props.automationsCount > 0 && (
                     <span className="nav-row-count attention" title={`${props.automationsCount} automation runs wait for your approval`}>
                         {props.automationsCount}
+                    </span>
+                )}
+            </button>
+            <button data-sidebar-item className={`nav-row${props.plansActive ? ' selected' : ''}`} onClick={props.onOpenPlans}>
+                <ClipboardList size={15} strokeWidth={1.6} />
+                <span className="nav-row-label">Plans</span>
+                {props.plansCount > 0 && (
+                    <span className="nav-row-count attention" title={`${props.plansCount} plan steps wait for you`}>
+                        {props.plansCount}
                     </span>
                 )}
             </button>

@@ -158,6 +158,13 @@ const api: ShipWardenApi = {
         githubOwners: id => ipcRenderer.invoke(IpcChannels.reviewProvidersGitHubOwners, id),
         onChanged: listener => subscribe<[]>(IpcChannels.reviewProvidersChanged, listener)
     },
+    plans: {
+        list: () => ipcRenderer.invoke(IpcChannels.plansList),
+        save: plan => ipcRenderer.invoke(IpcChannels.plansSave, plan),
+        remove: id => ipcRenderer.invoke(IpcChannels.plansRemove, id),
+        explore: request => ipcRenderer.invoke(IpcChannels.plansExplore, request),
+        cancelExplore: id => ipcRenderer.invoke(IpcChannels.plansCancelExplore, id)
+    },
     automations: {
         list: () => ipcRenderer.invoke(IpcChannels.automationsList),
         save: (automation, previousId) => ipcRenderer.invoke(IpcChannels.automationsSave, automation, previousId),

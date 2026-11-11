@@ -77,7 +77,9 @@ export const keyRoots = {
     /** The worktrees of each repository folder. Local data: no request goes to a service. */
     worktrees: ['worktrees'],
     /** The automation files and the run history. Local data: no request goes to a service. */
-    automations: ['automations']
+    automations: ['automations'],
+    /** The plans of the projects. Local data: no request goes to a service. */
+    plans: ['plans']
 } as const;
 
 /** The roots that a change to a pull request, a branch or a CI run can make stale. */
