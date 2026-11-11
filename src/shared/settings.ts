@@ -10,6 +10,7 @@ import {
 import { DEFAULT_APPEARANCE, normalizeAppearance, type Appearance } from './themes';
 import { normalizeHiddenWorktrees, type HiddenWorktree } from './worktrees';
 import { DEFAULT_REMOTE_SETTINGS, normalizeRemoteSettings, type RemoteSettings } from './remote';
+import { normalizeOnboarding, type OnboardingSettings } from './onboarding';
 
 /**
  * An agent that the Agent button can start, for example Claude Code. The command runs in an interactive login shell,
@@ -106,6 +107,11 @@ export interface AppSettings {
     remote: RemoteSettings;
     /** The settings of all automations: pause, and the usage limit. The automations are files in ~/.shipwarden/automations. */
     automations: AutomationSettings;
+    /**
+     * The state of the welcome page, the tour and the checklist. It is missing before the first start of this version.
+     * The main process then sets it one time from the repositories of the user (see `initialOnboarding`).
+     */
+    onboarding?: OnboardingSettings;
 }
 
 /** Keeps the names that are text, trimmed and at most 80 characters. */
@@ -261,6 +267,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         notifications: normalizeNotificationSettings(raw.notifications),
         remote: normalizeRemoteSettings(raw.remote),
         automations: normalizeAutomationSettings(raw.automations),
+        ...(normalizeOnboarding(raw.onboarding) ? { onboarding: normalizeOnboarding(raw.onboarding) } : {}),
         ...(normalizeWorktreeNames(raw.worktreeNames) ? { worktreeNames: normalizeWorktreeNames(raw.worktreeNames) } : {}),
         ...(normalizeHiddenWorktrees(raw.hiddenWorktrees) ? { hiddenWorktrees: normalizeHiddenWorktrees(raw.hiddenWorktrees) } : {}),
         ...(raw.reviewOwners === 'all'

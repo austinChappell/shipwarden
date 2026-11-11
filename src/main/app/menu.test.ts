@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MenuItemConstructorOptions } from 'electron';
 import type { ShortcutAction } from '@shared/shortcuts';
-import { menuTemplate } from './menu';
+import { menuTemplate, PROJECT_URL } from './menu';
 
 /** Returns the menu template and the actions that its items called. */
 function recordActions() {
@@ -10,7 +10,9 @@ function recordActions() {
         openSettings: () => calls.push('settings'),
         checkForUpdates: () => calls.push('updates'),
         quitAndStopSessions: () => calls.push('quitAndStop'),
-        sendShortcut: (action: ShortcutAction) => calls.push(`shortcut:${action}`)
+        sendShortcut: (action: ShortcutAction) => calls.push(`shortcut:${action}`),
+        help: action => calls.push(`help:${action}`),
+        openUrl: url => calls.push(`url:${url}`)
     });
     return { calls, template };
 }
@@ -35,7 +37,7 @@ function click(entry: MenuItemConstructorOptions): void {
 describe('menuTemplate', () => {
     it('has the menus in the macOS order', () => {
         const { template } = recordActions();
-        expect(template.map(menu => menu.role ?? menu.label)).toEqual(['appMenu', 'File', 'editMenu', 'View', 'Go', 'windowMenu']);
+        expect(template.map(menu => menu.role ?? menu.label)).toEqual(['appMenu', 'File', 'editMenu', 'View', 'Go', 'windowMenu', 'help']);
     });
 
     it('gives each accelerator to one item only', () => {
@@ -62,6 +64,16 @@ describe('menuTemplate', () => {
         click(item(template, 'Close Pane'));
         click(item(template, 'Pipelines'));
         expect(calls).toEqual(['shortcut:newWorktree', 'shortcut:close', 'shortcut:viewPipelines']);
+    });
+
+    it('sends the Help items to the page and opens the GitHub page', () => {
+        const { calls, template } = recordActions();
+        click(item(template, 'Show Welcome'));
+        click(item(template, 'Take the Tour'));
+        click(item(template, 'Keyboard Shortcuts'));
+        click(item(template, 'ShipWarden on GitHub'));
+        expect(calls).toEqual(['help:welcome', 'help:tour', 'help:shortcuts', `url:${PROJECT_URL}`]);
+        expect(PROJECT_URL).toBe('https://github.com/austinChappell/shipwarden');
     });
 
     it('has a tab item for each digit, and ⌘9 selects the last tab', () => {

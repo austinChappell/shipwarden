@@ -335,6 +335,17 @@ export class ReviewProviders {
         return ((await this.runtime(provider)) as AzureRuntime).client.file(url, accept);
     }
 
+    /**
+     * Returns the place of the GitHub token for the setup check, or undefined when there is no token. It does not call the
+     * GitHub API. Without a GitHub provider, a client without a saved token uses the same order: GITHUB_TOKEN, then the
+     * GitHub CLI.
+     */
+    async githubTokenSource(): Promise<ReviewTokenSource | undefined> {
+        const provider = pickProvider(await this.providers(), 'github', undefined);
+        if (!provider) return new GitHubClient({ ready: this.options.ready }).tokenSource();
+        return ((await this.runtime(provider)) as GitHubRuntime).client.tokenSource();
+    }
+
     async optionalGitHubToken(): Promise<string | undefined> {
         const provider = pickProvider(await this.providers(), 'github', undefined);
         if (!provider) return process.env.GITHUB_TOKEN || undefined;

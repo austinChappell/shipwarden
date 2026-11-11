@@ -39,6 +39,8 @@ import type { AgentProgram } from './agent-programs';
 import type { AskAgentRequest, AskAgentResult, SavedAnswer, SavedCodeAnswer } from './ask-agent';
 import type { ReviewCheckout, ReviewCheckoutStatus } from './review-checkout';
 import type { AppSettings, CommandCheck } from './settings';
+import type { HelpAction } from './onboarding';
+import type { SetupCheckId, SetupCheckResult } from './setup-checks';
 import type { ProjectsState, PullRepoResult, PullRepoTarget } from './projects';
 import type { ProviderUsage } from './usage';
 import type { UpdateState } from './updates';
@@ -98,6 +100,8 @@ export interface ShipWardenApi {
         answerConfirm(id: number, confirmed: boolean): void;
         /** Runs an app key (⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U or ⌘H) that the page got. The main process normally reads these keys first. */
         runKey(action: AppKeyAction): void;
+        /** Listens for the items of the Help menu: Show Welcome, Take the Tour and Keyboard Shortcuts. */
+        onHelp(listener: (action: HelpAction) => void): () => void;
     };
     git: {
         /** The local changes of a worktree: staged, unstaged and conflicted files, and the branch state. */
@@ -169,6 +173,13 @@ export interface ShipWardenApi {
         update(change: Partial<AppSettings>): Promise<AppSettings>;
         /** Finds the program of a command in the login shell PATH. */
         checkCommand(command: string): Promise<CommandCheck>;
+    };
+    setup: {
+        /**
+         * Runs the setup checks of the welcome page. Without an ID, all checks run. With an ID, only that check runs, and
+         * the list has one result. The checks do not call the GitHub API.
+         */
+        check(id?: SetupCheckId): Promise<SetupCheckResult[]>;
     };
     projects: {
         get(): Promise<ProjectsState>;
@@ -710,6 +721,7 @@ export const IpcChannels = {
     appConfirmRequest: 'app:confirmRequest',
     appConfirmAnswer: 'app:confirmAnswer',
     appRunKey: 'app:runKey',
+    appHelp: 'app:help',
     browserCreate: 'browser:create',
     browserSetBounds: 'browser:setBounds',
     browserLoad: 'browser:load',
@@ -753,7 +765,8 @@ export const IpcChannels = {
     updatesChecked: 'updates:checked',
     settingsGet: 'settings:get',
     settingsUpdate: 'settings:update',
-    settingsCheckCommand: 'settings:checkCommand'
+    settingsCheckCommand: 'settings:checkCommand',
+    setupCheck: 'setup:check'
 } as const;
 
 export interface AppInfo {

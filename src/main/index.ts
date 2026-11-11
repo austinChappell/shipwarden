@@ -1,27 +1,43 @@
 import { join } from 'path';
-import { app, BrowserWindow, Menu, protocol } from 'electron';
+import { mkdirSync } from 'fs';
+import { app, BrowserWindow, Menu, protocol, shell } from 'electron';
 import * as os from 'os';
 import { IpcChannels } from '@shared/api';
 import { AZURE_IMAGE_SCHEME } from '@shared/azure-image-url';
 import { FILE_SCHEME } from '@shared/file-url';
+import type { HelpAction } from '@shared/onboarding';
 import { appKeyAction, shortcutAction, type AppKeyAction, type ShortcutAction } from '@shared/shortcuts';
 import { removeAgentSessionVariables } from './agent-environment';
 import { writeAgentHookFiles } from './agents/hook-files';
 import { browserViewKey } from './app/keys';
 import { MainWindow } from './app/main-window';
 import { menuTemplate } from './app/menu';
+import { userDataOverride } from './app/user-data';
 import { createAzureImageHandler } from './azure/azure-image-protocol';
 import { quitAndStopSessions } from './app/quit';
 import { createFileProtocolHandler } from './files/file-protocol';
 import { registerIpc } from './ipc';
 import { migrateLegacyData } from './legacy-migration';
+import { ensureOnboarding } from './onboarding';
 import { createServices } from './services';
 
 // Do this first. Terminals must not inherit the session of an agent that started ShipWarden.
 removeAgentSessionVariables(process.env);
 
+// For a test of a first start: SHIPWARDEN_USER_DATA_DIR=/tmp/sw-fresh uses that folder for the app data. Set it before
+// the app reads any data.
+const separateDataFolder = userDataOverride(process.env, process.cwd(), os.homedir());
+if (separateDataFolder) {
+    mkdirSync(separateDataFolder, { recursive: true });
+    app.setPath('userData', separateDataFolder);
+    console.log(`[data] The app data folder is ${separateDataFolder}.`);
+}
+
 // The app was Yardmaster before. Copy its data one time, before the stores below read their files.
-const migration = migrateLegacyData({ appData: app.getPath('appData'), userData: app.getPath('userData'), home: os.homedir() });
+// A separate data folder gets no copy, so a test of a first start does not get the old data.
+const migration = separateDataFolder
+    ? { copied: [], errors: [] }
+    : migrateLegacyData({ appData: app.getPath('appData'), userData: app.getPath('userData'), home: os.homedir() });
 migration.copied.forEach(item => console.log(`[migration] Copied ${item}`));
 migration.errors.forEach(item => console.error(`[migration] ${item}`));
 
@@ -39,7 +55,12 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 const mainWindow = new MainWindow();
-const services = createServices({ window: mainWindow, mainFolder: __dirname, onBrowserInput: (id, input) => browserKey(id, input) });
+const services = createServices({
+    window: mainWindow,
+    mainFolder: __dirname,
+    onBrowserInput: (id, input) => browserKey(id, input),
+    separateDataFolder: !!separateDataFolder
+});
 const { terminals, browserViews, settings } = services;
 
 function createWindow(): void {
@@ -89,6 +110,15 @@ function checkForUpdates(): void {
         state => mainWindow.send(IpcChannels.updatesChecked, state),
         () => undefined
     );
+}
+
+/** Shows the window and sends an item of the Help menu to the page. */
+function sendHelp(action: HelpAction): void {
+    if (!mainWindow.get()) {
+        createWindow();
+    }
+    mainWindow.get()?.show();
+    mainWindow.send(IpcChannels.appHelp, action);
 }
 
 function sendShortcut(action: ShortcutAction): void {
@@ -148,10 +178,22 @@ function browserKey(id: string, input: Electron.Input): boolean {
 
 app.whenReady().then(async () => {
     await services.projects.load();
+    // The page reads the onboarding state at its start, so set the first state before the window opens.
+    await ensureOnboarding({
+        settings,
+        hasRepos: async () => (await services.projects.get()).projects.some(project => project.repos.length > 0)
+    }).catch(error => console.error('[onboarding] The first onboarding state was not saved:', error));
     mainWindow.applyAppearance((await settings.get()).appearance);
     Menu.setApplicationMenu(
         Menu.buildFromTemplate(
-            menuTemplate({ openSettings: () => openSettings(), checkForUpdates, quitAndStopSessions: () => void quitAndStop(), sendShortcut })
+            menuTemplate({
+                openSettings: () => openSettings(),
+                checkForUpdates,
+                quitAndStopSessions: () => void quitAndStop(),
+                sendShortcut,
+                help: sendHelp,
+                openUrl: url => void shell.openExternal(url)
+            })
         )
     );
     writeAgentHookFiles(services.hookPaths, services.shellIntegration, join(app.getPath('userData'), 'shell-integration'));
