@@ -10,8 +10,9 @@ safely on its course. This app does the same job for coding agents.
 ## Goals
 
 1. **Task sources that anyone can add.** ShipWarden defines an open plugin
-   spec for task trackers. GitHub Issues and Linear are the first plugins.
-   The community can write plugins for ClickUp, Jira and other trackers.
+   spec for task trackers. ShipWarden includes five plugins: GitHub
+   Issues, Linear, ClickUp, Azure Boards and Local tasks. The community can
+   write plugins for Jira and other trackers.
    Each plugin controls how its tasks show in the task UI.
 2. **A real code editor.** ShipWarden includes a full editor with LSP
    support. Go to definition, find references, hover info and diagnostics
@@ -42,17 +43,18 @@ The downloads use the CA certificates of Settings › Network.
 
 The right panel also shows the pull request of the worktree's branch and its GitHub Actions
 checks. You can review diffs with inline comments, approve, request changes, merge, read job
-logs, run jobs again and send a failed job or a review comment to the agent. ShipWarden uses
-your GitHub CLI login (`gh auth login`).
+logs, run jobs again and send a failed job or a review comment to the agent. First add a
+GitHub or Azure DevOps provider in Settings › Code review. The GitHub provider uses a saved
+token or your GitHub CLI login (`gh auth login`).
 
 The Agents view (⌥⌘2) shows all running agents in one list. Each row shows the state of the agent
 (needs input, blocked on CI, working or done), the time since its last output, and its pull request
 with the CI state. Click a row to open the agent's terminal. The header shows the plan usage of
 Claude and Codex. ShipWarden has no usage data for each agent.
 
-The Tasks view shows the tasks of a task tracker. Task trackers are plugins: GitHub Issues and
-ClickUp are built in, and anyone can write a plugin with the
-[ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch
+The Tasks view shows the tasks of a task tracker. Task trackers are plugins. ShipWarden
+includes five: GitHub Issues, Linear, ClickUp, Azure Boards and Local tasks. Anyone can write a
+plugin with the [ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch
 for a task and gives the task to a new agent.
 
 The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
