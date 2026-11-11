@@ -8676,6 +8676,14 @@ button:focus-visible,
     margin-top: 8px;
 }
 
+.branch-variables {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin-top: 6px;
+    font-size: 12px;
+}
+
 .copy-preview-repo {
     display: flex;
     align-items: center;

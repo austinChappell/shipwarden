@@ -3,7 +3,7 @@ import type { AgentMode } from '@shared/agent-modes';
 import type { PullRequest, RepoRef } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
 import type { AppSettings, AgentDefinition, RepoScript } from '@shared/settings';
-import { applyStartStatus, branchNameForTask, taskPrompt, type StartStatusResult, type Task, type TaskLink } from '@shared/tasks';
+import { applyStartStatus, taskPrompt, type StartStatusResult, type Task, type TaskLink } from '@shared/tasks';
 import { isOpenShell, openShellCount, type TerminalSession } from '@shared/terminal';
 import { snoozeEnd, worktreeLabel, type CreatedWorktree, type HiddenWorktree, type Worktree } from '@shared/worktrees';
 import { confirmDialog, promptDialog } from '../components/ConfirmDialog';
@@ -33,6 +33,7 @@ import { taskManagerKeys } from '../components/task-managers-cache';
 import { listPatch, taskQueryKeys } from '../components/tasks/task-view-logic';
 import { patchCachedTask } from '../components/tasks/use-task-list';
 import { saveTaskLink } from './task-links';
+import { taskBranchName } from './task-branch';
 
 const api = window.shipwarden;
 
@@ -42,6 +43,15 @@ export interface NewWorktreeTarget {
     start?: GraphWorktreeStart;
     /** A prompt for the agent of the new worktree. ShipWarden sends it after it creates the worktree. */
     prompt?: string;
+    /** The task that the new worktree works on. The dialog suggests a branch for it. */
+    task?: TaskStart;
+}
+
+/** A task and its connection, for a new worktree that works on the task. */
+export interface TaskStart {
+    task: Task;
+    connectionId: string;
+    pluginId: string;
 }
 
 interface Options {
@@ -160,21 +170,15 @@ export function useWorktreeActions(options: Options) {
     };
 
     /**
-     * Starts work on a task: creates a worktree with a branch for the task, links the worktree to the task
-     * and sends the task to a new agent in the worktree.
+     * Starts work on a task: opens the New worktree dialog for the task. The dialog suggests a branch from the branch
+     * template. When the dialog creates the worktree, `createWorktree` links it to the task and sends the task to the agent.
      */
     const startTask = async (task: Task, connectionId: string, pluginId: string, repoPath: string) => {
-        const branch = branchNameForTask(task);
-        const worktree = await api.worktrees.create({ repoPath, branch });
-        await options.prepareWorktree(repoPath, worktree);
-        const link: TaskLink = { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
-        await saveTaskLink(queryClient, worktree.path, link);
-        await refreshWorktrees(repoPath);
-        setSelectedPath(worktree.path);
-        setMainView('worktree');
-        void moveTaskToStartStatus(task, connectionId);
-        await options.sendToAgent(taskPrompt(task, branch), worktree);
+        options.setNewWorktree({ repo: repoPath, task: { task, connectionId, pluginId } });
     };
+
+    /** Makes the branch name for a task from the branch template of the settings. See `taskBranchName`. */
+    const suggestTaskBranch = (task: Task, repoPath: string) => taskBranchName(task, repoPath, appSettings.worktrees.branchTemplate);
 
     /**
      * Starts work on a task for an automation: the same steps as `startTask`, but the selected worktree and the view do
@@ -189,7 +193,7 @@ export function useWorktreeActions(options: Options) {
         agentId?: string,
         mode?: AgentMode
     ): Promise<{ worktree: CreatedWorktree; session: TerminalSession }> => {
-        const branch = branchNameForTask(task);
+        const { branch } = await suggestTaskBranch(task, repoPath);
         const worktree = await api.worktrees.create({ repoPath, branch });
         await options.prepareWorktree(repoPath, worktree);
         const link: TaskLink = { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
@@ -273,7 +277,8 @@ export function useWorktreeActions(options: Options) {
      * Creates a worktree from the New worktree dialog: its branch, start point, display name and agent.
      * With a prompt, ShipWarden sends the prompt to an agent of the new worktree, also when "startAgent" is false.
      */
-    const createWorktree = async (repoPath: string, request: NewWorktreeRequest, prompt?: string) => {
+    /** Creates the worktree of the New worktree dialog. With a task, the worktree works on the task, the same as `startTaskQuietly`. */
+    const createWorktree = async (repoPath: string, request: NewWorktreeRequest, prompt?: string, start?: TaskStart) => {
         const worktree = await api.worktrees.create({
             repoPath,
             branch: request.branch,
@@ -281,6 +286,12 @@ export function useWorktreeActions(options: Options) {
             ...(request.trackRef ? { trackRef: request.trackRef } : {})
         });
         if (request.name) await setWorktreeName(worktree.path, request.name);
+        if (start) {
+            const { task, connectionId, pluginId } = start;
+            await saveTaskLink(queryClient, worktree.path, { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url });
+            void moveTaskToStartStatus(task, connectionId);
+            if (!prompt && request.startAgent) prompt = taskPrompt(task, request.branch);
+        }
         await refreshWorktrees(repoPath);
         setSelectedPath(worktree.path);
         // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
@@ -450,6 +461,7 @@ export function useWorktreeActions(options: Options) {
 
     return {
         startTask,
+        suggestTaskBranch,
         startTaskQuietly,
         startInNewWorktree,
         moveTaskToStatus,

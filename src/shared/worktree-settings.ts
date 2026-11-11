@@ -45,6 +45,11 @@ export interface WorktreeSettings {
     sort: WorktreeSort;
     /** True to close the shell tabs with no input and no output for 7 days. A shell that runs a command stays open. */
     closeStaleShells: boolean;
+    /**
+     * The template of the branch names for tasks, for example "{username}/{taskKey}-{taskShortDescription}".
+     * See `BRANCH_VARIABLES`. Empty: ShipWarden makes the name from the task key and the title.
+     */
+    branchTemplate?: string;
 }
 
 /** The worktree settings of one repository. A missing value uses the global setting. */
@@ -111,8 +116,10 @@ function cleanScript(value: unknown): string | undefined {
 export function normalizeWorktreeSettings(value: unknown, legacySort?: unknown): WorktreeSettings {
     const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
     const directory = cleanText(raw.directory);
+    const branchTemplate = cleanText(raw.branchTemplate);
     return {
         ...(directory ? { directory } : {}),
+        ...(branchTemplate ? { branchTemplate } : {}),
         copyIgnored: normalizeCopy(raw.copyIgnored) ?? DEFAULT_WORKTREE_SETTINGS.copyIgnored,
         sort: normalizeWorktreeSort(raw.sort ?? legacySort),
         // Settings from before this switch do not have it. The switch is on by default.

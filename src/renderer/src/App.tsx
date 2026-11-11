@@ -1068,9 +1068,15 @@ export function App() {
                     {newWorktree && (
                         <NewWorktreeDialog
                             // A new key for each repository and start point, so that the dialog starts with empty fields.
-                            key={`${newWorktree.repo}\n${JSON.stringify(newWorktree.start ?? null)}`}
+                            key={`${newWorktree.repo}\n${JSON.stringify(newWorktree.start ?? null)}\n${newWorktree.task?.task.id ?? ''}`}
                             repoName={repoLabel(newWorktree.repo)}
                             repoPath={newWorktree.repo}
+                            {...(newWorktree.task
+                                ? {
+                                      title: `Start ${newWorktree.task.task.key ?? newWorktree.task.task.title} in ${repoLabel(newWorktree.repo)}`,
+                                      suggestBranch: () => worktreeActions.suggestTaskBranch(newWorktree.task!.task, newWorktree.repo)
+                                  }
+                                : {})}
                             {...(!newWorktree.start
                                 ? {}
                                 : 'remote' in newWorktree.start
@@ -1078,7 +1084,7 @@ export function App() {
                                   : { initialBase: { ref: newWorktree.start.commit, label: newWorktree.start.label } })}
                             onClose={() => setNewWorktree(undefined)}
                             onCreate={async request => {
-                                await worktreeActions.createWorktree(newWorktree.repo, request, newWorktree.prompt);
+                                await worktreeActions.createWorktree(newWorktree.repo, request, newWorktree.prompt, newWorktree.task);
                                 setNewWorktree(undefined);
                             }}
                         />

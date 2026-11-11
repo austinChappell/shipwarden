@@ -775,4 +775,6 @@ export interface AppInfo {
     dataFolder: string;
     /** The log of the PTY host process. */
     ptyHostLog: string;
+    /** The login name of the user on this computer. */
+    username: string;
 }

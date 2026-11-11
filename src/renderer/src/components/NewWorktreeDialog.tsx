@@ -30,6 +30,13 @@ interface Props {
     initialBase?: { ref: string; label: string };
     /** A remote branch to check out. The dialog opens in remote mode. */
     initialRemote?: string;
+    /** The title of the dialog. Default: "New worktree in <repository>". */
+    title?: string;
+    /**
+     * Makes the branch name for a new branch, for example from a task and the branch template. The branch field
+     * gets the name when it arrives, unless the user typed a branch. `note` shows below the field.
+     */
+    suggestBranch?: () => Promise<{ branch: string; note?: string }>;
 }
 
 /**
@@ -38,7 +45,7 @@ interface Props {
  * - Remote branch: a remote branch to check out. The local branch gets the same name and tracks the remote branch.
  * In both modes, the user chooses whether an agent starts in the worktree.
  */
-export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initialBase, initialRemote }: Props) {
+export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initialBase, initialRemote, title, suggestBranch }: Props) {
     const [mode, setMode] = useState<Mode>(initialRemote ? 'remote' : 'new');
     const dialog = useRef<HTMLDivElement>(null);
     useModal(dialog);
@@ -53,6 +60,35 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
     const [startAgent, setStartAgent] = useState(true);
     const [error, setError] = useState<string>();
     const [busy, setBusy] = useState(false);
+    /** True while `suggestBranch` runs. */
+    const [suggesting, setSuggesting] = useState(!!suggestBranch);
+    const [suggestNote, setSuggestNote] = useState<string>();
+    /** True after the user types in the branch field. Then a late suggestion does not replace the text. */
+    const typedBranch = useRef(false);
+
+    // biome-ignore lint/correctness/useExhaustiveDependencies: the suggestion runs one time, when the dialog opens.
+    useEffect(() => {
+        if (!suggestBranch) return;
+        let current = true;
+        suggestBranch().then(
+            result => {
+                if (!current) return;
+                setSuggesting(false);
+                setSuggestNote(result.note);
+                if (typedBranch.current || !result.branch) return;
+                setBranch(result.branch);
+                setBranchEdited(true);
+            },
+            err => {
+                if (!current) return;
+                setSuggesting(false);
+                setSuggestNote(`ShipWarden did not make a branch name. ${errorText(err)}`);
+            }
+        );
+        return () => {
+            current = false;
+        };
+    }, []);
 
     useEffect(() => {
         let current = true;
@@ -156,7 +192,7 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
             >
                 <header className="modal-header">
                     <FolderGit2 size={15} strokeWidth={1.8} />
-                    <h2>New worktree in {repoName}</h2>
+                    <h2>{title ?? `New worktree in ${repoName}`}</h2>
                     <span className="header-spacer" />
                     <button className="icon-button" title="Close (Esc)" disabled={busy} onClick={onClose}>
                         <X size={15} strokeWidth={1.8} />
@@ -233,13 +269,21 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                                 className="settings-input mono"
                                 autoFocus
                                 value={branch}
-                                placeholder="login-page-rework"
+                                placeholder={suggesting ? 'Making the branch name…' : 'login-page-rework'}
                                 spellCheck={false}
                                 onChange={event => {
+                                    typedBranch.current = true;
                                     setBranch(event.target.value);
                                     setBranchEdited(event.target.value.trim() !== '');
                                 }}
                             />
+                            {suggesting && (
+                                <span className="panel-note">
+                                    <LoaderCircle size={11} className="spin" /> Making the branch name. When an agent writes a part of it, this takes a few
+                                    seconds.
+                                </span>
+                            )}
+                            {suggestNote && <span className="panel-note">{suggestNote}</span>}
                             {exists && <span className="panel-note">This branch exists. The worktree checks it out.</span>}
                         </label>
                     )}
