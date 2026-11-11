@@ -101,6 +101,20 @@ Environment variables:
 | `SHIPWARDEN_REPO=/path/to/repo` | Adds this repository to the active project at start. |
 | `SHIPWARDEN_WORKTREES_DIR=/path` | Puts new worktrees here. The default is `~/.shipwarden/worktrees`. |
 | `SHIPWARDEN_DEBUG_PORT=9333` | Opens the Chrome DevTools Protocol on this port, for automated UI checks. |
+| `SHIPWARDEN_USER_DATA_DIR=/tmp/sw-fresh` | Uses this folder for the app data, to test a first start. See below. |
+
+#### Test a first start
+
+Do not delete `~/Library/Application Support/ShipWarden` to test a first start. Start the app with a separate data folder:
+
+```sh
+SHIPWARDEN_USER_DATA_DIR=/tmp/sw-fresh npm run dev
+```
+
+- The app does not copy the old Yardmaster data into this folder, and it does not connect to the PTY host of the old name.
+- The PTY host socket is in the data folder, so the app starts a second PTY host. Quit it with ⇧⌥⌘Q after the test.
+- The worktrees, notes, plugins and automations in `~/.shipwarden` are still your real folders.
+- Delete the folder to start again from the first start.
 
 ### Repo layout
 

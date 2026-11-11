@@ -1,9 +1,10 @@
 import { ipcMain } from 'electron';
 import { IpcChannels } from '@shared/api';
 import { networkErrorDetail } from '@shared/network';
-import { commandProgram, type AppSettings, type CommandCheck } from '@shared/settings';
+import type { AppSettings } from '@shared/settings';
+import { isSetupCheckId } from '@shared/setup-checks';
+import { checkCommand } from '../command-check';
 import { loginShellCaFile } from '../shell-env';
-import { which } from '../lsp/servers';
 import type { Services } from '../services';
 import { changed } from './args';
 import { showOpenDialog } from './dialogs';
@@ -17,22 +18,12 @@ export const NETWORK_TEST_HOSTS = [
 
 type SettingsIpcDependencies = Pick<
     Services,
-    'settings' | 'certificates' | 'tasks' | 'remote' | 'window' | 'shellReady' | 'networkReady' | 'updates' | 'usage'
+    'settings' | 'certificates' | 'tasks' | 'remote' | 'window' | 'shellReady' | 'networkReady' | 'updates' | 'usage' | 'setupChecks'
 >;
 
-/** Registers the IPC handlers of the settings, the network certificates, the updates and the plan usage. */
+/** Registers the IPC handlers of the settings, the setup checks, the network certificates, the updates and the plan usage. */
 export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
-    const { settings, certificates, tasks, remote, window, updates, usage } = deps;
-
-    /** Finds the program of a command in the login shell PATH. A path with a slash must be an executable file. */
-    async function checkCommand(command: string): Promise<CommandCheck> {
-        await deps.shellReady;
-        const program = commandProgram(command);
-        if (!program) {
-            return { program };
-        }
-        return { program, path: await which(program) };
-    }
+    const { settings, certificates, tasks, remote, window, updates, usage, setupChecks } = deps;
 
     ipcMain.handle(IpcChannels.settingsGet, () => settings.get());
     ipcMain.handle(IpcChannels.settingsUpdate, async (_event, change: Partial<AppSettings>) => {
@@ -49,7 +40,13 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
         }
         return next;
     });
-    ipcMain.handle(IpcChannels.settingsCheckCommand, (_event, command: string) => checkCommand(String(command)));
+    ipcMain.handle(IpcChannels.settingsCheckCommand, (_event, command: string) => checkCommand(String(command), deps.shellReady));
+    // Without an ID, all checks run. With an ID, only that check runs.
+    ipcMain.handle(IpcChannels.setupCheck, async (_event, id?: unknown) => {
+        if (id === undefined || id === null) return setupChecks.runAll();
+        if (!isSetupCheckId(id)) throw new Error(`The setup check "${String(id)}" does not exist.`);
+        return [await setupChecks.run(id)];
+    });
 
     ipcMain.handle(IpcChannels.networkStatus, async () => {
         await deps.networkReady;

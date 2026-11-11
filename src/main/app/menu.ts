@@ -1,5 +1,9 @@
 import type { MenuItemConstructorOptions } from 'electron';
+import type { HelpAction } from '@shared/onboarding';
 import type { ShortcutAction } from '@shared/shortcuts';
+
+/** The GitHub page of ShipWarden. Its README explains the app. */
+export const PROJECT_URL = 'https://github.com/austinChappell/shipwarden';
 
 /** The actions of the menu items. */
 export interface MenuActions {
@@ -8,11 +12,15 @@ export interface MenuActions {
     checkForUpdates(): void;
     quitAndStopSessions(): void;
     sendShortcut(action: ShortcutAction): void;
+    /** Sends an item of the Help menu to the page. */
+    help(action: HelpAction): void;
+    /** Opens a web page in the default browser. */
+    openUrl(url: string): void;
 }
 
 /**
  * The macOS menu. It is the standard menu, with "Check for Updates" after "About" and "Quit and Stop All Agents" after
- * "Quit".
+ * "Quit". The Help menu opens the welcome page, the tour, the keyboard shortcuts and the GitHub page of ShipWarden.
  */
 export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[] {
     const sendShortcut = (action: ShortcutAction) => () => actions.sendShortcut(action);
@@ -106,6 +114,17 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
                 }
             ]
         },
-        { role: 'windowMenu' }
+        { role: 'windowMenu' },
+        {
+            // The "help" role gives the menu the search field of macOS.
+            role: 'help',
+            submenu: [
+                { label: 'Show Welcome', click: () => actions.help('welcome') },
+                { label: 'Take the Tour', click: () => actions.help('tour') },
+                { label: 'Keyboard Shortcuts', click: () => actions.help('shortcuts') },
+                { type: 'separator' },
+                { label: 'ShipWarden on GitHub', click: () => actions.openUrl(PROJECT_URL) }
+            ]
+        }
     ];
 }

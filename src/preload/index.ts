@@ -8,6 +8,7 @@ import type { AgentProgram } from '@shared/agent-programs';
 import type { UpdateState } from '@shared/updates';
 import type { ProviderUsage } from '@shared/usage';
 import type { BrowserState } from '@shared/browser';
+import type { HelpAction } from '@shared/onboarding';
 
 function subscribe<Args extends unknown[]>(channel: string, listener: (...args: Args) => void): () => void {
     const handler = (_event: IpcRendererEvent, ...args: unknown[]) => listener(...(args as Args));
@@ -23,7 +24,8 @@ const api: ShipWardenApi = {
         onShortcut: listener => subscribe<[ShortcutAction]>(IpcChannels.appShortcut, listener),
         onConfirmRequest: listener => subscribe<[number, ConfirmRequest]>(IpcChannels.appConfirmRequest, listener),
         answerConfirm: (id, confirmed) => ipcRenderer.send(IpcChannels.appConfirmAnswer, id, confirmed),
-        runKey: action => ipcRenderer.send(IpcChannels.appRunKey, action)
+        runKey: action => ipcRenderer.send(IpcChannels.appRunKey, action),
+        onHelp: listener => subscribe<[HelpAction]>(IpcChannels.appHelp, listener)
     },
     git: {
         changes: worktree => ipcRenderer.invoke(IpcChannels.gitChanges, worktree),
@@ -64,6 +66,9 @@ const api: ShipWardenApi = {
         get: () => ipcRenderer.invoke(IpcChannels.settingsGet),
         update: change => ipcRenderer.invoke(IpcChannels.settingsUpdate, change),
         checkCommand: command => ipcRenderer.invoke(IpcChannels.settingsCheckCommand, command)
+    },
+    setup: {
+        check: id => ipcRenderer.invoke(IpcChannels.setupCheck, id)
     },
     projects: {
         get: () => ipcRenderer.invoke(IpcChannels.projectsGet),

@@ -17,6 +17,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-09 | The Review view gets go to definition and a file explorer from a hidden, detached git worktree at the PR head. | A language server needs the files on disk. The GitHub API gives files, but no server can run on them. The worktree uses the existing LspManager, FileExplorer and Monaco. |
 | 2026-11-09 | A background helper (a launch agent) can run the phone server while the app is closed. The setting is off by default. | The agents already run in the PTY host. Only the phone server needed the app. The helper is a second entry of the same build, so it needs no other install. |
 | 2026-11-09 | "Apply suggestion" changes the file in the local worktree. It does not commit with the GitHub API. | An agent works on the branch in the worktree. A commit on GitHub makes the local branch fall behind, and the next push fails. The user can check, test and commit the change with other changes. |
+| 2026-11-10 | The onboarding state is in `settings.json`, and the setup checks reuse the PATH check and the GitHub token order. | All windows see the same state, and a cache clear does not show the welcome page again. One PATH check and one token lookup cannot disagree. See `docs/onboarding-plan.md`. |
 | 2026-11-10 | Automations run in the page, while the app is open. Each automation is one JSON file in ~/.shipwarden/automations. | The page owns the agent tabs, the branch summaries and the Dashboard data, so it sees the events and can start agents. One file for each rule makes export, import and hand edits simple. An export has no paths of the Mac. |
 
 ## The old name (Yardmaster)
@@ -366,6 +367,31 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   checks of a worktree pull request went from waiting to a result, between two loads of the PR summaries), and new
   Dashboard items (`dashboardStore.onNews`: items that no earlier refresh had, without hidden authors and seen
   comments; one notification for each refresh, and none for the first refresh of a project).
+
+### Onboarding
+
+The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu.
+
+- **State.** `settings.onboarding` (`src/shared/onboarding.ts`): `welcome` ('new', 'done' or 'skipped'), `tourSeen`
+  (a tour version), `checklist` (the steps that are done) and `checklistClosed`. `normalizeOnboarding` keeps a missing
+  state missing. A wrong `welcome` value becomes 'done', so bad data never shows the welcome page to a current user.
+- **First state.** After the projects load, `ensureOnboarding` (`src/main/onboarding.ts`) sets the state one time. A user
+  with a repository in any project gets 'done'. A user without a repository gets 'new'.
+- **Setup checks.** `SetupChecks` (`src/main/setup-checks.ts`) runs the checks only on request (`setup:check`). The pure
+  functions in `src/shared/setup-checks.ts` map each raw result to a state (`ok`, `missing`, `warning`, `unknown`), a
+  message and a list of fixes. The checks:
+  - git and the default agent: `checkCommand` (`src/main/command-check.ts`), the same PATH check as Settings › Agents.
+    An agent that is not in the PATH gives a warning, because a shell alias can start it.
+  - GitHub: `ReviewProviders.githubTokenSource`. It uses the token order of `GitHubClient` (saved token, then
+    `GITHUB_TOKEN`, then `gh auth token`) and does not call the GitHub API. A new user has no GitHub provider, so the
+    check uses a client without a saved token. No token gives a warning, because agents work without GitHub.
+  - Repository: the number of repositories in the active project.
+  - Notifications: `settings.notifications.enabled`. Electron cannot read the macOS permission.
+  A check that fails gives 'unknown' and does not stop the other checks.
+- **Help menu.** Show Welcome, Take the Tour and Keyboard Shortcuts send `app:help` to the page. ShipWarden on GitHub
+  opens the README page.
+- **Test data folder.** `SHIPWARDEN_USER_DATA_DIR` calls `app.setPath('userData', …)` before the app reads data. The app
+  then does not run the legacy migration and does not connect to the PTY hosts of the old name.
 
 ### Pipelines
 

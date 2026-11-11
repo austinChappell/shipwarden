@@ -45,6 +45,8 @@ import { helperPlist, LaunchAgent } from './helper/launch-agent';
 import { HELPER_LABEL, helperSocketPath } from './helper/protocol';
 import { RemoteControl } from './helper/remote-control';
 import { BrowserViews } from './browser/browser-views';
+import { checkCommand } from './command-check';
+import { SetupChecks } from './setup-checks';
 
 /** The parts of the app that the services need. */
 export interface ServiceOptions {
@@ -53,6 +55,11 @@ export interface ServiceOptions {
     mainFolder: string;
     /** Handles a key of a browser view. Returns true when the app used the key. */
     onBrowserInput(id: string, input: Electron.Input): boolean;
+    /**
+     * True when `SHIPWARDEN_USER_DATA_DIR` selects a separate app data folder. The app then does not connect to the PTY
+     * hosts of the old app name, so a test of a first start does not show the real terminals.
+     */
+    separateDataFolder?: boolean;
 }
 
 /** The services of the main process. `createServices` makes them. */
@@ -62,7 +69,7 @@ export type Services = ReturnType<typeof createServices>;
  * Makes the services of the main process and connects them. Call it one time, before the app is ready.
  * Some services call other services in callbacks. The callbacks run after this function returns.
  */
-export function createServices({ window, mainFolder, onBrowserInput }: ServiceOptions) {
+export function createServices({ window, mainFolder, onBrowserInput, separateDataFolder = false }: ServiceOptions) {
     const userData = app.getPath('userData');
     const worktrees = new GitWorktreeService();
     const projects = new ProjectStore(join(userData, 'projects.json'), join(userData, 'state.json'));
@@ -148,7 +155,10 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
     const terminals = new PtyHostClient({
         // Each build has its own host. A host of an older build keeps its sessions, and new sessions use this build.
         socketPath: buildSocketPath(ptyHostSocketFolder(userData), hostBuildId(ptyHostScript)),
-        olderSocketPaths: [ptyHostSocketPath(userData), ...LEGACY_NAMES.map(name => ptyHostSocketPath(join(app.getPath('appData'), name)))],
+        olderSocketPaths: [
+            ptyHostSocketPath(userData),
+            ...(separateDataFolder ? [] : LEGACY_NAMES.map(name => ptyHostSocketPath(join(app.getPath('appData'), name))))
+        ],
         hostScript: ptyHostScript,
         logPath: join(userData, 'pty-host.log'),
         events: {
@@ -347,6 +357,17 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
         processes.terminate(pids).catch(error => console.error('[processes] Cannot stop the processes of a terminal:', error));
     }
 
+    /** The setup checks of the welcome page and the checklist. They reuse the PATH check and the token order of the app. */
+    const setupChecks = new SetupChecks({
+        checkCommand: command => checkCommand(command, shellReady),
+        settings: () => settings.get(),
+        activeRepoCount: async () => {
+            const state = await projects.get();
+            return state.projects.find(project => project.id === state.activeId)?.repos.length ?? 0;
+        },
+        githubTokenSource: () => reviewProviders.githubTokenSource()
+    });
+
     const askRunner = new AskAgentRunner();
     const confirm = new ConfirmDialogs(() => window.get());
     const hookPaths = hookSettingsPaths(userData);
@@ -390,6 +411,7 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
         askRunner,
         confirm,
         hookPaths,
-        shellIntegration
+        shellIntegration,
+        setupChecks
     };
 }

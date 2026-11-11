@@ -12,6 +12,14 @@ import {
 } from './settings';
 
 describe('normalizeSettings', () => {
+    it('keeps the onboarding state and leaves a missing state missing', () => {
+        expect(normalizeSettings({}).onboarding).toBeUndefined();
+        expect(normalizeSettings({ onboarding: 'done' }).onboarding).toBeUndefined();
+        expect(normalizeSettings({ onboarding: { welcome: 'skipped', tourSeen: 1 } }).onboarding).toEqual({ welcome: 'skipped', tourSeen: 1 });
+        // A wrong welcome value must not show the welcome page to a current user.
+        expect(normalizeSettings({ onboarding: { welcome: 'yes' } }).onboarding).toEqual({ welcome: 'done' });
+    });
+
     it('gives a new installation the default agents', () => {
         expect(normalizeSettings(undefined)).toEqual(DEFAULT_SETTINGS);
         expect(DEFAULT_SETTINGS.agents.map(agent => agent.name)).toEqual(['Claude Code', 'Codex', 'Gemini CLI', 'opencode']);
