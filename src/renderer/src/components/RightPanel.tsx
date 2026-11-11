@@ -97,7 +97,7 @@ export function RightPanel(props: Props) {
     );
 
     return (
-        <aside className="explorer">
+        <aside className="explorer" data-tour="rightPanel">
             <div className="panel-tabs" role="tablist" aria-label="Right panel">
                 {tabButton('files', 'Files', <Files size={17} strokeWidth={1.5} />)}
                 {tabButton(

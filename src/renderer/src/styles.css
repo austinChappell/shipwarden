@@ -12459,3 +12459,99 @@ button.pr-summary-cell:hover {
 .clone-repo-dialog .settings-input {
     width: 100%;
 }
+
+/* The guided tour (Help › Take the Tour). The callout uses the theme tokens, so it works with all themes. */
+
+:root {
+    --tour-dim: rgba(0, 0, 0, 0.5);
+}
+
+:root[data-mode="light"] {
+    --tour-dim: rgba(20, 15, 10, 0.3);
+}
+
+.tour-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+}
+
+.tour-backdrop {
+    position: absolute;
+    inset: 0;
+    background: var(--tour-dim);
+}
+
+/* The highlight of the target. Its shadow dims the rest of the window. */
+.tour-spotlight {
+    position: absolute;
+    border: 2px solid var(--accent);
+    border-radius: 8px;
+    box-shadow: 0 0 0 9999px var(--tour-dim);
+    pointer-events: none;
+    transition:
+        top 0.18s ease,
+        left 0.18s ease,
+        width 0.18s ease,
+        height 0.18s ease;
+}
+
+.tour-callout {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(340px, calc(100vw - 24px));
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 16px 40px var(--shadow);
+    font-size: 12.5px;
+}
+
+.tour-callout-header,
+.tour-callout-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tour-callout-header {
+    color: var(--accent);
+}
+
+.tour-progress {
+    color: var(--muted);
+    font-size: 11.5px;
+}
+
+.tour-callout h2 {
+    margin: 0 0 4px;
+    color: var(--text-strong);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.tour-callout p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.tour-keys {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tour-spotlight {
+        transition: none;
+    }
+}
+
+/* The tour offer sits below the title bar, so it does not cover the update notice at the bottom. */
+.update-notice.tour-offer {
+    top: calc(var(--titlebar-height) + 12px);
+    bottom: auto;
+}

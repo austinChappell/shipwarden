@@ -1,6 +1,6 @@
 # Plan: onboarding and tutorial
 
-Status: phases 1 and 2 done. Branch: `onboarding`, then one branch for each phase (`onboarding-2`, …).
+Status: phases 1 to 3 done. Branch: `onboarding`, then one branch for each phase (`onboarding-2`, …).
 
 This document is the brief for the onboarding work. Give it to Claude at the start of each session:
 

@@ -370,7 +370,7 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 
 ### Onboarding
 
-The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu. Phase 2 adds the welcome page.
+The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup checks and the Help menu. Phase 2 adds the welcome page. Phase 3 adds the guided tour.
 
 - **State.** `settings.onboarding` (`src/shared/onboarding.ts`): `welcome` ('new', 'done' or 'skipped'), `tourSeen`
   (a tour version), `checklist` (the steps that are done) and `checklistClosed`. `normalizeOnboarding` keeps a missing
@@ -400,6 +400,19 @@ The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup chec
     on focus. A fix updates one entry: the repository and notification results come from the page state, a new default
     agent checks the agent again, and a fix that leaves the page (Settings or a web page) checks its check again when
     the page shows again. "Check again" in the tools group runs all checks.
+- **Guided tour.** `Tour` (`components/Tour.tsx`) and the pure step model `src/shared/tour.ts` (steps, keys, callout
+  place, `shouldOfferTour`). There is no tour library.
+  - Each step points at an element with `data-tour="<target>"`, never at a CSS class. The step first opens what it
+    needs (`needs`: the sidebar, the worktree view or the right panel). At the end, the tour puts the panels and the
+    view back.
+  - `calloutPosition` tries the right side, the left side, below and above. When the target is not on the screen or
+    the callout does not fit, the callout goes to the center. A spotlight with a large shadow dims the rest.
+  - Keys: → and Enter go forward, ← goes back, Escape closes. `useModal` keeps the focus in the callout and gives it
+    back at the end. The focus moves to the Next button after the callout has its place, because a hidden element
+    cannot take the focus.
+  - Finished or closed, the tour saves `onboarding.tourSeen = TOUR_VERSION`. `TourOffer` asks one time ("Take a
+    short tour of ShipWarden?") when the welcome page is done or skipped and `tourSeen` is lower than
+    `TOUR_VERSION`. So current users get the offer, and new users get it after the welcome page.
 - **Help menu.** Show Welcome, Take the Tour and Keyboard Shortcuts send `app:help` to the page. ShipWarden on GitHub
   opens the README page.
 - **Test data folder.** `SHIPWARDEN_USER_DATA_DIR` calls `app.setPath('userData', …)` before the app reads data. The app
