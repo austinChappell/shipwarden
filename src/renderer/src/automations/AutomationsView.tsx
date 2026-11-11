@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowUpRight, Check, ChevronDown, FolderOpen, MoreHorizontal, Pencil, Plus, Upload, X, Zap } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronDown, FolderOpen, MoreHorizontal, Pencil, Play, Plus, Upload, X, Zap } from 'lucide-react';
 import {
     AUTOMATION_TEMPLATES,
     automationFromTemplate,
@@ -33,7 +33,8 @@ import { errorText, timeAgo } from '../util';
 import { AutomationEditor, STATUS_OPTIONS } from './AutomationEditor';
 import { LimitField } from './LimitField';
 import { patchRunState, removeAutomation, saveAutomation, useAutomationList, useAutomationRuns } from './automation-queries';
-import { automationEngine } from './engine';
+import { automationEngine, describeActions } from './engine';
+import { pickManualRun } from './manual-run';
 import { InlineTip } from '../components/Tips';
 
 const api = window.shipwarden.automations;
@@ -202,6 +203,27 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
             await saveAutomation({ ...automation, status }, automation.id);
         });
 
+    const runNow = (automation: Automation, anchor: Element) =>
+        act(async () => {
+            const problems = bindingProblems(automation, repos);
+            if (problems.length > 0) throw new Error(`"${automation.name}": ${problems.join(' ')} Edit the automation first.`);
+            const picked = await pickManualRun(automation, repos, repoLabel, anchor);
+            if (!picked) return;
+            const dryRun = automation.status === 'dry-run';
+            const ok = await confirmDialog({
+                title: `Run "${automation.name}" now?`,
+                message: [
+                    `Target: ${picked.event.label}.`,
+                    dryRun ? 'The automation is a dry run. It records what it would do, and does nothing.' : `It will: ${describeActions(automation.actions)}.`,
+                    'A manual run does not ask for approval, and the limits do not stop it.'
+                ].join('\n\n'),
+                confirmLabel: 'Run'
+            });
+            if (!ok) return;
+            await automationEngine.runNow(automation.id, picked.event, picked.place);
+            setNotice(`Started "${automation.name}". The history shows the result.`);
+        });
+
     const saveAutomationSettings = (change: Partial<AutomationSettings>) => act(() => onSaveSettings({ automations: { ...automationSettings, ...change } }));
 
     const pending = state.runs.filter(run => run.status === 'pending');
@@ -368,6 +390,15 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                                     </button>
                                                 ))}
                                             </div>
+                                            <button
+                                                type="button"
+                                                className="icon-button"
+                                                title="Run now"
+                                                aria-label={`Run "${automation.name}" now`}
+                                                onClick={event => void runNow(automation, event.currentTarget)}
+                                            >
+                                                <Play size={14} />
+                                            </button>
                                             <button
                                                 type="button"
                                                 className="icon-button"

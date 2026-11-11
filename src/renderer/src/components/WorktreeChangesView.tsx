@@ -10,6 +10,7 @@ import { errorText } from '../util';
 import { confirmDiscard } from './ChangesPanel';
 import { FindBar, findLineElement, readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './PullRequestFilesStream';
 import { radioGroupKeys } from './keyboard';
+import { isFindShortcut, openLogFind } from './log-find';
 
 interface Props {
     worktree: string;
@@ -159,11 +160,11 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
         };
     }, [worktree]);
 
-    // ⌘F opens the search bar when this tab has the focus. The capture phase gets the key before the diff can stop it.
+    // ⌘F opens the search bar when this tab has the focus and no CI log owns ⌘F. The capture phase gets the key before the diff can stop it.
     useEffect(() => {
         if (!focused) return;
         const onKey = (event: KeyboardEvent) => {
-            if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+            if (isFindShortcut(event) && !openLogFind(event)) {
                 event.preventDefault();
                 event.stopPropagation();
                 setFindOpen(true);

@@ -5,13 +5,16 @@ import {
     closedPullRequests,
     commentEvents,
     conflictEvents,
+    manualScheduleEvent,
+    manualTaskEvent,
+    manualWorktreeEvent,
     mergedEvent,
     pullRequestResolver,
     taskEvent,
     worktreeOnBranch,
     type WorktreePlace
 } from './automation-events';
-import { branchName } from './automations';
+import { branchName, manualTarget } from './automations';
 import type { MyPullRequestItem, PullRequestCommentItem } from './dashboard';
 import type { BranchSummary } from './github';
 
@@ -144,6 +147,59 @@ describe('taskEvent', () => {
             pluginId: 'clickup',
             repoPath: '/repo'
         });
+    });
+});
+
+describe('manual events', () => {
+    const task = { id: 't1', key: 'ENG-1', title: 'Fix', status: { id: 's', name: 'To do', category: 'todo' as const } };
+
+    it('makes a worktree event with the pull request of the branch', () => {
+        const event = manualWorktreeEvent('fix-ci', 'ci.failed', places[1], summary(), 5);
+        expect(event).toMatchObject({
+            trigger: 'ci.failed',
+            key: 'manual:fix-ci:5',
+            target: 'manual:/wt/feature',
+            label: '#7 Add login',
+            repoPath: '/repo',
+            worktreePath: '/wt/feature',
+            branch: 'feature',
+            hasPullRequest: true,
+            manual: true,
+            pr: { number: 7, headSha: 'abc' }
+        });
+    });
+
+    it('makes a worktree event without a pull request', () => {
+        const event = manualWorktreeEvent('done', 'agent.done', places[1], undefined, 5);
+        expect(event).toMatchObject({ label: 'feature', hasPullRequest: false, manual: true });
+        expect(event.pr).toBeUndefined();
+    });
+
+    it('gives each manual run a new key, and does not use the target of the automatic limit', () => {
+        const event = manualTaskEvent('tasks', task, 'c1', 'clickup', '/repo', 9);
+        expect(event).toMatchObject({ key: 'manual:tasks:9', target: 'manual:task:c1:t1', label: 'ENG-1 Fix', task, manual: true });
+        expect(manualTaskEvent('tasks', task, 'c1', 'clickup', '/repo', 10).key).not.toBe(event.key);
+    });
+
+    it('makes a schedule event for the time now', () => {
+        const at = new Date(2026, 10, 10, 8, 5).getTime();
+        expect(manualScheduleEvent('daily', '/repo', at)).toMatchObject({
+            trigger: 'schedule',
+            key: `manual:daily:${at}`,
+            label: '2026-11-10 08:05',
+            time: '08:05',
+            repoPath: '/repo',
+            worktreePath: '/repo',
+            manual: true
+        });
+        expect(manualScheduleEvent('daily', undefined, at).repoPath).toBeUndefined();
+    });
+
+    it('selects the target by the trigger', () => {
+        expect(manualTarget('pr.comment')).toBe('worktree');
+        expect(manualTarget('agent.done')).toBe('worktree');
+        expect(manualTarget('task.new')).toBe('task');
+        expect(manualTarget('schedule')).toBe('none');
     });
 });
 

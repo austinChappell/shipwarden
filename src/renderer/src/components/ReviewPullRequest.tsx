@@ -23,6 +23,7 @@ import { lspBridge } from '../lsp/bridge';
 import { documents } from '../editor/documents';
 import { moveTabFocus } from '../tablist';
 import { PullRepoDialog } from './PullRepoDialog';
+import { isFindShortcut, openLogFind } from './log-find';
 
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
 
@@ -275,11 +276,11 @@ export function ReviewPullRequest({
         }
     };
 
-    // ⌘F searches the changed files. The capture phase gets the key before a comment box can stop it.
+    // ⌘F searches the changed files when no CI log owns ⌘F. The capture phase gets the key before a comment box can stop it.
     // biome-ignore lint/correctness/useExhaustiveDependencies: The listener attaches one time. selectTab uses only state setters and a ref, so the first copy is correct.
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
-            if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+            if (isFindShortcut(event) && !openLogFind(event)) {
                 event.preventDefault();
                 selectTab('files');
                 setFindRequest(Date.now());
