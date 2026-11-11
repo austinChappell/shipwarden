@@ -49,7 +49,7 @@ import type { GraphLog, GraphScope } from './git-graph';
 import type { BranchList, CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings } from './worktree-settings';
 import type { BrowserBounds, BrowserState } from './browser';
-import type { Automation, AutomationList, AutomationRun, AutomationRunState } from './automations';
+import type { Automation, AutomationList, AutomationRun, AutomationRunState, TokenCount } from './automations';
 
 /** Where a click on a notification goes. */
 export type NotificationTarget = { view: 'worktree'; worktreePath: string; sessionId?: string } | { view: 'dashboard' } | { view: 'automations' };
@@ -345,13 +345,13 @@ export interface ShipWardenApi {
         claim(run: AutomationRun): Promise<AutomationRun | null>;
         updateRun(
             id: string,
-            change: Partial<Pick<AutomationRun, 'status' | 'detail' | 'worktreePath' | 'sessionId' | 'noteName' | 'tokens' | 'turn'>>
+            change: Partial<Pick<AutomationRun, 'status' | 'detail' | 'worktreePath' | 'sessionId' | 'noteName' | 'tokens' | 'cacheReads' | 'turn'>>
         ): Promise<AutomationRun | undefined>;
         /**
          * Counts the tokens of the responses of a Claude Code transcript from `from` to `to` (milliseconds). Input, cache
          * writes and output count. Cache reads do not count.
          */
-        countTokens(transcript: string, from: number, to?: number): Promise<number>;
+        countTokens(transcript: string, from: number, to?: number): Promise<TokenCount>;
         /** Records event keys as fired without runs, for the first task list of an automation. */
         seed(automationId: string, keys: string[]): Promise<void>;
         setScheduleRun(automationId: string, at: number): Promise<void>;

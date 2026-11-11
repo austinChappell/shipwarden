@@ -1,12 +1,13 @@
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { countedTokens } from '@shared/automations';
+import { cacheReadTokens, countedTokens, type TokenCount } from '@shared/automations';
 
 /** One response of the model in a transcript. */
 interface Response {
     at: number;
     tokens: number;
+    cacheReads: number;
 }
 
 /** The parsed part of one transcript file. */
@@ -33,7 +34,7 @@ export function addResponses(responses: Map<string, Response>, lines: readonly s
         if (entry.type !== 'assistant' || !message || typeof message.id !== 'string') continue;
         const at = Date.parse(String(entry.timestamp ?? ''));
         if (!Number.isFinite(at)) continue;
-        responses.set(message.id, { at, tokens: countedTokens(message.usage) });
+        responses.set(message.id, { at, tokens: countedTokens(message.usage), cacheReads: cacheReadTokens(message.usage) });
     }
 }
 
@@ -47,19 +48,22 @@ export class TokenCounter {
     constructor(private readonly allowedRoots: readonly string[] = defaultRoots()) {}
 
     /**
-     * Returns the tokens of the responses in the time from `from` to `to` (milliseconds, `to` is open). The count adds
-     * the transcripts of the subagents of the session (`<session>/subagents/*.jsonl`).
+     * Returns the tokens and the cache reads of the responses in the time from `from` to `to` (milliseconds, `to` is
+     * open). The count adds the transcripts of the subagents of the session (`<session>/subagents/*.jsonl`).
      */
-    async count(file: string, from: number, to?: number): Promise<number> {
+    async count(file: string, from: number, to?: number): Promise<TokenCount> {
         const resolved = path.resolve(file);
         if (!resolved.endsWith('.jsonl') || !this.allowedRoots.some(root => resolved.startsWith(`${root}${path.sep}`))) {
             throw new Error('The transcript is not in the Claude Code data folder.');
         }
         const files = [resolved, ...(await subagentFiles(resolved))];
-        let total = 0;
+        const total: TokenCount = { tokens: 0, cacheReads: 0 };
         for (const item of files) {
             for (const response of (await this.read(item)).responses.values()) {
-                if (response.at >= from && (to === undefined || response.at < to)) total += response.tokens;
+                if (response.at >= from && (to === undefined || response.at < to)) {
+                    total.tokens += response.tokens;
+                    total.cacheReads += response.cacheReads;
+                }
             }
         }
         return total;

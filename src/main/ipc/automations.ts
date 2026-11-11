@@ -82,7 +82,10 @@ export function runChangeOf(value: unknown): RunChange {
     for (const key of ['detail', 'worktreePath', 'sessionId', 'noteName'] as const) {
         if (typeof raw[key] === 'string') change[key] = raw[key];
     }
-    if (typeof raw.tokens === 'number' && Number.isFinite(raw.tokens) && raw.tokens >= 0) change.tokens = Math.round(raw.tokens);
+    for (const key of ['tokens', 'cacheReads'] as const) {
+        const value = raw[key];
+        if (typeof value === 'number' && Number.isFinite(value) && value >= 0) change[key] = Math.round(value);
+    }
     const turn = raw.turn && typeof raw.turn === 'object' ? (raw.turn as Record<string, unknown>) : undefined;
     if (turn && typeof turn.sessionId === 'string' && typeof turn.from === 'number') {
         change.turn = {

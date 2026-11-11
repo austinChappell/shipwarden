@@ -883,6 +883,8 @@ export interface AutomationRun {
     noteName?: string;
     /** The tokens that the run used. Only Claude Code reports them. See `countedTokens`. */
     tokens?: number;
+    /** The tokens that the run read from the prompt cache. The history shows them. The limits do not count them. */
+    cacheReads?: number;
     /**
      * The agent turn that the run started: from the prompt to the end of the turn. The engine counts the tokens of this
      * time in the transcript of the session. `counted` is true after the last count, when the turn ended.
@@ -1042,6 +1044,18 @@ export function countedTokens(usage: unknown): number {
     const value = usage as Record<string, unknown>;
     const number = (key: string) => (typeof value[key] === 'number' && Number.isFinite(value[key]) ? (value[key] as number) : 0);
     return number('input_tokens') + number('cache_creation_input_tokens') + number('output_tokens');
+}
+
+/** Returns the cache reads of one usage object of Claude Code. They do not count for a limit. */
+export function cacheReadTokens(usage: unknown): number {
+    const value = usage && typeof usage === 'object' ? (usage as Record<string, unknown>).cache_read_input_tokens : undefined;
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/** The tokens of a part of a transcript: the tokens that count for a limit, and the cache reads. */
+export interface TokenCount {
+    tokens: number;
+    cacheReads: number;
 }
 
 /** Returns the start of the local day of the time, in milliseconds. */

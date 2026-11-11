@@ -588,8 +588,10 @@ export class AutomationEngine {
             return;
         }
         try {
-            const tokens = await api.automations.countTokens(transcript, turn.from, turn.to);
-            if (tokens !== run.tokens || done) await this.update(run.id, { tokens, ...(done ? { turn: { ...turn, counted: true } } : {}) });
+            const { tokens, cacheReads } = await api.automations.countTokens(transcript, turn.from, turn.to);
+            if (tokens !== run.tokens || cacheReads !== run.cacheReads || done) {
+                await this.update(run.id, { tokens, cacheReads, ...(done ? { turn: { ...turn, counted: true } } : {}) });
+            }
         } catch (error) {
             console.warn(`[automations] The tokens of a run were not counted: ${errorText(error)}`);
             if (done) await this.update(run.id, { turn: { ...turn, counted: true } });
@@ -665,8 +667,11 @@ export class AutomationEngine {
                     withTokens: true
                 });
                 if (result.tokens !== undefined) {
-                    const before = cachedRunState().runs.find(item => item.id === run.id)?.tokens ?? 0;
-                    await this.update(run.id, { tokens: before + result.tokens });
+                    const before = cachedRunState().runs.find(item => item.id === run.id);
+                    await this.update(run.id, {
+                        tokens: (before?.tokens ?? 0) + result.tokens,
+                        cacheReads: (before?.cacheReads ?? 0) + (result.cacheReads ?? 0)
+                    });
                 }
                 if (!action.saveNote) return clip(`${result.agent} answered:\n${result.answer}`);
                 const { date, time } = localDateTime(new Date());

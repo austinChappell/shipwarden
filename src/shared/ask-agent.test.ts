@@ -17,7 +17,7 @@ import {
 describe('parseClaudeJson', () => {
     it('reads the answer and the counted tokens', () => {
         const text = JSON.stringify({ type: 'result', result: 'Done.', usage: { input_tokens: 5, cache_read_input_tokens: 900, output_tokens: 7 } });
-        expect(parseClaudeJson(text)).toEqual({ answer: 'Done.', tokens: 12 });
+        expect(parseClaudeJson(text)).toEqual({ answer: 'Done.', tokens: 12, cacheReads: 900 });
         expect(parseClaudeJson('plain text')).toBeUndefined();
         expect(parseClaudeJson('{"result": 3}')).toBeUndefined();
     });

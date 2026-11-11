@@ -100,6 +100,7 @@ ShipWarden counts the tokens of each run and shows them in the history.
   Subagents count too. "Ask an agent" runs get their tokens from the JSON output of `claude -p`.
 - Input tokens, cache writes and output tokens count. Cache reads do not count, because they cost a small part of the price of
   new input (2.5% to 10%, by model) and would fill a limit fast.
+- The history shows the cache reads of each run next to its tokens, so you can see them. The limits do not count them.
 - Only Claude Code reports tokens. Runs of Codex, Gemini CLI and opencode count as 0 tokens.
 - An agent that started before this version of ShipWarden has no transcript path, so its runs count as 0 tokens.
 - "Tokens each day" in the Automations view limits all automations together. Each automation can also have its own

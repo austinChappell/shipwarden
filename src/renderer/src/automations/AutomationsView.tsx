@@ -435,6 +435,13 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                         <div className="settings-row-description">
                                             {run.event.label} · {timeAgo(new Date(run.updatedAt).toISOString())}
                                             {run.tokens !== undefined ? ` · ${formatTokens(run.tokens)} tokens` : ''}
+                                            {run.cacheReads ? (
+                                                <span title="Tokens that the agent read from the prompt cache. They cost much less than new input, and the limits do not count them.">
+                                                    {` · ${formatTokens(run.cacheReads)} cache reads`}
+                                                </span>
+                                            ) : (
+                                                ''
+                                            )}
                                         </div>
                                         {run.detail && <div className="automation-detail">{run.detail}</div>}
                                     </div>

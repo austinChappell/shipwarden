@@ -67,5 +67,5 @@ async function askAgent(deps: AskIpcDependencies, request: AskAgentRequest): Pro
     const bundle = deps.certificates.status().bundlePath;
     const answer = await deps.askRunner.run(String(request?.id ?? ''), { command, prompt, cwd, env: bundle ? { NODE_EXTRA_CA_CERTS: bundle } : {} });
     const parsed = json ? parseClaudeJson(answer) : undefined;
-    return parsed ? { agent: agent.name, answer: parsed.answer, tokens: parsed.tokens } : { agent: agent.name, answer };
+    return parsed ? { agent: agent.name, answer: parsed.answer, tokens: parsed.tokens, cacheReads: parsed.cacheReads } : { agent: agent.name, answer };
 }

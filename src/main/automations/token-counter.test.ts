@@ -37,16 +37,16 @@ describe('TokenCounter', () => {
                 'not json\n'
             ].join('')
         );
-        expect(await counter.count(file, Date.parse('2026-11-10T09:00:00Z'))).toBe(260);
-        expect(await counter.count(file, Date.parse('2026-11-10T09:00:00Z'), Date.parse('2026-11-10T10:30:00Z'))).toBe(130);
+        expect(await counter.count(file, Date.parse('2026-11-10T09:00:00Z'))).toEqual({ tokens: 260, cacheReads: 10_000 });
+        expect(await counter.count(file, Date.parse('2026-11-10T09:00:00Z'), Date.parse('2026-11-10T10:30:00Z'))).toEqual({ tokens: 130, cacheReads: 5000 });
     });
 
     it('reads only the new end of a file, also a line that was incomplete', async () => {
         const full = line('a', '2026-11-10T10:00:00Z', { output_tokens: 5 });
         await writeFile(file, full.slice(0, 20));
-        expect(await counter.count(file, 0)).toBe(0);
+        expect((await counter.count(file, 0)).tokens).toBe(0);
         await appendFile(file, full.slice(20) + line('b', '2026-11-10T10:01:00Z', { output_tokens: 7 }));
-        expect(await counter.count(file, 0)).toBe(12);
+        expect((await counter.count(file, 0)).tokens).toBe(12);
     });
 
     it('adds the transcripts of the subagents', async () => {
@@ -54,7 +54,7 @@ describe('TokenCounter', () => {
         const subagents = path.join(root, 'project', 'session', 'subagents');
         await mkdir(subagents, { recursive: true });
         await writeFile(path.join(subagents, 'agent-1.jsonl'), line('s', '2026-11-10T10:00:01Z', { input_tokens: 3 }));
-        expect(await counter.count(file, 0)).toBe(8);
+        expect((await counter.count(file, 0)).tokens).toBe(8);
     });
 
     it('refuses a file outside the Claude Code folder', async () => {
