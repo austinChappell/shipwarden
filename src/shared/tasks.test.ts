@@ -221,7 +221,10 @@ describe('start status', () => {
 
     it('moves the task when its list has the status', async () => {
         const { calls, request } = fakeRequest();
-        expect(await applyStartStatus(task, 'in progress', { update: true, statuses: true }, request)).toBe('moved');
+        const steps: string[] = [];
+        const hooks = { onMoving: (status: TaskStatus) => steps.push(`moving ${status.id}`), onMoved: (updated?: Task) => steps.push(`moved ${updated?.id}`) };
+        expect(await applyStartStatus(task, 'in progress', { update: true, statuses: true }, request, hooks)).toBe('moved');
+        expect(steps).toEqual(['moving s2', 'moved t1']);
         expect(calls).toEqual([
             ['tasks/statuses', { id: 't1' }],
             ['tasks/update', { id: 't1', status: 's2' }]

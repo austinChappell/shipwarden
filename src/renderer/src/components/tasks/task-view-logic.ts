@@ -388,3 +388,24 @@ export function noMatchText(query: string, assignee: AssigneeFilter, label: Labe
     if (text) return `No tasks${selected} match “${text}”.`;
     return `No tasks${selected} in this collection.`;
 }
+
+/** A cached task list, with the time of its last load. */
+export interface CachedTaskList {
+    tasks: readonly Task[] | undefined;
+    updatedAt: number;
+    /** True when a change marked the list as stale. */
+    invalidated: boolean;
+}
+
+/**
+ * Finds a task in the cached lists. Only a list that loaded in the last `maxAge` milliseconds counts, so the task has a
+ * current status. Returns undefined when no fresh list has the task.
+ */
+export function findFreshTask(lists: readonly CachedTaskList[], taskId: string, now: number, maxAge: number): Task | undefined {
+    for (const list of lists) {
+        if (list.invalidated || now - list.updatedAt > maxAge) continue;
+        const task = list.tasks?.find(item => item.id === taskId);
+        if (task) return task;
+    }
+    return undefined;
+}

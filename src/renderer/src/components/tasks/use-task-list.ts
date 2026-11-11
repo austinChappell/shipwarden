@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type SetStateAction } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { statusForColumn, statusKey, type StatusGroup, type StatusOrder, type Task, type TaskSource, type TaskStatus } from '@shared/tasks';
 import { errorText, optionalErrorText } from '../../util';
 import { promptDialog } from '../ConfirmDialog';
-import { patchTask, prependTask, taskQueryKeys, uniqueTasks } from './task-view-logic';
+import { patchTask, prependTask, taskQueryKeys, uniqueTasks, type CachedDetail } from './task-view-logic';
 import type { TaskRequest } from './use-task-source';
 
 const api = window.shipwarden.tasks;
@@ -35,6 +35,15 @@ export async function loadTaskList(request: TaskRequest, collection: string | un
         }
     }
     return uniqueTasks(all);
+}
+
+/**
+ * Writes a change of one task into each cached list of the connection and into the cached details of the task.
+ * The views show the change at once, and no request goes to the task manager.
+ */
+export function patchCachedTask(client: QueryClient, connectionId: string, taskId: string, patch: Partial<Task>): void {
+    client.setQueriesData<Task[]>({ queryKey: ['tasks', 'list', connectionId] }, list => patchTask(list, taskId, patch));
+    client.setQueryData<CachedDetail>(taskQueryKeys.detail(connectionId, taskId), current => current && { ...current, task: { ...current.task, ...patch } });
 }
 
 /**

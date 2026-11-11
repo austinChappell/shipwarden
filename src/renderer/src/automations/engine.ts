@@ -40,14 +40,15 @@ import {
 import type { AgentUpdate } from '@shared/agents';
 import type { BranchSummary, RepoRef } from '@shared/github';
 import type { NotificationSettings } from '@shared/notifications';
-import { linkMatchesTask, type StartStatusResult, type Task, type TaskLink, type TaskPerson, type TaskSource } from '@shared/tasks';
+import { linkMatchesTask, pickCollection, type StartStatusResult, type Task, type TaskLink, type TaskPerson, type TaskSource } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
 import type { ProviderUsage } from '@shared/usage';
 import type { Worktree } from '@shared/worktrees';
 import { checkLine } from '../app/agent-text';
 import { PEOPLE_STALE_MS } from '../components/tasks/use-assignee-filter';
 import { loadTaskList } from '../components/tasks/use-task-list';
-import { taskQueryKeys } from '../components/tasks/task-view-logic';
+import { findFreshTask, taskQueryKeys, type CachedDetail } from '../components/tasks/task-view-logic';
+import { collectionsQueryOptions } from '../components/tasks/use-task-source';
 import type { DashboardNews } from '../dashboard-store';
 import { ciKeys } from '../github/ci-queries';
 import { branchStatusKey } from '../github/use-branch-status';
@@ -602,6 +603,8 @@ export class AutomationEngine {
                 return;
             }
             if (run.status !== 'running') await this.update(run.id, { status: 'running', detail: '' });
+            // Load the task lists before the actions, so a task lookup reads the cache and the Tasks view has the same data.
+            if (looksUpTask(automation, run.event)) await this.hydrateTaskLists(context, automation, run.event);
             const values = eventVariables(run.event, await this.extraVariables(automation, run.event));
             const details: string[] = [];
             for (const action of automation.actions) {
@@ -783,6 +786,30 @@ export class AutomationEngine {
         return context.actions.startInNewWorktree(repoPath, branch, renderTemplate(action.prompt, { ...values, branch }), action.agentId, action.mode);
     }
 
+    /**
+     * Loads the task lists of the connection of the worktree task into the cache: the collections of the automation and
+     * the collection of the Tasks view. A list that loaded in the last TASK_POLL_MS does not load again.
+     * A failure does not stop the run. The task lookup then asks the task manager for the task.
+     */
+    private async hydrateTaskLists(context: EngineContext, automation: Automation, event: AutomationEvent): Promise<void> {
+        const link = event.worktreePath ? context.links[event.worktreePath] : undefined;
+        if (!link) return;
+        const connectionId = link.connectionId ?? link.pluginId;
+        try {
+            const ids = new Set(automation.binding.connectionId === connectionId ? (automation.binding.collections ?? []).map(item => item.id) : []);
+            const source = await queryClient.fetchQuery<TaskSource>({
+                queryKey: taskQueryKeys.source(connectionId),
+                queryFn: () => api.tasks.source(connectionId)
+            });
+            const collections = await queryClient.fetchQuery(collectionsQueryOptions(connectionId));
+            const shown = pickCollection(collections.list, collections.saved, source.capabilities.defaultCollectionOnly);
+            if (shown) ids.add(shown);
+            await Promise.all([...ids].map(id => loadCollectionTasks(connectionId, id)));
+        } catch (error) {
+            console.warn(`[automations] "${automation.name}" did not load the task lists: ${errorText(error)}`);
+        }
+    }
+
     /** Moves the task of the event, or the task of the worktree. A worktree without a task is not an error. */
     private async moveTask(context: EngineContext, event: AutomationEvent, status: string): Promise<string> {
         let task = event.task;
@@ -790,8 +817,9 @@ export class AutomationEngine {
         if (!task) {
             const link = event.worktreePath ? context.links[event.worktreePath] : undefined;
             if (!link) return 'The worktree has no task, so no task moved.';
-            connectionId = link.connectionId ?? link.pluginId;
-            task = (await api.tasks.request(connectionId, 'tasks/get', { id: link.taskId })) as Task;
+            const linkConnection = link.connectionId ?? link.pluginId;
+            connectionId = linkConnection;
+            task = cachedTask(linkConnection, link.taskId) ?? ((await api.tasks.request(linkConnection, 'tasks/get', { id: link.taskId })) as Task);
         }
         if (!connectionId) return 'The task has no task manager, so it did not move.';
         const name = task.key ?? task.title;
@@ -841,6 +869,29 @@ export async function loadCollectionTasks(connectionId: string, collectionId: st
         staleTime: TASK_POLL_MS
     });
     return { source, tasks };
+}
+
+/** True when an action must find a task that the event does not contain: the task of the worktree. */
+function looksUpTask(automation: Automation, event: AutomationEvent): boolean {
+    return !event.task && automation.actions.some(action => action.type === 'moveTask');
+}
+
+/**
+ * The task from the cache: from a list of the connection, or from the details of the task, if they loaded in the last
+ * TASK_POLL_MS. Undefined when the cache has no fresh copy.
+ */
+function cachedTask(connectionId: string, taskId: string): Task | undefined {
+    const cache = queryClient.getQueryCache();
+    const lists = cache.findAll({ queryKey: [...keyRoots.tasks, 'list', connectionId] }).map(query => ({
+        tasks: query.state.data as Task[] | undefined,
+        updatedAt: query.state.dataUpdatedAt,
+        invalidated: query.state.isInvalidated
+    }));
+    const detail = cache.find<CachedDetail>({ queryKey: taskQueryKeys.detail(connectionId, taskId), exact: true });
+    if (detail?.state.data) {
+        lists.push({ tasks: [detail.state.data.task], updatedAt: detail.state.dataUpdatedAt, invalidated: detail.state.isInvalidated });
+    }
+    return findFreshTask(lists, taskId, Date.now(), TASK_POLL_MS);
 }
 
 /** The start of the turn of a prompt that ShipWarden just sent. A small margin covers the clocks of the agent and the app. */

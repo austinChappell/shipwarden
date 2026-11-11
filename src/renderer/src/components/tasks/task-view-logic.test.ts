@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ConnectionInfo, StatusGroup, Task, TaskLink } from '@shared/tasks';
 import {
     acceptsDrop,
+    findFreshTask,
     collectionPlaceholder,
     taskListState,
     collectionTitle,
@@ -430,5 +431,27 @@ describe('noMatchText', () => {
         ['', somePeople, someLabels, 'No tasks with the selected assignees and labels in this collection.']
     ])('tells which filters hide the tasks for %j', (query, assignee, label, expected) => {
         expect(noMatchText(query, assignee, label)).toBe(expected);
+    });
+});
+
+describe('findFreshTask', () => {
+    const now = 1_000_000;
+    const maxAge = 60_000;
+
+    it('finds the task in a fresh list', () => {
+        const lists = [{ tasks: [task('a'), task('b', 'done')], updatedAt: now - 1000, invalidated: false }];
+        expect(findFreshTask(lists, 'b', now, maxAge)?.status.name).toBe('done');
+    });
+
+    it('ignores a list that is too old or marked as stale', () => {
+        const lists = [
+            { tasks: [task('a')], updatedAt: now - maxAge - 1, invalidated: false },
+            { tasks: [task('a')], updatedAt: now, invalidated: true }
+        ];
+        expect(findFreshTask(lists, 'a', now, maxAge)).toBeUndefined();
+    });
+
+    it('returns undefined when no list has the task', () => {
+        expect(findFreshTask([{ tasks: undefined, updatedAt: now, invalidated: false }], 'a', now, maxAge)).toBeUndefined();
     });
 });
