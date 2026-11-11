@@ -6,8 +6,11 @@ import {
     type HiddenWorktree,
     type RemoveWorktreeResult,
     type SnoozeOption,
-    type Worktree
+    type Worktree,
+    worktreeLabel
 } from '@shared/worktrees';
+import type { Project } from '@shared/projects';
+import type { TaskLink } from '@shared/tasks';
 import type { ContextMenuItem } from '../components/ContextMenu';
 
 /** Returns the message of an error, without the prefix that Electron adds to an IPC error. */
@@ -83,7 +86,14 @@ export function worktreeMenuItems(
 ): ContextMenuItem[] {
     const snoozeOptions = Object.keys(SNOOZE_LABELS) as SnoozeOption[];
     return [
-        ...(hasTask ? [{ id: 'task', label: `Open Task${taskKey ? ` ${taskKey}` : ''}` }, { type: 'separator' as const }] : []),
+        ...(hasTask
+            ? [
+                  { id: 'task', label: `Open Task${taskKey ? ` ${taskKey}` : ''}` },
+                  { id: 'linkTask', label: 'Change Linked Task…' },
+                  { id: 'unlinkTask', label: 'Unlink Task' }
+              ]
+            : [{ id: 'linkTask', label: 'Link to Task…' }]),
+        { type: 'separator' as const },
         { id: 'rename', label: 'Rename…' },
         { id: 'closeShells', label: shells > 0 ? `Close ${shells} ${shells === 1 ? 'Shell' : 'Shells'}…` : 'Close Shells', enabled: shells > 0 },
         { type: 'separator' as const },
@@ -108,4 +118,43 @@ export function worktreeMenuItems(
 export function snoozeChoice(choice: string | undefined): SnoozeOption | undefined {
     const option = choice?.startsWith('snooze:') ? choice.slice('snooze:'.length) : undefined;
     return option && option in SNOOZE_LABELS ? (option as SnoozeOption) : undefined;
+}
+
+/** The prefix of the menu choices of `linkWorktreeMenuItems`. The worktree path comes after it. */
+const LINK_PREFIX = 'link:';
+
+/**
+ * Returns the items of the menu that links a task to a worktree, in three levels: project › repository › worktree.
+ * The active project comes first. Repositories and projects without worktrees are not in the menu. A worktree with
+ * another task shows the key of that task.
+ */
+export function linkWorktreeMenuItems(
+    projects: readonly Pick<Project, 'id' | 'name' | 'repos'>[],
+    activeId: string | undefined,
+    worktreesByRepo: Record<string, Worktree[]>,
+    names: Record<string, string> | undefined,
+    links: Record<string, TaskLink>,
+    repoLabel: (repo: string) => string
+): ContextMenuItem[] {
+    const worktreeItems = (repo: string): ContextMenuItem[] =>
+        (worktreesByRepo[repo] ?? []).map(worktree => {
+            const other = links[worktree.path];
+            const name = worktreeLabel(worktree, names);
+            return { id: `${LINK_PREFIX}${worktree.path}`, label: other ? `${name} (${other.key ?? other.title})` : name };
+        });
+    const ordered = [...projects.filter(project => project.id === activeId), ...projects.filter(project => project.id !== activeId)];
+    const items = ordered
+        .map(project => ({
+            label: project.name,
+            submenu: project.repos
+                .filter(repo => (worktreesByRepo[repo] ?? []).length > 0)
+                .map(repo => ({ label: repoLabel(repo), submenu: worktreeItems(repo) }))
+        }))
+        .filter(project => project.submenu.length > 0);
+    return items.length > 0 ? items : [{ id: 'none', label: 'No project has worktrees', enabled: false }];
+}
+
+/** Returns the worktree path of a choice of `linkWorktreeMenuItems`. Returns undefined for other choices. */
+export function linkWorktreeChoice(choice: string | undefined): string | undefined {
+    return choice?.startsWith(LINK_PREFIX) ? choice.slice(LINK_PREFIX.length) : undefined;
 }

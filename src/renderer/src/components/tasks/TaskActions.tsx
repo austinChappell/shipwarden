@@ -1,4 +1,4 @@
-import { GitBranch, Play } from 'lucide-react';
+import { GitBranch, Link2, Play, Unlink } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { AutomationButtons } from '../../automations/AutomationButtons';
 import { Select } from '../Select';
@@ -18,12 +18,19 @@ interface Props {
     repoLabel(repo: string): string;
     onOpenWorktree(path: string): void;
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
+    /** Shows a menu of the worktrees under `anchor`, and links the chosen worktree to the task. */
+    onLinkWorktree(task: Task, connectionId: string, pluginId: string, anchor: Element): Promise<void>;
+    /** Removes the task link of a worktree. */
+    onUnlinkWorktree(worktreePath: string): Promise<void>;
     /** Runs an action and shows its error in the details. */
     act(action: () => Promise<void>): void;
     runAction(actionId: string, confirmText?: string): void;
 }
 
-/** The buttons of the task: "Open worktree" or "Start in worktree", and the actions of the plugin. */
+/**
+ * The buttons of the task: "Open worktree" and "Unlink", or "Start in worktree" and "Link worktree", and the actions of
+ * the plugin.
+ */
 export function TaskActions({
     task,
     source,
@@ -35,6 +42,8 @@ export function TaskActions({
     repoLabel,
     onOpenWorktree,
     onStartTask,
+    onLinkWorktree,
+    onUnlinkWorktree,
     act,
     runAction
 }: Props) {
@@ -43,10 +52,21 @@ export function TaskActions({
     return (
         <div className="task-start">
             {worktree ? (
-                <button className="button primary" onClick={() => onOpenWorktree(worktree)}>
-                    <GitBranch size={14} strokeWidth={1.8} />
-                    Open worktree
-                </button>
+                <>
+                    <button className="button primary" onClick={() => onOpenWorktree(worktree)}>
+                        <GitBranch size={14} strokeWidth={1.8} />
+                        Open worktree
+                    </button>
+                    <button
+                        className="button"
+                        disabled={busy}
+                        title="Remove the link between the task and its worktree"
+                        onClick={() => act(() => onUnlinkWorktree(worktree))}
+                    >
+                        <Unlink size={14} strokeWidth={1.8} />
+                        Unlink
+                    </button>
+                </>
             ) : (
                 <>
                     <button
@@ -69,6 +89,18 @@ export function TaskActions({
                             onChange={chooseStartRepo}
                         />
                     )}
+                    <button
+                        className="button"
+                        disabled={busy}
+                        title="Link the task to a worktree that exists"
+                        onClick={event => {
+                            const anchor = event.currentTarget;
+                            act(() => onLinkWorktree(task, source.connectionId, source.pluginId, anchor));
+                        }}
+                    >
+                        <Link2 size={14} strokeWidth={1.8} />
+                        Link worktree
+                    </button>
                 </>
             )}
             {source.actions.map(action => (
