@@ -6588,6 +6588,36 @@ button:focus-visible,
     border-bottom: 0;
 }
 
+/* The title of the card at the left, and the buttons that add a reaction and send the text to the agent at the right. */
+.pr-timeline-card .pr-timeline-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pr-timeline-card-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.pr-timeline-card-actions {
+    display: inline-flex;
+    flex: none;
+    gap: 2px;
+    margin: -4px -6px -4px 0;
+}
+
+.pr-timeline-card-actions .icon-button.on {
+    background: var(--hover);
+    color: var(--text-strong);
+}
+
+/* The reaction chips below the body of a card. The body has the padding at the top. */
+.pr-timeline-card .pr-timeline-reactions {
+    margin: 0;
+    padding: 0 16px 12px;
+}
+
 .pr-timeline-card-header strong,
 .pr-timeline-text strong {
     color: var(--text-strong);

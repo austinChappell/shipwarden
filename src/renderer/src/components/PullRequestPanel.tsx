@@ -355,7 +355,12 @@ export function PullRequestPanel({
                             <div className="pr-overview-main">
                                 {descriptionPart}
                                 {changeError}
-                                <PullRequestTimeline pr={pr} reactions={reactionActions(target, pr)} onOpenCommit={onOpenCommit} />
+                                <PullRequestTimeline
+                                    pr={pr}
+                                    reactions={reactionActions(target, pr)}
+                                    onOpenCommit={onOpenCommit}
+                                    onSendToAgent={onSendToAgent}
+                                />
                                 {threadsPart}
                             </div>
                             <aside className="pr-overview-aside">
@@ -375,7 +380,9 @@ export function PullRequestPanel({
                             {metaPart}
                             {changeError}
 
-                            {conversation.length > 0 && <PullRequestConversation items={conversation} reactions={reactionActions(target, pr)} />}
+                            {conversation.length > 0 && (
+                                <PullRequestConversation pr={pr} items={conversation} reactions={reactionActions(target, pr)} onSendToAgent={onSendToAgent} />
+                            )}
 
                             {!overview && pr.commits.length > 0 && (
                                 <section className="pr-section">

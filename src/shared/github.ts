@@ -247,6 +247,8 @@ export interface ReviewComment {
     url: string;
     /** The diff hunk that ends at the last line of the comment. Suggested changes use it to find the old lines. */
     diffHunk?: string;
+    /** The `id` of the review that contains the comment. Undefined when the host gives no review. */
+    reviewId?: string;
     /** The reactions with one or more users. Undefined when the host gives no reactions. */
     reactions?: Reaction[];
 }
