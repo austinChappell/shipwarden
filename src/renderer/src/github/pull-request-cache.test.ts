@@ -7,7 +7,9 @@ import { keyRoots } from '../query-client';
 import {
     cachedPullRequest,
     changedPullRequest,
+    changesMergeState,
     decisionAfterReview,
+    mergeStateMayBeOld,
     invalidatePullRequest,
     mergedPullRequest,
     patchBranchSummaries,
@@ -108,6 +110,43 @@ function makeOpen(overrides: Partial<OpenPullRequest> = {}): OpenPullRequest {
 }
 
 const summary: BranchSummary = { number: 7, url: URL, isDraft: false, reviewDecision: 'REVIEW_REQUIRED', checks: null };
+
+describe('changesMergeState', () => {
+    it('is true for an approval and a block', () => {
+        for (const event of ['APPROVE', 'APPROVE_WITH_SUGGESTIONS', 'REQUEST_CHANGES', 'WAIT_FOR_AUTHOR', 'REJECT'] as const) {
+            expect(changesMergeState(event)).toBe(true);
+        }
+    });
+
+    it('is false for a comment', () => {
+        expect(changesMergeState('COMMENT')).toBe(false);
+    });
+});
+
+describe('mergeStateMayBeOld', () => {
+    it('is true when the host still calculates the merge state', () => {
+        expect(mergeStateMayBeOld(makePr({ state: 'OPEN', mergeable: 'UNKNOWN' }))).toBe(true);
+        expect(mergeStateMayBeOld(makePr({ state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'UNKNOWN' }))).toBe(true);
+    });
+
+    it('is true when the merge state does not agree with the decision', () => {
+        expect(mergeStateMayBeOld(makePr({ state: 'OPEN', mergeable: 'MERGEABLE', reviewDecision: 'APPROVED', mergeStateStatus: 'BLOCKED' }))).toBe(true);
+        expect(mergeStateMayBeOld(makePr({ state: 'OPEN', mergeable: 'MERGEABLE', reviewDecision: 'CHANGES_REQUESTED', mergeStateStatus: 'CLEAN' }))).toBe(
+            true
+        );
+    });
+
+    it('is false when the merge state agrees with the decision', () => {
+        expect(mergeStateMayBeOld(makePr({ state: 'OPEN', mergeable: 'MERGEABLE', reviewDecision: 'APPROVED', mergeStateStatus: 'CLEAN' }))).toBe(false);
+        expect(mergeStateMayBeOld(makePr({ state: 'OPEN', mergeable: 'MERGEABLE', reviewDecision: 'CHANGES_REQUESTED', mergeStateStatus: 'BLOCKED' }))).toBe(
+            false
+        );
+    });
+
+    it('is false for a pull request that is not open', () => {
+        expect(mergeStateMayBeOld(makePr({ state: 'MERGED', mergeable: 'UNKNOWN' }))).toBe(false);
+    });
+});
 
 describe('decisionAfterReview', () => {
     it('sets the decision from the review event', () => {
