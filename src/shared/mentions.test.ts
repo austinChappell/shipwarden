@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeMention, applyMention, rankLogins, repoUrlOf, splitReferences } from './mentions';
+import { activeMention, applyMention, isLoginQuery, rankUsers, repoUrlOf, splitReferences } from './mentions';
 
 describe('activeMention', () => {
     it('finds a user or an issue at the cursor', () => {
@@ -17,14 +17,40 @@ describe('activeMention', () => {
         expect(activeMention('color#fff', 9)).toBeUndefined();
     });
 
-    it('stops at a space after the query', () => {
-        expect(activeMention('@octocat ', 9)).toBeUndefined();
+    it('accepts letters with accents, so the query can be a part of a name', () => {
+        expect(activeMention('cc @josé', 8)).toEqual({ trigger: '@', query: 'josé', start: 3 });
+    });
+
+    it('accepts single spaces after "@", for a full name', () => {
+        expect(activeMention('cc @mona lis', 12)).toEqual({ trigger: '@', query: 'mona lis', start: 3 });
+        expect(activeMention('@octocat ', 9)).toEqual({ trigger: '@', query: 'octocat ', start: 0 });
+        expect(activeMention("@j. r. o'n", 10)).toEqual({ trigger: '@', query: "j. r. o'n", start: 0 });
+    });
+
+    it('stops at two spaces, a new line, a fifth word, or a space after "#"', () => {
+        expect(activeMention('@octocat  ', 10)).toBeUndefined();
+        expect(activeMention('@octocat\n', 9)).toBeUndefined();
+        expect(activeMention('@a b c d e', 10)).toBeUndefined();
+        expect(activeMention('#12 ', 4)).toBeUndefined();
+    });
+
+    it('starts at the last "@" when an earlier reference is in the same sentence', () => {
+        expect(activeMention('@bob and @ann', 13)).toEqual({ trigger: '@', query: 'ann', start: 9 });
     });
 
     it('ignores a trigger in code', () => {
         expect(activeMention('Run `npm @sc', 12)).toBeUndefined();
         expect(activeMention('```\n@sc', 7)).toBeUndefined();
         expect(activeMention('```\ncode\n```\n@sc', 16)).toEqual({ trigger: '@', query: 'sc', start: 13 });
+    });
+});
+
+describe('isLoginQuery', () => {
+    it('accepts only the characters of a login', () => {
+        expect(isLoginQuery('')).toBe(true);
+        expect(isLoginQuery('mona-lisa_2')).toBe(true);
+        expect(isLoginQuery('mona ')).toBe(false);
+        expect(isLoginQuery('mona.')).toBe(false);
     });
 });
 
@@ -40,13 +66,42 @@ describe('applyMention', () => {
     });
 });
 
-describe('rankLogins', () => {
+describe('rankUsers', () => {
+    const logins = (users: { login: string }[]) => users.map(user => user.login);
+
     it('puts prefix matches first and removes duplicates', () => {
-        expect(rankLogins(['bob-ann', 'Ann', 'ann', 'carl', 'annie'], 'ann')).toEqual(['Ann', 'annie', 'bob-ann']);
+        const users = ['bob-ann', 'Ann', 'ann', 'carl', 'annie'].map(login => ({ login }));
+        expect(logins(rankUsers(users, 'ann'))).toEqual(['Ann', 'annie', 'bob-ann']);
     });
 
-    it('returns all logins for an empty query, up to the limit', () => {
-        expect(rankLogins(['a', 'b', 'c'], '', 2)).toEqual(['a', 'b']);
+    it('returns all users for an empty query, up to the limit', () => {
+        expect(logins(rankUsers([{ login: 'a' }, { login: 'b' }, { login: 'c' }], '', 2))).toEqual(['a', 'b']);
+    });
+
+    it('matches the start of a word of the name, after the login matches', () => {
+        const users = [{ login: 'mlisa', name: 'Mona Lisa' }, { login: 'zed', name: 'Lisa Ray' }, { login: 'lisa-dev' }, { login: 'xy', name: 'Annalisa' }];
+        expect(logins(rankUsers(users, 'lisa'))).toEqual(['lisa-dev', 'mlisa', 'zed', 'xy']);
+    });
+
+    it('matches a query with spaces against the words of the name only', () => {
+        const users = [{ login: 'mlisa', name: 'Mona Lisa' }, { login: 'octocat' }, { login: 'jro', name: "J.  R. O'Neil" }];
+        expect(logins(rankUsers(users, 'mona lis'))).toEqual(['mlisa']);
+        expect(logins(rankUsers(users, 'mona '))).toEqual(['mlisa']);
+        expect(logins(rankUsers(users, 'mona x'))).toEqual([]);
+        expect(logins(rankUsers(users, 'octocat '))).toEqual([]);
+        expect(logins(rankUsers(users, "r. o'n"))).toEqual(['jro']);
+    });
+
+    it('ignores case and accents in the name', () => {
+        expect(rankUsers([{ login: 'jp', name: 'José Peña' }], 'PENA')).toEqual([{ login: 'jp', name: 'José Peña' }]);
+    });
+
+    it('keeps the first position of a login and adds a name from a later duplicate', () => {
+        const users = [{ login: 'Ann' }, { login: 'bo', name: 'Bo Diddley' }, { login: 'ann', name: 'Ann Smith' }];
+        expect(rankUsers(users, '')).toEqual([
+            { login: 'Ann', name: 'Ann Smith' },
+            { login: 'bo', name: 'Bo Diddley' }
+        ]);
     });
 });
 
