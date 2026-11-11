@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
+import type { AgentMode } from '@shared/agent-modes';
 import type { PullRequest, RepoRef } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
 import type { AppSettings, AgentDefinition, RepoScript } from '@shared/settings';
@@ -71,7 +72,7 @@ interface Options {
     promptAgent: (
         worktree: Pick<Worktree, 'path'>,
         prompt: string,
-        target?: { sessionId?: string; agentId?: string; repoPath?: string }
+        target?: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode }
     ) => Promise<TerminalSession>;
     prepareWorktree: (repoPath: string, worktree: CreatedWorktree) => Promise<void>;
     setError: (error: string | undefined) => void;
@@ -165,7 +166,8 @@ export function useWorktreeActions(options: Options) {
         pluginId: string,
         repoPath: string,
         prompt: (branch: string) => string,
-        agentId?: string
+        agentId?: string,
+        mode?: AgentMode
     ): Promise<{ worktree: CreatedWorktree; session: TerminalSession }> => {
         const branch = branchNameForTask(task);
         const worktree = await api.worktrees.create({ repoPath, branch });
@@ -174,7 +176,7 @@ export function useWorktreeActions(options: Options) {
         await saveTaskLink(queryClient, worktree.path, link);
         await refreshWorktrees(repoPath);
         void moveTaskToStartStatus(task, connectionId);
-        const session = await options.promptAgent(worktree, prompt(branch), { agentId, repoPath });
+        const session = await options.promptAgent(worktree, prompt(branch), { agentId, repoPath, mode });
         return { worktree, session };
     };
 
@@ -186,12 +188,13 @@ export function useWorktreeActions(options: Options) {
         repoPath: string,
         branch: string,
         prompt: string,
-        agentId?: string
+        agentId?: string,
+        mode?: AgentMode
     ): Promise<{ worktree: CreatedWorktree; session: TerminalSession }> => {
         const worktree = await api.worktrees.create({ repoPath, branch });
         await options.prepareWorktree(repoPath, worktree);
         await refreshWorktrees(repoPath);
-        const session = await options.promptAgent(worktree, prompt, { agentId, repoPath });
+        const session = await options.promptAgent(worktree, prompt, { agentId, repoPath, mode });
         return { worktree, session };
     };
 

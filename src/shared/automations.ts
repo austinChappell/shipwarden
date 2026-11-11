@@ -1,5 +1,6 @@
 import type { Task } from './tasks';
 import { PROVIDER_NAMES, type ProviderUsage } from './usage';
+import { AGENT_MODES, isAgentMode, type AgentMode } from './agent-modes';
 
 /**
  * Automations: rules of the form "when this event occurs, do these actions".
@@ -39,13 +40,16 @@ export type Trigger =
 export type ActionType = 'sendToAgent' | 'startAgent' | 'runHeadless' | 'moveTask' | 'removeWorktree' | 'notify';
 
 export type AutomationAction =
-    /** Sends the prompt to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs. */
-    | { type: 'sendToAgent'; prompt: string }
+    /**
+     * Sends the prompt to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs.
+     * With `mode`, the agent works in that permission mode. See `AgentMode`.
+     */
+    | { type: 'sendToAgent'; prompt: string; mode?: AgentMode }
     /**
      * Makes a new worktree and sends the prompt to a new agent in it. For a task, the branch comes from the task.
-     * For a schedule, `branch` is the branch name, with variables.
+     * For a schedule, `branch` is the branch name, with variables. With `mode`, the agent starts in that permission mode.
      */
-    | { type: 'startAgent'; prompt: string; agentId?: string; branch?: string }
+    | { type: 'startAgent'; prompt: string; agentId?: string; branch?: string; mode?: AgentMode }
     /** Runs the agent in print mode. The agent does not change files. With `saveNote`, the answer goes into a note. */
     | { type: 'runHeadless'; prompt: string; saveNote?: boolean }
     /** Moves the task of the worktree, or the matching task, to the status with this name. */
@@ -373,13 +377,19 @@ function normalizeAction(value: unknown, index: number): AutomationAction {
         if (!result) throw new AutomationError(`${place} needs a prompt.`);
         return result;
     };
+    const mode = () => {
+        if (raw.mode === undefined) return {};
+        if (!isAgentMode(raw.mode))
+            throw new AutomationError(`${place} has the mode "${String(raw.mode)}". Use one of: ${AGENT_MODES.map(item => item.mode).join(', ')}.`);
+        return { mode: raw.mode };
+    };
     switch (raw.type) {
         case 'sendToAgent':
-            return { type: 'sendToAgent', prompt: prompt() };
+            return { type: 'sendToAgent', prompt: prompt(), ...mode() };
         case 'startAgent': {
             const agentId = text(raw.agentId, MAX_NAME_LENGTH);
             const branch = text(raw.branch, 200)?.trim();
-            return { type: 'startAgent', prompt: prompt(), ...(agentId ? { agentId } : {}), ...(branch ? { branch } : {}) };
+            return { type: 'startAgent', prompt: prompt(), ...(agentId ? { agentId } : {}), ...(branch ? { branch } : {}), ...mode() };
         }
         case 'runHeadless':
             return { type: 'runHeadless', prompt: prompt(), ...(raw.saveNote === true ? { saveNote: true } : {}) };

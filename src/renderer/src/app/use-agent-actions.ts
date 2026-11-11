@@ -1,5 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { NoteTarget } from '@shared/code-note';
+import { agentModeLabel, agentStartCommand, claudeModeOnScreen, SHIFT_TAB, type AgentMode } from '@shared/agent-modes';
+import { agentProgramOf } from '@shared/agent-programs';
 import type { CheckRun, RepoTarget } from '@shared/github';
 import { agentForRepo, type AgentDefinition, type AppSettings, type RepoScript } from '@shared/settings';
 import type { TerminalSession } from '@shared/terminal';
@@ -17,6 +19,8 @@ const AGENT_START_TIMEOUT_MS = 15_000;
 const AGENT_QUIET_MS = 1200;
 /** The time that ShipWarden waits for the user to answer a dialog of the agent. */
 const AGENT_DIALOG_TIMEOUT_MS = 120_000;
+/** The most Shift+Tab presses that ShipWarden sends to find a permission mode of Claude Code. */
+const MAX_MODE_PRESSES = 6;
 
 /**
  * Waits until a new terminal session prints output and then is quiet for a short time.
@@ -47,6 +51,24 @@ function waitForQuietOutput(sessionId: string, timeout = AGENT_START_TIMEOUT_MS)
  */
 async function screenTextOf(sessionId: string): Promise<string | undefined> {
     return terminalPool.screenText(sessionId) ?? (await api.terminals.screenText(sessionId).catch(() => undefined));
+}
+
+/**
+ * Puts a running Claude Code session in a permission mode. Claude Code goes to its next mode at each Shift+Tab, and its
+ * status line shows the mode. Throws an error with a message when the mode does not come.
+ */
+async function switchClaudeMode(sessionId: string, mode: AgentMode): Promise<void> {
+    for (let press = 0; press <= MAX_MODE_PRESSES; press++) {
+        const screen = await screenTextOf(sessionId);
+        if (screen === undefined) break;
+        if (claudeModeOnScreen(screen) === mode) return;
+        if (press === MAX_MODE_PRESSES) break;
+        api.terminals.write(sessionId, SHIFT_TAB);
+        await waitForQuietOutput(sessionId, 1500);
+    }
+    throw new Error(
+        `ShipWarden did not put the agent in the mode "${agentModeLabel(mode)}". Claude Code shows a mode only when it is available. Check the mode in the agent tab.`
+    );
 }
 
 /**
@@ -128,7 +150,7 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
                 cwd: worktree.path,
                 worktreePath: worktree.path,
                 title: agent ? definition.name : 'shell',
-                command: agent ? definition.command : undefined,
+                command: agent ? agentStartCommand(definition) : undefined,
                 isAgent: agent,
                 cols: 120,
                 rows: 32
@@ -187,18 +209,33 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
         setTimeout(() => api.terminals.write(session.id, '\r'), 200);
     };
 
+    /** Puts a running agent in a permission mode. Only Claude Code can change its mode while it runs. */
+    const switchMode = async (session: TerminalSession, mode: AgentMode) => {
+        const definition = appSettings.agents.find(agent => agent.name === session.title);
+        const program = session.agentProgram ?? (definition ? agentProgramOf(definition.command) : undefined);
+        if (program !== 'claude') {
+            throw new Error(
+                `The agent "${session.title}" runs already, and ShipWarden cannot change its mode. Close the agent tab, or set the mode in the agent tab.`
+            );
+        }
+        await switchClaudeMode(session.id, mode);
+    };
+
     /**
      * Sends a prompt to an agent for an automation. The user does not see a banner, and the selected tab does not
      * change. Throws an error with a message for the run history.
      * - With `sessionId`, the prompt goes to that agent session.
      * - Else it goes to the agent that runs in the worktree. Without one, a new session of `agentId` starts, else the
      *   agent of the repository.
+     * - With `mode`, a new session starts in that permission mode. A running Claude Code session changes to the mode
+     *   before the prompt. Other running agents cannot change their mode, so the run fails.
+     * - Without `mode`, a new session starts in the default mode of the agent (Settings › Agents).
      * Returns the session that got the prompt.
      */
     const promptAgent = async (
         worktree: Pick<Worktree, 'path'>,
         prompt: string,
-        target: { sessionId?: string; agentId?: string; repoPath?: string } = {}
+        target: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode } = {}
     ): Promise<TerminalSession> => {
         let session = target.sessionId
             ? sessions.find(item => item.id === target.sessionId && !item.exited)
@@ -214,11 +251,12 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
             if (!definition) {
                 throw new Error(`The agent "${target.agentId}" is not in Settings › Agents.`);
             }
+            const command = agentStartCommand(definition, target.mode);
             const created = await api.terminals.create({
                 cwd: worktree.path,
                 worktreePath: worktree.path,
                 title: definition.name,
-                command: definition.command,
+                command,
                 isAgent: true,
                 cols: 120,
                 rows: 32
@@ -234,6 +272,9 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
                     ? 'The new agent shows a question, for example about folder trust. Answer it in the agent tab, then approve the run again.'
                     : 'The agent shows a question. Answer it in the agent tab, then approve the run again.'
             );
+        }
+        if (target.mode && !fresh) {
+            await switchMode(session, target.mode);
         }
         api.terminals.write(id, bracketedPaste(prompt));
         setTimeout(() => api.terminals.write(id, '\r'), 200);

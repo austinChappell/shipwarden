@@ -36,6 +36,7 @@ The run history is in `automation-runs.json` in the app data folder. An export n
   "actions": [
     {
       "type": "sendToAgent",
+      "mode": "auto",
       "prompt": "CI failed on pull request #{{pr.number}} ({{pr.url}}):\n{{checks}}\n\nFind the cause of each failure and fix it."
     }
   ],
@@ -87,12 +88,33 @@ A file of an older version has `collectionId` and `collectionName`. ShipWarden r
 
 | Type | Does | Triggers |
 |---|---|---|
-| `sendToAgent` | Sends `prompt` to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs. | `ci.failed`, `pr.comment`, `pr.conflict`, `agent.done` |
-| `startAgent` | Makes a worktree and gives `prompt` to a new agent. A task gives the branch name. A schedule uses `branch`. `agentId` selects the agent. | `task.new`, `schedule` |
+| `sendToAgent` | Sends `prompt` to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs. `mode` sets the permission mode. | `ci.failed`, `pr.comment`, `pr.conflict`, `agent.done` |
+| `startAgent` | Makes a worktree and gives `prompt` to a new agent. A task gives the branch name. A schedule uses `branch`. `agentId` selects the agent. `mode` sets the permission mode. | `task.new`, `schedule` |
 | `runHeadless` | Runs the agent in print mode. The agent does not change files. With `saveNote`, the answer goes into a note in the folder "Automations". | all |
 | `moveTask` | Moves the task to the status with the name `status`. | all except `schedule` |
 | `removeWorktree` | Removes the worktree. Git refuses a worktree with uncommitted changes. With `deleteBranch`, a merged local branch goes away too. | `pr.merged` |
 | `notify` | Shows a macOS notification with `title` and `body`. | all |
+
+### Agent mode
+
+`sendToAgent` and `startAgent` can have a `mode`. The agent then works in that permission mode, so a run does not stop
+for a permission question. Without `mode`, a new agent uses the mode of the agent in Settings › Agents. When that is
+"Own setting", the agent uses its own configuration.
+
+| Mode | Claude Code | Codex | Gemini CLI | opencode |
+|---|---|---|---|---|
+| `auto` | `--permission-mode auto` | `--sandbox workspace-write --ask-for-approval never` | `--approval-mode yolo` | `--auto` |
+| `acceptEdits` | `--permission-mode acceptEdits` | `--sandbox workspace-write --ask-for-approval on-request` | `--approval-mode auto_edit` | none |
+| `plan` | `--permission-mode plan` | `--sandbox read-only --ask-for-approval never` | `--approval-mode plan` | none |
+| `bypassPermissions` | `--permission-mode bypassPermissions` | `--dangerously-bypass-approvals-and-sandbox` | `--approval-mode yolo` | `--auto` |
+
+The options go after the command of the agent when ShipWarden starts a new session. For a `sendToAgent` run, an agent
+can run already in the worktree:
+
+- Claude Code: ShipWarden presses Shift+Tab until the status line shows the mode. Then it sends the prompt.
+- Other agents cannot change the mode while they run. The run fails with a message.
+
+A mode that the agent does not have also makes the run fail with a message. A custom agent command has no modes.
 
 Prompts, titles and branch names can contain variables, for example `{{pr.url}}`. The editor lists the variables of each
 trigger. A variable that the trigger does not give becomes empty text.

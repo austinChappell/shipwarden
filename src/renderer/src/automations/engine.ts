@@ -1,4 +1,5 @@
 import type { NotificationTarget } from '@shared/api';
+import type { AgentMode } from '@shared/agent-modes';
 import {
     ACTION_TYPES,
     automationMatches,
@@ -82,7 +83,7 @@ export interface EngineActions {
     promptAgent(
         worktree: Pick<Worktree, 'path'>,
         prompt: string,
-        target?: { sessionId?: string; agentId?: string; repoPath?: string }
+        target?: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode }
     ): Promise<TerminalSession>;
     startTaskQuietly(
         task: Task,
@@ -90,9 +91,16 @@ export interface EngineActions {
         pluginId: string,
         repoPath: string,
         prompt: (branch: string) => string,
-        agentId?: string
+        agentId?: string,
+        mode?: AgentMode
     ): Promise<{ worktree: Worktree; session: TerminalSession }>;
-    startInNewWorktree(repoPath: string, branch: string, prompt: string, agentId?: string): Promise<{ worktree: Worktree; session: TerminalSession }>;
+    startInNewWorktree(
+        repoPath: string,
+        branch: string,
+        prompt: string,
+        agentId?: string,
+        mode?: AgentMode
+    ): Promise<{ worktree: Worktree; session: TerminalSession }>;
     removeWorktreeQuietly(repoPath: string, worktree: Worktree, deleteBranch: boolean): Promise<string>;
     moveTaskToStatus(task: Task, connectionId: string, status: string): Promise<StartStatusResult>;
 }
@@ -694,7 +702,8 @@ export class AutomationEngine {
                 if (!place) throw new Error('The worktree does not exist anymore.');
                 const session = await context.actions.promptAgent(place.worktree, renderTemplate(action.prompt, values), {
                     ...(event.trigger === 'agent.done' && event.sessionId ? { sessionId: event.sessionId } : {}),
-                    repoPath: place.repo
+                    repoPath: place.repo,
+                    ...(action.mode ? { mode: action.mode } : {})
                 });
                 await this.update(run.id, { sessionId: session.id, worktreePath: place.worktree.path, turn: { sessionId: session.id, from: turnStart() } });
                 return `Sent the prompt to ${session.title} in ${place.worktree.branch ?? place.worktree.path}.`;
@@ -710,7 +719,8 @@ export class AutomationEngine {
                               event.pluginId,
                               repoPath,
                               branch => renderTemplate(action.prompt, { ...values, branch }),
-                              action.agentId
+                              action.agentId,
+                              action.mode
                           )
                         : await this.startScheduled(context, automation, action, repoPath, values);
                 await this.update(run.id, {
@@ -770,7 +780,7 @@ export class AutomationEngine {
     ) {
         const template = action.branch ?? `automation/${automation.id}-{{date}}-{{time}}`;
         const branch = branchName(renderTemplate(template, { ...values, time: values.time?.replace(':', '') }));
-        return context.actions.startInNewWorktree(repoPath, branch, renderTemplate(action.prompt, { ...values, branch }), action.agentId);
+        return context.actions.startInNewWorktree(repoPath, branch, renderTemplate(action.prompt, { ...values, branch }), action.agentId, action.mode);
     }
 
     /** Moves the task of the event, or the task of the worktree. A worktree without a task is not an error. */
