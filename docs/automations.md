@@ -3,6 +3,9 @@
 An automation is a rule of the form "when this occurs, do that". For example: when CI fails on the pull request of a
 worktree, send the failed checks to the agent of that worktree.
 
+An automation can also be manual. Then it is a button in the view of a worktree, a pull request or a task. See
+[Manual automations](#manual-automations).
+
 Automations run only while ShipWarden is open. Open the Automations view with ⌥⌘7.
 
 ## Files
@@ -14,8 +17,8 @@ valid shows under "Files with problems", with the reason.
 A file has two parts:
 
 - **The definition** is portable: the trigger, the conditions, the actions and the limits.
-- **The status and the binding** belong to your Mac: the repository folders, the task manager, the collections and the
-  label rules.
+- **The status and the binding** belong to your Mac: the repository folders, the task manager, the collections, the
+  label rules and the secrets.
 
 "Export to a file…" and "Copy as JSON" write only the definition. The text has no paths and no IDs of your Mac. "Import"
 reads a file or the clipboard, and opens the editor. You select the binding there. An imported automation always starts
@@ -59,9 +62,100 @@ An export has `kind` and no `status` or `binding`.
 | `agent.done` | An agent ends its turn. | `withoutPullRequest` |
 | `task.new` ("Task matches") | A task of a bound collection agrees with the filters for the first time: a new task, or a change such as a new label, a new assignee or a new status. Other changes do not count. A done or canceled task never counts. Each task runs one time only. | `labels`, `assignedToMe`, `status` |
 | `schedule` | A time of day (`"HH:MM"`, local time) on the selected days (`0` is Sunday). | `days`, `time` |
+| `manual` | You click the button of the automation. It never runs by itself. | `entity`, `button` |
 
 The pull request triggers and `agent.done` act only on worktrees with a branch, not on the main worktree.
 `conditions.branchPattern` limits them to branches that match a pattern. `*` matches any text.
+
+## Manual automations
+
+A manual automation has the trigger `manual`. Its `entity` sets where its button shows:
+
+| Entity | The button shows in | Variables |
+|---|---|---|
+| `worktree` | The header of each worktree (the ⚡ menu). | `branch`, `repo`, `worktree`, `pr.*` when the branch has an open pull request, `task.*` of the task of the worktree |
+| `pullRequest` | The pull request panel of each worktree, under the title. | `pr.number`, `pr.title`, `pr.url`, `pr.draft`, `pr.author`, `pr.base`, `pr.state`, `pr.body`, the worktree variables, `task.*` |
+| `task` | The details of each task, next to the task actions. | `task.key`, `task.title`, `task.url`, `task.description`, `task.status`, `task.labels`, `task.assignees`, `task.priority`, `repo` |
+| `none` | Nowhere. Use the play button in the Automations view. | `repo`, `date`, `time` |
+
+`button` is the text of the button. Without it, the button shows the name of the automation.
+
+A button shows only when all of these are true:
+
+- The status of the automation is "On" or "Dry run".
+- For a worktree or a pull request: the repository is in `binding.repos` (or the list is empty), and the branch matches
+  `branchPattern`.
+- The conditions agree (see [Conditions](#conditions)).
+
+A click starts one run at once. A click is the approval, so a manual automation has no approval and no run limits. A
+run still waits while the agent works. The Automations view shows the run and its result.
+
+```json
+{
+  "name": "Deploy a preview",
+  "trigger": { "type": "manual", "entity": "pullRequest", "button": "Deploy preview" },
+  "conditions": {
+    "when": { "all": [{ "var": "pr.draft", "op": "equals", "value": "false" }] }
+  },
+  "actions": [
+    {
+      "type": "http",
+      "method": "POST",
+      "url": "https://ci.example.com/api/previews",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{secret.CI_TOKEN}}" }],
+      "body": "{\"branch\": {{branch|json}}, \"pr\": {{pr.number}}}"
+    },
+    {
+      "type": "if",
+      "condition": { "var": "http.json.url", "op": "isSet" },
+      "then": [{ "type": "notify", "title": "The preview is ready", "body": "{{http.json.url}}" }],
+      "else": [{ "type": "stop", "reason": "The CI did not give an address.", "fail": true }]
+    }
+  ],
+  "limits": { "approval": "auto", "maxRunsPerTarget": 3, "maxRunning": 2 }
+}
+```
+
+## Conditions
+
+`conditions.when` is a condition. The automation starts a run only when it agrees. For a manual automation, the button
+shows only when it agrees. An "If" action uses the same form in `condition`.
+
+A rule compares a variable with a value:
+
+```json
+{ "var": "branch", "op": "matches", "value": "eng-*" }
+```
+
+| `op` | Agrees when the variable |
+|---|---|
+| `equals`, `notEquals` | is (is not) the value |
+| `contains`, `notContains` | contains (does not contain) the value |
+| `matches`, `notMatches` | matches (does not match) the pattern. `*` matches any text. |
+| `isSet`, `isEmpty` | has a value (is empty) |
+| `greaterThan`, `lessThan` | is a number more than (less than) the value. A text that is not a number never agrees. |
+
+The text operators ignore case. The value can contain variables, for example `"value": "{{pr.base}}"`.
+
+Groups combine rules. Groups can contain groups:
+
+- `{ "all": [ ... ] }` agrees when each item agrees. An empty `all` agrees.
+- `{ "any": [ ... ] }` agrees when one or more items agree.
+- `{ "not": { ... } }` agrees when its item does not agree. The editor has no `not`. Use the negative operators.
+
+A list in place of a condition is the same as `all`.
+
+`conditions.when` uses the variables that the event gives without a request. It cannot use `checks`, `http.*` and the
+details of the task of a worktree (the status, the description, the labels). An "If" action can use all variables.
+
+## Templates
+
+Prompts, titles, branch names, addresses, headers and bodies can contain variables, for example `{{pr.url}}`. A filter
+after a bar changes the value:
+
+- `{{comment.body|json}}` gives a JSON string with the quotes. Use it in a JSON body, so quotes and new lines in the text
+  do not break the JSON.
+- `{{branch|url}}` encodes the value for a part of a web address.
 
 ## Task automations
 
@@ -89,11 +183,60 @@ A file of an older version has `collectionId` and `collectionName`. ShipWarden r
 | Type | Does | Triggers |
 |---|---|---|
 | `sendToAgent` | Sends `prompt` to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs. `mode` sets the permission mode. | `ci.failed`, `pr.comment`, `pr.conflict`, `agent.done` |
-| `startAgent` | Makes a worktree and gives `prompt` to a new agent. A task gives the branch name. A schedule uses `branch`. `agentId` selects the agent. `mode` sets the permission mode. | `task.new`, `schedule` |
+| `startAgent` | Makes a worktree and gives `prompt` to a new agent. A task gives the branch name: the template of Settings › Worktrees › Branch names for tasks, else the task key and the title. A schedule uses `branch`. `agentId` selects the agent. `mode` sets the permission mode. | `task.new`, `schedule` |
 | `runHeadless` | Runs the agent in print mode. The agent does not change files. With `saveNote`, the answer goes into a note in the folder "Automations". | all |
 | `moveTask` | Moves the task to the status with the name `status`. | all except `schedule` |
 | `removeWorktree` | Removes the worktree. Git refuses a worktree with uncommitted changes. With `deleteBranch`, a merged local branch goes away too. | `pr.merged` |
 | `notify` | Shows a macOS notification with `title` and `body`. | all |
+| `http` | Sends an HTTP request. See [HTTP requests](#http-requests). | all |
+| `if` | Runs the `then` actions when `condition` agrees, else the `else` actions. The lists can contain all actions, also `if`. | all |
+| `stop` | Stops the run. The next actions do not run. `reason` goes into the run history. With `fail`, the run fails. | all |
+
+For a manual automation, the entity sets the actions:
+
+- `sendToAgent` and `removeWorktree`: `worktree` and `pullRequest`.
+- `startAgent`: `task` and `none`.
+- `moveTask`: `worktree`, `pullRequest` and `task`.
+- `runHeadless`, `notify`, `http`, `if` and `stop`: all entities.
+
+### HTTP requests
+
+| Field | Value |
+|---|---|
+| `method` | `GET`, `POST`, `PUT`, `PATCH` or `DELETE`. `GET` by default. |
+| `url` | The address. It must start with `http://` or `https://`, or with a variable. |
+| `headers` | A list of `{ "name", "value" }`. |
+| `body` | The body. A `GET` request has no body. A body that starts with `{` or `[` gets `Content-Type: application/json` when no header sets the type. |
+| `allowFailure` | `true` continues the run when the status is not 200 to 299. |
+| `timeoutSeconds` | The time limit, 1 to 300 seconds. 30 by default. |
+
+ShipWarden sends the request from the main process. The request uses the trusted certificates of Settings › Network, so
+it also works on a network that inspects TLS traffic.
+
+The next actions get the answer as variables:
+
+- `{{http.status}}`: the status, for example `200`.
+- `{{http.ok}}`: `true` when the status is 200 to 299, else `false`.
+- `{{http.body}}`: the body. ShipWarden keeps at most 1 MB.
+- `{{http.json.NAME}}`: a value of a JSON body, for example `{{http.json.data.id}}` or `{{http.json.items.0.name}}`. An
+  object or a list gives its JSON text. A list also has `.length`.
+
+A second request replaces the variables of the first request.
+
+### Secrets
+
+A request often needs a token. Do not write the token in the definition, because an export contains the definition. Add
+it under "Secrets" in the editor, and use `{{secret.NAME}}` in the address, a header or the body.
+
+```json
+"binding": { "secrets": { "CI_TOKEN": "…" } }
+```
+
+- The secrets are in the binding, so an export never contains them. An import asks for them.
+- Only the fields of an HTTP request can use a secret. Prompts, notifications and conditions cannot.
+- The run history shows `•••` in place of a secret.
+- ShipWarden keeps the secrets as plain text in the automation file on your Mac.
+- An automation that uses a secret without a value can only be "Off".
 
 ### Agent mode
 
@@ -123,11 +266,14 @@ trigger. A variable that the trigger does not give becomes empty text.
 
 The play button of an automation starts one run at once. You select the target first:
 
-- A pull request or agent trigger: a worktree of the repositories of the automation. The branch must match
-  `branchPattern`. The run gets the pull request of the branch, if there is one. The comment and the last agent message
-  stay empty.
+- A pull request or agent trigger, and a manual `worktree` or `pullRequest` automation: a worktree of the repositories
+  of the automation. The branch must match `branchPattern`. The run gets the pull request of the branch, if there is
+  one. A `pullRequest` automation needs one. The comment and the last agent message stay empty.
 - `task.new`: an open task of the collections of the automation.
-- `schedule`: no target. The date and the time are now.
+- A manual `task` automation: use the button in the details of a task.
+- `schedule` and a manual `none` automation: no target. The date and the time are now.
+
+The conditions must agree with the target. Else the run does not start, and a message tells why.
 
 A manual run ignores the trigger, the approval, the pause and the limits. It also runs when the automation is off, so
 you can test an automation before you turn it on. It still waits while the agent works, and while `maxRunning` agents of

@@ -8,8 +8,10 @@ import {
     type CopyMode,
     type WorktreeSettings as WorktreeSettingsValue
 } from '@shared/worktree-settings';
+import { BRANCH_VARIABLES, exampleValues, renderBranchTemplate, unknownVariables } from '@shared/branch-template';
 import { WORKTREE_SORT_LABELS, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
 import { errorText } from '../util';
+import { fetchAppInfo } from '../app/task-branch';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { Select } from './Select';
 import { radioGroupKeys } from './keyboard';
@@ -183,6 +185,57 @@ export function CopyEditor({ copy, repo, onSave }: { copy: CopyIgnoredSettings; 
     );
 }
 
+/** The text field of the branch template, with the variables and an example. It saves when the field loses focus. */
+function BranchTemplateField({ value, onSave }: { value: string | undefined; onSave(value: string | undefined): void }) {
+    const [text, setText] = useState(value ?? '');
+    const [username, setUsername] = useState('');
+    useEffect(() => setText(value ?? ''), [value]);
+    useEffect(() => {
+        fetchAppInfo().then(
+            info => setUsername(info.username),
+            () => undefined
+        );
+    }, []);
+    const insert = (name: string) => {
+        const next = `${text}{${name}}`;
+        setText(next);
+        onSave(next.trim() || undefined);
+    };
+    const unknown = unknownVariables(text);
+    const example = text.trim() ? renderBranchTemplate(text, exampleValues(username)) : '';
+    return (
+        <>
+            <input
+                className="settings-input mono"
+                aria-label="Branch name template"
+                value={text}
+                placeholder="{username}/{taskKey}-{taskShortDescription}"
+                spellCheck={false}
+                onChange={event => setText(event.target.value)}
+                onBlur={() => {
+                    if (text.trim() !== (value ?? '')) onSave(text.trim() || undefined);
+                }}
+                onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+            />
+            <div className="branch-variables">
+                {BRANCH_VARIABLES.map(variable => (
+                    <button key={variable.name} type="button" className="link-button mono" title={variable.help} onClick={() => insert(variable.name)}>
+                        {`{${variable.name}}`}
+                    </button>
+                ))}
+            </div>
+            {unknown.length > 0 && (
+                <div className="form-error">ShipWarden does not know {unknown.map(name => `{${name}}`).join(', ')}. The branch name leaves it out.</div>
+            )}
+            {example && (
+                <div className="panel-note">
+                    Example: <code>{example}</code>
+                </div>
+            )}
+        </>
+    );
+}
+
 const SORT_KEYS: WorktreeSortKey[] = ['name', 'created', 'updated'];
 
 function directionLabel(by: WorktreeSortKey, direction: WorktreeSort['direction']): string {
@@ -270,6 +323,18 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                     <FolderField value={value.directory} placeholder={defaultFolder} onSave={directory => void save({ directory })} />
                 </SettingsRow>
                 <SettingsRow
+                    label="Branch names for tasks"
+                    description={
+                        <>
+                            The branch of a worktree that starts from a task, in the New worktree dialog and in automations. Click a variable to add it. When
+                            the template has <code>{'{taskShortDescription}'}</code>, an agent writes the description in a few seconds. Empty: the task key and
+                            the title, for example <code>eng-1234-fix-the-login-redirect</code>.
+                        </>
+                    }
+                >
+                    <BranchTemplateField value={value.branchTemplate} onSave={branchTemplate => void save({ branchTemplate })} />
+                </SettingsRow>
+                <SettingsRow
                     label="Close stale shells"
                     description="Closes a shell tab with no input and no output for 7 days. A shell that runs a command stays open. Agent tabs stay open."
                     control={
@@ -279,6 +344,21 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                                 aria-label="Close stale shells"
                                 checked={value.closeStaleShells}
                                 onChange={event => void save({ closeStaleShells: event.target.checked })}
+                            />
+                            <span />
+                        </label>
+                    }
+                />
+                <SettingsRow
+                    label="Remove merged worktrees"
+                    description="Removes a worktree and its local branch after its pull request is merged. ShipWarden also checks for merged pull requests every 15 minutes, so it finds merges that happened while the app was closed. A worktree with uncommitted changes or new commits stays. The remote branch stays."
+                    control={
+                        <label className="switch" title={value.removeMerged ? 'On' : 'Off'}>
+                            <input
+                                type="checkbox"
+                                aria-label="Remove merged worktrees"
+                                checked={value.removeMerged}
+                                onChange={event => void save({ removeMerged: event.target.checked })}
                             />
                             <span />
                         </label>

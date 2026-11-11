@@ -28,13 +28,13 @@ export async function pickManualRun(
     repoLabel: (repo: string) => string,
     anchor: Element
 ): Promise<ManualRun | undefined> {
-    switch (manualTarget(automation.trigger.type)) {
+    switch (manualTarget(automation.trigger)) {
         case 'worktree':
             return pickWorktree(automation, repos, repoLabel, anchor);
         case 'task':
             return pickTask(automation, anchor);
         case 'none':
-            return { event: manualScheduleEvent(automation.id, automation.binding.repos?.[0], Date.now()) };
+            return { event: manualScheduleEvent(automation.id, automation.binding.repos?.[0], Date.now(), automation.trigger.type) };
     }
 }
 
@@ -66,11 +66,16 @@ async function pickWorktree(
     // The summaries of a repository load one time each minute. The cache usually has them.
     const summaries = await queryClient.fetchQuery(branchSummariesQuery(place.repo)).catch(() => undefined);
     const summary = place.worktree.branch ? summaries?.[place.worktree.branch] : undefined;
-    return { event: manualWorktreeEvent(automation.id, automation.trigger.type, place, summary, Date.now()), place };
+    const trigger = automation.trigger;
+    if (trigger.type === 'manual' && trigger.entity === 'pullRequest' && !summary) {
+        throw new Error(`${place.worktree.branch ?? place.worktree.path} has no open pull request.`);
+    }
+    return { event: manualWorktreeEvent(automation.id, trigger.type, place, summary, Date.now()), place };
 }
 
 async function pickTask(automation: Automation, anchor: Element): Promise<ManualRun | undefined> {
     const { connectionId, collections } = automation.binding;
+    if (automation.trigger.type === 'manual') throw new Error('Open a task, and click the button of the automation in its details.');
     if (!connectionId || !collections?.length) throw new Error('The automation has no task collection. Select one in the editor.');
     const lists = await Promise.all(
         collections.map(async collection => {

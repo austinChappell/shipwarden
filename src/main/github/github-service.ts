@@ -13,6 +13,7 @@ import {
     type IssueReference,
     type PullRequestCandidates,
     type PullRequestChange,
+    type MergedPullRequest,
     type PullRequest,
     type PullRequestFile,
     type PullRequestFilter,
@@ -112,6 +113,12 @@ export class GitHubService {
             return {};
         }
         return pulls.fetchBranchSummaries(this.client, repo);
+    }
+
+    /** Returns the newest merged pull request of each branch. One GraphQL request covers all worktrees. */
+    async mergedBranches(root: string): Promise<Record<string, MergedPullRequest>> {
+        const repo = await this.repoFor(root);
+        return repo ? pulls.fetchMergedBranches(this.client, repo) : {};
     }
 
     async pullRequest(repo: RepoRef, number: number): Promise<PullRequest> {

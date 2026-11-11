@@ -8676,6 +8676,14 @@ button:focus-visible,
     margin-top: 8px;
 }
 
+.branch-variables {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin-top: 6px;
+    font-size: 12px;
+}
+
 .copy-preview-repo {
     display: flex;
     align-items: center;
@@ -10397,6 +10405,51 @@ body.resizing-column * {
 .new-worktree-dialog .settings-input {
     width: 100%;
     max-width: none;
+}
+
+/* The dialog that links a worktree to a task */
+.link-task-dialog {
+    width: min(620px, calc(100vw - 32px));
+}
+
+.link-task-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.link-task-sources:empty {
+    display: none;
+}
+
+.link-task-dialog .link-task-sources .combobox {
+    flex: 1;
+}
+
+.link-task-search {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.link-task-list {
+    height: min(360px, 50vh);
+    margin-top: 8px;
+    padding: 0;
+}
+
+.link-task-option {
+    padding-left: 8px;
+}
+
+.link-task-note {
+    flex: none;
+    max-width: 160px;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .new-worktree-optional {
@@ -14358,4 +14411,120 @@ button.pr-summary-cell:hover {
 
 .task-board > .inline-tip {
     margin: 10px 16px 0;
+}
+
+/* The conditions of an automation and of an "If" action. */
+.automation-conditions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.automation-condition-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.automation-condition-group.nested {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.automation-condition-head,
+.automation-condition-rule,
+.automation-condition-add,
+.automation-http-line,
+.automation-http-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.automation-condition-add .button,
+.automation-http-headers > .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.automation-condition-var {
+    width: 180px;
+}
+
+.automation-condition-value {
+    width: 200px;
+}
+
+/* The "then" and "else" lists of an "If" action. */
+.automation-branch {
+    padding-left: 12px;
+    border-left: 2px solid var(--border);
+}
+
+.automation-branch-title {
+    margin-bottom: 4px;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.automation-add-action {
+    border: none;
+}
+
+.automation-http-url {
+    flex: 1;
+    min-width: 240px;
+}
+
+.automation-http-headers {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.automation-http-header input {
+    width: 200px;
+}
+
+/* The buttons of the manual automations in the pull request panel and the task details. */
+.automation-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.pr-header .automation-buttons {
+    margin-top: 10px;
+}
+
+.automation-buttons .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.automation-button-error {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--danger);
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.automation-secret-add {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
 }

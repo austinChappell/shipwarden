@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decodeAzureId } from '@shared/azure-devops';
 import {
     branchSummaries,
+    mergedBranches,
     buildsForCommit,
     buildToCheck,
     buildToRun,
@@ -268,6 +269,20 @@ describe('builds', () => {
                 { status: 'completed', conclusion: 'neutral' }
             ])
         ).toBe('SUCCESS');
+    });
+});
+
+describe('mergedBranches', () => {
+    it('gives the newest completed pull request of each branch with its source commit', () => {
+        const done = (id: number, closedDate: string, sha?: string) => ({
+            ...pr,
+            pullRequestId: id,
+            status: 'completed',
+            closedDate,
+            lastMergeSourceCommit: sha ? { commitId: sha } : undefined
+        });
+        const merged = mergedBranches([done(1, '2026-01-01T00:00:00Z', 'old'), done(2, '2026-02-01T00:00:00Z', 'new'), done(3, '2026-03-01T00:00:00Z'), pr]);
+        expect(merged).toEqual({ 'feat/cart': { number: 2, title: 'Add the cart page', headSha: 'new' } });
     });
 });
 

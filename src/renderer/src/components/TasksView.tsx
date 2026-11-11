@@ -40,6 +40,10 @@ interface Props {
     /** The task of each worktree, by worktree path. */
     links: Record<string, TaskLink>;
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
+    /** Shows a menu of the worktrees under `anchor`, and links the chosen worktree to the task. */
+    onLinkWorktree(task: Task, connectionId: string, pluginId: string, anchor: Element): Promise<void>;
+    /** Removes the task link of a worktree. */
+    onUnlinkWorktree(worktreePath: string): Promise<void>;
     onOpenWorktree(path: string): void;
     /** The name of a repository: its name from the repository settings, else its folder name. */
     repoLabel(repo: string): string;
@@ -54,7 +58,20 @@ interface Props {
 }
 
 /** The tasks of the project's task managers, one collection at a time, with a dialog for the details of the selected task. */
-export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree, onOpenSettings, repoLabel, openTask, route, onRoute }: Props) {
+export function TasksView({
+    projectId,
+    repos,
+    links,
+    onStartTask,
+    onLinkWorktree,
+    onUnlinkWorktree,
+    onOpenWorktree,
+    onOpenSettings,
+    repoLabel,
+    openTask,
+    route,
+    onRoute
+}: Props) {
     const selectedId = route.query?.task;
     const [query, setQuery] = useState('');
     /** The task manager of the selected task. The setter reads it, so it is set before the hooks below. */
@@ -174,6 +191,8 @@ export function TasksView({ projectId, repos, links, onStartTask, onOpenWorktree
             repoLabel={repoLabel}
             onOpenWorktree={onOpenWorktree}
             onStartTask={onStartTask}
+            onLinkWorktree={onLinkWorktree}
+            onUnlinkWorktree={onUnlinkWorktree}
             findTask={id => tasks?.find(task => task.id === id)}
             tasks={tasks ?? NO_TASKS}
             onOpenTask={setSelectedId}

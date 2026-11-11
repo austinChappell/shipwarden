@@ -6,6 +6,7 @@ import type {
     FileVersions,
     IssueReference,
     JobProgress,
+    MergedPullRequest,
     MergeMethod,
     NewPullRequest,
     PendingComment,
@@ -33,6 +34,8 @@ export interface SourceHost {
     /** Returns the branch, its pull request and the commit for checks. Returns null when the worktree has no remote of this host. */
     branchStatus(root: string): Promise<BranchStatus | null>;
     branchSummaries(root: string): Promise<Record<string, BranchSummary>>;
+    /** Returns the newest merged pull request of each branch, from the recently merged pull requests. One request. */
+    mergedBranches(root: string): Promise<Record<string, MergedPullRequest>>;
     /** Creates a pull request from the branch of the worktree. Returns its number. */
     createPullRequest(root: string, request: NewPullRequest): Promise<number>;
     pullRequest(target: RepoTarget, number: number): Promise<PullRequest>;
@@ -83,6 +86,9 @@ export class GitHubHost implements SourceHost {
     }
     branchSummaries(root: string) {
         return this.github.branchSummaries(root);
+    }
+    mergedBranches(root: string) {
+        return this.github.mergedBranches(root);
     }
     createPullRequest(root: string, request: NewPullRequest) {
         return this.github.createPullRequest(root, request);

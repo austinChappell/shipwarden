@@ -616,6 +616,14 @@ export interface BranchSummary {
     viewerRole?: 'author' | 'involved';
 }
 
+/** The newest merged pull request of a branch. */
+export interface MergedPullRequest {
+    number: number;
+    title?: string;
+    /** The head commit of the pull request when it was merged. */
+    headSha: string;
+}
+
 /** A summary of the checks of one commit. */
 export type CheckSummary = 'success' | 'failure' | 'pending' | 'none';
 

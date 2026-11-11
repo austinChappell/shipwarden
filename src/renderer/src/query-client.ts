@@ -49,6 +49,8 @@ export const keyRoots = {
     issueReferences: ['github', 'issueReferences'],
     /** The pull request and CI state of each branch of a repository. */
     branchSummaries: ['github', 'branchSummaries'],
+    /** The newest merged pull request of each branch of a repository. */
+    mergedBranches: ['github', 'mergedBranches'],
     /** The pull request and CI state of one worktree branch. */
     branchStatus: ['github', 'branchStatus'],
     /** The branches of a repository. */
@@ -78,6 +80,8 @@ export const keyRoots = {
     worktrees: ['worktrees'],
     /** The automation files and the run history. Local data: no request goes to a service. */
     automations: ['automations'],
+    /** The app version, the data folder and the login name. Local data: no request goes to a service. */
+    appInfo: ['appInfo'],
     /** The plans of the projects. Local data: no request goes to a service. */
     plans: ['plans']
 } as const;
@@ -87,6 +91,7 @@ const PULL_REQUEST_ROOTS = [
     keyRoots.pullRequest,
     keyRoots.pullRequestFiles,
     keyRoots.branchSummaries,
+    keyRoots.mergedBranches,
     keyRoots.branchStatus,
     keyRoots.repoPullRequests,
     keyRoots.checks,

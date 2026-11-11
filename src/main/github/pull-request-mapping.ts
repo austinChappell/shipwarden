@@ -6,6 +6,7 @@ import {
     withSignedImages,
     type BranchSummary,
     type GitHubLabel,
+    type MergedPullRequest,
     type GitHubUser,
     type MergeMethod,
     type PullRequest,
@@ -228,6 +229,31 @@ export const BRANCH_SUMMARIES_QUERY = `query($owner: String!, $name: String!) {
     }
   }
 }`;
+
+/** The query for the merged pull requests of a repository, the most recently updated first. */
+export const MERGED_BRANCHES_QUERY = `query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(states: MERGED, first: 100, orderBy: { field: UPDATED_AT, direction: DESC }) {
+      nodes { number title headRefName headRefOid isCrossRepository }
+    }
+  }
+}`;
+
+export interface GraphQlMergedBranches {
+    repository: {
+        pullRequests: { nodes: { number: number; title: string; headRefName: string; headRefOid: string; isCrossRepository: boolean }[] };
+    };
+}
+
+/** Returns the newest merged pull request of each branch. A pull request from a fork is not the pull request of a local branch. */
+export function mapMergedBranches(data: GraphQlMergedBranches): Record<string, MergedPullRequest> {
+    const merged: Record<string, MergedPullRequest> = {};
+    for (const pr of data.repository.pullRequests.nodes) {
+        if (pr.isCrossRepository || merged[pr.headRefName]) continue;
+        merged[pr.headRefName] = { number: pr.number, title: pr.title, headSha: pr.headRefOid };
+    }
+    return merged;
+}
 
 /** The fields of an open pull request in the query for the worktree list. */
 export interface GraphQlBranchPullRequest {

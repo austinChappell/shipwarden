@@ -241,6 +241,22 @@ describe('GitWorktreeService', () => {
             expect(await service.deleteBranch(repo, 'old')).toEqual({ deleted: true });
         });
 
+        it('deletes a squash-merged branch only when it points at the head of the merged pull request', async () => {
+            const work = await service.create({ repoPath: repo, branch: 'feat/squash' });
+            commit(work.path, 'work');
+            git(work.path, 'push', '-q', 'origin', 'feat/squash');
+            const prHead = git(work.path, 'rev-parse', 'HEAD').trim();
+            git(other, 'fetch', '-q', 'origin');
+            git(other, 'merge', '-q', '--squash', 'origin/feat/squash');
+            commit(other, 'squash');
+            git(other, 'push', '-q', 'origin', 'main');
+            commit(work.path, 'later work');
+            await service.remove(repo, work.path);
+            expect(await service.deleteBranch(repo, 'feat/squash', false, prHead)).toEqual({ deleted: false, notMerged: true });
+            git(repo, 'branch', '-f', 'feat/squash', prHead);
+            expect(await service.deleteBranch(repo, 'feat/squash', false, prHead)).toEqual({ deleted: true });
+        });
+
         it('still reports a branch that is not merged when the pull fails', async () => {
             const work = await service.create({ repoPath: repo, branch: 'feat/offline' });
             commit(work.path, 'work');

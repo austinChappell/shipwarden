@@ -1,3 +1,4 @@
+import { userInfo } from 'os';
 import { app, ipcMain } from 'electron';
 import { IpcChannels } from '@shared/api';
 import type { AppKeyAction } from '@shared/shortcuts';
@@ -11,7 +12,7 @@ type AppIpcDependencies = Pick<Services, 'window' | 'confirm' | 'ptyHostLog'> & 
 
 /** Registers the IPC handlers of the app: the app info, the window focus, the app keys and the confirm answers. */
 export function registerAppIpc({ window, confirm, ptyHostLog, runAppKey }: AppIpcDependencies): void {
-    ipcMain.handle(IpcChannels.appInfo, () => ({ version: app.getVersion(), dataFolder: app.getPath('userData'), ptyHostLog }));
+    ipcMain.handle(IpcChannels.appInfo, () => ({ version: app.getVersion(), dataFolder: app.getPath('userData'), ptyHostLog, username: loginName() }));
     ipcMain.on(IpcChannels.appFocus, () => {
         const current = window.get();
         if (current) {
@@ -24,4 +25,13 @@ export function registerAppIpc({ window, confirm, ptyHostLog, runAppKey }: AppIp
         if (isAppKeyAction(action)) runAppKey(action);
     });
     ipcMain.on(IpcChannels.appConfirmAnswer, (_event, id: number, confirmed: boolean) => confirm.answer(Number(id), confirmed === true));
+}
+
+/** The login name of the user. Empty when the system does not know it. */
+function loginName(): string {
+    try {
+        return userInfo().username;
+    } catch {
+        return '';
+    }
 }

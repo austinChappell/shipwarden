@@ -3,7 +3,7 @@ import type { AgentMode } from '@shared/agent-modes';
 import type { PullRequest, RepoRef } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
 import type { AppSettings, AgentDefinition, RepoScript } from '@shared/settings';
-import { applyStartStatus, branchNameForTask, taskPrompt, type StartStatusResult, type Task, type TaskLink } from '@shared/tasks';
+import { applyStartStatus, taskPrompt, type StartStatusResult, type Task, type TaskLink } from '@shared/tasks';
 import { isOpenShell, openShellCount, type TerminalSession } from '@shared/terminal';
 import { snoozeEnd, worktreeLabel, type CreatedWorktree, type HiddenWorktree, type Worktree } from '@shared/worktrees';
 import { confirmDialog, promptDialog } from '../components/ConfirmDialog';
@@ -17,6 +17,8 @@ import { withoutKey, type ExtraTab } from './tabs';
 import type { MainView } from './views';
 import {
     errorText,
+    linkWorktreeChoice,
+    linkWorktreeMenuItems,
     removeWorktreeDialog,
     sameRepoRef,
     snoozeChoice,
@@ -32,7 +34,8 @@ import { keyRoots, queryClient } from '../query-client';
 import { taskManagerKeys } from '../components/task-managers-cache';
 import { listPatch, taskQueryKeys } from '../components/tasks/task-view-logic';
 import { patchCachedTask } from '../components/tasks/use-task-list';
-import { saveTaskLink } from './task-links';
+import { linkWorktreeToTask, saveTaskLink, taskLinkOf } from './task-links';
+import { taskBranchName } from './task-branch';
 
 const api = window.shipwarden;
 
@@ -42,6 +45,15 @@ export interface NewWorktreeTarget {
     start?: GraphWorktreeStart;
     /** A prompt for the agent of the new worktree. ShipWarden sends it after it creates the worktree. */
     prompt?: string;
+    /** The task that the new worktree works on. The dialog suggests a branch for it. */
+    task?: TaskStart;
+}
+
+/** A task and its connection, for a new worktree that works on the task. */
+export interface TaskStart {
+    task: Task;
+    connectionId: string;
+    pluginId: string;
 }
 
 interface Options {
@@ -67,6 +79,10 @@ interface Options {
     setMainView: (view: MainView) => void;
     setNewWorktree: (target: NewWorktreeTarget) => void;
     setTaskOpen: (request: { connectionId: string; taskId: string; nonce: number }) => void;
+    /** Opens the dialog that links a worktree to a task. */
+    setLinkTaskOpen: (worktree: Worktree) => void;
+    /** The name of a repository in the UI. */
+    repoLabel: (repo: string) => string;
     startTerminal: (worktree: Worktree, target: 'shell' | 'agent' | AgentDefinition) => Promise<TerminalSession | undefined>;
     sendToAgent: (prompt: string, worktree?: Worktree) => Promise<void>;
     /** Sends a prompt to an agent without a banner and without a change of the selected tab. See `useAgentActions`. */
@@ -160,21 +176,15 @@ export function useWorktreeActions(options: Options) {
     };
 
     /**
-     * Starts work on a task: creates a worktree with a branch for the task, links the worktree to the task
-     * and sends the task to a new agent in the worktree.
+     * Starts work on a task: opens the New worktree dialog for the task. The dialog suggests a branch from the branch
+     * template. When the dialog creates the worktree, `createWorktree` links it to the task and sends the task to the agent.
      */
     const startTask = async (task: Task, connectionId: string, pluginId: string, repoPath: string) => {
-        const branch = branchNameForTask(task);
-        const worktree = await api.worktrees.create({ repoPath, branch });
-        await options.prepareWorktree(repoPath, worktree);
-        const link: TaskLink = { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
-        await saveTaskLink(queryClient, worktree.path, link);
-        await refreshWorktrees(repoPath);
-        setSelectedPath(worktree.path);
-        setMainView('worktree');
-        void moveTaskToStartStatus(task, connectionId);
-        await options.sendToAgent(taskPrompt(task, branch), worktree);
+        options.setNewWorktree({ repo: repoPath, task: { task, connectionId, pluginId } });
     };
+
+    /** Makes the branch name for a task from the branch template of the settings. See `taskBranchName`. */
+    const suggestTaskBranch = (task: Task, repoPath: string) => taskBranchName(task, repoPath, appSettings.worktrees.branchTemplate);
 
     /**
      * Starts work on a task for an automation: the same steps as `startTask`, but the selected worktree and the view do
@@ -189,11 +199,10 @@ export function useWorktreeActions(options: Options) {
         agentId?: string,
         mode?: AgentMode
     ): Promise<{ worktree: CreatedWorktree; session: TerminalSession }> => {
-        const branch = branchNameForTask(task);
+        const { branch } = await suggestTaskBranch(task, repoPath);
         const worktree = await api.worktrees.create({ repoPath, branch });
         await options.prepareWorktree(repoPath, worktree);
-        const link: TaskLink = { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
-        await saveTaskLink(queryClient, worktree.path, link);
+        await saveTaskLink(queryClient, worktree.path, taskLinkOf(task, connectionId, pluginId));
         await refreshWorktrees(repoPath);
         void moveTaskToStartStatus(task, connectionId);
         const session = await options.promptAgent(worktree, prompt(branch), { agentId, repoPath, mode });
@@ -273,7 +282,8 @@ export function useWorktreeActions(options: Options) {
      * Creates a worktree from the New worktree dialog: its branch, start point, display name and agent.
      * With a prompt, ShipWarden sends the prompt to an agent of the new worktree, also when "startAgent" is false.
      */
-    const createWorktree = async (repoPath: string, request: NewWorktreeRequest, prompt?: string) => {
+    /** Creates the worktree of the New worktree dialog. With a task, the worktree works on the task, the same as `startTaskQuietly`. */
+    const createWorktree = async (repoPath: string, request: NewWorktreeRequest, prompt?: string, start?: TaskStart) => {
         const worktree = await api.worktrees.create({
             repoPath,
             branch: request.branch,
@@ -281,6 +291,12 @@ export function useWorktreeActions(options: Options) {
             ...(request.trackRef ? { trackRef: request.trackRef } : {})
         });
         if (request.name) await setWorktreeName(worktree.path, request.name);
+        if (start) {
+            const { task, connectionId, pluginId } = start;
+            await saveTaskLink(queryClient, worktree.path, taskLinkOf(task, connectionId, pluginId));
+            void moveTaskToStartStatus(task, connectionId);
+            if (!prompt && request.startAgent) prompt = taskPrompt(task, request.branch);
+        }
         await refreshWorktrees(repoPath);
         setSelectedPath(worktree.path);
         // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
@@ -337,16 +353,17 @@ export function useWorktreeActions(options: Options) {
     /**
      * Removes a worktree for an automation, without questions. Git refuses a worktree with uncommitted changes, and a
      * failed teardown script stops the removal. With `deleteBranch`, a merged local branch goes away too. A branch that
-     * is not merged stays. Returns a message for the run history. Throws an error with a message.
+     * is not merged stays. `mergedHead` is the head commit of the merged pull request of the branch. A branch at this
+     * commit goes away also after a squash merge. Returns a message for the run history. Throws an error with a message.
      */
-    const removeWorktreeQuietly = async (repoPath: string, worktree: Worktree, deleteBranch: boolean): Promise<string> => {
+    const removeWorktreeQuietly = async (repoPath: string, worktree: Worktree, deleteBranch: boolean, mergedHead?: string): Promise<string> => {
         const result = await api.worktrees.remove(repoPath, worktree.path);
         if (result.teardownFailed) {
             throw new Error(`${teardownFailure(result.teardownFailed).title} The worktree stays.`);
         }
         await forgetWorktree(repoPath, worktree);
         if (!deleteBranch || !worktree.branch) return 'Removed the worktree.';
-        const deleted = await api.worktrees.deleteBranch(repoPath, worktree.branch);
+        const deleted = await api.worktrees.deleteBranch(repoPath, worktree.branch, false, mergedHead);
         return deleted.notMerged
             ? `Removed the worktree. The branch "${worktree.branch}" has commits that are not merged, so it stays.`
             : `Removed the worktree and the branch "${worktree.branch}".`;
@@ -408,7 +425,63 @@ export function useWorktreeActions(options: Options) {
         setMainView('tasks');
     };
 
-    /** The context menu of a worktree in the sidebar. */
+    /**
+     * Links a worktree to a task. The link replaces the old task of the worktree, and the task loses its link to
+     * another worktree.
+     */
+    const linkTask = async (worktreePath: string, task: Task, connectionId: string, pluginId: string) => {
+        await linkWorktreeToTask(queryClient, links, worktreePath, taskLinkOf(task, connectionId, pluginId));
+    };
+
+    /** Removes the task link of a worktree. The task and the worktree stay. */
+    const unlinkTask = async (worktreePath: string) => {
+        await saveTaskLink(queryClient, worktreePath, null);
+    };
+
+    /**
+     * The worktrees of each repository of all projects. The active project uses the lists of the sidebar. The lists of
+     * the other projects load from git. A list that fails to load is empty.
+     */
+    const allWorktreesByRepo = async (): Promise<Record<string, Worktree[]>> => {
+        const repos = [...new Set((options.projects?.projects ?? []).flatMap(project => project.repos))];
+        const entries = await Promise.all(
+            repos.map(async repo => [repo, options.worktreesByRepo[repo] ?? (await api.worktrees.list(repo).catch(() => []))] as const)
+        );
+        return Object.fromEntries(entries);
+    };
+
+    /**
+     * Shows a menu under `anchor` with three levels: project › repository › worktree. Links the chosen worktree to the
+     * task. The link replaces the old task of that worktree.
+     */
+    const chooseWorktreeForTask = async (task: Task, connectionId: string, pluginId: string, anchor: Element) => {
+        const byRepo = await allWorktreesByRepo();
+        const items = linkWorktreeMenuItems(
+            options.projects?.projects ?? [],
+            options.activeProjectId,
+            byRepo,
+            appSettings.worktreeNames,
+            links,
+            options.repoLabel
+        );
+        const path = linkWorktreeChoice(await showContextMenu(items, anchor));
+        if (path) await linkTask(path, task, connectionId, pluginId);
+    };
+
+    /**
+     * Shows a worktree from the Tasks view. When the worktree is in another project, that project becomes active first,
+     * so the worktree is in the sidebar.
+     */
+    const showTaskWorktree = async (path: string) => {
+        if (!options.worktrees.some(worktree => worktree.path === path)) {
+            const byRepo = await allWorktreesByRepo();
+            const owner = options.projects?.projects.find(project => project.repos.some(repo => byRepo[repo]?.some(worktree => worktree.path === path)));
+            if (owner && owner.id !== options.activeProjectId) await options.switchProject(owner.id);
+        }
+        setSelectedPath(path);
+        setMainView('worktree');
+    };
+
     /**
      * Closes the shell tabs of a worktree after the user agrees. Agent tabs and shells with an agent in them stay open.
      * Each tab closes when the exit event of its session gets to the page.
@@ -429,11 +502,14 @@ export function useWorktreeActions(options: Options) {
         if (failed) setError(errorText(failed.reason));
     };
 
+    /** The context menu of a worktree in the sidebar. */
     const worktreeMenu = async (repoPath: string, worktree: Worktree) => {
         const link = links[worktree.path];
         const shells = openShellCount(withAgentStore(options.sessions), worktree.path);
         const choice = await showContextMenu(worktreeMenuItems(worktree, link?.key, !!link, appSettings.hiddenWorktrees?.[worktree.path], Date.now(), shells));
         if (choice === 'task') openLinkedTask(worktree.path);
+        if (choice === 'linkTask') options.setLinkTaskOpen(worktree);
+        if (choice === 'unlinkTask') await unlinkTask(worktree.path).catch(err => setError(errorText(err)));
         if (choice === 'rename') await renameWorktree(worktree);
         if (choice === 'closeShells') await closeShells(worktree);
         try {
@@ -450,6 +526,7 @@ export function useWorktreeActions(options: Options) {
 
     return {
         startTask,
+        suggestTaskBranch,
         startTaskQuietly,
         startInNewWorktree,
         moveTaskToStatus,
@@ -459,6 +536,10 @@ export function useWorktreeActions(options: Options) {
         removeWorktreeQuietly,
         saveScripts,
         openLinkedTask,
+        linkTask,
+        unlinkTask,
+        chooseWorktreeForTask,
+        showTaskWorktree,
         worktreeMenu
     };
 }

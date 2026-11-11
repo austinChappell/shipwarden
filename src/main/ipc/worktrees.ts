@@ -71,8 +71,8 @@ export function registerWorktreeIpc({ worktrees, settings, reviewCheckouts, proc
         worktrees.ignoredMatches(String(repoPath), normalizeWorktreeSettings({ copyIgnored: copy }).copyIgnored)
     );
     ipcMain.handle(IpcChannels.worktreesDefaultFolder, () => worktreesRoot());
-    ipcMain.handle(IpcChannels.worktreesDeleteBranch, (_event, repoPath: string, branch: string, force?: boolean) =>
-        worktrees.deleteBranch(String(repoPath), String(branch), force === true)
+    ipcMain.handle(IpcChannels.worktreesDeleteBranch, (_event, repoPath: string, branch: string, force?: boolean, mergedHead?: string) =>
+        worktrees.deleteBranch(String(repoPath), String(branch), force === true, typeof mergedHead === 'string' && mergedHead ? mergedHead : undefined)
     );
     ipcMain.handle(IpcChannels.worktreesChooseFolder, async () => {
         const result = await showOpenDialog(window.get(), {

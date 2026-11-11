@@ -1,5 +1,5 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
-import type { TaskLink } from '@shared/tasks';
+import { linkMatchesTask, type Task, type TaskLink } from '@shared/tasks';
 import { keyRoots } from '../query-client';
 import { withoutKey } from './tabs';
 
@@ -9,6 +9,23 @@ export const taskLinksKey = [...keyRoots.tasks, 'links'];
 /** The task links with the link of one worktree. Null removes the link. */
 export function withTaskLink(links: Record<string, TaskLink>, worktreePath: string, link: TaskLink | null): Record<string, TaskLink> {
     return link ? { ...links, [worktreePath]: link } : withoutKey(links, worktreePath);
+}
+
+/** The link of a task, for one worktree. */
+export function taskLinkOf(task: Pick<Task, 'id' | 'key' | 'title' | 'url'>, connectionId: string, pluginId: string): TaskLink {
+    return { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
+}
+
+/**
+ * The worktrees other than `worktreePath` that have a link to the task of `link`. A task has one worktree, so a new
+ * link removes these links.
+ */
+export function otherWorktreesOfTask(links: Record<string, TaskLink>, link: TaskLink, worktreePath: string): string[] {
+    const connectionId = link.connectionId ?? link.pluginId;
+    const task = { id: link.taskId, url: link.url };
+    return Object.entries(links)
+        .filter(([path, other]) => path !== worktreePath && linkMatchesTask(other, connectionId, task))
+        .map(([path]) => path);
 }
 
 const NO_LINKS: Record<string, TaskLink> = {};
@@ -39,4 +56,15 @@ export async function saveTaskLink(client: QueryClient, worktreePath: string, li
     } else {
         await client.invalidateQueries({ queryKey: taskLinksKey });
     }
+}
+
+/**
+ * Links a worktree to a task. The link replaces the old task link of the worktree. The task loses its links to other
+ * worktrees, so the task has one worktree.
+ */
+export async function linkWorktreeToTask(client: QueryClient, links: Record<string, TaskLink>, worktreePath: string, link: TaskLink): Promise<void> {
+    for (const other of otherWorktreesOfTask(links, link, worktreePath)) {
+        await saveTaskLink(client, other, null);
+    }
+    await saveTaskLink(client, worktreePath, link);
 }

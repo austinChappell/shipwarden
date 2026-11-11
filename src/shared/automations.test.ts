@@ -241,7 +241,7 @@ describe('templates of prompts', () => {
     });
 
     it('finds variables that the trigger does not give', () => {
-        expect(unknownVariables('{{pr.url}} {{task.title}} {{task.title}}', 'ci.failed')).toEqual(['task.title']);
+        expect(unknownVariables('{{pr.url}} {{task.title}} {{task.title}}', { type: 'ci.failed' })).toEqual(['task.title']);
     });
 
     it('gives the values of an event', () => {

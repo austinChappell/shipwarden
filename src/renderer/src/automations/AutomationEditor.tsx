@@ -1,33 +1,36 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import {
-    ACTION_TRIGGERS,
     ACTION_TYPES,
+    MANUAL_ENTITIES,
+    SECRET_NAME_PATTERN,
     TRIGGER_TYPES,
-    TRIGGER_VARIABLES,
     TOKEN_LIMIT_MAX,
     TOKEN_LIMIT_MIN,
     TOKEN_LIMIT_STEP,
     USAGE_LIMIT_MAX,
     USAGE_LIMIT_MIN,
     USAGE_LIMIT_STEP,
+    actionAllowed,
+    actsOnTasks,
+    actsOnWorktrees,
     bindingProblems,
     defaultAction,
     defaultTrigger,
-    isWorktreeTrigger,
+    flattenActions,
     needsRepo,
     normalizeAutomation,
-    unknownVariables,
-    type ActionType,
+    triggerVariables,
+    usedSecrets,
     type Automation,
     type AutomationAction,
     type AutomationStatus,
     type LabelRepo,
+    type ManualEntity,
     type Trigger,
     type TriggerType
 } from '@shared/automations';
-import { AGENT_MODES, type AgentMode } from '@shared/agent-modes';
 import type { AgentDefinition } from '@shared/settings';
 import type { TaskCollection } from '@shared/tasks';
 import { Combobox, sortedGroups } from '../components/Combobox';
@@ -36,6 +39,8 @@ import { SettingsGroup, SettingsRow } from '../components/settings-ui';
 import { Select } from '../components/Select';
 import { errorText } from '../util';
 import { LimitField } from './LimitField';
+import { ActionList } from './AutomationActions';
+import { ConditionEditor } from './ConditionEditor';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -74,24 +79,28 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
     const [error, setError] = useState<string>();
     const [saving, setSaving] = useState(false);
     const change = (patch: Partial<Automation>) => setDraft(current => ({ ...current, ...patch }));
+    /** Changes the branch pattern or the condition. An empty field goes away. */
+    const setConditions = (patch: Partial<NonNullable<Automation['conditions']>>) =>
+        setDraft(current => {
+            const next = { ...current.conditions, ...patch };
+            const clean = Object.fromEntries(Object.entries(next).filter(([, value]) => value !== undefined));
+            return { ...current, conditions: Object.keys(clean).length > 0 ? clean : undefined };
+        });
     const trigger = draft.trigger;
     const problems = bindingProblems(draft, repos);
 
-    const setTriggerType = (type: TriggerType) => {
-        // Keep the actions that can follow the new trigger. A trigger without a valid action gets one.
-        const actions = draft.actions.filter(action => ACTION_TRIGGERS[action.type].includes(type));
-        const fallback = (Object.keys(ACTION_TRIGGERS) as ActionType[]).find(action => ACTION_TRIGGERS[action].includes(type)) ?? 'notify';
-        change({ trigger: defaultTrigger(type), actions: actions.length > 0 ? actions : [defaultAction(fallback)] });
+    /** Sets a new trigger. Keeps the actions that can follow it. A trigger without a valid action gets one. */
+    const applyTrigger = (next: Trigger) => {
+        const actions = keepAllowed(draft.actions, next);
+        const fallback = ACTION_TYPES.find(item => actionAllowed(item.type, next))?.type ?? 'notify';
+        change({ trigger: next, actions: actions.length > 0 ? actions : [defaultAction(fallback)] });
     };
+    const setTriggerType = (type: TriggerType) => applyTrigger(defaultTrigger(type));
     const setTrigger = (patch: Partial<Trigger>) => change({ trigger: { ...trigger, ...patch } as Trigger });
-    const setAction = (index: number, action: AutomationAction) => change({ actions: draft.actions.map((item, i) => (i === index ? action : item)) });
-    const moveAction = (index: number, step: -1 | 1) => {
-        const actions = [...draft.actions];
-        const [item] = actions.splice(index, 1);
-        actions.splice(index + step, 0, item);
-        change({ actions });
-    };
-    const allowedActions = ACTION_TYPES.filter(item => ACTION_TRIGGERS[item.type].includes(trigger.type));
+    const manual = trigger.type === 'manual';
+    const secretNames = Object.keys(draft.binding.secrets ?? {});
+    const showSecrets = secretNames.length > 0 || flattenActions(draft.actions).some(action => action.type === 'http');
+    const hasStartAgent = flattenActions(draft.actions).some(action => action.type === 'startAgent');
 
     const save = async () => {
         setError(undefined);
@@ -109,7 +118,7 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
         }
     };
 
-    const singleRepo = trigger.type === 'task.new' || trigger.type === 'schedule';
+    const singleRepo = !actsOnWorktrees(trigger);
     const repoChoices = [...new Set([...repos, ...(draft.binding.repos ?? [])])];
 
     return (
@@ -266,6 +275,33 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                         }
                     />
                 )}
+                {trigger.type === 'manual' && (
+                    <>
+                        <SettingsRow
+                            label="Button on"
+                            description={MANUAL_ENTITIES.find(item => item.entity === trigger.entity)?.description}
+                            control={
+                                <Select<ManualEntity>
+                                    className="settings-input"
+                                    value={trigger.entity}
+                                    options={MANUAL_ENTITIES.map(item => ({ value: item.entity, label: item.label }))}
+                                    onChange={entity => applyTrigger({ ...trigger, entity })}
+                                />
+                            }
+                        />
+                        {trigger.entity !== 'none' && (
+                            <SettingsRow label="Button text" description="Optional. Without it, the button shows the name of the automation.">
+                                <input
+                                    className="settings-input"
+                                    value={trigger.button ?? ''}
+                                    maxLength={40}
+                                    placeholder={draft.name}
+                                    onChange={event => setTrigger({ button: event.target.value || undefined })}
+                                />
+                            </SettingsRow>
+                        )}
+                    </>
+                )}
             </SettingsGroup>
 
             <SettingsGroup
@@ -273,15 +309,17 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                 description={
                     singleRepo
                         ? 'The repository of the new worktrees and of the agents.'
-                        : 'The repositories of the worktrees. The automation acts only on worktrees with a branch, not on the main worktree.'
+                        : manual
+                          ? 'The repositories of the worktrees that show the button.'
+                          : 'The repositories of the worktrees. The automation acts only on worktrees with a branch, not on the main worktree.'
                 }
                 card
             >
                 {singleRepo ? (
                     <SettingsRow
-                        label={trigger.type === 'task.new' ? 'Default repository' : 'Repository'}
+                        label={actsOnTasks(trigger) ? 'Default repository' : 'Repository'}
                         description={
-                            trigger.type === 'task.new'
+                            actsOnTasks(trigger)
                                 ? 'The repository of a task when no label rule below matches. Empty: a task without a matching label does not run.'
                                 : needsRepo(draft)
                                   ? undefined
@@ -319,7 +357,7 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                         </div>
                     </SettingsRow>
                 )}
-                {trigger.type === 'task.new' && (
+                {actsOnTasks(trigger) && (
                     <LabelRepoFields
                         rules={draft.binding.labelRepos ?? []}
                         repos={repoChoices}
@@ -327,7 +365,7 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                         onChange={rules => change({ binding: { ...draft.binding, labelRepos: rules.length > 0 ? rules : undefined } })}
                     />
                 )}
-                {isWorktreeTrigger(trigger.type) && (
+                {actsOnWorktrees(trigger) && (
                     <SettingsRow
                         label="Branches"
                         description='Only branches that match this pattern. "*" matches any text, for example "eng-*". Empty: all branches.'
@@ -335,125 +373,142 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                         <input
                             className="settings-input mono"
                             value={draft.conditions?.branchPattern ?? ''}
-                            onChange={event => change({ conditions: event.target.value ? { branchPattern: event.target.value } : undefined })}
+                            onChange={event => setConditions({ branchPattern: event.target.value || undefined })}
                         />
                     </SettingsRow>
                 )}
             </SettingsGroup>
 
-            <SettingsGroup title="Then" description="The actions run in this order. A failed action stops the run." card>
-                {draft.actions.map((action, index) => (
-                    <ActionFields
-                        // biome-ignore lint/suspicious/noArrayIndexKey: The actions have no IDs. The index is their place in the list.
-                        key={index}
-                        index={index}
-                        count={draft.actions.length}
-                        action={action}
-                        trigger={trigger.type}
-                        allowed={allowedActions.map(item => item.type)}
-                        agents={agents}
-                        onChange={next => setAction(index, next)}
-                        onMove={step => moveAction(index, step)}
-                        onRemove={() => change({ actions: draft.actions.filter((_, i) => i !== index) })}
+            <SettingsGroup
+                title="Only if"
+                description={
+                    manual
+                        ? 'The button shows only when these conditions agree. They use the variables of the trigger. Use an "If" action for the answer of an HTTP request.'
+                        : 'The automation runs only when these conditions agree. They use the variables of the trigger. Use an "If" action for the checks or the answer of an HTTP request.'
+                }
+                card
+            >
+                <div className="settings-row">
+                    <ConditionEditor
+                        value={draft.conditions?.when}
+                        variables={triggerVariables(trigger)}
+                        emptyText="No conditions."
+                        onChange={when => setConditions({ when })}
                     />
-                ))}
-                <SettingsRow
-                    label="Add an action"
-                    control={
-                        <Select<ActionType | ''>
-                            className="settings-input"
-                            value=""
-                            options={[{ value: '', label: 'Select an action' }, ...allowedActions.map(item => ({ value: item.type, label: item.label }))]}
-                            onChange={type => {
-                                if (type) change({ actions: [...draft.actions, defaultAction(type)] });
-                            }}
-                        />
-                    }
+                </div>
+            </SettingsGroup>
+
+            <SettingsGroup title="Then" description="The actions run in this order. A failed action stops the run." card>
+                <ActionList
+                    actions={draft.actions}
+                    trigger={trigger}
+                    agents={agents}
+                    secrets={secretNames}
+                    required
+                    onChange={actions => change({ actions })}
                 />
             </SettingsGroup>
 
-            <SettingsGroup title="Limits" card>
-                <SettingsRow
-                    label="Approval"
-                    description='"Ask first": each run waits for you in the Automations view, and a notification tells you.'
-                    control={
-                        <div className="segmented compact">
-                            {(['auto', 'ask'] as const).map(value => (
-                                <button
-                                    key={value}
-                                    type="button"
-                                    className={draft.limits.approval === value ? 'selected' : ''}
-                                    onClick={() => change({ limits: { ...draft.limits, approval: value } })}
-                                >
-                                    {value === 'auto' ? 'Run at once' : 'Ask first'}
-                                </button>
-                            ))}
-                        </div>
-                    }
+            {showSecrets && (
+                <SecretFields
+                    secrets={draft.binding.secrets ?? {}}
+                    used={usedSecrets(draft)}
+                    onChange={secrets => change({ binding: { ...draft.binding, secrets: Object.keys(secrets).length > 0 ? secrets : undefined } })}
                 />
-                <SettingsRow
-                    label="Tokens each day"
-                    description="The most tokens of this automation from midnight. Then it starts no runs until the next day. Only Claude Code reports tokens."
-                    control={
-                        <LimitField
-                            value={draft.limits.dailyTokens ?? null}
-                            fallback={1_000_000}
-                            min={TOKEN_LIMIT_MIN}
-                            max={TOKEN_LIMIT_MAX}
-                            step={TOKEN_LIMIT_STEP}
-                            unit="tokens"
-                            label="Tokens each day for this automation"
-                            onSave={dailyTokens => change({ limits: { ...draft.limits, dailyTokens: dailyTokens ?? undefined } })}
-                        />
-                    }
-                />
-                <SettingsRow
-                    label="Pause at plan usage"
-                    description="This automation starts no runs while the plan usage of Claude or Codex is at or above this percent. The limit for all automations also applies."
-                    control={
-                        <LimitField
-                            value={draft.limits.pauseAtUsage ?? null}
-                            fallback={70}
-                            min={USAGE_LIMIT_MIN}
-                            max={USAGE_LIMIT_MAX}
-                            step={USAGE_LIMIT_STEP}
-                            unit="%"
-                            label="Pause this automation at plan usage, in percent"
-                            onSave={pauseAtUsage => change({ limits: { ...draft.limits, pauseAtUsage: pauseAtUsage ?? undefined } })}
-                        />
-                    }
-                />
-                <SettingsRow
-                    label="Runs for each target"
-                    description="The most runs for one pull request, worktree or task. This stops a loop, for example fix, fail, fix."
-                    control={
-                        <input
-                            type="number"
-                            min={1}
-                            max={100}
-                            className="settings-input automation-number"
-                            value={draft.limits.maxRunsPerTarget}
-                            onChange={event => change({ limits: { ...draft.limits, maxRunsPerTarget: Number(event.target.value) } })}
-                        />
-                    }
-                />
-                {draft.actions.some(action => action.type === 'startAgent') && (
-                    <SettingsRow
-                        label="Agents at the same time"
-                        description="The most agents of this automation that work at the same time. More runs wait."
-                        control={
-                            <input
-                                type="number"
-                                min={1}
-                                max={100}
-                                className="settings-input automation-number"
-                                value={draft.limits.maxRunning}
-                                onChange={event => change({ limits: { ...draft.limits, maxRunning: Number(event.target.value) } })}
+            )}
+
+            {(!manual || hasStartAgent) && (
+                <SettingsGroup
+                    title="Limits"
+                    description={manual ? 'A click is the approval, so a manual automation has no approval and no run limits.' : undefined}
+                    card
+                >
+                    {!manual && (
+                        <>
+                            <SettingsRow
+                                label="Approval"
+                                description='"Ask first": each run waits for you in the Automations view, and a notification tells you.'
+                                control={
+                                    <div className="segmented compact">
+                                        {(['auto', 'ask'] as const).map(value => (
+                                            <button
+                                                key={value}
+                                                type="button"
+                                                className={draft.limits.approval === value ? 'selected' : ''}
+                                                onClick={() => change({ limits: { ...draft.limits, approval: value } })}
+                                            >
+                                                {value === 'auto' ? 'Run at once' : 'Ask first'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                }
                             />
-                        }
-                    />
-                )}
-            </SettingsGroup>
+                            <SettingsRow
+                                label="Tokens each day"
+                                description="The most tokens of this automation from midnight. Then it starts no runs until the next day. Only Claude Code reports tokens."
+                                control={
+                                    <LimitField
+                                        value={draft.limits.dailyTokens ?? null}
+                                        fallback={1_000_000}
+                                        min={TOKEN_LIMIT_MIN}
+                                        max={TOKEN_LIMIT_MAX}
+                                        step={TOKEN_LIMIT_STEP}
+                                        unit="tokens"
+                                        label="Tokens each day for this automation"
+                                        onSave={dailyTokens => change({ limits: { ...draft.limits, dailyTokens: dailyTokens ?? undefined } })}
+                                    />
+                                }
+                            />
+                            <SettingsRow
+                                label="Pause at plan usage"
+                                description="This automation starts no runs while the plan usage of Claude or Codex is at or above this percent. The limit for all automations also applies."
+                                control={
+                                    <LimitField
+                                        value={draft.limits.pauseAtUsage ?? null}
+                                        fallback={70}
+                                        min={USAGE_LIMIT_MIN}
+                                        max={USAGE_LIMIT_MAX}
+                                        step={USAGE_LIMIT_STEP}
+                                        unit="%"
+                                        label="Pause this automation at plan usage, in percent"
+                                        onSave={pauseAtUsage => change({ limits: { ...draft.limits, pauseAtUsage: pauseAtUsage ?? undefined } })}
+                                    />
+                                }
+                            />
+                            <SettingsRow
+                                label="Runs for each target"
+                                description="The most runs for one pull request, worktree or task. This stops a loop, for example fix, fail, fix."
+                                control={
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={100}
+                                        className="settings-input automation-number"
+                                        value={draft.limits.maxRunsPerTarget}
+                                        onChange={event => change({ limits: { ...draft.limits, maxRunsPerTarget: Number(event.target.value) } })}
+                                    />
+                                }
+                            />
+                        </>
+                    )}
+                    {hasStartAgent && (
+                        <SettingsRow
+                            label="Agents at the same time"
+                            description="The most agents of this automation that work at the same time. More runs wait."
+                            control={
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    className="settings-input automation-number"
+                                    value={draft.limits.maxRunning}
+                                    onChange={event => change({ limits: { ...draft.limits, maxRunning: Number(event.target.value) } })}
+                                />
+                            }
+                        />
+                    )}
+                </SettingsGroup>
+            )}
 
             {problems.length > 0 && <div className="automation-warning">{problems.join(' ')}</div>}
             {error && <div className="form-error">{error}</div>}
@@ -584,163 +639,106 @@ function LabelRepoFields({ rules, repos, repoLabel, onChange }: LabelRepoProps) 
     );
 }
 
-interface ActionProps {
-    index: number;
-    count: number;
-    action: AutomationAction;
-    trigger: TriggerType;
-    allowed: ActionType[];
-    agents: AgentDefinition[];
-    onChange(action: AutomationAction): void;
-    onMove(step: -1 | 1): void;
-    onRemove(): void;
+/** Returns the actions that can follow the trigger, also in the lists of "If" actions. */
+function keepAllowed(actions: AutomationAction[], trigger: Trigger): AutomationAction[] {
+    return actions
+        .filter(action => actionAllowed(action.type, trigger))
+        .map(action =>
+            action.type === 'if'
+                ? // biome-ignore lint/suspicious/noThenProperty: "then" is a list of actions, not a function, so the object is not a promise.
+                  { ...action, then: keepAllowed(action.then, trigger), ...(action.else ? { else: keepAllowed(action.else, trigger) } : {}) }
+                : action
+        );
 }
 
-/** The fields of one action. */
-function ActionFields({ index, count, action, trigger, allowed, agents, onChange, onMove, onRemove }: ActionProps) {
-    const unknown = 'prompt' in action ? unknownVariables(action.prompt, trigger) : [];
+interface SecretProps {
+    secrets: Record<string, string>;
+    /** The names that the HTTP requests use. */
+    used: string[];
+    onChange(secrets: Record<string, string>): void;
+}
+
+/**
+ * The secrets of the HTTP requests. They stay on this Mac, in the automation file. An export does not contain them.
+ * The names that the requests use and that have no value show first.
+ */
+function SecretFields({ secrets, used, onChange }: SecretProps) {
+    const [newName, setNewName] = useState('');
+    const [newValue, setNewValue] = useState('');
+    const names = [...new Set([...Object.keys(secrets), ...used])];
+    const taken = names.includes(newName);
+    const canAdd = SECRET_NAME_PATTERN.test(newName) && !taken && newValue !== '';
+    const set = (name: string, value: string) => onChange({ ...secrets, [name]: value });
+    const add = () => {
+        if (!canAdd) return;
+        set(newName, newValue);
+        setNewName('');
+        setNewValue('');
+    };
+    const nameProblem =
+        newName === ''
+            ? undefined
+            : taken
+              ? `The automation has a secret ${newName} already. Change its value above.`
+              : SECRET_NAME_PATTERN.test(newName)
+                ? undefined
+                : 'The name must start with a letter or _, then have letters, digits and _ only.';
+    const remove = (name: string) => onChange(Object.fromEntries(Object.entries(secrets).filter(([key]) => key !== name)));
     return (
-        <div className="settings-row automation-action">
-            <div className="settings-row-main">
-                <div className="settings-row-text">
-                    <div className="settings-row-label">
-                        {index + 1}. {ACTION_TYPES.find(item => item.type === action.type)?.label}
+        <SettingsGroup
+            title="Secrets"
+            description="Values for the HTTP requests, for example a token. Use {{secret.NAME}} in the address, a header or the body. They stay on this Mac in the automation file. An export does not contain them, and the run history shows •••."
+            card
+        >
+            {names.map(name => (
+                <SettingsRow key={name} label={name} description={used.includes(name) ? undefined : 'No HTTP request uses this secret.'}>
+                    <div className="automation-label-repo">
+                        <input
+                            type="password"
+                            className="settings-input mono"
+                            aria-label={`The value of ${name}`}
+                            placeholder="Value"
+                            autoComplete="off"
+                            value={secrets[name] ?? ''}
+                            onChange={event => set(name, event.target.value)}
+                        />
+                        <button type="button" className="icon-button" title="Remove the secret" aria-label="Remove the secret" onClick={() => remove(name)}>
+                            <Trash2 size={14} strokeWidth={1.7} />
+                        </button>
                     </div>
-                    <div className="settings-row-description">{ACTION_TYPES.find(item => item.type === action.type)?.description}</div>
-                </div>
-                <div className="settings-row-control automation-action-tools">
-                    <Select
-                        className="settings-input"
-                        value={action.type}
-                        options={allowed.map(type => ({ value: type, label: ACTION_TYPES.find(item => item.type === type)?.label ?? type }))}
-                        onChange={type => onChange(defaultAction(type))}
-                    />
-                    <button type="button" className="icon-button" title="Move up" disabled={index === 0} onClick={() => onMove(-1)}>
-                        <ArrowUp size={14} />
-                    </button>
-                    <button type="button" className="icon-button" title="Move down" disabled={index === count - 1} onClick={() => onMove(1)}>
-                        <ArrowDown size={14} />
-                    </button>
-                    <button type="button" className="icon-button" title="Remove the action" disabled={count === 1} onClick={onRemove}>
-                        <Trash2 size={14} />
-                    </button>
-                </div>
-            </div>
-            <div className="settings-row-body automation-action-body">
-                {'prompt' in action && (
-                    <>
-                        <textarea
-                            className="settings-input mono automation-prompt"
-                            value={action.prompt}
+                </SettingsRow>
+            ))}
+            <SettingsRow label="Add a secret" description="Type the name and the value. Then use {{secret.NAME}} in an HTTP request.">
+                <div className="automation-secret-add">
+                    <div className="automation-label-repo">
+                        <input
+                            className="settings-input mono"
+                            aria-label="The name of the new secret"
+                            placeholder="TOKEN"
+                            autoComplete="off"
                             spellCheck={false}
-                            placeholder="The prompt. Use variables such as {{pr.url}}."
-                            onChange={event => onChange({ ...action, prompt: event.target.value })}
+                            value={newName}
+                            onChange={event => setNewName(event.target.value.trim())}
+                            onKeyDown={event => event.key === 'Enter' && add()}
                         />
-                        <div className="automation-variables">
-                            Variables:{' '}
-                            {TRIGGER_VARIABLES[trigger].map(variable => (
-                                <code key={variable.name} title={variable.description}>{`{{${variable.name}}}`}</code>
-                            ))}
-                        </div>
-                        {unknown.length > 0 && (
-                            <div className="automation-warning">
-                                This trigger does not give {unknown.map(name => `{{${name}}}`).join(', ')}. These variables become empty text.
-                            </div>
-                        )}
-                    </>
-                )}
-                {(action.type === 'sendToAgent' || action.type === 'startAgent') && (
-                    <div className="automation-inline">
-                        {action.type === 'startAgent' && (
-                            <span className="automation-field">
-                                Agent{' '}
-                                <Select
-                                    className="settings-input"
-                                    aria-label="Agent"
-                                    value={action.agentId ?? ''}
-                                    options={[
-                                        { value: '', label: 'The agent of the repository' },
-                                        ...agents.map(agent => ({ value: agent.id, label: agent.name }))
-                                    ]}
-                                    onChange={agentId => onChange({ ...action, agentId: agentId || undefined })}
-                                />
-                            </span>
-                        )}
-                        <span className="automation-field" title={AGENT_MODES.find(item => item.mode === action.mode)?.description}>
-                            Mode{' '}
-                            <Select<AgentMode | ''>
-                                className="settings-input"
-                                aria-label="Mode"
-                                value={action.mode ?? ''}
-                                options={[{ value: '', label: 'Default agent setting' }, ...AGENT_MODES.map(item => ({ value: item.mode, label: item.label }))]}
-                                onChange={mode => {
-                                    const { mode: _mode, ...rest } = action;
-                                    onChange(mode ? { ...rest, mode } : rest);
-                                }}
-                            />
-                        </span>
-                        {action.type === 'startAgent' && trigger === 'schedule' && (
-                            <label>
-                                Branch{' '}
-                                <input
-                                    className="settings-input mono"
-                                    placeholder="automation/{{date}}-{{time}}"
-                                    value={action.branch ?? ''}
-                                    onChange={event => onChange({ ...action, branch: event.target.value || undefined })}
-                                />
-                            </label>
-                        )}
-                    </div>
-                )}
-                {action.type === 'sendToAgent' && action.mode && (
-                    <div className="automation-variables">
-                        A new agent starts in this mode. A running Claude Code agent changes to it before the prompt. Other running agents cannot change their
-                        mode, so the run fails.
-                    </div>
-                )}
-                {action.type === 'runHeadless' && (
-                    <label className="automation-check">
                         <input
-                            type="checkbox"
-                            checked={!!action.saveNote}
-                            onChange={event => onChange({ ...action, saveNote: event.target.checked || undefined })}
+                            type="password"
+                            className="settings-input mono"
+                            aria-label="The value of the new secret"
+                            placeholder="Value"
+                            autoComplete="off"
+                            value={newValue}
+                            onChange={event => setNewValue(event.target.value)}
+                            onKeyDown={event => event.key === 'Enter' && add()}
                         />
-                        Save the answer as a note in the folder "Automations"
-                    </label>
-                )}
-                {action.type === 'moveTask' && (
-                    <label className="automation-inline">
-                        Status{' '}
-                        <input className="settings-input" value={action.status} onChange={event => onChange({ ...action, status: event.target.value })} />
-                    </label>
-                )}
-                {action.type === 'removeWorktree' && (
-                    <label className="automation-check">
-                        <input
-                            type="checkbox"
-                            checked={!!action.deleteBranch}
-                            onChange={event => onChange({ ...action, deleteBranch: event.target.checked || undefined })}
-                        />
-                        Also delete the local branch when it is merged
-                    </label>
-                )}
-                {action.type === 'notify' && (
-                    <div className="automation-inline">
-                        <label>
-                            Title{' '}
-                            <input className="settings-input" value={action.title} onChange={event => onChange({ ...action, title: event.target.value })} />
-                        </label>
-                        <label>
-                            Text{' '}
-                            <input
-                                className="settings-input"
-                                value={action.body ?? ''}
-                                onChange={event => onChange({ ...action, body: event.target.value || undefined })}
-                            />
-                        </label>
+                        <button type="button" className="button" disabled={!canAdd} onClick={add}>
+                            <Plus size={13} strokeWidth={1.8} />
+                            Add
+                        </button>
                     </div>
-                )}
-            </div>
-        </div>
+                    {nameProblem && <div className="automation-warning">{nameProblem}</div>}
+                </div>
+            </SettingsRow>
+        </SettingsGroup>
     );
 }
