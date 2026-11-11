@@ -64,7 +64,8 @@ you can export and share. Runs can wait for your approval, and limits stop loops
 [docs/automations.md](docs/automations.md).
 
 At the first start, a welcome page checks your tools (git, the agent and GitHub access), helps you add or clone a
-repository, choose your agent and start the first agent. Help › Show Welcome opens it again.
+repository, choose your agent and start the first agent. Help › Show Welcome opens it again. A short guided tour shows
+the main parts of the window. Help › Take the Tour starts it at all times.
 
 The iPhone app (`ios/`) connects to ShipWarden on your Mac over your network. It shows the
 agents and their terminal screens, the worktrees with their pull requests and CI state. You

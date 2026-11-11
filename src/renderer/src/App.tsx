@@ -36,6 +36,8 @@ import { ErrorBanner } from './components/ErrorBanner';
 import { agentForRepo, DEFAULT_SETTINGS, repoDisplayName, type AppSettings } from '@shared/settings';
 import { changeOnboarding, type HelpAction, type OnboardingSettings } from '@shared/onboarding';
 import { shouldOpenWelcome } from '@shared/welcome';
+import { shouldOfferTour, TOUR_STEPS, TOUR_VERSION, type TourStep } from '@shared/tour';
+import { Tour, TourOffer } from './components/Tour';
 import { WelcomeView } from './components/WelcomeView';
 import { leafOfTab, resizeSplit } from '@shared/panes';
 import type { ShortcutAction, ViewAction } from '@shared/shortcuts';
@@ -308,9 +310,39 @@ export function App() {
         const next = await api.settings.update({ onboarding: changeOnboarding(appSettings.onboarding, change) });
         setAppSettings(next);
     };
+    /** True while the guided tour shows. */
+    const [tourOpen, setTourOpen] = useState(false);
+    /** The panels and the view before the tour. The tour opens panels for its steps, and puts them back at its end. */
+    const beforeTour = useRef<{ sidebarCollapsed: boolean; explorerOpen: boolean; mainView: MainView } | undefined>(undefined);
+    const startTour = () => {
+        if (tourOpen) return;
+        beforeTour.current = { sidebarCollapsed, explorerOpen, mainView };
+        // The tour points at the workspace. The welcome page and the settings page do not have its parts.
+        if (mainView === 'welcome' || mainView === 'settings') setMainView(selectedPath ? 'worktree' : 'dashboard');
+        setTourOpen(true);
+    };
+    /** Opens the part of the window that a step needs. A step without its part shows its callout in the center. */
+    const prepareTourStep = (step: TourStep) => {
+        if (step.needs === 'sidebar' && sidebarCollapsed) toggleSidebar();
+        if ((step.needs === 'worktree' || step.needs === 'rightPanel') && selectedPath) setMainView('worktree');
+        if (step.needs === 'rightPanel' && selectedPath && !explorerOpen) toggleExplorer();
+    };
+    /** Ends the tour, puts the panels back and saves that the user saw this tour version. */
+    const endTour = () => {
+        setTourOpen(false);
+        const before = beforeTour.current;
+        beforeTour.current = undefined;
+        if (before) {
+            if (before.sidebarCollapsed && !sidebarCollapsed) toggleSidebar();
+            if (!before.explorerOpen && explorerOpen) toggleExplorer();
+            setMainView(before.mainView === 'welcome' || before.mainView === 'settings' ? mainView : before.mainView);
+        }
+        void saveOnboarding({ tourSeen: TOUR_VERSION }).catch(err => setError(errorText(err)));
+    };
     /** Runs an item of the Help menu. */
     const help = (action: HelpAction) => {
         if (action === 'welcome') setMainView('welcome');
+        else if (action === 'tour') startTour();
     };
     const helpRef = useRef(help);
     helpRef.current = help;
@@ -756,7 +788,7 @@ export function App() {
                         </main>
                     )}
                     <main className="workspace" style={mainView !== 'worktree' ? { display: 'none' } : undefined}>
-                        <header className="workspace-header">
+                        <header className="workspace-header" data-tour="tabs">
                             <TabStrip
                                 items={tabs.stripItems}
                                 activeTab={activeTab}
@@ -773,7 +805,7 @@ export function App() {
                             />
                             {/* The "+" sits right after the last tab. It is outside the tab strip, which scrolls and would cut off the menu. */}
                             {selected && (
-                                <div className="tab-strip-actions">
+                                <div className="tab-strip-actions" data-tour="agent">
                                     <NewTabMenu
                                         agents={appSettings.agents}
                                         defaultAgentId={agentForRepo(appSettings, selectedRepo).id}
@@ -848,7 +880,7 @@ export function App() {
                                         <>
                                             <div className="empty-title">{selected.branch ?? selected.path}</div>
                                             <div className="empty-detail">{selected.path}</div>
-                                            <button className="button primary" onClick={() => startTerminal(selected, 'agent')}>
+                                            <button className="button primary" data-tour="agent" onClick={() => startTerminal(selected, 'agent')}>
                                                 Start {agentForRepo(appSettings, selectedRepo).name}
                                             </button>
                                         </>
@@ -923,6 +955,10 @@ export function App() {
                     </div>
                 )}
                 <StatusBar />
+                {tourOpen && <Tour steps={TOUR_STEPS} onPrepare={prepareTourStep} onClose={endTour} />}
+                {!tourOpen && settingsLoaded && shouldOfferTour(appSettings.onboarding, mainView === 'welcome') && (
+                    <TourOffer onStart={startTour} onDecline={() => void saveOnboarding({ tourSeen: TOUR_VERSION }).catch(err => setError(errorText(err)))} />
+                )}
             </div>
         </SidebarContext.Provider>
     );

@@ -812,7 +812,7 @@ export function Sidebar(outerProps: Props) {
         });
 
     return (
-        <aside className="sidebar" ref={asideRef} aria-label="Sidebar" onKeyDown={moveSidebarFocus}>
+        <aside className="sidebar" ref={asideRef} aria-label="Sidebar" onKeyDown={moveSidebarFocus} data-tour="sidebar">
             <div className="sidebar-titlebar" />
             <div className="brand">
                 <Logo size={26} />
@@ -824,20 +824,20 @@ export function Sidebar(outerProps: Props) {
                 <span className="nav-row-label">Dashboard</span>
                 {props.dashboardCount > 0 && <span className="nav-row-count attention">{props.dashboardCount}</span>}
             </button>
-            <button data-sidebar-item className={`nav-row${props.agentsActive ? ' selected' : ''}`} onClick={props.onOpenAgents}>
+            <button data-sidebar-item data-tour="agents" className={`nav-row${props.agentsActive ? ' selected' : ''}`} onClick={props.onOpenAgents}>
                 <Bot size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Agents</span>
                 {agentsState && <span className={`status-dot ${agentsState}`} title={AGENT_STATE_LABELS[agentsState]} />}
                 {runningAgents > 0 && <span className="nav-row-count">{runningAgents}</span>}
             </button>
             {props.repos.length > 0 && (
-                <button data-sidebar-item className={`nav-row${props.tasksActive ? ' selected' : ''}`} onClick={props.onOpenTasks}>
+                <button data-sidebar-item data-tour="tasks" className={`nav-row${props.tasksActive ? ' selected' : ''}`} onClick={props.onOpenTasks}>
                     <ListTodo size={15} strokeWidth={1.6} />
                     <span className="nav-row-label">Tasks</span>
                 </button>
             )}
 
-            <button data-sidebar-item className={`nav-row${props.reviewActive ? ' selected' : ''}`} onClick={props.onOpenReview}>
+            <button data-sidebar-item data-tour="review" className={`nav-row${props.reviewActive ? ' selected' : ''}`} onClick={props.onOpenReview}>
                 <GitPullRequest size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Review</span>
                 {props.reviewCount > 0 && (
