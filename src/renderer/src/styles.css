@@ -10399,6 +10399,51 @@ body.resizing-column * {
     max-width: none;
 }
 
+/* The dialog that links a worktree to a task */
+.link-task-dialog {
+    width: min(620px, calc(100vw - 32px));
+}
+
+.link-task-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.link-task-sources:empty {
+    display: none;
+}
+
+.link-task-dialog .link-task-sources .combobox {
+    flex: 1;
+}
+
+.link-task-search {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.link-task-list {
+    height: min(360px, 50vh);
+    margin-top: 8px;
+    padding: 0;
+}
+
+.link-task-option {
+    padding-left: 8px;
+}
+
+.link-task-note {
+    flex: none;
+    max-width: 160px;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .new-worktree-optional {
     color: var(--muted);
     font-weight: 400;

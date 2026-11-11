@@ -24,6 +24,10 @@ interface Props {
     repoLabel(repo: string): string;
     onOpenWorktree(path: string): void;
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
+    /** Shows a menu of the worktrees under `anchor`, and links the chosen worktree to the task. */
+    onLinkWorktree(task: Task, connectionId: string, pluginId: string, anchor: Element): Promise<void>;
+    /** Removes the task link of a worktree. */
+    onUnlinkWorktree(worktreePath: string): Promise<void>;
     /** A loaded task with the ID, for the titles of subtasks and linked tasks. */
     findTask(id: string): Task | undefined;
     /** The loaded tasks. The comment box links to them with "#". */
@@ -44,6 +48,8 @@ export function TaskDetails({
     repoLabel,
     onOpenWorktree,
     onStartTask,
+    onLinkWorktree,
+    onUnlinkWorktree,
     findTask,
     tasks,
     onOpenTask
@@ -87,6 +93,8 @@ export function TaskDetails({
                         repoLabel={repoLabel}
                         onOpenWorktree={onOpenWorktree}
                         onStartTask={onStartTask}
+                        onLinkWorktree={onLinkWorktree}
+                        onUnlinkWorktree={onUnlinkWorktree}
                         act={state.act}
                         runAction={state.runAction}
                     />

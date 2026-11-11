@@ -17,6 +17,8 @@ import { withoutKey, type ExtraTab } from './tabs';
 import type { MainView } from './views';
 import {
     errorText,
+    linkWorktreeChoice,
+    linkWorktreeMenuItems,
     removeWorktreeDialog,
     sameRepoRef,
     snoozeChoice,
@@ -32,7 +34,7 @@ import { keyRoots, queryClient } from '../query-client';
 import { taskManagerKeys } from '../components/task-managers-cache';
 import { listPatch, taskQueryKeys } from '../components/tasks/task-view-logic';
 import { patchCachedTask } from '../components/tasks/use-task-list';
-import { saveTaskLink } from './task-links';
+import { linkWorktreeToTask, saveTaskLink, taskLinkOf } from './task-links';
 
 const api = window.shipwarden;
 
@@ -67,6 +69,10 @@ interface Options {
     setMainView: (view: MainView) => void;
     setNewWorktree: (target: NewWorktreeTarget) => void;
     setTaskOpen: (request: { connectionId: string; taskId: string; nonce: number }) => void;
+    /** Opens the dialog that links a worktree to a task. */
+    setLinkTaskOpen: (worktree: Worktree) => void;
+    /** The name of a repository in the UI. */
+    repoLabel: (repo: string) => string;
     startTerminal: (worktree: Worktree, target: 'shell' | 'agent' | AgentDefinition) => Promise<TerminalSession | undefined>;
     sendToAgent: (prompt: string, worktree?: Worktree) => Promise<void>;
     /** Sends a prompt to an agent without a banner and without a change of the selected tab. See `useAgentActions`. */
@@ -167,8 +173,7 @@ export function useWorktreeActions(options: Options) {
         const branch = branchNameForTask(task);
         const worktree = await api.worktrees.create({ repoPath, branch });
         await options.prepareWorktree(repoPath, worktree);
-        const link: TaskLink = { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
-        await saveTaskLink(queryClient, worktree.path, link);
+        await saveTaskLink(queryClient, worktree.path, taskLinkOf(task, connectionId, pluginId));
         await refreshWorktrees(repoPath);
         setSelectedPath(worktree.path);
         setMainView('worktree');
@@ -192,8 +197,7 @@ export function useWorktreeActions(options: Options) {
         const branch = branchNameForTask(task);
         const worktree = await api.worktrees.create({ repoPath, branch });
         await options.prepareWorktree(repoPath, worktree);
-        const link: TaskLink = { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
-        await saveTaskLink(queryClient, worktree.path, link);
+        await saveTaskLink(queryClient, worktree.path, taskLinkOf(task, connectionId, pluginId));
         await refreshWorktrees(repoPath);
         void moveTaskToStartStatus(task, connectionId);
         const session = await options.promptAgent(worktree, prompt(branch), { agentId, repoPath, mode });
@@ -408,7 +412,63 @@ export function useWorktreeActions(options: Options) {
         setMainView('tasks');
     };
 
-    /** The context menu of a worktree in the sidebar. */
+    /**
+     * Links a worktree to a task. The link replaces the old task of the worktree, and the task loses its link to
+     * another worktree.
+     */
+    const linkTask = async (worktreePath: string, task: Task, connectionId: string, pluginId: string) => {
+        await linkWorktreeToTask(queryClient, links, worktreePath, taskLinkOf(task, connectionId, pluginId));
+    };
+
+    /** Removes the task link of a worktree. The task and the worktree stay. */
+    const unlinkTask = async (worktreePath: string) => {
+        await saveTaskLink(queryClient, worktreePath, null);
+    };
+
+    /**
+     * The worktrees of each repository of all projects. The active project uses the lists of the sidebar. The lists of
+     * the other projects load from git. A list that fails to load is empty.
+     */
+    const allWorktreesByRepo = async (): Promise<Record<string, Worktree[]>> => {
+        const repos = [...new Set((options.projects?.projects ?? []).flatMap(project => project.repos))];
+        const entries = await Promise.all(
+            repos.map(async repo => [repo, options.worktreesByRepo[repo] ?? (await api.worktrees.list(repo).catch(() => []))] as const)
+        );
+        return Object.fromEntries(entries);
+    };
+
+    /**
+     * Shows a menu under `anchor` with three levels: project › repository › worktree. Links the chosen worktree to the
+     * task. The link replaces the old task of that worktree.
+     */
+    const chooseWorktreeForTask = async (task: Task, connectionId: string, pluginId: string, anchor: Element) => {
+        const byRepo = await allWorktreesByRepo();
+        const items = linkWorktreeMenuItems(
+            options.projects?.projects ?? [],
+            options.activeProjectId,
+            byRepo,
+            appSettings.worktreeNames,
+            links,
+            options.repoLabel
+        );
+        const path = linkWorktreeChoice(await showContextMenu(items, anchor));
+        if (path) await linkTask(path, task, connectionId, pluginId);
+    };
+
+    /**
+     * Shows a worktree from the Tasks view. When the worktree is in another project, that project becomes active first,
+     * so the worktree is in the sidebar.
+     */
+    const showTaskWorktree = async (path: string) => {
+        if (!options.worktrees.some(worktree => worktree.path === path)) {
+            const byRepo = await allWorktreesByRepo();
+            const owner = options.projects?.projects.find(project => project.repos.some(repo => byRepo[repo]?.some(worktree => worktree.path === path)));
+            if (owner && owner.id !== options.activeProjectId) await options.switchProject(owner.id);
+        }
+        setSelectedPath(path);
+        setMainView('worktree');
+    };
+
     /**
      * Closes the shell tabs of a worktree after the user agrees. Agent tabs and shells with an agent in them stay open.
      * Each tab closes when the exit event of its session gets to the page.
@@ -429,11 +489,14 @@ export function useWorktreeActions(options: Options) {
         if (failed) setError(errorText(failed.reason));
     };
 
+    /** The context menu of a worktree in the sidebar. */
     const worktreeMenu = async (repoPath: string, worktree: Worktree) => {
         const link = links[worktree.path];
         const shells = openShellCount(withAgentStore(options.sessions), worktree.path);
         const choice = await showContextMenu(worktreeMenuItems(worktree, link?.key, !!link, appSettings.hiddenWorktrees?.[worktree.path], Date.now(), shells));
         if (choice === 'task') openLinkedTask(worktree.path);
+        if (choice === 'linkTask') options.setLinkTaskOpen(worktree);
+        if (choice === 'unlinkTask') await unlinkTask(worktree.path).catch(err => setError(errorText(err)));
         if (choice === 'rename') await renameWorktree(worktree);
         if (choice === 'closeShells') await closeShells(worktree);
         try {
@@ -459,6 +522,10 @@ export function useWorktreeActions(options: Options) {
         removeWorktreeQuietly,
         saveScripts,
         openLinkedTask,
+        linkTask,
+        unlinkTask,
+        chooseWorktreeForTask,
+        showTaskWorktree,
         worktreeMenu
     };
 }

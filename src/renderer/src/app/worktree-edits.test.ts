@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Worktree } from '@shared/worktrees';
 import {
     errorText,
+    linkWorktreeChoice,
+    linkWorktreeMenuItems,
     removeWorktreeDialog,
     sameRepoRef,
     snoozeChoice,
@@ -116,13 +118,19 @@ describe('worktreeMenuItems', () => {
         expect(item(3)).toMatchObject({ label: 'Close 3 Shells…', enabled: true });
     });
 
-    it('shows the task item only for a worktree with a task', () => {
-        expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), 'ENG-1', true, undefined, 0))[0]).toBe('task');
-        expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0))[0]).toBe('rename');
+    it('offers to open, change or unlink the task of a worktree with a task', () => {
+        expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), 'ENG-1', true, undefined, 0)).slice(0, 4)).toEqual(['task', 'linkTask', 'unlinkTask', '-']);
+    });
+
+    it('offers to link a worktree without a task', () => {
+        const items = worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0);
+        expect(items[0]).toEqual({ id: 'linkTask', label: 'Link to Task…' });
     });
 
     it('offers to hide or snooze a visible worktree', () => {
         expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0))).toEqual([
+            'linkTask',
+            '-',
             'rename',
             'closeShells',
             '-',
@@ -160,5 +168,53 @@ describe('snoozeChoice', () => {
         expect(snoozeChoice('snooze:never')).toBeUndefined();
         expect(snoozeChoice('hide')).toBeUndefined();
         expect(snoozeChoice(undefined)).toBeUndefined();
+    });
+});
+
+describe('linkWorktreeMenuItems', () => {
+    const link = { connectionId: 'c', pluginId: 'clickup', taskId: '1', key: 'ENG-1', title: 'Fix the login' };
+    const label = (repo: string) => repo.toUpperCase();
+    const projects = [
+        { id: 'p1', name: 'One', repos: ['/r', '/s'] },
+        { id: 'p2', name: 'Two', repos: ['/t'] },
+        { id: 'p3', name: 'Empty', repos: [] }
+    ];
+
+    it('puts the worktrees under their project and repository, with the active project first', () => {
+        const items = linkWorktreeMenuItems(
+            projects,
+            'p2',
+            { '/r': [worktree({ path: '/r/a', branch: 'a' }), worktree({ path: '/r/b', branch: 'b' })], '/t': [worktree({ path: '/t/c', branch: 'c' })] },
+            { '/r/b': 'Bee' },
+            { '/r/a': link },
+            label
+        );
+        expect(items).toEqual([
+            { label: 'Two', submenu: [{ label: '/T', submenu: [{ id: 'link:/t/c', label: 'c' }] }] },
+            {
+                label: 'One',
+                submenu: [
+                    {
+                        label: '/R',
+                        submenu: [
+                            { id: 'link:/r/a', label: 'a (ENG-1)' },
+                            { id: 'link:/r/b', label: 'Bee' }
+                        ]
+                    }
+                ]
+            }
+        ]);
+    });
+
+    it('shows a disabled item when no project has worktrees', () => {
+        expect(linkWorktreeMenuItems(projects, 'p1', {}, undefined, {}, label)).toEqual([{ id: 'none', label: 'No project has worktrees', enabled: false }]);
+    });
+});
+
+describe('linkWorktreeChoice', () => {
+    it('returns the worktree path of a link choice', () => {
+        expect(linkWorktreeChoice('link:/r/a')).toBe('/r/a');
+        expect(linkWorktreeChoice('none')).toBeUndefined();
+        expect(linkWorktreeChoice(undefined)).toBeUndefined();
     });
 });

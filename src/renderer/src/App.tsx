@@ -9,6 +9,7 @@ import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } fr
 import { requestExplorerFocus } from './files/explorer-focus';
 import { dialogOpen } from './components/ConfirmDialog';
 import { NewWorktreeDialog } from './components/NewWorktreeDialog';
+import { LinkTaskDialog } from './components/LinkTaskDialog';
 import { GitGraphView } from './components/GitGraphView';
 import { TasksView } from './components/TasksView';
 import { Sidebar } from './components/Sidebar';
@@ -61,6 +62,8 @@ import { useBrowserStates } from './browser/browser-store';
 import { openLink } from './links';
 import { errorText } from './util';
 import { BLANK_PAGE } from '@shared/browser';
+import { worktreeLabel, type Worktree } from '@shared/worktrees';
+import { worktreeForTask } from './components/tasks/task-view-logic';
 import { PaneTree } from './app/PaneTree';
 import { TabStrip } from './app/TabStrip';
 import { tabInfo } from './app/tab-info';
@@ -151,6 +154,8 @@ export function App() {
      * start point. Without a start point, the dialog starts from the default branch.
      */
     const [newWorktree, setNewWorktree] = useState<NewWorktreeTarget>();
+    /** The worktree of the open "Link to a task" dialog. */
+    const [linkTaskFor, setLinkTaskFor] = useState<Worktree>();
     /** True while the clone dialog of the empty worktree area shows. */
     const [cloneOpen, setCloneOpen] = useState(false);
     /** The name of a repository in the UI: its name from the repository settings, else its folder name. */
@@ -199,6 +204,8 @@ export function App() {
         setMainView,
         setNewWorktree,
         setTaskOpen,
+        setLinkTaskOpen: setLinkTaskFor,
+        repoLabel,
         startTerminal,
         sendToAgent,
         promptAgent: agents.promptAgent,
@@ -726,12 +733,14 @@ export function App() {
                                 repos={repos}
                                 links={links}
                                 onStartTask={worktreeActions.startTask}
+                                onLinkWorktree={worktreeActions.chooseWorktreeForTask}
+                                onUnlinkWorktree={worktreeActions.unlinkTask}
                                 onOpenSettings={() => openSettings('tasks')}
                                 openTask={taskOpen}
                                 route={routeOf('tasks')}
                                 onRoute={route => setRoute('tasks', route)}
                                 repoLabel={repoLabel}
-                                onOpenWorktree={showWorktree}
+                                onOpenWorktree={path => void worktreeActions.showTaskWorktree(path).catch(err => setError(errorText(err)))}
                             />
                         </main>
                     )}
@@ -1063,6 +1072,23 @@ export function App() {
                             projectName={activeProject.name}
                             onClose={() => setCloneOpen(false)}
                             onClone={repo => project.pullRepo(repo, { projectId: activeProject.id })}
+                        />
+                    )}
+                    {linkTaskFor && (
+                        <LinkTaskDialog
+                            key={linkTaskFor.path}
+                            worktreeName={worktreeLabel(linkTaskFor, appSettings.worktreeNames)}
+                            current={links[linkTaskFor.path]}
+                            otherWorktreeOf={(connectionId, task) => {
+                                const path = worktreeForTask(links, connectionId, task);
+                                if (!path || path === linkTaskFor.path) return undefined;
+                                const other = worktrees.find(item => item.path === path);
+                                // A worktree of another project is not in the list. Its folder name shows then.
+                                return other ? worktreeLabel(other, appSettings.worktreeNames) : path.split('/').pop();
+                            }}
+                            onClose={() => setLinkTaskFor(undefined)}
+                            onLink={(task, connectionId, pluginId) => worktreeActions.linkTask(linkTaskFor.path, task, connectionId, pluginId)}
+                            onUnlink={() => worktreeActions.unlinkTask(linkTaskFor.path)}
                         />
                     )}
                     {newWorktree && (
