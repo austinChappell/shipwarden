@@ -71,6 +71,8 @@ export interface TerminalSession {
     agentMessage?: string;
     /** A summary of the last prompt that the agent got. */
     agentPrompt?: string;
+    /** The transcript file of a Claude Code session, from its hooks. */
+    agentTranscript?: string;
     /** The time of the last state change, in milliseconds. */
     agentStateAt?: number;
     /** The agent program that runs in a shell tab, for example `claude` that the user typed. The app finds it in the process table. */

@@ -90,7 +90,7 @@ describe('tab keys', () => {
 });
 
 describe('view keys', () => {
-    it('is ⌥⌘1 to ⌥⌘6 for the views, from the code of the key', () => {
+    it('is ⌥⌘1 to ⌥⌘7 for the views, from the code of the key', () => {
         // With Option, macOS sends another character in "key" (for example "¡" for 1). The code stays "Digit1".
         expect(key({ alt: true, key: '¡', code: 'Digit1' })).toBe('viewDashboard');
         expect(key({ alt: true, key: '™', code: 'Digit2' })).toBe('viewAgents');
@@ -98,10 +98,11 @@ describe('view keys', () => {
         expect(key({ alt: true, key: '¢', code: 'Digit4' })).toBe('viewReview');
         expect(key({ alt: true, key: '∞', code: 'Digit5' })).toBe('viewPipelines');
         expect(key({ alt: true, key: '§', code: 'Digit6' })).toBe('viewNotes');
+        expect(key({ alt: true, key: '¶', code: 'Digit7' })).toBe('viewAutomations');
     });
 
-    it('ignores ⌥⌘7, Shift, Control and a key without a code', () => {
-        expect(key({ alt: true, key: '¶', code: 'Digit7' })).toBeUndefined();
+    it('ignores ⌥⌘8, Shift, Control and a key without a code', () => {
+        expect(key({ alt: true, key: '•', code: 'Digit8' })).toBeUndefined();
         expect(key({ alt: true, shift: true, key: '⁄', code: 'Digit1' })).toBeUndefined();
         expect(key({ alt: true, control: true, key: '1', code: 'Digit1' })).toBeUndefined();
         expect(key({ alt: true, key: '1', code: undefined })).toBeUndefined();

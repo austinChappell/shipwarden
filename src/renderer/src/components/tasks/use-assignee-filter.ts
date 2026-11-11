@@ -5,7 +5,7 @@ import { taskQueryKeys } from './task-view-logic';
 import type { TaskRequest } from './use-task-source';
 
 /** The people of a collection change seldom. The list loads again after this time. */
-const PEOPLE_STALE_MS = 10 * 60 * 1000;
+export const PEOPLE_STALE_MS = 10 * 60 * 1000;
 
 /** The last assignee filter of each connection, for the session. */
 const lastFilters = new Map<string, AssigneeFilter>();

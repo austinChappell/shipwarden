@@ -55,6 +55,12 @@ ClickUp are built in, and anyone can write a plugin with the
 [ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch
 for a task and gives the task to a new agent.
 
+The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
+send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label, or
+remove the worktree after its pull request merges. Each automation is a JSON file in `~/.shipwarden/automations` that
+you can export and share. Runs can wait for your approval, and limits stop loops. See
+[docs/automations.md](docs/automations.md).
+
 The iPhone app (`ios/`) connects to ShipWarden on your Mac over your network. It shows the
 agents and their terminal screens, the worktrees with their pull requests and CI state. You
 can reply to an agent, answer its questions and approve a pull request. Turn it on in

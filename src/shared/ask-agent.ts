@@ -1,4 +1,5 @@
 import { agentProgramOf } from './agent-programs';
+import { cacheReadTokens, countedTokens } from './automations';
 import type { DiffSide, RepoRef } from './github';
 
 /** A question to an agent about lines of a pull request. The agent answers in print mode. It does not change files. */
@@ -20,6 +21,8 @@ export interface WorktreeAskRequest {
     worktree: string;
     /** The full prompt, from `codeAskPrompt`. */
     prompt: string;
+    /** True asks Claude Code for JSON output, so the result has the tokens. The automations use it. */
+    withTokens?: boolean;
 }
 
 export type AskAgentRequest = PullRequestAskRequest | WorktreeAskRequest;
@@ -33,6 +36,24 @@ export interface AskAgentResult {
     /** The name of the agent that answered, for example "Claude Code". */
     agent: string;
     answer: string;
+    /** The tokens of the answer, when the request had `withTokens` and the agent is Claude Code. See `countedTokens`. */
+    tokens?: number;
+    /** The cache reads of the answer. They do not count for a limit. */
+    cacheReads?: number;
+}
+
+/**
+ * Reads the JSON output of `claude -p --output-format json`: the answer and the tokens (input, cache writes and
+ * output). Returns undefined when the text is not that JSON.
+ */
+export function parseClaudeJson(text: string): { answer: string; tokens: number; cacheReads: number } | undefined {
+    try {
+        const value = JSON.parse(text) as { result?: unknown; usage?: Record<string, unknown> };
+        if (typeof value.result !== 'string') return undefined;
+        return { answer: value.result, tokens: countedTokens(value.usage), cacheReads: cacheReadTokens(value.usage) };
+    } catch {
+        return undefined;
+    }
 }
 
 /** The longest diff that the prompt contains. A longer diff stops at this length. */

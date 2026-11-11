@@ -20,6 +20,7 @@ import { ProjectStore } from './project-store';
 import { loadLoginShellPath, loginShellCaFile } from './shell-env';
 import { TrustedCertificates } from './network/trusted-certificates';
 import { NotesService } from './notes/notes-service';
+import { AutomationStore } from './automations/automation-store';
 import { LEGACY_NAMES } from './legacy-migration';
 import { NotificationService } from './notifications';
 import { buildSocketPath, ptyHostSocketFolder, ptyHostSocketPath } from './pty-host/protocol';
@@ -225,6 +226,10 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
     });
     /** The notes are in the home folder, not the app data folder, so the user and agents can find and open them. */
     const notes = new NotesService(join(os.homedir(), '.shipwarden', 'notes'), file => shell.trashItem(file));
+    /** The automations are in the home folder too, so the user can read, change and share the files. The runs are local. */
+    const automations = new AutomationStore(join(os.homedir(), '.shipwarden', 'automations'), join(userData, 'automation-runs.json'), file =>
+        shell.trashItem(file)
+    );
     const ptyHostLog = join(userData, 'pty-host.log');
 
     /**
@@ -377,6 +382,7 @@ export function createServices({ window, mainFolder, onBrowserInput }: ServiceOp
         codeAnswers,
         notifications,
         notes,
+        automations,
         ptyHostLog,
         terminalSizes,
         remote,

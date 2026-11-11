@@ -1,3 +1,4 @@
+import { DEFAULT_AUTOMATION_SETTINGS, normalizeAutomationSettings, type AutomationSettings } from './automations';
 import { DEFAULT_NOTIFICATION_SETTINGS, normalizeNotificationSettings, type NotificationSettings } from './notifications';
 import {
     DEFAULT_WORKTREE_SETTINGS,
@@ -103,6 +104,8 @@ export interface AppSettings {
     hiddenWorktrees?: Record<string, HiddenWorktree>;
     /** The connection of the phone app. */
     remote: RemoteSettings;
+    /** The settings of all automations: pause, and the usage limit. The automations are files in ~/.shipwarden/automations. */
+    automations: AutomationSettings;
 }
 
 /** Keeps the names that are text, trimmed and at most 80 characters. */
@@ -176,7 +179,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     network: { useSystemCertificates: false },
     worktrees: DEFAULT_WORKTREE_SETTINGS,
     notifications: DEFAULT_NOTIFICATION_SETTINGS,
-    remote: DEFAULT_REMOTE_SETTINGS
+    remote: DEFAULT_REMOTE_SETTINGS,
+    automations: DEFAULT_AUTOMATION_SETTINGS
 };
 
 /** The maximum length of an agent command. A longer value is not a command that a person types. */
@@ -256,6 +260,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         worktrees: normalizeWorktreeSettings(raw.worktrees, raw.worktreeSort),
         notifications: normalizeNotificationSettings(raw.notifications),
         remote: normalizeRemoteSettings(raw.remote),
+        automations: normalizeAutomationSettings(raw.automations),
         ...(normalizeWorktreeNames(raw.worktreeNames) ? { worktreeNames: normalizeWorktreeNames(raw.worktreeNames) } : {}),
         ...(normalizeHiddenWorktrees(raw.hiddenWorktrees) ? { hiddenWorktrees: normalizeHiddenWorktrees(raw.hiddenWorktrees) } : {}),
         ...(raw.reviewOwners === 'all'

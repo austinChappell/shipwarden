@@ -42,6 +42,14 @@ function waitForQuietOutput(sessionId: string, timeout = AGENT_START_TIMEOUT_MS)
 }
 
 /**
+ * Returns the text of the screen of a session. The page has a terminal only for a session that it showed. For other
+ * sessions, for example an agent that an automation started, the main process makes the screen from the output.
+ */
+async function screenTextOf(sessionId: string): Promise<string | undefined> {
+    return terminalPool.screenText(sessionId) ?? (await api.terminals.screenText(sessionId).catch(() => undefined));
+}
+
+/**
  * Waits until the agent screen shows no dialog. Calls `onDialog` one time when a dialog is visible.
  * Returns false when the dialog is still visible after the time limit.
  */
@@ -49,7 +57,7 @@ async function waitForNoDialog(sessionId: string, onDialog: () => void): Promise
     const deadline = Date.now() + AGENT_DIALOG_TIMEOUT_MS;
     let notified = false;
     while (Date.now() < deadline) {
-        const screen = terminalPool.screenText(sessionId);
+        const screen = await screenTextOf(sessionId);
         if (screen !== undefined && !showsAgentDialog(screen)) {
             return true;
         }
@@ -180,6 +188,59 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
     };
 
     /**
+     * Sends a prompt to an agent for an automation. The user does not see a banner, and the selected tab does not
+     * change. Throws an error with a message for the run history.
+     * - With `sessionId`, the prompt goes to that agent session.
+     * - Else it goes to the agent that runs in the worktree. Without one, a new session of `agentId` starts, else the
+     *   agent of the repository.
+     * Returns the session that got the prompt.
+     */
+    const promptAgent = async (
+        worktree: Pick<Worktree, 'path'>,
+        prompt: string,
+        target: { sessionId?: string; agentId?: string; repoPath?: string } = {}
+    ): Promise<TerminalSession> => {
+        let session = target.sessionId
+            ? sessions.find(item => item.id === target.sessionId && !item.exited)
+            : sessions.find(item => item.worktreePath === worktree.path && item.isAgent && !item.exited);
+        if (target.sessionId && !session) {
+            throw new Error('The agent tab closed.');
+        }
+        const fresh = !session;
+        if (!session) {
+            const definition = target.agentId
+                ? appSettings.agents.find(agent => agent.id === target.agentId)
+                : agentForRepo(appSettings, target.repoPath ?? repoOfWorktree(worktree.path));
+            if (!definition) {
+                throw new Error(`The agent "${target.agentId}" is not in Settings › Agents.`);
+            }
+            const created = await api.terminals.create({
+                cwd: worktree.path,
+                worktreePath: worktree.path,
+                title: definition.name,
+                command: definition.command,
+                isAgent: true,
+                cols: 120,
+                rows: 32
+            });
+            setSessions(list => (list.some(item => item.id === created.id) ? list : [...list, created]));
+            session = created;
+            await waitForQuietOutput(created.id);
+        }
+        const id = session.id;
+        if (!(await waitForNoDialog(id, () => undefined))) {
+            throw new Error(
+                fresh
+                    ? 'The new agent shows a question, for example about folder trust. Answer it in the agent tab, then approve the run again.'
+                    : 'The agent shows a question. Answer it in the agent tab, then approve the run again.'
+            );
+        }
+        api.terminals.write(id, bracketedPaste(prompt));
+        setTimeout(() => api.terminals.write(id, '\r'), 200);
+        return session;
+    };
+
+    /**
      * Saves the log of a GitHub Actions job and sends its path to an agent.
      * The default target is the selected worktree, and the default `send` sends the prompt to its agent.
      * The Review view gives the repository and a `send` that goes to the worktree of the head branch.
@@ -249,5 +310,5 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
         await startCommand(worktree.path, script.name, command, `The script "${script.name}" did not start`);
     };
 
-    return { showSession, startTerminal, sendToAgent, sendLogToAgent, sendChecksToAgent, prepareWorktree, runScript };
+    return { showSession, startTerminal, sendToAgent, promptAgent, sendLogToAgent, sendChecksToAgent, prepareWorktree, runScript };
 }

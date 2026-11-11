@@ -126,6 +126,16 @@ export class ScreenMirror {
         };
     }
 
+    /** Returns the rows of the screen as plain text, without the scrollback. */
+    screenText(): string {
+        const buffer = this.terminal.buffer.active;
+        const lines: string[] = [];
+        for (let y = buffer.baseY; y < buffer.baseY + this.terminal.rows; y++) {
+            lines.push(buffer.getLine(y)?.translateToString(true) ?? '');
+        }
+        return lines.join('\n');
+    }
+
     dispose(): void {
         this.terminal.dispose();
     }

@@ -51,6 +51,11 @@ export interface AgentStateChange {
     message?: string;
     /** A summary of the prompt that the agent works on. Only a prompt event sets it. */
     prompt?: string;
+    /**
+     * The path of the transcript file of a Claude Code session ("transcript_path" of the hooks). The automations count
+     * the tokens of their runs from it.
+     */
+    transcript?: string;
 }
 
 /** A change of an agent's state, as the PTY host sends it to the app. */
@@ -192,6 +197,12 @@ function toolChange(payload: Record<string, unknown>): AgentStateChange {
  * `current` is the state before the event. Returns undefined for an event that does not change the state.
  */
 export function agentStateFromHook(event: string, payload: Record<string, unknown>, current?: AgentState): AgentStateChange | undefined {
+    const change = stateChangeOf(event, payload, current);
+    const transcript = payload.transcript_path;
+    return change && typeof transcript === 'string' && transcript.endsWith('.jsonl') ? { ...change, transcript } : change;
+}
+
+function stateChangeOf(event: string, payload: Record<string, unknown>, current?: AgentState): AgentStateChange | undefined {
     switch (event) {
         case 'SessionStart':
             return { state: 'idle' };

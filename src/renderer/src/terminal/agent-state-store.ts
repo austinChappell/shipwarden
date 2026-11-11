@@ -16,7 +16,14 @@ export class AgentStateStore {
     /** Records the state of a session. An update that changes nothing does not render the views again. */
     set(id: string, update: AgentUpdate): void {
         const current = this.updates.get(id);
-        if (current && current.state === update.state && current.message === update.message && current.prompt === update.prompt && current.at === update.at) {
+        if (
+            current &&
+            current.state === update.state &&
+            current.message === update.message &&
+            current.prompt === update.prompt &&
+            current.at === update.at &&
+            current.transcript === update.transcript
+        ) {
             return;
         }
         const next = new Map(this.updates);
