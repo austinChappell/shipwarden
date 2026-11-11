@@ -345,8 +345,13 @@ export interface ShipWardenApi {
         claim(run: AutomationRun): Promise<AutomationRun | null>;
         updateRun(
             id: string,
-            change: Partial<Pick<AutomationRun, 'status' | 'detail' | 'worktreePath' | 'sessionId' | 'noteName'>>
+            change: Partial<Pick<AutomationRun, 'status' | 'detail' | 'worktreePath' | 'sessionId' | 'noteName' | 'tokens' | 'turn'>>
         ): Promise<AutomationRun | undefined>;
+        /**
+         * Counts the tokens of the responses of a Claude Code transcript from `from` to `to` (milliseconds). Input, cache
+         * writes and output count. Cache reads do not count.
+         */
+        countTokens(transcript: string, from: number, to?: number): Promise<number>;
         /** Records event keys as fired without runs, for the first task list of an automation. */
         seed(automationId: string, keys: string[]): Promise<void>;
         setScheduleRun(automationId: string, at: number): Promise<void>;
@@ -618,6 +623,7 @@ export const IpcChannels = {
     automationsCopyExport: 'automations:copyExport',
     automationsReadClipboard: 'automations:readClipboard',
     automationsRuns: 'automations:runs',
+    automationsCountTokens: 'automations:countTokens',
     automationsClaim: 'automations:claim',
     automationsUpdateRun: 'automations:updateRun',
     automationsSeed: 'automations:seed',

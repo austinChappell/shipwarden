@@ -4,6 +4,7 @@ import { IpcChannels } from '@shared/api';
 import { isAutomationId, type AutomationRun } from '@shared/automations';
 import type { Services } from '../services';
 import type { RunChange } from '../automations/automation-store';
+import { TokenCounter } from '../automations/token-counter';
 import { showOpenDialog } from './dialogs';
 import { onlyStrings, optionalString } from './args';
 
@@ -55,6 +56,10 @@ export function registerAutomationIpc({ automations, window }: Pick<Services, 'a
     });
     ipcMain.handle(IpcChannels.automationsCopyExport, async (_event, id: unknown) => clipboard.writeText(await automations.exportText(String(id))));
     ipcMain.handle(IpcChannels.automationsReadClipboard, async () => (await clipboard.readText()).slice(0, MAX_IMPORT_BYTES));
+    const tokens = new TokenCounter();
+    ipcMain.handle(IpcChannels.automationsCountTokens, (_event, transcript: unknown, from: unknown, to: unknown) =>
+        tokens.count(String(transcript), Number(from), typeof to === 'number' ? to : undefined)
+    );
     ipcMain.handle(IpcChannels.automationsRuns, () => automations.runState());
     ipcMain.handle(IpcChannels.automationsClaim, (_event, run: AutomationRun) => automations.claim(run));
     ipcMain.handle(IpcChannels.automationsUpdateRun, (_event, id: unknown, change: RunChange) => automations.updateRun(String(id), runChangeOf(change)));
@@ -76,6 +81,16 @@ export function runChangeOf(value: unknown): RunChange {
     if (typeof raw.status === 'string' && statuses.includes(raw.status)) change.status = raw.status as RunChange['status'];
     for (const key of ['detail', 'worktreePath', 'sessionId', 'noteName'] as const) {
         if (typeof raw[key] === 'string') change[key] = raw[key];
+    }
+    if (typeof raw.tokens === 'number' && Number.isFinite(raw.tokens) && raw.tokens >= 0) change.tokens = Math.round(raw.tokens);
+    const turn = raw.turn && typeof raw.turn === 'object' ? (raw.turn as Record<string, unknown>) : undefined;
+    if (turn && typeof turn.sessionId === 'string' && typeof turn.from === 'number') {
+        change.turn = {
+            sessionId: turn.sessionId,
+            from: turn.from,
+            ...(typeof turn.to === 'number' ? { to: turn.to } : {}),
+            ...(turn.counted === true ? { counted: true } : {})
+        };
     }
     return change;
 }

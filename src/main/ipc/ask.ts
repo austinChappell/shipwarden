@@ -2,7 +2,8 @@ import { join } from 'path';
 import { mkdir } from 'fs/promises';
 import { app, ipcMain } from 'electron';
 import { IpcChannels } from '@shared/api';
-import { folderNote, isWorktreeAsk, printCommand, type AskAgentRequest, type AskAgentResult } from '@shared/ask-agent';
+import { folderNote, isWorktreeAsk, parseClaudeJson, printCommand, type AskAgentRequest, type AskAgentResult } from '@shared/ask-agent';
+import { agentProgramOf } from '@shared/agent-programs';
 import type { RepoRef } from '@shared/github';
 import { agentForRepo } from '@shared/settings';
 import type { Services } from '../services';
@@ -49,7 +50,10 @@ async function askAgent(deps: AskIpcDependencies, request: AskAgentRequest): Pro
         prompt = `${folderNote(!!repoPath, String(request?.headRefOid ?? ''))}\n\n${String(request?.prompt ?? '')}`;
     }
     const agent = agentForRepo(await deps.settings.get(), repoPath);
-    const command = printCommand(agent.command);
+    // The automations ask Claude Code for JSON output, which has the tokens of the answer.
+    const json = isWorktreeAsk(request) && request.withTokens === true && agentProgramOf(agent.command.trim()) === 'claude';
+    const print = printCommand(agent.command);
+    const command = print && json ? `${print} --output-format json` : print;
     if (!command) {
         throw new Error(
             `ShipWarden can ask only Claude Code, Codex, Gemini CLI or opencode. The agent "${agent.name}" runs "${agent.command}". Select a different agent in Settings › Agents.`
@@ -62,5 +66,6 @@ async function askAgent(deps: AskIpcDependencies, request: AskAgentRequest): Pro
     await deps.networkReady;
     const bundle = deps.certificates.status().bundlePath;
     const answer = await deps.askRunner.run(String(request?.id ?? ''), { command, prompt, cwd, env: bundle ? { NODE_EXTRA_CA_CERTS: bundle } : {} });
-    return { agent: agent.name, answer };
+    const parsed = json ? parseClaudeJson(answer) : undefined;
+    return parsed ? { agent: agent.name, answer: parsed.answer, tokens: parsed.tokens } : { agent: agent.name, answer };
 }

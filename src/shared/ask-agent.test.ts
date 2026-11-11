@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    parseClaudeJson,
     afterMarker,
     askPrompt,
     codeAskPrompt,
@@ -12,6 +13,15 @@ import {
     sliceLines,
     stripTerminalCodes
 } from './ask-agent';
+
+describe('parseClaudeJson', () => {
+    it('reads the answer and the counted tokens', () => {
+        const text = JSON.stringify({ type: 'result', result: 'Done.', usage: { input_tokens: 5, cache_read_input_tokens: 900, output_tokens: 7 } });
+        expect(parseClaudeJson(text)).toEqual({ answer: 'Done.', tokens: 12 });
+        expect(parseClaudeJson('plain text')).toBeUndefined();
+        expect(parseClaudeJson('{"result": 3}')).toBeUndefined();
+    });
+});
 
 describe('printCommand', () => {
     it('runs each known agent in print mode', () => {

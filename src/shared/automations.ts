@@ -64,6 +64,11 @@ export interface AutomationLimits {
     maxRunsPerTarget: number;
     /** The most agents that this automation started and that still work. A "startAgent" run waits for a free place. */
     maxRunning: number;
+    /**
+     * The most tokens that the runs of this automation can use in one day (local time). When they used more, the
+     * automation starts no runs until the next day. Undefined: no limit. See `countedTokens` for what counts.
+     */
+    dailyTokens?: number;
 }
 
 export interface AutomationConditions {
@@ -363,11 +368,24 @@ function normalizeAction(value: unknown, index: number): AutomationAction {
 
 function normalizeLimits(value: unknown): AutomationLimits {
     const raw = record(value);
+    const dailyTokens = tokenLimitOf(raw.dailyTokens);
     return {
         approval: raw.approval === 'ask' ? 'ask' : 'auto',
         maxRunsPerTarget: count(raw.maxRunsPerTarget, DEFAULT_LIMITS.maxRunsPerTarget),
-        maxRunning: count(raw.maxRunning, DEFAULT_LIMITS.maxRunning)
+        maxRunning: count(raw.maxRunning, DEFAULT_LIMITS.maxRunning),
+        ...(dailyTokens !== undefined ? { dailyTokens } : {})
     };
+}
+
+/** The smallest and the largest token limit for one day, and the step of the field. */
+export const TOKEN_LIMIT_MIN = 1000;
+export const TOKEN_LIMIT_MAX = 1_000_000_000;
+export const TOKEN_LIMIT_STEP = 100_000;
+
+/** Returns a whole number of tokens in the range, or undefined for a value that is not a number. */
+export function tokenLimitOf(value: unknown): number | undefined {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+    return Math.min(TOKEN_LIMIT_MAX, Math.max(TOKEN_LIMIT_MIN, Math.round(value)));
 }
 
 /**
@@ -856,6 +874,13 @@ export interface AutomationRun {
     sessionId?: string;
     /** The note with the answer of a "runHeadless" action. */
     noteName?: string;
+    /** The tokens that the run used. Only Claude Code reports them. See `countedTokens`. */
+    tokens?: number;
+    /**
+     * The agent turn that the run started: from the prompt to the end of the turn. The engine counts the tokens of this
+     * time in the transcript of the session. `counted` is true after the last count, when the turn ended.
+     */
+    turn?: { sessionId: string; from: number; to?: number; counted?: boolean };
 }
 
 export interface AutomationRunState {
@@ -930,6 +955,8 @@ export interface AutomationSettings {
      * Null: no limit, for example for a user of the API, who has no plan usage.
      */
     pauseAtUsage: number | null;
+    /** The most tokens that all automations together can use in one day (local time). Null: no limit. */
+    dailyTokens: number | null;
 }
 
 /** The smallest and the largest usage limit, and the step of the field. */
@@ -943,11 +970,15 @@ export function clampUsageLimit(value: unknown): number {
     return Math.min(USAGE_LIMIT_MAX, Math.max(USAGE_LIMIT_MIN, Math.round(value)));
 }
 
-export const DEFAULT_AUTOMATION_SETTINGS = { paused: false, pauseAtUsage: 90 } satisfies AutomationSettings;
+export const DEFAULT_AUTOMATION_SETTINGS = { paused: false, pauseAtUsage: 90, dailyTokens: null } satisfies AutomationSettings;
 
 export function normalizeAutomationSettings(value: unknown): AutomationSettings {
     const raw = record(value);
-    return { paused: raw.paused === true, pauseAtUsage: raw.pauseAtUsage === null ? null : clampUsageLimit(raw.pauseAtUsage) };
+    return {
+        paused: raw.paused === true,
+        pauseAtUsage: raw.pauseAtUsage === null ? null : clampUsageLimit(raw.pauseAtUsage),
+        dailyTokens: tokenLimitOf(raw.dailyTokens) ?? null
+    };
 }
 
 /** A short text for the trigger, for the list of automations. */
@@ -992,4 +1023,62 @@ export function usageAboveLimit(usage: readonly ProviderUsage[], limit: number |
         }
     }
     return undefined;
+}
+
+/**
+ * Returns the tokens of one usage object of Claude Code that count for a limit: the input, the cache writes and the
+ * output. Cache reads do not count. They cost about a tenth of new input, and they would fill a limit fast.
+ */
+export function countedTokens(usage: unknown): number {
+    if (!usage || typeof usage !== 'object') return 0;
+    const value = usage as Record<string, unknown>;
+    const number = (key: string) => (typeof value[key] === 'number' && Number.isFinite(value[key]) ? (value[key] as number) : 0);
+    return number('input_tokens') + number('cache_creation_input_tokens') + number('output_tokens');
+}
+
+/** Returns the start of the local day of the time, in milliseconds. */
+export function startOfDay(now: number): number {
+    const date = new Date(now);
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+/** The tokens of the runs that started today (local time). With an automation ID, only the runs of that automation. */
+export function tokensToday(runs: readonly Pick<AutomationRun, 'automationId' | 'createdAt' | 'tokens'>[], now: number, automationId?: string): number {
+    const start = startOfDay(now);
+    return runs.reduce((sum, run) => (run.createdAt >= start && (!automationId || run.automationId === automationId) ? sum + (run.tokens ?? 0) : sum), 0);
+}
+
+/**
+ * Returns a message when the runs of today used the token limit of the automation or of all automations, else
+ * undefined.
+ */
+export function tokenLimitReached(
+    runs: readonly Pick<AutomationRun, 'automationId' | 'createdAt' | 'tokens'>[],
+    automation: Pick<Automation, 'id' | 'limits'>,
+    globalLimit: number | null,
+    now: number
+): string | undefined {
+    const own = automation.limits.dailyTokens;
+    if (own !== undefined) {
+        const used = tokensToday(runs, now, automation.id);
+        if (used >= own) return `The automation used ${formatTokens(used)} tokens today. Its limit is ${formatTokens(own)}. It starts again tomorrow.`;
+    }
+    if (globalLimit !== null) {
+        const used = tokensToday(runs, now);
+        if (used >= globalLimit) {
+            return `All automations used ${formatTokens(used)} tokens today. The limit is ${formatTokens(globalLimit)}. They start again tomorrow.`;
+        }
+    }
+    return undefined;
+}
+
+/** A short number of tokens, for example "950", "12.3k" or "1.2M". */
+export function formatTokens(tokens: number): string {
+    if (tokens < 1000) return String(Math.round(tokens));
+    if (tokens < 1_000_000) return `${trimZero((tokens / 1000).toFixed(tokens < 10_000 ? 1 : 0))}k`;
+    return `${trimZero((tokens / 1_000_000).toFixed(1))}M`;
+}
+
+function trimZero(text: string): string {
+    return text.replace(/\.0$/, '');
 }

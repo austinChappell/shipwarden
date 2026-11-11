@@ -80,6 +80,8 @@ trigger. A variable that the trigger does not give becomes empty text.
 - `approval`: `"ask"` makes each run wait in the Automations view. A notification tells you. `"auto"` runs at once.
 - `maxRunsPerTarget`: the most runs for one pull request, worktree or task. This stops a loop of fix, fail, fix.
 - `maxRunning`: the most agents of a `startAgent` automation that work at the same time. More runs wait.
+- `dailyTokens`: the most tokens of the runs of this automation from midnight (local time). Then the automation starts
+  no runs until the next day. Leave it out for no limit.
 - A run that sends a prompt waits while the agent works. It runs when the agent finishes its turn.
 - Each event runs one time only, also after a restart.
 - A new automation starts as a dry run. A dry run records what the automation would do, and does nothing.
@@ -88,3 +90,17 @@ trigger. A variable that the trigger does not give becomes empty text.
 - The Automations view can pause all automations. Automations also pause while the plan usage of Claude or Codex is at
   or above a limit: a whole number from 5% to 100% (90% by default). "No limit" turns the check off, for example
   when you use the API and have no plan.
+
+## Tokens
+
+ShipWarden counts the tokens of each run and shows them in the history.
+
+- A run that sends a prompt counts the agent turn of that prompt: from the prompt to the end of the turn.
+- ShipWarden reads the tokens from the transcript file of the Claude Code session. The hooks give the path of the file.
+  Subagents count too. "Ask an agent" runs get their tokens from the JSON output of `claude -p`.
+- Input tokens, cache writes and output tokens count. Cache reads do not count, because they cost about a tenth of new
+  input and would fill a limit fast.
+- Only Claude Code reports tokens. Runs of Codex, Gemini CLI and opencode count as 0 tokens.
+- An agent that started before this version of ShipWarden has no transcript path, so its runs count as 0 tokens.
+- "Tokens each day" in the Automations view limits all automations together. Each automation can also have its own
+  limit (`limits.dailyTokens`). A limit stops new runs. A run that works already continues.

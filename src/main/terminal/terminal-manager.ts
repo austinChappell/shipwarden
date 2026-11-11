@@ -60,7 +60,16 @@ export class TerminalManager {
         if (change.prompt) {
             session.agentPrompt = change.prompt;
         }
-        this.events.agentState(id, { state: change.state, message: change.message, prompt: session.agentPrompt, at: session.agentStateAt });
+        if (change.transcript) {
+            session.agentTranscript = change.transcript;
+        }
+        this.events.agentState(id, {
+            state: change.state,
+            message: change.message,
+            prompt: session.agentPrompt,
+            at: session.agentStateAt,
+            ...(session.agentTranscript ? { transcript: session.agentTranscript } : {})
+        });
     }
 
     /** The number of sessions with a running process. */

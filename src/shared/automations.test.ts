@@ -24,6 +24,10 @@ import {
     uniqueId,
     unknownVariables,
     usageAboveLimit,
+    countedTokens,
+    formatTokens,
+    tokenLimitReached,
+    tokensToday,
     type Automation,
     type AutomationEvent,
     type AutomationRun
@@ -322,10 +326,56 @@ describe('usageAboveLimit', () => {
     });
 });
 
+describe('tokens', () => {
+    const now = new Date(2026, 10, 10, 15).getTime();
+    const yesterday = new Date(2026, 10, 9, 23).getTime();
+    const runs = [
+        { automationId: 'a', createdAt: now - 1000, tokens: 400 },
+        { automationId: 'b', createdAt: now - 2000, tokens: 700 },
+        { automationId: 'a', createdAt: yesterday, tokens: 9000 },
+        { automationId: 'a', createdAt: now }
+    ];
+
+    it('counts the tokens of the runs of today', () => {
+        expect(tokensToday(runs, now)).toBe(1100);
+        expect(tokensToday(runs, now, 'a')).toBe(400);
+    });
+
+    it('stops at the limit of the automation or of all automations', () => {
+        const limits = { approval: 'auto' as const, maxRunsPerTarget: 3, maxRunning: 2 };
+        expect(tokenLimitReached(runs, { id: 'a', limits: { ...limits, dailyTokens: 400 } }, null, now)).toMatch(/used 400 tokens today/);
+        expect(tokenLimitReached(runs, { id: 'a', limits: { ...limits, dailyTokens: 1000 } }, null, now)).toBeUndefined();
+        expect(tokenLimitReached(runs, { id: 'a', limits }, 1100, now)).toMatch(/All automations used 1.1k tokens/);
+        expect(tokenLimitReached(runs, { id: 'a', limits }, null, now)).toBeUndefined();
+    });
+
+    it('keeps a valid limit of an automation', () => {
+        expect(normalizeDefinition({ ...automation(), limits: { dailyTokens: 250_000.4 } }).limits.dailyTokens).toBe(250_000);
+        expect(normalizeDefinition({ ...automation(), limits: { dailyTokens: 'x' } }).limits).not.toHaveProperty('dailyTokens');
+    });
+
+    it('counts input, cache writes and output, not cache reads', () => {
+        expect(countedTokens({ input_tokens: 1, cache_creation_input_tokens: 2, cache_read_input_tokens: 100, output_tokens: 3 })).toBe(6);
+        expect(countedTokens(undefined)).toBe(0);
+    });
+
+    it('formats numbers of tokens', () => {
+        expect(formatTokens(950)).toBe('950');
+        expect(formatTokens(1500)).toBe('1.5k');
+        expect(formatTokens(12_340)).toBe('12k');
+        expect(formatTokens(2_000_000)).toBe('2M');
+        expect(formatTokens(2_340_000)).toBe('2.3M');
+    });
+});
+
 describe('settings and descriptions', () => {
     it('normalizes the automation settings', () => {
-        expect(normalizeAutomationSettings(undefined)).toEqual({ paused: false, pauseAtUsage: 90 });
-        expect(normalizeAutomationSettings({ paused: true, pauseAtUsage: 72.4 })).toEqual({ paused: true, pauseAtUsage: 72 });
+        expect(normalizeAutomationSettings(undefined)).toEqual({ paused: false, pauseAtUsage: 90, dailyTokens: null });
+        expect(normalizeAutomationSettings({ paused: true, pauseAtUsage: 72.4, dailyTokens: 12 })).toEqual({
+            paused: true,
+            pauseAtUsage: 72,
+            dailyTokens: 1000
+        });
         expect(normalizeAutomationSettings({ pauseAtUsage: 500 }).pauseAtUsage).toBe(100);
         expect(normalizeAutomationSettings({ pauseAtUsage: 1 }).pauseAtUsage).toBe(5);
         expect(normalizeAutomationSettings({ pauseAtUsage: null }).pauseAtUsage).toBeNull();

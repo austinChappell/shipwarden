@@ -9,6 +9,8 @@ import {
     localDateTime,
     renderTemplate,
     runsForTarget,
+    startOfDay,
+    tokenLimitReached,
     taskMatchesTrigger,
     usageAboveLimit,
     type Automation,
@@ -62,6 +64,8 @@ const QUIET_MS = 10_000;
 const MAX_DETAIL = 4000;
 /** The text of a run that a limit stopped. The engine records it one time for each target. */
 const LIMIT_DETAIL = 'The automation reached its limit of runs for this target.';
+/** A word in the text of a run that the token limit stopped. The engine records it one time each day. */
+const TOKEN_LIMIT_MARK = 'tokens today';
 /** The check conclusions that count as a failure. */
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'error', 'action_required']);
 
@@ -260,6 +264,9 @@ export class AutomationEngine {
             const event = session && agentDoneEvent(session, update, context.places, context.summaries);
             if (event) this.dispatch(event);
         }
+        if (update.state === 'done' || update.state === 'exited') {
+            void this.endTurns(sessionId, update.at);
+        }
         if (update.state === 'done' || update.state === 'idle') {
             // Wait a moment: the agent can start a new turn at once, for example after a queued message.
             clearTimeout(this.heldTimer);
@@ -276,6 +283,7 @@ export class AutomationEngine {
             await this.runSchedules();
             await this.pollTasks(context);
             await this.retryHeld();
+            await this.countOpenTurns(context);
         } finally {
             this.ticking = false;
         }
@@ -411,6 +419,16 @@ export class AutomationEngine {
             await this.claim(run('skipped', overUsage));
             return;
         }
+        const overTokens = tokenLimitReached(state.runs, automation, context.settings.dailyTokens, now);
+        if (overTokens) {
+            // Record the stop one time each day, so the history shows why the automation does nothing.
+            const today = startOfDay(now);
+            const stopped = state.runs.some(
+                item => item.automationId === automation.id && item.status === 'skipped' && item.createdAt >= today && item.detail?.includes(TOKEN_LIMIT_MARK)
+            );
+            if (!stopped) await this.claim(run('skipped', overTokens));
+            return;
+        }
         if (automation.limits.approval === 'ask') {
             const claimed = await this.claim(run('pending', 'Waits for your approval.'));
             if (claimed) {
@@ -499,6 +517,12 @@ export class AutomationEngine {
                 await this.update(run.id, { status: 'skipped', detail: 'The automation is off.' });
                 return;
             }
+            const overTokens =
+                run.status === 'held' ? tokenLimitReached(cachedRunState().runs, automation, context.settings.dailyTokens, Date.now()) : undefined;
+            if (overTokens) {
+                await this.update(run.id, { status: 'skipped', detail: overTokens });
+                return;
+            }
             const hold = this.holdReason(context, automation, run);
             if (hold) {
                 if (Date.now() - run.createdAt > HOLD_LIMIT_MS) {
@@ -520,6 +544,55 @@ export class AutomationEngine {
             await this.fail(run, automation, errorText(error));
         } finally {
             this.executing.delete(run.id);
+        }
+    }
+
+    /** Ends the open turns of a session: the agent finished the turn that a run started, or it exited. Then counts their tokens. */
+    private async endTurns(sessionId: string, at: number): Promise<void> {
+        for (const run of cachedRunState().runs) {
+            const turn = run.turn;
+            if (turn?.sessionId !== sessionId || turn.to !== undefined || at < turn.from) continue;
+            const updated = await this.update(run.id, { turn: { ...turn, to: at } });
+            if (updated) await this.countTurn(updated);
+        }
+    }
+
+    /** Counts the tokens of the turns that did not end, and of the ended turns without a last count. */
+    private async countOpenTurns(context: EngineContext): Promise<void> {
+        const since = Date.now() - 2 * 24 * 3600_000;
+        for (const run of cachedRunState().runs) {
+            const turn = run.turn;
+            if (!turn || turn.counted || run.createdAt < since) continue;
+            // A closed tab ends the turn. Its transcript stays, so the last count still works.
+            if (turn.to === undefined && !context.sessions.some(item => item.id === turn.sessionId && !item.exited)) {
+                const updated = await this.update(run.id, { turn: { ...turn, to: Date.now() } });
+                if (updated) await this.countTurn(updated);
+                continue;
+            }
+            await this.countTurn(run);
+        }
+    }
+
+    /**
+     * Counts the tokens of the turn of a run in the transcript of its session. Only Claude Code sessions have a transcript.
+     * A count after the end of the turn is the last one.
+     */
+    private async countTurn(run: AutomationRun): Promise<void> {
+        const turn = run.turn;
+        if (!turn) return;
+        const transcript =
+            agentStateStore.getSnapshot().get(turn.sessionId)?.transcript ?? this.context?.sessions.find(item => item.id === turn.sessionId)?.agentTranscript;
+        const done = turn.to !== undefined;
+        if (!transcript) {
+            if (done) await this.update(run.id, { turn: { ...turn, counted: true } });
+            return;
+        }
+        try {
+            const tokens = await api.automations.countTokens(transcript, turn.from, turn.to);
+            if (tokens !== run.tokens || done) await this.update(run.id, { tokens, ...(done ? { turn: { ...turn, counted: true } } : {}) });
+        } catch (error) {
+            console.warn(`[automations] The tokens of a run were not counted: ${errorText(error)}`);
+            if (done) await this.update(run.id, { turn: { ...turn, counted: true } });
         }
     }
 
@@ -558,7 +631,7 @@ export class AutomationEngine {
                     ...(event.trigger === 'agent.done' && event.sessionId ? { sessionId: event.sessionId } : {}),
                     repoPath: place.repo
                 });
-                await this.update(run.id, { sessionId: session.id, worktreePath: place.worktree.path });
+                await this.update(run.id, { sessionId: session.id, worktreePath: place.worktree.path, turn: { sessionId: session.id, from: turnStart() } });
                 return `Sent the prompt to ${session.title} in ${place.worktree.branch ?? place.worktree.path}.`;
             }
             case 'startAgent': {
@@ -575,13 +648,26 @@ export class AutomationEngine {
                               action.agentId
                           )
                         : await this.startScheduled(context, automation, action, repoPath, values);
-                await this.update(run.id, { sessionId: started.session.id, worktreePath: started.worktree.path });
+                await this.update(run.id, {
+                    sessionId: started.session.id,
+                    worktreePath: started.worktree.path,
+                    turn: { sessionId: started.session.id, from: turnStart() }
+                });
                 return `Started ${started.session.title} in a new worktree on ${started.worktree.branch ?? started.worktree.path}.`;
             }
             case 'runHeadless': {
                 const folder = event.worktreePath ?? automation.binding.repos?.[0];
                 if (!folder) throw new Error('The automation has no repository. Select one in the editor.');
-                const result = await api.ask.run({ id: `automation-${run.id}`, worktree: folder, prompt: renderTemplate(action.prompt, values) });
+                const result = await api.ask.run({
+                    id: `automation-${run.id}`,
+                    worktree: folder,
+                    prompt: renderTemplate(action.prompt, values),
+                    withTokens: true
+                });
+                if (result.tokens !== undefined) {
+                    const before = cachedRunState().runs.find(item => item.id === run.id)?.tokens ?? 0;
+                    await this.update(run.id, { tokens: before + result.tokens });
+                }
                 if (!action.saveNote) return clip(`${result.agent} answered:\n${result.answer}`);
                 const { date, time } = localDateTime(new Date());
                 const name = `Automations/${noteFileName(automation.name)} ${date} ${time.replace(':', '')}.md`;
@@ -658,6 +744,11 @@ export class AutomationEngine {
         if (!always && !settings.whenFocused && document.hasFocus()) return;
         api.notifications.show({ title, body: body ? clip(body).slice(0, 300) : undefined, sound: event.sound, target });
     }
+}
+
+/** The start of the turn of a prompt that ShipWarden just sent. A small margin covers the clocks of the agent and the app. */
+function turnStart(): number {
+    return Date.now() - 2000;
 }
 
 /** True while the agent works, starts or waits for an answer. An agent without hooks is busy while it prints output. */

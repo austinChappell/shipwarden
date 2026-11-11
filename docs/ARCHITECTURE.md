@@ -415,6 +415,14 @@ The user guide and the file format are in [automations.md](automations.md).
   `startInNewWorktree`, `removeWorktreeQuietly` and `moveTaskToStatus`. They show no dialog and no banner, and they do
   not change the selected worktree. `promptAgent` reads the screen of an agent that the page does not show from the
   main process (`terminals.screenText`, a headless terminal from the replay), so it can wait for a folder trust dialog.
+- **Tokens.** `agentStateFromHook` keeps `transcript_path` of the Claude Code hooks, and the PTY host sends it with each
+  agent state (`agentTranscript`). A run that sends a prompt records its turn (`turn`: session, start, end). The engine
+  counts the tokens of the turn with `automations.countTokens`, at each tick and at the end of the turn.
+  `TokenCounter` (main process) reads only the new end of a transcript, takes one usage for each message ID (Claude
+  Code writes one line for each content block), and adds `<session>/subagents/*.jsonl`. It reads only files in
+  ~/.claude or `CLAUDE_CONFIG_DIR`. `countedTokens` counts input, cache writes and output, not cache reads. "Ask an agent"
+  runs use `claude -p --output-format json`. `tokenLimitReached` checks the limit of the automation and the limit of all
+  automations (`settings.automations.dailyTokens`) before a run, and before a held run continues.
 - **Notifications.** The event "Automations" in Settings › Notifications: a run waits for approval, or a run failed.
   A click opens the Automations view. A `notify` action needs only the main switch.
 

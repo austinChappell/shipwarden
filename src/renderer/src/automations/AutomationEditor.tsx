@@ -6,6 +6,9 @@ import {
     ACTION_TYPES,
     TRIGGER_TYPES,
     TRIGGER_VARIABLES,
+    TOKEN_LIMIT_MAX,
+    TOKEN_LIMIT_MIN,
+    TOKEN_LIMIT_STEP,
     bindingProblems,
     defaultAction,
     defaultTrigger,
@@ -24,6 +27,7 @@ import type { AgentDefinition } from '@shared/settings';
 import { collectionsQueryOptions, connectionsQueryOptions } from '../components/tasks/use-task-source';
 import { SettingsGroup, SettingsRow } from '../components/settings-ui';
 import { errorText } from '../util';
+import { LimitField } from './LimitField';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -373,6 +377,22 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                 </button>
                             ))}
                         </div>
+                    }
+                />
+                <SettingsRow
+                    label="Tokens each day"
+                    description="The most tokens of this automation from midnight. Then it starts no runs until the next day. Only Claude Code reports tokens."
+                    control={
+                        <LimitField
+                            value={draft.limits.dailyTokens ?? null}
+                            fallback={1_000_000}
+                            min={TOKEN_LIMIT_MIN}
+                            max={TOKEN_LIMIT_MAX}
+                            step={TOKEN_LIMIT_STEP}
+                            unit="tokens"
+                            label="Tokens each day for this automation"
+                            onSave={dailyTokens => change({ limits: { ...draft.limits, dailyTokens: dailyTokens ?? undefined } })}
+                        />
                     }
                 />
                 <SettingsRow

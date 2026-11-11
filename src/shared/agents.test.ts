@@ -33,6 +33,11 @@ describe('agentStateFromHook', () => {
         });
         expect(agentStateFromHook('Notification', {})).toEqual({ state: 'waiting', message: 'The agent needs your input.' });
         expect(agentStateFromHook('Stop', { last_assistant_message: ' I fixed the bug. ' })).toEqual({ state: 'done', message: 'I fixed the bug.' });
+        expect(agentStateFromHook('Stop', { transcript_path: '/u/.claude/projects/p/s.jsonl' })).toEqual({
+            state: 'done',
+            transcript: '/u/.claude/projects/p/s.jsonl'
+        });
+        expect(agentStateFromHook('Stop', { transcript_path: '/tmp/x.txt' })).toEqual({ state: 'done' });
         expect(agentStateFromHook('SessionEnd', { reason: 'other' })).toEqual({ state: 'exited' });
         expect(agentStateFromHook('PostToolUse', {})).toBeUndefined();
     });

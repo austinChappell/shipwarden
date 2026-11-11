@@ -164,6 +164,7 @@ const api: ShipWardenApi = {
         copyExport: id => ipcRenderer.invoke(IpcChannels.automationsCopyExport, id),
         readClipboard: () => ipcRenderer.invoke(IpcChannels.automationsReadClipboard),
         runs: () => ipcRenderer.invoke(IpcChannels.automationsRuns),
+        countTokens: (transcript, from, to) => ipcRenderer.invoke(IpcChannels.automationsCountTokens, transcript, from, to),
         claim: run => ipcRenderer.invoke(IpcChannels.automationsClaim, run),
         updateRun: (id, change) => ipcRenderer.invoke(IpcChannels.automationsUpdateRun, id, change),
         seed: (automationId, keys) => ipcRenderer.invoke(IpcChannels.automationsSeed, automationId, keys),

@@ -12142,10 +12142,18 @@ button.pr-summary-cell:hover {
     cursor: help;
 }
 
-.automation-usage {
+.automation-limit {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     color: var(--muted);
     font-size: 12.5px;
+}
+
+.automation-limit-input {
+    width: 120px;
+}
+
+.automation-limit .automation-check {
+    margin-left: 6px;
 }

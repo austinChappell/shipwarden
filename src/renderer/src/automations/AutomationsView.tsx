@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ArrowUpRight, Check, ChevronDown, FolderOpen, MoreHorizontal, Pencil, Plus, Upload, X, Zap } from 'lucide-react';
 import {
     AUTOMATION_TEMPLATES,
     automationFromTemplate,
     bindingProblems,
-    clampUsageLimit,
     DEFAULT_AUTOMATION_SETTINGS,
     describeTrigger,
     importedAutomation,
@@ -14,6 +13,11 @@ import {
     USAGE_LIMIT_MAX,
     USAGE_LIMIT_MIN,
     USAGE_LIMIT_STEP,
+    TOKEN_LIMIT_MAX,
+    TOKEN_LIMIT_MIN,
+    TOKEN_LIMIT_STEP,
+    formatTokens,
+    tokensToday,
     type Automation,
     type AutomationRun,
     type AutomationSettings,
@@ -27,6 +31,7 @@ import { SettingsGroup, SettingsRow } from '../components/settings-ui';
 import { useUsage } from '../usage-query';
 import { errorText, timeAgo } from '../util';
 import { AutomationEditor, STATUS_OPTIONS } from './AutomationEditor';
+import { LimitField } from './LimitField';
 import { patchRunState, removeAutomation, saveAutomation, useAutomationList, useAutomationRuns } from './automation-queries';
 import { automationEngine } from './engine';
 
@@ -34,6 +39,9 @@ const api = window.shipwarden.automations;
 
 /** The history shows this number of runs. */
 const HISTORY_SIZE = 60;
+
+/** The number that the token field shows when the user turns the limit on. */
+export const DEFAULT_DAILY_TOKENS = 5_000_000;
 
 const RUN_STATUS_LABELS: Record<RunStatus, string> = {
     pending: 'Waits for approval',
@@ -198,6 +206,13 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
     const pending = state.runs.filter(run => run.status === 'pending');
     const history = state.runs.filter(run => run.status !== 'pending').slice(0, HISTORY_SIZE);
     const overUsage = usageAboveLimit(usage, automationSettings.pauseAtUsage);
+    const now = Date.now();
+    const usedToday = tokensToday(state.runs, now);
+    const tokensOf = (id: string) => tokensToday(state.runs, now, id);
+    const overTokens =
+        automationSettings.dailyTokens !== null && usedToday >= automationSettings.dailyTokens
+            ? `All automations used ${formatTokens(usedToday)} tokens today. The limit is ${formatTokens(automationSettings.dailyTokens)}. They start again tomorrow.`
+            : undefined;
     const nameOf = (run: AutomationRun) => list.automations.find(item => item.id === run.automationId)?.name ?? run.automationName;
 
     return (
@@ -250,9 +265,34 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                 'Automations start no runs while the plan usage of Claude or Codex is at or above this percent. Select "No limit" when you use the API.'
                             }
                             control={
-                                <UsageLimitField
+                                <LimitField
                                     value={automationSettings.pauseAtUsage}
+                                    fallback={DEFAULT_AUTOMATION_SETTINGS.pauseAtUsage}
+                                    min={USAGE_LIMIT_MIN}
+                                    max={USAGE_LIMIT_MAX}
+                                    step={USAGE_LIMIT_STEP}
+                                    unit="%"
+                                    label="Pause at plan usage, in percent"
                                     onSave={pauseAtUsage => void saveAutomationSettings({ pauseAtUsage })}
+                                />
+                            }
+                        />
+                        <SettingsRow
+                            label="Tokens each day"
+                            description={
+                                overTokens ??
+                                `All automations together, from midnight. Today: ${formatTokens(usedToday)} tokens. Input, output and cache writes count. Cache reads do not count. Only Claude Code reports tokens.`
+                            }
+                            control={
+                                <LimitField
+                                    value={automationSettings.dailyTokens}
+                                    fallback={DEFAULT_DAILY_TOKENS}
+                                    min={TOKEN_LIMIT_MIN}
+                                    max={TOKEN_LIMIT_MAX}
+                                    step={TOKEN_LIMIT_STEP}
+                                    unit="tokens"
+                                    label="Tokens each day for all automations"
+                                    onSave={dailyTokens => void saveAutomationSettings({ dailyTokens })}
                                 />
                             }
                         />
@@ -304,6 +344,8 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                                 {automation.limits.approval === 'ask' ? ' · asks first' : ''}
                                                 {automation.binding.collectionName ? ` · ${automation.binding.collectionName}` : ''}
                                                 {automation.binding.repos?.length ? ` · ${automation.binding.repos.map(repoLabel).join(', ')}` : ''}
+                                                {tokensOf(automation.id) > 0 ? ` · ${formatTokens(tokensOf(automation.id))} tokens today` : ''}
+                                                {automation.limits.dailyTokens !== undefined ? ` (limit ${formatTokens(automation.limits.dailyTokens)})` : ''}
                                             </div>
                                             {automation.description && <div className="settings-row-description">{automation.description}</div>}
                                             {problems.length > 0 && <div className="automation-warning">{problems.join(' ')}</div>}
@@ -392,6 +434,7 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                         </div>
                                         <div className="settings-row-description">
                                             {run.event.label} · {timeAgo(new Date(run.updatedAt).toISOString())}
+                                            {run.tokens !== undefined ? ` · ${formatTokens(run.tokens)} tokens` : ''}
                                         </div>
                                         {run.detail && <div className="automation-detail">{run.detail}</div>}
                                     </div>
@@ -424,47 +467,5 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                 </div>
             </div>
         </div>
-    );
-}
-
-/**
- * The usage limit in percent: any whole number from 5 to 100. The arrows change it in steps of 5. The value saves when
- * the field loses the focus or on Enter. A value outside the range goes to the nearest limit. "No limit" saves null,
- * for users of the API, who have no plan usage. The field keeps its number, so a second click restores it.
- */
-function UsageLimitField({ value, onSave }: { value: number | null; onSave(value: number | null): void }) {
-    const [text, setText] = useState(String(value ?? DEFAULT_AUTOMATION_SETTINGS.pauseAtUsage));
-    useEffect(() => {
-        if (value !== null) setText(String(value));
-    }, [value]);
-    const limited = value !== null;
-    const commit = () => {
-        const next = clampUsageLimit(text.trim() === '' ? Number.NaN : Number(text));
-        setText(String(next));
-        if (next !== value) onSave(next);
-    };
-    return (
-        <span className="automation-usage">
-            <input
-                type="number"
-                className="settings-input automation-number"
-                min={USAGE_LIMIT_MIN}
-                max={USAGE_LIMIT_MAX}
-                step={USAGE_LIMIT_STEP}
-                value={text}
-                disabled={!limited}
-                aria-label="Pause at plan usage, in percent"
-                onChange={event => setText(event.target.value)}
-                onBlur={commit}
-                onKeyDown={event => {
-                    if (event.key === 'Enter') commit();
-                }}
-            />
-            %
-            <label className="automation-check">
-                <input type="checkbox" checked={!limited} onChange={event => onSave(event.target.checked ? null : clampUsageLimit(Number(text)))} />
-                No limit
-            </label>
-        </span>
     );
 }

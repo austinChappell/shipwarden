@@ -19,7 +19,7 @@ import {
 import { JsonStore } from '../tasks/json-store';
 
 /** The fields of a run that `updateRun` can change. */
-export type RunChange = Partial<Pick<AutomationRun, 'status' | 'detail' | 'worktreePath' | 'sessionId' | 'noteName'>>;
+export type RunChange = Partial<Pick<AutomationRun, 'status' | 'detail' | 'worktreePath' | 'sessionId' | 'noteName' | 'tokens' | 'turn'>>;
 
 /**
  * Keeps the automations and their runs.
