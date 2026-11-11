@@ -69,6 +69,11 @@ export interface AutomationLimits {
      * automation starts no runs until the next day. Undefined: no limit. See `countedTokens` for what counts.
      */
     dailyTokens?: number;
+    /**
+     * The plan usage in percent at which this automation starts no runs. The check uses each usage window of Claude
+     * and Codex. Undefined: only the limit for all automations applies.
+     */
+    pauseAtUsage?: number;
 }
 
 export interface AutomationConditions {
@@ -399,11 +404,13 @@ function normalizeAction(value: unknown, index: number): AutomationAction {
 function normalizeLimits(value: unknown): AutomationLimits {
     const raw = record(value);
     const dailyTokens = tokenLimitOf(raw.dailyTokens);
+    const pauseAtUsage = typeof raw.pauseAtUsage === 'number' && Number.isFinite(raw.pauseAtUsage) ? clampUsageLimit(raw.pauseAtUsage) : undefined;
     return {
         approval: raw.approval === 'ask' ? 'ask' : 'auto',
         maxRunsPerTarget: count(raw.maxRunsPerTarget, DEFAULT_LIMITS.maxRunsPerTarget),
         maxRunning: count(raw.maxRunning, DEFAULT_LIMITS.maxRunning),
-        ...(dailyTokens !== undefined ? { dailyTokens } : {})
+        ...(dailyTokens !== undefined ? { dailyTokens } : {}),
+        ...(pauseAtUsage !== undefined ? { pauseAtUsage } : {})
     };
 }
 
@@ -1089,18 +1096,29 @@ export function describeTrigger(trigger: Trigger): string {
 
 /**
  * Returns a message when the plan usage of an agent is at or above the limit, else undefined. Only usage that loaded
- * correctly counts. The message names the provider and the window, for example "Claude (5h) is at 93%".
+ * correctly counts. The message names the provider and the window, for example "Claude (5h) is at 93%". The subject
+ * is the start of the last sentence, for example "Automations pause".
  */
-export function usageAboveLimit(usage: readonly ProviderUsage[], limit: number | null): string | undefined {
+export function usageAboveLimit(usage: readonly ProviderUsage[], limit: number | null, subject = 'Automations pause'): string | undefined {
     if (limit === null) return undefined;
     for (const provider of usage) {
         if (provider.status !== 'ok') continue;
         const window = provider.windows.find(item => item.usedPercent >= limit);
         if (window) {
-            return `The plan usage of ${PROVIDER_NAMES[provider.provider]} (${window.label}) is ${Math.round(window.usedPercent)}%. Automations pause at ${limit}%.`;
+            return `The plan usage of ${PROVIDER_NAMES[provider.provider]} (${window.label}) is ${Math.round(window.usedPercent)}%. ${subject} at ${limit}%.`;
         }
     }
     return undefined;
+}
+
+/**
+ * Returns a message when the plan usage is at or above the limit of the automation or the limit of all automations,
+ * else undefined. Only the lower limit needs a check. Usage above the higher limit is also above the lower limit.
+ */
+export function planUsageReached(usage: readonly ProviderUsage[], automation: Pick<Automation, 'limits'>, globalLimit: number | null): string | undefined {
+    const own = automation.limits.pauseAtUsage;
+    if (own !== undefined && (globalLimit === null || own < globalLimit)) return usageAboveLimit(usage, own, 'This automation pauses');
+    return usageAboveLimit(usage, globalLimit);
 }
 
 /**
