@@ -21,6 +21,7 @@ import { formatDuration, optionalErrorText, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { Combobox, sortedGroups } from './Combobox';
 import { LogView } from './LogView';
+import { Select } from './Select';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
 import { useModal } from './use-modal';
@@ -81,14 +82,12 @@ function InputField({ input, value, onChange }: { input: WorkflowInput; value: s
     }
     if (input.type === 'choice' && input.options?.length) {
         return (
-            <select className="settings-input" value={value} onChange={event => onChange(event.target.value)}>
-                {!input.required && <option value="">—</option>}
-                {input.options.map(option => (
-                    <option key={option} value={option}>
-                        {option}
-                    </option>
-                ))}
-            </select>
+            <Select
+                className="settings-input"
+                value={value}
+                options={[...(input.required ? [] : [{ value: '', label: '—' }]), ...input.options.map(option => ({ value: option, label: option }))]}
+                onChange={onChange}
+            />
         );
     }
     return (

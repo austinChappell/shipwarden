@@ -1,11 +1,11 @@
 import { useEffect, useState, type SetStateAction } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Task, TaskComment, TaskSource, TaskStatus } from '@shared/tasks';
+import type { OptionPart, Task, TaskComment, TaskOptions, TaskSource, TaskStatus, TaskUpdate } from '@shared/tasks';
 import { taskSeenKey } from '@shared/dashboard';
 import { errorText, optionalErrorText } from '../../util';
 import { seenStore } from '../../seen-store';
 import { alertDialog, confirmDialog } from '../ConfirmDialog';
-import { patchTask, removeTask, taskQueryKeys, type CachedDetail } from './task-view-logic';
+import { addLabelOptions, listPatch, patchTask, removeTask, taskQueryKeys, type CachedDetail } from './task-view-logic';
 import type { TaskRequest } from './use-task-source';
 
 interface Options {
@@ -17,9 +17,8 @@ interface Options {
     loadTasks(): Promise<void>;
 }
 
-/** The title and the description in the edit form, when the user edits the task. */
+/** The draft of the description, while the user edits it. The dialog stays open until the user saves or cancels it. */
 export interface TaskEdit {
-    title: string;
     description: string;
 }
 
@@ -87,12 +86,30 @@ export function useTaskDetail({ source, selectedId, setSelectedId, request, setT
         }
     };
 
-    const changeStatus = (statusId: string) =>
+    /** Sends one change of the task to the plugin. The details and the task list show the result. No list request is necessary. */
+    const updateTask = (change: Omit<TaskUpdate, 'id'>) =>
         detail &&
         act(async () => {
-            const updated = await request<Task>('tasks/update', { id: detail.id, status: statusId });
+            const updated = await request<Task>('tasks/update', { ...change, id: detail.id });
             setDetail(updated);
-            setTasks(list => patchTask(list, updated.id, { status: updated.status }));
+            setTasks(list => patchTask(list, updated.id, listPatch(updated)));
+            if (change.labels) {
+                // A new label goes into the cached options, so the next list shows it without a request.
+                queryClient.setQueryData<TaskOptions>(
+                    taskQueryKeys.options(source?.connectionId, updated.id, 'labels'),
+                    current => current && addLabelOptions(current, updated.labels ?? [])
+                );
+            }
+        });
+
+    const changeStatus = (statusId: string) => updateTask({ status: statusId });
+
+    /** Loads the options of a part of the selected task. The view keeps them for a few minutes. */
+    const loadOptions = (part: OptionPart) =>
+        queryClient.fetchQuery({
+            queryKey: taskQueryKeys.options(source?.connectionId, detail?.id, part),
+            queryFn: () => request<TaskOptions>('tasks/options', { id: detail?.id, part }),
+            staleTime: 5 * 60 * 1000
         });
 
     const addComment = () =>
@@ -115,17 +132,24 @@ export function useTaskDetail({ source, selectedId, setSelectedId, request, setT
             await loadTasks();
         });
 
+    /** Saves the draft of the description. The editor closes only when the save succeeds. */
     const saveEdit = () =>
         detail &&
         editing &&
         act(async () => {
-            const title = editing.title.trim();
-            if (!title) throw new Error('A task must have a title.');
-            const updated = await request<Task>('tasks/update', { id: detail.id, title, description: editing.description });
+            const updated = await request<Task>('tasks/update', { id: detail.id, description: editing.description });
             setDetail(updated);
             setEditing(undefined);
-            setTasks(list => patchTask(list, updated.id, { title: updated.title, status: updated.status, updatedAt: updated.updatedAt }));
+            setTasks(list => patchTask(list, updated.id, listPatch(updated)));
         });
+
+    /** Saves a new title. An empty title is not valid. */
+    const saveTitle = (title: string) => {
+        const value = title.trim();
+        if (!value) return 'A task must have a title.';
+        if (value !== detail?.title) updateTask({ title: value });
+        return undefined;
+    };
 
     const deleteTask = () =>
         detail &&
@@ -154,10 +178,13 @@ export function useTaskDetail({ source, selectedId, setSelectedId, request, setT
         editing,
         setEditing,
         act,
+        updateTask,
+        loadOptions,
         changeStatus,
         addComment,
         runAction,
         saveEdit,
+        saveTitle,
         deleteTask,
         showIfOpen
     };

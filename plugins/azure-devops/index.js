@@ -5,21 +5,28 @@ import { log, networkDetail, runPlugin } from '../sdk/index.js';
 import {
     activityQuery,
     closedStateNames,
+    editableParts,
+    FIELDS,
     LIST_FIELDS,
     listQuery,
+    memberOptions,
     mergeStates,
     newComments,
     parseOrganization,
+    PRIORITIES,
     projectOfRemote,
     sortComments,
     toComment,
+    toDetails,
     toTask,
-    visibleTypes
+    visibleTypes,
+    workItemPatch
 } from './map.js';
 
 const API_VERSION = '7.1';
-/** The comments API has only preview versions in 7.1. */
+/** The comments API and the tags API have only preview versions in 7.1. */
 const COMMENTS_API_VERSION = '7.1-preview.4';
+const TAGS_API_VERSION = '7.1-preview.1';
 const PAGE_SIZE = 100;
 /** WIQL returns at most this number of work item IDs for the task list. */
 const QUERY_LIMIT = 1000;
@@ -48,6 +55,14 @@ const projectMeta = new Map();
 const projectOfItem = new Map();
 /** The comments of each work item, with the "System.ChangedDate" of the work item at the load. */
 const commentCache = new Map();
+/** The work item type of each work item ID: { project, type }. */
+const typeOfItem = new Map();
+/** The field reference names of each work item type. The key is "project|type" in lowercase. */
+const typeFieldCache = new Map();
+/** The tags of each project. */
+const tagCache = new Map();
+/** The members of the teams of each project. */
+const memberCache = new Map();
 
 let connection;
 
@@ -196,16 +211,98 @@ async function statesOfType(projectKey, type) {
     return result.value ?? [];
 }
 
-/** Converts a work item to a task, with the colors and categories of its type's states. */
-async function workItemTask(item, withDescription) {
+/** Returns the value of `key` in `cache`. When the value is absent or older than 10 minutes, `load` gets it again. */
+async function cached(cache, key, load) {
+    const entry = cache.get(key);
+    if (entry && Date.now() - entry.at < CACHE_MS) {
+        return entry.value;
+    }
+    const value = await load();
+    cache.set(key, { value, at: Date.now() });
+    return value;
+}
+
+/** Returns a set of the field reference names of a work item type. The plugin keeps it for 10 minutes. */
+function fieldsOfType(projectName, type) {
+    return cached(typeFieldCache, `${projectName}|${type}`.toLowerCase(), async () => {
+        const result = await azure('GET', `/${project(projectName)}/_apis/wit/workitemtypes/${encodeURIComponent(type)}/fields?api-version=${API_VERSION}`);
+        return new Set((result.value ?? []).map(field => field.referenceName));
+    });
+}
+
+/**
+ * Returns the field reference names of the type of a work item. When Azure does not give them, the result has only
+ * the fields of the work item that have a value.
+ */
+function fieldsOfItem(item) {
+    const fields = item.fields ?? {};
+    const fallback = new Set(Object.keys(fields));
+    if (!fields['System.TeamProject'] || !fields['System.WorkItemType']) {
+        return Promise.resolve(fallback);
+    }
+    return fieldsOfType(fields['System.TeamProject'], fields['System.WorkItemType']).catch(error => {
+        log(`The plugin cannot read the fields of the type "${fields['System.WorkItemType']}": ${error.message}`);
+        return fallback;
+    });
+}
+
+/**
+ * Converts a work item to a task, with the colors and categories of its type's states. `full` also adds the
+ * description, the details and the editable parts.
+ */
+async function workItemTask(item, full) {
     const fields = item.fields ?? {};
     const projectName = fields['System.TeamProject'];
     if (projectName) {
         projectOfItem.set(String(item.id), projectName);
+        if (fields['System.WorkItemType']) {
+            typeOfItem.set(String(item.id), { project: projectName, type: fields['System.WorkItemType'] });
+        }
     }
-    const states =
-        projectName && fields['System.WorkItemType'] ? await statesOfType(projectName, fields['System.WorkItemType']).catch(() => undefined) : undefined;
-    return toTask(item, { baseUrl, states, withDescription });
+    const [states, typeFields] = await Promise.all([
+        projectName && fields['System.WorkItemType'] ? statesOfType(projectName, fields['System.WorkItemType']).catch(() => undefined) : undefined,
+        full ? fieldsOfItem(item) : undefined
+    ]);
+    const task = toTask(item, { baseUrl, states, withDescription: full });
+    return full ? { ...task, details: toDetails(item), editable: editableParts(item, typeFields) } : task;
+}
+
+/** Returns the field reference names of the type of a work item, from its ID. */
+async function fieldsOfId(number) {
+    let known = typeOfItem.get(String(number));
+    if (!known) {
+        const item = await azure('GET', `/_apis/wit/workitems/${number}?fields=System.TeamProject,System.WorkItemType&api-version=${API_VERSION}`);
+        known = { project: item.fields['System.TeamProject'], type: item.fields['System.WorkItemType'] };
+        typeOfItem.set(String(number), known);
+        projectOfItem.set(String(number), known.project);
+    }
+    return fieldsOfType(known.project, known.type).catch(error => {
+        // Without the fields, the plugin sends the change. Azure then refuses a field that the type does not have.
+        log(`The plugin cannot read the fields of the type "${known.type}": ${error.message}`);
+        return new Set(Object.values(FIELDS));
+    });
+}
+
+/** Returns the tag names of a project. The plugin keeps them for 10 minutes. */
+function tagsOf(projectName) {
+    return cached(tagCache, projectName.toLowerCase(), async () => {
+        const result = await azure('GET', `/${project(projectName)}/_apis/wit/tags?api-version=${TAGS_API_VERSION}`);
+        return (result.value ?? []).map(tag => tag.name).sort((a, b) => a.localeCompare(b));
+    });
+}
+
+/** Returns the members of all teams of a project as options. The plugin keeps them for 10 minutes. */
+function membersOf(projectName) {
+    return cached(memberCache, projectName.toLowerCase(), async () => {
+        const teams = (await azure('GET', `/_apis/projects/${project(projectName)}/teams?$top=100&api-version=${API_VERSION}`)).value ?? [];
+        const lists = await eachLimited(teams, 4, team =>
+            azure('GET', `/_apis/projects/${project(projectName)}/teams/${team.id}/members?$top=1000&api-version=${API_VERSION}`).then(
+                result => result.value ?? [],
+                () => []
+            )
+        );
+        return memberOptions(lists);
+    });
 }
 
 /** Reads the work items with the IDs, in the order of the IDs. */
@@ -240,10 +337,17 @@ async function projectOf(id) {
     return name;
 }
 
+/** Sends JSON Patch operations to a work item and returns the changed work item. */
+async function patchOperations(id, operations) {
+    return azure('PATCH', `/_apis/wit/workitems/${id}?api-version=${API_VERSION}`, operations, { contentType: 'application/json-patch+json' });
+}
+
 /** Changes fields of a work item. `changes` maps a field reference name to its new value. */
 async function patchWorkItem(id, changes) {
-    const operations = Object.entries(changes).map(([field, value]) => ({ op: 'add', path: `/fields/${field}`, value }));
-    return azure('PATCH', `/_apis/wit/workitems/${id}?api-version=${API_VERSION}`, operations, { contentType: 'application/json-patch+json' });
+    return patchOperations(
+        id,
+        Object.entries(changes).map(([field, value]) => ({ op: 'add', path: `/fields/${field}`, value }))
+    );
 }
 
 async function listComments(projectName, id) {
@@ -293,6 +397,7 @@ connection = runPlugin({
         };
         log(`Azure DevOps plugin ready for ${baseUrl} as ${me.name ?? 'an unknown user'}.`);
         return {
+            capabilities: { edit: true },
             fields: [
                 { id: 'type', label: 'Type', type: 'text' },
                 { id: 'area', label: 'Area', type: 'text' },
@@ -347,13 +452,48 @@ connection = runPlugin({
         return workItemTask(await azure('GET', `/_apis/wit/workitems/${workItemId(id)}?api-version=${API_VERSION}`), true);
     },
 
-    /** The status ID is the state name. */
-    async updateTask({ id, status }) {
-        const number = workItemId(id);
-        const item = status
-            ? await patchWorkItem(number, { 'System.State': status })
-            : await azure('GET', `/_apis/wit/workitems/${number}?api-version=${API_VERSION}`);
+    /**
+     * Changes the state, the title, the description, the assignee, the tags, the priority, the dates or the estimate.
+     * The status ID is the state name. The description goes to the field as Markdown. When Azure does not accept
+     * Markdown, the plugin sends it again as simple HTML.
+     */
+    async updateTask(params) {
+        const number = workItemId(params.id);
+        const typeFields = await fieldsOfId(number);
+        const operations = workItemPatch(params, typeFields);
+        if (operations.length === 0) {
+            return workItemTask(await azure('GET', `/_apis/wit/workitems/${number}?api-version=${API_VERSION}`), true);
+        }
+        let item;
+        try {
+            item = await patchOperations(number, operations);
+        } catch (error) {
+            if (params.description === undefined) {
+                throw error;
+            }
+            log(`Azure DevOps did not accept the description as Markdown. The plugin sends it as HTML. ${error.message}`);
+            item = await patchOperations(number, workItemPatch(params, typeFields, { htmlDescription: true }));
+        }
         return workItemTask(item, true);
+    },
+
+    /**
+     * The choices for a part of a work item. The assignees: the members of the teams of the project. The labels: the
+     * tags of the project. The user can type a new tag, because Azure makes a tag when a work item gets it.
+     * The priority: the four levels of the standard processes.
+     */
+    async listOptions({ id, part }) {
+        if (part === 'priority') {
+            return { options: PRIORITIES };
+        }
+        const projectName = await projectOf(workItemId(id));
+        if (part === 'labels') {
+            return { options: (await tagsOf(projectName)).map(name => ({ id: name, name })), create: true };
+        }
+        if (part === 'assignees') {
+            return { options: await membersOf(projectName) };
+        }
+        throw new Error(`Azure DevOps work items have no options for "${part}".`);
     },
 
     /** The statuses come from the work item type of the task, because each type has its own states. */

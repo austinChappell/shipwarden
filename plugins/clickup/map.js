@@ -62,17 +62,26 @@ function fieldOption(field, value) {
 }
 
 function optionLabel(option) {
-    return { name: option.name ?? option.label ?? '', color: option.color || undefined };
+    return { id: String(option.id), name: option.name ?? option.label ?? '', color: option.color || undefined };
 }
+
+/** The options of a drop-down or labels field, for the task details. */
+function fieldOptions(field) {
+    return (field.type_config?.options ?? []).map(optionLabel);
+}
+
+/** The ClickUp field types that the plugin can change, with the type of the task details. */
+const TEXT_TYPES = new Set(['text', 'short_text', 'email', 'phone']);
 
 /** Converts a ClickUp custom field and its value. An empty field has no value. */
 export function toCustomField(field) {
     const base = { id: String(field.id), label: field.name };
+    const editable = { editable: true };
     const value = field.value;
     const empty = value === undefined || value === null || value === '';
     switch (field.type) {
         case 'number':
-            return { ...base, type: 'number', ...(empty ? {} : { value: Number(value) }) };
+            return { ...base, ...editable, type: 'number', ...(empty ? {} : { value: Number(value) }) };
         case 'currency': {
             if (empty) return { ...base, type: 'text' };
             const currency = field.type_config?.currency_type;
@@ -85,27 +94,27 @@ export function toCustomField(field) {
             return { ...base, type: 'text', value: text };
         }
         case 'emoji':
-            return { ...base, type: 'rating', max: Number(field.type_config?.count) || 5, ...(empty ? {} : { value: Number(value) }) };
+            return { ...base, ...editable, type: 'rating', max: Number(field.type_config?.count) || 5, ...(empty ? {} : { value: Number(value) }) };
         case 'checkbox':
-            return { ...base, type: 'boolean', value: value === true || value === 'true' };
+            return { ...base, ...editable, type: 'boolean', value: value === true || value === 'true' };
         case 'date':
-            return { ...base, type: 'date', ...(empty ? {} : { value: dayOrTime(value, field.value_options?.time === true) }) };
+            return { ...base, ...editable, type: 'date', ...(empty ? {} : { value: dayOrTime(value, field.value_options?.time === true) }) };
         case 'url':
-            return { ...base, type: 'url', ...(empty ? {} : { value: String(value) }) };
+            return { ...base, ...editable, type: 'url', ...(empty ? {} : { value: String(value) }) };
         case 'drop_down': {
             const option = empty ? undefined : fieldOption(field, value);
-            return { ...base, type: 'labels', ...(option ? { labels: [optionLabel(option)] } : {}) };
+            return { ...base, ...editable, type: 'labels', options: fieldOptions(field), ...(option ? { labels: [optionLabel(option)] } : {}) };
         }
         case 'labels': {
             const labels = (Array.isArray(value) ? value : [])
                 .map(id => fieldOption(field, id))
                 .filter(Boolean)
                 .map(optionLabel);
-            return { ...base, type: 'labels', ...(labels.length ? { labels } : {}) };
+            return { ...base, ...editable, type: 'labels', multiple: true, options: fieldOptions(field), ...(labels.length ? { labels } : {}) };
         }
         case 'users': {
             const people = (Array.isArray(value) ? value : []).filter(user => user && typeof user === 'object').map(toPerson);
-            return { ...base, type: 'people', ...(people.length ? { people } : {}) };
+            return { ...base, ...editable, type: 'people', ...(people.length ? { people } : {}) };
         }
         case 'tasks': {
             const names = (Array.isArray(value) ? value : []).map(item => item?.name).filter(Boolean);
@@ -115,12 +124,19 @@ export function toCustomField(field) {
         case 'manual_progress':
         case 'automatic_progress': {
             const percent = Number(value?.percent_completed ?? value?.current ?? value);
-            return { ...base, type: 'progress', ...(Number.isFinite(percent) && !empty ? { value: percent } : {}) };
+            // Only a manual progress bar can change. ClickUp calculates the other progress bars.
+            const manual = field.type === 'manual_progress' ? editable : {};
+            return { ...base, ...manual, type: 'progress', ...(Number.isFinite(percent) && !empty ? { value: percent } : {}) };
         }
         case 'location':
             return { ...base, type: 'text', ...(value?.formatted_address ? { value: value.formatted_address } : {}) };
         default:
-            return { ...base, type: 'text', ...(empty || typeof value === 'object' ? {} : { value: String(value) }) };
+            return {
+                ...base,
+                ...(TEXT_TYPES.has(field.type) ? editable : {}),
+                type: 'text',
+                ...(empty || typeof value === 'object' ? {} : { value: String(value) })
+            };
     }
 }
 
@@ -177,7 +193,12 @@ export function toDetails(task, location) {
                 name: checklist.name,
                 items: [...(checklist.items ?? [])]
                     .sort((a, b) => (a.orderindex ?? 0) - (b.orderindex ?? 0))
-                    .map(item => ({ name: item.name, done: item.resolved === true, assignee: item.assignee ? toPerson(item.assignee) : undefined }))
+                    .map(item => ({
+                        id: checklistItemId(checklist.id, item.id),
+                        name: item.name,
+                        done: item.resolved === true,
+                        assignee: item.assignee ? toPerson(item.assignee) : undefined
+                    }))
             }))
         ),
         attachments: nonEmpty(
@@ -203,12 +224,111 @@ export function toTask(task, { withDescription = false } = {}) {
         url: task.url,
         status: toStatus(task.status),
         assignees: (task.assignees ?? []).map(toPerson),
-        labels: (task.tags ?? []).map(tag => ({ name: tag.name, color: tag.tag_bg || undefined })),
+        labels: (task.tags ?? []).map(toLabel),
         // ClickUp priorities: 1 urgent, 2 high, 3 normal, 4 low.
         priority: task.priority ? { name: task.priority.priority, level: Number(task.priority.id) } : undefined,
         updatedAt: isoDate(task.date_updated),
         description: withDescription ? (task.markdown_description ?? task.description ?? '') : undefined
     };
+}
+
+/** A ClickUp tag as a label. ClickUp changes the tags of a task by name, so the name is the option ID. */
+export function toLabel(tag) {
+    return { name: tag.name, color: tag.tag_bg || undefined };
+}
+
+/** The parts of a ClickUp task that the plugin can change. */
+export const EDITABLE = {
+    title: true,
+    description: true,
+    assignees: true,
+    labels: true,
+    priority: true,
+    startDate: true,
+    dueDate: true,
+    timeEstimate: true,
+    checklists: true
+};
+
+/** The ClickUp priorities. The ID is the level. */
+export const PRIORITIES = [
+    { id: '1', name: 'Urgent', color: '#f50000' },
+    { id: '2', name: 'High', color: '#ffcc00' },
+    { id: '3', name: 'Normal', color: '#6fddff' },
+    { id: '4', name: 'Low', color: '#d8d8d8' }
+];
+
+/** The ID of a checklist item for tasks/update: ClickUp needs the checklist ID and the item ID. */
+export function checklistItemId(checklistId, itemId) {
+    return `${checklistId}/${itemId}`;
+}
+
+/** Splits the ID of a checklist item into the checklist ID and the item ID. */
+export function parseChecklistItemId(id) {
+    const index = String(id).indexOf('/');
+    if (index <= 0) {
+        throw new Error(`The checklist item ID "${id}" is not valid.`);
+    }
+    return { checklistId: id.slice(0, index), itemId: id.slice(index + 1) };
+}
+
+/**
+ * Converts a day "YYYY-MM-DD" to ClickUp milliseconds: noon in the time zone of the computer.
+ * Noon keeps the same day when the time zone of the ClickUp account is a few hours different. Null stays null.
+ */
+export function dayToMilliseconds(day) {
+    if (day === null) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day));
+    if (!match) {
+        throw new Error(`The date "${day}" is not valid. Use the form YYYY-MM-DD.`);
+    }
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12).getTime();
+}
+
+/** Returns the IDs to add and to remove, so that the list `current` becomes `wanted`. */
+export function listChange(current, wanted) {
+    const before = new Set(current.map(String));
+    const after = new Set(wanted.map(String));
+    return { add: [...after].filter(id => !before.has(id)), rem: [...before].filter(id => !after.has(id)) };
+}
+
+/**
+ * Returns the request for a new custom field value, or { clear: true } for an empty value.
+ * `field` is the ClickUp field of the task, with its type and current value.
+ */
+export function customFieldRequest(field, value) {
+    const empty = value === null || value === '' || (Array.isArray(value) && value.length === 0);
+    switch (field.type) {
+        case 'users': {
+            const current = (Array.isArray(field.value) ? field.value : []).map(user => user?.id).filter(id => id !== undefined);
+            return { body: { value: listChange(current, Array.isArray(value) ? value : []) } };
+        }
+        case 'checkbox':
+            return { body: { value: value === true } };
+        default:
+            if (empty) return { clear: true };
+    }
+    switch (field.type) {
+        case 'number':
+        case 'currency':
+        case 'emoji': {
+            const number = Number(value);
+            if (!Number.isFinite(number)) {
+                throw new Error(`"${value}" is not a number.`);
+            }
+            return { body: { value: number } };
+        }
+        case 'manual_progress':
+            return { body: { value: { current: Number(value) } } };
+        case 'date':
+            return { body: { value: dayToMilliseconds(value), value_options: { time: false } } };
+        case 'drop_down':
+            return { body: { value: Array.isArray(value) ? value[0] : value } };
+        case 'labels':
+            return { body: { value: Array.isArray(value) ? value : [value] } };
+        default:
+            return { body: { value: String(value) } };
+    }
 }
 
 export function toComment(comment) {

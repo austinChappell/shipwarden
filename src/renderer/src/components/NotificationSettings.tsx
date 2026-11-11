@@ -4,13 +4,13 @@ import {
     CI_SCOPES,
     NOTIFICATION_EVENTS,
     NOTIFICATION_SOUNDS,
-    type CiScope,
     type NotificationEvent,
     type NotificationSettings as NotificationSettingsValue
 } from '@shared/notifications';
 import type { AppSettings } from '@shared/settings';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { Select } from './Select';
 
 interface Props {
     settings: AppSettings;
@@ -104,38 +104,27 @@ export function NotificationSettings({ settings, onSave }: Props) {
                             control={
                                 <div className="notification-controls">
                                     {event.id === 'ciFinished' && (
-                                        <select
+                                        <Select
                                             className="tasks-select"
                                             value={value.ciScope}
                                             disabled={!value.enabled || !current.enabled}
                                             title="Pull requests"
-                                            onChange={change => void save({ ciScope: change.target.value as CiScope })}
-                                        >
-                                            {CI_SCOPES.map(scope => (
-                                                <option key={scope.id} value={scope.id}>
-                                                    {scope.label}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            options={CI_SCOPES.map(scope => ({ value: scope.id, label: scope.label }))}
+                                            onChange={ciScope => void save({ ciScope })}
+                                        />
                                     )}
-                                    <select
+                                    <Select
                                         className="tasks-select"
                                         value={current.sound ?? ''}
                                         disabled={!value.enabled || !current.enabled}
                                         title="Sound"
-                                        onChange={change => {
-                                            const sound = change.target.value || null;
+                                        options={[{ value: '', label: 'No sound' }, ...NOTIFICATION_SOUNDS.map(sound => ({ value: sound, label: sound }))]}
+                                        onChange={choice => {
+                                            const sound = choice || null;
                                             void saveEvent(event.id, { sound });
                                             if (sound) window.shipwarden.notifications.playSound(sound);
                                         }}
-                                    >
-                                        <option value="">No sound</option>
-                                        {NOTIFICATION_SOUNDS.map(sound => (
-                                            <option key={sound} value={sound}>
-                                                {sound}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    />
                                     <button
                                         className="icon-button"
                                         title="Play the sound"

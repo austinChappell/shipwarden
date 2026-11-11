@@ -1,13 +1,31 @@
 import { useState } from 'react';
-import { Check, ChevronRight, ExternalLink, FileText, Star } from 'lucide-react';
-import type { Task, TaskAttachment, TaskChecklist, TaskCustomField, TaskDetails, TaskRef, TaskRelation } from '@shared/tasks';
+import { Check, ChevronRight, ExternalLink, FileText, Pencil, Star } from 'lucide-react';
+import type {
+    CustomFieldValue,
+    EditableParts,
+    OptionPart,
+    Task,
+    TaskAttachment,
+    TaskChecklist,
+    TaskCustomField,
+    TaskDetails,
+    TaskOption,
+    TaskOptions,
+    TaskRef,
+    TaskRelation
+} from '@shared/tasks';
 import { openLink } from '../../links';
 import { timeAgo } from '../../util';
-import { checklistProgress, customFieldEmpty, formatBytes, formatDay, formatDuration } from './task-view-logic';
+import { checklistProgress, customFieldEmpty, dayInputValue, formatBytes, formatDay, formatDuration, labelId } from './task-view-logic';
+import { DateEditor, EmptyValue, InlineText, OptionPicker } from './TaskEditors';
+import { TaskCard } from './TaskBody';
 import { StatusDot, TaskAssignees, TaskAvatar, TaskLabels } from './TaskParts';
 
-/** The rows of the details for the field column: the dates, the time, the creator, the watchers and the location. */
-export function DetailMetaRows({ details }: { details: TaskDetails | undefined }) {
+/**
+ * The rows of the details for the field column: the dates, the time, the creator, the watchers and the location.
+ * An editable date or estimate is not here. EditableMetaRows shows its editor.
+ */
+export function DetailMetaRows({ details, editable }: { details: TaskDetails | undefined; editable: EditableParts }) {
     if (!details) return null;
     const row = (label: string, value: React.ReactNode) => (
         <>
@@ -17,9 +35,9 @@ export function DetailMetaRows({ details }: { details: TaskDetails | undefined }
     );
     return (
         <>
-            {details.startDate && row('Start', formatDay(details.startDate))}
-            {details.dueDate && row('Due', formatDay(details.dueDate))}
-            {details.timeEstimate !== undefined && row('Estimate', formatDuration(details.timeEstimate))}
+            {details.startDate && !editable.startDate && row('Start', formatDay(details.startDate))}
+            {details.dueDate && !editable.dueDate && row('Due', formatDay(details.dueDate))}
+            {details.timeEstimate !== undefined && !editable.timeEstimate && row('Estimate', formatDuration(details.timeEstimate))}
             {details.timeSpent !== undefined && row('Tracked', formatDuration(details.timeSpent))}
             {details.creator &&
                 row(
@@ -95,31 +113,177 @@ function FieldValue({ field }: { field: TaskCustomField }) {
     }
 }
 
+interface EditorProps {
+    field: TaskCustomField;
+    busy: boolean;
+    /** True when the plugin returns options (tasks/options). */
+    canLoad: boolean;
+    onChange(value: CustomFieldValue): void;
+    loadOptions(part: OptionPart): Promise<TaskOptions>;
+}
+
+/** Reads a number from an input. Returns null for empty text and undefined for text that is not a number. */
+function readNumber(text: string): number | null | undefined {
+    if (!text.trim()) return null;
+    const value = Number(text);
+    return Number.isFinite(value) ? value : undefined;
+}
+
+/** The editor of a custom field that can change. A field type without an editor shows its value. */
+function FieldEditor({ field, busy, canLoad, onChange, loadOptions }: EditorProps) {
+    const empty = customFieldEmpty(field);
+    switch (field.type) {
+        case 'boolean':
+            return (
+                <input
+                    type="checkbox"
+                    checked={field.value === true}
+                    disabled={busy}
+                    aria-label={field.label}
+                    onChange={() => onChange(field.value !== true)}
+                />
+            );
+        case 'rating': {
+            const max = field.max ?? 5;
+            const value = Number(field.value ?? 0);
+            return (
+                <span className="task-rating editable" role="group" aria-label={`${field.label}: ${value} of ${max}`}>
+                    {Array.from({ length: max }, (_, index) => (
+                        <button
+                            // biome-ignore lint/suspicious/noArrayIndexKey: The stars have no identity. The position is the key.
+                            key={index}
+                            type="button"
+                            disabled={busy}
+                            title={index + 1 === value ? 'Clear' : `${index + 1} of ${max}`}
+                            onClick={() => onChange(index + 1 === value ? null : index + 1)}
+                        >
+                            <Star size={14} strokeWidth={1.6} className={index < value ? 'on' : ''} />
+                        </button>
+                    ))}
+                </span>
+            );
+        }
+        case 'date':
+            return <DateEditor label={field.label} value={dayInputValue(empty ? undefined : String(field.value))} disabled={busy} onSave={onChange} />;
+        case 'labels':
+        case 'people': {
+            const people = field.type === 'people';
+            if (!field.options && !canLoad) return <FieldValue field={field} />;
+            const selected: TaskOption[] = people
+                ? (field.people ?? []).filter(person => person.id).map(person => ({ ...person, id: person.id as string }))
+                : (field.labels ?? []).map(label => ({ id: labelId(label), name: label.name, color: label.color }));
+            const options = field.options;
+            return (
+                <OptionPicker
+                    label={field.label}
+                    people={people}
+                    multiple={people || !!field.multiple}
+                    selected={selected}
+                    disabled={busy}
+                    load={() => (options ? Promise.resolve({ options }) : loadOptions(`custom:${field.id}`))}
+                    onChange={ids => onChange(ids.length ? ids : null)}
+                >
+                    {empty ? <EmptyValue text="–" /> : <FieldValue field={field} />}
+                </OptionPicker>
+            );
+        }
+        case 'number':
+        case 'progress':
+            return (
+                <InlineText
+                    label={field.label}
+                    type="number"
+                    value={empty ? '' : String(field.value)}
+                    disabled={busy}
+                    onSave={text => {
+                        const value = readNumber(text);
+                        if (value === undefined) return 'Write a number.';
+                        if (field.type === 'progress' && value !== null && (value < 0 || value > 100)) return 'Write a number from 0 to 100.';
+                        onChange(value);
+                        return undefined;
+                    }}
+                >
+                    {empty ? <EmptyValue text="–" /> : <FieldValue field={field} />}
+                </InlineText>
+            );
+        case 'url':
+        case 'text': {
+            const editor = (
+                <InlineText
+                    label={field.label}
+                    type={field.type === 'url' ? 'url' : 'text'}
+                    value={empty ? '' : String(field.value)}
+                    disabled={busy}
+                    onSave={text => {
+                        onChange(text.trim() || null);
+                        return undefined;
+                    }}
+                >
+                    {empty ? <EmptyValue text="–" /> : field.type === 'url' ? <Pencil size={12} strokeWidth={1.6} /> : <FieldValue field={field} />}
+                </InlineText>
+            );
+            // A link opens on a click, so a separate button edits it.
+            return field.type === 'url' && !empty ? (
+                <span className="task-field-url">
+                    <FieldValue field={field} />
+                    {editor}
+                </span>
+            ) : (
+                editor
+            );
+        }
+    }
+}
+
+interface FieldsProps {
+    fields: TaskCustomField[] | undefined;
+    /** True when the plugin can change tasks. A field with `editable` then shows an editor. */
+    canUpdate: boolean;
+    canLoad: boolean;
+    busy: boolean;
+    onChange(id: string, value: CustomFieldValue): void;
+    loadOptions(part: OptionPart): Promise<TaskOptions>;
+}
+
 /** The custom fields of the task. The empty fields stay hidden until the user shows them. */
-export function CustomFieldsSection({ fields }: { fields: TaskCustomField[] | undefined }) {
+export function CustomFieldsSection({ fields, canUpdate, canLoad, busy, onChange, loadOptions }: FieldsProps) {
     const [showEmpty, setShowEmpty] = useState(false);
     if (!fields?.length) return null;
     const empty = fields.filter(customFieldEmpty).length;
     const shown = showEmpty ? fields : fields.filter(field => !customFieldEmpty(field));
     return (
-        <section className="task-section">
-            <div className="section-title">
-                Fields <span>{fields.length}</span>
-            </div>
+        <TaskCard
+            title="Fields"
+            count={fields.length}
+            actions={
+                empty > 0 && (
+                    <button className="link-button task-fields-toggle" onClick={() => setShowEmpty(!showEmpty)}>
+                        {showEmpty ? `Hide ${empty} empty` : `Show ${empty} empty`}
+                    </button>
+                )
+            }
+        >
             <div className="task-fields">
                 {shown.map(field => (
                     <div key={field.id} className="task-field">
                         <span className="task-meta-label">{field.label}</span>
-                        <FieldValue field={field} />
+                        <span className="task-field-value">
+                            {canUpdate && field.editable ? (
+                                <FieldEditor
+                                    field={field}
+                                    busy={busy}
+                                    canLoad={canLoad}
+                                    onChange={value => onChange(field.id, value)}
+                                    loadOptions={loadOptions}
+                                />
+                            ) : (
+                                <FieldValue field={field} />
+                            )}
+                        </span>
                     </div>
                 ))}
             </div>
-            {empty > 0 && (
-                <button className="link-button task-fields-toggle" onClick={() => setShowEmpty(!showEmpty)}>
-                    {showEmpty ? `Hide ${empty} empty ${empty === 1 ? 'field' : 'fields'}` : `Show ${empty} empty ${empty === 1 ? 'field' : 'fields'}`}
-                </button>
-            )}
-        </section>
+        </TaskCard>
     );
 }
 
@@ -169,58 +333,72 @@ interface RelatedProps {
 /** The parent task, the subtasks and the linked tasks. */
 export function RelatedTasksSection({ details, findTask, onOpenTask }: RelatedProps) {
     if (!details) return null;
-    const groups: { title: string; tasks: TaskRef[] }[] = [];
+    const groups: { title: string; count?: string; tasks: TaskRef[] }[] = [];
     if (details.parent) groups.push({ title: 'Parent task', tasks: [details.parent] });
     if (details.subtasks?.length) {
         const done = details.subtasks.filter(task => {
             const category = (task.status ?? findTask(task.id)?.status)?.category;
             return category === 'done' || category === 'canceled';
         }).length;
-        groups.push({ title: `Subtasks ${done}/${details.subtasks.length}`, tasks: details.subtasks });
+        groups.push({ title: 'Subtasks', count: `${done}/${details.subtasks.length}`, tasks: details.subtasks });
     }
     for (const relation of ['blocked_by', 'blocks', 'related'] as const) {
         const tasks = (details.links ?? []).filter(link => link.relation === relation).map(link => link.task);
         if (tasks.length) groups.push({ title: RELATION_TITLES[relation], tasks });
     }
     return groups.map(group => (
-        <section key={group.title} className="task-section">
-            <div className="section-title">{group.title}</div>
+        <TaskCard key={group.title} title={group.title} count={group.count}>
             <div className="task-refs">
                 {group.tasks.map(task => (
                     <TaskRefRow key={task.id} task={task} known={findTask(task.id)} onOpenTask={onOpenTask} />
                 ))}
             </div>
-        </section>
+        </TaskCard>
     ));
 }
 
-/** The checklists of the task. The items are read-only. */
-export function ChecklistsSection({ checklists }: { checklists: TaskChecklist[] | undefined }) {
+interface ChecklistProps {
+    checklists: TaskChecklist[] | undefined;
+    busy: boolean;
+    /** Changes the done state of an item. Without it, the items are read-only. */
+    onToggle?(id: string, done: boolean): void;
+}
+
+/** The checklists of the task. With `onToggle`, a click on an item with an ID changes its done state. */
+export function ChecklistsSection({ checklists, busy, onToggle }: ChecklistProps) {
     if (!checklists?.length) return null;
     return checklists.map((checklist, index) => {
         const { done, total } = checklistProgress([checklist]);
         return (
             // biome-ignore lint/suspicious/noArrayIndexKey: Two checklists can have the same name. The order does not change while the dialog shows.
-            <section key={index} className="task-section">
-                <div className="section-title">
-                    {checklist.name}{' '}
-                    <span>
-                        {done}/{total}
-                    </span>
-                </div>
+            <TaskCard key={index} title={checklist.name} count={`${done}/${total}`}>
                 <ul className="task-checklist">
                     {checklist.items.map((item, itemIndex) => (
                         // biome-ignore lint/suspicious/noArrayIndexKey: Two items can have the same name. The order does not change while the dialog shows.
                         <li key={itemIndex} className={item.done ? 'done' : ''}>
-                            <span className="task-check" role="img" aria-label={item.done ? 'Done' : 'Not done'}>
-                                {item.done && <Check size={11} strokeWidth={2.4} />}
-                            </span>
+                            {onToggle && item.id ? (
+                                <button
+                                    type="button"
+                                    className="task-check editable"
+                                    role="checkbox"
+                                    aria-checked={item.done}
+                                    aria-label={item.name}
+                                    disabled={busy}
+                                    onClick={() => onToggle(item.id as string, !item.done)}
+                                >
+                                    {item.done && <Check size={11} strokeWidth={2.4} />}
+                                </button>
+                            ) : (
+                                <span className="task-check" role="img" aria-label={item.done ? 'Done' : 'Not done'}>
+                                    {item.done && <Check size={11} strokeWidth={2.4} />}
+                                </span>
+                            )}
                             <span className="task-checklist-name">{item.name}</span>
                             {item.assignee && <TaskAvatar person={item.assignee} size={16} />}
                         </li>
                     ))}
                 </ul>
-            </section>
+            </TaskCard>
         );
     });
 }
@@ -229,10 +407,7 @@ export function ChecklistsSection({ checklists }: { checklists: TaskChecklist[] 
 export function AttachmentsSection({ attachments }: { attachments: TaskAttachment[] | undefined }) {
     if (!attachments?.length) return null;
     return (
-        <section className="task-section">
-            <div className="section-title">
-                Attachments <span>{attachments.length}</span>
-            </div>
+        <TaskCard title="Attachments" count={attachments.length}>
             <div className="task-attachments">
                 {attachments.map(file => (
                     <button key={file.url} className="task-attachment" title={file.name} onClick={event => openLink(file.url, event)}>
@@ -248,6 +423,6 @@ export function AttachmentsSection({ attachments }: { attachments: TaskAttachmen
                     </button>
                 ))}
             </div>
-        </section>
+        </TaskCard>
     );
 }

@@ -3,6 +3,7 @@ import { ExternalLink, List, Plus, RefreshCw, Search, Settings, SquareKanban } f
 import type { AssigneeFilter, ConnectionInfo, TaskCollection, TaskPerson, TaskSource } from '@shared/tasks';
 import { openLink } from '../../links';
 import { Combobox, sortedGroups } from '../Combobox';
+import { Select } from '../Select';
 import { AssigneeFilterPicker } from './AssigneeFilterPicker';
 import { collectionPlaceholder, collectionTitle, type ViewMode } from './task-view-logic';
 
@@ -86,30 +87,25 @@ export function TasksHeader(props: Props) {
             {/* Two groups: where the tasks come from, and how they show. A narrow window puts the second group on its own row. */}
             <div className="tasks-header-group where">
                 {connections && connections.length > 0 && (
-                    <select
+                    <Select
                         className="tasks-select"
                         value={connectionId ?? ''}
-                        onChange={event => props.selectConnection(event.target.value)}
+                        options={connections.map(item => ({ value: item.id, label: item.name }))}
+                        onChange={props.selectConnection}
                         title="Task manager"
-                    >
-                        {connections.map(item => (
-                            <option key={item.id} value={item.id}>
-                                {item.name}
-                            </option>
-                        ))}
-                    </select>
+                    />
                 )}
                 {source && <CollectionPicker collections={props.collections} collection={props.collection} onSelect={props.selectCollection} />}
             </div>
             <div className="tasks-header-group how">
                 {source && source.filters.length > 0 && (
-                    <select className="tasks-select" value={filter} onChange={event => props.setFilter(event.target.value)} title="Filter">
-                        {source.filters.map(item => (
-                            <option key={item.id} value={item.id}>
-                                {item.label}
-                            </option>
-                        ))}
-                    </select>
+                    <Select
+                        className="tasks-select"
+                        value={filter}
+                        options={source.filters.map(item => ({ value: item.id, label: item.label }))}
+                        onChange={props.setFilter}
+                        title="Filter"
+                    />
                 )}
                 {source && (
                     <AssigneeFilterPicker

@@ -21,6 +21,7 @@ import { focusFirstItem, itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { seenStore, useIsSeen } from '../seen-store';
 import { overviewKeys, refreshRepo, useRepoEntry } from '../github/review-overview-store';
 import { Combobox, type ComboboxGroup } from './Combobox';
+import { Select } from './Select';
 import { ChecksLabel, Dotted, KeyLegend, focusedData, useInitialFocus, usePageKeys } from './ReviewParts';
 
 export type RepoTab = 'needs' | 'mine' | 'open' | 'merged';
@@ -365,19 +366,14 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                     <button className="icon-button" title="Refresh" onClick={() => void refreshRepo(repo)}>
                         <RefreshCw size={15} strokeWidth={1.6} className={entry?.loading ? 'spin' : ''} />
                     </button>
-                    <select
+                    <Select
                         className="tasks-select"
                         value={sort}
                         title="Sort"
                         aria-label="Sort"
-                        onChange={event => setSort(event.target.value as PullRequestSort)}
-                    >
-                        {PULL_REQUEST_SORTS.map(item => (
-                            <option key={item.id} value={item.id}>
-                                Sort: {item.label}
-                            </option>
-                        ))}
-                    </select>
+                        options={PULL_REQUEST_SORTS.map(item => ({ value: item.id, label: `Sort: ${item.label}` }))}
+                        onChange={setSort}
+                    />
                 </div>
             </header>
 

@@ -5,6 +5,7 @@ import type { AppSettings, HiddenCommentMatch, HiddenCommentRule } from '@shared
 import { useDashboard } from '../dashboard-store';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { Select } from './Select';
 
 interface Props {
     settings: AppSettings;
@@ -156,13 +157,12 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                             spellCheck={false}
                             onChange={event => setAuthor(event.target.value)}
                         />
-                        <select className="settings-input" value={match} onChange={event => setMatch(event.target.value as HiddenCommentMatch)}>
-                            {Object.entries(MATCH_LABELS).map(([value, label]) => (
-                                <option key={value} value={value}>
-                                    {label}
-                                </option>
-                            ))}
-                        </select>
+                        <Select<HiddenCommentMatch>
+                            className="settings-input"
+                            value={match}
+                            options={(Object.keys(MATCH_LABELS) as HiddenCommentMatch[]).map(value => ({ value, label: MATCH_LABELS[value] }))}
+                            onChange={setMatch}
+                        />
                         <input
                             className={`settings-input rule-text${match === 'regex' ? ' mono' : ''}`}
                             value={text}

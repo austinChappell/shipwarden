@@ -18,7 +18,18 @@ interface Props {
  * so DOMPurify removes scripts, event handlers and other active content.
  */
 export function renderMarkdown(text: string, options: { breaks?: boolean } = {}): string {
-    return sanitizeHtml(marked.parse(text, { gfm: true, breaks: options.breaks ?? true, async: false }));
+    return sanitizeHtml(taskListMarks(marked.parse(text, { gfm: true, breaks: options.breaks ?? true, async: false })));
+}
+
+/**
+ * Changes the check boxes of a task list ("- [x] item") to marks. The sanitizer removes all input elements,
+ * so the marks are spans. The pattern matches only the check boxes that marked writes.
+ */
+export function taskListMarks(html: string): string {
+    return html.replace(
+        /<input (checked="" )?disabled="" type="checkbox">/g,
+        (_, checked) => `<span class="md-check${checked ? ' on' : ''}" role="img" aria-label="${checked ? 'Done' : 'Not done'}"></span>`
+    );
 }
 
 /** The prefix of the heading IDs in a Markdown file preview. */

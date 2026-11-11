@@ -67,10 +67,12 @@ describe('Local tasks mapping', () => {
             key: 'T-3',
             title: 'Fix login',
             status: { id: 'done', name: 'Done', color: '#3fb950', category: 'done', order: 2 },
-            labels: [{ name: 'archived', color: '#8b949e' }],
+            labels: [{ id: ':archived', name: 'archived', color: '#8b949e' }],
             updatedAt: 'u',
             description: 'Body',
-            fields: { createdAt: 'c', comments: 1 }
+            fields: { createdAt: 'c', comments: 1 },
+            details: { startDate: undefined, dueDate: undefined, timeEstimate: undefined },
+            editable: local.EDITABLE
         });
     });
 
@@ -195,6 +197,41 @@ describe('Local tasks handlers', () => {
         await expect(handlers.getTask({ id: created.id })).rejects.toThrow('does not exist');
         // A deleted number is not used again.
         expect((await handlers.createTask({ collection: repo, title: 'Third' })).key).toBe('T-3');
+    });
+
+    it('edits the labels, the priority, the dates and the estimate', async () => {
+        const handlers = await start();
+        const { id } = await handlers.createTask({ collection: repo, title: 'Plan' });
+        expect((await handlers.getTask({ id })).editable).toMatchObject({ labels: true, priority: true, dueDate: true });
+
+        const labeled = await handlers.updateTask({ id, labels: [' ui ', 'UI', 'bug', ''] });
+        expect(labeled.labels).toEqual([{ name: 'UI' }, { name: 'bug' }]);
+        expect(await handlers.listOptions({ id, part: 'labels' })).toEqual({
+            options: [
+                { id: 'bug', name: 'bug' },
+                { id: 'UI', name: 'UI' }
+            ],
+            create: true
+        });
+
+        const planned = await handlers.updateTask({ id, priority: '2', dueDate: '2026-12-01', timeEstimate: 5400000 });
+        expect(planned.priority).toEqual({ name: 'High', level: 2 });
+        expect(planned.details).toMatchObject({ dueDate: '2026-12-01', timeEstimate: 5400000 });
+        await expect(handlers.updateTask({ id, dueDate: '12/01/2026' })).rejects.toThrow('not valid');
+        await expect(handlers.updateTask({ id, priority: '9' })).rejects.toThrow('does not exist');
+
+        const cleared = await handlers.updateTask({ id, labels: [], priority: null, dueDate: null, timeEstimate: null });
+        expect(cleared.labels).toEqual([]);
+        expect(cleared.priority).toBeUndefined();
+        expect(cleared.details).toMatchObject({ dueDate: undefined, timeEstimate: undefined });
+    });
+
+    it('keeps the archived label out of a label edit', async () => {
+        const handlers = await start();
+        const { id } = await handlers.createTask({ collection: repo, title: 'Old' });
+        await handlers.runAction({ taskId: id, actionId: 'archive' });
+        const task = await handlers.updateTask({ id, labels: [local.ARCHIVED_LABEL_ID, 'docs'] });
+        expect(task.labels.map(label => label.name)).toEqual(['docs', 'archived']);
     });
 
     it('archives and restores a task', async () => {

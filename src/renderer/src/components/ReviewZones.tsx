@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Bot, Check, ChevronRight, FileDiff, LoaderCircle, Send } from 'lucide-react';
 import { lineLabel } from '@shared/ask-agent';
-import { noteTargetOptions, type NoteTarget } from '@shared/code-note';
+import { noteTargetOptions, type NoteTarget, type NoteTargetOption } from '@shared/code-note';
 import type { AgentDefinition } from '@shared/settings';
 import type { PendingComment, ReviewThread } from '@shared/github';
 import { answerOutdated, type AgentQuestion, type QuestionAction } from '../github/agent-questions';
@@ -15,6 +15,7 @@ import { applyThreadSuggestion } from '../github/suggestions';
 import { radioGroupKeys } from './keyboard';
 import { Reactions, type ReactionActions } from './Reactions';
 import { MentionTextarea } from './MentionTextarea';
+import { Select, type SelectOption } from './Select';
 
 export type { AgentQuestion, ComposerMode, QuestionAction };
 
@@ -209,6 +210,21 @@ export interface NoteOptions {
  * With `note`, the box can also send a note about the lines to an agent that runs, or to a new agent.
  * `canComment` false hides the comment mode, for example for a closed pull request or a file of a worktree.
  */
+/** The value of a heading in the list of agents. A heading is disabled, so the user cannot select it. */
+const HEADING = '#heading:';
+
+/**
+ * Returns the options of the list of agents that get a note. A disabled heading starts each group, because the list
+ * has no groups.
+ */
+function targetSelectOptions(targets: readonly NoteTargetOption[]): SelectOption[] {
+    const group = (kind: NoteTargetOption['target']['kind'], label: string): SelectOption[] => {
+        const items = targets.filter(option => option.target.kind === kind).map(option => ({ value: option.key, label: option.label }));
+        return items.length ? [{ value: `${HEADING}${kind}`, label, disabled: true }, ...items] : [];
+    };
+    return [...group('session', 'Running in this worktree'), ...group('new', 'Start a new agent')];
+}
+
 export function ComposerZone({
     line,
     startLine = line,
@@ -321,35 +337,17 @@ export function ComposerZone({
                     </button>
                 )}
                 {mode === 'note' && (
-                    <select
-                        className="tasks-select composer-target"
-                        aria-label="Agent that gets the note"
-                        title="The agent that gets the note"
-                        value={target?.key ?? ''}
-                        onChange={event => setTargetKey(event.target.value)}
-                        onKeyDown={event => event.stopPropagation()}
-                    >
-                        {targets.some(option => option.target.kind === 'session') && (
-                            <optgroup label="Running in this worktree">
-                                {targets
-                                    .filter(option => option.target.kind === 'session')
-                                    .map(option => (
-                                        <option key={option.key} value={option.key}>
-                                            {option.label}
-                                        </option>
-                                    ))}
-                            </optgroup>
-                        )}
-                        <optgroup label="Start a new agent">
-                            {targets
-                                .filter(option => option.target.kind === 'new')
-                                .map(option => (
-                                    <option key={option.key} value={option.key}>
-                                        {option.label}
-                                    </option>
-                                ))}
-                        </optgroup>
-                    </select>
+                    // Monaco must not handle the keys of the select. The wrapper stops them.
+                    <span className="composer-target-keys" onKeyDown={event => event.stopPropagation()}>
+                        <Select
+                            className="tasks-select composer-target"
+                            aria-label="Agent that gets the note"
+                            title="The agent that gets the note"
+                            value={target?.key ?? ''}
+                            options={targetSelectOptions(targets)}
+                            onChange={setTargetKey}
+                        />
+                    </span>
                 )}
                 <button className="button" onClick={onCancel}>
                     Cancel

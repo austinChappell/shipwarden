@@ -1,12 +1,29 @@
 // A ShipWarden task plugin for GitHub issues. Each repository is a collection.
 import { execFile } from 'node:child_process';
 import { log, networkDetail, runPlugin } from '../sdk/index.js';
-import { loadPages, onlyIssues, parseTaskId, stateChange, STATUSES, toCollections, toComment, toTask } from './map.js';
+import {
+    editableParts,
+    issueChange,
+    labelOption,
+    loadPages,
+    missingLabels,
+    onlyIssues,
+    parseTaskId,
+    STATUSES,
+    toCollections,
+    toComment,
+    toPerson,
+    toTask
+} from './map.js';
 
 const API = 'https://api.github.com';
 const PAGE_SIZE = 50;
 /** The plugin lists at most this number of pages of repositories, with 100 repositories on each page. */
 const MAX_REPO_PAGES = 3;
+/** The plugin keeps the permissions, the labels and the assignees of a repository for 10 minutes. */
+const CACHE_MS = 10 * 60 * 1000;
+/** GitHub gives this color to a label that it makes without a color. */
+const NEW_LABEL_COLOR = 'ededed';
 
 /** The GitHub repositories ("owner/name") of the ShipWarden projects. The first one is the default collection. */
 let projectRepos = [];
@@ -14,6 +31,12 @@ let projectRepos = [];
 let owners;
 let token;
 let login;
+/** The permissions of the user in each repository. The key is "owner/name" in lowercase. */
+const repoPermissions = new Map();
+/** The labels of each repository. */
+const repoLabels = new Map();
+/** The users that can get issues in each repository. */
+const repoAssignees = new Map();
 
 function getToken() {
     if (process.env.GITHUB_TOKEN) {
@@ -66,6 +89,65 @@ function issuePath(id) {
     return `/repos/${repo}/issues/${number}`;
 }
 
+/** Returns the value of `key` in `cache`. When the value is absent or older than 10 minutes, `load` gets it again. */
+async function cached(cache, key, load) {
+    const entry = cache.get(key.toLowerCase());
+    if (entry && Date.now() - entry.at < CACHE_MS) {
+        return entry.value;
+    }
+    const value = await load();
+    cache.set(key.toLowerCase(), { value, at: Date.now() });
+    return value;
+}
+
+/** Returns the permissions of the user in a repository: { admin, maintain, push, triage, pull }. */
+function permissionsOf(repo) {
+    return cached(repoPermissions, repo, async () => (await github('GET', `/repos/${repo}`)).permissions ?? {});
+}
+
+function labelsOf(repo) {
+    return cached(repoLabels, repo, () => loadPages(page => github('GET', `/repos/${repo}/labels?per_page=100&page=${page}`), MAX_REPO_PAGES));
+}
+
+function assigneesOf(repo) {
+    return cached(repoAssignees, repo, () => loadPages(page => github('GET', `/repos/${repo}/assignees?per_page=100&page=${page}`), MAX_REPO_PAGES));
+}
+
+/** Returns the permissions of the user in a repository. When GitHub does not give them, the result is empty. */
+function permissionsOrNone(repo) {
+    return permissionsOf(repo).catch(error => {
+        log(`The plugin cannot read the permissions of ${repo}: ${error.message}`);
+        return {};
+    });
+}
+
+/** Converts an issue to a task with the description and the editable parts. */
+function fullTask(issue, permissions) {
+    return toTask(issue, { withDescription: true, editable: editableParts(issue, permissions, login) });
+}
+
+/**
+ * Makes the labels that the repository does not have. GitHub needs a label in the repository before an issue can get it.
+ * A user without write access cannot make labels. Then GitHub returns an error.
+ */
+async function makeMissingLabels(repo, names) {
+    const missing = missingLabels(names, await labelsOf(repo));
+    if (missing.length === 0) {
+        return;
+    }
+    for (const name of missing) {
+        try {
+            await github('POST', `/repos/${repo}/labels`, { name, color: NEW_LABEL_COLOR });
+        } catch (error) {
+            // 422: the label exists already, for example because another person made it a few seconds ago.
+            if (!/ 422 /.test(error.message)) {
+                throw new Error(`ShipWarden cannot make the label "${name}" in ${repo}. ${error.message}`);
+            }
+        }
+    }
+    repoLabels.delete(repo.toLowerCase());
+}
+
 runPlugin({
     async initialize({ settings, scope, context }) {
         projectRepos = (context?.repositories ?? []).filter(repo => repo.github).map(repo => `${repo.github.owner}/${repo.github.name}`);
@@ -77,7 +159,7 @@ runPlugin({
         return {
             // Without a GitHub repository in the projects, the user selects a repository. ShipWarden does not select
             // the first repository of the list, because it has nothing to do with the projects.
-            capabilities: { defaultCollectionOnly: true },
+            capabilities: { defaultCollectionOnly: true, edit: true },
             fields: [
                 { id: 'author', label: 'Author', type: 'text' },
                 { id: 'milestone', label: 'Milestone', type: 'text' },
@@ -137,11 +219,39 @@ runPlugin({
     },
 
     async getTask({ id }) {
-        return toTask(await github('GET', issuePath(id)), { withDescription: true });
+        const { repo } = parseTaskId(id, projectRepos[0]);
+        const [issue, permissions] = await Promise.all([github('GET', issuePath(id)), permissionsOrNone(repo)]);
+        return fullTask(issue, permissions);
     },
 
-    async updateTask({ id, status }) {
-        return toTask(await github('PATCH', issuePath(id), stateChange(status)), { withDescription: true });
+    /** Changes the state, the title, the body, the assignees or the labels. The assignees are logins. The labels are names. */
+    async updateTask(params) {
+        const { repo } = parseTaskId(params.id, projectRepos[0]);
+        const body = issueChange(params);
+        if (body.labels?.length) {
+            await makeMissingLabels(repo, body.labels);
+        }
+        const [issue, permissions] = await Promise.all([
+            Object.keys(body).length > 0 ? github('PATCH', issuePath(params.id), body) : github('GET', issuePath(params.id)),
+            permissionsOrNone(repo)
+        ]);
+        return fullTask(issue, permissions);
+    },
+
+    /**
+     * The choices for a part of an issue. The assignees: the users that can get issues in the repository.
+     * The labels: the labels of the repository. A user with write access can type a new label.
+     */
+    async listOptions({ id, part }) {
+        const { repo } = parseTaskId(id, projectRepos[0]);
+        if (part === 'assignees') {
+            return { options: (await assigneesOf(repo)).map(toPerson) };
+        }
+        if (part === 'labels') {
+            const [labels, permissions] = await Promise.all([labelsOf(repo), permissionsOrNone(repo)]);
+            return { options: labels.map(labelOption), create: !!(permissions.admin || permissions.maintain || permissions.push) };
+        }
+        throw new Error(`GitHub issues have no options for "${part}".`);
     },
 
     async listStatuses() {

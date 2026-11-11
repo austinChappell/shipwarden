@@ -1,7 +1,19 @@
 // The request handlers of the local task plugin. Each repository of the projects is a collection with its own task file.
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
-import { cleanTitle, matchesFilter, matchesQuery, parseStatuses, parseTaskId, taskFilePath, toComment, toTask } from './map.js';
+import {
+    cleanDay,
+    cleanLabels,
+    cleanTitle,
+    matchesFilter,
+    matchesQuery,
+    PRIORITIES,
+    parseStatuses,
+    parseTaskId,
+    taskFilePath,
+    toComment,
+    toTask
+} from './map.js';
 import { TaskFile } from './store.js';
 
 /**
@@ -126,16 +138,49 @@ export function createHandlers({ home, author = async () => undefined }) {
             return toTask(task, collection, statuses, { withDescription: true });
         },
 
-        async updateTask({ id, status, title, description }) {
+        async updateTask({ id, status, title, description, labels, priority, startDate, dueDate, timeEstimate }) {
             if (status !== undefined && !statuses.some(item => item.id === status)) {
                 throw new Error(`The status "${status}" does not exist. Use a status from the settings of the task manager.`);
             }
+            if (priority !== undefined && priority !== null && !PRIORITIES.some(item => item.id === String(priority))) {
+                throw new Error(`The priority "${priority}" does not exist.`);
+            }
+            if (timeEstimate !== undefined && timeEstimate !== null && !(Number.isFinite(timeEstimate) && timeEstimate >= 0)) {
+                throw new Error('The estimate must be a positive number of milliseconds.');
+            }
             const name = title !== undefined ? cleanTitle(title) : undefined;
+            const names = labels !== undefined ? cleanLabels(labels) : undefined;
+            const start = startDate !== undefined ? cleanDay(startDate) : undefined;
+            const due = dueDate !== undefined ? cleanDay(dueDate) : undefined;
+            /** Sets a part of the stored task. An undefined value removes the part. */
+            const set = (stored, key, value) => {
+                if (value === undefined || value === null) delete stored[key];
+                else stored[key] = value;
+            };
             return change(id, stored => {
                 if (status !== undefined) stored.status = status;
                 if (name !== undefined) stored.title = name;
                 if (typeof description === 'string') stored.description = description;
+                if (names !== undefined) set(stored, 'labels', names.length ? names : undefined);
+                if (priority !== undefined) set(stored, 'priority', priority === null ? undefined : Number(priority));
+                if (startDate !== undefined) set(stored, 'startDate', start);
+                if (dueDate !== undefined) set(stored, 'dueDate', due);
+                if (timeEstimate !== undefined) set(stored, 'timeEstimate', timeEstimate === null ? undefined : Math.round(timeEstimate));
             });
+        },
+
+        /** The labels: all labels of the tasks in the collection. The user can type a new label. The priority: four levels. */
+        async listOptions({ id, part }) {
+            if (part === 'priority') {
+                return { options: PRIORITIES };
+            }
+            if (part === 'labels') {
+                const { collection } = parseTaskId(id);
+                const data = await fileOf(collection).read();
+                const names = cleanLabels(data.tasks.flatMap(task => (Array.isArray(task.labels) ? task.labels : [])));
+                return { options: names.sort((a, b) => a.localeCompare(b)).map(name => ({ id: name, name })), create: true };
+            }
+            throw new Error(`The local task manager has no options for "${part}".`);
         },
 
         async deleteTask({ id }) {

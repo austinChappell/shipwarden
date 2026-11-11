@@ -14,6 +14,7 @@ import { providerAdded, providerChanged, providerRemoved, providerTokenChanged, 
 import { optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { SettingsGroup } from './settings-ui';
+import { Select } from './Select';
 
 const api = window.shipwarden.reviewProviders;
 
@@ -84,19 +85,13 @@ export function CodeReviewSettings() {
                 description="A worktree uses a provider of the kind of its remote. When two providers have the same kind, ShipWarden uses the provider whose organizations include the organization of the remote."
                 actions={
                     <div className="add-connection">
-                        <select
+                        <Select<ReviewProviderKind | ''>
                             className="tasks-select"
                             value={adding}
                             aria-label="Provider to add"
-                            onChange={event => setAdding(event.target.value as ReviewProviderKind | '')}
-                        >
-                            <option value="">Add a provider…</option>
-                            {REVIEW_PROVIDER_KINDS.map(item => (
-                                <option key={item.kind} value={item.kind}>
-                                    {item.name}
-                                </option>
-                            ))}
-                        </select>
+                            options={[{ value: '', label: 'Add a provider…' }, ...REVIEW_PROVIDER_KINDS.map(item => ({ value: item.kind, label: item.name }))]}
+                            onChange={setAdding}
+                        />
                         <button className="button" disabled={!adding} onClick={add}>
                             <Plus size={13} strokeWidth={1.8} />
                             Add

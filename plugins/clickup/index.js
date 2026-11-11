@@ -1,6 +1,24 @@
 // A ShipWarden task plugin for ClickUp. Each ClickUp list is a collection.
 import { log, networkDetail, runPlugin } from '../sdk/index.js';
-import { busiestList, listStatusOrder, matchesQuery, rateLimitWait, toCollections, toComment, toDetails, toPerson, toStatus, toTask } from './map.js';
+import {
+    busiestList,
+    customFieldRequest,
+    dayToMilliseconds,
+    EDITABLE,
+    listChange,
+    listStatusOrder,
+    matchesQuery,
+    parseChecklistItemId,
+    PRIORITIES,
+    rateLimitWait,
+    toCollections,
+    toComment,
+    toDetails,
+    toLabel,
+    toPerson,
+    toStatus,
+    toTask
+} from './map.js';
 
 const API = 'https://api.clickup.com/api/v2';
 
@@ -23,6 +41,10 @@ const listStatuses = new Map();
 const LIST_CACHE_MS = 10 * 60 * 1000;
 /** The members of each list, with the time of the load. */
 const listMembers = new Map();
+/** The tags of each space, with the time of the load. */
+const spaceTags = new Map();
+/** The list and the space of each task that the plugin loaded. The options of a task need them, so they need no new request. */
+const taskPlaces = new Map();
 /** The comments of each task, with the "date_updated" of the task at the load. A task without a change needs no new request. */
 const commentCache = new Map();
 /** The number of times that a request is sent again after a 429 response. */
@@ -58,10 +80,77 @@ function locationOf(task) {
     return [folder, task.list?.name].filter(Boolean).join(' / ') || undefined;
 }
 
+/** Remembers the list and the space of a ClickUp task. */
+function rememberPlace(task) {
+    if (task.list?.id) {
+        taskPlaces.set(String(task.id), { listId: String(task.list.id), spaceId: task.space?.id ? String(task.space.id) : undefined });
+    }
+}
+
+/** Returns the list and the space of a task. A task that the plugin did not load needs one request. */
+async function placeOf(id) {
+    if (!taskPlaces.has(String(id))) {
+        rememberPlace(await clickup('GET', `/task/${id}`));
+    }
+    const place = taskPlaces.get(String(id));
+    if (!place) {
+        throw new Error('ClickUp did not send the list of the task.');
+    }
+    return place;
+}
+
+/** Returns the raw ClickUp task with its description and subtasks. */
+async function fetchTask(id) {
+    const task = await clickup('GET', `/task/${id}?include_markdown_description=true&include_subtasks=true`);
+    rememberPlace(task);
+    return task;
+}
+
+/** Converts a raw ClickUp task with the description, the details and the editable parts. */
+function fullTask(task) {
+    return { ...toTask(task, { withDescription: true }), details: toDetails(task, locationOf(task)), editable: EDITABLE };
+}
+
 /** Loads one task with its subtasks, and converts it with the description and the details. */
 async function loadTask(id) {
-    const task = await clickup('GET', `/task/${id}?include_markdown_description=true&include_subtasks=true`);
-    return { ...toTask(task, { withDescription: true }), details: toDetails(task, locationOf(task)) };
+    return fullTask(await fetchTask(id));
+}
+
+/** Returns the tags of a space. The plugin keeps them for 10 minutes. */
+async function tagsOfSpace(spaceId) {
+    const cached = spaceTags.get(spaceId);
+    if (cached && Date.now() - cached.at < LIST_CACHE_MS) {
+        return cached.tags;
+    }
+    const { tags } = await clickup('GET', `/space/${spaceId}/tag`);
+    spaceTags.set(spaceId, { tags, at: Date.now() });
+    return tags;
+}
+
+/**
+ * Changes the tags of a task to the names in `wanted`. A name that the space does not have becomes a new tag of the space.
+ * ClickUp adds and removes one tag per request.
+ */
+async function setTags(task, wanted) {
+    const { add, rem } = listChange(
+        (task.tags ?? []).map(tag => tag.name),
+        wanted
+    );
+    const spaceId = task.space?.id ? String(task.space.id) : undefined;
+    if (add.length && spaceId) {
+        const known = new Set((await tagsOfSpace(spaceId)).map(tag => tag.name.toLowerCase()));
+        const missing = add.filter(name => !known.has(name.toLowerCase()));
+        for (const name of missing) {
+            await clickup('POST', `/space/${spaceId}/tag`, { tag: { name } });
+        }
+        if (missing.length) spaceTags.delete(spaceId);
+    }
+    for (const name of add) {
+        await clickup('POST', `/task/${task.id}/tag/${encodeURIComponent(name)}`);
+    }
+    for (const name of rem) {
+        await clickup('DELETE', `/task/${task.id}/tag/${encodeURIComponent(name)}`);
+    }
 }
 
 /** Returns the comments of a task with the replies of each comment. */
@@ -201,6 +290,7 @@ runPlugin({
         log(`ClickUp plugin ready for ${teams.map(team => `"${team.name}"`).join(', ')}.`);
         return {
             // The assignee filter of ShipWarden selects the people in the loaded tasks, so the filters select only open or closed tasks.
+            capabilities: { edit: true },
             filters: [
                 { id: 'open', label: 'Open tasks', default: true },
                 { id: 'closed', label: 'Closed tasks' },
@@ -239,6 +329,7 @@ runPlugin({
         const doneOnly = filter === 'closed' ? '&date_done_gt=0' : '';
         const result = await clickup('GET', `/list/${collection}/task?page=${page}&order_by=updated&subtasks=true&include_closed=${includeClosed}${doneOnly}`);
         const closed = task => task.status?.type === 'closed' || task.status?.type === 'done';
+        for (const task of result.tasks) rememberPlace(task);
         return {
             tasks: result.tasks.filter(task => matchesQuery(task, query) && (filter !== 'closed' || closed(task))).map(task => toTask(task)),
             // ClickUp returns 100 tasks per page. "last_page" is true on the last page.
@@ -250,9 +341,79 @@ runPlugin({
         return loadTask(id);
     },
 
-    async updateTask({ id, status }) {
-        await clickup('PUT', `/task/${id}`, { status });
+    /**
+     * Changes one or more parts of a task. The tags, the custom fields and the checklist items have their own
+     * requests. The other parts go in one PUT request.
+     */
+    async updateTask(params) {
+        const { id } = params;
+        const body = {};
+        if (params.status !== undefined) body.status = params.status;
+        if (params.title !== undefined) {
+            const name = String(params.title).trim();
+            if (!name) throw new Error('A task must have a title.');
+            body.name = name;
+        }
+        if (params.description !== undefined) body.markdown_content = params.description;
+        if (params.priority !== undefined) body.priority = params.priority === null ? null : Number(params.priority);
+        if (params.startDate !== undefined) {
+            body.start_date = dayToMilliseconds(params.startDate);
+            body.start_date_time = false;
+        }
+        if (params.dueDate !== undefined) {
+            body.due_date = dayToMilliseconds(params.dueDate);
+            body.due_date_time = false;
+        }
+        // ClickUp clears the estimate with 0.
+        if (params.timeEstimate !== undefined) body.time_estimate = params.timeEstimate === null ? 0 : Math.round(params.timeEstimate);
+
+        // The assignees, the tags and the custom fields change from their current values, so the plugin reads the task first.
+        const needsCurrent = params.assignees !== undefined || params.labels !== undefined || params.customField !== undefined;
+        const current = needsCurrent ? await fetchTask(id) : undefined;
+        if (params.assignees !== undefined) {
+            body.assignees = listChange(
+                (current.assignees ?? []).map(user => user.id),
+                params.assignees
+            );
+        }
+        if (Object.keys(body).length) {
+            await clickup('PUT', `/task/${id}`, body);
+        }
+        if (params.labels !== undefined) {
+            await setTags(current, params.labels);
+        }
+        if (params.customField) {
+            const field = (current.custom_fields ?? []).find(item => String(item.id) === params.customField.id);
+            if (!field) throw new Error('The task does not have this custom field.');
+            const request = customFieldRequest(field, params.customField.value);
+            await (request.clear ? clickup('DELETE', `/task/${id}/field/${field.id}`) : clickup('POST', `/task/${id}/field/${field.id}`, request.body));
+        }
+        if (params.checklistItem) {
+            const { checklistId, itemId } = parseChecklistItemId(params.checklistItem.id);
+            await clickup('PUT', `/checklist/${checklistId}/checklist_item/${itemId}`, { resolved: params.checklistItem.done === true });
+        }
         return loadTask(id);
+    },
+
+    /**
+     * The choices for a part of a task. The assignees and a "people" field: the members of the list.
+     * The labels: the tags of the space. The user can type a new tag. The priority: the four ClickUp priorities.
+     */
+    async listOptions({ id, part }) {
+        if (part === 'priority') {
+            return { options: PRIORITIES };
+        }
+        const place = await placeOf(id);
+        if (part === 'labels') {
+            if (!place.spaceId) return { options: [], create: true };
+            const tags = await tagsOfSpace(place.spaceId);
+            return { options: tags.map(tag => ({ id: tag.name, ...toLabel(tag) })), create: true };
+        }
+        if (part === 'assignees' || String(part).startsWith('custom:')) {
+            const members = await membersOfList(place.listId);
+            return { options: members.map(toPerson).filter(person => person.id) };
+        }
+        throw new Error(`The plugin has no options for "${part}".`);
     },
 
     /** The members of the list: the people that can be assignees of its tasks. */

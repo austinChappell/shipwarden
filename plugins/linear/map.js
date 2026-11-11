@@ -6,7 +6,7 @@ export const ISSUE_FIELDS = `
     id identifier title url priority priorityLabel updatedAt dueDate estimate branchName
     state { id name color type position }
     assignee { id name displayName avatarUrl }
-    labels(first: 20) { nodes { name color } }
+    labels(first: 50) { nodes { id name color } }
     project { name }
     cycle { number name }
     team { id key }
@@ -71,13 +71,34 @@ export function teamStatusOrder(states) {
         });
 }
 
-function toPerson(user) {
+/** The Linear priorities that a user can select. 0 ("No priority") is the empty value. */
+export const PRIORITIES = [
+    { id: '1', name: 'Urgent' },
+    { id: '2', name: 'High' },
+    { id: '3', name: 'Medium' },
+    { id: '4', name: 'Low' }
+];
+
+/** The parts of an issue that tasks/update can change. Linear has no start date. The estimate is in points, not in time. */
+export const EDITABLE = { title: true, description: true, assignees: true, labels: true, priority: true, dueDate: true };
+
+/** Converts a Linear user to a person or an option. The ID is the user ID. */
+export function toPerson(user) {
     if (!user) {
         return undefined;
     }
-    return { name: user.displayName || user.name, avatarUrl: user.avatarUrl ?? undefined };
+    return { id: user.id, name: user.displayName || user.name, avatarUrl: user.avatarUrl ?? undefined };
 }
 
+/** Converts a Linear label to a task label or an option. The ID is the label ID. */
+export function toLabel(label) {
+    return { id: label.id, name: label.name, color: label.color || undefined };
+}
+
+/**
+ * Converts an issue to a task. `withDescription` also adds the description, the details and the editable parts.
+ * Only tasks/get and tasks/update use it.
+ */
 export function toTask(issue, { withDescription = false } = {}) {
     return {
         id: issue.id,
@@ -86,7 +107,7 @@ export function toTask(issue, { withDescription = false } = {}) {
         url: issue.url,
         status: toStatus(issue.state),
         assignees: issue.assignee ? [toPerson(issue.assignee)] : [],
-        labels: (issue.labels?.nodes ?? []).map(label => ({ name: label.name, color: label.color || undefined })),
+        labels: (issue.labels?.nodes ?? []).map(toLabel),
         // Linear priorities: 0 no priority, 1 urgent, 2 high, 3 medium, 4 low.
         priority: issue.priority ? { name: issue.priorityLabel, level: Number(issue.priority) } : undefined,
         updatedAt: issue.updatedAt,
@@ -97,8 +118,88 @@ export function toTask(issue, { withDescription = false } = {}) {
             cycle: issue.cycle ? issue.cycle.name || `Cycle ${issue.cycle.number}` : null,
             estimate: issue.estimate ?? null,
             dueDate: issue.dueDate ?? null
-        }
+        },
+        ...(withDescription ? { details: { ...(issue.dueDate ? { dueDate: issue.dueDate } : {}) }, editable: EDITABLE } : {})
     };
+}
+
+/** The parts of a tasks/update request that Linear issues do not have. */
+const UNSUPPORTED_PARTS = { startDate: 'a start date', timeEstimate: 'an estimate in time', customField: 'custom fields', checklistItem: 'checklists' };
+
+/**
+ * Converts a tasks/update request to an IssueUpdateInput. An empty result means no change.
+ * A Linear issue has one assignee. The task dialog can send more than one, so the last ID is the new assignee.
+ */
+export function issueInput({ status, title, description, assignees, labels, priority, dueDate, ...rest }) {
+    for (const [part, name] of Object.entries(UNSUPPORTED_PARTS)) {
+        if (rest[part] !== undefined) {
+            throw new Error(`Linear issues do not have ${name}.`);
+        }
+    }
+    const input = {};
+    if (status) {
+        input.stateId = status;
+    }
+    if (title !== undefined) {
+        if (!String(title ?? '').trim()) {
+            throw new Error('An issue must have a title.');
+        }
+        input.title = String(title).trim();
+    }
+    if (description !== undefined) {
+        input.description = description ?? '';
+    }
+    if (assignees !== undefined) {
+        input.assigneeId = assignees?.at(-1) ?? null;
+    }
+    if (labels !== undefined) {
+        input.labelIds = labels ?? [];
+    }
+    if (priority !== undefined) {
+        input.priority = priorityValue(priority);
+    }
+    if (dueDate !== undefined) {
+        input.dueDate = dayValue(dueDate);
+    }
+    return input;
+}
+
+/** Converts a priority option ID to a Linear priority. Null clears the priority: 0 is "No priority". */
+export function priorityValue(priority) {
+    if (priority === null || priority === '' || priority === '0') {
+        return 0;
+    }
+    if (!PRIORITIES.some(option => option.id === String(priority))) {
+        throw new Error(`The priority "${priority}" does not exist in Linear. Use a level from 1 (urgent) to 4 (low).`);
+    }
+    return Number(priority);
+}
+
+/** Checks a date for a Linear "TimelessDate". Null clears the date. */
+export function dayValue(day) {
+    if (day === null || day === '') {
+        return null;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day))) {
+        throw new Error(`The date "${day}" is not valid. Use the form YYYY-MM-DD.`);
+    }
+    return String(day);
+}
+
+/** Returns the labels that a user can put on an issue. A group label is only a parent of other labels. */
+export function labelOptions(labels) {
+    return labels
+        .filter(label => !label.isGroup)
+        .map(toLabel)
+        .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Returns the active members of a team as options, sorted by name. */
+export function memberOptions(users) {
+    return users
+        .filter(user => user.active !== false)
+        .map(toPerson)
+        .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** A comment can come from a user, an integration (bot) or a person outside Linear, for example in Slack. */

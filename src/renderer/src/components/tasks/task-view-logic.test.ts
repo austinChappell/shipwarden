@@ -28,7 +28,11 @@ import {
     formatDay,
     formatBytes,
     checklistProgress,
-    customFieldEmpty
+    customFieldEmpty,
+    addLabelOptions,
+    dayInputValue,
+    editableParts,
+    parseDuration
 } from './task-view-logic';
 
 const task = (id: string, status = 'to do', extra: Partial<Task> = {}): Task => ({
@@ -325,5 +329,41 @@ describe('customFieldEmpty', () => {
         [{ type: 'labels', labels: [{}] }, false]
     ])('checks %j', (field, expected) => {
         expect(customFieldEmpty(field)).toBe(expected);
+    });
+});
+
+describe('task edits', () => {
+    const task = { id: 't', title: 'T', status: { id: 's', name: 'S', category: 'todo' as const } };
+
+    it('reads a duration', () => {
+        expect(parseDuration('1h 30m')).toBe(5_400_000);
+        expect(parseDuration('90m')).toBe(5_400_000);
+        expect(parseDuration('1.5')).toBe(5_400_000);
+        expect(parseDuration('2d')).toBe(16 * 3_600_000);
+        expect(parseDuration('  ')).toBeNull();
+        expect(parseDuration('soon')).toBeUndefined();
+        expect(parseDuration('1h soon')).toBeUndefined();
+    });
+
+    it('gives the day of a date for a date input', () => {
+        expect(dayInputValue('2026-11-03')).toBe('2026-11-03');
+        expect(dayInputValue(new Date(2026, 10, 3, 15).toISOString())).toBe('2026-11-03');
+        expect(dayInputValue(undefined)).toBe('');
+        expect(dayInputValue('nope')).toBe('');
+    });
+
+    it('finds the editable parts', () => {
+        expect(editableParts(task, {})).toEqual({});
+        expect(editableParts(task, { update: true, edit: true })).toEqual({ title: true, description: true });
+        expect(editableParts({ ...task, editable: { labels: true } }, { update: true, edit: true })).toEqual({ labels: true });
+    });
+
+    it('adds new labels to the cached options', () => {
+        const current = { options: [{ id: 'bug', name: 'bug' }], create: true };
+        expect(addLabelOptions(current, [{ name: 'bug' }])).toBe(current);
+        expect(addLabelOptions(current, [{ name: 'bug' }, { name: 'ui', color: '#fff' }]).options).toEqual([
+            { id: 'bug', name: 'bug' },
+            { id: 'ui', name: 'ui', color: '#fff' }
+        ]);
     });
 });
