@@ -1,8 +1,24 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, CircleHelp, ExternalLink, FolderDown, FolderPlus, Info, LoaderCircle, Play, RefreshCw, XCircle } from 'lucide-react';
+import {
+    AlertTriangle,
+    CheckCircle2,
+    ChevronRight,
+    CircleHelp,
+    ExternalLink,
+    FolderDown,
+    FolderPlus,
+    Info,
+    ListTodo,
+    LoaderCircle,
+    Palette,
+    Play,
+    RefreshCw,
+    XCircle
+} from 'lucide-react';
 import type { RepoRef } from '@shared/github';
 import { repoDisplayName, type AppSettings } from '@shared/settings';
+import type { Mode } from '@shared/themes';
 import {
     notificationsCheckResult,
     repositoryCheckResult,
@@ -14,12 +30,16 @@ import {
 import { TOOL_CHECK_IDS, WELCOME_STATE_LABELS, welcomeStepStates, type WelcomeStepState } from '@shared/welcome';
 import { markCheckPending, patchSetupCheck, takePendingChecks, useSetupChecks } from '../app/setup-checks-query';
 import { errorText } from '../util';
+import { AppearanceSettings } from './AppearanceSettings';
 import { CloneRepoDialog } from './CloneRepoDialog';
 import { CopyButton } from './CopyButton';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { TaskManagersSettings } from './TaskManagersSettings';
 
 interface Props {
     settings: AppSettings;
+    /** The mode that applies now. With the scheme "system", it follows macOS. */
+    mode: Mode;
     /** The repositories of the active project. */
     repos: string[];
     /** The name of the active project. */
@@ -105,7 +125,7 @@ function Step({ number, title, state, children }: StepProps) {
  * a repository, the default agent, optional settings and the first worktree. The fix buttons can open the settings
  * page. The close button of the settings page comes back here.
  */
-export function WelcomeView({ settings, repos, projectName, onSave, onOpenSettings, onAddRepo, onCloneRepo, onStart, onSkip }: Props) {
+export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpenSettings, onAddRepo, onCloneRepo, onStart, onSkip }: Props) {
     const queryClient = useQueryClient();
     const { checks, error, loading, checking, recheck, recheckAll } = useSetupChecks();
     const [cloneOpen, setCloneOpen] = useState(false);
@@ -287,15 +307,28 @@ export function WelcomeView({ settings, repos, projectName, onSave, onOpenSettin
                         </Step>
 
                         <Step number={5} title="Optional settings" state={states.optional}>
-                            <p>You can change these settings now or later.</p>
-                            <div className="welcome-actions">
-                                <button className="button" onClick={() => onOpenSettings('appearance')}>
+                            <p>You can change these settings now, or later in Settings.</p>
+                            {/* The settings open on this page, so the user stays on the welcome page. */}
+                            <details className="welcome-optional">
+                                <summary>
+                                    <ChevronRight size={14} strokeWidth={1.8} className="welcome-optional-chevron" aria-hidden="true" />
+                                    <Palette size={14} strokeWidth={1.7} aria-hidden="true" />
                                     Choose a theme
-                                </button>
-                                <button className="button" onClick={() => onOpenSettings('tasks')}>
+                                </summary>
+                                <div className="welcome-optional-body">
+                                    <AppearanceSettings appearance={settings.appearance} mode={mode} onChange={appearance => void save({ appearance })} />
+                                </div>
+                            </details>
+                            <details className="welcome-optional">
+                                <summary>
+                                    <ChevronRight size={14} strokeWidth={1.8} className="welcome-optional-chevron" aria-hidden="true" />
+                                    <ListTodo size={14} strokeWidth={1.7} aria-hidden="true" />
                                     Connect a task tracker
-                                </button>
-                            </div>
+                                </summary>
+                                <div className="welcome-optional-body">
+                                    <TaskManagersSettings />
+                                </div>
+                            </details>
                         </Step>
 
                         <Step number={6} title="Start" state={states.start}>

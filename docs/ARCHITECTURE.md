@@ -393,8 +393,9 @@ The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup chec
   - It opens at the start when `onboarding.welcome` is 'new' (`shouldOpenWelcome`), after the saved view of the
     project. Help › Show Welcome opens it at all times. The saved layout never keeps it (`viewToSave`).
   - The steps: the words of ShipWarden, the tool checks, a repository (add, or clone with `CloneRepoDialog` and
-    `projects.pullRepo`), the default agent, links to Appearance and Task managers, and "Create a worktree and start an
-    agent". `welcomeStepStates` (`src/shared/welcome.ts`) gives the state of each step.
+    `projects.pullRepo`), the default agent, the theme and the task trackers, and "Create a worktree and start an
+    agent". The theme and the task trackers open in place (`AppearanceSettings` and `TaskManagersSettings` in a
+    `<details>` section), so the user does not leave the page. `welcomeStepStates` (`src/shared/welcome.ts`) gives the state of each step.
   - "Skip setup" saves 'skipped'. The start button saves 'done' and opens the New worktree dialog.
   - The check results are in TanStack Query (`useSetupChecks`, key `setup`). They load one time and never on a timer or
     on focus. A fix updates one entry: the repository and notification results come from the page state, a new default
