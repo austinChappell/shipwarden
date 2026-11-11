@@ -10,6 +10,7 @@ import { keepOpenFileTabs, type TabKey } from './tabs';
 import { viewAfterProjectSwitch, viewToSave, type ContentView, type MainView } from './views';
 import { errorText } from './worktree-edits';
 import { editorPositions } from '../editor/editor-positions';
+import { keyRoots, queryClient } from '../query-client';
 import { branchSummariesQuery, summariesByRepo } from '../github/use-branch-status';
 
 const api = window.shipwarden;
@@ -61,6 +62,8 @@ export function useProjects(options: Options) {
             try {
                 const list = await api.worktrees.list(repo);
                 setWorktreesByRepo(map => ({ ...map, [repo]: list }));
+                // The Review view reads the list from the cache. It then shows the worktree of a pull request.
+                queryClient.setQueryData([...keyRoots.worktrees, repo], list);
                 return list;
             } catch (err) {
                 setWorktreesByRepo(map => ({ ...map, [repo]: [] }));
