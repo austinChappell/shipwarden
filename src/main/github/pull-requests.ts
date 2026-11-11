@@ -10,6 +10,7 @@ import {
     type NewPullRequest,
     type PullRequest,
     type IssueReference,
+    type MergedPullRequest,
     type PullRequestCandidates,
     type PullRequestFile,
     type PullRequestFilter,
@@ -19,11 +20,14 @@ import {
 import { GitHubError, type GitHubClient } from './github-client';
 import {
     BRANCH_SUMMARIES_QUERY,
+    MERGED_BRANCHES_QUERY,
     mapBranchSummaries,
+    mapMergedBranches,
     mapPullRequest,
     mapPullRequestSummaries,
     PULL_REQUEST_QUERY,
     type GraphQlBranchSummaries,
+    type GraphQlMergedBranches,
     type GraphQlPullRequest,
     type GraphQlSummary
 } from './pull-request-mapping';
@@ -65,6 +69,11 @@ export async function createPullRequest(client: GitHubClient, repo: RepoRef, bra
 /** Returns the open pull requests of the repository by head branch, with the combined CI state. */
 export async function fetchBranchSummaries(client: GitHubClient, repo: RepoRef): Promise<Record<string, BranchSummary>> {
     return mapBranchSummaries(await client.graphql<GraphQlBranchSummaries>(BRANCH_SUMMARIES_QUERY, { owner: repo.owner, name: repo.name }));
+}
+
+/** Returns the newest merged pull request of each branch, from the 100 most recently updated merged pull requests. */
+export async function fetchMergedBranches(client: GitHubClient, repo: RepoRef): Promise<Record<string, MergedPullRequest>> {
+    return mapMergedBranches(await client.graphql<GraphQlMergedBranches>(MERGED_BRANCHES_QUERY, { owner: repo.owner, name: repo.name }));
 }
 
 /** Returns the users that the user can assign or ask for a review, and the labels of the repository. */

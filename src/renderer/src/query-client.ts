@@ -49,6 +49,8 @@ export const keyRoots = {
     issueReferences: ['github', 'issueReferences'],
     /** The pull request and CI state of each branch of a repository. */
     branchSummaries: ['github', 'branchSummaries'],
+    /** The newest merged pull request of each branch of a repository. */
+    mergedBranches: ['github', 'mergedBranches'],
     /** The pull request and CI state of one worktree branch. */
     branchStatus: ['github', 'branchStatus'],
     /** The branches of a repository. */
@@ -85,6 +87,7 @@ const PULL_REQUEST_ROOTS = [
     keyRoots.pullRequest,
     keyRoots.pullRequestFiles,
     keyRoots.branchSummaries,
+    keyRoots.mergedBranches,
     keyRoots.branchStatus,
     keyRoots.repoPullRequests,
     keyRoots.checks,

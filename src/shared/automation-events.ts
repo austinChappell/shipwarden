@@ -1,6 +1,6 @@
 import { localDateTime, type AutomationEvent, type TriggerType } from './automations';
 import type { MyPullRequestItem, PullRequestCommentItem } from './dashboard';
-import { repoId, type BranchSummary, type RepoRef } from './github';
+import { repoId, type BranchSummary, type MergedPullRequest, type RepoRef } from './github';
 import { ciChanges } from './notifications';
 import type { Task } from './tasks';
 import type { Worktree } from './worktrees';
@@ -14,6 +14,26 @@ import type { Worktree } from './worktrees';
 export interface WorktreePlace {
     repo: string;
     worktree: Pick<Worktree, 'path' | 'branch' | 'isMain'>;
+}
+
+/**
+ * Returns the worktrees that can have a merged pull request: a worktree with a branch, not the main worktree, not
+ * locked, and without an open pull request in `openSummaries`.
+ */
+export function mergeCandidates<T extends { repo: string; worktree: Pick<Worktree, 'branch' | 'isMain' | 'locked'> }>(
+    places: readonly T[],
+    openSummaries: Record<string, Record<string, BranchSummary>>
+): T[] {
+    return places.filter(({ repo, worktree }) => worktree.branch && !worktree.isMain && !worktree.locked && !openSummaries[repo]?.[worktree.branch]);
+}
+
+/**
+ * Returns the merged pull request of a worktree. The HEAD of the worktree must be the head commit of the pull request.
+ * A worktree with commits after the merge, or a new worktree on a branch name of an old pull request, has none.
+ */
+export function mergedPullRequestOf(worktree: Pick<Worktree, 'branch' | 'head'>, merged: Record<string, MergedPullRequest>): MergedPullRequest | undefined {
+    const pr = worktree.branch ? merged[worktree.branch] : undefined;
+    return pr && worktree.head && pr.headSha === worktree.head ? pr : undefined;
 }
 
 /** Returns the worktree of a branch in a repository. The main worktree does not count: automations do not act on it. */

@@ -45,6 +45,11 @@ export interface WorktreeSettings {
     sort: WorktreeSort;
     /** True to close the shell tabs with no input and no output for 7 days. A shell that runs a command stays open. */
     closeStaleShells: boolean;
+    /**
+     * True to remove a worktree and its local branch after its pull request is merged. Off by default.
+     * Git refuses a worktree with uncommitted changes. A branch with commits that are not in the pull request stays.
+     */
+    removeMerged: boolean;
 }
 
 /** The worktree settings of one repository. A missing value uses the global setting. */
@@ -69,7 +74,12 @@ export interface ResolvedWorktreeSettings {
 
 export const DEFAULT_COPY_SETTINGS: CopyIgnoredSettings = { enabled: true, mode: 'matching', patterns: DEFAULT_COPY_PATTERNS, exclude: DEFAULT_COPY_EXCLUDE };
 
-export const DEFAULT_WORKTREE_SETTINGS: WorktreeSettings = { copyIgnored: DEFAULT_COPY_SETTINGS, sort: DEFAULT_WORKTREE_SORT, closeStaleShells: true };
+export const DEFAULT_WORKTREE_SETTINGS: WorktreeSettings = {
+    copyIgnored: DEFAULT_COPY_SETTINGS,
+    sort: DEFAULT_WORKTREE_SORT,
+    closeStaleShells: true,
+    removeMerged: false
+};
 
 function cleanPatterns(value: unknown): string[] {
     if (!Array.isArray(value)) return [];
@@ -116,7 +126,8 @@ export function normalizeWorktreeSettings(value: unknown, legacySort?: unknown):
         copyIgnored: normalizeCopy(raw.copyIgnored) ?? DEFAULT_WORKTREE_SETTINGS.copyIgnored,
         sort: normalizeWorktreeSort(raw.sort ?? legacySort),
         // Settings from before this switch do not have it. The switch is on by default.
-        closeStaleShells: raw.closeStaleShells !== false
+        closeStaleShells: raw.closeStaleShells !== false,
+        removeMerged: raw.removeMerged === true
     };
 }
 

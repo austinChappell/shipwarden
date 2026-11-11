@@ -21,6 +21,7 @@ import {
     cleanActionsLog,
     type BranchStatus,
     type BranchSummary,
+    type MergedPullRequest,
     type CheckRun,
     type FileVersions,
     type GitHubRepoInfo,
@@ -48,6 +49,7 @@ import type { SourceHost } from '../source-host';
 import { type AzureDevOpsClient, AzureError } from './azure-client';
 import {
     branchSummaries,
+    mergedBranches,
     buildsForCommit,
     buildToCheck,
     buildToRun,
@@ -413,6 +415,13 @@ export class AzureDevOpsService implements SourceHost {
             host: 'azure',
             createUrl: azureCreatePullRequestUrl(ref, branch)
         };
+    }
+
+    async mergedBranches(root: string): Promise<Record<string, MergedPullRequest>> {
+        if (!(await this.repoFor(root))) return {};
+        const repo = await this.resolve(root);
+        const prs = await this.client.request<AzList<AzPullRequest>>('GET', `${repo.api}/pullrequests?searchCriteria.status=completed&$top=100`);
+        return mergedBranches(prs.value);
     }
 
     async branchSummaries(root: string): Promise<Record<string, BranchSummary>> {

@@ -35,7 +35,7 @@ interface Options {
 
 /**
  * Runs the automation engine while the app is open. It gives the engine the state of the app, the events and a timer.
- * When no automation is on, it loads nothing more than the app loads already.
+ * When no automation is on and the setting "Remove merged worktrees" is off, it loads nothing more than the app loads already.
  */
 export function useAutomationEngine(options: Options): void {
     const { list, loaded: listLoaded } = useAutomationList();
@@ -43,7 +43,9 @@ export function useAutomationEngine(options: Options): void {
     const usage = useUsage();
     const automations = list.automations;
     const active = useMemo(() => automations.filter(automation => automation.status !== 'off'), [automations]);
-    const watchesWorktrees = active.some(automation => isWorktreeTrigger(automation.trigger.type));
+    const removeMerged = options.appSettings.worktrees.removeMerged;
+    // The setting "Remove merged worktrees" watches the pull requests of the worktrees, as a "pr.merged" automation does.
+    const watchesWorktrees = removeMerged || active.some(automation => isWorktreeTrigger(automation.trigger.type));
 
     // The worktrees of all projects. An agent or a pull request of another project can start a run too.
     const repoKey = options.allRepos.join('\0');
@@ -52,7 +54,7 @@ export function useAutomationEngine(options: Options): void {
         queryKey: [...keyRoots.automations, 'places', ...otherRepos],
         queryFn: async () =>
             Object.fromEntries(await Promise.all(otherRepos.map(async repo => [repo, await window.shipwarden.worktrees.list(repo).catch(() => [])] as const))),
-        enabled: active.length > 0 && otherRepos.length > 0,
+        enabled: (active.length > 0 || removeMerged) && otherRepos.length > 0,
         staleTime: PLACES_MS,
         refetchInterval: PLACES_MS
     });
@@ -82,6 +84,7 @@ export function useAutomationEngine(options: Options): void {
         ready,
         automations,
         settings: options.appSettings.automations,
+        removeMergedWorktrees: removeMerged,
         notifications: options.appSettings.notifications,
         usage,
         sessions: options.sessions,

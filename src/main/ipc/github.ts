@@ -23,6 +23,7 @@ export function registerGitHubIpc({ reviewProviders, seen }: Pick<Services, 'rev
     const host = (target: RepoTarget) => reviewProviders.for(target);
     ipcMain.handle(IpcChannels.githubStatus, (_event, root: string) => reviewProviders.branchStatus(root));
     ipcMain.handle(IpcChannels.githubBranchSummaries, (_event, repoPath: string) => reviewProviders.branchSummaries(repoPath));
+    ipcMain.handle(IpcChannels.githubMergedBranches, (_event, repoPath: string) => reviewProviders.mergedBranches(String(repoPath)));
     ipcMain.handle(IpcChannels.githubCreatePullRequest, async (_event, root: string, request: NewPullRequest) =>
         (await host(root)).createPullRequest(root, newPullRequestOf(request))
     );

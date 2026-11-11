@@ -7,6 +7,7 @@ import {
     repoId,
     type BranchStatus,
     type BranchSummary,
+    type MergedPullRequest,
     type GitHubOwner,
     type GitHubRepoInfo,
     type PullRequestFilter,
@@ -259,6 +260,12 @@ export class ReviewProviders {
     async branchSummaries(root: string): Promise<Record<string, BranchSummary>> {
         const host = await this.optionalHost(root);
         return host ? host.branchSummaries(root) : {};
+    }
+
+    /** Returns the newest merged pull request of each branch. Returns an empty map when no provider is on for the remote. */
+    async mergedBranches(root: string): Promise<Record<string, MergedPullRequest>> {
+        const host = await this.optionalHost(root);
+        return host ? host.mergedBranches(root) : {};
     }
 
     /** Returns the GitHub repository of a worktree from its "origin" remote. Returns null for other remotes. */

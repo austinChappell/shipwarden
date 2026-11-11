@@ -8,7 +8,9 @@ import {
     manualScheduleEvent,
     manualTaskEvent,
     manualWorktreeEvent,
+    mergeCandidates,
     mergedEvent,
+    mergedPullRequestOf,
     pullRequestResolver,
     taskEvent,
     worktreeOnBranch,
@@ -76,6 +78,32 @@ describe('closedPullRequests and mergedEvent', () => {
         expect(closedPullRequests('/repo', { feature: summary() }, { feature: summary() }, places)).toEqual([]);
         const event = mergedEvent('/repo', 'feature', closed[0].summary, closed[0].place, 1);
         expect(event).toMatchObject({ trigger: 'pr.merged', key: 'merged:/repo#7', worktreePath: '/wt/feature' });
+    });
+});
+
+describe('mergeCandidates and mergedPullRequestOf', () => {
+    const place = (path: string, branch: string | undefined, change: { isMain?: boolean; locked?: boolean } = {}) => ({
+        repo: '/repo',
+        worktree: { path, branch, isMain: false, locked: false, ...change }
+    });
+
+    it('leaves out the main worktree, a locked worktree, a detached HEAD and a branch with an open pull request', () => {
+        const all = [
+            place('/repo', 'main', { isMain: true }),
+            place('/wt/locked', 'locked', { locked: true }),
+            place('/wt/detached', undefined),
+            place('/wt/open', 'open'),
+            place('/wt/done', 'done')
+        ];
+        expect(mergeCandidates(all, { '/repo': { open: summary() } }).map(item => item.worktree.path)).toEqual(['/wt/done']);
+    });
+
+    it('gives the merged pull request only when the HEAD of the worktree is its head commit', () => {
+        const merged = { done: { number: 4, headSha: 'abc' } };
+        expect(mergedPullRequestOf({ branch: 'done', head: 'abc' }, merged)).toEqual({ number: 4, headSha: 'abc' });
+        expect(mergedPullRequestOf({ branch: 'done', head: 'newer' }, merged)).toBeUndefined();
+        expect(mergedPullRequestOf({ branch: 'other', head: 'abc' }, merged)).toBeUndefined();
+        expect(mergedPullRequestOf({ branch: undefined, head: 'abc' }, merged)).toBeUndefined();
     });
 });
 
