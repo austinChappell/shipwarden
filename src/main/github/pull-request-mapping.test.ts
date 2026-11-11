@@ -158,7 +158,8 @@ describe('mapPullRequest', () => {
                                         body: 'Check for null :eyes:',
                                         bodyHTML: '<p>x</p>',
                                         createdAt: 'c',
-                                        url: 'u1'
+                                        url: 'u1',
+                                        pullRequestReview: { id: 'R1' }
                                     },
                                     { id: 'C2', databaseId: 102, author: null, body: 'Agreed.', bodyHTML: '<p>y</p>', createdAt: 'd', url: 'u2' }
                                 ]
@@ -183,7 +184,16 @@ describe('mapPullRequest', () => {
                 originalLine: 41,
                 side: 'RIGHT',
                 comments: [
-                    { id: 'C1', databaseId: 101, author: { login: 'bo', avatarUrl: 'b' }, body: 'Check for null 👀', createdAt: 'c', url: 'u1', reactions: [] },
+                    {
+                        id: 'C1',
+                        databaseId: 101,
+                        author: { login: 'bo', avatarUrl: 'b' },
+                        body: 'Check for null 👀',
+                        createdAt: 'c',
+                        url: 'u1',
+                        reviewId: 'R1',
+                        reactions: []
+                    },
                     { id: 'C2', databaseId: 102, author: null, body: 'Agreed.', createdAt: 'd', url: 'u2', reactions: [] }
                 ]
             }

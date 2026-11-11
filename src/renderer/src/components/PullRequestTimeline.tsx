@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import {
     Bookmark,
+    Bot,
     CircleSlash,
     Eye,
     EyeOff,
@@ -16,8 +17,9 @@ import {
     UserPlus,
     type LucideIcon
 } from 'lucide-react';
-import { hostLabel, type GitHubLabel, type GitHubUser, type PullRequest, type PullRequestCommit, type TimelineEvent } from '@shared/github';
-import { Reactions, type ReactionActions } from './Reactions';
+import { hostLabel, type GitHubLabel, type GitHubUser, type PullRequest, type PullRequestCommit, type Reaction, type TimelineEvent } from '@shared/github';
+import { ReactionAddButton, ReactionList, useReactionState, type ReactionActions } from './Reactions';
+import { commentPrompt, reviewPrompt, reviewThreads } from '../github/agent-prompts';
 import { timeAgo } from '../util';
 import { openLink } from '../links';
 import { Markdown } from './Markdown';
@@ -68,18 +70,58 @@ function authorName(login: string | undefined | null): { name: string; bot: bool
     return { name: bot ? login.slice(0, -'[bot]'.length) : login, bot };
 }
 
-/** A comment or a review: the avatar of the author on the line, and a card at its right. */
-function CardRow({ author, className, header, children }: { author: GitHubUser | null; className?: string; header: ReactNode; children?: ReactNode }) {
+/**
+ * A comment or a review: the avatar of the author on the line, and a card at its right.
+ * The header shows the buttons that add a reaction and that send the text to the agent. The reaction chips follow the body.
+ */
+function CardRow({
+    author,
+    subjectId,
+    body,
+    reactions,
+    reactionActions,
+    agentPrompt,
+    onSendToAgent,
+    className,
+    header
+}: {
+    author: GitHubUser | null;
+    subjectId: string;
+    body: string;
+    reactions: readonly Reaction[] | undefined;
+    reactionActions?: ReactionActions;
+    /** The prompt that the agent button sends. Without it, the card has no agent button. */
+    agentPrompt?: () => string;
+    onSendToAgent?(prompt: string): void;
+    className?: string;
+    header: ReactNode;
+}) {
     const { name, bot } = authorName(author?.login);
+    const hasBody = body.trim() !== '';
+    const reactionState = useReactionState(subjectId, reactions, hasBody ? reactionActions : undefined);
+    const sendable = onSendToAgent && agentPrompt;
     return (
         <li className="pr-timeline-item pr-timeline-event">
             <Avatar login={name} url={author?.avatarUrl} size={34} className={`pr-timeline-badge${bot ? ' bot' : ''}`} />
             <div className={`pr-timeline-card${className ? ` ${className}` : ''}`}>
                 <div className="pr-timeline-card-header">
-                    <strong>{name}</strong>
-                    {bot && <span className="tag pr-timeline-bot">bot</span>} {header}
+                    <span className="pr-timeline-card-title">
+                        <strong>{name}</strong>
+                        {bot && <span className="tag pr-timeline-bot">bot</span>} {header}
+                    </span>
+                    {(reactionState || sendable) && (
+                        <span className="pr-timeline-card-actions">
+                            {reactionState && <ReactionAddButton state={reactionState} className="icon-button" />}
+                            {sendable && (
+                                <button type="button" className="icon-button" title="Send this to the agent" onClick={() => onSendToAgent(agentPrompt())}>
+                                    <Bot size={14} strokeWidth={1.6} />
+                                </button>
+                            )}
+                        </span>
+                    )}
                 </div>
-                {children}
+                {hasBody && <Markdown className="pr-timeline-body" text={body} />}
+                {reactionState && <ReactionList state={reactionState} className="pr-timeline-reactions" />}
             </div>
         </li>
     );
@@ -283,33 +325,45 @@ function Row({
     item,
     pr,
     reactions,
-    onOpenCommit
+    onOpenCommit,
+    onSendToAgent
 }: {
     item: TimelineItem;
     pr: PullRequest;
     reactions?: ReactionActions;
     onOpenCommit?(commit: PullRequestCommit): void;
+    onSendToAgent?(prompt: string): void;
 }) {
     switch (item.type) {
         case 'comment':
             return (
                 <CardRow
                     author={item.comment.author}
+                    subjectId={item.comment.id}
+                    body={item.comment.body}
+                    reactions={item.comment.reactions}
+                    reactionActions={reactions}
+                    agentPrompt={item.comment.body.trim() ? () => commentPrompt(pr, item.comment.author?.login ?? null, item.comment.body) : undefined}
+                    onSendToAgent={onSendToAgent}
                     header={
                         <>
                             commented <When iso={item.createdAt} />
                         </>
                     }
-                >
-                    <Markdown className="pr-timeline-body" text={item.comment.body} />
-                    <Reactions subjectId={item.comment.id} reactions={item.comment.reactions} actions={reactions} />
-                </CardRow>
+                />
             );
         case 'review': {
             const { review } = item;
+            const sendable = review.body.trim() !== '' || reviewThreads(pr, review).length > 0;
             return (
                 <CardRow
                     author={review.author}
+                    subjectId={review.id}
+                    body={review.body}
+                    reactions={review.reactions}
+                    reactionActions={reactions}
+                    agentPrompt={sendable ? () => reviewPrompt(pr, review) : undefined}
+                    onSendToAgent={onSendToAgent}
                     className={`review-${review.state.toLowerCase()}`}
                     header={
                         <>
@@ -317,14 +371,7 @@ function Row({
                             <When iso={item.createdAt} />
                         </>
                     }
-                >
-                    {review.body.trim() && (
-                        <>
-                            <Markdown className="pr-timeline-body" text={review.body} />
-                            <Reactions subjectId={review.id} reactions={review.reactions} actions={reactions} />
-                        </>
-                    )}
-                </CardRow>
+                />
             );
         }
         case 'commits': {
@@ -378,14 +425,17 @@ function Row({
 
 /** The activity of a pull request on the Overview tab: comments, reviews, commits and events in one timeline, the oldest first. */
 /** With `onOpenCommit`, a click on a commit shows its diff in ShipWarden. Without it, the SHA is a link to the host. */
+/** With `onSendToAgent`, each comment and review has a button that sends it to the agent. A review prompt also has its open threads. */
 export function PullRequestTimeline({
     pr,
     reactions,
-    onOpenCommit
+    onOpenCommit,
+    onSendToAgent
 }: {
     pr: PullRequest;
     reactions?: ReactionActions;
     onOpenCommit?(commit: PullRequestCommit): void;
+    onSendToAgent?(prompt: string): void;
 }) {
     const items = buildTimeline(pr);
     return (
@@ -396,7 +446,14 @@ export function PullRequestTimeline({
             ) : (
                 <ol className="pr-timeline">
                     {items.map(item => (
-                        <Row key={`${item.type}:${item.id}`} item={item} pr={pr} reactions={reactions} onOpenCommit={onOpenCommit} />
+                        <Row
+                            key={`${item.type}:${item.id}`}
+                            item={item}
+                            pr={pr}
+                            reactions={reactions}
+                            onOpenCommit={onOpenCommit}
+                            onSendToAgent={onSendToAgent}
+                        />
                     ))}
                 </ol>
             )}

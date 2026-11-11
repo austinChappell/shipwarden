@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Bot } from 'lucide-react';
 import type { PullRequest, RepoTarget, ReviewThread } from '@shared/github';
-import { threadLine, threadPrompt } from '../github/agent-prompts';
+import { commentPrompt, reviewPrompt, reviewThreads, threadLine, threadPrompt } from '../github/agent-prompts';
 import { visibleThreads, type ConversationItem } from '../github/review-state';
 import { timeAgo } from '../util';
 import { Markdown } from './Markdown';
@@ -125,23 +125,47 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
 }
 
 /** The comments and reviews of the conversation of a pull request. */
-export function PullRequestConversation({ items, reactions }: { items: ConversationItem[]; reactions?: ReactionActions }) {
+/** With `onSendToAgent`, each item has a button that sends it to the agent. A review prompt also has its open threads. */
+export function PullRequestConversation({
+    pr,
+    items,
+    reactions,
+    onSendToAgent
+}: {
+    pr: PullRequest;
+    items: ConversationItem[];
+    reactions?: ReactionActions;
+    onSendToAgent?(prompt: string): void;
+}) {
     return (
         <section className="pr-section">
             <div className="section-title">Conversation ({items.length})</div>
-            {items.map(item => (
-                <div key={item.id} className="thread-card">
-                    <div className="comment-author">
-                        {item.author ?? 'unknown'}
-                        {item.state && (
-                            <span className={`tag review-${item.state.toLowerCase()}`}>{REVIEW_STATE_TEXT[item.state] ?? item.state.toLowerCase()}</span>
+            {items.map(item => {
+                const review = pr.reviews.find(candidate => candidate.id === item.id);
+                return (
+                    <div key={item.id} className="thread-card">
+                        <div className="comment-author">
+                            {item.author ?? 'unknown'}
+                            {item.state && (
+                                <span className={`tag review-${item.state.toLowerCase()}`}>{REVIEW_STATE_TEXT[item.state] ?? item.state.toLowerCase()}</span>
+                            )}
+                            <span>{timeAgo(item.createdAt)}</span>
+                        </div>
+                        {item.body.trim() && <Markdown className="comment-body" text={item.body} />}
+                        {item.body.trim() && <Reactions subjectId={item.id} reactions={item.reactions} actions={reactions} />}
+                        {onSendToAgent && (item.body.trim() || (review && reviewThreads(pr, review).length > 0)) && (
+                            <div className="thread-actions">
+                                <button
+                                    className="link-button"
+                                    onClick={() => onSendToAgent(review ? reviewPrompt(pr, review) : commentPrompt(pr, item.author, item.body))}
+                                >
+                                    <Bot size={13} strokeWidth={1.6} /> Send to agent
+                                </button>
+                            </div>
                         )}
-                        <span>{timeAgo(item.createdAt)}</span>
                     </div>
-                    {item.body.trim() && <Markdown className="comment-body" text={item.body} />}
-                    {item.body.trim() && <Reactions subjectId={item.id} reactions={item.reactions} actions={reactions} />}
-                </div>
-            ))}
+                );
+            })}
         </section>
     );
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { PullRequest, ReviewThread } from '@shared/github';
-import { conflictPrompt, threadLine, threadPrompt } from './agent-prompts';
+import type { PullRequest, Review, ReviewThread } from '@shared/github';
+import { commentPrompt, conflictPrompt, reviewPrompt, reviewThreads, threadLine, threadPrompt } from './agent-prompts';
 
 const pr = { number: 7, url: 'https://github.com/o/r/pull/7', baseRefName: 'main', headRefName: 'fix-login' } as PullRequest;
 
@@ -58,5 +58,52 @@ describe('conflictPrompt', () => {
             'Pull request #7 (https://github.com/o/r/pull/7) has merge conflicts with main. ' +
                 'Fetch origin, merge origin/main into fix-login, resolve the conflicts, run the tests, and commit the merge.'
         );
+    });
+});
+
+describe('commentPrompt', () => {
+    it('contains the author, the pull request and the comment text', () => {
+        expect(commentPrompt(pr, 'ann', ' Add the field to the type. \n')).toBe(
+            'ann left this comment on pull request #7 (https://github.com/o/r/pull/7):\n\nAdd the field to the type.\n\nRead the comment and make the changes that it asks for.'
+        );
+    });
+
+    it('names an unknown author "Someone"', () => {
+        expect(commentPrompt(pr, null, 'Fix it.')).toMatch(/^Someone left this comment/);
+    });
+});
+
+describe('reviewPrompt', () => {
+    const review = { id: 'R1', author: { login: 'ann' }, state: 'COMMENTED', body: 'One change. ', submittedAt: '', url: '' } as Review;
+    const own = thread({
+        comments: [
+            { id: 'c1', databaseId: 1, author: { login: 'ann' }, body: 'Add the field here.', createdAt: '', url: '', reviewId: 'R1' },
+            { id: 'c2', databaseId: 2, author: { login: 'bo' }, body: 'Done?', createdAt: '', url: '', reviewId: 'R2' }
+        ]
+    });
+    const resolved = thread({
+        id: 't2',
+        isResolved: true,
+        comments: [{ id: 'c3', databaseId: 3, author: { login: 'ann' }, body: 'Old.', createdAt: '', url: '', reviewId: 'R1' }]
+    });
+    const other = thread({
+        id: 't3',
+        comments: [{ id: 'c4', databaseId: 4, author: { login: 'cy' }, body: 'Other.', createdAt: '', url: '', reviewId: 'R9' }]
+    });
+    const withThreads = { ...pr, threads: [own, resolved, other] } as PullRequest;
+
+    it('finds only the open threads with a comment of the review', () => {
+        expect(reviewThreads(withThreads, review).map(item => item.id)).toEqual(['t1']);
+    });
+
+    it('contains the text of the review and all comments of its open threads', () => {
+        expect(reviewPrompt(withThreads, review)).toBe(
+            'ann reviewed pull request #7 (https://github.com/o/r/pull/7).\n\nThe text of the review:\n\nOne change.\n\n' +
+                'The thread on src/a.ts line 12:\n\nann: Add the field here.\n\nbo: Done?\n\nMake the changes that the review asks for.'
+        );
+    });
+
+    it('leaves out the text when the review has none', () => {
+        expect(reviewPrompt(withThreads, { ...review, body: '' })).not.toContain('The text of the review');
     });
 });

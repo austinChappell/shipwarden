@@ -47,7 +47,7 @@ query($owner: String!, $name: String!, $number: Int!) {
       reviewThreads(first: 100) {
         nodes {
           id isResolved isOutdated path line originalLine startLine originalStartLine diffSide
-          comments(first: 50) { nodes { id databaseId author { login avatarUrl } body bodyHTML createdAt url diffHunk ${REACTION_FIELDS} } }
+          comments(first: 50) { nodes { id databaseId author { login avatarUrl } body bodyHTML createdAt url diffHunk pullRequestReview { id } ${REACTION_FIELDS} } }
         }
       }
       commits(last: 100) {
@@ -120,7 +120,11 @@ export interface GraphQlPullRequest {
                   reviewThreads: {
                       nodes: (Omit<PullRequest['threads'][number], 'comments' | 'side'> & {
                           diffSide: 'LEFT' | 'RIGHT';
-                          comments: { nodes: GraphQlItem<PullRequest['threads'][number]['comments'][number]>[] };
+                          comments: {
+                              nodes: (Omit<GraphQlItem<PullRequest['threads'][number]['comments'][number]>, 'reviewId'> & {
+                                  pullRequestReview?: { id: string } | null;
+                              })[];
+                          };
                       })[];
                   };
               })
@@ -182,7 +186,14 @@ export function mapPullRequest(data: GraphQlPullRequest, repo: RepoRef, number: 
         checkCount: headCommit.nodes[0]?.commit.statusCheckRollup?.contexts.totalCount ?? 0,
         reviews: pr.reviews.nodes.map(sign),
         issueComments: issueComments.nodes.map(sign),
-        threads: pr.reviewThreads.nodes.map(({ diffSide, comments, ...thread }) => ({ ...thread, side: diffSide, comments: comments.nodes.map(sign) })),
+        threads: pr.reviewThreads.nodes.map(({ diffSide, comments, ...thread }) => ({
+            ...thread,
+            side: diffSide,
+            comments: comments.nodes.map(({ pullRequestReview, ...comment }) => ({
+                ...sign(comment),
+                ...(pullRequestReview ? { reviewId: pullRequestReview.id } : {})
+            }))
+        })),
         allowedMergeMethods: allowedMergeMethods(data.repository),
         defaultMergeMethod: data.repository.viewerDefaultMergeMethod.toLowerCase() as MergeMethod,
         assignees: assignees.nodes,
