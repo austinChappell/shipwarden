@@ -10960,6 +10960,12 @@ button.gg-ref:hover {
     border-color: var(--muted);
 }
 
+/* The link to the worktree of the head branch. It shows in place of the New worktree button. */
+.review-pr-actions .review-pr-worktree {
+    margin-right: 4px;
+    font-size: 13px;
+}
+
 /* The strip below the title: review, checks, size and merge. */
 .pr-summary {
     display: grid;
