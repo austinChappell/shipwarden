@@ -75,22 +75,26 @@ export class AgentStateStore {
 
 export const agentStateStore = new AgentStateStore();
 
+/** Applies agent states and programs from the store to the sessions. */
+export function withAgentStore(
+    sessions: TerminalSession[],
+    updates: ReadonlyMap<string, AgentUpdate> = agentStateStore.getSnapshot(),
+    programs: ReadonlyMap<string, AgentProgram | null> = agentStateStore.getPrograms()
+): TerminalSession[] {
+    if (updates.size === 0 && programs.size === 0) return sessions;
+    return sessions.map(session => {
+        const update = updates.get(session.id);
+        const withState = update
+            ? { ...session, agentState: update.state, agentMessage: update.message, agentPrompt: update.prompt, agentStateAt: update.at }
+            : session;
+        // The program from the event is newer than the program in the session list.
+        return programs.has(session.id) ? { ...withState, agentProgram: programs.get(session.id) ?? undefined } : withState;
+    });
+}
+
 /** Applies the newest agent states and programs to the sessions. Renders again when one of them changes. */
 export function useAgentSessions(sessions: TerminalSession[]): TerminalSession[] {
     const updates = useSyncExternalStore(agentStateStore.subscribe, agentStateStore.getSnapshot);
     const programs = useSyncExternalStore(agentStateStore.subscribe, agentStateStore.getPrograms);
-    return useMemo(
-        () =>
-            updates.size === 0 && programs.size === 0
-                ? sessions
-                : sessions.map(session => {
-                      const update = updates.get(session.id);
-                      const withState = update
-                          ? { ...session, agentState: update.state, agentMessage: update.message, agentPrompt: update.prompt, agentStateAt: update.at }
-                          : session;
-                      // The program from the event is newer than the program in the session list.
-                      return programs.has(session.id) ? { ...withState, agentProgram: programs.get(session.id) ?? undefined } : withState;
-                  }),
-        [sessions, updates, programs]
-    );
+    return useMemo(() => withAgentStore(sessions, updates, programs), [sessions, updates, programs]);
 }

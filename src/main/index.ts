@@ -198,6 +198,7 @@ app.whenReady().then(async () => {
     );
     writeAgentHookFiles(services.hookPaths, services.shellIntegration, join(app.getPath('userData'), 'shell-integration'));
     services.shellAgents.start();
+    services.staleShells.start();
     protocol.handle(
         FILE_SCHEME,
         createFileProtocolHandler(worktree => services.projectWorktrees.check(worktree))
@@ -240,6 +241,7 @@ app.on('before-quit', () => {
     terminals.dispose();
     void services.remote.stop();
     services.usage.stop();
+    services.staleShells.stop();
     services.updates.stop();
     services.notes.close();
     services.fileWatcher.dispose();

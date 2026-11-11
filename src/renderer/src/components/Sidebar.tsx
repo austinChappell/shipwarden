@@ -24,6 +24,7 @@ import {
     Plus,
     Search,
     Settings,
+    SquareTerminal,
     X,
     Zap
 } from 'lucide-react';
@@ -33,7 +34,7 @@ import type { ProjectsState } from '@shared/projects';
 import type { RepoColor } from '@shared/settings';
 import { RepoIcon, repoColorStyle } from './RepoIcon';
 import type { TaskLink } from '@shared/tasks';
-import { runsAgent, type TerminalSession } from '@shared/terminal';
+import { openShellCount, runsAgent, type TerminalSession } from '@shared/terminal';
 import { isHiddenAt, nextSnoozeEnd, snoozeText, sortWorktrees, type HiddenWorktree, type Worktree, type WorktreeSort } from '@shared/worktrees';
 import { errorText } from '../util';
 import { Logo } from './Logo';
@@ -533,6 +534,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
         const hiddenEntry = parent.hiddenWorktrees?.[worktree.path];
         const isHidden = isHiddenAt(hiddenEntry, now);
         const worktreePorts = ports[worktree.path];
+        const shells = openShellCount(sessions, worktree.path);
         return (
             <li
                 key={worktree.path}
@@ -591,6 +593,13 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                     </div>
                 </div>
                 {worktreePorts && <WorktreePorts worktreePath={worktree.path} ports={worktreePorts} />}
+                {shells > 0 && (
+                    <span className="worktree-shells" title={`${shells} open ${shells === 1 ? 'shell' : 'shells'}. Right-click the worktree to close them.`}>
+                        <SquareTerminal size={12} strokeWidth={1.8} aria-hidden />
+                        {shells}
+                        <span className="visually-hidden"> open {shells === 1 ? 'shell' : 'shells'}</span>
+                    </span>
+                )}
                 {pr && (
                     <span className="worktree-pr" title={`Pull request #${pr.number}${pr.checks ? ` · checks ${pr.checks.toLowerCase()}` : ''}`}>
                         {pr.isDraft ? <GitPullRequestDraft size={12} strokeWidth={1.8} /> : <GitPullRequest size={12} strokeWidth={1.8} />}

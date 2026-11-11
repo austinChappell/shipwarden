@@ -126,6 +126,7 @@ export class TerminalManager {
             cols,
             rows,
             exited: false,
+            lastActiveAt: Date.now(),
             agentState: options.isAgent && options.reportsAgentState && this.hookEnvironment ? 'starting' : undefined,
             agentStateAt: options.isAgent ? Date.now() : undefined
         };
@@ -133,6 +134,7 @@ export class TerminalManager {
         this.entries.set(session.id, entry);
 
         child.onData(data => {
+            session.lastActiveAt = Date.now();
             const seq = entry.output.append(data);
             this.events.data(session.id, data, seq);
         });
@@ -161,6 +163,7 @@ export class TerminalManager {
     write(id: string, data: string): void {
         const entry = this.entries.get(id);
         if (entry && !entry.session.exited) {
+            entry.session.lastActiveAt = Date.now();
             entry.process.write(data);
         }
     }

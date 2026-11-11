@@ -43,6 +43,8 @@ export interface WorktreeSettings {
     copyIgnored: CopyIgnoredSettings;
     /** The order of the worktrees of each repository in the sidebar. */
     sort: WorktreeSort;
+    /** True to close the shell tabs with no input and no output for 7 days. A shell that runs a command stays open. */
+    closeStaleShells: boolean;
 }
 
 /** The worktree settings of one repository. A missing value uses the global setting. */
@@ -67,7 +69,7 @@ export interface ResolvedWorktreeSettings {
 
 export const DEFAULT_COPY_SETTINGS: CopyIgnoredSettings = { enabled: true, mode: 'matching', patterns: DEFAULT_COPY_PATTERNS, exclude: DEFAULT_COPY_EXCLUDE };
 
-export const DEFAULT_WORKTREE_SETTINGS: WorktreeSettings = { copyIgnored: DEFAULT_COPY_SETTINGS, sort: DEFAULT_WORKTREE_SORT };
+export const DEFAULT_WORKTREE_SETTINGS: WorktreeSettings = { copyIgnored: DEFAULT_COPY_SETTINGS, sort: DEFAULT_WORKTREE_SORT, closeStaleShells: true };
 
 function cleanPatterns(value: unknown): string[] {
     if (!Array.isArray(value)) return [];
@@ -112,7 +114,9 @@ export function normalizeWorktreeSettings(value: unknown, legacySort?: unknown):
     return {
         ...(directory ? { directory } : {}),
         copyIgnored: normalizeCopy(raw.copyIgnored) ?? DEFAULT_WORKTREE_SETTINGS.copyIgnored,
-        sort: normalizeWorktreeSort(raw.sort ?? legacySort)
+        sort: normalizeWorktreeSort(raw.sort ?? legacySort),
+        // Settings from before this switch do not have it. The switch is on by default.
+        closeStaleShells: raw.closeStaleShells !== false
     };
 }
 

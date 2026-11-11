@@ -29,6 +29,12 @@ describe('matchesCopyPattern', () => {
 });
 
 describe('worktree settings', () => {
+    it('closes stale shells by default and keeps the switch off when the user turns it off', () => {
+        expect(normalizeWorktreeSettings(undefined).closeStaleShells).toBe(true);
+        expect(normalizeWorktreeSettings({ closeStaleShells: 'no' }).closeStaleShells).toBe(true);
+        expect(normalizeWorktreeSettings({ closeStaleShells: false }).closeStaleShells).toBe(false);
+    });
+
     it('gives defaults and keeps valid values', () => {
         expect(normalizeWorktreeSettings(undefined).copyIgnored).toMatchObject({ enabled: true, mode: 'matching', patterns: ['.env', '.env.*'] });
         expect(
@@ -36,7 +42,8 @@ describe('worktree settings', () => {
         ).toEqual({
             directory: '~/wt',
             copyIgnored: { enabled: false, mode: 'allExcept', patterns: ['a'], exclude: [] },
-            sort: { by: 'created', direction: 'asc' }
+            sort: { by: 'created', direction: 'asc' },
+            closeStaleShells: true
         });
         // Settings from before the mode keep their patterns and get the default exclusions.
         expect(normalizeWorktreeSettings({ copyIgnored: { enabled: true, patterns: ['.env'] } }).copyIgnored.exclude).toContain('node_modules/');

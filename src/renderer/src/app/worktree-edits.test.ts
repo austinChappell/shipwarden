@@ -108,6 +108,14 @@ describe('teardownFailure', () => {
 });
 
 describe('worktreeMenuItems', () => {
+    it('offers to close the open shells', () => {
+        const item = (shells: number) =>
+            worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0, shells).find(entry => 'id' in entry && entry.id === 'closeShells');
+        expect(item(0)).toMatchObject({ label: 'Close Shells', enabled: false });
+        expect(item(1)).toMatchObject({ label: 'Close 1 Shell…', enabled: true });
+        expect(item(3)).toMatchObject({ label: 'Close 3 Shells…', enabled: true });
+    });
+
     it('shows the task item only for a worktree with a task', () => {
         expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), 'ENG-1', true, undefined, 0))[0]).toBe('task');
         expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0))[0]).toBe('rename');
@@ -116,6 +124,7 @@ describe('worktreeMenuItems', () => {
     it('offers to hide or snooze a visible worktree', () => {
         expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0))).toEqual([
             'rename',
+            'closeShells',
             '-',
             'hide',
             'Snooze',
@@ -134,7 +143,8 @@ describe('worktreeMenuItems', () => {
 
     it('disables the removal of the main worktree and of a worktree without a branch', () => {
         const main = worktreeMenuItems(worktree({ branch: 'main', isMain: true }), undefined, false, undefined, 0);
-        expect(main.filter(item => 'enabled' in item && item.enabled === false)).toHaveLength(2);
+        // "Close Shells" is off too, because the worktree has no open shells.
+        expect(main.filter(item => 'enabled' in item && item.enabled === false)).toHaveLength(3);
         const detached = worktreeMenuItems(worktree({}), undefined, false, undefined, 0);
         expect(detached).toContainEqual({ id: 'removeBranch', label: 'Remove Worktree and Delete Branch…', enabled: false, danger: true });
     });

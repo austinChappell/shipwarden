@@ -72,18 +72,20 @@ export function teardownFailure(failure: NonNullable<RemoveWorktreeResult['teard
     return { title: `The teardown script ${reason}.`, tail: failure.output.split('\n').slice(-15).join('\n') };
 }
 
-/** Returns the items of the context menu of a worktree in the sidebar. */
+/** Returns the items of the context menu of a worktree in the sidebar. `shells` is the number of open shell tabs of the worktree. */
 export function worktreeMenuItems(
     worktree: Worktree,
     taskKey: string | undefined,
     hasTask: boolean,
     hidden: HiddenWorktree | undefined,
-    now: number
+    now: number,
+    shells = 0
 ): ContextMenuItem[] {
     const snoozeOptions = Object.keys(SNOOZE_LABELS) as SnoozeOption[];
     return [
         ...(hasTask ? [{ id: 'task', label: `Open Task${taskKey ? ` ${taskKey}` : ''}` }, { type: 'separator' as const }] : []),
         { id: 'rename', label: 'Rename…' },
+        { id: 'closeShells', label: shells > 0 ? `Close ${shells} ${shells === 1 ? 'Shell' : 'Shells'}…` : 'Close Shells', enabled: shells > 0 },
         { type: 'separator' as const },
         ...(isHiddenAt(hidden, now)
             ? [{ id: 'show', label: hidden?.until ? 'Stop Snooze' : 'Show in Sidebar' }]
