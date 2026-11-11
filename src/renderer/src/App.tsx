@@ -18,6 +18,10 @@ import { ReviewView } from './components/ReviewView';
 import { reviewPage } from './app/review-page';
 import { DashboardView, type ReviewTabRequest } from './components/DashboardView';
 import { NotesView } from './components/NotesView';
+import { AutomationsView } from './automations/AutomationsView';
+import { useAutomationRuns } from './automations/automation-queries';
+import { automationEngine } from './automations/engine';
+import { useAutomationEngine } from './automations/use-automation-engine';
 import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
 import { useDashboardCount, useDashboardLoader } from './dashboard-store';
@@ -177,6 +181,7 @@ export function App() {
         setTaskOpen,
         startTerminal,
         sendToAgent,
+        promptAgent: agents.promptAgent,
         prepareWorktree: agents.prepareWorktree,
         setError
     });
@@ -252,8 +257,8 @@ export function App() {
     /** A click on a notification: show the worktree (and the agent tab), or the Dashboard. */
     const openNotificationTarget = (target: NotificationTarget | undefined) => {
         if (!target) return;
-        if (target.view === 'dashboard') {
-            setMainView('dashboard');
+        if (target.view === 'dashboard' || target.view === 'automations') {
+            setMainView(target.view);
             return;
         }
         showWorktree(target.worktreePath);
@@ -273,6 +278,26 @@ export function App() {
         isSessionVisible: session =>
             document.hasFocus() && mainView === 'worktree' && session.worktreePath === selectedPath && !!layout && !!leafOfTab(layout, `t:${session.id}`)
     });
+
+    // The automations run while the app is open. The engine gets the state of the app and its events here.
+    useAutomationEngine({
+        settingsLoaded,
+        appSettings,
+        sessions,
+        allRepos: project.allRepos,
+        activeRepos: repos,
+        worktreesByRepo,
+        summaries: project.summaries,
+        links,
+        actions: {
+            promptAgent: agents.promptAgent,
+            startTaskQuietly: worktreeActions.startTaskQuietly,
+            startInNewWorktree: worktreeActions.startInNewWorktree,
+            removeWorktreeQuietly: worktreeActions.removeWorktreeQuietly,
+            moveTaskToStatus: worktreeActions.moveTaskToStatus
+        }
+    });
+    const automationsCount = useAutomationRuns().state.runs.filter(run => run.status === 'pending').length;
 
     // The effect below registers the IPC listeners one time. The refs give the listeners the functions of the newest render.
     const sessionExitedRef = useRef(tabs.sessionExited);
@@ -300,6 +325,7 @@ export function App() {
         // render of the full app for each report makes the typing in a terminal slow.
         const offAgentState = api.terminals.onAgentState((id, update) => {
             agentStateStore.set(id, update);
+            automationEngine.onAgentState(id, update);
             if (update.state === 'waiting' || update.state === 'done') {
                 notifyAgentRef.current(id, update.state, update.message);
             }
@@ -524,6 +550,9 @@ export function App() {
                             onOpenPipelines={() => enterView('pipelines')}
                             notesActive={mainView === 'notes'}
                             onOpenNotes={() => enterView('notes')}
+                            automationsActive={mainView === 'automations'}
+                            automationsCount={automationsCount}
+                            onOpenAutomations={() => enterView('automations')}
                             dashboardActive={mainView === 'dashboard'}
                             dashboardCount={dashboardCount}
                             onOpenDashboard={() => enterView('dashboard')}
@@ -616,6 +645,19 @@ export function App() {
                     {mainView === 'notes' && (
                         <main className="workspace">
                             <NotesView key={viewEntry} route={routeOf('notes')} onRoute={route => setRoute('notes', route)} />
+                        </main>
+                    )}
+                    {mainView === 'automations' && (
+                        <main className="workspace">
+                            <AutomationsView
+                                key={viewEntry}
+                                settings={appSettings}
+                                onSaveSettings={async change => setAppSettings(await api.settings.update(change))}
+                                repos={project.allRepos}
+                                repoLabel={repoLabel}
+                                onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
+                                onOpenNotes={() => enterView('notes')}
+                            />
                         </main>
                     )}
                     {mainView === 'dashboard' && (

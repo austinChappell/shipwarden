@@ -5,6 +5,7 @@ import { shellIntegrationEnv } from '../agents/shell-integration';
 import { loadGhosttySettings } from '../terminal/ghostty-loader';
 import type { Services } from '../services';
 import { onlyStrings, terminalCommand } from './args';
+import { ScreenMirror } from '../remote/screen-mirror';
 
 type TerminalIpcDependencies = Pick<
     Services,
@@ -26,6 +27,20 @@ export function registerTerminalIpc(deps: TerminalIpcDependencies): void {
         return session;
     });
     ipcMain.handle(IpcChannels.terminalsReplay, (_event, id: string) => terminals.replay(id));
+    ipcMain.handle(IpcChannels.terminalsScreenText, async (_event, id: string) => {
+        const sessionId = String(id);
+        if (!(await deps.terminalSessions()).some(session => session.id === sessionId)) return undefined;
+        // The page has no terminal for a session that it does not show. A headless terminal makes the screen from the replay.
+        const size = terminalSizes.get(sessionId) ?? { cols: 120, rows: 32 };
+        const mirror = new ScreenMirror(size.cols, size.rows);
+        try {
+            const replay = await terminals.replay(sessionId);
+            await mirror.write(replay.data, replay.seq);
+            return mirror.screenText();
+        } finally {
+            mirror.dispose();
+        }
+    });
     ipcMain.handle(IpcChannels.terminalsKill, (_event, id: string) => deps.killTerminal(String(id)));
     ipcMain.handle(IpcChannels.terminalsStopOutdated, async () => {
         const stopped = await terminals.shutdownOutdatedHosts();

@@ -1,13 +1,14 @@
 import type { BranchSummary } from './github';
 
 /** The events that can show a macOS notification. */
-export type NotificationEvent = 'agentWaiting' | 'agentDone' | 'ciFinished' | 'dashboard';
+export type NotificationEvent = 'agentWaiting' | 'agentDone' | 'ciFinished' | 'dashboard' | 'automation';
 
 export const NOTIFICATION_EVENTS: { id: NotificationEvent; label: string; description: string }[] = [
     { id: 'agentWaiting', label: 'Agent needs input', description: 'An agent waits for your answer or for a permission.' },
     { id: 'agentDone', label: 'Agent finished', description: 'An agent ended its turn.' },
     { id: 'ciFinished', label: 'CI finished', description: 'The checks of a pull request passed or failed. The menu selects which pull requests.' },
-    { id: 'dashboard', label: 'New Dashboard items', description: 'New review requests, pull requests that need you, and new comments.' }
+    { id: 'dashboard', label: 'New Dashboard items', description: 'New review requests, pull requests that need you, and new comments.' },
+    { id: 'automation', label: 'Automations', description: 'An automation waits for your approval, or a run failed.' }
 ];
 
 /** The sounds of macOS, in /System/Library/Sounds. */
@@ -46,7 +47,8 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
         agentWaiting: { enabled: true, sound: 'Glass' },
         agentDone: { enabled: true, sound: null },
         ciFinished: { enabled: true, sound: 'Pop' },
-        dashboard: { enabled: true, sound: null }
+        dashboard: { enabled: true, sound: null },
+        automation: { enabled: true, sound: 'Ping' }
     }
 };
 

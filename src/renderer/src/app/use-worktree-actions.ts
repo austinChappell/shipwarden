@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { PullRequest, RepoRef } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
 import type { AppSettings, AgentDefinition, RepoScript } from '@shared/settings';
-import { applyStartStatus, branchNameForTask, taskPrompt, type Task, type TaskLink } from '@shared/tasks';
+import { applyStartStatus, branchNameForTask, taskPrompt, type StartStatusResult, type Task, type TaskLink } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
 import { snoozeEnd, type CreatedWorktree, type HiddenWorktree, type Worktree } from '@shared/worktrees';
 import { confirmDialog, promptDialog } from '../components/ConfirmDialog';
@@ -67,6 +67,12 @@ interface Options {
     setTaskOpen: (request: { connectionId: string; taskId: string; nonce: number }) => void;
     startTerminal: (worktree: Worktree, target: 'shell' | 'agent' | AgentDefinition) => Promise<TerminalSession | undefined>;
     sendToAgent: (prompt: string, worktree?: Worktree) => Promise<void>;
+    /** Sends a prompt to an agent without a banner and without a change of the selected tab. See `useAgentActions`. */
+    promptAgent: (
+        worktree: Pick<Worktree, 'path'>,
+        prompt: string,
+        target?: { sessionId?: string; agentId?: string; repoPath?: string }
+    ) => Promise<TerminalSession>;
     prepareWorktree: (repoPath: string, worktree: CreatedWorktree) => Promise<void>;
     setError: (error: string | undefined) => void;
 }
@@ -94,31 +100,39 @@ export function useWorktreeActions(options: Options) {
     };
 
     /**
+     * Moves a task to the status with the name `wanted` (without case). Returns the result. Throws when a request fails.
+     * After a move, the lists and the task details of the connection load again when they show.
+     */
+    const moveTaskToStatus = async (task: Task, connectionId: string, wanted: string): Promise<StartStatusResult> => {
+        // The settings page and the Tasks view use the same cache entries, so a fresh copy does not load again.
+        const source = await queryClient.fetchQuery({
+            queryKey: taskQueryKeys.source(connectionId),
+            queryFn: () => api.tasks.source(connectionId)
+        });
+        const result = await applyStartStatus(
+            task,
+            wanted,
+            source.capabilities,
+            <T>(method: string, params: unknown) => api.tasks.request(connectionId, method, params) as Promise<T>
+        );
+        if (result === 'moved') {
+            void queryClient.invalidateQueries({ queryKey: [...keyRoots.tasks, 'list', connectionId] });
+            void queryClient.invalidateQueries({ queryKey: taskQueryKeys.detail(connectionId, task.id) });
+        }
+        return result;
+    };
+
+    /**
      * Moves a task to the start status of its connection (Settings › Task managers), for example "in progress".
      * The worktree and the agent do not wait for it. A failure shows as an error, and the task keeps its status.
      */
     const moveTaskToStartStatus = async (task: Task, connectionId: string) => {
         let wanted: string | undefined;
         try {
-            // The settings page and the Tasks view use the same cache entries, so a fresh copy does not load again.
             const connections = await queryClient.fetchQuery({ queryKey: taskManagerKeys.allConnections, queryFn: () => api.tasks.connections() });
             wanted = connections.find(item => item.id === connectionId)?.startStatus;
             if (!wanted) return;
-            const source = await queryClient.fetchQuery({
-                queryKey: taskQueryKeys.source(connectionId),
-                queryFn: () => api.tasks.source(connectionId)
-            });
-            const result = await applyStartStatus(
-                task,
-                wanted,
-                source.capabilities,
-                <T>(method: string, params: unknown) => api.tasks.request(connectionId, method, params) as Promise<T>
-            );
-            if (result === 'moved') {
-                // The task has a new status. The lists and the task details of the connection load again when they show.
-                void queryClient.invalidateQueries({ queryKey: [...keyRoots.tasks, 'list', connectionId] });
-                void queryClient.invalidateQueries({ queryKey: taskQueryKeys.detail(connectionId, task.id) });
-            }
+            await moveTaskToStatus(task, connectionId, wanted);
         } catch (err) {
             setError(`${task.key ?? task.title} did not move to "${wanted}": ${errorText(err)}`);
         }
@@ -139,6 +153,46 @@ export function useWorktreeActions(options: Options) {
         setMainView('worktree');
         void moveTaskToStartStatus(task, connectionId);
         await options.sendToAgent(taskPrompt(task, branch), worktree);
+    };
+
+    /**
+     * Starts work on a task for an automation: the same steps as `startTask`, but the selected worktree and the view do
+     * not change. `prompt` replaces the default task prompt. Returns the new worktree and the agent session.
+     */
+    const startTaskQuietly = async (
+        task: Task,
+        connectionId: string,
+        pluginId: string,
+        repoPath: string,
+        prompt: (branch: string) => string,
+        agentId?: string
+    ): Promise<{ worktree: CreatedWorktree; session: TerminalSession }> => {
+        const branch = branchNameForTask(task);
+        const worktree = await api.worktrees.create({ repoPath, branch });
+        await options.prepareWorktree(repoPath, worktree);
+        const link: TaskLink = { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
+        await saveTaskLink(queryClient, worktree.path, link);
+        await refreshWorktrees(repoPath);
+        void moveTaskToStartStatus(task, connectionId);
+        const session = await options.promptAgent(worktree, prompt(branch), { agentId, repoPath });
+        return { worktree, session };
+    };
+
+    /**
+     * Makes a worktree with a new branch from the newest default branch, and sends the prompt to a new agent in it.
+     * For a scheduled automation. The selected worktree and the view do not change.
+     */
+    const startInNewWorktree = async (
+        repoPath: string,
+        branch: string,
+        prompt: string,
+        agentId?: string
+    ): Promise<{ worktree: CreatedWorktree; session: TerminalSession }> => {
+        const worktree = await api.worktrees.create({ repoPath, branch });
+        await options.prepareWorktree(repoPath, worktree);
+        await refreshWorktrees(repoPath);
+        const session = await options.promptAgent(worktree, prompt, { agentId, repoPath });
+        return { worktree, session };
     };
 
     /**
@@ -232,6 +286,50 @@ export function useWorktreeActions(options: Options) {
     };
 
     /**
+     * Removes the state of a removed worktree from the page: its terminals, files, tabs, task link, name and hidden state.
+     * Selects another worktree when the removed worktree was selected.
+     */
+    const forgetWorktree = async (repoPath: string, worktree: Worktree) => {
+        options.sessions
+            .filter(session => session.worktreePath === worktree.path)
+            .forEach(session => {
+                terminalPool.dispose(session.id);
+                agentStateStore.delete(session.id);
+                outputActivity.delete(session.id);
+            });
+        options.setSessions(list => list.filter(session => session.worktreePath !== worktree.path));
+        (options.openFiles[worktree.path] ?? []).forEach(path => documents.close(worktree.path, path));
+        editorPositions.forget(worktree.path);
+        options.setExtraTabs(map => withoutKey(map, worktree.path));
+        if (links[worktree.path]) await saveTaskLink(queryClient, worktree.path, null);
+        options.setOpenFiles(map => withoutKey(map, worktree.path));
+        if (appSettings.worktreeNames?.[worktree.path]) await setWorktreeName(worktree.path, undefined);
+        if (appSettings.hiddenWorktrees?.[worktree.path]) await setWorktreeHidden(worktree.path, undefined);
+        const list = await refreshWorktrees(repoPath);
+        if (selectedPath === worktree.path) {
+            setSelectedPath(list[0]?.path ?? options.worktrees.find(item => item.path !== worktree.path)?.path);
+        }
+    };
+
+    /**
+     * Removes a worktree for an automation, without questions. Git refuses a worktree with uncommitted changes, and a
+     * failed teardown script stops the removal. With `deleteBranch`, a merged local branch goes away too. A branch that
+     * is not merged stays. Returns a message for the run history. Throws an error with a message.
+     */
+    const removeWorktreeQuietly = async (repoPath: string, worktree: Worktree, deleteBranch: boolean): Promise<string> => {
+        const result = await api.worktrees.remove(repoPath, worktree.path);
+        if (result.teardownFailed) {
+            throw new Error(`${teardownFailure(result.teardownFailed).title} The worktree stays.`);
+        }
+        await forgetWorktree(repoPath, worktree);
+        if (!deleteBranch || !worktree.branch) return 'Removed the worktree.';
+        const deleted = await api.worktrees.deleteBranch(repoPath, worktree.branch);
+        return deleted.notMerged
+            ? `Removed the worktree. The branch "${worktree.branch}" has commits that are not merged, so it stays.`
+            : `Removed the worktree and the branch "${worktree.branch}".`;
+    };
+
+    /**
      * Removes a worktree. With `deleteBranch`, the local branch is deleted after the worktree. Git refuses a branch with
      * commits that are not merged, so ShipWarden asks before it forces the delete. The remote branch stays.
      */
@@ -259,25 +357,7 @@ export function useWorktreeActions(options: Options) {
                 }
                 await api.worktrees.remove(repoPath, worktree.path, { skipTeardown: true });
             }
-            options.sessions
-                .filter(session => session.worktreePath === worktree.path)
-                .forEach(session => {
-                    terminalPool.dispose(session.id);
-                    agentStateStore.delete(session.id);
-                    outputActivity.delete(session.id);
-                });
-            options.setSessions(list => list.filter(session => session.worktreePath !== worktree.path));
-            (options.openFiles[worktree.path] ?? []).forEach(path => documents.close(worktree.path, path));
-            editorPositions.forget(worktree.path);
-            options.setExtraTabs(map => withoutKey(map, worktree.path));
-            if (links[worktree.path]) await saveTaskLink(queryClient, worktree.path, null);
-            options.setOpenFiles(map => withoutKey(map, worktree.path));
-            if (appSettings.worktreeNames?.[worktree.path]) await setWorktreeName(worktree.path, undefined);
-            if (appSettings.hiddenWorktrees?.[worktree.path]) await setWorktreeHidden(worktree.path, undefined);
-            const list = await refreshWorktrees(repoPath);
-            if (selectedPath === worktree.path) {
-                setSelectedPath(list[0]?.path ?? options.worktrees.find(item => item.path !== worktree.path)?.path);
-            }
+            await forgetWorktree(repoPath, worktree);
             if (branch) {
                 const deleted = await api.worktrees.deleteBranch(repoPath, branch);
                 if (
@@ -323,5 +403,17 @@ export function useWorktreeActions(options: Options) {
         if (choice === 'removeBranch') await removeWorktree(repoPath, worktree, { deleteBranch: true });
     };
 
-    return { startTask, createWorktree, openPullRequestWorktree, removeWorktree, saveScripts, openLinkedTask, worktreeMenu };
+    return {
+        startTask,
+        startTaskQuietly,
+        startInNewWorktree,
+        moveTaskToStatus,
+        createWorktree,
+        openPullRequestWorktree,
+        removeWorktree,
+        removeWorktreeQuietly,
+        saveScripts,
+        openLinkedTask,
+        worktreeMenu
+    };
 }

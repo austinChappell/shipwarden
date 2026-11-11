@@ -49,9 +49,10 @@ import type { GraphLog, GraphScope } from './git-graph';
 import type { BranchList, CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings } from './worktree-settings';
 import type { BrowserBounds, BrowserState } from './browser';
+import type { Automation, AutomationList, AutomationRun, AutomationRunState } from './automations';
 
 /** Where a click on a notification goes. */
-export type NotificationTarget = { view: 'worktree'; worktreePath: string; sessionId?: string } | { view: 'dashboard' };
+export type NotificationTarget = { view: 'worktree'; worktreePath: string; sessionId?: string } | { view: 'dashboard' } | { view: 'automations' };
 
 /** A notification that the page asks the main process to show. */
 export interface NotificationRequest {
@@ -319,6 +320,41 @@ export interface ShipWardenApi {
         githubOwners(id: string): Promise<GitHubOwner[]>;
         onChanged(listener: () => void): () => void;
     };
+    automations: {
+        /** The automations in ~/.shipwarden/automations, and the files that ShipWarden could not read. */
+        list(): Promise<AutomationList>;
+        /** Writes the automation to its file. With `previousId`, the automation had another ID before, and its old file goes away. */
+        save(automation: Automation, previousId?: string): Promise<Automation>;
+        /** Moves the file of the automation to the Trash. */
+        remove(id: string): Promise<void>;
+        /** Shows the file of the automation, or the folder without an ID, in Finder. */
+        reveal(id?: string): void;
+        /** The JSON text of the portable part of the automation. It has no paths and no IDs of this Mac. */
+        exportText(id: string): Promise<string>;
+        /** Asks for a file name and writes the export to it. Returns false when the user cancelled. */
+        exportToFile(id: string): Promise<boolean>;
+        /** Asks for a JSON file and returns its text. Undefined when the user cancelled. */
+        importFromFile(): Promise<string | undefined>;
+        /** Puts the export of the automation on the clipboard. */
+        copyExport(id: string): Promise<void>;
+        /** Returns the text of the clipboard. */
+        readClipboard(): Promise<string>;
+        /** The run history, the fired event keys and the times of the last schedule runs. */
+        runs(): Promise<AutomationRunState>;
+        /** Records a new run. Returns null when the automation already fired for the same event. */
+        claim(run: AutomationRun): Promise<AutomationRun | null>;
+        updateRun(
+            id: string,
+            change: Partial<Pick<AutomationRun, 'status' | 'detail' | 'worktreePath' | 'sessionId' | 'noteName'>>
+        ): Promise<AutomationRun | undefined>;
+        /** Records event keys as fired without runs, for the first task list of an automation. */
+        seed(automationId: string, keys: string[]): Promise<void>;
+        setScheduleRun(automationId: string, at: number): Promise<void>;
+        /** Removes the closed runs from the history. */
+        clearHistory(): Promise<void>;
+        /** Called when a file in the automations folder changes, also from another app. */
+        onChanged(listener: () => void): () => void;
+    };
     notes: {
         /** The folder of the notes, ~/.shipwarden/notes. */
         folder(): Promise<string>;
@@ -471,6 +507,11 @@ export interface ShipWardenApi {
         create(options: CreateTerminalOptions): Promise<TerminalSession>;
         /** Returns the recent output of the session, so that a new view can show it. */
         replay(id: string): Promise<TerminalReplay>;
+        /**
+         * Returns the text of the screen of a session, from its recent output. Use it for a session that the page does not
+         * show, so that the page has no terminal for it. Undefined when the session does not exist.
+         */
+        screenText(id: string): Promise<string | undefined>;
         write(id: string, data: string): void;
         resize(id: string, cols: number, rows: number): void;
         kill(id: string): Promise<void>;
@@ -567,6 +608,22 @@ export const IpcChannels = {
     reviewProvidersTest: 'reviewProviders:test',
     reviewProvidersGitHubOwners: 'reviewProviders:githubOwners',
     reviewProvidersChanged: 'reviewProviders:changed',
+    automationsList: 'automations:list',
+    automationsSave: 'automations:save',
+    automationsRemove: 'automations:remove',
+    automationsReveal: 'automations:reveal',
+    automationsExportText: 'automations:exportText',
+    automationsExportToFile: 'automations:exportToFile',
+    automationsImportFromFile: 'automations:importFromFile',
+    automationsCopyExport: 'automations:copyExport',
+    automationsReadClipboard: 'automations:readClipboard',
+    automationsRuns: 'automations:runs',
+    automationsClaim: 'automations:claim',
+    automationsUpdateRun: 'automations:updateRun',
+    automationsSeed: 'automations:seed',
+    automationsSetScheduleRun: 'automations:setScheduleRun',
+    automationsClearHistory: 'automations:clearHistory',
+    automationsChanged: 'automations:changed',
     notesFolder: 'notes:folder',
     notesList: 'notes:list',
     notesFolders: 'notes:folders',
@@ -626,6 +683,7 @@ export const IpcChannels = {
     terminalsList: 'terminals:list',
     terminalsCreate: 'terminals:create',
     terminalsReplay: 'terminals:replay',
+    terminalsScreenText: 'terminals:screenText',
     terminalsWrite: 'terminals:write',
     terminalsResize: 'terminals:resize',
     terminalsKill: 'terminals:kill',

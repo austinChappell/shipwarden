@@ -20,6 +20,24 @@ interface Options {
 }
 
 /**
+ * Loads the tasks of a collection, page by page. The Tasks view and the automations use it with the same query key
+ * (`taskQueryKeys.list`), so they share the cached list.
+ */
+export async function loadTaskList(request: TaskRequest, collection: string | undefined, filter: string | undefined): Promise<Task[]> {
+    const all: Task[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < MAX_PAGES; page++) {
+        const result = await request<{ tasks: Task[]; nextCursor?: string }>('tasks/list', { collection, filter, cursor });
+        all.push(...result.tasks);
+        cursor = result.nextCursor;
+        if (!cursor) {
+            break;
+        }
+    }
+    return uniqueTasks(all);
+}
+
+/**
  * The tasks of the selected collection. The query cache keeps them for the session.
  * The list loads again when its data is stale, on the timer of the query client and on change notifications.
  */
@@ -34,19 +52,7 @@ export function useTaskList({ source, collection, filter, request, setSelectedId
 
     const listQuery = useQuery({
         queryKey: listKey,
-        queryFn: async () => {
-            const all: Task[] = [];
-            let cursor: string | undefined;
-            for (let page = 0; page < MAX_PAGES; page++) {
-                const result = await request<{ tasks: Task[]; nextCursor?: string }>('tasks/list', { collection, filter, cursor });
-                all.push(...result.tasks);
-                cursor = result.nextCursor;
-                if (!cursor) {
-                    break;
-                }
-            }
-            return uniqueTasks(all);
-        },
+        queryFn: () => loadTaskList(request, collection, filter),
         enabled: !!source && !!collection
     });
     const tasks = source && collection ? listQuery.data : undefined;

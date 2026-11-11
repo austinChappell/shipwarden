@@ -71,7 +71,9 @@ export const keyRoots = {
     /** The state of the network certificates. */
     network: ['network'],
     /** The listening ports of each worktree, for the sidebar. */
-    worktreePorts: ['worktreePorts']
+    worktreePorts: ['worktreePorts'],
+    /** The automation files and the run history. Local data: no request goes to a service. */
+    automations: ['automations']
 } as const;
 
 /** The roots that a change to a pull request, a branch or a CI run can make stale. */

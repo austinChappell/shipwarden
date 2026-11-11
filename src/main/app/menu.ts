@@ -88,6 +88,7 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
                 { label: 'Review', accelerator: 'Alt+Command+4', click: sendShortcut('viewReview') },
                 { label: 'Pipelines', accelerator: 'Alt+Command+5', click: sendShortcut('viewPipelines') },
                 { label: 'Notes', accelerator: 'Alt+Command+6', click: sendShortcut('viewNotes') },
+                { label: 'Automations', accelerator: 'Alt+Command+7', click: sendShortcut('viewAutomations') },
                 { type: 'separator' },
                 // ⌃⇧Tab and ⌃Tab also select the previous and the next tab.
                 { label: 'Select Previous Tab', accelerator: 'Shift+Command+[', click: sendShortcut('previousTab') },

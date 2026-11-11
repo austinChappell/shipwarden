@@ -10,13 +10,41 @@ const api = window.shipwarden.tasks;
 export type TaskRequest = <T>(method: string, params: unknown) => Promise<T>;
 
 /** The task managers, and the task manager that the user selected last. */
-interface ConnectionsData {
+export interface ConnectionsData {
     list: ConnectionInfo[];
     saved: string | undefined;
 }
 
+/** The query of the task managers that are on. The Tasks view and the automation editor share it. */
+export function connectionsQueryOptions() {
+    return {
+        queryKey: taskQueryKeys.connections(),
+        queryFn: async (): Promise<ConnectionsData> => {
+            const [list, saved] = await Promise.all([api.enabledConnections(), api.selectedConnection().catch(() => undefined)]);
+            return { list, saved };
+        },
+        // The task managers change in Settings. Thus they load again each time that a view opens.
+        staleTime: 0
+    };
+}
+
+/** The query of the collections of a task manager. The Tasks view and the automation editor share it. */
+export function collectionsQueryOptions(connectionId: string | undefined) {
+    return {
+        queryKey: taskQueryKeys.collections(connectionId),
+        queryFn: async (): Promise<CollectionsData> => {
+            const id = connectionId as string;
+            const [list, saved] = await Promise.all([
+                api.request(id, 'collections/list', {}) as Promise<TaskCollection[]>,
+                api.selectedCollection(id).catch(() => undefined)
+            ]);
+            return { list: sortCollections(list), saved };
+        }
+    };
+}
+
 /** The sorted collections of a source, and the collection that the user selected last for the source. */
-interface CollectionsData {
+export interface CollectionsData {
     list: TaskCollection[];
     saved: string | undefined;
 }
@@ -29,15 +57,7 @@ interface CollectionsData {
 export function useTaskSource(setSelectedId: (id: string | undefined) => void) {
     const queryClient = useQueryClient();
 
-    // The task managers change in Settings. Thus they load again each time that the view opens.
-    const connectionsQuery = useQuery({
-        queryKey: taskQueryKeys.connections(),
-        queryFn: async (): Promise<ConnectionsData> => {
-            const [list, saved] = await Promise.all([api.enabledConnections(), api.selectedConnection().catch(() => undefined)]);
-            return { list, saved };
-        },
-        staleTime: 0
-    });
+    const connectionsQuery = useQuery(connectionsQueryOptions());
     const connections = connectionsQuery.data?.list ?? (connectionsQuery.isError ? [] : undefined);
     const connectionId = connectionsQuery.data ? pickConnection(connectionsQuery.data.list, connectionsQuery.data.saved) : undefined;
     const connectionState = connectionStateOf(connections, connectionId);
@@ -84,18 +104,7 @@ export function useTaskSource(setSelectedId: (id: string | undefined) => void) {
     };
 
     // Load the collections of the source. The view selects the saved one, the plugin's default or the first one.
-    const collectionsQuery = useQuery({
-        queryKey: taskQueryKeys.collections(readySource?.connectionId),
-        queryFn: async (): Promise<CollectionsData> => {
-            const sourceConnection = readySource?.connectionId as string;
-            const [list, saved] = await Promise.all([
-                request<TaskCollection[]>('collections/list', {}),
-                api.selectedCollection(sourceConnection).catch(() => undefined)
-            ]);
-            return { list: sortCollections(list), saved };
-        },
-        enabled: !!readySource
-    });
+    const collectionsQuery = useQuery({ ...collectionsQueryOptions(readySource?.connectionId), enabled: !!readySource });
     const collections = readySource ? (collectionsQuery.data?.list ?? (collectionsQuery.isError ? [] : undefined)) : undefined;
     const collection = readySource && collectionsQuery.data ? pickCollection(collectionsQuery.data.list, collectionsQuery.data.saved) : undefined;
     const collectionsError = readySource ? optionalErrorText(collectionsQuery.error) : undefined;

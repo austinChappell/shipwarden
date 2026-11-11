@@ -2,19 +2,20 @@ import type { NavLocation, ViewRoute } from '@shared/nav-history';
 import type { ViewAction } from '@shared/shortcuts';
 
 /** A view of the center area. */
-export type MainView = 'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'graph' | 'settings';
+export type MainView = 'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'automations' | 'graph' | 'settings';
 
 /** A view that is not the settings page. The settings page goes back to one of these views. */
 export type ContentView = Exclude<MainView, 'settings'>;
 
-/** The view that each view key (⌥⌘1 to ⌥⌘6) opens. */
-export const VIEW_OF_ACTION: Record<ViewAction, 'dashboard' | 'agents' | 'tasks' | 'review' | 'pipelines' | 'notes'> = {
+/** The view that each view key (⌥⌘1 to ⌥⌘7) opens. */
+export const VIEW_OF_ACTION: Record<ViewAction, 'dashboard' | 'agents' | 'tasks' | 'review' | 'pipelines' | 'notes' | 'automations'> = {
     viewDashboard: 'dashboard',
     viewAgents: 'agents',
     viewTasks: 'tasks',
     viewReview: 'review',
     viewPipelines: 'pipelines',
-    viewNotes: 'notes'
+    viewNotes: 'notes',
+    viewAutomations: 'automations'
 };
 
 /**

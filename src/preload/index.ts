@@ -153,6 +153,24 @@ const api: ShipWardenApi = {
         githubOwners: id => ipcRenderer.invoke(IpcChannels.reviewProvidersGitHubOwners, id),
         onChanged: listener => subscribe<[]>(IpcChannels.reviewProvidersChanged, listener)
     },
+    automations: {
+        list: () => ipcRenderer.invoke(IpcChannels.automationsList),
+        save: (automation, previousId) => ipcRenderer.invoke(IpcChannels.automationsSave, automation, previousId),
+        remove: id => ipcRenderer.invoke(IpcChannels.automationsRemove, id),
+        reveal: id => ipcRenderer.send(IpcChannels.automationsReveal, id),
+        exportText: id => ipcRenderer.invoke(IpcChannels.automationsExportText, id),
+        exportToFile: id => ipcRenderer.invoke(IpcChannels.automationsExportToFile, id),
+        importFromFile: () => ipcRenderer.invoke(IpcChannels.automationsImportFromFile),
+        copyExport: id => ipcRenderer.invoke(IpcChannels.automationsCopyExport, id),
+        readClipboard: () => ipcRenderer.invoke(IpcChannels.automationsReadClipboard),
+        runs: () => ipcRenderer.invoke(IpcChannels.automationsRuns),
+        claim: run => ipcRenderer.invoke(IpcChannels.automationsClaim, run),
+        updateRun: (id, change) => ipcRenderer.invoke(IpcChannels.automationsUpdateRun, id, change),
+        seed: (automationId, keys) => ipcRenderer.invoke(IpcChannels.automationsSeed, automationId, keys),
+        setScheduleRun: (automationId, at) => ipcRenderer.invoke(IpcChannels.automationsSetScheduleRun, automationId, at),
+        clearHistory: () => ipcRenderer.invoke(IpcChannels.automationsClearHistory),
+        onChanged: listener => subscribe<[]>(IpcChannels.automationsChanged, listener)
+    },
     notes: {
         folder: () => ipcRenderer.invoke(IpcChannels.notesFolder),
         list: () => ipcRenderer.invoke(IpcChannels.notesList),
@@ -249,6 +267,7 @@ const api: ShipWardenApi = {
         list: () => ipcRenderer.invoke(IpcChannels.terminalsList),
         create: options => ipcRenderer.invoke(IpcChannels.terminalsCreate, options),
         replay: id => ipcRenderer.invoke(IpcChannels.terminalsReplay, id),
+        screenText: id => ipcRenderer.invoke(IpcChannels.terminalsScreenText, id),
         write: (id, data) => ipcRenderer.send(IpcChannels.terminalsWrite, id, data),
         resize: (id, cols, rows) => ipcRenderer.send(IpcChannels.terminalsResize, id, cols, rows),
         kill: id => ipcRenderer.invoke(IpcChannels.terminalsKill, id),

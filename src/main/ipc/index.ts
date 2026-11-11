@@ -2,6 +2,7 @@ import type { AppKeyAction } from '@shared/shortcuts';
 import type { Services } from '../services';
 import { registerAppIpc } from './app';
 import { registerAskIpc } from './ask';
+import { registerAutomationIpc } from './automations';
 import { registerBrowserIpc } from './browser';
 import { registerCodeIpc } from './code';
 import { registerFileIpc } from './files';
@@ -28,6 +29,7 @@ export function registerIpc(services: Services, runAppKey: (action: AppKeyAction
     registerAskIpc(services);
     registerSettingsIpc(services);
     registerNotesIpc(services);
+    registerAutomationIpc(services);
     registerRemoteIpc(services);
     registerGitIpc(services);
     registerAppIpc({ ...services, runAppKey });

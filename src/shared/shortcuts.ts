@@ -37,8 +37,8 @@ export type ShortcutAction =
     | 'nextTab'
     | ViewAction;
 
-/** The actions that open a view of the sidebar (⌥⌘1 to ⌥⌘6). */
-export type ViewAction = 'viewDashboard' | 'viewAgents' | 'viewTasks' | 'viewReview' | 'viewPipelines' | 'viewNotes';
+/** The actions that open a view of the sidebar (⌥⌘1 to ⌥⌘7). */
+export type ViewAction = 'viewDashboard' | 'viewAgents' | 'viewTasks' | 'viewReview' | 'viewPipelines' | 'viewNotes' | 'viewAutomations';
 
 const FOCUS_KEYS: Record<string, ShortcutAction> = {
     arrowleft: 'focusLeft',
@@ -54,7 +54,8 @@ const VIEW_KEYS: Record<string, ViewAction> = {
     Digit3: 'viewTasks',
     Digit4: 'viewReview',
     Digit5: 'viewPipelines',
-    Digit6: 'viewNotes'
+    Digit6: 'viewNotes',
+    Digit7: 'viewAutomations'
 };
 
 /** The tabs of ⌘ and a digit key, by the digit. ⌘9 selects the last tab, as in Ghostty. */

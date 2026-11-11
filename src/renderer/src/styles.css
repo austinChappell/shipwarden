@@ -11950,3 +11950,202 @@ button.pr-summary-cell:hover {
         display: none;
     }
 }
+
+/* Automations */
+
+.automations-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.automations-view .settings-header h1 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.automations-head-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.automations-head-actions .button,
+.automation-run-actions .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.automations-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.automations-page {
+    max-width: 860px;
+}
+
+.automations-intro {
+    margin: 0 0 24px;
+}
+
+.automation-row-actions,
+.automation-run-actions,
+.automation-action-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.automation-notice {
+    margin: 0 0 16px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--raised);
+    color: var(--text);
+    font-size: 12.5px;
+}
+
+.automation-warning {
+    margin-top: 6px;
+    color: var(--danger);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.automation-detail {
+    margin-top: 6px;
+    max-height: 120px;
+    overflow: auto;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+}
+
+.automation-status {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--raised);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.automation-status.done {
+    color: var(--ok);
+}
+
+.automation-status.failed {
+    color: var(--danger);
+}
+
+.automation-status.running,
+.automation-status.held {
+    color: var(--info);
+}
+
+.automation-status.dry-run {
+    color: var(--purple);
+}
+
+.automation-editor-head h2 {
+    margin: 0 0 6px;
+    color: var(--text-strong);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.automation-editor-head {
+    margin-bottom: 24px;
+}
+
+.automation-note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.automation-editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 24px;
+}
+
+.automation-schedule,
+.automation-repos,
+.automation-inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.automation-repos {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.automation-day,
+.automation-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+}
+
+.automation-inline label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+}
+
+.automation-time {
+    width: auto;
+}
+
+.automation-number {
+    width: 72px;
+}
+
+.automation-action-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.automation-prompt {
+    width: 100%;
+    min-height: 96px;
+    resize: vertical;
+}
+
+.automation-variables {
+    color: var(--muted);
+    font-size: 11.5px;
+    line-height: 1.8;
+}
+
+.automation-variables code {
+    margin-right: 6px;
+    cursor: help;
+}
+
+.automation-usage {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12.5px;
+}

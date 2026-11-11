@@ -17,6 +17,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-09 | The Review view gets go to definition and a file explorer from a hidden, detached git worktree at the PR head. | A language server needs the files on disk. The GitHub API gives files, but no server can run on them. The worktree uses the existing LspManager, FileExplorer and Monaco. |
 | 2026-11-09 | A background helper (a launch agent) can run the phone server while the app is closed. The setting is off by default. | The agents already run in the PTY host. Only the phone server needed the app. The helper is a second entry of the same build, so it needs no other install. |
 | 2026-11-09 | "Apply suggestion" changes the file in the local worktree. It does not commit with the GitHub API. | An agent works on the branch in the worktree. A commit on GitHub makes the local branch fall behind, and the next push fails. The user can check, test and commit the change with other changes. |
+| 2026-11-10 | Automations run in the page, while the app is open. Each automation is one JSON file in ~/.shipwarden/automations. | The page owns the agent tabs, the branch summaries and the Dashboard data, so it sees the events and can start agents. One file for each rule makes export, import and hand edits simple. An export has no paths of the Mac. |
 
 ## The old name (Yardmaster)
 
@@ -378,6 +379,44 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   `dispatchInputs` uses the defaults and refuses an empty required input.
 - Actions: cancel a run that waits or runs, re-run failed jobs, re-run all jobs, open on GitHub. Each asks first.
 - The runs refresh every 8 seconds while a run waits or runs, else every minute.
+
+### Automations
+
+The user guide and the file format are in [automations.md](automations.md).
+
+- **Files.** `AutomationStore` (main process) keeps one JSON file for each automation in `~/.shipwarden/automations`,
+  and watches the folder (`automations:changed`). `normalizeAutomation` (`src/shared/automations.ts`) checks a file. A
+  file that is not valid goes into `problems`. The portable part (the definition) and the local part (the status and
+  the binding: repository folders, task connection, collection) are in the same file. `exportAutomation` writes only
+  the definition. An import gets a free ID, an empty binding and the status "off".
+- **Runs.** `automation-runs.json` in the app data folder keeps the run history (at most 500 runs), the fired event
+  keys (45 days), the times of the last schedule runs and the task automations that recorded their first list.
+  `claim` records a run only when its key (`<automation>|<event key>`) did not fire before. The check and the write
+  are one step, so an event runs one time only, also after a restart.
+- **Engine.** `AutomationEngine` (`src/renderer/src/automations/engine.ts`) runs in the page, because the page owns the
+  agent tabs. `useAutomationEngine` gives it the state of the app at each render. It makes events from data that the
+  app loads already (`src/shared/automation-events.ts`), so a rule adds few requests:
+  - `ci.failed` and `pr.merged`: the branch summaries (`ciChanges`, and a pull request that left the open list). The
+    summaries of the active project load each minute already. The engine also watches the repositories with an agent
+    and the repositories of the rules, only while a pull request rule is on. A pull request that left the list costs one
+    `github.status` request, which tells merged from closed.
+  - `pr.comment` and `pr.conflict`: the news of each Dashboard refresh (`onDashboardNews`), the same news as the
+    notifications. The "origin" remote of each folder comes from the cache (`repoOf`).
+  - `agent.done`: the agent hooks.
+  - `task.new`: `tasks/list` of the bound collection every 5 minutes, with the query key of the Tasks view, so the
+    view shows the same list. The first list of a new or re-enabled rule only records its tasks (`seed`).
+  - `schedule`: a timer every 30 seconds. A time before the start of the app or before the rule was turned on does not run.
+- **Run flow.** A matching rule makes a run: a dry run, a skip (the limit for the target, or the plan usage at or
+  above `settings.automations.pauseAtUsage`), a pending run ("ask first"), or a run that starts at once. A run with
+  `sendToAgent` waits ("held") while the agent works, starts or waits for an answer. The engine tries held runs again
+  when an agent becomes done or idle, and every 30 seconds. A held run fails after 12 hours. At start, a run that was
+  "running" fails, because the app closed during it.
+- **Actions.** The app gives the engine quiet versions of its actions: `promptAgent`, `startTaskQuietly`,
+  `startInNewWorktree`, `removeWorktreeQuietly` and `moveTaskToStatus`. They show no dialog and no banner, and they do
+  not change the selected worktree. `promptAgent` reads the screen of an agent that the page does not show from the
+  main process (`terminals.screenText`, a headless terminal from the replay), so it can wait for a folder trust dialog.
+- **Notifications.** The event "Automations" in Settings › Notifications: a run waits for approval, or a run failed.
+  A click opens the Automations view. A `notify` action needs only the main switch.
 
 ### Repository scripts
 
