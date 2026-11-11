@@ -52,10 +52,11 @@ export function Tour({ steps, onPrepare, onClose }: Props) {
     close.current = onClose;
 
     // Open the part of the window that the step needs, then find the target. A panel can need a few frames to show.
+    // The old target stays until the new one is found, so the highlight moves from the old target to the new one. It
+    // does not start again from the corner of the window.
     useEffect(() => {
         if (!step) return;
         prepare.current(step);
-        setTarget(undefined);
         let frames = 0;
         let request = 0;
         const find = () => {
@@ -66,7 +67,7 @@ export function Tour({ steps, onPrepare, onClose }: Props) {
             }
             request = requestAnimationFrame(find);
         };
-        request = requestAnimationFrame(find);
+        find();
         return () => cancelAnimationFrame(request);
     }, [step]);
 
@@ -126,7 +127,13 @@ export function Tour({ steps, onPrepare, onClose }: Props) {
 
     return (
         <div className="tour-layer">
-            {spot ? <div className="tour-spotlight" style={spot} aria-hidden="true" /> : <div className="tour-backdrop" aria-hidden="true" />}
+            {/* The keys keep the two elements apart. Without them, React changes the backdrop into the highlight, and the
+            highlight then moves in from the corner of the window. */}
+            {spot ? (
+                <div key="spotlight" className="tour-spotlight" style={spot} aria-hidden="true" />
+            ) : (
+                <div key="backdrop" className="tour-backdrop" aria-hidden="true" />
+            )}
             <div
                 ref={callout}
                 className={`tour-callout ${position?.placement ?? 'center'}`}
