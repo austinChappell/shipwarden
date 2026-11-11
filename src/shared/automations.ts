@@ -48,7 +48,7 @@ export type AutomationAction =
     | { type: 'startAgent'; prompt: string; agentId?: string; branch?: string }
     /** Runs the agent in print mode. The agent does not change files. With `saveNote`, the answer goes into a note. */
     | { type: 'runHeadless'; prompt: string; saveNote?: boolean }
-    /** Moves the task of the worktree, or the new task, to the status with this name. */
+    /** Moves the task of the worktree, or the matching task, to the status with this name. */
     | { type: 'moveTask'; status: string }
     /** Removes the worktree. Git refuses a worktree with changes. With `deleteBranch`, also deletes a merged local branch. */
     | { type: 'removeWorktree'; deleteBranch?: boolean }
@@ -129,7 +129,7 @@ export const TRIGGER_TYPES: { type: TriggerType; label: string; description: str
     { type: 'agent.done', label: 'Agent finished', description: 'An agent ended its turn.' },
     {
         type: 'task.new',
-        label: 'New task',
+        label: 'Task matches',
         description:
             'A task of a collection agrees with the filters for the first time: a new task, or a task that gets the label, the assignee or the status. A done task never counts.'
     },
@@ -594,10 +594,10 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
     },
     {
         id: 'start-tasks',
-        name: 'Start agents on new tasks',
+        name: 'Start agents on matching tasks',
         description: 'When a task with the label "agent" is assigned to you, start an agent on it in a new worktree.',
         definition: {
-            name: 'Start agents on new tasks',
+            name: 'Start agents on matching tasks',
             trigger: { type: 'task.new', labels: ['agent'], assignedToMe: true },
             actions: [
                 {
@@ -692,7 +692,7 @@ export interface AutomationEvent {
     sessionId?: string;
     pr?: { number: number; title?: string; url: string; headSha?: string };
     comment?: { id: string; author: string; body: string; url: string; path?: string; reviewState?: string };
-    /** The new task of a "task.new" event. */
+    /** The matching task of a "task.new" event. */
     task?: Task;
     connectionId?: string;
     pluginId?: string;

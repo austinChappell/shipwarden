@@ -134,7 +134,7 @@ export class AutomationStore {
     }
 
     /**
-     * Records the keys of events as fired, without runs. A new task automation does this for the tasks of its first
+     * Records the keys of events as fired, without runs. A "Task matches" automation does this for the tasks of its first
      * list, so that only tasks that come later start agents.
      */
     async seed(automationId: string, keys: string[]): Promise<void> {

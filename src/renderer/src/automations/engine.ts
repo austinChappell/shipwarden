@@ -54,7 +54,7 @@ import { addRunToCache, automationRunsQuery, cachedRunState, patchRunState, repl
 
 const api = window.shipwarden;
 
-/** A new task automation reads its collection at most one time in this interval. The Dashboard uses the same interval. */
+/** A "Task matches" automation reads its collection at most one time in this interval. The Dashboard uses the same interval. */
 export const TASK_POLL_MS = 5 * 60_000;
 /** A run that waits for a busy agent fails after this time. */
 const HOLD_LIMIT_MS = 12 * 3600_000;
@@ -317,7 +317,7 @@ export class AutomationEngine {
         }
     }
 
-    /** Reads the collection of each new task automation, at most one time in TASK_POLL_MS. */
+    /** Reads the collection of each "Task matches" automation, at most one time in TASK_POLL_MS. */
     private async pollTasks(context: EngineContext): Promise<void> {
         const now = Date.now();
         for (const automation of this.active('task.new')) {

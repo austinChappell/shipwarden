@@ -394,6 +394,6 @@ describe('settings and descriptions', () => {
     it('describes triggers', () => {
         expect(describeTrigger({ type: 'schedule', days: [1, 2, 3, 4, 5], time: '08:00' })).toBe('weekdays at 08:00');
         expect(describeTrigger({ type: 'schedule', days: [0, 6], time: '09:30' })).toBe('Sun, Sat at 09:30');
-        expect(describeTrigger({ type: 'task.new', labels: ['agent'], assignedToMe: true })).toBe('New task: label agent, assigned to me');
+        expect(describeTrigger({ type: 'task.new', labels: ['agent'], assignedToMe: true })).toBe('Task matches: label agent, assigned to me');
     });
 });
