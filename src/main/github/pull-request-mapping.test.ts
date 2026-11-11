@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     allowedMergeMethods,
     mapBranchSummaries,
+    mapMergedBranches,
     mapPullRequest,
     mapPullRequestSummaries,
     mapReactions,
@@ -219,6 +220,21 @@ describe('mapPullRequest', () => {
         const timeline = [{ id: 'e', createdAt: 'c', actor: 'ann', kind: 'closed' as const }];
         expect(mapPullRequest(graphQlPullRequest(), repo, 7, timeline).timeline).toBe(timeline);
         expect(mapPullRequest(graphQlPullRequest(), repo, 7, undefined).timeline).toBeUndefined();
+    });
+});
+
+describe('mapMergedBranches', () => {
+    const node = (number: number, headRefName: string, isCrossRepository = false) => ({
+        number,
+        title: `PR ${number}`,
+        headRefName,
+        headRefOid: `sha${number}`,
+        isCrossRepository
+    });
+
+    it('keeps the newest merged pull request of each branch and skips a pull request from a fork', () => {
+        const merged = mapMergedBranches({ repository: { pullRequests: { nodes: [node(5, 'a', true), node(4, 'a'), node(3, 'a'), node(2, 'b')] } } });
+        expect(merged).toEqual({ a: { number: 4, title: 'PR 4', headSha: 'sha4' }, b: { number: 2, title: 'PR 2', headSha: 'sha2' } });
     });
 });
 

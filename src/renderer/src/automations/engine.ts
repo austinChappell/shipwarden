@@ -37,14 +37,16 @@ import {
     closedPullRequests,
     commentEvents,
     conflictEvents,
+    mergeCandidates,
     mergedEvent,
+    mergedPullRequestOf,
     pullRequestResolver,
     taskEvent,
     taskKey,
     type WorktreePlace
 } from '@shared/automation-events';
 import type { AgentUpdate } from '@shared/agents';
-import type { BranchSummary, RepoRef } from '@shared/github';
+import type { BranchSummary, MergedPullRequest, RepoRef } from '@shared/github';
 import type { NotificationSettings } from '@shared/notifications';
 import { linkMatchesTask, pickCollection, type StartStatusResult, type Task, type TaskLink, type TaskPerson, type TaskSource } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
@@ -80,6 +82,14 @@ const TOKEN_LIMIT_MARK = 'tokens today';
 /** The check conclusions that count as a failure. */
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'error', 'action_required']);
 
+/** The setting "Remove merged worktrees" reads the merged pull requests of each repository at most one time in this interval. */
+export const MERGED_SWEEP_MS = 15 * 60_000;
+/** The run states that can still use the worktree of the run. */
+const OPEN_RUN_STATES: ReadonlySet<RunStatus> = new Set(['pending', 'held', 'running']);
+
+/** The actions that do not use the worktree of the event. The setting "Remove merged worktrees" does not wait for them. */
+const WORKTREE_FREE_ACTIONS: ReadonlySet<AutomationAction['type']> = new Set(['moveTask', 'notify']);
+
 /** A worktree of any project, with its repository folder. */
 export interface EnginePlace extends WorktreePlace {
     worktree: Worktree;
@@ -108,7 +118,7 @@ export interface EngineActions {
         agentId?: string,
         mode?: AgentMode
     ): Promise<{ worktree: Worktree; session: TerminalSession }>;
-    removeWorktreeQuietly(repoPath: string, worktree: Worktree, deleteBranch: boolean): Promise<string>;
+    removeWorktreeQuietly(repoPath: string, worktree: Worktree, deleteBranch: boolean, mergedHead?: string): Promise<string>;
     moveTaskToStatus(task: Task, connectionId: string, status: string): Promise<StartStatusResult>;
 }
 
@@ -118,6 +128,8 @@ export interface EngineContext {
     ready: boolean;
     automations: Automation[];
     settings: AutomationSettings;
+    /** True when the worktree setting "Remove merged worktrees" is on. */
+    removeMergedWorktrees: boolean;
     notifications: NotificationSettings;
     usage: readonly ProviderUsage[];
     sessions: TerminalSession[];
@@ -168,6 +180,10 @@ export class AutomationEngine {
     private readonly executing = new Set<string>();
     /** The worktrees of the manual runs, by path. `context.places` does not always contain them. */
     private readonly manualPlaces = new Map<string, EnginePlace>();
+    /** The paths of the worktrees that the setting "Remove merged worktrees" removes now. */
+    private readonly removing = new Set<string>();
+    /** The time of the last sweep of each repository. A worktree that git refused waits for the next sweep. */
+    private readonly lastSweep = new Map<string, number>();
     private started = false;
     private ticking = false;
     private heldTimer: ReturnType<typeof setTimeout> | undefined;
@@ -224,14 +240,14 @@ export class AutomationEngine {
         if (!context) return;
         const now = Date.now();
         const ciRules = this.active('ci.failed');
-        const mergeRules = this.active('pr.merged');
+        const watchMerges = this.active('pr.merged').length > 0 || context.removeMergedWorktrees;
         for (const [repo, after] of Object.entries(summaries)) {
             const before = previous[repo];
             if (!before || before === after) continue;
             if (ciRules.length > 0) {
                 for (const event of ciFailedEvents(repo, before, after, context.places, now)) this.dispatch(event);
             }
-            if (mergeRules.length > 0) {
+            if (watchMerges) {
                 for (const closed of closedPullRequests(repo, before, after, context.places)) {
                     void this.checkMerged(repo, closed.branch, closed.summary, closed.place as EnginePlace);
                 }
@@ -239,17 +255,89 @@ export class AutomationEngine {
         }
     }
 
-    /** A pull request left the open list. One request tells whether it is merged or closed. */
+    /**
+     * A pull request left the open list. One request tells whether it is merged or closed. A merged pull request
+     * starts the "pr.merged" automations. Then the setting "Remove merged worktrees" removes the worktree.
+     */
     private async checkMerged(repo: string, branch: string, summary: BranchSummary, place: EnginePlace): Promise<void> {
+        let event: AutomationEvent;
         try {
             const path = place.worktree.path;
             const status = await queryClient.fetchQuery({ queryKey: branchStatusKey(path), queryFn: () => api.github.status(path), staleTime: 0 });
             const pr = status?.pullRequest;
-            if (pr && pr.number === summary.number && pr.state === 'MERGED') {
-                this.dispatch(mergedEvent(repo, branch, summary, place, Date.now()));
-            }
+            if (!pr || pr.number !== summary.number || pr.state !== 'MERGED') return;
+            event = mergedEvent(repo, branch, summary, place, Date.now());
         } catch (error) {
             console.warn(`[automations] The state of pull request #${summary.number} did not load: ${errorText(error)}`);
+            return;
+        }
+        this.dispatch(event);
+        const context = this.ready;
+        if (!context?.removeMergedWorktrees) return;
+        // An automation that is on and uses the worktree for this event goes first: an agent action or a "Remove the
+        // worktree" action. The sweep removes the worktree later, when no run uses it.
+        const automationUsesWorktree = context.automations.some(
+            automation =>
+                automation.status === 'on' &&
+                !context.settings.paused &&
+                automationMatches(automation, event) &&
+                automation.actions.some(action => !WORKTREE_FREE_ACTIONS.has(action.type))
+        );
+        if (!automationUsesWorktree && summary.headSha) {
+            await this.removeMerged(context, place, { number: summary.number, title: summary.title, headSha: summary.headSha });
+        }
+    }
+
+    /**
+     * The sweep of the setting "Remove merged worktrees". It finds the worktrees whose pull request is merged, also when
+     * the merge happened while the app was closed. One request for each repository reads its merged pull requests, at
+     * most one time in `MERGED_SWEEP_MS`. A worktree goes away only when its HEAD is the head commit of the merged pull
+     * request. A worktree with new commits, or a branch name that a new worktree uses again, stays.
+     */
+    private async sweepMerged(context: EngineContext): Promise<void> {
+        if (!context.removeMergedWorktrees) return;
+        const candidates = mergeCandidates(context.places, context.summaries).filter(place => !this.removing.has(place.worktree.path));
+        const now = Date.now();
+        const repos = [...new Set(candidates.map(place => place.repo))].filter(repo => now - (this.lastSweep.get(repo) ?? 0) >= MERGED_SWEEP_MS);
+        for (const repo of repos) {
+            this.lastSweep.set(repo, now);
+            let merged: Record<string, MergedPullRequest>;
+            try {
+                merged = await queryClient.fetchQuery({
+                    queryKey: [...keyRoots.mergedBranches, repo],
+                    queryFn: () => api.github.mergedBranches(repo),
+                    staleTime: MERGED_SWEEP_MS
+                });
+            } catch (error) {
+                console.warn(`[worktrees] The merged pull requests of ${repo} did not load: ${errorText(error)}`);
+                continue;
+            }
+            for (const place of candidates.filter(item => item.repo === repo)) {
+                const pr = mergedPullRequestOf(place.worktree, merged);
+                if (pr) await this.removeMerged(context, place, pr);
+            }
+        }
+    }
+
+    /**
+     * Removes the worktree and the local branch of a merged pull request. The worktree stays while an agent in it is
+     * busy or an automation run for it is not finished. Git refuses a worktree with uncommitted changes. A branch with
+     * commits that are not in the pull request stays.
+     */
+    private async removeMerged(context: EngineContext, place: EnginePlace, pr: MergedPullRequest): Promise<void> {
+        const path = place.worktree.path;
+        if (this.removing.has(path)) return;
+        const agentWorks = context.sessions.some(session => session.worktreePath === path && session.isAgent && !session.exited && agentBusy(session));
+        const runOpen = cachedRunState().runs.some(run => run.worktreePath === path && OPEN_RUN_STATES.has(run.status));
+        if (agentWorks || runOpen) return;
+        this.removing.add(path);
+        try {
+            const result = await context.actions.removeWorktreeQuietly(place.repo, place.worktree, true, pr.headSha);
+            console.info(`[worktrees] Pull request #${pr.number} is merged. ${result}`);
+        } catch (error) {
+            console.warn(`[worktrees] Pull request #${pr.number} is merged, but the worktree stays: ${errorText(error)}`);
+        } finally {
+            this.removing.delete(path);
         }
     }
 
@@ -294,7 +382,7 @@ export class AutomationEngine {
         }
     }
 
-    /** The timer: schedules, task collections and held runs. App calls it every 30 seconds. */
+    /** The timer: schedules, task collections, held runs and merged worktrees. App calls it every 30 seconds. */
     async tick(): Promise<void> {
         const context = this.ready;
         if (!context || this.ticking) return;
@@ -304,6 +392,7 @@ export class AutomationEngine {
             await this.pollTasks(context);
             await this.retryHeld();
             await this.countOpenTurns(context);
+            await this.sweepMerged(context);
         } finally {
             this.ticking = false;
         }

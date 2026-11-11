@@ -35,6 +35,12 @@ describe('worktree settings', () => {
         expect(normalizeWorktreeSettings({ closeStaleShells: false }).closeStaleShells).toBe(false);
     });
 
+    it('keeps merged worktrees by default and removes them only when the user turns the switch on', () => {
+        expect(normalizeWorktreeSettings(undefined).removeMerged).toBe(false);
+        expect(normalizeWorktreeSettings({ removeMerged: 'yes' }).removeMerged).toBe(false);
+        expect(normalizeWorktreeSettings({ removeMerged: true }).removeMerged).toBe(true);
+    });
+
     it('gives defaults and keeps valid values', () => {
         expect(normalizeWorktreeSettings(undefined).copyIgnored).toMatchObject({ enabled: true, mode: 'matching', patterns: ['.env', '.env.*'] });
         expect(
@@ -43,7 +49,8 @@ describe('worktree settings', () => {
             directory: '~/wt',
             copyIgnored: { enabled: false, mode: 'allExcept', patterns: ['a'], exclude: [] },
             sort: { by: 'created', direction: 'asc' },
-            closeStaleShells: true
+            closeStaleShells: true,
+            removeMerged: false
         });
         // Settings from before the mode keep their patterns and get the default exclusions.
         expect(normalizeWorktreeSettings({ copyIgnored: { enabled: true, patterns: ['.env'] } }).copyIgnored.exclude).toContain('node_modules/');

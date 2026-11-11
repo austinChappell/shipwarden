@@ -9,6 +9,7 @@ import type { FileInfo } from './file-types';
 import type {
     BranchStatus,
     BranchSummary,
+    MergedPullRequest,
     CheckRun,
     CommitFiles,
     FileVersions,
@@ -218,9 +219,10 @@ export interface ShipWardenApi {
         previewCopy(repoPath: string, copy: CopyIgnoredSettings): Promise<string[]>;
         /**
          * Deletes a local branch. Without `force`, ShipWarden first pulls the start branch of the worktree. A failed pull
-         * does not stop the delete. A branch that is not merged stays and `notMerged` is true.
+         * does not stop the delete. A branch that is not merged stays and `notMerged` is true. `mergedHead` is the head
+         * commit of a merged pull request. A branch that points at this commit is deleted also after a squash merge.
          */
-        deleteBranch(repoPath: string, branch: string, force?: boolean): Promise<{ deleted: boolean; notMerged?: boolean }>;
+        deleteBranch(repoPath: string, branch: string, force?: boolean, mergedHead?: string): Promise<{ deleted: boolean; notMerged?: boolean }>;
         /** The default folder of new worktrees, ~/.shipwarden/worktrees. */
         defaultFolder(): Promise<string>;
         /** Opens a folder dialog. Returns the folder, or undefined when the user cancels. */
@@ -262,6 +264,8 @@ export interface ShipWardenApi {
         commitFiles(target: RepoTarget, sha: string): Promise<CommitFiles>;
         /** Returns the open pull requests of the repository by head branch, with their CI state. */
         branchSummaries(repoPath: string): Promise<Record<string, BranchSummary>>;
+        /** Returns the newest merged pull request of each branch, from the 100 most recently merged pull requests. */
+        mergedBranches(repoPath: string): Promise<Record<string, MergedPullRequest>>;
         fileVersions(target: RepoTarget, file: PullRequestFile, baseSha: string, headSha: string): Promise<FileVersions>;
         submitReview(target: RepoTarget, number: number, headSha: string, event: ReviewEvent, body: string, comments: PendingComment[]): Promise<void>;
         reply(target: RepoTarget, number: number, commentId: number, body: string): Promise<void>;
@@ -591,6 +595,7 @@ export const IpcChannels = {
     githubFiles: 'github:files',
     githubCommitFiles: 'github:commitFiles',
     githubBranchSummaries: 'github:branchSummaries',
+    githubMergedBranches: 'github:mergedBranches',
     githubFileVersions: 'github:fileVersions',
     githubSubmitReview: 'github:submitReview',
     githubReply: 'github:reply',

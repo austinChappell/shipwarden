@@ -337,16 +337,17 @@ export function useWorktreeActions(options: Options) {
     /**
      * Removes a worktree for an automation, without questions. Git refuses a worktree with uncommitted changes, and a
      * failed teardown script stops the removal. With `deleteBranch`, a merged local branch goes away too. A branch that
-     * is not merged stays. Returns a message for the run history. Throws an error with a message.
+     * is not merged stays. `mergedHead` is the head commit of the merged pull request of the branch. A branch at this
+     * commit goes away also after a squash merge. Returns a message for the run history. Throws an error with a message.
      */
-    const removeWorktreeQuietly = async (repoPath: string, worktree: Worktree, deleteBranch: boolean): Promise<string> => {
+    const removeWorktreeQuietly = async (repoPath: string, worktree: Worktree, deleteBranch: boolean, mergedHead?: string): Promise<string> => {
         const result = await api.worktrees.remove(repoPath, worktree.path);
         if (result.teardownFailed) {
             throw new Error(`${teardownFailure(result.teardownFailed).title} The worktree stays.`);
         }
         await forgetWorktree(repoPath, worktree);
         if (!deleteBranch || !worktree.branch) return 'Removed the worktree.';
-        const deleted = await api.worktrees.deleteBranch(repoPath, worktree.branch);
+        const deleted = await api.worktrees.deleteBranch(repoPath, worktree.branch, false, mergedHead);
         return deleted.notMerged
             ? `Removed the worktree. The branch "${worktree.branch}" has commits that are not merged, so it stays.`
             : `Removed the worktree and the branch "${worktree.branch}".`;

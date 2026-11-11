@@ -23,6 +23,7 @@ import type {
     IssueComment,
     JobProgress,
     MergeMethod,
+    MergedPullRequest,
     PullRequest,
     PullRequestCommit,
     PullRequestFile,
@@ -711,6 +712,19 @@ export function myPullRequestItemOf(repo: AzureRepoRef, pr: AzPullRequest, build
         headSha: pr.lastMergeSourceCommit?.commitId,
         mergeMethod: pr.completionOptions?.mergeStrategy ? mergeMethodOf(pr.completionOptions.mergeStrategy) : undefined
     };
+}
+
+/** Returns the newest completed pull request of each source branch. A pull request without a source commit is left out. */
+export function mergedBranches(prs: readonly AzPullRequest[]): Record<string, MergedPullRequest> {
+    const merged: Record<string, MergedPullRequest> = {};
+    const newest = [...prs].sort((a, b) => (b.closedDate ?? b.creationDate).localeCompare(a.closedDate ?? a.creationDate));
+    for (const pr of newest) {
+        const headSha = pr.lastMergeSourceCommit?.commitId;
+        if (pr.status !== 'completed' || !headSha || !pr.sourceRefName.startsWith('refs/heads/')) continue;
+        const branch = fromRefName(pr.sourceRefName);
+        if (!merged[branch]) merged[branch] = { number: pr.pullRequestId, title: pr.title, headSha };
+    }
+    return merged;
 }
 
 /**
