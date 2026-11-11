@@ -224,6 +224,13 @@ describe('taskMatchesTrigger', () => {
         expect(taskMatchesTrigger({ type: 'task.new', status: 'to do' }, task, undefined)).toBe(true);
         expect(taskMatchesTrigger({ type: 'task.new', status: 'done' }, task, undefined)).toBe(false);
     });
+
+    it('never matches a done or canceled task', () => {
+        expect(taskMatchesTrigger({ type: 'task.new', labels: ['agent'] }, { ...task, status: { id: 'd', name: 'Done', category: 'done' } }, undefined)).toBe(
+            false
+        );
+        expect(taskMatchesTrigger({ type: 'task.new' }, { ...task, status: { id: 'c', name: 'Canceled', category: 'canceled' } }, undefined)).toBe(false);
+    });
 });
 
 describe('templates of prompts', () => {
@@ -295,6 +302,8 @@ describe('runs', () => {
             now
         );
         expect(state.fired).toEqual({ new: now - 1000 });
+        const tasks = pruneRunState({ runs: [], fired: { 'a|task:c:1': 1, 'a|ci:x': 1 }, scheduleRuns: {}, seeded: [] }, now);
+        expect(tasks.fired).toEqual({ 'a|task:c:1': 1 });
         expect(state.runs.map(item => item.id)).toEqual(['2', '1']);
     });
 

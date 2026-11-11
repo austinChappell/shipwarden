@@ -127,7 +127,12 @@ export const TRIGGER_TYPES: { type: TriggerType; label: string; description: str
     { type: 'pr.conflict', label: 'Merge conflicts', description: 'The pull request of a worktree branch has merge conflicts.' },
     { type: 'pr.merged', label: 'Pull request merged', description: 'The pull request of a worktree branch was merged.' },
     { type: 'agent.done', label: 'Agent finished', description: 'An agent ended its turn.' },
-    { type: 'task.new', label: 'New task', description: 'A task of a collection agrees with the filters for the first time.' },
+    {
+        type: 'task.new',
+        label: 'New task',
+        description:
+            'A task of a collection agrees with the filters for the first time: a new task, or a task that gets the label, the assignee or the status. A done task never counts.'
+    },
     { type: 'schedule', label: 'Schedule', description: 'A time of day on the selected days.' }
 ];
 
@@ -716,6 +721,8 @@ export function branchMatches(pattern: string | undefined, branch: string | unde
 
 /** True when the task agrees with the filters of a "task.new" trigger. `me` is the person key of the user, if known. */
 export function taskMatchesTrigger(trigger: Extract<Trigger, { type: 'task.new' }>, task: Task, me: string | undefined): boolean {
+    // A finished task needs no agent, also when its labels and its assignee still match.
+    if (task.status.category === 'done' || task.status.category === 'canceled') return false;
     if (trigger.labels?.length) {
         const labels = new Set((task.labels ?? []).map(label => label.name.toLowerCase()));
         if (!trigger.labels.some(label => labels.has(label.toLowerCase()))) return false;
@@ -916,7 +923,8 @@ export function isOpenRun(run: Pick<AutomationRun, 'status'>): boolean {
 
 /** Removes old fired keys and old runs. Open runs stay. */
 export function pruneRunState(state: AutomationRunState, now: number): AutomationRunState {
-    const fired = Object.fromEntries(Object.entries(state.fired).filter(([, at]) => now - at < FIRED_TTL_MS));
+    // A task key never goes away: a task can match its filters for months, and it must not start a second agent.
+    const fired = Object.fromEntries(Object.entries(state.fired).filter(([key, at]) => key.includes('|task:') || now - at < FIRED_TTL_MS));
     const open = state.runs.filter(isOpenRun);
     const closed = state.runs.filter(run => !isOpenRun(run)).slice(0, Math.max(0, MAX_RUNS - open.length));
     const runs = [...open, ...closed].sort((a, b) => b.createdAt - a.createdAt);

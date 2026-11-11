@@ -55,7 +55,7 @@ An export has `kind` and no `status` or `binding`.
 | `pr.conflict` | The pull request of a worktree branch has merge conflicts. | |
 | `pr.merged` | The pull request of a worktree branch is merged. | |
 | `agent.done` | An agent ends its turn. | `withoutPullRequest` |
-| `task.new` | A task of the bound collection agrees with the filters for the first time. | `labels`, `assignedToMe`, `status` |
+| `task.new` | A task of the bound collection agrees with the filters for the first time: a new task, or a change such as a new label, a new assignee or a new status. Other changes do not count. A done or canceled task never counts. Each task runs one time only. | `labels`, `assignedToMe`, `status` |
 | `schedule` | A time of day (`"HH:MM"`, local time) on the selected days (`0` is Sunday). | `days`, `time` |
 
 The pull request triggers and `agent.done` act only on worktrees with a branch, not on the main worktree.
