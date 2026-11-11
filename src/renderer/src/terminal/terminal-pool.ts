@@ -1,6 +1,6 @@
 import { FitAddon, Terminal, type ILink, type ILinkProvider } from 'ghostty-web';
 import { findKeybind } from '@shared/keybinds';
-import { CTRL_V, isClearKey, isCtrlV, isImageOnlyPaste } from '@shared/shortcuts';
+import { BACK_TAB, CTRL_V, isClearKey, isCtrlV, isImageOnlyPaste, isShiftTab } from '@shared/shortcuts';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { loadGhostty, prepareFonts } from './ghostty';
 import { pauseRendering, resumeRendering } from './render-loop';
@@ -298,6 +298,12 @@ export class TerminalPool {
             if (keybind) {
                 event.preventDefault();
                 this.api.write(session.id, keybind.text);
+                return true;
+            }
+            // ghostty-web 0.4 sends a plain Tab for Shift+Tab. Claude Code changes its mode on the back-tab sequence.
+            if (isShiftTab(event)) {
+                event.preventDefault();
+                this.api.write(session.id, BACK_TAB);
                 return true;
             }
             return false;
