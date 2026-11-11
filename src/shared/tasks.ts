@@ -550,23 +550,34 @@ export function collapsedByDefault(category: StatusCategory): boolean {
 /** The result of `applyStartStatus`. "missing": the task has no status with that name, so it keeps its status. */
 export type StartStatusResult = 'moved' | 'already' | 'missing' | 'unsupported' | 'none';
 
+/** The steps of a move in `applyStartStatus`, for the cached copies of the task. */
+export interface StartStatusHooks {
+    onMoving?(status: TaskStatus): void;
+    onMoved?(updated: Task | undefined): void;
+}
+
 /**
  * Moves a task to the start status of its connection, when a worktree starts from it.
  * The statuses come from the task, because each ClickUp list can have its own statuses.
  * `request` sends a protocol request to the plugin of the connection.
+ * `hooks.onMoving` gets the new status before the request, so the caller can show it at once.
+ * `hooks.onMoved` gets the task that the plugin sent back. A plugin can send no task.
  */
 export async function applyStartStatus(
     task: Task,
     wanted: string | undefined,
     capabilities: { update?: boolean; statuses?: boolean },
-    request: <T>(method: string, params: unknown) => Promise<T>
+    request: <T>(method: string, params: unknown) => Promise<T>,
+    hooks: StartStatusHooks = {}
 ): Promise<StartStatusResult> {
     if (!wanted?.trim()) return 'none';
     if (!capabilities.update || !capabilities.statuses) return 'unsupported';
     const status = findStartStatus(await request<TaskStatus[]>('tasks/statuses', { id: task.id }), wanted);
     if (!status) return 'missing';
     if (status.id === task.status.id) return 'already';
-    await request('tasks/update', { id: task.id, status: status.id });
+    hooks.onMoving?.(status);
+    const updated = await request<Task | undefined>('tasks/update', { id: task.id, status: status.id });
+    hooks.onMoved?.(updated);
     return 'moved';
 }
 

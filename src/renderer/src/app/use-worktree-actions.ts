@@ -29,7 +29,8 @@ import { editorPositions } from '../editor/editor-positions';
 import { outputActivity } from '../terminal/output-activity';
 import { keyRoots, queryClient } from '../query-client';
 import { taskManagerKeys } from '../components/task-managers-cache';
-import { taskQueryKeys } from '../components/tasks/task-view-logic';
+import { listPatch, taskQueryKeys } from '../components/tasks/task-view-logic';
+import { patchCachedTask } from '../components/tasks/use-task-list';
 import { saveTaskLink } from './task-links';
 
 const api = window.shipwarden;
@@ -101,7 +102,7 @@ export function useWorktreeActions(options: Options) {
 
     /**
      * Moves a task to the status with the name `wanted` (without case). Returns the result. Throws when a request fails.
-     * After a move, the lists and the task details of the connection load again when they show.
+     * The cached lists and details show the new status before the request ends. A failure puts the old status back.
      */
     const moveTaskToStatus = async (task: Task, connectionId: string, wanted: string): Promise<StartStatusResult> => {
         // The settings page and the Tasks view use the same cache entries, so a fresh copy does not load again.
@@ -109,17 +110,36 @@ export function useWorktreeActions(options: Options) {
             queryKey: taskQueryKeys.source(connectionId),
             queryFn: () => api.tasks.source(connectionId)
         });
-        const result = await applyStartStatus(
-            task,
-            wanted,
-            source.capabilities,
-            <T>(method: string, params: unknown) => api.tasks.request(connectionId, method, params) as Promise<T>
-        );
-        if (result === 'moved') {
-            void queryClient.invalidateQueries({ queryKey: [...keyRoots.tasks, 'list', connectionId] });
-            void queryClient.invalidateQueries({ queryKey: taskQueryKeys.detail(connectionId, task.id) });
+        const listKey = [...keyRoots.tasks, 'list', connectionId];
+        let moving = false;
+        try {
+            return await applyStartStatus(
+                task,
+                wanted,
+                source.capabilities,
+                <T>(method: string, params: unknown) => api.tasks.request(connectionId, method, params) as Promise<T>,
+                {
+                    onMoving: status => {
+                        moving = true;
+                        // A list that loads now must not put the old status back.
+                        void queryClient.cancelQueries({ queryKey: listKey });
+                        patchCachedTask(queryClient, connectionId, task.id, { status });
+                    },
+                    onMoved: updated => {
+                        if (updated) {
+                            patchCachedTask(queryClient, connectionId, task.id, listPatch(updated));
+                        } else {
+                            // The plugin sent no task, so the cache cannot know the other changes. Load the data again.
+                            void queryClient.invalidateQueries({ queryKey: listKey });
+                            void queryClient.invalidateQueries({ queryKey: taskQueryKeys.detail(connectionId, task.id) });
+                        }
+                    }
+                }
+            );
+        } catch (err) {
+            if (moving) patchCachedTask(queryClient, connectionId, task.id, { status: task.status });
+            throw err;
         }
-        return result;
     };
 
     /**
