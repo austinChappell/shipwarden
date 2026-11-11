@@ -183,7 +183,7 @@ A file of an older version has `collectionId` and `collectionName`. ShipWarden r
 | Type | Does | Triggers |
 |---|---|---|
 | `sendToAgent` | Sends `prompt` to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs. `mode` sets the permission mode. | `ci.failed`, `pr.comment`, `pr.conflict`, `agent.done` |
-| `startAgent` | Makes a worktree and gives `prompt` to a new agent. A task gives the branch name. A schedule uses `branch`. `agentId` selects the agent. `mode` sets the permission mode. | `task.new`, `schedule` |
+| `startAgent` | Makes a worktree and gives `prompt` to a new agent. A task gives the branch name: the template of Settings › Worktrees › Branch names for tasks, else the task key and the title. A schedule uses `branch`. `agentId` selects the agent. `mode` sets the permission mode. | `task.new`, `schedule` |
 | `runHeadless` | Runs the agent in print mode. The agent does not change files. With `saveNote`, the answer goes into a note in the folder "Automations". | all |
 | `moveTask` | Moves the task to the status with the name `status`. | all except `schedule` |
 | `removeWorktree` | Removes the worktree. Git refuses a worktree with uncommitted changes. With `deleteBranch`, a merged local branch goes away too. | `pr.merged` |
