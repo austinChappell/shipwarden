@@ -3,7 +3,7 @@ import type { OnboardingSettings } from './onboarding';
 /** A view that a tip can open. */
 export type TipView = 'dashboard' | 'agents' | 'tasks' | 'review' | 'pipelines' | 'notes' | 'automations';
 
-/** The button of a tip: it opens a view, a settings section, the New worktree dialog or the keyboard shortcuts. */
+/** The button of a tip: it opens a view, a settings section, the New worktree dialog, or the keyboard shortcuts. */
 export type TipAction =
     | { kind: 'view'; view: TipView; label: string }
     | { kind: 'settings'; section: string; label: string }
@@ -56,7 +56,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'askAboutLines',
         title: 'Ask an agent about lines of code',
-        body: 'Select lines in the editor and press ⇧⌘A to ask the agent about them. In a diff, press ⇧⌘M to comment on the lines, ask the agent or send a note to it.'
+        body: 'Select lines in the editor and press ⇧⌘A to ask the agent about them. In a diff, press ⇧⌘M to comment on the lines, ask the agent, or send a note to it.'
     },
     {
         id: 'reviewKeys',
@@ -78,7 +78,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'viewKeys',
         title: 'Open each view with the keyboard',
-        body: '⌥⌘1 to ⌥⌘7 open Dashboard, Agents, Tasks, Review, Pipelines, Notes and Automations. ⌘[ and ⌘] go back and forward.',
+        body: '⌥⌘1 to ⌥⌘7 open Dashboard, Agents, Tasks, Review, Pipelines, Notes, and Automations. ⌘[ and ⌘] go back and forward.',
         action: { kind: 'shortcuts', label: 'Keyboard shortcuts' }
     },
     {
@@ -88,13 +88,13 @@ export const NOTICE_TIPS: readonly Tip[] = [
     },
     {
         id: 'worktreeMenu',
-        title: 'Rename, hide or snooze a worktree',
-        body: 'Right-click a worktree in the sidebar. Snooze hides it for an hour, until tomorrow or until next week. Then it shows again.'
+        title: 'Rename, hide, or snooze a worktree',
+        body: 'Right-click a worktree in the sidebar. Snooze hides it for an hour, until tomorrow, or until next week. Then it shows again.'
     },
     {
         id: 'browserTab',
         title: 'Open a browser next to the agent',
-        body: 'The + button of the tab strip opens an agent, a shell or a browser tab. Split the browser next to the agent to see your app while the agent works.'
+        body: 'The + button of the tab strip opens an agent, a shell, or a browser tab. Split the browser next to the agent to see your app while the agent works.'
     },
     {
         id: 'ports',
@@ -114,7 +114,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'notifications',
         title: 'Choose your notifications',
-        body: 'Each event has its own switch and sound: an agent needs input, an agent finished, CI finished, new Dashboard items and automations.',
+        body: 'Each event has its own switch and sound: an agent needs input, an agent finished, CI finished, new Dashboard items, and automations.',
         action: { kind: 'settings', section: 'notifications', label: 'Open Notifications' }
     },
     {

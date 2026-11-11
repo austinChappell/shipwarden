@@ -15,7 +15,7 @@ export type OnboardingChange = Partial<OnboardingSettings> | ((current: Onboardi
 interface Options {
     onboarding: OnboardingSettings | undefined;
     settingsLoaded: boolean;
-    /** True while another part of the window needs the attention of the user: the welcome page, the tour or a dialog. */
+    /** True while another part of the window needs the attention of the user: the welcome page, the tour, or a dialog. */
     blocked: boolean;
     saveOnboarding(change: OnboardingChange): Promise<void>;
     runAction(action: TipAction): void;
@@ -70,7 +70,7 @@ export function useTips({ onboarding, settingsLoaded, blocked, saveOnboarding, r
     const checkRef = useRef(check);
     checkRef.current = check;
 
-    // A check when the settings load and when the welcome page, the tour or a dialog closes.
+    // A check when the settings load and when the welcome page, the tour, or a dialog closes.
     // biome-ignore lint/correctness/useExhaustiveDependencies: checkRef gives the newest check.
     useEffect(() => {
         checkRef.current();

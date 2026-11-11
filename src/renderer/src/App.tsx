@@ -394,7 +394,7 @@ export function App() {
         return undefined;
     };
     // The tips: one tip in the corner at each start (and 12 hours after a close), and the inline tips in the views. They wait while the welcome page, the
-    // tour, the tour offer or a dialog shows. The tip notice stacks above the update notice.
+    // tour, the tour offer, or a dialog shows. The tip notice stacks above the update notice.
     const tourOffered = settingsLoaded && shouldOfferTour(appSettings.onboarding, mainView === 'welcome');
     const runTipAction = (action: TipAction) => {
         if (action.kind === 'view') enterView(action.view);
