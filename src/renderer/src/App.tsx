@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ListTodo, PanelRight } from 'lucide-react';
-import type { CheckRun, PullRequest, PullRequestFile } from '@shared/github';
+import type { PullRequest, PullRequestFile } from '@shared/github';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } from './components/RightPanel';
 import { requestExplorerFocus } from './files/explorer-focus';
@@ -338,7 +338,6 @@ export function App() {
     const openChange = (change: FileChange, side: ChangeSide) => openExtraHere({ key: `c:${side}:${change.path}`, kind: 'change', change, side });
     /** Opens one tab with the diffs of all local changes of the selected worktree. */
     const openAllChanges = () => openExtraHere({ key: 'c:all', kind: 'changes' });
-    const openLog = (check: CheckRun) => openExtraHere({ key: `l:${check.id}`, kind: 'log', check });
 
     const openBrowser = useBrowserTabs({
         extraTabs: tabs.extraTabs,
@@ -483,7 +482,6 @@ export function App() {
             closeFromView: tabs.closeFromView,
             openFile: path => openFile(path),
             sendToAgent,
-            sendLogToAgent: check => agents.sendLogToAgent(check),
             setError
         });
 
@@ -783,7 +781,6 @@ export function App() {
                             github={github}
                             onOpenFile={(path, line) => openFile(path, line)}
                             onOpenDiff={openDiff}
-                            onOpenLog={openLog}
                             onSendToAgent={sendToAgent}
                             onSendLogToAgent={check => void agents.sendLogToAgent(check)}
                             onSendChecksToAgent={agents.sendChecksToAgent}

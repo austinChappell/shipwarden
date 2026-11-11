@@ -6,12 +6,14 @@ import { formatDuration, optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
+import { LogView } from './LogView';
 import { checksQuery, ciActions, isFailedConclusion, useCiAction, workflowsQuery } from '../github/ci-queries';
 
 interface Props {
     target: RepoTarget;
     status: BranchStatus | null | undefined;
-    onOpenLog(check: CheckRun): void;
+    /** Opens the log of a check outside the panel. Without it, the log shows in the panel, in place of the list. */
+    onOpenLog?(check: CheckRun): void;
     /** Sends a failed log to the agent of the worktree. Without it (in the Review view), the button does not show. */
     onSendLogToAgent?(check: CheckRun): void;
 }
@@ -35,6 +37,8 @@ export function CheckIcon({ check }: { check: Pick<CheckRun, 'status' | 'conclus
 
 export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Props) {
     const [showWorkflows, setShowWorkflows] = useState(false);
+    /** The check whose log shows in the panel. Only without onOpenLog. */
+    const [logCheck, setLogCheck] = useState<CheckRun>();
     const sha = status?.sha;
     const checksQueryResult = useQuery(checksQuery(target, sha, POLL_PENDING_MS));
     const checks = sha ? checksQueryResult.data : undefined;
@@ -57,6 +61,16 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
     }
     if (status === null) {
         return <div className="panel-message">This worktree has no GitHub or Azure Repos remote named "origin".</div>;
+    }
+
+    if (logCheck) {
+        // The newest state of the check, so that the log loads again when the job completes.
+        const live = checks?.find(check => check.isActions && check.id === logCheck.id) ?? logCheck;
+        return (
+            <div className="checks-log">
+                <LogView key={live.id} target={target} check={live} onSendToAgent={onSendLogToAgent} onBack={() => setLogCheck(undefined)} />
+            </div>
+        );
     }
 
     const failedRuns = [
@@ -142,7 +156,7 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
             <div className="checks-list" onKeyDown={moveListFocus}>
                 {checks?.map(check => {
                     const failed = isFailedConclusion(check.conclusion);
-                    const open = () => check.isActions && onOpenLog(check);
+                    const open = () => check.isActions && (onOpenLog ? onOpenLog(check) : setLogCheck(check));
                     return (
                         // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the row has the aria-label only when it has the role "button".
                         <div

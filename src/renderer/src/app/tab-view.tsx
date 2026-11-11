@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { NoteTarget } from '@shared/code-note';
-import type { CheckRun, PullRequest } from '@shared/github';
+import type { PullRequest } from '@shared/github';
 import type { AgentDefinition } from '@shared/settings';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
@@ -8,7 +8,6 @@ import { BrowserView } from '../components/BrowserView';
 import { ChangeDiffView } from '../components/ChangeDiffView';
 import { DiffView } from '../components/DiffView';
 import { FileView } from '../components/FileView';
-import { LogView } from '../components/LogView';
 import { TerminalView } from '../components/TerminalView';
 import { WorktreeChangesView } from '../components/WorktreeChangesView';
 import type { ExtraTab, TabKey } from './tabs';
@@ -36,11 +35,10 @@ export interface TabViewContext {
     closeFromView: (tab: TabKey) => void;
     openFile: (path: string) => void;
     sendToAgent: (prompt: string, worktree?: Worktree, target?: NoteTarget) => Promise<void>;
-    sendLogToAgent: (check: CheckRun) => Promise<void>;
     setError: (error: string | undefined) => void;
 }
 
-/** Returns the view of one tab: a diff, a CI log, a file or a terminal. `focused` is false for a pane without the focus. */
+/** Returns the view of one tab: a diff, a file or a terminal. `focused` is false for a pane without the focus. */
 export function renderTabView(tab: TabKey, focused: boolean, context: TabViewContext): ReactNode {
     const { selectedPath, openFile, sendToAgent } = context;
     if (!selectedPath) return null;
@@ -62,8 +60,8 @@ export function renderTabView(tab: TabKey, focused: boolean, context: TabViewCon
             />
         );
     }
-    if (extra) {
-        return extra.kind === 'diff' ? (
+    if (extra?.kind === 'diff') {
+        return (
             <DiffView
                 key={`${selectedPath}\0${extra.key}`}
                 target={selectedPath}
@@ -74,8 +72,6 @@ export function renderTabView(tab: TabKey, focused: boolean, context: TabViewCon
                 onRefresh={context.refreshGitHub}
                 onSendToAgent={sendToAgent}
             />
-        ) : (
-            <LogView key={`${selectedPath}\0${extra.key}`} target={selectedPath} check={extra.check} onSendToAgent={context.sendLogToAgent} />
         );
     }
     if (tab.startsWith('f:')) {

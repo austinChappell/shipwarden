@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { FileDiff, GitCompareArrows, Globe, ScrollText, SquareTerminal } from 'lucide-react';
+import { FileDiff, GitCompareArrows, Globe, SquareTerminal } from 'lucide-react';
 import { BLANK_PAGE, browserTabTitle, type BrowserState } from '@shared/browser';
 import { baseName } from '@shared/files';
 import type { TerminalSession } from '@shared/terminal';
@@ -60,11 +60,9 @@ export function tabInfo(key: TabKey, context: TabContext): TabInfo {
             tooltip: `${extra.side === 'staged' ? 'Staged changes' : 'Changes'} in ${extra.change.path}`
         };
     }
-    return extra?.kind === 'diff'
-        ? { icon: <FileDiff className="tab-icon" size={14} strokeWidth={1.5} />, title: baseName(extra.file.path), tooltip: `Changes in ${extra.file.path}` }
-        : {
-              icon: <ScrollText className="tab-icon" size={14} strokeWidth={1.5} />,
-              title: extra?.check.name ?? 'log',
-              tooltip: extra ? `Log of ${extra.check.name}` : undefined
-          };
+    return {
+        icon: <FileDiff className="tab-icon" size={14} strokeWidth={1.5} />,
+        title: extra?.kind === 'diff' ? baseName(extra.file.path) : key,
+        tooltip: extra?.kind === 'diff' ? `Changes in ${extra.file.path}` : undefined
+    };
 }
