@@ -218,6 +218,8 @@ We decided these in phase 1.
   check cannot find an alias. Agents and local repositories work without GitHub.
 - The notifications check reads only the ShipWarden setting. Electron cannot read the macOS permission.
 - Phase 2 adds the TanStack Query hook for the check results (`api.setup.check`), together with the welcome page.
+- Phase 2: step 5 does not link to Settings. The theme and the task trackers open in place on the welcome page, so
+  the user does not leave it.
 - Phase 2: the welcome page opens when `welcome` is 'new', also when the user added a repository on the page and
   restarted the app before the last step. The page then shows the progress, and the user can finish or skip.
 - Phase 3 adds the one-time "Take a short tour of ShipWarden?" notice for current users, together with the tour.
