@@ -753,6 +753,20 @@ export interface AutomationEvent {
     agentMessage?: string;
     /** The time of a "schedule" event, "HH:MM". */
     time?: string;
+    /**
+     * True for a run that the user started with "Run now". The run ignores the trigger, the status "off", the
+     * approval, the pause and the limits. It still waits for a busy agent.
+     */
+    manual?: boolean;
+}
+
+/** The thing that the user selects for a manual run: a worktree, a task, or nothing. */
+export type ManualTarget = 'worktree' | 'task' | 'none';
+
+/** Returns what the user must select before a manual run of an automation with this trigger. */
+export function manualTarget(type: TriggerType): ManualTarget {
+    if (isWorktreeTrigger(type)) return 'worktree';
+    return type === 'task.new' ? 'task' : 'none';
 }
 
 /** Converts a pattern with "*" to a regular expression. The match ignores case. */

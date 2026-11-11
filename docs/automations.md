@@ -97,6 +97,21 @@ A file of an older version has `collectionId` and `collectionName`. ShipWarden r
 Prompts, titles and branch names can contain variables, for example `{{pr.url}}`. The editor lists the variables of each
 trigger. A variable that the trigger does not give becomes empty text.
 
+## Run now
+
+The play button of an automation starts one run at once. You select the target first:
+
+- A pull request or agent trigger: a worktree of the repositories of the automation. The branch must match
+  `branchPattern`. The run gets the pull request of the branch, if there is one. The comment and the last agent message
+  stay empty.
+- `task.new`: an open task of the collections of the automation.
+- `schedule`: no target. The date and the time are now.
+
+A manual run ignores the trigger, the approval, the pause and the limits. It also runs when the automation is off, so
+you can test an automation before you turn it on. It still waits while the agent works, and while `maxRunning` agents of
+the automation work. A dry-run automation records
+a dry run only. A manual run does not count for `maxRunsPerTarget`. Its tokens count for `dailyTokens`.
+
 ## Limits and safety
 
 - `approval`: `"ask"` makes each run wait in the Automations view. A notification tells you. `"auto"` runs at once.
