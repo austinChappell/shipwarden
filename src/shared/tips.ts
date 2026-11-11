@@ -84,7 +84,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'quit',
         title: 'Agents continue to run after ⌘Q',
-        body: '⌘Q closes the window, and your agents continue their work. Press ⇧⌥⌘Q to quit and stop all agents.'
+        body: '⌘Q closes the application, and your agents continue their work. Press ⇧⌥⌘Q to quit and stop all agents.'
     },
     {
         id: 'worktreeMenu',
