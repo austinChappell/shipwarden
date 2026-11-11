@@ -30,10 +30,11 @@ import {
     type ReviewSort,
     type MyPullRequestItem,
     type PullRequestCommentItem,
+    type ReviewRequestItem,
     type TaskCommentItem
 } from '@shared/dashboard';
 import type { RepoRef } from '@shared/github';
-import { refreshDashboard, useDashboard } from '../dashboard-store';
+import { refreshDashboard, unseenReviewRequests, useDashboard } from '../dashboard-store';
 import { applyMerged } from '../github/review-overview-store';
 import { seenStore, useSeenVersion } from '../seen-store';
 import { errorText, timeAgo } from '../util';
@@ -196,6 +197,58 @@ function PrRow({ pr, onOpen, badges, action }: { pr: MyPullRequestItem; onOpen()
             <RepoPill repo={pr.repo} number={pr.number} />
             <Age iso={pr.updatedAt} title={`Updated ${timeAgo(pr.updatedAt)}`} />
             {action}
+        </div>
+    );
+}
+
+/** The text of the activity after the review of the user, for example "new commits and comments since you commented". */
+function activityText(item: ReviewRequestItem): string {
+    const activity = item.activity;
+    if (!activity) return '';
+    const what = activity.newCommits && activity.lastCommentAt ? 'New commits and comments' : activity.newCommits ? 'New commits' : 'New comments';
+    const review: Record<string, string> = { APPROVED: 'you approved', CHANGES_REQUESTED: 'you requested changes', COMMENTED: 'you commented' };
+    return `${what} since ${review[activity.reviewState] ?? 'your review'} ${timeAgo(activity.reviewedAt)}`;
+}
+
+/**
+ * A row of a pull request that waits for a review of the user. A row is not a button, because it can have a button in it.
+ * A row that shows because of new activity after the review of the user has a tag and a "Mark as seen" button.
+ */
+function ReviewRow({ pr, indented, showAuthor, onOpen }: { pr: ReviewRequestItem; indented: boolean; showAuthor: boolean; onOpen(): void }) {
+    const activity = pr.activity;
+    return (
+        <div
+            className={`dash-row dash-review-row${indented ? ' indented' : ''}`}
+            role="button"
+            tabIndex={0}
+            data-nav-item
+            onClick={onOpen}
+            onKeyDown={itemKeys(onOpen)}
+        >
+            <span className="dash-title" title={pr.title}>
+                {parsePullRequestTitle(pr.title).text}
+            </span>
+            {activity && (
+                <span className="dash-tag" title={activityText(pr)}>
+                    updated
+                </span>
+            )}
+            {showAuthor && <span className="dash-person">{pr.author ?? 'unknown'}</span>}
+            <RepoPill repo={pr.repo} number={pr.number} />
+            <Age iso={pr.createdAt} title={`Opened ${timeAgo(pr.createdAt)}`} />
+            {activity && (
+                <button
+                    className="icon-button dash-review-seen"
+                    title={`${activityText(pr)}. Mark as seen: the pull request shows again after a new commit or comment.`}
+                    aria-label={`Mark ${pr.repo.name} #${pr.number} as seen`}
+                    onClick={event => {
+                        event.stopPropagation();
+                        seenStore.mark([activity.seenKey]);
+                    }}
+                >
+                    <Check size={14} strokeWidth={2} />
+                </button>
+            )}
         </div>
     );
 }
@@ -399,7 +452,7 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
         blocked: all.blocked.filter(matches),
         stale: all.stale.filter(matches)
     };
-    const reviewRequests = pullRequests?.reviewRequests ?? [];
+    const reviewRequests = unseenReviewRequests(pullRequests?.reviewRequests ?? []);
     const shownReviews = reviewRequests.filter(pr => matchesDashboardQuery(pr, query));
     const reviewGroups = groupReviewRequests(shownReviews, reviewSort);
 
@@ -738,19 +791,13 @@ export function DashboardView({ onOpenPullRequest, filter, onHideAuthor, onCreat
                                             </div>
                                         )}
                                         {group.items.map(pr => (
-                                            <button
+                                            <ReviewRow
                                                 key={pr.url}
-                                                className={`dash-row dash-review-row${group.key ? ' indented' : ''}`}
-                                                data-nav-item
-                                                onClick={() => onOpenPullRequest(pr.repo, pr.number, 'files')}
-                                            >
-                                                <span className="dash-title" title={pr.title}>
-                                                    {parsePullRequestTitle(pr.title).text}
-                                                </span>
-                                                {reviewSort !== 'author' && <span className="dash-person">{pr.author ?? 'unknown'}</span>}
-                                                <RepoPill repo={pr.repo} number={pr.number} />
-                                                <Age iso={pr.createdAt} title={`Opened ${timeAgo(pr.createdAt)}`} />
-                                            </button>
+                                                pr={pr}
+                                                indented={!!group.key}
+                                                showAuthor={reviewSort !== 'author'}
+                                                onOpen={() => onOpenPullRequest(pr.repo, pr.number, 'files')}
+                                            />
                                         ))}
                                     </div>
                                 ))}

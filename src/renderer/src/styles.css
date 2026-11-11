@@ -7653,6 +7653,11 @@ button:focus-visible,
     padding-left: 40px;
 }
 
+.dash-review-seen {
+    flex: none;
+    padding: 2px;
+}
+
 /* The comment cards. */
 .dash-group-head {
     background: color-mix(in srgb, var(--text) 3%, transparent);
@@ -11777,6 +11782,20 @@ button.pr-summary-cell:hover {
 
 .review-pr-search {
     flex: 0 1 380px;
+}
+
+.pr-row-since {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+}
+
+.pr-row-seen {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
 }
 
 .pr-row {

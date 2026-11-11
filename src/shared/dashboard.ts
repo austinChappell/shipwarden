@@ -4,7 +4,10 @@ import type { HiddenCommentRule } from './settings';
 /** The Dashboard shows comments from this number of days. Older comments do not count as new. */
 export const DASHBOARD_WINDOW_DAYS = 7;
 
-/** A pull request where GitHub asks the user, or a team of the user, for a review. */
+/**
+ * A pull request that waits for a review of the user. GitHub asks the user, or a team of the user, for a review.
+ * Or the user reviewed it before, and it has new activity after that review.
+ */
 export interface ReviewRequestItem {
     repo: RepoRef;
     number: number;
@@ -13,6 +16,21 @@ export interface ReviewRequestItem {
     author: string | null;
     updatedAt: string;
     createdAt: string;
+    /** Set when the item shows because of new activity after the review of the user, and not because of a request. */
+    activity?: ReviewActivity;
+}
+
+/** The new activity on a pull request after the last review of the user. */
+export interface ReviewActivity {
+    /** The state of the last review of the user, for example COMMENTED or APPROVED. */
+    reviewState: string;
+    reviewedAt: string;
+    /** True when the head commit changed after the review. */
+    newCommits: boolean;
+    /** The time of the newest comment or review from another person after the review. */
+    lastCommentAt?: string;
+    /** The key that "Mark as seen" records. New activity gives a new key. */
+    seenKey: string;
 }
 
 export type MyPullRequestReason = 'changes-requested' | 'ci-failing' | 'conflicts' | 'ready-to-merge';

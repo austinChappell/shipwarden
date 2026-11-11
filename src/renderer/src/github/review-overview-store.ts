@@ -5,6 +5,7 @@ import { reviewQueue, type QueueItem, type RepoPullRequests } from '@shared/revi
 import { applyMergedToDashboard, dashboardPullRequestsQuery, type PullRequestRef } from '../dashboard-store';
 import { keyRoots, queryClient } from '../query-client';
 import { optionalErrorText } from '../util';
+import { useIsSeen } from '../seen-store';
 import { reviewKeys } from './review-store';
 
 /** The number of repository requests at the same time. More can trigger the secondary rate limit of GitHub. */
@@ -260,13 +261,14 @@ export function refreshReviewOverview(): Promise<void> {
 /** Returns the review queue: the pull requests to review in all loaded repositories, the oldest first. */
 export function useReviewQueue(): QueueItem[] {
     const repos = useRepoEntries(useScope()?.reviewKey);
+    const isSeen = useIsSeen();
     return useMemo(() => {
         const loaded = new Map<string, RepoPullRequests>();
         for (const entry of Object.values(repos)) {
             if (entry.data) loaded.set(entry.id, entry.data);
         }
-        return reviewQueue(loaded);
-    }, [repos]);
+        return reviewQueue(loaded, isSeen);
+    }, [repos, isSeen]);
 }
 
 /** Removes a pull request from the open pull requests of a repository. The open count goes down when the list had it. */

@@ -9,6 +9,7 @@ import {
     type CommentFilter,
     type DashboardPullRequests,
     type PullRequestCommentItem,
+    type ReviewRequestItem,
     type TaskCommentItem
 } from '@shared/dashboard';
 import { repoId, type RepoRef } from '@shared/github';
@@ -60,8 +61,20 @@ export const dashboardKeys = {
 export function dashboardPullRequestsQuery(reviewKey: string | null) {
     return {
         queryKey: dashboardKeys.pullRequests(reviewKey),
-        queryFn: () => window.shipwarden.github.dashboardPullRequests()
+        queryFn: async (): Promise<DashboardPullRequests> => {
+            // The record of seen items hides the reviewed pull requests whose activity the user saw. It loads with the data, so they do not blink.
+            const [data] = await Promise.all([window.shipwarden.github.dashboardPullRequests(), seenStore.load()]);
+            return data;
+        }
     };
+}
+
+/**
+ * Removes the review items that the user marked as seen. A request from GitHub always stays.
+ * New activity on a seen pull request gives a new seen key, so the item shows again.
+ */
+export function unseenReviewRequests<T extends ReviewRequestItem>(items: T[]): T[] {
+    return items.filter(item => !item.activity || !seenStore.has(item.activity.seenKey));
 }
 
 function commentsQuery(reviewKey: string | null) {
@@ -151,7 +164,11 @@ function useDashboardData(scope: Scope | undefined): DashboardState {
 /** The keys of the items of the Dashboard. An item with a changed reason (a new CI failure) gets a new key. */
 function newsItems(pullRequests: DashboardPullRequests, prComments: PullRequestCommentItem[], tasks: TaskActivity[]) {
     return {
-        reviewRequests: pullRequests.reviewRequests.map(item => ({ key: `r:${item.url}`, item })),
+        // New activity after a review gives a new key. Thus the item is news again.
+        reviewRequests: unseenReviewRequests(pullRequests.reviewRequests).map(item => ({
+            key: item.activity ? `r:${item.activity.seenKey}` : `r:${item.url}`,
+            item
+        })),
         myPullRequests: pullRequests.myPullRequests.map(item => ({ key: `m:${item.url}:${item.reasons.join(',')}`, item })),
         prComments: prComments.filter(item => !isMergedApproval(item)).map(item => ({ key: `c:${item.id}`, item })),
         taskComments: tasks.flatMap(source =>
@@ -232,7 +249,7 @@ export function refreshDashboard(): Promise<void> {
     return queryClient.refetchQueries({ queryKey: keyRoots.dashboard, type: 'active' });
 }
 
-/** The number of items that need the user: review requests, own pull requests to act on, and unseen comments. */
+/** The number of items that need the user: review requests, reviewed pull requests with unseen activity, own pull requests to act on, and unseen comments. */
 export function useDashboardCount(filter: CommentFilter): number {
     const state = useDashboard();
     useSeenVersion();
@@ -244,7 +261,8 @@ export function useDashboardCount(filter: CommentFilter): number {
                 .length ?? 0),
         0
     );
-    return (state.pullRequests?.reviewRequests.length ?? 0) + (state.pullRequests?.myPullRequests.length ?? 0) + prComments + taskComments;
+    const reviews = unseenReviewRequests(state.pullRequests?.reviewRequests ?? []).length;
+    return reviews + (state.pullRequests?.myPullRequests.length ?? 0) + prComments + taskComments;
 }
 
 /** A pull request by its repository and number. */

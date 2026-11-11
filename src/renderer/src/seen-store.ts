@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 
 /**
  * The comments that the user saw in ShipWarden, by key (see `gitHubSeenKey` and `taskSeenKey`).
@@ -58,4 +58,19 @@ export const seenStore = new SeenStore();
 /** Renders again when the record of seen items changes. Returns a number that changes with the record. */
 export function useSeenVersion(): number {
     return useSyncExternalStore(seenStore.subscribe, seenStore.getVersion);
+}
+
+const isSeen = (key: string): boolean => seenStore.has(key);
+
+/**
+ * Returns a function that tells if the user saw an item. The function changes when the record changes, so that memos
+ * that use it update. The hook loads the record when it is not loaded.
+ */
+export function useIsSeen(): (key: string) => boolean {
+    const version = useSeenVersion();
+    useEffect(() => {
+        void seenStore.load();
+    }, []);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The version changes when the record changes. A new function then makes the memos update.
+    return useMemo(() => (key: string) => isSeen(key), [version]);
 }
