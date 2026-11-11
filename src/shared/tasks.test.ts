@@ -8,12 +8,14 @@ import {
     collapsedByDefault,
     findStartStatus,
     groupTasksByStatus,
+    labelOptions,
     linkMatchesTask,
     normalizeTaskConfig,
     pickCollection,
     sortCollections,
     statusForColumn,
     taskHasAssignee,
+    taskHasLabel,
     taskMatches,
     taskPrompt,
     type StatusCategory,
@@ -305,6 +307,36 @@ describe('taskHasAssignee', () => {
         const filter = { people: [ME], unassigned: false };
         expect(all.map(item => taskHasAssignee(item, filter, '7'))).toEqual([false, false, true, true]);
         expect(taskHasAssignee(sam, filter)).toBe(false);
+    });
+});
+
+describe('taskHasLabel', () => {
+    const none: Task = task('ENG-1', 'No labels');
+    const empty: Task = { ...task('ENG-2', 'Empty list'), labels: [] };
+    const bug: Task = { ...task('ENG-3', 'Bug only'), labels: [{ name: 'Bug' }] };
+    const pair: Task = { ...task('ENG-4', 'Two labels'), labels: [{ id: 'x', name: ' bug ' }, { name: 'UI' }] };
+    const all = [none, empty, bug, pair];
+
+    it.each([
+        [{ labels: [], unlabeled: false }, [true, true, true, true]],
+        [{ labels: [], unlabeled: true }, [true, true, false, false]],
+        [{ labels: ['bug'], unlabeled: false }, [false, false, true, true]],
+        [{ labels: ['ui'], unlabeled: false }, [false, false, false, true]],
+        [{ labels: ['ui'], unlabeled: true }, [true, true, false, true]],
+        [{ labels: ['docs'], unlabeled: false }, [false, false, false, false]]
+    ])('applies the filter %j', (filter, expected) => {
+        expect(all.map(item => taskHasLabel(item, filter))).toEqual(expected);
+    });
+});
+
+describe('labelOptions', () => {
+    it('gives each label one time by name, in alphabetical order', () => {
+        const tasks: Task[] = [
+            { ...task('A', 'a'), labels: [{ name: 'ui' }, { name: 'Bug' }] },
+            task('B', 'b'),
+            { ...task('C', 'c'), labels: [{ name: 'bug', color: '#f00' }, { name: 'Docs' }] }
+        ];
+        expect(labelOptions(tasks)).toEqual([{ name: 'Bug', color: '#f00' }, { name: 'Docs' }, { name: 'ui' }]);
     });
 });
 

@@ -624,6 +624,51 @@ export function taskHasAssignee(task: Task, filter: AssigneeFilter, me?: string)
 }
 
 /**
+ * The key of a label in the label filter: its name in lowercase, without spaces at the ends.
+ * Tasks from different lists can have labels with the same name. The filter shows these as one label.
+ */
+export function labelKey(label: Pick<TaskLabel, 'name'>): string {
+    return label.name.trim().toLowerCase();
+}
+
+/**
+ * The label filter of the task view. A task shows when it has one of the `labels` (label keys),
+ * or when `unlabeled` is true and it has no label. With no labels and `unlabeled` false, all tasks show.
+ */
+export interface LabelFilter {
+    labels: string[];
+    unlabeled: boolean;
+}
+
+export const ALL_LABELS: LabelFilter = { labels: [], unlabeled: false };
+
+/** True when the label filter shows all tasks. */
+export function showsAllLabels(filter: LabelFilter): boolean {
+    return filter.labels.length === 0 && !filter.unlabeled;
+}
+
+/** True when the task agrees with the label filter. */
+export function taskHasLabel(task: Task, filter: LabelFilter): boolean {
+    if (showsAllLabels(filter)) return true;
+    const labels = task.labels ?? [];
+    if (filter.unlabeled && labels.length === 0) return true;
+    const wanted = new Set(filter.labels);
+    return labels.some(label => wanted.has(labelKey(label)));
+}
+
+/** The labels for the label filter: the labels of the tasks, one time each by key, in alphabetical order by name. */
+export function labelOptions(tasks: readonly Task[]): TaskLabel[] {
+    const byKey = new Map<string, TaskLabel>();
+    for (const label of tasks.flatMap(task => task.labels ?? [])) {
+        const key = labelKey(label);
+        const known = byKey.get(key);
+        // A copy of the label from another task can have a color that the first copy does not have.
+        byKey.set(key, known ? { ...known, color: known.color ?? label.color } : label);
+    }
+    return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+}
+
+/**
  * The people for the assignee filter: the people of the plugin and the assignees of the tasks, one time each,
  * in alphabetical order by name.
  */

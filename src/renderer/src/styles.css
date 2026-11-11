@@ -2572,12 +2572,12 @@ button.task-linked {
     max-width: 280px;
 }
 
-.assignee-select {
+.filter-select {
     max-width: 200px;
 }
 
-/* An assignee filter that hides tasks has the accent color, so the user sees that the list is not complete. */
-.assignee-select.active > button {
+/* A filter that hides tasks has the accent color, so the user sees that the list is not complete. */
+.filter-select.active > button {
     border-color: var(--accent);
 }
 
@@ -4778,27 +4778,27 @@ body.resizing * {
     font-size: 11px;
 }
 
-/* The assignee filter: a list of check boxes. */
-.assignee-popover {
+/* The assignee filter and the label filter: a list of check boxes. */
+.filter-popover {
     width: max(100%, 260px);
 }
 
-.assignee-popover .combobox-search .link-button {
+.filter-popover .combobox-search .link-button {
     flex: none;
     font-size: 12px;
 }
 
-.assignee-option {
+.filter-option {
     padding-left: 8px;
 }
 
-.assignee-option:hover,
-.assignee-option:focus-within {
+.filter-option:hover,
+.filter-option:focus-within {
     background: var(--selected);
     color: var(--text-strong);
 }
 
-.assignee-option input {
+.filter-option input {
     flex: none;
     margin: 0;
     accent-color: var(--accent);
@@ -4811,7 +4811,28 @@ body.resizing * {
     color: var(--muted);
 }
 
-.assignee-hint {
+/* The color of a label in the label filter. A label without a color is gray. */
+.label-swatch {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 10px;
+    height: 10px;
+    margin: 0 4px;
+    border-radius: 50%;
+    background: var(--muted);
+}
+
+.label-swatch.none {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    background: var(--hover);
+    color: var(--muted);
+}
+
+.filter-hint {
     padding: 6px 10px 8px;
     border-top: 1px solid var(--border);
     color: var(--muted);
