@@ -36,12 +36,14 @@ describe('DashboardLoader.dashboardPullRequests', () => {
         const { client, calls } = fakeClient(call => {
             const q = (call.body as { q: string }).q;
             if (q.includes('review-requested:@me')) return { viewer: { login: 'me' }, search: { nodes: [pr('R1', { author: { login: 'bo' } }), {}] } };
+            if (q.includes('reviewed-by:@me')) return { viewer: { login: 'me' }, search: { nodes: [] } };
             return { viewer: { login: 'me' }, search: { nodes: [pr('M2'), pr('M3', { commits: { nodes: [] } })] } };
         });
         const result = await new DashboardLoader(client).dashboardPullRequests(['acme']);
         expect(calls.map(call => (call.body as { q: string }).q)).toEqual([
             'user:acme archived:false is:pr is:open draft:false review-requested:@me sort:updated-desc',
-            'user:acme archived:false is:pr is:open author:@me sort:updated-desc'
+            'user:acme archived:false is:pr is:open author:@me sort:updated-desc',
+            'user:acme archived:false is:pr is:open draft:false reviewed-by:@me -author:@me sort:updated-desc'
         ]);
         expect(result.reviewRequests).toEqual([
             {
@@ -55,6 +57,58 @@ describe('DashboardLoader.dashboardPullRequests', () => {
             }
         ]);
         expect(result.myPullRequests.map(item => [item.number, item.reasons])).toEqual([[2, ['ci-failing']]]);
+    });
+});
+
+describe('DashboardLoader.dashboardPullRequests: activity after a review', () => {
+    const review = (state: string, oid: string) => ({ viewerLatestReview: { state, submittedAt: '2026-11-02T00:00:00Z', commit: { oid } } });
+    const said = (login: string, at: string) => ({ createdAt: at, author: { __typename: 'User', login } });
+
+    it('adds the reviewed pull requests with a new commit or a new comment from another person', async () => {
+        const reviewed = [
+            // Also requested. The request comes first, without the activity.
+            pr('R1', { author: { login: 'bo' }, headRefOid: 'new', ...review('COMMENTED', 'old') }),
+            pr('A4', { author: { login: 'bo' }, headRefOid: 'new', ...review('COMMENTED', 'old') }),
+            pr('A5', { author: { login: 'bo' }, headRefOid: 'same', ...review('APPROVED', 'same') }),
+            pr('A6', {
+                author: { login: 'bo' },
+                headRefOid: 'same',
+                ...review('COMMENTED', 'same'),
+                comments: { nodes: [said('me', '2026-11-03T00:00:00Z')] }
+            }),
+            pr('A7', { author: { login: 'bo' }, headRefOid: 'same', ...review('APPROVED', 'same'), comments: { nodes: [said('cy', '2026-11-03T00:00:00Z')] } }),
+            pr('A8', { author: { login: 'bo' }, headRefOid: 'same', ...review('PENDING', 'old') })
+        ];
+        const { client } = fakeClient(call => {
+            const q = (call.body as { q: string }).q;
+            if (q.includes('review-requested:@me')) return { viewer: { login: 'me' }, search: { nodes: [pr('R1', { author: { login: 'bo' } })] } };
+            if (q.includes('reviewed-by:@me')) return { viewer: { login: 'me' }, search: { nodes: reviewed } };
+            return { viewer: { login: 'me' }, search: { nodes: [] } };
+        });
+        const result = await new DashboardLoader(client).dashboardPullRequests(['acme']);
+        expect(result.reviewRequests.map(item => [item.number, item.activity])).toEqual([
+            [1, undefined],
+            [
+                4,
+                {
+                    reviewState: 'COMMENTED',
+                    reviewedAt: '2026-11-02T00:00:00Z',
+                    newCommits: true,
+                    lastCommentAt: undefined,
+                    seenKey: 'rr:https://github.com/acme/api/pull/A4:new:'
+                }
+            ],
+            [
+                7,
+                {
+                    reviewState: 'APPROVED',
+                    reviewedAt: '2026-11-02T00:00:00Z',
+                    newCommits: false,
+                    lastCommentAt: '2026-11-03T00:00:00Z',
+                    seenKey: 'rr:https://github.com/acme/api/pull/A7:same:2026-11-03T00:00:00Z'
+                }
+            ]
+        ]);
     });
 });
 

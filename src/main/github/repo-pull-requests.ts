@@ -1,6 +1,6 @@
 import type { RepoRef } from '@shared/github';
 import { myPullRequestReasons } from '@shared/dashboard';
-import { checkSummary, commitsAfter, reviewGroup, type OpenPullRequest, type RepoPullRequests } from '@shared/review-queue';
+import { checkSummary, commitsAfter, lastActivityOf, reviewGroup, type OpenPullRequest, type RepoPullRequests } from '@shared/review-queue';
 import type { GitHubClient } from './github-client';
 
 // The open pull requests of a repository, for the review queue of the Review view.
@@ -15,7 +15,8 @@ export const REPO_PULL_REQUESTS_QUERY = `query($owner: String!, $name: String!, 
         id number title url isDraft createdAt updatedAt headRefName baseRefName headRefOid
         additions deletions changedFiles viewerDidAuthor reviewDecision mergeable mergeStateStatus
         author { login }
-        comments { totalCount }
+        comments(last: 10) { totalCount nodes { createdAt author { __typename login } } }
+        reviews(last: 10) { nodes { submittedAt author { __typename login } } }
         viewerLatestReview { state submittedAt commit { oid } }
         commits(last: 1) {
           nodes {
@@ -62,7 +63,8 @@ interface GraphQlOpenPr {
     mergeable: string;
     mergeStateStatus: string;
     author: { login: string } | null;
-    comments: { totalCount: number };
+    comments: { totalCount: number; nodes?: { createdAt: string; author: { __typename?: string; login: string } | null }[] };
+    reviews?: { nodes: { submittedAt: string | null; author: { __typename?: string; login: string } | null }[] };
     viewerLatestReview: { state: string; submittedAt: string | null; commit: { oid: string } | null } | null;
     commits: {
         nodes: {
@@ -85,7 +87,8 @@ interface GraphQlSinceReview {
     reviewThreads: { nodes: { isResolved: boolean; comments: { nodes: { author: { login: string } | null }[] } }[] };
 }
 
-export function openPullRequest(node: GraphQlOpenPr, reviewRequested: boolean): OpenPullRequest {
+/** Makes an open pull request. `viewer` is the login of the viewer. Comments and reviews of the viewer are not new activity. */
+export function openPullRequest(node: GraphQlOpenPr, reviewRequested: boolean, viewer = ''): OpenPullRequest {
     const rollup = node.commits.nodes[0]?.commit.statusCheckRollup ?? null;
     const checks = checkSummary(rollup?.state ?? null, [
         ...(rollup?.contexts.checkRunCountsByState ?? []),
@@ -117,6 +120,10 @@ export function openPullRequest(node: GraphQlOpenPr, reviewRequested: boolean): 
             review && review.state !== 'PENDING' && review.submittedAt
                 ? { state: review.state, submittedAt: review.submittedAt, commitOid: review.commit?.oid ?? null }
                 : undefined,
+        lastActivityAt: lastActivityOf(viewer, [
+            ...(node.comments.nodes ?? []).map(item => ({ at: item.createdAt, author: item.author })),
+            ...(node.reviews?.nodes ?? []).map(item => ({ at: item.submittedAt, author: item.author }))
+        ]),
         actions: node.viewerDidAuthor ? myPullRequestReasons({ ...node, checks: rollup?.state ?? null }) : []
     };
 }
@@ -141,9 +148,10 @@ export async function fetchRepoPullRequests(client: GitHubClient, repo: RepoRef)
     }
     const viewer = data.viewer.login;
     const requested = new Set(data.search.nodes.flatMap(node => ('number' in node ? [node.number] : [])));
-    const prs = data.repository.pullRequests.nodes.map(node => openPullRequest(node, requested.has(node.number)));
+    const prs = data.repository.pullRequests.nodes.map(node => openPullRequest(node, requested.has(node.number), viewer));
 
     // The changes after the last review of the viewer, for the pull requests to review again. 20 pull requests in each request.
+    // The main process does not know the seen activity, so this list can contain pull requests that the viewer marked as seen.
     const reviewed = prs.filter(pr => reviewGroup(pr) === 're-review');
     for (let index = 0; index < reviewed.length; index += 20) {
         const batch = reviewed.slice(index, index + 20);

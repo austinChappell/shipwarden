@@ -4,7 +4,9 @@ import {
     checkSummary,
     commitsAfter,
     diffSize,
+    lastActivityOf,
     matchesSearch,
+    reviewActivitySeenKey,
     reviewGroup,
     reviewQueue,
     sortPullRequests,
@@ -54,8 +56,38 @@ describe('reviewGroup', () => {
         expect(reviewGroup(pr({ viewerReview: { state: 'CHANGES_REQUESTED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'old' } }))).toBe('re-review');
     });
 
-    it('puts a commented pull request with a new head in "other"', () => {
-        expect(reviewGroup(pr({ viewerReview: { state: 'COMMENTED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'old' } }))).toBe('other');
+    it('puts a commented pull request with a new head in "re-review"', () => {
+        expect(reviewGroup(pr({ viewerReview: { state: 'COMMENTED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'old' } }))).toBe('re-review');
+    });
+
+    it('puts an approved pull request with a new comment from another person in "re-review"', () => {
+        const value = pr({
+            viewerReview: { state: 'APPROVED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'head' },
+            lastActivityAt: '2026-11-03T00:00:00Z'
+        });
+        expect(reviewGroup(value)).toBe('re-review');
+    });
+
+    it('ignores a comment from before the review', () => {
+        const value = pr({
+            viewerReview: { state: 'COMMENTED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'head' },
+            lastActivityAt: '2026-11-01T00:00:00Z'
+        });
+        expect(reviewGroup(value)).toBe('waiting');
+    });
+
+    it('puts activity that the viewer marked as seen in "waiting", and shows the pull request again after new activity', () => {
+        const review = { state: 'COMMENTED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'old' };
+        const seen = new Set([reviewActivitySeenKey(pr({ viewerReview: review }))]);
+        const isSeen = (key: string) => seen.has(key);
+        expect(reviewGroup(pr({ viewerReview: review }), isSeen)).toBe('waiting');
+        expect(reviewGroup(pr({ viewerReview: review, headRefOid: 'newer' }), isSeen)).toBe('re-review');
+        expect(reviewGroup(pr({ viewerReview: review, lastActivityAt: '2026-11-04T00:00:00Z' }), isSeen)).toBe('re-review');
+    });
+
+    it('keeps a request from GitHub in "re-review" when the activity is seen', () => {
+        const review = { state: 'COMMENTED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'old' };
+        expect(reviewGroup(pr({ reviewRequested: true, viewerReview: review }), () => true)).toBe('re-review');
     });
 
     it('puts a reviewed pull request without changes in "waiting"', () => {
@@ -68,6 +100,22 @@ describe('reviewGroup', () => {
 
     it('puts a reviewed draft without a request in "other"', () => {
         expect(reviewGroup(pr({ isDraft: true, viewerReview: { state: 'COMMENTED', submittedAt: '2026-11-02T00:00:00Z', commitOid: 'old' } }))).toBe('other');
+    });
+});
+
+describe('lastActivityOf', () => {
+    it('returns the newest item from another person, and ignores the viewer and bots', () => {
+        expect(
+            lastActivityOf('Me', [
+                { at: '2026-11-01T00:00:00Z', author: { login: 'alice' } },
+                { at: '2026-11-05T00:00:00Z', author: { login: 'me' } },
+                { at: '2026-11-04T00:00:00Z', author: { __typename: 'Bot', login: 'ci' } },
+                { at: '2026-11-04T00:00:00Z', author: { login: 'renovate[bot]' } },
+                { at: '2026-11-03T00:00:00Z', author: { login: 'bob' } },
+                { at: null, author: { login: 'carol' } }
+            ])
+        ).toBe('2026-11-03T00:00:00Z');
+        expect(lastActivityOf('me', [])).toBeUndefined();
     });
 });
 

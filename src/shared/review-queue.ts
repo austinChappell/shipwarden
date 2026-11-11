@@ -55,6 +55,8 @@ export interface OpenPullRequest {
     reviewDecision: string | null;
     checks: CheckSummary;
     viewerReview?: ViewerReview;
+    /** The time of the newest comment or review from another person. Comments from bots and from the viewer do not count. */
+    lastActivityAt?: string;
     sinceReview?: SinceReview;
     /** The reasons that the author must act. Only set for pull requests of the viewer. */
     actions: MyPullRequestReason[];
@@ -73,31 +75,76 @@ export interface RepoPullRequests {
 /**
  * The group of an open pull request for the viewer.
  * - `new`: the viewer must review it and did not review it before.
- * - `re-review`: the viewer reviewed it before, and GitHub asks again. Or the viewer requested changes, and the head
- *   commit changed after that review.
- * - `waiting`: the viewer reviewed it and the head commit did not change since. The author must act.
+ * - `re-review`: the viewer reviewed it before, and GitHub asks again. Or the pull request has new activity after the
+ *   last review of the viewer (a new commit, or a comment or review from another person), and the viewer did not mark
+ *   this activity as seen.
+ * - `waiting`: the viewer reviewed it, and it has no new activity, or the viewer marked the activity as seen.
  * - `mine`: the viewer is the author.
  * - `other`: the pull request does not need the viewer.
  */
 export type ReviewGroup = 'new' | 're-review' | 'waiting' | 'mine' | 'other';
 
-/** Returns the group of a pull request. A draft needs the viewer only when GitHub asks for a review. */
-export function reviewGroup(pr: OpenPullRequest): ReviewGroup {
+/** Tells if the viewer marked an item as seen, by its seen key. */
+export type IsSeen = (key: string) => boolean;
+
+/** The fields that tell if a pull request changed after the last review of the viewer. */
+export type ReviewActivityFields = Pick<OpenPullRequest, 'url' | 'headRefOid' | 'viewerReview' | 'lastActivityAt'>;
+
+/** True when the pull request has a new commit, or a comment or review from another person, after the last review of the viewer. */
+export function hasActivityAfterReview(pr: ReviewActivityFields): boolean {
+    const review = pr.viewerReview;
+    if (!review) return false;
+    const newCommits = !!review.commitOid && review.commitOid !== pr.headRefOid;
+    const newComments = !!pr.lastActivityAt && Date.parse(pr.lastActivityAt) > Date.parse(review.submittedAt);
+    return newCommits || newComments;
+}
+
+/**
+ * The seen key of the activity on a pull request after the review of the viewer. The key contains the head commit and
+ * the time of the last comment. Thus a new commit or a new comment gives a new key, and the pull request shows again.
+ */
+export function reviewActivitySeenKey(pr: Pick<ReviewActivityFields, 'url' | 'headRefOid' | 'lastActivityAt'>): string {
+    return `rr:${pr.url}:${pr.headRefOid}:${pr.lastActivityAt ?? ''}`;
+}
+
+/** True when the activity after the review shows the pull request to the viewer again: the activity exists and the viewer did not mark it as seen. */
+export function hasUnseenActivity(pr: ReviewActivityFields, isSeen?: IsSeen): boolean {
+    return hasActivityAfterReview(pr) && !isSeen?.(reviewActivitySeenKey(pr));
+}
+
+/**
+ * Returns the group of a pull request. A draft needs the viewer only when GitHub asks for a review.
+ * Without `isSeen`, no activity counts as seen.
+ */
+export function reviewGroup(pr: OpenPullRequest, isSeen?: IsSeen): ReviewGroup {
     if (pr.viewerDidAuthor) return 'mine';
     const reviewed = !!pr.viewerReview && pr.viewerReview.state !== 'PENDING';
     if (pr.reviewRequested) return reviewed ? 're-review' : 'new';
     if (!reviewed || pr.isDraft) return 'other';
-    const review = pr.viewerReview!;
-    const changed = !!review.commitOid && review.commitOid !== pr.headRefOid;
-    if (!changed) return 'waiting';
-    // A comment of long ago with new commits after it does not ask for a new review.
-    return review.state === 'CHANGES_REQUESTED' ? 're-review' : 'other';
+    return hasUnseenActivity(pr, isSeen) ? 're-review' : 'waiting';
 }
 
 /** True when the pull request waits for a review of the viewer. */
-export function needsReview(pr: OpenPullRequest): boolean {
-    const group = reviewGroup(pr);
+export function needsReview(pr: OpenPullRequest, isSeen?: IsSeen): boolean {
+    const group = reviewGroup(pr, isSeen);
     return group === 'new' || group === 're-review';
+}
+
+/** A comment or a review on a pull request, for `lastActivityOf`. */
+export interface ActivityItem {
+    at: string | null | undefined;
+    author: { __typename?: string; login: string } | null;
+}
+
+/** Returns the time of the newest item from another person. Items from bots and from the viewer do not count. */
+export function lastActivityOf(viewer: string, items: ActivityItem[]): string | undefined {
+    let last: string | undefined;
+    for (const item of items) {
+        if (!item.at || !item.author || item.author.__typename === 'Bot' || item.author.login.endsWith('[bot]')) continue;
+        if (item.author.login.toLowerCase() === viewer.toLowerCase()) continue;
+        if (!last || Date.parse(item.at) > Date.parse(last)) last = item.at;
+    }
+    return last;
 }
 
 /** True when the pull request is of the viewer and the viewer must act on it. */
@@ -170,10 +217,11 @@ export interface RepoReviewSummary {
     lastActivity?: string;
 }
 
-export function summarizeRepo(data: RepoPullRequests): RepoReviewSummary {
+/** Without `isSeen`, no activity after a review counts as seen. */
+export function summarizeRepo(data: RepoPullRequests, isSeen?: IsSeen): RepoReviewSummary {
     const summary: RepoReviewSummary = { toReview: 0, reReview: 0, yourPrs: 0, failing: 0, running: 0, passing: 0, openCount: data.openCount };
     for (const pr of data.pullRequests) {
-        const group = reviewGroup(pr);
+        const group = reviewGroup(pr, isSeen);
         if (group === 'new') summary.toReview++;
         else if (group === 're-review') summary.reReview++;
         else if (needsAuthor(pr)) summary.yourPrs++;
@@ -257,11 +305,11 @@ export interface QueueItem {
 }
 
 /** Returns the review queue: the pull requests to review in all repositories, the oldest first. */
-export function reviewQueue(repos: Map<string, RepoPullRequests>): QueueItem[] {
+export function reviewQueue(repos: Map<string, RepoPullRequests>, isSeen?: IsSeen): QueueItem[] {
     const items: QueueItem[] = [];
     for (const [repo, data] of repos) {
         for (const pr of data.pullRequests) {
-            if (needsReview(pr)) items.push({ repo, number: pr.number, createdAt: pr.createdAt });
+            if (needsReview(pr, isSeen)) items.push({ repo, number: pr.number, createdAt: pr.createdAt });
         }
     }
     return items.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.repo.localeCompare(b.repo) || a.number - b.number);

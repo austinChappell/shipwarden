@@ -41,10 +41,10 @@ describe('dashboardNotice', () => {
 
     it('counts each kind of item, with the singular and plural forms', () => {
         expect(dashboardNotice({ reviewRequests: 1, myPullRequests: 1, comments: 1 })?.title).toBe(
-            'Dashboard: 1 review request, 1 of your pull requests needs you, 1 new comment'
+            'Dashboard: 1 pull request to review, 1 of your pull requests needs you, 1 new comment'
         );
         expect(dashboardNotice({ reviewRequests: 2, myPullRequests: 3, comments: 4 })?.title).toBe(
-            'Dashboard: 2 review requests, 3 of your pull requests need you, 4 new comments'
+            'Dashboard: 2 pull requests to review, 3 of your pull requests need you, 4 new comments'
         );
     });
 

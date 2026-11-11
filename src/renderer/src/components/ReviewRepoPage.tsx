@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, GitMerge, GitPullRequest, GitPullRequestDraft, RefreshCw, Search } from 'lucide-react';
+import { ArrowLeft, Check, GitMerge, GitPullRequest, GitPullRequestDraft, RefreshCw, Search } from 'lucide-react';
 import { parseRepoId, repoLabel, type PullRequestSummary, type RepoRef } from '@shared/github';
 import { MY_PULL_REQUEST_REASON_LABELS, parsePullRequestTitle, shortAge } from '@shared/dashboard';
 import {
     PULL_REQUEST_SORTS,
     ageLevel,
     diffSize,
+    hasUnseenActivity,
     matchesSearch,
+    reviewActivitySeenKey,
     reviewGroup,
     sortPullRequests,
     type OpenPullRequest,
@@ -15,7 +17,8 @@ import {
     type ReviewGroup
 } from '@shared/review-queue';
 import { optionalErrorText, timeAgo } from '../util';
-import { focusFirstItem, moveListFocus } from '../keyboard/list-nav';
+import { focusFirstItem, itemKeys, moveListFocus } from '../keyboard/list-nav';
+import { seenStore, useIsSeen } from '../seen-store';
 import { overviewKeys, refreshRepo, useRepoEntry } from '../github/review-overview-store';
 import { Combobox, type ComboboxGroup } from './Combobox';
 import { ChecksLabel, Dotted, KeyLegend, focusedData, useInitialFocus, usePageKeys } from './ReviewParts';
@@ -89,6 +92,7 @@ function SinceReviewLine({ pr }: { pr: OpenPullRequest }) {
     const since = pr.sinceReview;
     const commits = since?.newCommits;
     const changed = !!review.commitOid && review.commitOid !== pr.headRefOid;
+    const newComments = !!pr.lastActivityAt && Date.parse(pr.lastActivityAt) > Date.parse(review.submittedAt);
     return (
         <span className="pr-row-meta">
             <span className={`pr-review-state ${review.state.toLowerCase()}`}>
@@ -98,6 +102,7 @@ function SinceReviewLine({ pr }: { pr: OpenPullRequest }) {
             <Dotted
                 parts={[
                     commits ? `${commits} new commit${commits === 1 ? '' : 's'}` : changed ? 'New commits' : 'No new commits',
+                    newComments && `new comments ${timeAgo(pr.lastActivityAt!)}`,
                     since && since.threads > 0 && `${since.resolved} of ${since.threads} of your threads resolved`
                 ]}
             />
@@ -105,12 +110,15 @@ function SinceReviewLine({ pr }: { pr: OpenPullRequest }) {
     );
 }
 
-function PrRow({ pr, onOpen }: { pr: OpenPullRequest; onOpen(): void }) {
-    const group = reviewGroup(pr);
+/**
+ * A row of an open pull request. A row is not a button, because it can have a button in it.
+ * `onMarkSeen` shows the "Mark as seen" button. The row gets it when the activity after the review of the user shows the pull request.
+ */
+function PrRow({ pr, group, onOpen, onMarkSeen }: { pr: OpenPullRequest; group: ReviewGroup; onOpen(): void; onMarkSeen?(): void }) {
     const size = diffSize(pr.additions, pr.deletions);
     const waitingSince = pr.createdAt;
     return (
-        <button className="pr-row" data-nav-item data-pr={pr.number} onClick={onOpen}>
+        <div className="pr-row" role="button" tabIndex={0} data-nav-item data-pr={pr.number} onClick={onOpen} onKeyDown={itemKeys(onOpen)}>
             <PrIcon pr={pr} group={group} />
             <span className="pr-row-main">
                 <TitleLine title={pr.title} />
@@ -128,7 +136,23 @@ function PrRow({ pr, onOpen }: { pr: OpenPullRequest; onOpen(): void }) {
                         ]}
                     />
                 </span>
-                {group === 're-review' && <SinceReviewLine pr={pr} />}
+                {group === 're-review' && (
+                    <span className="pr-row-since">
+                        <SinceReviewLine pr={pr} />
+                        {onMarkSeen && (
+                            <button
+                                className="link-button pr-row-seen"
+                                title="Remove the pull request from your review list. It shows again after a new commit or comment."
+                                onClick={event => {
+                                    event.stopPropagation();
+                                    onMarkSeen();
+                                }}
+                            >
+                                <Check size={12} strokeWidth={2} /> Mark as seen
+                            </button>
+                        )}
+                    </span>
+                )}
                 {pr.viewerDidAuthor && pr.actions.length > 0 && (
                     <span className="pr-row-meta">
                         {pr.actions.map(reason => (
@@ -156,7 +180,7 @@ function PrRow({ pr, onOpen }: { pr: OpenPullRequest; onOpen(): void }) {
             <span className={`review-age ${ageLevel(waitingSince)}`} title={`Opened ${new Date(waitingSince).toLocaleString()}`}>
                 {shortAge(waitingSince)}
             </span>
-        </button>
+        </div>
     );
 }
 
@@ -200,12 +224,13 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
     const listRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
 
+    const isSeen = useIsSeen();
     const prs = useMemo(() => (data?.pullRequests ?? []).filter(pr => matchesSearch(pr, query)), [data, query]);
     const byGroup = useMemo(() => {
         const result: Record<ReviewGroup, OpenPullRequest[]> = { new: [], 're-review': [], waiting: [], mine: [], other: [] };
-        for (const pr of sortPullRequests(prs, sort)) result[reviewGroup(pr)].push(pr);
+        for (const pr of sortPullRequests(prs, sort)) result[reviewGroup(pr, isSeen)].push(pr);
         return result;
-    }, [prs, sort]);
+    }, [prs, sort, isSeen]);
     const sorted = useMemo(() => sortPullRequests(prs, sort), [prs, sort]);
     const needsCount = byGroup.new.length + byGroup['re-review'].length;
 
@@ -273,7 +298,21 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         { id: 'merged', label: 'Recently merged' }
     ];
 
-    const rows = (list: OpenPullRequest[]) => list.map(pr => <PrRow key={pr.number} pr={pr} onOpen={() => onOpen(pr.number)} />);
+    const rows = (list: OpenPullRequest[]) =>
+        list.map(pr => {
+            const group = reviewGroup(pr, isSeen);
+            // A request from GitHub stays until the user reviews. Only the activity after a review can be marked as seen.
+            const seenable = group === 're-review' && !pr.reviewRequested && hasUnseenActivity(pr, isSeen);
+            return (
+                <PrRow
+                    key={pr.number}
+                    pr={pr}
+                    group={group}
+                    onOpen={() => onOpen(pr.number)}
+                    onMarkSeen={seenable ? () => seenStore.mark([reviewActivitySeenKey(pr)]) : undefined}
+                />
+            );
+        });
     const section = (title: string, list: OpenPullRequest[]) =>
         list.length > 0 && (
             <section aria-label={title}>
@@ -375,8 +414,8 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                                 section('Waiting on authors', byGroup.waiting)
                             ) : (
                                 <p className="review-waiting-note">
-                                    Waiting on authors: {byGroup.waiting.length} PR{byGroup.waiting.length === 1 ? '' : 's'} you reviewed with no changes since
-                                    ·{' '}
+                                    Waiting on authors: {byGroup.waiting.length} PR{byGroup.waiting.length === 1 ? '' : 's'} you reviewed with no new activity,
+                                    or with activity that you marked as seen ·{' '}
                                     <button className="link-button" onClick={() => setShowWaiting(true)}>
                                         show
                                     </button>

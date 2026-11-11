@@ -42,7 +42,7 @@ export interface DashboardCounts {
 export function dashboardNotice(counts: DashboardCounts): Notice | undefined {
     const { reviewRequests, myPullRequests, comments } = counts;
     const parts = [
-        reviewRequests ? `${reviewRequests} review request${reviewRequests === 1 ? '' : 's'}` : '',
+        reviewRequests ? `${reviewRequests} pull request${reviewRequests === 1 ? '' : 's'} to review` : '',
         myPullRequests ? `${myPullRequests} of your pull requests need${myPullRequests === 1 ? 's' : ''} you` : '',
         comments ? `${comments} new comment${comments === 1 ? '' : 's'}` : ''
     ].filter(Boolean);

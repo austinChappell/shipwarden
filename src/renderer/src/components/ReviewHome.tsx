@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { CircleCheck, CircleX, Clock, RefreshCw, Search } from 'lucide-react';
 import { parseRepoId, repoId, repoLabel } from '@shared/github';
 import { isWaiting, summarizeRepo, ageLevel, type QueueItem, type RepoReviewSummary } from '@shared/review-queue';
+import { useIsSeen } from '../seen-store';
 import { shortAge } from '@shared/dashboard';
 import { timeAgo } from '../util';
 import { focusFirstItem, moveListFocus } from '../keyboard/list-nav';
@@ -93,13 +94,14 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
     /** Without project repositories, the page shows all repositories. */
     const all = mode === 'all' || state.projectRepos.length === 0;
 
+    const isSeen = useIsSeen();
     const waiting = useMemo<WaitingRow[]>(
         () =>
             Object.values(state.repos)
-                .flatMap(entry => (entry.data ? [{ id: entry.id, summary: summarizeRepo(entry.data) }] : []))
+                .flatMap(entry => (entry.data ? [{ id: entry.id, summary: summarizeRepo(entry.data, isSeen) }] : []))
                 .filter(row => isWaiting(row.summary))
                 .sort((a, b) => (a.summary.oldest ?? '').localeCompare(b.summary.oldest ?? '') || a.id.localeCompare(b.id)),
-        [state.repos]
+        [state.repos, isSeen]
     );
 
     const idle = useMemo<IdleRow[]>(() => {
@@ -111,7 +113,7 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
             .map(id => {
                 const entry = state.repos[id.toLowerCase()];
                 if (entry?.data) {
-                    const summary = summarizeRepo(entry.data);
+                    const summary = summarizeRepo(entry.data, isSeen);
                     const count = summary.openCount;
                     const open = count === 0 ? 'No open PRs' : `${count} open PR${count === 1 ? '' : 's'}`;
                     return { id: entry.id, meta: count > 0 && summary.lastActivity ? `${open} · last activity ${timeAgo(summary.lastActivity)}` : open };
@@ -120,7 +122,7 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                 const push = pushed.get(id.toLowerCase());
                 return { id, meta: push ? `Last push ${timeAgo(push)}` : entry?.loading ? 'Loading…' : '' };
             });
-    }, [all, state.catalog, state.projectRepos, state.repos, waiting]);
+    }, [all, state.catalog, state.projectRepos, state.repos, waiting, isSeen]);
 
     const shownWaiting = waiting.filter(row => matches(row.id, words));
     const shownIdle = idle.filter(row => matches(row.id, words));
