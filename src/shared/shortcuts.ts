@@ -186,6 +186,17 @@ export function isCtrlV(input: { key: string; code?: string; metaKey: boolean; c
     return key === 'v' && input.ctrlKey && !input.metaKey && !input.altKey && !input.shiftKey;
 }
 
+/** The sequence that Shift+Tab sends (back tab). Claude Code then changes its mode. */
+export const BACK_TAB = '\x1b[Z';
+
+/**
+ * Returns true for Shift+Tab without other modifier keys.
+ * ghostty-web 0.4 sends a plain Tab for Shift+Tab, so the terminal must send the back-tab sequence itself.
+ */
+export function isShiftTab(input: { key: string; code?: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }): boolean {
+    return (input.code === 'Tab' || input.key === 'Tab') && input.shiftKey && !input.metaKey && !input.ctrlKey && !input.altKey;
+}
+
 /**
  * Returns true for a paste with an image and no text.
  * ghostty-web 0.4 pastes only text, so it ignores this paste. The terminal then sends Ctrl+V.

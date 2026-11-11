@@ -7,6 +7,7 @@ import {
     isCommentKey,
     isCtrlV,
     isImageOnlyPaste,
+    isShiftTab,
     keyParts,
     OTHER_KEY_INFO,
     parseKeys,
@@ -236,6 +237,23 @@ describe('isCtrlV', () => {
         expect(isCtrlV({ ...press, metaKey: true })).toBe(false);
         expect(isCtrlV({ ...press, altKey: true })).toBe(false);
         expect(isCtrlV({ ...press, shiftKey: true })).toBe(false);
+    });
+});
+
+describe('isShiftTab', () => {
+    const press = { key: 'Tab', code: 'Tab', metaKey: false, ctrlKey: false, altKey: false, shiftKey: true };
+
+    it('finds Shift+Tab', () => {
+        expect(isShiftTab(press)).toBe(true);
+        expect(isShiftTab({ ...press, code: undefined })).toBe(true);
+    });
+
+    it('ignores Tab, other keys and other modifiers', () => {
+        expect(isShiftTab({ ...press, shiftKey: false })).toBe(false);
+        expect(isShiftTab({ ...press, key: 'a', code: 'KeyA' })).toBe(false);
+        expect(isShiftTab({ ...press, ctrlKey: true })).toBe(false);
+        expect(isShiftTab({ ...press, metaKey: true })).toBe(false);
+        expect(isShiftTab({ ...press, altKey: true })).toBe(false);
     });
 });
 
