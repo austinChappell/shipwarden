@@ -75,7 +75,7 @@ const DOT_CLASS: Record<OverviewState, string> = {
 const STATE_TONE: Record<OverviewState, ChipTone> = {
     waiting: 'warning',
     'blocked-ci': 'danger',
-    working: 'info',
+    working: 'pending',
     starting: 'neutral',
     done: 'success',
     quiet: 'neutral'
@@ -84,7 +84,7 @@ const STATE_TONE: Record<OverviewState, ChipTone> = {
 /** The chip tone of the CI state of a pull request. */
 function ciTone(ci: CiState | undefined): ChipTone {
     if (ci === 'failed') return 'danger';
-    if (ci === 'running') return 'info';
+    if (ci === 'running') return 'pending';
     if (ci === 'passed') return 'success';
     return 'neutral';
 }

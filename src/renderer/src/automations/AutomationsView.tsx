@@ -62,7 +62,7 @@ const RUN_STATUS_LABELS: Record<RunStatus, string> = {
 const RUN_STATUS_TONES: Record<RunStatus, ChipTone> = {
     pending: 'warning',
     held: 'warning',
-    running: 'info',
+    running: 'pending',
     done: 'success',
     failed: 'danger',
     skipped: 'neutral',

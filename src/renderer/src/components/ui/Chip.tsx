@@ -4,14 +4,15 @@ import { cx } from './cx';
 /**
  * The tone of a chip. Each status tone has one meaning (docs/design, board 2):
  * - "neutral": no status, for example a repository reference or a count of comments.
- * - "info": the accent, for example "Default" or a port.
+ * - "info": blue information, for example "Default" or a port.
+ * - "pending": work in progress, for example an agent that works or a check that runs.
  * - "success": ready or passing.
  * - "warning": a conflict, or a missing ticket.
  * - "danger": failing or blocked.
  * - "review": changes requested, or a merged pull request.
  * - "label": a task label. It uses the muted label palette, never a status color. Set `labelIndex` for the color.
  */
-export type ChipTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'review' | 'label';
+export type ChipTone = 'neutral' | 'info' | 'pending' | 'success' | 'warning' | 'danger' | 'review' | 'label';
 
 /** The number of colors in the label palette. */
 export const LABEL_COLORS = 5;

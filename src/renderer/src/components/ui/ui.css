@@ -26,14 +26,24 @@
     --form-width: 880px;
     /* The border of a control. It is a little stronger than the border of a card. */
     --control-border: color-mix(in srgb, var(--muted) 28%, var(--border));
-    /* The status colors that the palette does not have. */
+    /*
+     * The status colors that the palette does not have. A status color has one meaning in each theme.
+     * Do not use the accent for a status. The accent changes with the theme, so its meaning changes too.
+     */
     --warning: #e5a03a;
+    /* Work that is in progress: an agent works, a check runs, a step runs. It has the amber of a warning. */
+    --pending: var(--warning);
     --stale: color-mix(in srgb, var(--muted) 85%, var(--bg));
+    /* The soft accent fill of the recommended row action (the "accent" button and button group). */
+    --accent-soft-bg: color-mix(in srgb, var(--accent) 16%, transparent);
+    --accent-soft-text: color-mix(in srgb, var(--accent) 65%, var(--text-strong));
     /* The soft fill of a chip in each tone. */
     --tone-neutral-bg: color-mix(in srgb, var(--muted) 16%, transparent);
     --tone-neutral-text: color-mix(in srgb, var(--text) 80%, var(--muted));
-    --tone-info-bg: color-mix(in srgb, var(--accent) 16%, transparent);
-    --tone-info-text: color-mix(in srgb, var(--accent) 65%, var(--text-strong));
+    --tone-info-bg: color-mix(in srgb, var(--info) 16%, transparent);
+    --tone-info-text: color-mix(in srgb, var(--info) 65%, var(--text-strong));
+    --tone-pending-bg: color-mix(in srgb, var(--pending) 16%, transparent);
+    --tone-pending-text: color-mix(in srgb, var(--pending) 75%, var(--text-strong));
     --tone-success-bg: color-mix(in srgb, var(--ok) 16%, transparent);
     --tone-success-text: color-mix(in srgb, var(--ok) 70%, var(--text-strong));
     --tone-warning-bg: color-mix(in srgb, var(--warning) 16%, transparent);
@@ -62,10 +72,11 @@
 }
 
 /*
- * Buttons (board 2). Five looks:
+ * Buttons (board 2). Six looks:
  * - secondary (the default): a neutral raised button for most actions.
  * - primary: the accent fill. One per view: the main create or start action, or the action of an empty state.
  * - accent: a soft accent fill. Only for the one recommended action of a row, for example Merge.
+ * - success: the green fill. Only for an action that gives a "done" status, for example Approve on a pull request.
  * - danger: red text on a secondary button. A red fill only in a confirm dialog ("danger-solid").
  * - ghost: no box until the pointer is on it. For toolbars and menus.
  * Disabled: the normal look at 40% opacity.
@@ -144,8 +155,8 @@
 
 .button.accent {
     border-color: transparent;
-    background: var(--tone-info-bg);
-    color: var(--tone-info-text);
+    background: var(--accent-soft-bg);
+    color: var(--accent-soft-text);
 }
 
 .button.accent:hover:not(:disabled),
@@ -153,6 +164,20 @@
     border-color: transparent;
     background: color-mix(in srgb, var(--accent) 26%, transparent);
     color: var(--text-strong);
+}
+
+.button.success {
+    border-color: var(--ok);
+    background: var(--ok);
+    color: var(--bg);
+    font-weight: 600;
+}
+
+.button.success:hover:not(:disabled),
+.button.success.on {
+    border-color: var(--ok);
+    background: color-mix(in srgb, var(--ok) 85%, var(--text-strong));
+    color: var(--bg);
 }
 
 .button.danger {
@@ -314,12 +339,12 @@
     --group-line: color-mix(in srgb, var(--accent) 22%, transparent);
     --group-hover: color-mix(in srgb, var(--accent) 26%, transparent);
     border-color: transparent;
-    background: var(--tone-info-bg);
-    color: var(--tone-info-text);
+    background: var(--accent-soft-bg);
+    color: var(--accent-soft-text);
 }
 
 .button-group.accent > .button {
-    color: var(--tone-info-text);
+    color: var(--accent-soft-text);
 }
 
 /* The group border adds 2 px. The buttons in a group are 2 px lower, so the group has the height of a single button. */
@@ -897,6 +922,11 @@ input[type="radio"]:disabled {
 .chip.tone-info {
     background: var(--tone-info-bg);
     color: var(--tone-info-text);
+}
+
+.chip.tone-pending {
+    background: var(--tone-pending-bg);
+    color: var(--tone-pending-text);
 }
 
 .chip.tone-success {
