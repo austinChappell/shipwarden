@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron';
+import { clipboard, ClipboardItem, ipcMain, nativeImage } from 'electron';
+import { CTRL_V } from '@shared/shortcuts';
 import { IpcChannels } from '@shared/api';
 import type { CreateTerminalOptions } from '@shared/terminal';
 import { shellIntegrationEnv } from '../agents/shell-integration';
@@ -6,10 +7,12 @@ import { loadGhosttySettings } from '../terminal/ghostty-loader';
 import type { Services } from '../services';
 import { onlyStrings, terminalCommand } from './args';
 import { ScreenMirror } from '../remote/screen-mirror';
+import { readTranscript } from '../agents/transcript-reader';
+import { TranscriptWatcher } from '../agents/transcript-watcher';
 
 type TerminalIpcDependencies = Pick<
     Services,
-    'terminals' | 'terminalSessions' | 'terminalSizes' | 'killTerminal' | 'shellAgents' | 'remote' | 'processes' | 'hookPaths' | 'shellIntegration'
+    'terminals' | 'window' | 'terminalSessions' | 'terminalSizes' | 'killTerminal' | 'shellAgents' | 'remote' | 'processes' | 'hookPaths' | 'shellIntegration'
 >;
 
 /** Registers the IPC handlers of the terminal sessions and the processes of the worktrees. */
@@ -41,11 +44,35 @@ export function registerTerminalIpc(deps: TerminalIpcDependencies): void {
             mirror.dispose();
         }
     });
+    ipcMain.handle(IpcChannels.terminalsReadTranscript, (_event, file: unknown, offset: unknown) =>
+        readTranscript(String(file), typeof offset === 'number' && Number.isFinite(offset) ? offset : -1)
+    );
+    // The watches of the chats. A reload of the page closes the chats without a stop, so a new load closes all watches.
+    const transcripts = new TranscriptWatcher(file => deps.window.send(IpcChannels.terminalsTranscriptChanged, file));
+    const watchingPages = new WeakSet<Electron.WebContents>();
+    ipcMain.handle(IpcChannels.terminalsWatchTranscript, (event, file: unknown) => {
+        if (!watchingPages.has(event.sender)) {
+            watchingPages.add(event.sender);
+            event.sender.on('did-start-loading', () => transcripts.dispose());
+        }
+        transcripts.start(String(file));
+    });
+    ipcMain.on(IpcChannels.terminalsUnwatchTranscript, (_event, file: unknown) => transcripts.stop(String(file)));
     ipcMain.handle(IpcChannels.terminalsKill, (_event, id: string) => deps.killTerminal(String(id)));
     ipcMain.handle(IpcChannels.terminalsStopOutdated, async () => {
         const stopped = await terminals.shutdownOutdatedHosts();
         remote.agentsChanged();
         return stopped;
+    });
+    ipcMain.handle(IpcChannels.terminalsPasteImage, async (_event, id: unknown, dataUrl: unknown) => {
+        if (typeof dataUrl !== 'string' || !/^data:image\/(png|jpeg|gif|webp);base64,/.test(dataUrl)) {
+            throw new Error('The image is not a PNG, JPEG, GIF, or WebP data URL.');
+        }
+        const image = nativeImage.createFromDataURL(dataUrl);
+        if (image.isEmpty()) throw new Error('ShipWarden cannot read the image.');
+        // Claude Code reads a PNG from the clipboard. The image goes in as a PNG for all source types.
+        await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(image.toPNG())], { type: 'image/png' }) })]);
+        terminals.write(String(id), CTRL_V);
     });
     ipcMain.on(IpcChannels.terminalsWrite, (_event, id: string, data: string) => terminals.write(id, data));
     ipcMain.on(IpcChannels.terminalsResize, (_event, id: string, cols: number, rows: number) => {

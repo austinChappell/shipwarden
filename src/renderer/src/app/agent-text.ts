@@ -15,6 +15,15 @@ export function showsAgentDialog(screen: string): boolean {
     return AGENT_DIALOG_PATTERN.test(screen.replace(/\s+/g, ''));
 }
 
+/**
+ * Returns the number of image marks (for example "[Image #1]") on the screen of Claude Code. Claude Code adds a mark to
+ * its prompt for each image that it reads from the clipboard. The screen text can lack its spaces, so the test removes
+ * all whitespace first.
+ */
+export function countImageMarks(screen: string): number {
+    return screen.replace(/\s+/g, '').match(/\[Image#\d+\]/gi)?.length ?? 0;
+}
+
 /** Returns the prompt as a bracketed paste. Then new lines in the prompt do not submit it early. */
 export function bracketedPaste(prompt: string): string {
     return `\x1b[200~${prompt}\x1b[201~`;

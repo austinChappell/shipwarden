@@ -5,8 +5,8 @@ import { agentProgramOf } from '@shared/agent-programs';
 import { hookAgentOf } from '@shared/agents';
 import { cleanCommand, commandProgram, missingDefaultAgents, type AgentDefinition, type AppSettings, type CommandCheck } from '@shared/settings';
 import { errorText } from '../util';
-import { Button, Chip, IconButton, Input, Select } from './ui';
-import { SettingsGroup } from './settings-ui';
+import { Button, Chip, IconButton, Input, Select, Switch } from './ui';
+import { SettingsGroup, SettingsRow } from './settings-ui';
 
 const api = window.shipwarden;
 
@@ -183,73 +183,82 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
     };
 
     return (
-        <SettingsGroup
-            title="Agents"
-            description={
-                'The agents that the Agent button can start. Each one runs in your login shell, so your PATH applies. A repository can use another agent than the default in its repository settings. The mode is the permission mode of a new session. With "Own setting", the agent uses its own configuration.'
-            }
-            card
-        >
-            {settings.agents.map(agent => (
-                <AgentRow
-                    key={agent.id}
-                    agent={agent}
-                    isDefault={agent.id === settings.defaultAgentId}
-                    canRemove={settings.agents.length > 1}
-                    onChange={replace}
-                    onMakeDefault={() => save({ defaultAgentId: agent.id })}
-                    onRemove={() => remove(agent)}
-                />
-            ))}
-            <form
-                className="settings-row agent-add"
-                onSubmit={event => {
-                    event.preventDefault();
-                    add();
-                }}
+        <>
+            <SettingsGroup
+                title="Agents"
+                description={
+                    'The agents that the Agent button can start. Each one runs in your login shell, so your PATH applies. A repository can use another agent than the default in its repository settings. The mode is the permission mode of a new session. With "Own setting", the agent uses its own configuration.'
+                }
+                card
             >
-                <span className="agent-add-label">Add</span>
-                <Input
-                    className="agent-name-field"
-                    placeholder="Name"
-                    aria-label="New agent name"
-                    value={newName}
-                    onChange={event => setNewName(event.target.value)}
+                {settings.agents.map(agent => (
+                    <AgentRow
+                        key={agent.id}
+                        agent={agent}
+                        isDefault={agent.id === settings.defaultAgentId}
+                        canRemove={settings.agents.length > 1}
+                        onChange={replace}
+                        onMakeDefault={() => save({ defaultAgentId: agent.id })}
+                        onRemove={() => remove(agent)}
+                    />
+                ))}
+                <form
+                    className="settings-row agent-add agent-add-form"
+                    onSubmit={event => {
+                        event.preventDefault();
+                        add();
+                    }}
+                >
+                    <span className="agent-add-label">Add</span>
+                    <Input
+                        className="agent-name-field"
+                        placeholder="Name"
+                        aria-label="New agent name"
+                        value={newName}
+                        onChange={event => setNewName(event.target.value)}
+                    />
+                    <Input
+                        className="agent-command-field"
+                        mono
+                        placeholder="Command, for example aider"
+                        aria-label="New agent command"
+                        spellCheck={false}
+                        autoComplete="off"
+                        value={newCommand}
+                        onChange={event => setNewCommand(event.target.value)}
+                    />
+                    <Button type="submit" icon={<Plus size={13} strokeWidth={1.8} />} disabled={!newCommand.trim()}>
+                        Add
+                    </Button>
+                </form>
+                {missingDefaultAgents(settings.agents).length > 0 && (
+                    <div className="settings-row agent-add">
+                        <span className="agent-add-label">Built-in</span>
+                        {missingDefaultAgents(settings.agents).map(agent => (
+                            <Button
+                                key={agent.id}
+                                icon={<Plus size={13} strokeWidth={1.8} />}
+                                title={`Add ${agent.name} (${agent.command}) to the list`}
+                                onClick={() => save({ agents: [...settings.agents, agent] })}
+                            >
+                                {agent.name}
+                            </Button>
+                        ))}
+                    </div>
+                )}
+                {error && (
+                    <div className="settings-row">
+                        <div className="form-error">{error}</div>
+                    </div>
+                )}
+            </SettingsGroup>
+            <SettingsGroup title="Agent tabs" card>
+                <SettingsRow
+                    label="Show agent tabs as a chat"
+                    description="A Claude Code tab shows its messages as a chat, with a prompt field at the bottom. The agent still runs in the terminal. Each tab can show the terminal at any time. Other agents always show the terminal."
+                    control={<Switch checked={settings.agentChat} title="Show agent tabs as a chat" onChange={agentChat => void save({ agentChat })} />}
                 />
-                <Input
-                    className="agent-command-field"
-                    mono
-                    placeholder="Command, for example aider"
-                    aria-label="New agent command"
-                    spellCheck={false}
-                    autoComplete="off"
-                    value={newCommand}
-                    onChange={event => setNewCommand(event.target.value)}
-                />
-                <Button type="submit" icon={<Plus size={13} strokeWidth={1.8} />} disabled={!newCommand.trim()}>
-                    Add
-                </Button>
-            </form>
-            {missingDefaultAgents(settings.agents).length > 0 && (
-                <div className="settings-row agent-add">
-                    <span className="agent-add-label">Built-in</span>
-                    {missingDefaultAgents(settings.agents).map(agent => (
-                        <Button
-                            key={agent.id}
-                            icon={<Plus size={13} strokeWidth={1.8} />}
-                            title={`Add ${agent.name} (${agent.command}) to the list`}
-                            onClick={() => save({ agents: [...settings.agents, agent] })}
-                        >
-                            {agent.name}
-                        </Button>
-                    ))}
-                </div>
-            )}
-            {error && (
-                <div className="settings-row">
-                    <div className="form-error">{error}</div>
-                </div>
-            )}
-        </SettingsGroup>
+            </SettingsGroup>
+        </>
     );
 }

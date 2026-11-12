@@ -85,7 +85,14 @@ export function withAgentStore(
     return sessions.map(session => {
         const update = updates.get(session.id);
         const withState = update
-            ? { ...session, agentState: update.state, agentMessage: update.message, agentPrompt: update.prompt, agentStateAt: update.at }
+            ? {
+                  ...session,
+                  agentState: update.state,
+                  agentMessage: update.message,
+                  agentPrompt: update.prompt,
+                  agentStateAt: update.at,
+                  ...(update.transcript ? { agentTranscript: update.transcript } : {})
+              }
             : session;
         // The program from the event is newer than the program in the session list.
         return programs.has(session.id) ? { ...withState, agentProgram: programs.get(session.id) ?? undefined } : withState;

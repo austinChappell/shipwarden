@@ -1,14 +1,15 @@
 import type { ReactNode } from 'react';
+import { agentProgramOf } from '@shared/agent-programs';
 import type { NoteTarget } from '@shared/code-note';
 import type { PullRequest } from '@shared/github';
 import type { AgentDefinition } from '@shared/settings';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
 import { BrowserView } from '../components/BrowserView';
+import { AgentTabView } from '../components/AgentTabView';
 import { ChangeDiffView } from '../components/ChangeDiffView';
 import { DiffView } from '../components/DiffView';
 import { FileView } from '../components/FileView';
-import { TerminalView } from '../components/TerminalView';
 import { WorktreeChangesView } from '../components/WorktreeChangesView';
 import type { ExtraTab, TabKey } from './tabs';
 import type { Reveal } from './use-workspace-tabs';
@@ -29,6 +30,8 @@ export interface TabViewContext {
     terminalColorsKey: string;
     agents: AgentDefinition[];
     defaultAgentId: string;
+    /** The setting "agentChat": a new agent tab shows the chat. */
+    agentChat: boolean;
     /** Returns the newest data of a pull request. */
     latestPullRequest: (pr: PullRequest) => PullRequest;
     refreshGitHub: () => Promise<void>;
@@ -36,6 +39,16 @@ export interface TabViewContext {
     openFile: (path: string) => void;
     sendToAgent: (prompt: string, worktree?: Worktree, target?: NoteTarget) => Promise<void>;
     setError: (error: string | undefined) => void;
+}
+
+/**
+ * Returns true when an agent tab starts Claude Code. An agent tab has the name of its agent as its title, so the
+ * command comes from the agent in Settings › Agents.
+ */
+function runsClaude(session: TerminalSession, agents: readonly AgentDefinition[]): boolean {
+    if (!session.isAgent) return false;
+    const definition = agents.find(agent => agent.name === session.title);
+    return !!definition && agentProgramOf(definition.command) === 'claude';
 }
 
 /** Returns the view of one tab: a diff, a file or a terminal. `focused` is false for a pane without the focus. */
@@ -97,11 +110,14 @@ export function renderTabView(tab: TabKey, focused: boolean, context: TabViewCon
     }
     const session = context.sessions.find(item => `t:${item.id}` === tab);
     return session && context.settings ? (
-        <TerminalView
-            key={`${session.id}:${context.terminalColorsKey}`}
+        <AgentTabView
+            key={session.id}
             session={session}
             settings={context.terminalSettings ?? context.settings}
+            terminalKey={`${session.id}:${context.terminalColorsKey}`}
             focused={focused}
+            chatByDefault={context.agentChat}
+            claude={runsClaude(session, context.agents)}
         />
     ) : null;
 }

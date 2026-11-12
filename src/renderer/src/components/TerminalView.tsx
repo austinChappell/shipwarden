@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { History } from 'lucide-react';
+import { History, MessagesSquare } from 'lucide-react';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { terminalPool } from '../terminal/terminal-pool';
 import { errorText } from '../util';
@@ -11,6 +11,8 @@ interface Props {
     settings: TerminalSettings;
     /** False for a pane of a split view without the focus. Such a terminal does not take the keyboard. */
     focused?: boolean;
+    /** Shows the chat of the agent tab. Only an agent tab with a transcript has it. */
+    onShowChat?: () => void;
 }
 
 /** Asks first, then stops the PTY hosts of older builds and all their sessions. */
@@ -52,7 +54,7 @@ function OutdatedHostNotice() {
  * Shows one terminal session with the Ghostty engine.
  * The terminal belongs to the terminal pool. This view only attaches it and fits it to the available space.
  */
-export function TerminalView({ session, settings, focused = true }: Props) {
+export function TerminalView({ session, settings, focused = true, onShowChat }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: The session object changes on each update. Only a new session ID or new settings attach the terminal again. Another effect sends the focus.
@@ -85,6 +87,11 @@ export function TerminalView({ session, settings, focused = true }: Props) {
         <>
             {outdated && <OutdatedHostNotice />}
             <div className={`terminal${outdated ? ' below-notice' : ''}`} ref={containerRef} style={{ background: settings.colors.background }} />
+            {onShowChat && (
+                <Button className="terminal-chat-toggle" size="sm" icon={<MessagesSquare size={13} strokeWidth={1.8} />} onClick={onShowChat}>
+                    Chat
+                </Button>
+            )}
         </>
     );
 }

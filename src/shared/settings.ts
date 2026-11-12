@@ -82,6 +82,11 @@ export interface AppSettings {
     agents: AgentDefinition[];
     /** The ID of the agent that a repository without its own choice starts. */
     defaultAgentId: string;
+    /**
+     * True to show a new agent tab as a chat. The chat needs the transcript of Claude Code. Other agents always show the
+     * terminal. Each tab can change between the chat and the terminal.
+     */
+    agentChat: boolean;
     /** The settings of each repository, by the root of its main worktree. */
     repos: Record<string, RepoSettings>;
     /**
@@ -184,6 +189,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     appearance: DEFAULT_APPEARANCE,
     agents: [...DEFAULT_AGENTS],
     defaultAgentId: 'claude',
+    agentChat: true,
     repos: {},
     network: { useSystemCertificates: false },
     worktrees: DEFAULT_WORKTREE_SETTINGS,
@@ -263,6 +269,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         appearance: normalizeAppearance(raw.appearance),
         agents,
         defaultAgentId,
+        agentChat: raw.agentChat !== false,
         repos: normalizeRepos(raw.repos, agents),
         network: normalizeNetwork(raw.network),
         // Older versions kept the sort in "worktreeSort".
