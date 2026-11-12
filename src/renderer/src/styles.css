@@ -27,6 +27,9 @@
 
 * {
     box-sizing: border-box;
+    /* Show each character. JetBrains Mono joins "==", "=>", and "!=" into one glyph by default.
+       The "font" shorthand resets this property, so the rule must be important. */
+    font-variant-ligatures: none !important;
 }
 
 html,
