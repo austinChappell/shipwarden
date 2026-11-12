@@ -17,8 +17,7 @@ import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
 import { AGENT_REVIEW_TITLE } from './PullRequestReviewCard';
-import { IconButton } from './ui/Button';
-import { SplitButton, type SplitMenuItem } from './ui/ButtonGroup';
+import { Button, ButtonGroup, IconButton, SplitButton, type SplitMenuItem } from './ui';
 import { pullRequestKeyAction } from '@shared/shortcuts';
 import { HelmLoader } from './HelmLoader';
 import { FileExplorer } from './FileExplorer';
@@ -387,9 +386,16 @@ export function ReviewPullRequest({
     const agentReview = review.agentReview;
 
     const back = (
-        <button className="review-back" title="Show all pull requests" onClick={onBack}>
-            <ArrowLeft size={14} strokeWidth={1.6} /> {repo.owner}/{repo.name}
-        </button>
+        <Button
+            variant="ghost"
+            size="sm"
+            className="review-back"
+            icon={<ArrowLeft size={14} strokeWidth={1.6} />}
+            title="Show all pull requests"
+            onClick={onBack}
+        >
+            {repo.owner}/{repo.name}
+        </Button>
     );
 
     if (!pr) {
@@ -481,9 +487,13 @@ export function ReviewPullRequest({
                         {back}
                         <h2 className="review-pr-title">
                             {pr.title} <span className="review-pr-number">#{pr.number}</span>
-                            <button className="icon-button review-pr-host-link" title="Open on GitHub (⇧⌘O)" onClick={event => openLink(pr.url, event)}>
-                                <ExternalLink size={15} strokeWidth={1.6} />
-                            </button>
+                            <IconButton
+                                size="sm"
+                                className="review-pr-host-link"
+                                icon={<ExternalLink size={14} strokeWidth={1.6} />}
+                                label="Open on GitHub (⇧⌘O)"
+                                onClick={event => openLink(pr.url, event)}
+                            />
                         </h2>
                     </div>
                     <div className="review-pr-actions">
@@ -527,9 +537,9 @@ export function ReviewPullRequest({
                     <div className="agent-review-status running" role="status">
                         <LoaderCircle size={13} className="spin" />
                         <span>Agent review in progress</span>
-                        <button className="link-button" onClick={() => reviewStore.cancelAgentReview(repo, pr.number)}>
+                        <Button variant="link" onClick={() => reviewStore.cancelAgentReview(repo, pr.number)}>
                             Cancel
-                        </button>
+                        </Button>
                     </div>
                 )}
                 {agentReview && agentReview.status !== 'running' && (
@@ -545,18 +555,16 @@ export function ReviewPullRequest({
                                         : ''}
                                     . Accept or remove each comment, then submit the review as yourself.
                                 </span>
-                                <button className="link-button" onClick={() => selectTab('files')}>
+                                <Button variant="link" onClick={() => selectTab('files')}>
                                     Show comments
-                                </button>
-                                <button className="link-button" onClick={() => selectTab('overview')}>
+                                </Button>
+                                <Button variant="link" onClick={() => selectTab('overview')}>
                                     Show summary
-                                </button>
+                                </Button>
                             </>
                         )}
                         {agentReview.status === 'error' && <span className="agent-review-error">The agent review failed: {agentReview.error}</span>}
-                        <button className="icon-button" title="Close" onClick={() => reviewStore.dismissAgentReview(repo, pr.number)}>
-                            <X size={13} />
-                        </button>
+                        <IconButton size="sm" icon={<X size={14} />} label="Close" onClick={() => reviewStore.dismissAgentReview(repo, pr.number)} />
                     </div>
                 )}
                 <PullRequestSummary pr={pr} checks={checkCounts} onSelectTab={selectTab} />
@@ -572,9 +580,9 @@ export function ReviewPullRequest({
                 <Tab id="files" current={tab} onSelect={selectTab} label="Files changed" count={<span className="pr-tab-count">{pr.changedFiles}</span>} />
                 <span className="pr-tabs-spacer" />
                 {tab !== 'overview' && review.pending.length > 0 && pr.state === 'OPEN' && (
-                    <button className="button primary pr-finish" onClick={() => selectTab('overview')}>
+                    <Button variant="primary" size="sm" className="pr-finish" onClick={() => selectTab('overview')}>
                         Finish review <span className="pr-tab-count">{review.pending.length}</span>
-                    </button>
+                    </Button>
                 )}
             </nav>
 
@@ -645,24 +653,14 @@ export function ReviewPullRequest({
                         {fileListOpen && (
                             <>
                                 <div className={`pr-side ${fileSide === 'all' ? 'pr-all-files' : 'pr-file-side'}`}>
-                                    <div className="segmented compact pr-file-side-switch" role="radiogroup" aria-label="Files">
-                                        <button
-                                            role="radio"
-                                            aria-checked={fileSide === 'changed'}
-                                            className={fileSide === 'changed' ? 'selected' : ''}
-                                            onClick={() => changeFileSide('changed')}
-                                        >
+                                    <ButtonGroup size="sm" className="pr-file-side-switch" role="radiogroup" label="Files">
+                                        <Button role="radio" aria-checked={fileSide === 'changed'} onClick={() => changeFileSide('changed')}>
                                             Changed
-                                        </button>
-                                        <button
-                                            role="radio"
-                                            aria-checked={fileSide === 'all'}
-                                            className={fileSide === 'all' ? 'selected' : ''}
-                                            onClick={() => changeFileSide('all')}
-                                        >
+                                        </Button>
+                                        <Button role="radio" aria-checked={fileSide === 'all'} onClick={() => changeFileSide('all')}>
                                             All files
-                                        </button>
-                                    </div>
+                                        </Button>
+                                    </ButtonGroup>
                                     {fileError && <div className="form-error">{fileError}</div>}
                                     {fileSide === 'changed' && (
                                         <section className="pr-section">

@@ -5,16 +5,19 @@ export interface CardProps extends HTMLAttributes<HTMLElement> {
     /** The element of the card. Use "section" when the card has a header with a title. */
     as?: 'div' | 'section' | 'article' | 'li';
     /** The color of the border, for example "ok" for an approved review. */
-    tone?: 'default' | 'ok' | 'danger' | 'accent' | 'merge';
+    tone?: 'default' | 'ok' | 'danger' | 'accent' | 'info' | 'merge';
+    /** Shows the border as a dashed line, for example for a draft or for content that is not active. */
+    dashed?: boolean;
 }
 
 /**
- * A box with a border and rounded corners. Put a `CardHeader`, one or more `CardBody` parts, and a `CardFooter` in it.
+ * A box with a border and rounded corners. The card does not clip its content, so a menu or a popover in it can
+ * show outside the card. Put a `CardHeader`, one or more `CardBody` parts, and a `CardFooter` in it.
  * The parts have lines between them.
  */
-export function Card({ as: Tag = 'div', tone = 'default', className, children, ...rest }: CardProps) {
+export function Card({ as: Tag = 'div', tone = 'default', dashed = false, className, children, ...rest }: CardProps) {
     return (
-        <Tag className={cx('card', tone !== 'default' && tone, className)} {...rest}>
+        <Tag className={cx('card', tone !== 'default' && tone, dashed && 'dashed', className)} {...rest}>
             {children}
         </Tag>
     );

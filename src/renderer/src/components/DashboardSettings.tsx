@@ -5,7 +5,7 @@ import type { AppSettings, HiddenCommentMatch, HiddenCommentRule } from '@shared
 import { useDashboard } from '../dashboard-store';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
-import { Select } from './ui/Select';
+import { Button, IconButton, Input, Select } from './ui';
 
 interface Props {
     settings: AppSettings;
@@ -138,42 +138,42 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                             </span>
                         }
                         control={
-                            <button
-                                className="icon-button"
-                                title="Remove the rule"
+                            <IconButton
+                                icon={<X size={14} strokeWidth={1.8} />}
+                                label="Remove the rule"
+                                size="sm"
                                 onClick={() => save({ dashboardHiddenRules: rules.filter(other => other.id !== rule.id) })}
-                            >
-                                <X size={14} strokeWidth={1.8} />
-                            </button>
+                            />
                         }
                     />
                 ))}
                 <SettingsRow label="New rule" description="Tip: the filter button on a Dashboard comment fills in this form from that comment.">
                     <div className="rule-form">
-                        <input
-                            className="settings-input"
+                        <Input
+                            className="rule-field"
                             value={author}
                             placeholder="Author (optional)"
                             spellCheck={false}
                             onChange={event => setAuthor(event.target.value)}
                         />
                         <Select<HiddenCommentMatch>
-                            className="settings-input"
+                            className="rule-field"
                             value={match}
                             options={(Object.keys(MATCH_LABELS) as HiddenCommentMatch[]).map(value => ({ value, label: MATCH_LABELS[value] }))}
                             onChange={setMatch}
                         />
-                        <input
-                            className={`settings-input rule-text${match === 'regex' ? ' mono' : ''}`}
+                        <Input
+                            className="rule-field rule-text"
+                            mono={match === 'regex'}
                             value={text}
                             placeholder={match === 'regex' ? '^Linked to ClickUp task: ENG-\\d+$' : 'Linked to ClickUp task:'}
                             spellCheck={false}
                             onChange={event => setText(event.target.value)}
                             onKeyDown={event => event.key === 'Enter' && void addRule()}
                         />
-                        <button className="button primary" disabled={!draft} onClick={() => void addRule()}>
+                        <Button variant="primary" className="rule-add" disabled={!draft} onClick={() => void addRule()}>
                             Add rule
-                        </button>
+                        </Button>
                     </div>
                     {error && <div className="form-error">{error}</div>}
                     {typeof regexError === 'string' && <div className="form-error">The regular expression is not valid: {regexError}</div>}
@@ -203,20 +203,19 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                         key={item}
                         label={item}
                         control={
-                            <button
-                                className="icon-button"
-                                title={`Show comments from ${item} again`}
+                            <IconButton
+                                icon={<X size={14} strokeWidth={1.8} />}
+                                label={`Show comments from ${item} again`}
+                                size="sm"
                                 onClick={() => save({ dashboardHiddenAuthors: hidden.filter(other => other !== item) })}
-                            >
-                                <X size={14} strokeWidth={1.8} />
-                            </button>
+                            />
                         }
                     />
                 ))}
                 <SettingsRow
                     label={
-                        <input
-                            className="settings-input"
+                        <Input
+                            className="settings-text-field"
                             value={name}
                             placeholder="A GitHub login or a user name"
                             onChange={event => setName(event.target.value)}
@@ -224,9 +223,9 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                         />
                     }
                     control={
-                        <button className="button" disabled={!name.trim()} onClick={addAuthor}>
+                        <Button disabled={!name.trim()} onClick={addAuthor}>
                             Hide
-                        </button>
+                        </Button>
                     }
                 />
             </SettingsGroup>

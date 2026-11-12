@@ -6,6 +6,7 @@ import { runIsActive, type WorkflowRun } from '@shared/pipelines';
 import { formatDuration, optionalErrorText, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { LogView } from './LogView';
+import { Button, IconButton } from './ui';
 import { confirmDialog } from './ConfirmDialog';
 import { RunDialog, RunIcon } from './PipelinesView';
 import { openLink } from '../links';
@@ -79,25 +80,26 @@ function RunRow({
                 </button>
                 <span className="pp-run-actions" onClick={event => event.stopPropagation()}>
                     {active ? (
-                        <button
-                            className="icon-button"
-                            title="Cancel the run"
+                        <IconButton
+                            size="sm"
+                            icon={<Square size={12} strokeWidth={2} />}
+                            label="Cancel the run"
                             onClick={() => void act(`Cancel the run "${run.title}"?`, 'Cancel run', () => ciActions.cancelRun(root, run.id))}
-                        >
-                            <Square size={12} strokeWidth={2} />
-                        </button>
+                        />
                     ) : (
-                        <button
-                            className="icon-button"
-                            title="Run all jobs again"
+                        <IconButton
+                            size="sm"
+                            icon={<RotateCw size={13} strokeWidth={1.8} />}
+                            label="Run all jobs again"
                             onClick={() => void act(`Run "${run.title}" again?`, 'Run again', () => ciActions.rerunRun(root, run.id))}
-                        >
-                            <RotateCw size={13} strokeWidth={1.8} />
-                        </button>
+                        />
                     )}
-                    <button className="icon-button" title="Open on GitHub" onClick={event => openLink(run.url, event)}>
-                        <ExternalLink size={13} strokeWidth={1.7} />
-                    </button>
+                    <IconButton
+                        size="sm"
+                        icon={<ExternalLink size={13} strokeWidth={1.7} />}
+                        label="Open on GitHub"
+                        onClick={event => openLink(run.url, event)}
+                    />
                 </span>
             </div>
             {open && (
@@ -161,17 +163,22 @@ export function PipelinesPanel({ root, branch, onSendLogToAgent }: Props) {
             <div className="pp-header">
                 <span className="pp-title">Newest runs</span>
                 <span className="header-spacer" />
-                <button
-                    className={`button pp-run-button${showWorkflows ? ' on' : ''}`}
+                <Button
+                    size="sm"
+                    active={showWorkflows}
+                    icon={<Play size={13} strokeWidth={1.8} />}
                     title="Run a workflow"
+                    aria-expanded={showWorkflows}
                     onClick={() => setShowWorkflows(value => !value)}
                 >
-                    <Play size={13} strokeWidth={1.8} />
                     <span className="pp-run-label">Run</span>
-                </button>
-                <button className="icon-button" title="Refresh" onClick={() => void runsQuery.refetch()}>
-                    <RefreshCw size={14} strokeWidth={1.6} className={runsQuery.isFetching ? 'spin' : ''} />
-                </button>
+                </Button>
+                <IconButton
+                    size="sm"
+                    icon={<RefreshCw size={14} strokeWidth={1.6} className={runsQuery.isFetching ? 'spin' : ''} />}
+                    label="Refresh"
+                    onClick={() => void runsQuery.refetch()}
+                />
             </div>
 
             {showWorkflows && (

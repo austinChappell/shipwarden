@@ -3,6 +3,7 @@ import { FolderDown, LoaderCircle, X } from 'lucide-react';
 import type { RepoRef } from '@shared/github';
 import { parseRepoInput } from '@shared/welcome';
 import { errorText } from '../util';
+import { Button, IconButton, Input } from './ui';
 import { useModal } from './use-modal';
 
 interface Props {
@@ -53,9 +54,7 @@ export function CloneRepoDialog({ projectName, onClose, onClone }: Props) {
                     <FolderDown size={16} strokeWidth={1.8} />
                     <h2 id="clone-repo-title">Clone a repository</h2>
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Close" onClick={onClose} disabled={busy}>
-                        <X size={15} strokeWidth={1.8} />
-                    </button>
+                    <IconButton icon={<X size={15} strokeWidth={1.8} />} label="Close" onClick={onClose} disabled={busy} />
                 </header>
                 <form
                     className="modal-body"
@@ -67,9 +66,8 @@ export function CloneRepoDialog({ projectName, onClose, onClone }: Props) {
                     <label className="run-field" htmlFor="clone-repo-input">
                         <span className="setting-label">GitHub repository</span>
                     </label>
-                    <input
+                    <Input
                         id="clone-repo-input"
-                        className="settings-input"
                         autoFocus
                         value={text}
                         placeholder="owner/name or https://github.com/owner/name"
@@ -88,13 +86,12 @@ export function CloneRepoDialog({ projectName, onClose, onClone }: Props) {
                     )}
                 </form>
                 <footer className="modal-footer">
-                    <span className="header-spacer" />
-                    <button className="button" onClick={onClose} disabled={busy}>
+                    <Button onClick={onClose} disabled={busy}>
                         Cancel
-                    </button>
-                    <button className="button primary" onClick={() => void submit()} disabled={busy || !repo}>
-                        {busy && <LoaderCircle size={13} className="spin" />} Clone
-                    </button>
+                    </Button>
+                    <Button variant="solid" icon={busy && <LoaderCircle size={13} className="spin" />} onClick={() => void submit()} disabled={busy || !repo}>
+                        Clone
+                    </Button>
                 </footer>
             </div>
         </div>

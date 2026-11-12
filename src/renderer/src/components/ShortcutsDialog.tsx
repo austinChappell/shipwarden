@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import { Keyboard, Search, X } from 'lucide-react';
+import { Keyboard, X } from 'lucide-react';
 import { keyParts, SHORTCUT_GROUPS, shortcutRows } from '@shared/shortcuts';
+import { IconButton, SearchInput } from './ui';
 import { useModal } from './use-modal';
 
 /** A key combination as key caps, for example ⇧ ⌘ D. A screen reader reads the text, for example "⇧⌘D". */
@@ -50,23 +51,17 @@ export function ShortcutsDialog({ onClose }: { onClose(): void }) {
                     <Keyboard size={16} strokeWidth={1.8} aria-hidden="true" />
                     <h2 id="shortcuts-title">Keyboard Shortcuts</h2>
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Close (Escape)" aria-label="Close" onClick={onClose}>
-                        <X size={15} strokeWidth={1.8} />
-                    </button>
+                    <IconButton icon={<X size={15} strokeWidth={1.8} />} label="Close" title="Close (Escape)" onClick={onClose} />
                 </header>
                 <div className="modal-body">
-                    <label className="tasks-search shortcuts-search">
-                        <Search size={14} strokeWidth={1.6} aria-hidden="true" />
-                        <input
-                            // biome-ignore lint/a11y/noAutofocus: The dialog opens to find a shortcut. The search field gets the focus first.
-                            autoFocus
-                            value={query}
-                            placeholder="Find a shortcut"
-                            aria-label="Find a shortcut"
-                            spellCheck={false}
-                            onChange={event => setQuery(event.target.value)}
-                        />
-                    </label>
+                    <SearchInput
+                        className="shortcuts-search"
+                        autoFocus
+                        value={query}
+                        placeholder="Find a shortcut"
+                        aria-label="Find a shortcut"
+                        onChange={setQuery}
+                    />
                     {shortcuts.length === 0 && <p className="panel-note">No shortcuts match “{query.trim()}”.</p>}
                     {SHORTCUT_GROUPS.map(group => {
                         const items = shortcuts.filter(item => item.group === group);

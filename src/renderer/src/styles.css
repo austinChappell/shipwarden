@@ -204,28 +204,6 @@ button {
     text-transform: uppercase;
 }
 
-.new-worktree {
-    padding: 4px 8px 6px;
-}
-
-.new-worktree input {
-    width: 100%;
-    padding: 6px 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    outline: none;
-    background: var(--bg);
-    color: var(--text-strong);
-    font:
-        12px "JetBrains Mono",
-        Menlo,
-        monospace;
-}
-
-.new-worktree input:focus {
-    border-color: var(--accent);
-}
-
 .form-error {
     margin-top: 4px;
     color: var(--danger);
@@ -440,9 +418,6 @@ button.worktree-ports[aria-expanded="true"] {
     color: var(--muted);
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-.port-menu-stop:hover:not(:disabled) {
-    color: var(--danger);
 }
 .port-menu-error {
     padding: 4px 6px;
@@ -735,10 +710,6 @@ button.worktree-ports[aria-expanded="true"] {
     white-space: nowrap;
 }
 
-.host-notice .button {
-    flex: none;
-}
-
 .terminal.below-notice {
     top: 34px;
 }
@@ -827,10 +798,6 @@ button.worktree-ports[aria-expanded="true"] {
     font-weight: 600;
 }
 
-.editor-server-banner .button {
-    flex: none;
-}
-
 .editor-server-banner.failed > svg {
     color: var(--danger);
 }
@@ -864,8 +831,6 @@ button.worktree-ports[aria-expanded="true"] {
 }
 
 .explorer-header .icon-button {
-    width: 26px;
-    height: 26px;
     -webkit-app-region: no-drag;
 }
 
@@ -885,69 +850,6 @@ button.worktree-ports[aria-expanded="true"] {
     gap: 8px;
     padding: 10px 10px 10px;
     border-bottom: 1px solid var(--border);
-}
-
-/* A segmented control: a bordered track, with the selected button raised above it. */
-.segmented {
-    display: flex;
-    gap: 2px;
-    padding: 2px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--hover) 55%, var(--panel));
-}
-
-.segmented button {
-    flex: 1;
-    padding: 4px 0;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-}
-
-.segmented button:hover {
-    color: var(--text-strong);
-    background: color-mix(in srgb, var(--hover) 70%, transparent);
-}
-
-/* The selected button has an accent tint and border, so it stands out from the track in each theme. */
-.segmented button.selected {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-    background: color-mix(in srgb, var(--accent) 22%, var(--raised));
-    color: var(--text-strong);
-    box-shadow: 0 1px 2px var(--shadow);
-}
-
-.explorer-search {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 10px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-    color: var(--muted);
-}
-
-.explorer-search:focus-within {
-    border-color: var(--accent);
-}
-
-.explorer-search input {
-    flex: 1;
-    min-width: 0;
-    padding: 7px 0;
-    border: 0;
-    outline: none;
-    background: transparent;
-    color: var(--text-strong);
-    font: inherit;
-}
-
-.explorer-search input::placeholder {
-    color: var(--muted);
 }
 
 .explorer-body {
@@ -1323,23 +1225,6 @@ button.worktree-ports[aria-expanded="true"] {
     gap: 8px;
 }
 
-.pr-create-form input:not([type]) {
-    padding: 6px 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    outline: none;
-    background: var(--panel);
-    color: var(--text-strong);
-    font:
-        12px / 1.45 -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
-}
-
-.pr-create-form input:not([type]):focus {
-    border-color: var(--accent);
-}
-
 .panel-note {
     padding: 4px 0;
     color: var(--muted);
@@ -1594,9 +1479,6 @@ code {
 
 .pr-conflict-banner .button {
     flex: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
 }
 
 .pr-section {
@@ -1723,8 +1605,11 @@ code {
     font-size: 11px;
 }
 
-.thread-card,
 .zone-card {
+    margin: 6px 12px;
+}
+
+.thread-card {
     margin: 6px 12px;
     padding: 8px 10px;
     border: 1px solid var(--border);
@@ -1792,12 +1677,6 @@ code {
     font-size: 11px;
 }
 
-.suggestion-header .link-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
 .suggestion-lines {
     overflow-x: auto;
     font:
@@ -1839,9 +1718,6 @@ code {
 }
 
 .composer-suggest {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
     margin-right: auto;
 }
 
@@ -1947,7 +1823,14 @@ code {
     margin-top: 8px;
 }
 
-.reply-box textarea,
+/* The parent class makes the rule win over the auto height of `.textarea`. */
+.reply-box .reply-text {
+    width: 100%;
+    height: 96px;
+    min-height: 96px;
+    resize: vertical;
+}
+
 .zone-card textarea,
 textarea.review-body {
     flex: none;
@@ -1966,7 +1849,6 @@ textarea.review-body {
         sans-serif;
 }
 
-.reply-box textarea:focus,
 .zone-card textarea:focus,
 .review-body:focus {
     border-color: var(--accent);
@@ -1987,20 +1869,12 @@ textarea.review-body {
     background: var(--panel);
 }
 
+/* The merge buttons have the width of their text. They are at the right of the card. */
 .merge-row {
     display: flex;
-    gap: 6px;
-}
-
-.auto-merge-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.auto-merge-row .panel-note {
-    flex: 1;
-    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 /* The description editor, and the reviewers, the assignees and the labels of a pull request. */
@@ -2014,19 +1888,6 @@ textarea.review-body {
     margin-left: auto;
 }
 
-.pr-meta-edit {
-    width: 22px;
-    height: 22px;
-    border-radius: 5px;
-    color: var(--muted);
-}
-
-.pr-meta-edit:hover,
-.pr-meta-edit.on {
-    background: var(--raised);
-    color: var(--text-strong);
-}
-
 .pr-section-error {
     margin: 0 14px 6px;
 }
@@ -2038,29 +1899,11 @@ textarea.review-body {
     padding: 0 14px;
 }
 
-.pr-title-input {
-    padding: 5px 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    outline: none;
-    background: var(--panel);
-    color: var(--text-strong);
-    font:
-        600 13px -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
-}
-
-.pr-title-input:focus {
-    border-color: var(--accent);
-}
-
-/* The selector is specific so that the review page rule for .review-body cannot change the height. */
-.pr-description-editor textarea.pr-body-input {
+/* The parent class makes the rule win over the auto height of `.textarea`. */
+.pr-description-editor .pr-body-input {
     flex: none;
     height: 520px;
     min-height: 520px;
-    font-family: "JetBrains Mono", Menlo, monospace;
 }
 
 .pr-meta-section {
@@ -2177,14 +2020,6 @@ textarea.review-body {
 .review-zone .zone-card {
     max-width: 720px;
     margin: 6px 0 6px 8px;
-}
-
-.zone-card.pending {
-    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-}
-
-.zone-card.composer {
-    border-color: var(--accent);
 }
 
 .comment-glyph {
@@ -2501,11 +2336,6 @@ textarea.review-body {
     background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-button.task-linked {
-    padding: 2px;
-    color: var(--accent);
-}
-
 /* Tasks view */
 
 .tasks-view {
@@ -2566,48 +2396,14 @@ button.task-linked {
     max-width: 200px;
 }
 
-.collection-open {
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 .tasks-header .header-spacer {
     -webkit-app-region: drag;
     align-self: stretch;
 }
 
-.tasks-header .icon-button.on {
-    color: var(--accent);
-}
-
-.tasks-search {
+.tasks-search-field {
     flex: 0 1 220px;
     min-width: 110px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-    color: var(--muted);
-}
-
-.tasks-search:focus-within {
-    border-color: var(--accent);
-}
-
-.tasks-search input {
-    flex: 1;
-    min-width: 0;
-    padding: 5px 0;
-    border: 0;
-    outline: none;
-    background: transparent;
-    color: var(--text-strong);
-    font: inherit;
 }
 
 .tasks-body {
@@ -2929,57 +2725,9 @@ button.task-check.editable:hover:not(:disabled) {
     gap: 4px;
 }
 
-/* A card of the task details: a part with a border and a header, for example the description or the comments. */
+/* A card of the task details, for example the description or the comments. */
 .task-card {
     margin-bottom: 14px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--raised);
-}
-
-.task-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 38px;
-    padding: 6px 10px 6px 14px;
-    border-bottom: 1px solid var(--border);
-}
-
-.task-card-title {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-overflow: ellipsis;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.task-card-count {
-    padding: 0 6px;
-    border-radius: 8px;
-    background: var(--hover);
-    color: var(--muted);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-}
-
-.task-card-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: auto;
-}
-
-.task-card-body {
-    padding: 12px 14px;
-}
-
-.task-description-add {
-    font-size: 13px;
 }
 
 /* The description and the comments as Markdown, with the sizes of a document. */
@@ -3310,16 +3058,6 @@ button.task-check.editable:hover:not(:disabled) {
     transform: rotate(90deg);
 }
 
-.segmented.compact {
-    flex-shrink: 0;
-}
-
-.segmented.compact button {
-    flex: 0 0 auto;
-    padding: 3px 10px;
-    font-size: 12px;
-}
-
 /* File viewers: images, PDF, audio, video, Markdown preview and binary files */
 
 .viewer {
@@ -3354,25 +3092,6 @@ button.task-check.editable:hover:not(:disabled) {
 .viewer-actions {
     display: flex;
     flex: none;
-    align-items: center;
-    gap: 4px;
-}
-
-.viewer-actions .button.compact {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    font-size: 12px;
-}
-
-.viewer-actions .button.compact.selected {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-    color: var(--text-strong);
-}
-
-.viewer-actions .segmented.compact button {
-    display: inline-flex;
     align-items: center;
     gap: 4px;
 }
@@ -3630,52 +3349,6 @@ body.resizing * {
     padding: 8px 24px 40px;
 }
 
-.settings-section {
-    max-width: 640px;
-    padding: 20px 0;
-    border-bottom: 1px solid var(--border);
-}
-
-.settings-section:last-child {
-    border-bottom: 0;
-}
-
-.settings-section h2 {
-    margin: 0 0 6px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-strong);
-}
-
-.settings-presets {
-    margin: 12px 0 14px;
-}
-
-.settings-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.settings-field label {
-    font-size: 12px;
-    color: var(--muted);
-}
-
-.settings-field input {
-    width: 100%;
-    padding: 7px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--raised);
-    color: var(--text-strong);
-    outline: none;
-}
-
-.settings-field input:focus {
-    border-color: var(--accent);
-}
-
 .mono {
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 12px;
@@ -3809,19 +3482,8 @@ body.resizing * {
     padding: 4px;
 }
 
-.project-menu-form input {
+.project-menu-form .input {
     flex: 1;
-    min-width: 0;
-    padding: 5px 8px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    outline: none;
-    background: var(--bg);
-    color: var(--text-strong);
-}
-
-.project-menu-form input:focus {
-    border-color: var(--accent);
 }
 
 .project-menu-error {
@@ -3900,18 +3562,16 @@ body.resizing * {
 
 .repo-action {
     display: none;
-    align-items: center;
-    justify-content: center;
 }
 
 .repo-header:hover .repo-action,
 .repo-header:focus-within .repo-action {
-    display: flex;
+    display: inline-grid;
 }
 
 /* The graph button of the repository whose graph page shows stays visible, with the accent color. */
 .repo-action.on {
-    display: flex;
+    display: inline-grid;
     color: var(--accent);
 }
 
@@ -4035,17 +3695,6 @@ body.resizing * {
 }
 
 /* Appearance settings */
-
-.settings-subheading {
-    margin: 18px 0 10px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-strong);
-}
-
-.settings-section h2 + .settings-subheading {
-    margin-top: 10px;
-}
 
 .scheme-grid {
     display: grid;
@@ -4293,16 +3942,6 @@ body.resizing * {
     vertical-align: -1px;
 }
 
-/* Tasks: list and board switch */
-
-.view-switch button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding-left: 8px;
-    padding-right: 8px;
-}
-
 /* Tasks board */
 
 .task-board {
@@ -4477,9 +4116,6 @@ body.resizing * {
     top: 16px;
     right: 18px;
     z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .task-dialog .task-detail-title {
@@ -4557,10 +4193,6 @@ body.resizing * {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.task-fields-toggle {
-    font-size: 12px;
 }
 
 .task-rating {
@@ -4752,7 +4384,6 @@ body.resizing * {
 
 .filter-popover .combobox-search .link-button {
     flex: none;
-    font-size: 12px;
 }
 
 .filter-option {
@@ -4881,17 +4512,6 @@ body.resizing * {
 
 /* Task managers settings */
 
-.connection-card {
-    margin: 8px 0;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-}
-
-.connection-card.open {
-    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-}
-
 .connection-row {
     display: flex;
     align-items: center;
@@ -4937,16 +4557,17 @@ body.resizing * {
     color: var(--muted);
 }
 
-.connection-body {
-    padding: 0 14px 12px;
-    border-top: 1px solid var(--border);
+.connection-body,
+.connection-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
 .scope-picker {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin: 6px 0 4px;
+    gap: 6px;
 }
 
 .scope-option {
@@ -4962,22 +4583,11 @@ body.resizing * {
 .scope-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    align-items: flex-start;
+    gap: 6px;
     max-height: 220px;
-    margin-left: 22px;
+    margin-left: 23px;
     overflow-y: auto;
-}
-
-.scope-list.disabled {
-    opacity: 0.5;
-}
-
-.scope-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 2px 0;
-    font-size: 12.5px;
 }
 
 .scope-detail {
@@ -5129,18 +4739,9 @@ button:focus-visible,
     flex: none;
 }
 
-.settings-card {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--panel);
-}
-
+/* A row in a settings card. The card draws the lines between the rows. */
 .settings-row {
     padding: 13px 16px;
-}
-
-.settings-row + .settings-row {
-    border-top: 1px solid var(--border);
 }
 
 .settings-row-main {
@@ -5190,18 +4791,10 @@ button:focus-visible,
     margin-top: 10px;
 }
 
-.settings-row-body .settings-field {
-    gap: 8px;
-}
-
 .connection-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
-}
-
-.connection-list .connection-card {
-    margin: 0;
 }
 
 /* A text field with its buttons at the right, in one line. */
@@ -5214,18 +4807,7 @@ button:focus-visible,
     min-width: 0;
 }
 
-.connection-section-label {
-    margin: 16px 0 4px;
-    color: var(--text-strong);
-    font-size: 12px;
-    font-weight: 600;
-}
-
 .task-managers .add-connection {
-    margin: 0;
-}
-
-.settings-row .scope-option {
     margin: 0;
 }
 
@@ -5276,35 +4858,7 @@ button:focus-visible,
 
 .sidebar-search {
     display: flex;
-    align-items: center;
-    gap: 6px;
     margin: 4px 8px 6px;
-    padding: 0 4px 0 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-    color: var(--muted);
-}
-
-.sidebar-search:focus-within {
-    border-color: var(--accent);
-}
-
-.sidebar-search input {
-    flex: 1;
-    min-width: 0;
-    height: 26px;
-    padding: 0;
-    border: 0;
-    outline: none;
-    background: transparent;
-    color: var(--text-strong);
-    font-size: 12px;
-}
-
-.sidebar-search .icon-button {
-    width: 18px;
-    height: 18px;
 }
 
 .repo-no-match {
@@ -5643,11 +5197,11 @@ button:focus-visible,
     font-size: 12px;
 }
 
-.agent-name-input {
+.agent-name-field {
     flex: 0 0 150px;
 }
 
-.agent-command-input {
+.agent-command-field {
     flex: 1;
 }
 
@@ -5659,7 +5213,7 @@ button:focus-visible,
     margin: 6px 0 0 96px;
 }
 
-.settings-input {
+.settings-text-field {
     width: 240px;
 }
 
@@ -5716,19 +5270,6 @@ button:focus-visible,
 
 .new-tab {
     position: relative;
-}
-
-.new-tab-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-}
-
-.new-tab-button.on {
-    background: var(--hover);
-    color: var(--text-strong);
 }
 
 .new-tab-menu {
@@ -5876,22 +5417,8 @@ button:focus-visible,
 
 /* The link from a pull request back to the list of the repository. */
 .review-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin: 0 0 8px -4px;
-    padding: 2px 4px;
-    border: 0;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--muted);
-    font-size: 12.5px;
-    cursor: pointer;
-}
-
-.review-back:hover {
-    background: var(--hover);
-    color: var(--text);
+    align-self: flex-start;
+    margin: 0 0 8px -8px;
 }
 
 .review-decision.approved {
@@ -5902,10 +5429,6 @@ button:focus-visible,
 }
 .review-decision.review_required {
     color: var(--accent);
-}
-
-.review-panel-switch .segmented button {
-    flex: 1;
 }
 
 .review-content {
@@ -5924,14 +5447,6 @@ button:focus-visible,
     position: relative;
     flex: 1;
     min-height: 0;
-}
-
-.file-list-toggle {
-    color: var(--muted);
-}
-
-.file-list-toggle:hover {
-    color: var(--text-strong);
 }
 
 .review-placeholder {
@@ -6316,10 +5831,8 @@ button:focus-visible,
 
 /* The link to the pull request on the host, after the number. */
 .review-pr-host-link {
-    display: inline-grid;
     vertical-align: middle;
     margin-left: 2px;
-    color: var(--muted);
 }
 
 .review-pr-meta {
@@ -6411,9 +5924,6 @@ button:focus-visible,
 .pr-finish {
     align-self: center;
     flex: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
     margin-left: 6px;
 }
 
@@ -6547,20 +6057,6 @@ button:focus-visible,
 /* The description of the Overview tab: a card with the author in the header, as for a comment. */
 .pr-description-card {
     margin: 0 8px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--raised);
-    overflow: hidden;
-}
-
-.pr-description-card-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px 10px 16px;
-    border-bottom: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 13px;
 }
 
 /* A GitHub avatar, or the initials of the login when the image is not available. */
@@ -6587,6 +6083,8 @@ button:focus-visible,
 .pr-description-card-title {
     flex: 1;
     min-width: 0;
+    color: var(--muted);
+    font-size: 13px;
 }
 
 .pr-description-card-title strong {
@@ -6600,13 +6098,6 @@ button:focus-visible,
 
 .pr-overview .pr-description-card .pr-description {
     margin: 0;
-    padding: 20px 24px 22px;
-    background: var(--bg);
-}
-
-.pr-overview .pr-description-card .pr-description-empty {
-    padding: 16px 24px;
-    background: var(--bg);
 }
 
 /* Long lines are hard to read. The text stops at a comfortable width, also in a wide card. */
@@ -6662,9 +6153,6 @@ button:focus-visible,
 }
 
 .pr-description-card-footer {
-    padding: 10px 24px;
-    border-top: 1px solid var(--border);
-    background: var(--bg);
     color: var(--muted);
     font-size: 12.5px;
 }
@@ -6715,15 +6203,6 @@ button:focus-visible,
 
 .pr-overview .pr-timeline-text {
     padding-top: 7px;
-}
-
-.pr-overview .pr-timeline-card-header {
-    padding: 10px 16px;
-    background: var(--raised);
-}
-
-.pr-overview .pr-timeline-body {
-    padding: 14px 16px;
 }
 
 /* The small avatar before the name of the actor of an event. */
@@ -6906,77 +6385,26 @@ button:focus-visible,
     margin-top: 14px;
 }
 
-.pr-timeline-card {
-    position: relative;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-    overflow: hidden;
-}
-
-.pr-timeline-card.review-approved {
-    border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
-}
-
-.pr-timeline-card.review-changes_requested {
-    border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
-}
-
-.pr-timeline-card-header {
-    padding: 8px 14px;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel);
+/* The author line in the header of a comment card. The actions at the right come from `.card-actions`. */
+.pr-timeline-card-title {
+    flex: 1;
+    min-width: 0;
     color: var(--muted);
     font-size: 13px;
 }
 
-.pr-timeline-card-header:last-child {
-    border-bottom: 0;
-}
-
-/* The title of the card at the left, and the buttons that add a reaction and send the text to the agent at the right. */
-.pr-timeline-card .pr-timeline-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.pr-timeline-card-title {
-    flex: 1;
-    min-width: 0;
-}
-
-.pr-timeline-card-actions {
-    display: inline-flex;
-    flex: none;
-    gap: 2px;
-    margin: -4px -6px -4px 0;
-}
-
-.pr-timeline-card-actions .icon-button.on {
-    background: var(--hover);
-    color: var(--text-strong);
-}
-
-/* The reaction chips below the body of a card. The body has the padding at the top. */
-.pr-timeline-card .pr-timeline-reactions {
-    margin: 0;
-    padding: 0 16px 12px;
-}
-
-.pr-timeline-card-header strong,
+.pr-timeline-card-title strong,
 .pr-timeline-text strong {
     color: var(--text-strong);
     font-weight: 600;
 }
 
-.pr-timeline-card-header .tag {
+.pr-timeline-card-title .tag {
     margin-left: 2px;
     font-size: 10.5px;
 }
 
 .pr-timeline-body {
-    padding: 12px 14px;
     color: var(--text);
     font-size: 14px;
     line-height: 1.6;
@@ -7074,10 +6502,6 @@ button:focus-visible,
 }
 
 /* The merge button with its menu of merge methods, as on GitHub. */
-.merge-row {
-    justify-content: flex-end;
-}
-
 .merge-split {
     position: relative;
     display: inline-flex;
@@ -7253,12 +6677,6 @@ button:focus-visible,
     font-size: 12px;
 }
 
-.commit-view-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
 .commit-view-position {
     margin-right: 4px;
     color: var(--muted);
@@ -7298,12 +6716,6 @@ button:focus-visible,
     user-select: text;
 }
 
-.commit-view-external {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
 .commit-view-error {
     margin: 10px 12px 0;
 }
@@ -7332,13 +6744,8 @@ button:focus-visible,
 /* The switch between the changed files and all files of the pull request. */
 .pr-file-side-switch {
     flex: none;
-    /* The switch fills the width of the side. Each button gets an equal part. */
-    align-self: stretch;
+    align-self: flex-start;
     margin: 8px 10px 0;
-}
-
-.segmented.compact.pr-file-side-switch button {
-    flex: 1 1 0;
 }
 
 /* All files: the file explorer of the local copy fills the side. */
@@ -7468,20 +6875,6 @@ button:focus-visible,
 
 .dash-filter {
     flex-basis: 280px;
-}
-
-.dash-kbd {
-    padding: 0 5px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--muted);
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 10.5px;
-}
-
-.dash-header-button {
-    padding: 3px 10px;
-    font-size: 12px;
 }
 
 .dash-scroll {
@@ -7624,15 +7017,8 @@ button:focus-visible,
     text-transform: uppercase;
 }
 
-.dash-card {
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-}
-
-.dash-card > .form-error,
-.dash-card > .panel-note {
+.dash-card-rows > .form-error,
+.dash-card-rows > .panel-note {
     margin: 10px 12px;
 }
 
@@ -7640,7 +7026,7 @@ button:focus-visible,
     white-space: pre-line;
 }
 
-/* A card with one line of text, for example "Loading…" or "No new comments". */
+/* One line of text in a card, for example "Loading…" or "No new comments". */
 .dash-line {
     display: flex;
     align-items: center;
@@ -7667,35 +7053,6 @@ button:focus-visible,
     margin: 0;
     color: var(--muted);
     font-size: 12px;
-}
-
-.dash-card-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    min-height: 44px;
-    padding: 6px 12px;
-    border: 0;
-    border-bottom: 1px solid var(--border);
-    background: transparent;
-    color: var(--muted);
-    font: inherit;
-    text-align: left;
-}
-
-.dash-card-head h3 {
-    margin: 0;
-    color: var(--text-strong);
-    font-size: 13.5px;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.dash-card-head .link-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
 }
 
 .dash-card-count {
@@ -7845,46 +7202,46 @@ button:focus-visible,
 
 .dash-row-action {
     flex: none;
-    justify-content: center;
-    min-width: 72px;
-    padding: 3px 12px;
-    font-size: 12.5px;
-}
-
-.button.dash-merge {
-    border-color: color-mix(in srgb, var(--ok) 50%, transparent);
-    background: color-mix(in srgb, var(--ok) 10%, transparent);
-    color: var(--ok);
-    font-weight: 600;
-}
-
-.button.dash-merge:hover:not(:disabled) {
-    border-color: var(--ok);
 }
 
 /* The stale card: collapsed by default, with a dashed border. */
-.dash-stale {
+.card.dash-stale {
     border-style: dashed;
     background: transparent;
 }
 
-.dash-stale-head {
-    border-bottom: 0;
+.card.dash-stale > * + * {
+    border-top-style: dashed;
+}
+
+.card.dash-stale > .dash-stale-preview {
+    border-top: 0;
+}
+
+/* The button that opens and closes the stale card. It fills the card header. */
+.dash-stale-toggle {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    text-align: left;
     cursor: pointer;
 }
 
-.dash-stale.open .dash-stale-head {
-    border-bottom: 1px dashed var(--border);
-}
-
-.dash-stale-head .group-chevron {
+.dash-stale-toggle .group-chevron {
     flex: none;
     color: var(--muted);
 }
 
 .dash-stale-preview {
     overflow: hidden;
-    padding: 0 12px 12px 34px;
+    padding: 0 14px 12px 36px;
     color: var(--muted);
     font-size: 12.5px;
     text-overflow: ellipsis;
@@ -7897,7 +7254,6 @@ button:focus-visible,
     flex-wrap: wrap;
     gap: 6px;
     padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
 }
 
 .dash-chip {
@@ -7963,7 +7319,6 @@ button:focus-visible,
 
 .dash-review-seen {
     flex: none;
-    padding: 2px;
 }
 
 /* The comment cards. */
@@ -8059,10 +7414,6 @@ button:focus-visible,
     display: none;
 }
 
-.dash-comment-head .icon-button {
-    padding: 2px;
-}
-
 .dash-comment-body {
     padding: 0 12px 10px 28px;
     user-select: text;
@@ -8097,9 +7448,8 @@ button:focus-visible,
     margin-top: 8px;
 }
 
-.rule-form .settings-input {
+.rule-field {
     flex: 1 1 160px;
-    width: 100%;
     min-width: 0;
 }
 
@@ -8107,8 +7457,7 @@ button:focus-visible,
     flex-basis: 100%;
 }
 
-.rule-form .button {
-    flex: none;
+.rule-add {
     margin-left: auto;
 }
 
@@ -8135,7 +7484,7 @@ button:focus-visible,
     margin-top: 8px;
 }
 
-.ca-file-row .settings-input {
+.ca-file-input {
     flex: 1;
     min-width: 0;
 }
@@ -8221,7 +7570,7 @@ button:focus-visible,
     padding: 4px 10px 6px;
 }
 
-.note-name-input .settings-input {
+.note-name-input .input {
     width: 100%;
 }
 
@@ -8438,13 +7787,12 @@ button:focus-visible,
 
 /* Settings > Worktrees */
 .patterns-field,
-.script-field {
+.script-field,
+.script-field.textarea {
     display: block;
     width: 100%;
     height: 160px;
     margin-top: 8px;
-    font-size: 12px;
-    line-height: 1.5;
 }
 
 .copy-preview {
@@ -8784,12 +8132,6 @@ body.resizing-column * {
     white-space: nowrap;
 }
 
-.pipeline-run-button {
-    flex: none;
-    padding: 3px;
-    color: var(--accent);
-}
-
 .pipeline-runs {
     width: var(--pipeline-runs-width, 380px);
     flex: none;
@@ -8808,12 +8150,6 @@ body.resizing-column * {
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
     background: var(--bg);
-}
-
-.pipeline-runs-header .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
 }
 
 .pipeline-runs-title {
@@ -8909,12 +8245,6 @@ body.resizing-column * {
     margin-top: 10px;
 }
 
-.pipeline-actions .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-}
-
 .pipeline-jobs {
     flex: none;
     max-height: 30%;
@@ -8996,14 +8326,10 @@ body.resizing-column * {
     padding: 6px 16px 12px;
 }
 
+/* The buttons of a dialog footer go at the right. */
 .modal-footer {
+    justify-content: flex-end;
     border-top: 1px solid var(--border);
-}
-
-.modal-footer .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
 }
 
 .run-field {
@@ -9022,25 +8348,7 @@ body.resizing-column * {
     min-width: 0;
 }
 
-.modal-footer .button {
-    flex: none;
-    white-space: nowrap;
-}
-
 /* Scripts of a repository: the ▷ menu of the workspace header. */
-.scripts-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-}
-
-.scripts-button.on {
-    background: var(--hover);
-    color: var(--text-strong);
-}
-
 .scripts-dropdown {
     min-width: 240px;
     max-width: 340px;
@@ -9066,7 +8374,6 @@ body.resizing-column * {
 
 .script-action {
     flex: none;
-    padding: 4px;
     opacity: 0;
 }
 
@@ -9346,15 +8653,6 @@ body.resizing-column * {
     font-size: 11px;
 }
 
-.process-stop {
-    flex: none;
-    color: var(--muted);
-}
-
-.process-stop:hover:not(:disabled) {
-    color: var(--danger);
-}
-
 .port-chip {
     flex: none;
     padding: 1px 6px;
@@ -9437,20 +8735,6 @@ body.resizing-column * {
     overflow-wrap: anywhere;
 }
 
-.confirm-footer {
-    justify-content: flex-end;
-}
-
-.confirm-footer .button.danger {
-    border-color: var(--danger);
-    background: var(--danger);
-    color: var(--bg);
-}
-
-.confirm-footer .button.danger:hover {
-    background: color-mix(in srgb, var(--danger) 85%, #fff);
-}
-
 .confirm-detail {
     max-height: 220px;
     margin: 10px 0 0;
@@ -9524,10 +8808,6 @@ body.resizing-column * {
     gap: 8px;
 }
 
-.update-notice-buttons .button {
-    white-space: nowrap;
-}
-
 .update-progress {
     display: block;
     height: 4px;
@@ -9581,13 +8861,6 @@ body.resizing-column * {
     justify-content: flex-end;
     align-items: center;
     gap: 8px;
-}
-
-.update-settings-buttons .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    white-space: nowrap;
 }
 
 /* Folders of notes */
@@ -9721,11 +8994,11 @@ body.resizing-column * {
     color: var(--text);
 }
 
-/* In a folder header, the control has the size of the icon buttons next to it. */
+/* In a folder header, the control has the size of the small icon buttons next to it. */
 .note-folder-move {
-    width: 22px;
-    height: 22px;
-    border-radius: 4px;
+    width: var(--control-height-sm);
+    height: var(--control-height-sm);
+    border-radius: 5px;
 }
 
 /* The live steps of a running GitHub Actions job, in place of the log. */
@@ -9866,7 +9139,8 @@ body.resizing-column * {
     border-bottom: 1px solid var(--border);
 }
 
-.changes-message {
+/* The textarea class of ui.css sets "height: auto". This selector is more specific, so the fixed height stays. */
+.changes-message.textarea {
     width: 100%;
     height: 80px;
 }
@@ -10124,18 +9398,7 @@ body.resizing-column * {
 }
 
 .new-worktree-agent {
-    display: flex;
-    align-items: center;
-    gap: 8px;
     margin-top: 14px;
-    color: var(--text);
-    font-size: 13px;
-    cursor: pointer;
-}
-
-.new-worktree-dialog .settings-input {
-    width: 100%;
-    max-width: none;
 }
 
 /* The dialog that links a worktree to a task */
@@ -10159,8 +9422,7 @@ body.resizing-column * {
 }
 
 .link-task-search {
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    width: 100%;
 }
 
 .link-task-list {
@@ -10250,10 +9512,6 @@ body.resizing-column * {
 .gg-count {
     color: var(--muted);
     font-size: 12px;
-}
-
-.gg-scope {
-    width: 230px;
 }
 
 .gg-rows {
@@ -10389,12 +9647,11 @@ button.gg-ref:hover {
     opacity: 1;
 }
 
+/* The button has the width of its label, in the middle of the list. */
 .gg-more {
     display: flex;
-    align-items: center;
-    gap: 6px;
+    width: fit-content;
     margin: 12px auto 0;
-    font-size: 12px;
 }
 
 /* The Pipelines tab of the right panel: the runs of the repository of the worktree */
@@ -10444,19 +9701,6 @@ button.gg-ref:hover {
     .pp-run-label {
         display: none;
     }
-}
-
-.pp-run-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 9px;
-    font-size: 12px;
-}
-
-.pp-run-button.on {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-    background: color-mix(in srgb, var(--accent) 18%, var(--raised));
 }
 
 .pp-workflows {
@@ -10579,10 +9823,6 @@ button.gg-ref:hover {
     display: flex;
 }
 
-.pp-run-actions .icon-button {
-    padding: 2px;
-}
-
 .pp-jobs {
     padding: 0 0 6px 34px;
 }
@@ -10660,7 +9900,6 @@ button.gg-ref:hover {
     gap: 18px;
     align-items: flex-start;
     padding: 14px;
-    border-bottom: 1px solid var(--border);
 }
 
 .pairing-qr {
@@ -10698,6 +9937,7 @@ button.gg-ref:hover {
 
 .pairing-actions {
     display: flex;
+    justify-content: flex-end;
     gap: 8px;
     margin-top: 10px;
 }
@@ -10708,10 +9948,6 @@ button.gg-ref:hover {
 
 .device-empty {
     padding: 12px 14px;
-}
-
-.device-row + .device-row {
-    border-top: 1px solid var(--border);
 }
 
 .device-dot {
@@ -10733,46 +9969,10 @@ button.gg-ref:hover {
     padding: 0 8px;
 }
 
-.browser-address {
+/* This selector is more specific than ".diff-header > :not(...)", so the field fills the free space. */
+.diff-header > .browser-address.input {
     flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 24px;
     margin: 0 4px;
-    padding: 0 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--raised);
-}
-
-.browser-address:focus-within {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-}
-
-.browser-address.invalid {
-    border-color: var(--danger);
-}
-
-.browser-address-icon {
-    flex: none;
-    color: var(--muted);
-}
-
-.browser-address input {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: var(--text-strong);
-    font: inherit;
-    font-size: 12px;
-}
-
-.browser-address input::placeholder {
-    color: var(--muted);
 }
 
 .browser-progress {
@@ -10870,18 +10070,8 @@ button.gg-ref:hover {
     color: var(--text-strong);
 }
 
-.zone-card.pending.from-agent {
-    border-style: dashed;
-}
-
 .zone-card.pending.needs-decision {
     border-color: var(--accent);
-}
-
-.link-button.accept-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
 }
 
 .review-undecided {
@@ -10892,12 +10082,6 @@ button.gg-ref:hover {
     margin-bottom: 2px;
 }
 
-.composer-mode button {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
 .composer-target {
     max-width: 320px;
     margin-right: auto;
@@ -10906,11 +10090,6 @@ button.gg-ref:hover {
 /* The wrapper only stops the keys of the select. It has no box. */
 .composer-target-keys {
     display: contents;
-}
-
-.zone-card.composer.ask,
-.zone-card.agent-question {
-    border-color: color-mix(in srgb, var(--info) 60%, transparent);
 }
 
 .agent-question .comment-author {
@@ -10941,10 +10120,6 @@ button.gg-ref:hover {
 
 .agent-question .form-error {
     white-space: pre-wrap;
-}
-
-.agent-question.collapsed {
-    padding: 0;
 }
 
 .agent-question-toggle {
@@ -11056,24 +10231,9 @@ button.gg-ref:hover {
     font-size: 12px;
 }
 
-.find-bar input {
+.find-bar-input {
     flex: 1;
-    min-width: 0;
     max-width: 360px;
-    padding: 3px 8px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    outline: none;
-    background: var(--bg);
-    color: var(--text-strong);
-    font:
-        12px -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
-}
-
-.find-bar input:focus {
-    border-color: var(--accent);
 }
 
 .find-count {
@@ -11081,53 +10241,16 @@ button.gg-ref:hover {
     font-variant-numeric: tabular-nums;
 }
 
-.find-bar .find-case {
-    width: auto;
-    padding: 0 5px;
+/* The "Aa" text is the icon of the button. */
+.icon-button.find-case {
     font-size: 11px;
     font-weight: 600;
-}
-
-.find-bar .find-case.selected {
-    background: color-mix(in srgb, var(--accent) 22%, transparent);
-    color: var(--text-strong);
-}
-
-.find-bar .icon-button:disabled {
-    opacity: 0.4;
-    cursor: default;
 }
 
 /* The footer of a pull request: the card for the user's review and the card for the merge. */
 
 .pr-footer {
     box-shadow: 0 -6px 16px -12px rgb(0 0 0 / 0.5);
-}
-
-.footer-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
-    padding: 10px 12px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-}
-
-.footer-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 22px;
-}
-
-.footer-card-title {
-    color: var(--text-strong);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
 }
 
 .pending-pill {
@@ -11141,28 +10264,35 @@ button.gg-ref:hover {
     font-size: 11.5px;
 }
 
-.review-card textarea.review-body {
-    height: 180px;
-    min-height: 64px;
-    max-height: 480px;
-    resize: vertical;
-    background: var(--panel);
-}
-
-.review-actions {
+/* The parts of the review card and the merge card are in a column. */
+.review-card-body,
+.merge-card-body {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
+    flex-direction: column;
+    gap: 10px;
 }
 
+/* The parent class makes the rules win over the auto height of `.textarea`. */
+.review-card .review-text,
+.review-card .review-summary {
+    width: 100%;
+    min-height: 64px;
+    resize: vertical;
+}
+
+.review-card .review-text {
+    height: 180px;
+    max-height: 480px;
+}
+
+.review-card .review-summary {
+    height: 104px;
+    max-height: 360px;
+}
+
+.review-card .panel-note,
 .merge-card .panel-note {
     padding: 0;
-}
-
-.merge-card .merge-row {
-    flex-wrap: wrap;
-    justify-content: flex-end;
 }
 
 .worktree-sort-control {
@@ -11381,31 +10511,6 @@ button.pr-summary-cell:hover {
     color: var(--accent);
 }
 
-/* The cards in the side column of the Overview tab: the review, the merge, and the people and labels. */
-.side-card {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    min-width: 0;
-    padding: 18px 20px 20px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--raised);
-}
-
-.side-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 22px;
-}
-
-.side-card-title {
-    color: var(--text-strong);
-    font-size: 14px;
-    font-weight: 600;
-}
-
 .review-requested {
     color: var(--accent);
     font-size: 12.5px;
@@ -11419,39 +10524,6 @@ button.pr-summary-cell:hover {
     gap: 8px;
 }
 
-.side-card-header .agent-review-button {
-    flex: none;
-    font-size: 12.5px;
-}
-
-.side-card-header .button.agent-review-button,
-.side-card-header .agent-review-button > .button {
-    padding: 4px 10px;
-}
-
-.side-card-header .agent-review-button > .button-group-arrow {
-    padding: 4px 7px;
-}
-
-.side-card-field {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    color: var(--muted);
-    font-size: 13px;
-}
-
-.pr-overview .side-card textarea.review-body {
-    height: 104px;
-    min-height: 64px;
-    max-height: 360px;
-    resize: vertical;
-    padding: 10px 14px;
-    border-radius: 8px;
-    background: var(--bg);
-    font-size: 13.5px;
-}
-
 /* The review buttons have the width of their text. They are at the right of the card. */
 .review-decisions {
     display: flex;
@@ -11460,22 +10532,9 @@ button.pr-summary-cell:hover {
     gap: 8px;
 }
 
-.review-decisions .button.approve {
-    border-color: var(--ok);
-    background: var(--ok);
-    color: var(--bg);
-}
-
-.review-decisions .button.approve:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--ok) 85%, #fff);
-    background: color-mix(in srgb, var(--ok) 85%, #fff);
-    color: var(--bg);
-}
-
 .review-card-foot {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    justify-content: flex-end;
     margin-top: -2px;
     font-size: 12.5px;
 }
@@ -11483,10 +10542,6 @@ button.pr-summary-cell:hover {
 .review-shortcut {
     color: var(--muted);
     white-space: nowrap;
-}
-
-.side-card .review-undecided {
-    padding: 0;
 }
 
 .merge-conditions {
@@ -11520,23 +10575,12 @@ button.pr-summary-cell:hover {
     color: var(--accent);
 }
 
-.side-card.merge-card .merge-row {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 10px;
-}
-
 /* In the side column, the merge card is near the top. The menu of the merge methods opens down. */
-.side-card .merge-menu {
+.pr-overview-aside .merge-menu {
     top: calc(100% + 6px);
     right: 0;
     bottom: auto;
     left: auto;
-}
-
-.pr-meta-card {
-    gap: 0;
-    padding: 4px 20px;
 }
 
 .pr-meta-row.card-row {
@@ -11544,19 +10588,14 @@ button.pr-summary-cell:hover {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    min-height: 52px;
-    padding: 10px 0;
-    border-top: 1px solid var(--border);
-}
-
-.pr-meta-row.card-row:first-of-type {
-    border-top: 0;
+    min-height: 44px;
+    padding: 8px 14px;
 }
 
 .pr-meta-card-title {
     flex: none;
     color: var(--muted);
-    font-size: 13.5px;
+    font-size: 13px;
 }
 
 .pr-meta-card .pr-meta-values {
@@ -11567,13 +10606,7 @@ button.pr-summary-cell:hover {
 
 .pr-meta-author {
     color: var(--text-strong);
-    font-size: 13.5px;
-}
-
-.pr-meta-add.link-button {
-    gap: 3px;
-    color: var(--info);
-    font-size: 13.5px;
+    font-size: 13px;
 }
 
 /* The "Ask agent" glyph in the gutter of the code editor */
@@ -11602,8 +10635,6 @@ button.pr-summary-cell:hover {
 }
 
 .branch-copy {
-    width: 18px;
-    height: 18px;
     opacity: 0;
 }
 
@@ -12054,13 +11085,6 @@ button.pr-summary-cell:hover {
     gap: 4px 10px;
 }
 
-.pr-row-seen {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 11px;
-}
-
 .pr-row {
     display: grid;
     grid-template-columns: 16px minmax(0, 1fr) 110px 150px 56px 40px;
@@ -12371,48 +11395,19 @@ button.pr-summary-cell:hover {
     align-items: flex-start;
 }
 
-/* The status switch, Cancel and Save have the same height, and the same line as the name. */
+/* The status switch, Cancel, and Save are on the same line as the name. */
 .automation-status-switch,
-.automation-editor-head .button {
-    height: 32px;
+.automation-editor-head .flow-title-row > .button {
     margin-top: 3px;
 }
 
-.automation-status-switch {
-    flex: none;
-    align-items: stretch;
-    padding: 2px;
-}
-
-.automation-status-switch button {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 6px;
-    padding: 0 12px;
-    font-size: 12.5px;
-    white-space: nowrap;
-}
-
-.automation-status-switch button.on.selected {
-    border-color: transparent;
-    background: color-mix(in srgb, var(--ok) 16%, var(--raised));
-    box-shadow: none;
+/* The selected status has the color of the status. */
+.automation-status-switch > .button.status-on[aria-checked="true"] {
     color: var(--ok);
 }
 
-.automation-status-switch button.dry-run.selected {
-    border-color: transparent;
-    background: color-mix(in srgb, var(--purple) 16%, var(--raised));
-    box-shadow: none;
+.automation-status-switch > .button.status-dry-run[aria-checked="true"] {
     color: var(--purple);
-}
-
-.automation-status-switch button.off.selected {
-    border-color: transparent;
-    background: var(--hover);
-    box-shadow: none;
-    color: var(--text-strong);
 }
 
 .automation-status-dot {
@@ -12420,10 +11415,6 @@ button.pr-summary-cell:hover {
     height: 6px;
     border-radius: 50%;
     background: currentColor;
-}
-
-.flow-page .automation-save {
-    padding: 0 18px;
 }
 
 .automation-editor-head .form-error,
@@ -12505,10 +11496,10 @@ button.pr-summary-cell:hover {
     padding-bottom: 22px;
 }
 
-.flow-body > .flow-card {
+.flow-card-body {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
 }
 
 .flow-section-head {
@@ -12539,11 +11530,6 @@ button.pr-summary-cell:hover {
     font-size: 12.5px;
 }
 
-.automation-only-if.empty {
-    border-style: dashed;
-    background: none;
-}
-
 .automation-then {
     display: flex;
     flex-direction: column;
@@ -12566,24 +11552,17 @@ button.pr-summary-cell:hover {
     font-size: 12.5px;
 }
 
-.automation-editor .flow-field .settings-input,
-.automation-editor .automation-label-repo .settings-input {
+.automation-label-repo > .input {
     width: 100%;
 }
 
-.automation-editor .automation-auto-select.settings-input,
-.automation-editor .automation-strong-select.settings-input {
-    width: auto;
+.select-button.automation-auto-select,
+.select-button.automation-type-select {
     min-width: 140px;
 }
 
-.automation-editor .automation-wide-select.settings-input {
+.select-button.automation-wide-select {
     width: 280px;
-}
-
-.automation-strong-select.settings-input {
-    color: var(--text-strong);
-    font-weight: 600;
 }
 
 .automation-field-grid {
@@ -12602,8 +11581,10 @@ button.pr-summary-cell:hover {
     max-width: 320px;
 }
 
-.automation-check-field {
-    min-height: 31px;
+/* A checkbox in a grid of fields. It is in the middle of the height of a field. */
+.choice.automation-check-field {
+    align-items: center;
+    min-height: var(--control-height);
 }
 
 .automation-info {
@@ -12633,8 +11614,7 @@ button.pr-summary-cell:hover {
     gap: 6px;
 }
 
-.automation-day,
-.automation-check {
+.automation-day {
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -12670,7 +11650,6 @@ button.pr-summary-cell:hover {
     color: var(--text-strong);
 }
 
-.automation-inline label,
 .automation-inline .automation-field {
     display: inline-flex;
     align-items: center;
@@ -12678,20 +11657,10 @@ button.pr-summary-cell:hover {
     font-size: 12.5px;
 }
 
-.automation-editor .automation-time.settings-input {
-    width: auto;
-}
-
 /* The collections of a task automation: a multi-select with the size of the other fields. */
 .automation-editor .combobox {
     width: 240px;
     max-width: 100%;
-}
-
-.automation-editor .combobox-button {
-    padding: 6px 9px;
-    background: var(--bg);
-    color: var(--text-strong);
 }
 
 /* The label rules: "If the label is" → "use repository". */
@@ -12703,7 +11672,7 @@ button.pr-summary-cell:hover {
 
 .automation-label-repo {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1.4fr) 28px;
+    grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1.4fr) var(--control-height-sm);
     align-items: center;
     gap: 8px;
 }
@@ -12725,35 +11694,14 @@ button.pr-summary-cell:hover {
     font-style: italic;
 }
 
-.automation-label-repos .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.automation-editor .automation-number.settings-input {
+.input.automation-number {
     width: 72px;
     text-align: right;
 }
 
 /* The actions */
 
-.automation-action {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 12px 16px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--panel);
-}
-
-.automation-action .automation-action {
-    background: var(--bg);
-}
-
-.automation-action-head {
-    display: flex;
+.card-header.automation-action-head {
     flex-wrap: wrap;
     align-items: center;
     gap: 8px 10px;
@@ -12780,9 +11728,8 @@ button.pr-summary-cell:hover {
     font-size: 12.5px;
 }
 
-.automation-editor .automation-status-input.settings-input {
+.input.automation-status-input {
     flex: 1 1 160px;
-    width: auto;
 }
 
 .automation-action-head:has(.automation-status-input) .automation-action-description {
@@ -12794,16 +11741,6 @@ button.pr-summary-cell:hover {
     align-items: center;
     gap: 2px;
     margin-left: auto;
-}
-
-.automation-action-tools .icon-button {
-    width: 28px;
-    height: 28px;
-    color: var(--muted);
-}
-
-.automation-action-tools .icon-button:hover:not(:disabled) {
-    color: var(--text-strong);
 }
 
 .automation-action-body {
@@ -12852,10 +11789,9 @@ button.pr-summary-cell:hover {
     resize: vertical;
 }
 
-.automation-http-headers ~ .automation-prompt,
-.automation-action-body > .automation-prompt {
-    border: 1px solid var(--border);
-    border-radius: 8px;
+.automation-http-body {
+    min-height: 110px;
+    resize: vertical;
 }
 
 .automation-variable-box {
@@ -12933,7 +11869,8 @@ button.pr-summary-cell:hover {
     justify-content: center;
     gap: 6px;
     width: 100%;
-    padding: 12px;
+    height: var(--control-height-lg);
+    padding: 0 12px;
     border: 1px dashed var(--border);
     border-radius: 10px;
     background: none;
@@ -12992,17 +11929,10 @@ button.pr-summary-cell:hover {
     margin-top: 2px;
 }
 
-.automation-side .flow-card-section + .flow-card-section {
-    border-top: 1px solid var(--border);
-}
-
-.automation-approval button {
-    padding: 6px 0;
-}
-
 .automation-limit-row {
+    display: flex;
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
     gap: 8px;
 }
 
@@ -13015,7 +11945,7 @@ button.pr-summary-cell:hover {
     font-size: 12.5px;
 }
 
-.automation-editor .automation-limit-input.settings-input {
+.input.automation-limit-input {
     width: 120px;
 }
 
@@ -13038,24 +11968,9 @@ button.pr-summary-cell:hover {
     gap: 6px;
 }
 
-/* The "‹ Plans" link in the title bar of an open plan. */
+/* The "‹ Plans" button in the title bar of an open plan or automation. The icon aligns with the content below. */
 .view-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: -6px;
-    padding: 4px 6px;
-    border: 0;
-    border-radius: 6px;
-    background: none;
-    color: var(--muted);
-    font: inherit;
-    cursor: pointer;
-}
-
-.view-back:hover {
-    background: var(--hover);
-    color: var(--text-strong);
+    margin-left: -12px;
 }
 
 .plans-scroll {
@@ -13081,10 +11996,6 @@ button.pr-summary-cell:hover {
 
 .plan-row:hover {
     background: var(--raised);
-}
-
-.plan-row + .plan-row {
-    border-top: 1px solid var(--border);
 }
 
 .plan-status,
@@ -13263,13 +12174,6 @@ button.pr-summary-cell:hover {
     }
 }
 
-.flow-card {
-    padding: 16px 18px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--panel);
-}
-
 .flow-label {
     display: block;
     margin-bottom: 4px;
@@ -13329,7 +12233,7 @@ button.pr-summary-cell:hover {
     line-height: 1.45;
 }
 
-.plan-idea-card > .flow-label + .plan-idea-note {
+.plan-idea-card .flow-label + .plan-idea-note {
     margin: 0 0 8px;
 }
 
@@ -13344,14 +12248,13 @@ button.pr-summary-cell:hover {
     user-select: text;
 }
 
-.plan-idea.settings-input,
-.plan-feedback.settings-input,
-.plan-step-description.settings-input {
+.plan-idea,
+.plan-feedback,
+.plan-step-description {
     display: block;
     width: 100%;
     min-height: 88px;
     resize: vertical;
-    line-height: 1.5;
 }
 
 /* The steps */
@@ -13424,15 +12327,13 @@ button.pr-summary-cell:hover {
 }
 
 .plan-step {
-    display: flex;
     flex: 1;
+}
+
+.plan-step-body {
+    display: flex;
     flex-direction: column;
     gap: 10px;
-    min-width: 0;
-    padding: 12px 16px 14px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--panel);
 }
 
 .plan-step-row.skipped .plan-step {
@@ -13497,13 +12398,8 @@ button.pr-summary-cell:hover {
     color: var(--ok);
 }
 
-.plan-repo-select.settings-input {
+.select-button.plan-repo-select {
     width: 170px;
-}
-
-.plan-repo-select.warn.settings-input {
-    border-color: color-mix(in srgb, var(--flow-warn) 70%, transparent);
-    color: var(--flow-warn);
 }
 
 .plan-step-tools,
@@ -13519,19 +12415,8 @@ button.pr-summary-cell:hover {
     gap: 2px;
 }
 
-.plan-step-tools .icon-button {
-    width: 28px;
-    height: 28px;
-    color: var(--muted);
-}
-
-.plan-step-tools .icon-button:hover:not(:disabled) {
-    color: var(--text-strong);
-}
-
-.plan-step-tools .icon-button[aria-pressed="true"] {
-    background: var(--raised);
-    color: var(--accent);
+.plan-step-actions {
+    justify-content: flex-end;
 }
 
 .plan-step-problem {
@@ -13542,17 +12427,15 @@ button.pr-summary-cell:hover {
     font-size: 12.5px;
 }
 
-.plan-step-description.settings-input {
+.plan-step-description {
     min-height: 76px;
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 12px;
 }
 
 .plan-step-fields {
     gap: 8px 12px;
 }
 
-.plan-task-select.settings-input {
+.select-button.plan-task-select {
     width: 140px;
 }
 
@@ -13562,19 +12445,8 @@ button.pr-summary-cell:hover {
     max-width: 100%;
 }
 
-.plan-task-picker .combobox-button,
-.plan-collection-picker .combobox-button {
-    padding: 6px 9px;
-    background: var(--bg);
-    color: var(--text-strong);
-}
-
 .plan-check {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
     margin-left: 6px;
-    font-size: 12.5px;
 }
 
 .plan-hint {
@@ -13587,8 +12459,9 @@ button.pr-summary-cell:hover {
     align-items: center;
     justify-content: center;
     gap: 6px;
+    height: var(--control-height-lg);
     margin-left: 40px;
-    padding: 12px;
+    padding: 0 12px;
     border: 1px dashed var(--border);
     border-radius: 10px;
     background: none;
@@ -13629,53 +12502,17 @@ button.pr-summary-cell:hover {
 
 .plan-revise-row {
     display: flex;
-    align-items: stretch;
+    align-items: flex-end;
     gap: 8px;
 }
 
-.plan-feedback.settings-input {
+.plan-feedback {
     flex: 1;
     min-height: 40px;
     height: 40px;
 }
 
-.flow-page .plan-revise-send {
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-}
-
 /* The run panel at the right */
-
-/* A card with sections gets its padding from the sections. */
-.flow-card:has(> .flow-card-section) {
-    padding: 0;
-}
-
-.flow-card-section {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 16px 18px;
-}
-
-.flow-card-section + .flow-card-section {
-    border-top: 1px solid var(--border);
-}
-
-.flow-card-title {
-    margin: 0;
-    color: var(--text-strong);
-    font-size: 15px;
-    font-weight: 650;
-}
-
-.flow-card-note {
-    margin-top: -6px;
-    color: var(--muted);
-    font-size: 12.5px;
-}
 
 .flow-problems {
     padding: 10px 12px;
@@ -13724,7 +12561,7 @@ button.pr-summary-cell:hover {
     gap: 6px;
 }
 
-.flow-field .settings-input,
+.flow-field > .input,
 .flow-field .plan-collection-picker.combobox {
     width: 100%;
 }
@@ -13751,20 +12588,20 @@ button.pr-summary-cell:hover {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    cursor: pointer;
 }
 
-.flow-page .plan-execute {
-    justify-content: center;
-    width: 100%;
-    padding: 9px 16px;
-    font-size: 13.5px;
+/* A row of action buttons in a card. The buttons are at the right. */
+.flow-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .plan-execute-note {
     color: var(--muted);
     font-size: 12px;
-    text-align: center;
+    text-align: right;
 }
 
 /* The run of a plan */
@@ -13934,14 +12771,6 @@ button.pr-summary-cell:hover {
     gap: 8px;
 }
 
-.welcome-actions .button,
-.welcome-fixes .button,
-.settings-group-actions .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
 .welcome-command {
     display: flex;
     flex-direction: column;
@@ -14068,10 +12897,6 @@ button.pr-summary-cell:hover {
     display: flex;
     flex-direction: column;
     gap: 8px;
-}
-
-.clone-repo-dialog .settings-input {
-    width: 100%;
 }
 
 /* The guided tour (Help › Take the Tour). The callout uses the theme tokens, so it works with all themes. */
@@ -14268,6 +13093,7 @@ button.pr-summary-cell:hover {
 }
 
 .shortcuts-search {
+    display: flex;
     margin-bottom: 14px;
 }
 
@@ -14637,10 +13463,6 @@ button.pr-summary-cell:hover {
 }
 
 .welcome-dot:focus-visible,
-.welcome-skip:focus-visible,
-.welcome-back:focus-visible,
-.welcome-next:focus-visible,
-.welcome-cta:focus-visible,
 .welcome-choice:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
@@ -14648,19 +13470,7 @@ button.pr-summary-cell:hover {
 
 .welcome-skip {
     justify-self: end;
-    padding: 5px 10px;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--muted);
-    font-size: 12px;
-    cursor: pointer;
     -webkit-app-region: no-drag;
-}
-
-.welcome-skip:hover {
-    background: color-mix(in srgb, var(--text-strong) 8%, transparent);
-    color: var(--text-strong);
 }
 
 .welcome-error {
@@ -14771,11 +13581,6 @@ button.pr-summary-cell:hover {
     line-height: 1.5;
 }
 
-.welcome-note .link-button {
-    font-size: 13px;
-    color: var(--accent);
-}
-
 /* A frosted card for content on the gradient. */
 .welcome-panel,
 .welcome-view .welcome-optional,
@@ -14864,92 +13669,9 @@ button.pr-summary-cell:hover {
     padding: 16px 32px 28px;
 }
 
-.welcome-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--muted);
-    font-size: 13px;
-    cursor: pointer;
-}
-
-.welcome-later {
-    padding: 8px 14px;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--muted);
-    font-size: 13px;
-    cursor: pointer;
-}
-
-.welcome-later:hover {
-    background: color-mix(in srgb, var(--text-strong) 8%, transparent);
-    color: var(--text-strong);
-}
-
-.welcome-later:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
-}
-
-.welcome-back:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--text-strong) 8%, transparent);
-    color: var(--text-strong);
-}
-
+/* On the first step, Back has no effect. It keeps its place, so Continue does not move. */
 .welcome-back:disabled {
     visibility: hidden;
-}
-
-.welcome-next,
-.welcome-cta {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 20px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--text-strong);
-    color: var(--bg);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--text-strong) 50%, transparent);
-    transition:
-        transform 250ms var(--welcome-ease),
-        box-shadow 250ms ease;
-}
-
-/*
- * The main button uses the text and background colors of the theme, as Continue does. Each theme keeps these two
- * colors readable together. A fixed text color on the accent color is not readable in all themes. The accent shows
- * only in the glow.
- */
-.welcome-cta {
-    padding: 12px 24px;
-    font-size: 14px;
-    box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
-        0 14px 40px -10px color-mix(in srgb, var(--accent) 65%, transparent);
-}
-
-.welcome-next:hover,
-.welcome-cta:hover:not(:disabled) {
-    transform: translateY(-1px);
-}
-
-/* A disabled button keeps readable text. It loses its fill and its glow, so it does not look like a button to press. */
-.welcome-cta:disabled {
-    border: 1px dashed color-mix(in srgb, var(--text-strong) 30%, transparent);
-    background: transparent;
-    color: var(--text);
-    box-shadow: none;
-    cursor: default;
 }
 
 .welcome-view .welcome-actions {
@@ -15030,9 +13752,7 @@ button.pr-summary-cell:hover {
 
     .welcome-backdrop,
     .welcome-dot,
-    .welcome-choice,
-    .welcome-next,
-    .welcome-cta {
+    .welcome-choice {
         transition: none;
     }
 }
@@ -15081,10 +13801,6 @@ button.pr-summary-cell:hover {
     margin-top: 6px;
 }
 
-.tip-notice-close {
-    flex: none;
-}
-
 /* A tip in a view (InlineTip). The user can close it for all time. */
 .inline-tip {
     display: flex;
@@ -15117,11 +13833,6 @@ button.pr-summary-cell:hover {
     color: var(--text-strong);
     font-size: 13px;
     font-weight: 600;
-}
-
-.inline-tip .button {
-    flex: none;
-    white-space: nowrap;
 }
 
 .inline-tip.inset {
@@ -15165,13 +13876,6 @@ button.pr-summary-cell:hover {
     gap: 8px;
 }
 
-.automation-condition-add .button,
-.automation-http-headers > .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-}
-
 .automation-condition-var {
     width: 180px;
 }
@@ -15194,7 +13898,7 @@ button.pr-summary-cell:hover {
     text-transform: uppercase;
 }
 
-.automation-http-url {
+.input.automation-http-url {
     flex: 1;
     min-width: 240px;
 }
@@ -15220,12 +13924,6 @@ button.pr-summary-cell:hover {
 
 .pr-header .automation-buttons {
     margin-top: 10px;
-}
-
-.automation-buttons .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
 }
 
 .automation-button-error {

@@ -6,6 +6,7 @@ import { onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
 import { moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
+import { Button, ButtonGroup, IconButton } from './ui';
 
 /** The number of commits in each load. "Load more" adds this number. */
 const PAGE = 500;
@@ -194,22 +195,14 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
                 </div>
                 <span className="header-spacer" />
                 <div className="tasks-header-group">
-                    <div className="segmented compact gg-scope" role="radiogroup" aria-label="Commits to show" onKeyDown={radioGroupKeys}>
+                    <ButtonGroup role="radiogroup" label="Commits to show" onKeyDown={radioGroupKeys}>
                         {(['all', 'local'] as const).map(value => (
-                            <button
-                                key={value}
-                                role="radio"
-                                aria-checked={scope === value}
-                                className={scope === value ? 'selected' : ''}
-                                onClick={() => changeScope(value)}
-                            >
+                            <Button key={value} role="radio" aria-checked={scope === value} onClick={() => changeScope(value)}>
                                 {value === 'all' ? 'All branches' : 'Local branches'}
-                            </button>
+                            </Button>
                         ))}
-                    </div>
-                    <button className="icon-button" title="Refresh" onClick={reload}>
-                        <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
-                    </button>
+                    </ButtonGroup>
+                    <IconButton icon={<RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />} label="Refresh" onClick={reload} />
                 </div>
             </header>
             {error && <div className="form-error pp-error">{error}</div>}
@@ -255,20 +248,25 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
                             <span className="gg-hash mono" title={commit.hash}>
                                 {short}
                             </span>
-                            <button
-                                className="icon-button gg-action"
-                                title={`New worktree from ${short}`}
+                            <IconButton
+                                size="sm"
+                                className="gg-action"
+                                icon={<FolderGit2 size={14} strokeWidth={1.7} />}
+                                label={`New worktree from ${short}`}
                                 onClick={() => onNewWorktree({ commit: commit.hash, label: `${short} ${commit.subject}` })}
-                            >
-                                <FolderGit2 size={14} strokeWidth={1.7} />
-                            </button>
+                            />
                         </div>
                     );
                 })}
                 {log?.more && (
-                    <button className="button gg-more" disabled={loading} onClick={() => setLimit(value => value + PAGE)}>
-                        {loading && <LoaderCircle size={12} className="spin" />} Load more commits
-                    </button>
+                    <Button
+                        className="gg-more"
+                        disabled={loading}
+                        icon={loading ? <LoaderCircle size={12} className="spin" /> : undefined}
+                        onClick={() => setLimit(value => value + PAGE)}
+                    >
+                        Load more commits
+                    </Button>
                 )}
             </div>
         </div>

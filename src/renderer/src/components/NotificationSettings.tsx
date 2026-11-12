@@ -9,8 +9,8 @@ import {
 } from '@shared/notifications';
 import type { AppSettings } from '@shared/settings';
 import { errorText } from '../util';
-import { SettingsGroup, SettingsRow, Switch } from './settings-ui';
-import { Select } from './ui/Select';
+import { SettingsGroup, SettingsRow } from './settings-ui';
+import { Button, IconButton, Select, Switch } from './ui';
 
 interface Props {
     settings: AppSettings;
@@ -73,9 +73,9 @@ export function NotificationSettings({ settings, onSave }: Props) {
                     label="Test"
                     description="Sends a notification with the sound of “Agent needs input”. If nothing shows, allow notifications for ShipWarden in System Settings › Notifications."
                     control={
-                        <button className="button" disabled={!value.enabled} onClick={test}>
+                        <Button disabled={!value.enabled} onClick={test}>
                             {tested ? 'Send again' : 'Send a test'}
-                        </button>
+                        </Button>
                     }
                 />
             </SettingsGroup>
@@ -96,7 +96,6 @@ export function NotificationSettings({ settings, onSave }: Props) {
                                 <div className="notification-controls">
                                     {event.id === 'ciFinished' && (
                                         <Select
-                                            className="tasks-select"
                                             value={value.ciScope}
                                             disabled={!value.enabled || !current.enabled}
                                             title="Pull requests"
@@ -105,7 +104,6 @@ export function NotificationSettings({ settings, onSave }: Props) {
                                         />
                                     )}
                                     <Select
-                                        className="tasks-select"
                                         value={current.sound ?? ''}
                                         disabled={!value.enabled || !current.enabled}
                                         title="Sound"
@@ -116,14 +114,12 @@ export function NotificationSettings({ settings, onSave }: Props) {
                                             if (sound) window.shipwarden.notifications.playSound(sound);
                                         }}
                                     />
-                                    <button
-                                        className="icon-button"
-                                        title="Play the sound"
+                                    <IconButton
+                                        icon={<Volume2 size={14} strokeWidth={1.7} />}
+                                        label="Play the sound"
                                         disabled={!current.sound}
                                         onClick={() => current.sound && window.shipwarden.notifications.playSound(current.sound)}
-                                    >
-                                        <Volume2 size={15} strokeWidth={1.7} />
-                                    </button>
+                                    />
                                     <Switch
                                         checked={current.enabled}
                                         disabled={!value.enabled}
@@ -135,7 +131,11 @@ export function NotificationSettings({ settings, onSave }: Props) {
                         />
                     );
                 })}
-                {error && <div className="form-error">{error}</div>}
+                {error && (
+                    <div className="settings-row">
+                        <div className="form-error">{error}</div>
+                    </div>
+                )}
             </SettingsGroup>
         </>
     );

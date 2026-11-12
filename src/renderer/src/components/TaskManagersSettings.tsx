@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import type { ConnectionChange, ConnectionInfo, PluginInfo } from '@shared/tasks';
 import { optionalErrorText } from '../util';
 import { SettingsGroup } from './settings-ui';
-import { Select } from './ui/Select';
+import { Button, Card, CardBody, CardFooter, Checkbox, Field, Input, Radio, Select, Switch } from './ui';
 import { confirmDialog } from './ConfirmDialog';
 import { connectionAdded, connectionChanged, connectionRemoved, connectionSettingsSaved, taskManagerKeys } from './task-managers-cache';
 
@@ -50,14 +50,8 @@ function ScopePicker({ connection, value, onChange }: ScopePickerProps) {
     const mode = value ? 'some' : 'all';
     return (
         <div className="scope-picker">
-            <label className="scope-option">
-                <input type="radio" checked={mode === 'all'} onChange={() => onChange(undefined)} />
-                All {plural(label)}, also new ones
-            </label>
-            <label className="scope-option">
-                <input type="radio" checked={mode === 'some'} onChange={() => onChange(value ?? (scopes ?? []).map(scope => scope.id))} />
-                Only these {plural(label)}:
-            </label>
+            <Radio checked={mode === 'all'} onSelect={() => onChange(undefined)} label={`All ${plural(label)}, also new ones`} />
+            <Radio checked={mode === 'some'} onSelect={() => onChange(value ?? (scopes ?? []).map(scope => scope.id))} label={`Only these ${plural(label)}:`} />
             {error && <div className="form-error">{error}</div>}
             {!scopes && !error && (
                 <div className="panel-note">
@@ -65,21 +59,23 @@ function ScopePicker({ connection, value, onChange }: ScopePickerProps) {
                 </div>
             )}
             {scopes && (
-                <div className={`scope-list${mode === 'some' ? '' : ' disabled'}`}>
+                <div className="scope-list">
                     {scopes.map(scope => (
-                        <label key={scope.id} className="scope-item">
-                            <input
-                                type="checkbox"
-                                disabled={mode !== 'some'}
-                                checked={mode === 'some' && !!value?.includes(scope.id)}
-                                onChange={event => {
-                                    const current = value ?? [];
-                                    onChange(event.target.checked ? [...current, scope.id] : current.filter(id => id !== scope.id));
-                                }}
-                            />
-                            <span>{scope.name}</span>
-                            {scope.detail && <span className="scope-detail">{scope.detail}</span>}
-                        </label>
+                        <Checkbox
+                            key={scope.id}
+                            disabled={mode !== 'some'}
+                            checked={mode === 'some' && !!value?.includes(scope.id)}
+                            onChange={checked => {
+                                const current = value ?? [];
+                                onChange(checked ? [...current, scope.id] : current.filter(id => id !== scope.id));
+                            }}
+                            label={
+                                <>
+                                    {scope.name}
+                                    {scope.detail && <span className="scope-detail"> {scope.detail}</span>}
+                                </>
+                            }
+                        />
                     ))}
                     {scopes.length === 0 && <span className="panel-note">This connection has no {plural(label)}.</span>}
                 </div>
@@ -92,6 +88,7 @@ function ScopePicker({ connection, value, onChange }: ScopePickerProps) {
 function ConnectionSettingsForm({ connection }: { connection: ConnectionInfo }) {
     const queryClient = useQueryClient();
     const [values, setValues] = useState<Record<string, string | boolean>>({ ...connection.publicSettings });
+    const formId = useId();
     const saveMutation = useMutation({
         mutationFn: (settings: Record<string, string | boolean>) => api.saveConnectionSettings(connection.id, settings),
         onSuccess: () => connectionSettingsSaved(queryClient, connection.id)
@@ -104,21 +101,24 @@ function ConnectionSettingsForm({ connection }: { connection: ConnectionInfo }) 
     const save = () => saveMutation.mutate(values);
     return (
         <div className="connection-form">
-            {connection.settings.map(setting => (
-                // biome-ignore lint/a11y/noLabelWithoutControl: each branch of the condition below puts an input in the label.
-                <label key={setting.key} className="setting-row">
-                    <span className="setting-label">
-                        {setting.label}
-                        {setting.required ? ' *' : ''}
-                    </span>
-                    {setting.type === 'boolean' ? (
-                        <input
-                            type="checkbox"
-                            checked={!!values[setting.key]}
-                            onChange={event => setValues(v => ({ ...v, [setting.key]: event.target.checked }))}
-                        />
-                    ) : (
-                        <input
+            {connection.settings.map(setting =>
+                setting.type === 'boolean' ? (
+                    <Checkbox
+                        key={setting.key}
+                        label={`${setting.label}${setting.required ? ' *' : ''}`}
+                        description={setting.description}
+                        checked={!!values[setting.key]}
+                        onChange={checked => setValues(v => ({ ...v, [setting.key]: checked }))}
+                    />
+                ) : (
+                    <Field
+                        key={setting.key}
+                        label={`${setting.label}${setting.required ? ' *' : ''}`}
+                        htmlFor={`${formId}-${setting.key}`}
+                        hint={setting.description}
+                    >
+                        <Input
+                            id={`${formId}-${setting.key}`}
                             type={setting.type === 'secret' ? 'password' : 'text'}
                             value={typeof values[setting.key] === 'string' ? (values[setting.key] as string) : ''}
                             placeholder={
@@ -127,15 +127,14 @@ function ConnectionSettingsForm({ connection }: { connection: ConnectionInfo }) 
                             spellCheck={false}
                             onChange={event => setValues(v => ({ ...v, [setting.key]: event.target.value }))}
                         />
-                    )}
-                    {setting.description && <span className="panel-note">{setting.description}</span>}
-                </label>
-            ))}
+                    </Field>
+                )
+            )}
             {error && <div className="form-error">{error}</div>}
             <div className="row-buttons">
-                <button className="button" disabled={busy} onClick={save}>
+                <Button disabled={busy} onClick={save}>
                     Save settings
-                </button>
+                </Button>
             </div>
         </div>
     );
@@ -159,6 +158,8 @@ function ConnectionCard({ connection, open, onToggle }: { connection: Connection
     });
     const error = optionalErrorText(updateMutation.error ?? removeMutation.error);
     const update = (change: ConnectionChange) => updateMutation.mutate(change);
+    const nameId = useId();
+    const statusId = useId();
 
     const remove = async () => {
         if (
@@ -175,12 +176,9 @@ function ConnectionCard({ connection, open, onToggle }: { connection: Connection
     };
 
     return (
-        <div className={`connection-card${open ? ' open' : ''}`}>
-            <div className="connection-row">
-                <label className="switch" title={connection.enabled ? 'On in all projects' : 'Off'}>
-                    <input type="checkbox" checked={connection.enabled} onChange={event => update({ enabled: event.target.checked })} />
-                    <span />
-                </label>
+        <Card tone={open ? 'accent' : 'default'}>
+            <div className="card-header">
+                <Switch checked={connection.enabled} title={connection.enabled ? 'On in all projects' : 'Off'} onChange={enabled => update({ enabled })} />
                 <button className="connection-summary" aria-expanded={open} onClick={onToggle}>
                     <span className="connection-name">{connection.name}</span>
                     <span className="connection-meta">
@@ -192,18 +190,22 @@ function ConnectionCard({ connection, open, onToggle }: { connection: Connection
                 </button>
             </div>
             {open && (
-                <div className="connection-body">
-                    <label className="setting-row">
-                        <span className="setting-label">Name</span>
-                        <input
+                <CardBody className="connection-body">
+                    <Field label="Name" htmlFor={nameId}>
+                        <Input
+                            id={nameId}
                             value={name}
                             onChange={event => setName(event.target.value)}
                             onBlur={() => name.trim() && name !== connection.name && update({ name })}
                         />
-                    </label>
-                    <label className="setting-row">
-                        <span className="setting-label">Status when a worktree starts</span>
-                        <input
+                    </Field>
+                    <Field
+                        label="Status when a worktree starts"
+                        htmlFor={statusId}
+                        hint="When you start a worktree from a task, the task moves to the status with this name, if its list has one. ShipWarden ignores case. Empty: the status does not change."
+                    >
+                        <Input
+                            id={statusId}
                             value={startStatus}
                             placeholder="for example: in progress"
                             spellCheck={false}
@@ -211,24 +213,22 @@ function ConnectionCard({ connection, open, onToggle }: { connection: Connection
                             onBlur={() => startStatus.trim() !== (connection.startStatus ?? '') && update({ startStatus: startStatus.trim() || null })}
                             onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                         />
-                        <span className="panel-note">
-                            When you start a worktree from a task, the task moves to the status with this name, if its list has one. ShipWarden ignores case.
-                            Empty: the status does not change.
-                        </span>
-                    </label>
+                    </Field>
                     <ConnectionSettingsForm key={connection.settingsWithValue.join(',')} connection={connection} />
-                    <div className="connection-section-label">{plural(connection.scopeLabel).replace(/^./, letter => letter.toUpperCase())}</div>
-                    <ScopePicker connection={connection} value={connection.scope} onChange={scope => update({ scope: scope ?? null })} />
+                    <Field label={plural(connection.scopeLabel).replace(/^./, letter => letter.toUpperCase())}>
+                        <ScopePicker connection={connection} value={connection.scope} onChange={scope => update({ scope: scope ?? null })} />
+                    </Field>
                     {error && <div className="form-error">{error}</div>}
-                    <div className="row-buttons">
-                        <button className="button danger" onClick={remove}>
-                            <Trash2 size={13} strokeWidth={1.8} />
-                            Remove
-                        </button>
-                    </div>
-                </div>
+                </CardBody>
             )}
-        </div>
+            {open && (
+                <CardFooter>
+                    <Button variant="danger" icon={<Trash2 size={13} strokeWidth={1.8} />} onClick={remove}>
+                        Remove
+                    </Button>
+                </CardFooter>
+            )}
+        </Card>
     );
 }
 
@@ -273,16 +273,14 @@ export function TaskManagersSettings() {
                 actions={
                     <div className="add-connection">
                         <Select
-                            className="tasks-select"
                             value={adding}
                             aria-label="Task manager to add"
                             options={[{ value: '', label: 'Add a task manager…' }, ...plugins.map(plugin => ({ value: plugin.id, label: plugin.name }))]}
                             onChange={setAdding}
                         />
-                        <button className="button" disabled={!adding} onClick={add}>
-                            <Plus size={13} strokeWidth={1.8} />
+                        <Button icon={<Plus size={13} strokeWidth={1.8} />} disabled={!adding} onClick={add}>
                             Add
-                        </button>
+                        </Button>
                     </div>
                 }
             >

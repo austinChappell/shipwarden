@@ -54,7 +54,7 @@ export function MergeButton({ methods, method, label, disabled, title, size, onS
 
     const choice = methods.length > 1;
     const main = (
-        <Button variant="merge" size={size} className="merge-split-main" icon={<GitMerge size={14} strokeWidth={1.8} />} disabled={disabled} title={title} onClick={onRun}>
+        <Button variant="merge" size={size} icon={<GitMerge size={14} strokeWidth={1.8} />} disabled={disabled} title={title} onClick={onRun}>
             {label ?? BUTTON_LABELS[method]}
         </Button>
     );

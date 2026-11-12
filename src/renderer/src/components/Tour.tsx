@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Compass, X } from 'lucide-react';
 import { calloutPosition, isOnScreen, spotlightRect, tourKey, tourStep, type CalloutPosition, type Rect, type Size, type TourStep } from '@shared/tour';
 import { useModal } from './use-modal';
+import { Button, IconButton } from './ui';
 
 /** The number of animation frames that a step waits for its target, for example while the right panel opens. */
 const TARGET_WAIT_FRAMES = 12;
@@ -149,9 +150,13 @@ export function Tour({ steps, onPrepare, onClose }: Props) {
                         Step {index + 1} of {steps.length}
                     </span>
                     <span className="header-spacer" />
-                    <button className="icon-button" aria-label="Close the tour" title="Close the tour (Escape)" onClick={() => go('close')}>
-                        <X size={14} strokeWidth={1.8} />
-                    </button>
+                    <IconButton
+                        icon={<X size={14} strokeWidth={1.8} />}
+                        label="Close the tour"
+                        title="Close the tour (Escape)"
+                        size="sm"
+                        onClick={() => go('close')}
+                    />
                 </div>
                 <div aria-live="polite">
                     <h2 id="tour-title">{step.title}</h2>
@@ -162,12 +167,12 @@ export function Tour({ steps, onPrepare, onClose }: Props) {
                         ← → move · Esc closes
                     </span>
                     <span className="header-spacer" />
-                    <button className="button" onClick={() => go('back')} disabled={index === 0}>
+                    <Button onClick={() => go('back')} disabled={index === 0}>
                         Back
-                    </button>
-                    <button ref={nextButton} className="button primary" onClick={() => go('next')}>
+                    </Button>
+                    <Button ref={nextButton} variant="primary" onClick={() => go('next')}>
                         {last ? 'Done' : 'Next'}
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
@@ -189,12 +194,10 @@ export function TourOffer({ onStart, onDecline }: OfferProps) {
                 <span className="update-notice-detail">The tour shows the main parts of the app. It takes about a minute.</span>
             </div>
             <div className="update-notice-buttons">
-                <button className="button" onClick={onDecline}>
-                    No thanks
-                </button>
-                <button className="button primary" onClick={onStart}>
+                <Button onClick={onDecline}>No thanks</Button>
+                <Button variant="primary" onClick={onStart}>
                     Take the tour
-                </button>
+                </Button>
             </div>
         </section>
     );

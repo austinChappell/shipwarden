@@ -36,6 +36,7 @@ import { CloneRepoDialog } from './CloneRepoDialog';
 import { CopyButton } from './CopyButton';
 import { SettingsRow } from './settings-ui';
 import { TaskManagersSettings } from './TaskManagersSettings';
+import { Button } from './ui';
 
 interface Props {
     settings: AppSettings;
@@ -210,16 +211,19 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                             </span>
                         </div>
                     ) : (
-                        <button key={fix.label} className="button" onClick={() => runFix(check.id, fix)}>
+                        <Button
+                            key={fix.label}
+                            iconEnd={fix.kind === 'link' ? <ExternalLink size={12} strokeWidth={1.8} aria-hidden="true" /> : undefined}
+                            onClick={() => runFix(check.id, fix)}
+                        >
                             {fix.label}
-                            {fix.kind === 'link' && <ExternalLink size={12} strokeWidth={1.8} aria-hidden="true" />}
-                        </button>
+                        </Button>
                     )
                 )}
                 {check.fixes.some(fix => fix.kind === 'command') && (
-                    <button className="button" onClick={() => void recheck(check.id)} disabled={checking.has(check.id)}>
+                    <Button onClick={() => void recheck(check.id)} disabled={checking.has(check.id)}>
                         Check again
-                    </button>
+                    </Button>
                 )}
             </div>
         );
@@ -259,9 +263,13 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                             );
                         })}
                         <div className="welcome-panel-footer">
-                            <button className="button" onClick={recheckAll} disabled={loading}>
-                                <RefreshCw size={12} strokeWidth={1.8} className={loading ? 'spin' : undefined} aria-hidden="true" /> Check again
-                            </button>
+                            <Button
+                                icon={<RefreshCw size={12} strokeWidth={1.8} className={loading ? 'spin' : undefined} aria-hidden="true" />}
+                                onClick={recheckAll}
+                                disabled={loading}
+                            >
+                                Check again
+                            </Button>
                         </div>
                     </div>
                 );
@@ -349,8 +357,10 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                 return (
                     <>
                         <div className="welcome-actions">
-                            <button
-                                className="welcome-cta"
+                            <Button
+                                variant="solid"
+                                size="lg"
+                                icon={<Play size={16} strokeWidth={2} aria-hidden="true" />}
                                 onClick={() => {
                                     lastStep = 0;
                                     onStart();
@@ -358,25 +368,26 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                                 disabled={repos.length === 0}
                                 aria-describedby="welcome-start-note"
                             >
-                                <Play size={14} strokeWidth={2} aria-hidden="true" /> Create a worktree and start an agent
-                            </button>
-                            <button
-                                className="welcome-later"
+                                Create a worktree and start an agent
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="lg"
                                 onClick={() => {
                                     lastStep = 0;
                                     onLater();
                                 }}
                             >
                                 Do this later
-                            </button>
+                            </Button>
                         </div>
                         <p id="welcome-start-note" className="welcome-note">
                             {repos.length === 0 ? (
                                 <>
                                     Add a repository first.{' '}
-                                    <button className="link-button" onClick={() => go(WELCOME_STEP_IDS.indexOf('repository'))}>
+                                    <Button variant="link" onClick={() => go(WELCOME_STEP_IDS.indexOf('repository'))}>
                                         Go to “Add a repository”
-                                    </button>
+                                    </Button>
                                 </>
                             ) : (
                                 'Help › Show Welcome opens this page again. Help › Take the Tour shows the parts of the app.'
@@ -439,7 +450,9 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                         />
                     ))}
                 </nav>
-                <button
+                <Button
+                    variant="ghost"
+                    size="sm"
                     className="welcome-skip"
                     onClick={() => {
                         lastStep = 0;
@@ -447,7 +460,7 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                     }}
                 >
                     Skip setup
-                </button>
+                </Button>
             </header>
 
             {saveError && (
@@ -462,13 +475,20 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
             </div>
 
             <footer className="welcome-footer">
-                <button className="welcome-back" onClick={() => go(index - 1)} disabled={index === 0}>
-                    <ArrowLeft size={14} strokeWidth={1.8} aria-hidden="true" /> Back
-                </button>
+                <Button
+                    variant="ghost"
+                    size="lg"
+                    className="welcome-back"
+                    icon={<ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" />}
+                    onClick={() => go(index - 1)}
+                    disabled={index === 0}
+                >
+                    Back
+                </Button>
                 {index < last && (
-                    <button className="welcome-next" onClick={() => go(index + 1)}>
-                        {index === 0 ? 'Get started' : 'Continue'} <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
-                    </button>
+                    <Button variant="solid" size="lg" iconEnd={<ArrowRight size={16} strokeWidth={2} aria-hidden="true" />} onClick={() => go(index + 1)}>
+                        {index === 0 ? 'Get started' : 'Continue'}
+                    </Button>
                 )}
             </footer>
 

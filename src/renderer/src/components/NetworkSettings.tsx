@@ -5,6 +5,7 @@ import type { AppSettings } from '@shared/settings';
 import { keyRoots } from '../query-client';
 import { optionalErrorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { Button, Input, Switch } from './ui';
 
 interface Props {
     settings: AppSettings;
@@ -85,8 +86,9 @@ export function NetworkSettings({ settings, onSave }: Props) {
                     }
                 >
                     <div className="ca-file-row">
-                        <input
-                            className="settings-input mono"
+                        <Input
+                            className="ca-file-input"
+                            mono
                             value={file}
                             placeholder={status?.shellFile ?? '/Users/you/.certs/company-ca.pem'}
                             spellCheck={false}
@@ -94,9 +96,7 @@ export function NetworkSettings({ settings, onSave }: Props) {
                             onBlur={commitFile}
                             onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                         />
-                        <button className="button" onClick={() => void choose()}>
-                            Choose…
-                        </button>
+                        <Button onClick={() => void choose()}>Choose…</Button>
                     </div>
                     {fileStatus?.error && <div className="form-error">{fileStatus.error}</div>}
                     {fileStatus?.count !== undefined && (
@@ -110,14 +110,11 @@ export function NetworkSettings({ settings, onSave }: Props) {
                     label="Trust the macOS keychain"
                     description="Adds the certificates of the system keychain. IT departments often install the company CA there."
                     control={
-                        <label className="switch" title={network.useSystemCertificates ? 'On' : 'Off'}>
-                            <input
-                                type="checkbox"
-                                checked={network.useSystemCertificates}
-                                onChange={event => save({ useSystemCertificates: event.target.checked })}
-                            />
-                            <span />
-                        </label>
+                        <Switch
+                            checked={network.useSystemCertificates}
+                            title={network.useSystemCertificates ? 'On' : 'Off'}
+                            onChange={useSystemCertificates => save({ useSystemCertificates })}
+                        />
                     }
                 >
                     {status?.system?.error && <div className="form-error">ShipWarden cannot read the keychain: {status.system.error}</div>}
@@ -131,9 +128,9 @@ export function NetworkSettings({ settings, onSave }: Props) {
                     label="Test the connection"
                     description="Connects to GitHub and ClickUp with these certificates."
                     control={
-                        <button className="button" disabled={testing} onClick={test}>
-                            {testing && <LoaderCircle size={13} className="spin" />} Test
-                        </button>
+                        <Button icon={testing ? <LoaderCircle size={13} className="spin" /> : undefined} disabled={testing} onClick={test}>
+                            Test
+                        </Button>
                     }
                 >
                     {results?.map(result => (
@@ -144,7 +141,11 @@ export function NetworkSettings({ settings, onSave }: Props) {
                         </div>
                     ))}
                 </SettingsRow>
-                {error && <div className="form-error">{error}</div>}
+                {error && (
+                    <div className="settings-row">
+                        <div className="form-error">{error}</div>
+                    </div>
+                )}
             </SettingsGroup>
         </>
     );

@@ -4,6 +4,7 @@ import type { LspMissingServer } from '@shared/lsp';
 import { lspBridge } from '../lsp/bridge';
 import { missingServers, type MissingServerState } from '../lsp/missing-servers';
 import { confirmDialog } from './ConfirmDialog';
+import { Button } from './ui';
 
 /**
  * Asks the user before the install of a missing language server. ShipWarden never installs a server without consent.
@@ -69,14 +70,14 @@ export function MissingServerBanner({ server, install, features }: Props) {
             {icon}
             <span className="editor-server-text">{text}</span>
             {!running && server.install && (
-                <button className="button primary" title={server.install.source} onClick={() => void installMissingServer(server)}>
+                <Button size="sm" variant="primary" title={server.install.source} onClick={() => void installMissingServer(server)}>
                     {failed ? 'Try again' : 'Install'}
-                </button>
+                </Button>
             )}
             {!running && (
-                <button className="button" onClick={() => missingServers.dismiss(server.serverId)}>
+                <Button size="sm" onClick={() => missingServers.dismiss(server.serverId)}>
                     Not now
-                </button>
+                </Button>
             )}
         </div>
     );

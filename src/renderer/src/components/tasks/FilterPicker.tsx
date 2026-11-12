@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
-import { cx, inputClass } from '../ui';
+import { Button, cx, inputClass } from '../ui';
 
 export interface FilterRow {
     /** The key of the item in the filter. */
@@ -18,7 +18,7 @@ interface Props {
     title: string;
     /** The text on the button. */
     summary: string;
-    /** True when the filter hides tasks. Then the button has the accent color and the list has "Clear". */
+    /** True when the filter hides tasks. Then the list has "Clear". */
     active: boolean;
     rows: FilterRow[];
     searchPlaceholder: string;
@@ -113,9 +113,9 @@ export function FilterPicker({ className, title, summary, active, rows, searchPl
                             onChange={event => setQuery(event.target.value)}
                         />
                         {active && (
-                            <button type="button" className="link-button" onClick={onClear}>
+                            <Button variant="link" onClick={onClear}>
                                 Clear
-                            </button>
+                            </Button>
                         )}
                     </label>
                     <div className="combobox-list" id={`${id}-list`} ref={list} role="group" aria-label={title}>

@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { Lightbulb, X } from 'lucide-react';
 import { CornerNotice } from './CornerNotice';
+import { Button, IconButton } from './ui';
 import { INLINE_TIPS, type InlineTip as InlineTipContent, type InlineTipId, type Tip, type TipAction } from '@shared/tips';
 
 /** The tip state that the inline tips need. App.tsx gives it. */
@@ -53,13 +54,17 @@ export function InlineTip({ id, inset = false }: InlineTipProps) {
                 <span>{tip.body}</span>
             </div>
             {tip.action && (
-                <button className="button" onClick={() => tips.run(tip.action!)}>
+                <Button size="sm" onClick={() => tips.run(tip.action!)}>
                     {tip.action.label}
-                </button>
+                </Button>
             )}
-            <button className="icon-button" aria-label="Close the tip" title="Close the tip. It does not show again." onClick={() => tips.close(id)}>
-                <X size={14} strokeWidth={1.8} />
-            </button>
+            <IconButton
+                icon={<X size={14} strokeWidth={1.8} />}
+                label="Close the tip"
+                title="Close the tip. It does not show again."
+                size="sm"
+                onClick={() => tips.close(id)}
+            />
         </aside>
     );
 }
@@ -84,25 +89,23 @@ export function TipNotice({ tip, onRun, onClose, onTurnOff }: NoticeProps) {
                     <span className="update-notice-detail">{tip.body}</span>
                     <span className="tip-notice-buttons">
                         {tip.action && (
-                            <button
-                                className="button primary"
+                            <Button
+                                variant="primary"
                                 onClick={() => {
                                     onRun(tip.action!);
                                     onClose();
                                 }}
                             >
                                 {tip.action.label}
-                            </button>
+                            </Button>
                         )}
                         <span className="header-spacer" />
-                        <button className="link-button" onClick={onTurnOff}>
+                        <Button variant="link" onClick={onTurnOff}>
                             Turn off tips
-                        </button>
+                        </Button>
                     </span>
                 </div>
-                <button className="icon-button tip-notice-close" aria-label="Close the tip" title="Close the tip" onClick={onClose}>
-                    <X size={14} strokeWidth={1.8} />
-                </button>
+                <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close the tip" onClick={onClose} />
             </section>
         </CornerNotice>
     );

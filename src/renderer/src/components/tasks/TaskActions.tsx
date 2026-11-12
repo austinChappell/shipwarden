@@ -1,7 +1,7 @@
 import { GitBranch, Link2, Play, Unlink } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { AutomationButtons } from '../../automations/AutomationButtons';
-import { Select } from '../ui/Select';
+import { Button, Select } from '../ui';
 import { targetRepo as pickTargetRepo } from './task-view-logic';
 
 interface Props {
@@ -53,44 +53,41 @@ export function TaskActions({
         <div className="task-start">
             {worktree ? (
                 <>
-                    <button className="button primary" onClick={() => onOpenWorktree(worktree)}>
-                        <GitBranch size={14} strokeWidth={1.8} />
+                    <Button variant="primary" icon={<GitBranch size={14} strokeWidth={1.8} />} onClick={() => onOpenWorktree(worktree)}>
                         Open worktree
-                    </button>
-                    <button
-                        className="button"
+                    </Button>
+                    <Button
+                        icon={<Unlink size={14} strokeWidth={1.8} />}
                         disabled={busy}
                         title="Remove the link between the task and its worktree"
                         onClick={() => act(() => onUnlinkWorktree(worktree))}
                     >
-                        <Unlink size={14} strokeWidth={1.8} />
                         Unlink
-                    </button>
+                    </Button>
                 </>
             ) : (
                 <>
-                    <button
-                        className="button primary"
+                    <Button
+                        variant="primary"
+                        icon={<Play size={14} strokeWidth={1.8} />}
                         disabled={busy || !targetRepo || !source}
                         title={
                             targetRepo ? `Make a worktree in ${repoLabel(targetRepo)} and start an agent on the task` : 'Add a repository to the project first'
                         }
                         onClick={() => source && targetRepo && act(() => onStartTask(task, source.connectionId, source.pluginId, targetRepo))}
                     >
-                        <Play size={14} strokeWidth={1.8} />
                         Start in worktree
-                    </button>
+                    </Button>
                     {repos.length > 1 && (
                         <Select
-                            className="tasks-select"
                             value={targetRepo}
                             title="The repository of the new worktree"
                             options={repos.map(repo => ({ value: repo, label: repoLabel(repo) }))}
                             onChange={chooseStartRepo}
                         />
                     )}
-                    <button
-                        className="button"
+                    <Button
+                        icon={<Link2 size={14} strokeWidth={1.8} />}
                         disabled={busy}
                         title="Link the task to a worktree that exists"
                         onClick={event => {
@@ -98,15 +95,14 @@ export function TaskActions({
                             act(() => onLinkWorktree(task, source.connectionId, source.pluginId, anchor));
                         }}
                     >
-                        <Link2 size={14} strokeWidth={1.8} />
                         Link worktree
-                    </button>
+                    </Button>
                 </>
             )}
             {source.actions.map(action => (
-                <button key={action.id} className="button" disabled={busy} onClick={() => runAction(action.id, action.confirm)}>
+                <Button key={action.id} disabled={busy} onClick={() => runAction(action.id, action.confirm)}>
                     {action.label}
-                </button>
+                </Button>
             ))}
             <AutomationButtons
                 target={{ entity: 'task', task, connectionId: source.connectionId, pluginId: source.pluginId }}

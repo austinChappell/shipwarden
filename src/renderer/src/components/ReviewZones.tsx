@@ -15,7 +15,7 @@ import { applyThreadSuggestion } from '../github/suggestions';
 import { radioGroupKeys } from './keyboard';
 import { Reactions, type ReactionActions } from './Reactions';
 import { MentionTextarea } from './MentionTextarea';
-import { Select, type SelectOption } from './ui/Select';
+import { Button, ButtonGroup, Card, CardBody, Select, type SelectOption } from './ui';
 
 export type { AgentQuestion, ComposerMode, QuestionAction };
 
@@ -53,48 +53,50 @@ export function ThreadZone({
         }
     };
     return (
-        <div className={`zone-card${thread.isResolved ? ' resolved' : ''}`}>
-            {thread.comments.map(comment => (
-                <div key={comment.id} className="thread-comment">
-                    <div className="comment-author">
-                        {comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span>
+        <Card className={`zone-card${thread.isResolved ? ' resolved' : ''}`}>
+            <CardBody>
+                {thread.comments.map(comment => (
+                    <div key={comment.id} className="thread-comment">
+                        <div className="comment-author">
+                            {comment.author?.login ?? 'unknown'} <span>{timeAgo(comment.createdAt)}</span>
+                        </div>
+                        <CommentBody
+                            body={comment.body}
+                            original={original}
+                            outdated={thread.isOutdated}
+                            onApply={worktree && original ? lines => applyThreadSuggestion(worktree, thread, lines) : undefined}
+                        />
+                        <Reactions subjectId={comment.id} reactions={comment.reactions} actions={reactions} />
                     </div>
-                    <CommentBody
-                        body={comment.body}
-                        original={original}
-                        outdated={thread.isOutdated}
-                        onApply={worktree && original ? lines => applyThreadSuggestion(worktree, thread, lines) : undefined}
-                    />
-                    <Reactions subjectId={comment.id} reactions={comment.reactions} actions={reactions} />
+                ))}
+                {replying && <MentionTextarea autoFocus value={text} placeholder="Reply" onValueChange={setText} />}
+                {error && <div className="form-error">{error}</div>}
+                <div className="thread-actions">
+                    {replying ? (
+                        <>
+                            <Button variant="link" onClick={() => setReplying(false)}>
+                                Cancel
+                            </Button>
+                            <Button variant="link" disabled={busy || !text.trim()} onClick={() => act(() => onReply(text.trim()))}>
+                                Send reply
+                            </Button>
+                        </>
+                    ) : (
+                        <Button variant="link" onClick={() => setReplying(true)}>
+                            Reply
+                        </Button>
+                    )}
+                    <Button variant="link" disabled={busy} onClick={() => act(onResolve)}>
+                        {thread.isResolved ? 'Unresolve' : 'Resolve'}
+                    </Button>
+                    {onSendToAgent && (
+                        <Button variant="link" icon={<Bot size={13} strokeWidth={1.6} />} onClick={onSendToAgent}>
+                            Send to agent
+                        </Button>
+                    )}
                 </div>
-            ))}
-            {replying && <MentionTextarea autoFocus value={text} placeholder="Reply" onValueChange={setText} />}
-            {error && <div className="form-error">{error}</div>}
-            <div className="thread-actions">
-                {replying ? (
-                    <>
-                        <button className="link-button" onClick={() => setReplying(false)}>
-                            Cancel
-                        </button>
-                        <button className="link-button" disabled={busy || !text.trim()} onClick={() => act(() => onReply(text.trim()))}>
-                            Send reply
-                        </button>
-                    </>
-                ) : (
-                    <button className="link-button" onClick={() => setReplying(true)}>
-                        Reply
-                    </button>
-                )}
-                <button className="link-button" disabled={busy} onClick={() => act(onResolve)}>
-                    {thread.isResolved ? 'Unresolve' : 'Resolve'}
-                </button>
-                {onSendToAgent && (
-                    <button className="link-button" onClick={onSendToAgent}>
-                        <Bot size={13} strokeWidth={1.6} /> Send to agent
-                    </button>
-                )}
-            </div>
-        </div>
+            </CardBody>
+        </Card>
     );
 }
 
@@ -118,65 +120,67 @@ export function PendingZone({
         setEditing(false);
     };
     return (
-        <div className={`zone-card pending${comment.fromAgent ? ' from-agent' : ''}${comment.needsDecision ? ' needs-decision' : ''}`}>
-            <div className="comment-author">
-                <span className="tag">pending</span>
-                {comment.fromAgent && (
-                    <span className="tag agent-tag">
-                        <Bot size={11} strokeWidth={1.8} /> agent draft
-                    </span>
-                )}
-                {comment.needsDecision
-                    ? ' Accept or remove this comment. You cannot submit your review until you do.'
-                    : ' goes out as your comment with your next review'}
-            </div>
-            {editing ? (
-                <MentionTextarea
-                    autoFocus
-                    value={text}
-                    onValueChange={setText}
-                    onKeyDown={event => {
-                        if (event.key === 'Escape') setEditing(false);
-                        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) save();
-                        event.stopPropagation();
-                    }}
-                />
-            ) : (
-                <CommentBody body={comment.body} original={comment.originalCode?.split('\n')} />
-            )}
-            <div className="thread-actions">
+        <Card tone="accent" dashed={comment.fromAgent} className={`zone-card pending${comment.needsDecision ? ' needs-decision' : ''}`}>
+            <CardBody>
+                <div className="comment-author">
+                    <span className="tag">pending</span>
+                    {comment.fromAgent && (
+                        <span className="tag agent-tag">
+                            <Bot size={11} strokeWidth={1.8} /> agent draft
+                        </span>
+                    )}
+                    {comment.needsDecision
+                        ? ' Accept or remove this comment. You cannot submit your review until you do.'
+                        : ' goes out as your comment with your next review'}
+                </div>
                 {editing ? (
-                    <>
-                        <button className="link-button" onClick={() => setEditing(false)}>
-                            Cancel
-                        </button>
-                        <button className="link-button" disabled={!text.trim()} onClick={save}>
-                            Save
-                        </button>
-                    </>
+                    <MentionTextarea
+                        autoFocus
+                        value={text}
+                        onValueChange={setText}
+                        onKeyDown={event => {
+                            if (event.key === 'Escape') setEditing(false);
+                            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) save();
+                            event.stopPropagation();
+                        }}
+                    />
                 ) : (
-                    onEdit && (
-                        <button
-                            className="link-button"
-                            onClick={() => {
-                                setText(comment.body);
-                                setEditing(true);
-                            }}
-                        >
-                            Edit
-                        </button>
-                    )
+                    <CommentBody body={comment.body} original={comment.originalCode?.split('\n')} />
                 )}
-                {comment.needsDecision && onAccept && !editing && (
-                    <button className="link-button accept-button" onClick={onAccept}>
-                        <Check size={13} strokeWidth={2} /> Accept
-                    </button>
-                )}
-                <button className="link-button" onClick={onRemove}>
-                    Remove
-                </button>
-            </div>
-        </div>
+                <div className="thread-actions">
+                    {editing ? (
+                        <>
+                            <Button variant="link" onClick={() => setEditing(false)}>
+                                Cancel
+                            </Button>
+                            <Button variant="link" disabled={!text.trim()} onClick={save}>
+                                Save
+                            </Button>
+                        </>
+                    ) : (
+                        onEdit && (
+                            <Button
+                                variant="link"
+                                onClick={() => {
+                                    setText(comment.body);
+                                    setEditing(true);
+                                }}
+                            >
+                                Edit
+                            </Button>
+                        )
+                    )}
+                    {comment.needsDecision && onAccept && !editing && (
+                        <Button variant="link" icon={<Check size={13} strokeWidth={2} />} onClick={onAccept}>
+                            Accept
+                        </Button>
+                    )}
+                    <Button variant="link" onClick={onRemove}>
+                        Remove
+                    </Button>
+                </div>
+            </CardBody>
+        </Card>
     );
 }
 
@@ -305,58 +309,63 @@ export function ComposerZone({
     const placeholder = composerPlaceholder(mode, lines);
     const submitLabel = composerSubmitLabel(mode);
     return (
-        <div className={`zone-card composer${mode === 'comment' ? '' : ' ask'}`}>
-            {modes.length > 1 && (
-                <div className="segmented compact composer-mode" role="radiogroup" aria-label="Kind of note" onKeyDown={radioGroupKeys}>
-                    {modes.map(item => (
-                        <button key={item} role="radio" aria-checked={mode === item} className={mode === item ? 'selected' : ''} onClick={() => setMode(item)}>
-                            {MODE_LABELS[item]}
-                        </button>
-                    ))}
+        <Card tone={mode === 'comment' ? 'accent' : 'info'} className="zone-card composer">
+            <CardBody>
+                {modes.length > 1 && (
+                    <ButtonGroup size="sm" className="composer-mode" role="radiogroup" label="Kind of note" onKeyDown={radioGroupKeys}>
+                        {modes.map(item => (
+                            <Button key={item} role="radio" aria-checked={mode === item} onClick={() => setMode(item)}>
+                                {MODE_LABELS[item]}
+                            </Button>
+                        ))}
+                    </ButtonGroup>
+                )}
+                <MentionTextarea
+                    ref={textRef}
+                    autoFocus
+                    value={text}
+                    placeholder={placeholder}
+                    aria-label={placeholder}
+                    onValueChange={setText}
+                    onKeyDown={event => {
+                        if (event.key === 'Escape') onCancel();
+                        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit();
+                        // Monaco must not handle keys that the user types in the comment box.
+                        event.stopPropagation();
+                    }}
+                />
+                {suggestError && <div className="form-error">{suggestError}</div>}
+                <div className="row-buttons">
+                    {mode === 'comment' && onSuggest && (
+                        <Button
+                            className="composer-suggest"
+                            icon={<FileDiff size={14} strokeWidth={1.6} />}
+                            title={`Add a suggested change for ${lines}`}
+                            onClick={suggest}
+                        >
+                            Suggest a change
+                        </Button>
+                    )}
+                    {mode === 'note' && (
+                        // Monaco must not handle the keys of the select. The wrapper stops them.
+                        <span className="composer-target-keys" onKeyDown={event => event.stopPropagation()}>
+                            <Select
+                                className="composer-target"
+                                aria-label="Agent that gets the note"
+                                title="The agent that gets the note"
+                                value={target?.key ?? ''}
+                                options={targetSelectOptions(targets)}
+                                onChange={setTargetKey}
+                            />
+                        </span>
+                    )}
+                    <Button onClick={onCancel}>Cancel</Button>
+                    <Button variant="primary" disabled={!text.trim() || (mode === 'note' && !target)} onClick={submit}>
+                        {submitLabel}
+                    </Button>
                 </div>
-            )}
-            <MentionTextarea
-                ref={textRef}
-                autoFocus
-                value={text}
-                placeholder={placeholder}
-                aria-label={placeholder}
-                onValueChange={setText}
-                onKeyDown={event => {
-                    if (event.key === 'Escape') onCancel();
-                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit();
-                    // Monaco must not handle keys that the user types in the comment box.
-                    event.stopPropagation();
-                }}
-            />
-            {suggestError && <div className="form-error">{suggestError}</div>}
-            <div className="row-buttons">
-                {mode === 'comment' && onSuggest && (
-                    <button className="button composer-suggest" title={`Add a suggested change for ${lines}`} onClick={suggest}>
-                        <FileDiff size={13} strokeWidth={1.6} /> Suggest a change
-                    </button>
-                )}
-                {mode === 'note' && (
-                    // Monaco must not handle the keys of the select. The wrapper stops them.
-                    <span className="composer-target-keys" onKeyDown={event => event.stopPropagation()}>
-                        <Select
-                            className="tasks-select composer-target"
-                            aria-label="Agent that gets the note"
-                            title="The agent that gets the note"
-                            value={target?.key ?? ''}
-                            options={targetSelectOptions(targets)}
-                            onChange={setTargetKey}
-                        />
-                    </span>
-                )}
-                <button className="button" onClick={onCancel}>
-                    Cancel
-                </button>
-                <button className="button primary" disabled={!text.trim() || (mode === 'note' && !target)} onClick={submit}>
-                    {submitLabel}
-                </button>
-            </div>
-        </div>
+            </CardBody>
+        </Card>
     );
 }
 
@@ -382,67 +391,71 @@ export function QuestionZone({
     const done = question.status === 'done' && !!question.answer;
     if (done && question.collapsed) {
         return (
-            <div className="zone-card agent-question collapsed">
+            <Card tone="info" className="zone-card agent-question collapsed">
                 <button className="agent-question-toggle" title="Show the answer" onClick={() => onAction('toggle')}>
                     <ChevronRight size={13} strokeWidth={1.8} />
                     <Bot size={12} strokeWidth={1.6} />
                     <span className="agent-question-summary">{question.question}</span>
                     {question.answeredAt && <span className="agent-question-time">{timeAgo(new Date(question.answeredAt).toISOString())}</span>}
                 </button>
-            </div>
+            </Card>
         );
     }
     const outdated = answerOutdated(question, headRefOid);
     return (
-        <div className="zone-card agent-question">
-            <div className="comment-author">
-                <Bot size={12} strokeWidth={1.6} /> You asked {question.agent ?? 'the agent'}
-                {done && question.answeredAt && <span className="agent-question-time">{timeAgo(new Date(question.answeredAt).toISOString())}</span>}
-            </div>
-            <div className="comment-body agent-question-text">{question.question}</div>
-            {question.status === 'running' && (
-                <div className="agent-question-wait">
-                    <LoaderCircle size={13} className="spin" /> The agent reads the code…
+        <Card tone="info" className="zone-card agent-question">
+            <CardBody>
+                <div className="comment-author">
+                    <Bot size={12} strokeWidth={1.6} /> You asked {question.agent ?? 'the agent'}
+                    {done && question.answeredAt && <span className="agent-question-time">{timeAgo(new Date(question.answeredAt).toISOString())}</span>}
                 </div>
-            )}
-            {done && <Markdown className="comment-body agent-answer" text={question.answer ?? ''} />}
-            {done && linesChanged && <div className="agent-question-outdated">The lines changed after you asked. The answer is about the old lines.</div>}
-            {outdated && (
-                <div className="agent-question-outdated">The agent answered on commit {question.commit?.slice(0, 7)}. The pull request changed after that.</div>
-            )}
-            {question.status === 'error' && <div className="form-error">{question.error}</div>}
-            <div className="thread-actions">
-                {question.status === 'running' ? (
-                    <button className="link-button" onClick={() => onAction('cancel')}>
-                        Cancel
-                    </button>
-                ) : done ? (
-                    <>
-                        {canComment && (
-                            <button className="link-button" onClick={() => onAction('comment')}>
-                                Use as a pending comment
-                            </button>
-                        )}
-                        <button className="link-button" onClick={() => onAction('toggle')}>
-                            Hide
-                        </button>
-                        <button className="link-button" onClick={() => onAction('delete')}>
-                            Delete
-                        </button>
-                    </>
-                ) : (
-                    <>
-                        {question.status === 'error' && (
-                            <button className="link-button" onClick={() => onAction('retry')}>
-                                Try again
-                            </button>
-                        )}
-                        <button className="link-button" onClick={() => onAction('close')}>
-                            Close
-                        </button>
-                    </>
+                <div className="comment-body agent-question-text">{question.question}</div>
+                {question.status === 'running' && (
+                    <div className="agent-question-wait">
+                        <LoaderCircle size={13} className="spin" /> The agent reads the code…
+                    </div>
                 )}
-            </div>
-        </div>
+                {done && <Markdown className="comment-body agent-answer" text={question.answer ?? ''} />}
+                {done && linesChanged && <div className="agent-question-outdated">The lines changed after you asked. The answer is about the old lines.</div>}
+                {outdated && (
+                    <div className="agent-question-outdated">
+                        The agent answered on commit {question.commit?.slice(0, 7)}. The pull request changed after that.
+                    </div>
+                )}
+                {question.status === 'error' && <div className="form-error">{question.error}</div>}
+                <div className="thread-actions">
+                    {question.status === 'running' ? (
+                        <Button variant="link" onClick={() => onAction('cancel')}>
+                            Cancel
+                        </Button>
+                    ) : done ? (
+                        <>
+                            {canComment && (
+                                <Button variant="link" onClick={() => onAction('comment')}>
+                                    Use as a pending comment
+                                </Button>
+                            )}
+                            <Button variant="link" onClick={() => onAction('toggle')}>
+                                Hide
+                            </Button>
+                            <Button variant="link" onClick={() => onAction('delete')}>
+                                Delete
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            {question.status === 'error' && (
+                                <Button variant="link" onClick={() => onAction('retry')}>
+                                    Try again
+                                </Button>
+                            )}
+                            <Button variant="link" onClick={() => onAction('close')}>
+                                Close
+                            </Button>
+                        </>
+                    )}
+                </div>
+            </CardBody>
+        </Card>
     );
 }

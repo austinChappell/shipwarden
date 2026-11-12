@@ -41,8 +41,11 @@ export function buttonClass(variant: ButtonVariant = 'default', size: ControlSiz
  */
 export function Button({ variant, size, icon, iconEnd, active, className, type = 'button', children, ...rest }: ButtonProps) {
     return (
-        // biome-ignore lint/a11y/useButtonType: The type comes from the props. The default is "button".
-        <button type={type} className={buttonClass(variant, size, active, className)} {...rest}>
+        <button
+            type={type}
+            className={buttonClass(variant, size, active, cx(icon !== undefined && children == null && iconEnd === undefined && 'icon-only', className))}
+            {...rest}
+        >
             {icon}
             {children}
             {iconEnd}
@@ -81,7 +84,6 @@ export function iconButtonClass(variant: IconButtonVariant = 'ghost', size: Cont
 /** A square button with only an icon. The label is the tooltip and the name for a screen reader. */
 export function IconButton({ icon, label, variant, size, active, tone, className, title, type = 'button', children, ...rest }: IconButtonProps) {
     return (
-        // biome-ignore lint/a11y/useButtonType: The type comes from the props. The default is "button".
         <button
             type={type}
             className={iconButtonClass(variant, size, active, cx(tone === 'danger' && 'danger', children !== undefined && 'with-text', className))}

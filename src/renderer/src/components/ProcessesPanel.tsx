@@ -3,6 +3,7 @@ import { Bot, ChevronRight, CircleStop, ExternalLink, LoaderCircle, RefreshCw, S
 import { portUrl, type ListeningPort, type ProcessInfo, type ProcessTree, type WorktreeProcesses } from '@shared/processes';
 import { errorText } from '../util';
 import { openLink } from '../links';
+import { Button, IconButton } from './ui';
 
 const POLL_MS = 3000;
 
@@ -86,14 +87,14 @@ function ProcessLine({
             >
                 {formatElapsed(process.elapsed)}
             </span>
-            <button
-                className="icon-button process-stop"
-                title={`Stop ${process.name} (PID ${process.pid}) and its child processes`}
+            <IconButton
+                size="sm"
+                tone="danger"
+                icon={stopping ? <LoaderCircle size={13} className="spin" /> : <CircleStop size={14} strokeWidth={1.7} />}
+                label={`Stop ${process.name} (PID ${process.pid}) and its child processes`}
                 disabled={stopping}
                 onClick={onStop}
-            >
-                {stopping ? <LoaderCircle size={13} className="spin" /> : <CircleStop size={14} strokeWidth={1.7} />}
-            </button>
+            />
         </div>
     );
 }
@@ -192,9 +193,7 @@ export function ProcessesPanel({ worktreePath, onShowTerminal }: Props) {
                 <span className="processes-summary">
                     {trees.length === 0 ? 'No running processes' : `${trees.length} running · ${ports.length} ${ports.length === 1 ? 'port' : 'ports'}`}
                 </span>
-                <button className="icon-button" title="Refresh" onClick={() => void load()}>
-                    <RefreshCw size={14} strokeWidth={1.6} />
-                </button>
+                <IconButton size="sm" icon={<RefreshCw size={14} strokeWidth={1.6} />} label="Refresh" onClick={() => void load()} />
             </div>
             {error && <div className="form-error">{error}</div>}
 
@@ -214,14 +213,14 @@ export function ProcessesPanel({ worktreePath, onShowTerminal }: Props) {
                             <span className="process-command" title={tree.root.command}>
                                 {tree.root.name}
                             </span>
-                            <button
-                                className="icon-button process-stop"
-                                title={`Stop ${tree.root.name} (PID ${tree.root.pid}), which has this port`}
+                            <IconButton
+                                size="sm"
+                                tone="danger"
+                                icon={stopping.has(tree.root.pid) ? <LoaderCircle size={13} className="spin" /> : <CircleStop size={14} strokeWidth={1.7} />}
+                                label={`Stop ${tree.root.name} (PID ${tree.root.pid}), which has this port`}
                                 disabled={stopping.has(tree.root.pid)}
                                 onClick={() => void stop(tree.root.pid)}
-                            >
-                                {stopping.has(tree.root.pid) ? <LoaderCircle size={13} className="spin" /> : <CircleStop size={14} strokeWidth={1.7} />}
-                            </button>
+                            />
                         </div>
                     ))}
                 </section>
@@ -232,9 +231,9 @@ export function ProcessesPanel({ worktreePath, onShowTerminal }: Props) {
                     <div className="section-title processes-terminal">
                         {terminal.isAgent ? <Bot size={12} strokeWidth={1.8} /> : <SquareTerminal size={12} strokeWidth={1.8} />}
                         {terminal.sessionId && onShowTerminal ? (
-                            <button className="link-button" title="Show the terminal tab" onClick={() => onShowTerminal(terminal.sessionId!)}>
+                            <Button variant="link" title="Show the terminal tab" onClick={() => onShowTerminal(terminal.sessionId!)}>
                                 {terminal.title}
-                            </button>
+                            </Button>
                         ) : (
                             <span>{terminal.title}</span>
                         )}

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useId, useRef } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import {
     ACTION_TYPES,
@@ -20,7 +20,7 @@ import {
 import { unknownFilters } from '@shared/automation-templates';
 import { AGENT_MODES, type AgentMode } from '@shared/agent-modes';
 import type { AgentDefinition } from '@shared/settings';
-import { Select } from '../components/ui/Select';
+import { Button, Card, CardBody, Checkbox, IconButton, Input, Select, TextArea } from '../components/ui';
 import { ConditionEditor } from './ConditionEditor';
 
 interface ListProps {
@@ -192,12 +192,13 @@ function insertAt(field: HTMLTextAreaElement | HTMLInputElement | null, value: s
 function ActionFields({ label, first, last, removable, action, trigger, allowed, agents, secrets, onChange, onMove, onRemove }: ActionProps) {
     const info = ACTION_TYPES.find(item => item.type === action.type);
     const promptRef = useRef<HTMLTextAreaElement>(null);
+    const id = useId();
     return (
-        <div className={`automation-action${action.type === 'if' ? ' automation-action-if' : ''}`}>
-            <div className="automation-action-head">
+        <Card className={`automation-action${action.type === 'if' ? ' automation-action-if' : ''}`}>
+            <div className="card-header automation-action-head">
                 <span className="automation-action-number">{label}</span>
                 <Select
-                    className="settings-input automation-strong-select"
+                    className="automation-type-select"
                     aria-label="The type of the action"
                     value={action.type}
                     options={allowed.map(type => ({ value: type, label: ACTION_TYPES.find(item => item.type === type)?.label ?? type }))}
@@ -207,8 +208,8 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                 {action.type === 'moveTask' && (
                     <>
                         <span className="automation-joiner">to status</span>
-                        <input
-                            className="settings-input automation-status-input"
+                        <Input
+                            className="automation-status-input"
                             aria-label="Status"
                             placeholder="in progress"
                             value={action.status}
@@ -217,29 +218,18 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                     </>
                 )}
                 <div className="automation-action-tools">
-                    {!first && (
-                        <button type="button" className="icon-button" title="Move up" onClick={() => onMove(-1)}>
-                            <ArrowUp size={15} />
-                        </button>
-                    )}
-                    {!last && (
-                        <button type="button" className="icon-button" title="Move down" onClick={() => onMove(1)}>
-                            <ArrowDown size={15} />
-                        </button>
-                    )}
-                    <button type="button" className="icon-button" title="Remove the action" disabled={!removable} onClick={onRemove}>
-                        <Trash2 size={15} />
-                    </button>
+                    {!first && <IconButton size="sm" label="Move up" icon={<ArrowUp size={14} />} onClick={() => onMove(-1)} />}
+                    {!last && <IconButton size="sm" label="Move down" icon={<ArrowDown size={14} />} onClick={() => onMove(1)} />}
+                    <IconButton size="sm" tone="danger" label="Remove the action" icon={<Trash2 size={14} />} disabled={!removable} onClick={onRemove} />
                 </div>
             </div>
-            <div className="automation-action-body">
+            <CardBody className="automation-action-body">
                 {(action.type === 'sendToAgent' || action.type === 'startAgent') && (
                     <div className="automation-field-grid">
                         {action.type === 'startAgent' && (
                             <div className="flow-field">
                                 <span className="automation-field-label">Agent</span>
                                 <Select
-                                    className="settings-input"
                                     aria-label="Agent"
                                     value={action.agentId ?? ''}
                                     options={[{ value: '', label: "The repository's agent" }, ...agents.map(agent => ({ value: agent.id, label: agent.name }))]}
@@ -250,7 +240,6 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                         <div className="flow-field" title={AGENT_MODES.find(item => item.mode === action.mode)?.description}>
                             <span className="automation-field-label">Mode</span>
                             <Select<AgentMode | ''>
-                                className="settings-input"
                                 aria-label="Mode"
                                 value={action.mode ?? ''}
                                 options={[{ value: '', label: 'Default agent setting' }, ...AGENT_MODES.map(item => ({ value: item.mode, label: item.label }))]}
@@ -261,15 +250,18 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                             />
                         </div>
                         {action.type === 'startAgent' && trigger.type !== 'task.new' && !(trigger.type === 'manual' && trigger.entity === 'task') && (
-                            <label className="flow-field">
-                                <span className="automation-field-label">Branch</span>
-                                <input
-                                    className="settings-input mono"
+                            <div className="flow-field">
+                                <label className="automation-field-label" htmlFor={`${id}-branch`}>
+                                    Branch
+                                </label>
+                                <Input
+                                    id={`${id}-branch`}
+                                    mono
                                     placeholder="automation/{{date}}-{{time}}"
                                     value={action.branch ?? ''}
                                     onChange={event => onChange({ ...action, branch: event.target.value || undefined })}
                                 />
-                            </label>
+                            </div>
                         )}
                     </div>
                 )}
@@ -301,40 +293,34 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                     </div>
                 )}
                 {action.type === 'runHeadless' && (
-                    <label className="automation-check">
-                        <input
-                            type="checkbox"
-                            checked={!!action.saveNote}
-                            onChange={event => onChange({ ...action, saveNote: event.target.checked || undefined })}
-                        />
-                        Save the answer as a note in the folder "Automations"
-                    </label>
+                    <Checkbox
+                        label={'Save the answer as a note in the folder "Automations"'}
+                        checked={!!action.saveNote}
+                        onChange={checked => onChange({ ...action, saveNote: checked || undefined })}
+                    />
                 )}
                 {action.type === 'removeWorktree' && (
-                    <label className="automation-check">
-                        <input
-                            type="checkbox"
-                            checked={!!action.deleteBranch}
-                            onChange={event => onChange({ ...action, deleteBranch: event.target.checked || undefined })}
-                        />
-                        Also delete the local branch when it is merged
-                    </label>
+                    <Checkbox
+                        label="Also delete the local branch when it is merged"
+                        checked={!!action.deleteBranch}
+                        onChange={checked => onChange({ ...action, deleteBranch: checked || undefined })}
+                    />
                 )}
                 {action.type === 'notify' && (
                     <>
                         <div className="automation-inline">
-                            <label>
-                                Title{' '}
-                                <input className="settings-input" value={action.title} onChange={event => onChange({ ...action, title: event.target.value })} />
-                            </label>
-                            <label>
-                                Text{' '}
-                                <input
-                                    className="settings-input"
+                            <span className="automation-field">
+                                <label htmlFor={`${id}-title`}>Title</label>
+                                <Input id={`${id}-title`} value={action.title} onChange={event => onChange({ ...action, title: event.target.value })} />
+                            </span>
+                            <span className="automation-field">
+                                <label htmlFor={`${id}-text`}>Text</label>
+                                <Input
+                                    id={`${id}-text`}
                                     value={action.body ?? ''}
                                     onChange={event => onChange({ ...action, body: event.target.value || undefined })}
                                 />
-                            </label>
+                            </span>
                         </div>
                         <TemplateWarnings texts={[action.title, action.body ?? '']} trigger={trigger} />
                     </>
@@ -378,28 +364,25 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                 {action.type === 'stop' && (
                     <>
                         <div className="automation-inline">
-                            <label>
-                                Reason{' '}
-                                <input
-                                    className="settings-input"
+                            <span className="automation-field">
+                                <label htmlFor={`${id}-reason`}>Reason</label>
+                                <Input
+                                    id={`${id}-reason`}
                                     placeholder="Optional. The run history shows it."
                                     value={action.reason ?? ''}
                                     onChange={event => onChange({ ...action, reason: event.target.value || undefined })}
                                 />
-                            </label>
+                            </span>
                         </div>
-                        <label className="automation-check">
-                            <input
-                                type="checkbox"
-                                checked={!!action.fail}
-                                onChange={event => onChange({ ...action, fail: event.target.checked || undefined })}
-                            />
-                            Mark the run as failed
-                        </label>
+                        <Checkbox
+                            label="Mark the run as failed"
+                            checked={!!action.fail}
+                            onChange={checked => onChange({ ...action, fail: checked || undefined })}
+                        />
                     </>
                 )}
-            </div>
-        </div>
+            </CardBody>
+        </Card>
     );
 }
 
@@ -419,6 +402,7 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
     };
     const setHeader = (index: number, patch: Partial<HttpHeader>) => setHeaders(headers.map((header, i) => (i === index ? { ...header, ...patch } : header)));
     const texts = [action.url, action.body ?? '', ...headers.map(header => header.value)];
+    const id = useId();
     /** The text field that had the focus last. A variable button inserts into it. */
     const lastField = useRef<{ element: HTMLInputElement | HTMLTextAreaElement; insert(text: string): void }>(undefined);
     const track =
@@ -431,7 +415,6 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
         <>
             <div className="automation-http-line">
                 <Select<HttpMethod>
-                    className="settings-input"
                     aria-label="Method"
                     value={action.method}
                     options={HTTP_METHODS.map(method => ({ value: method, label: method }))}
@@ -440,8 +423,9 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
                         onChange(method === 'GET' ? { ...rest, method } : { ...rest, method, ...(body !== undefined ? { body } : {}) });
                     }}
                 />
-                <input
-                    className="settings-input mono automation-http-url"
+                <Input
+                    mono
+                    className="automation-http-url"
                     aria-label="Web address"
                     placeholder="https://example.com/hooks/{{branch|url}}"
                     value={action.url}
@@ -454,16 +438,16 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
                 {headers.map((header, index) => (
                     // biome-ignore lint/suspicious/noArrayIndexKey: The headers have no IDs. The index is their place in the list.
                     <div key={index} className="automation-http-header">
-                        <input
-                            className="settings-input mono"
+                        <Input
+                            mono
                             aria-label="Header name"
                             placeholder="Authorization"
                             value={header.name}
                             spellCheck={false}
                             onChange={event => setHeader(index, { name: event.target.value })}
                         />
-                        <input
-                            className="settings-input mono"
+                        <Input
+                            mono
                             aria-label="Header value"
                             placeholder="Bearer {{secret.TOKEN}}"
                             value={header.value}
@@ -471,25 +455,23 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
                             onChange={event => setHeader(index, { value: event.target.value })}
                             onFocus={track((element, text) => setHeader(index, { value: insertAt(element, header.value, text) }))}
                         />
-                        <button
-                            type="button"
-                            className="icon-button"
-                            title="Remove the header"
-                            aria-label="Remove the header"
+                        <IconButton
+                            size="sm"
+                            tone="danger"
+                            label="Remove the header"
+                            icon={<Trash2 size={14} strokeWidth={1.7} />}
                             onClick={() => setHeaders(headers.filter((_, i) => i !== index))}
-                        >
-                            <Trash2 size={14} strokeWidth={1.7} />
-                        </button>
+                        />
                     </div>
                 ))}
-                <button type="button" className="button" onClick={() => setHeaders([...headers, { name: '', value: '' }])}>
-                    <Plus size={13} strokeWidth={1.8} />
+                <Button icon={<Plus size={13} strokeWidth={1.8} />} onClick={() => setHeaders([...headers, { name: '', value: '' }])}>
                     Add a header
-                </button>
+                </Button>
             </div>
             {action.method !== 'GET' && (
-                <textarea
-                    className="settings-input mono automation-prompt"
+                <TextArea
+                    mono
+                    className="automation-http-body"
                     aria-label="Body"
                     value={action.body ?? ''}
                     spellCheck={false}
@@ -499,21 +481,19 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
                 />
             )}
             <div className="automation-inline">
-                <label className="automation-check">
-                    <input
-                        type="checkbox"
-                        checked={!!action.allowFailure}
-                        onChange={event => onChange({ ...action, allowFailure: event.target.checked || undefined })}
-                    />
-                    Continue when the status is not 200 to 299
-                </label>
-                <label>
-                    Time limit{' '}
-                    <input
+                <Checkbox
+                    label="Continue when the status is not 200 to 299"
+                    checked={!!action.allowFailure}
+                    onChange={checked => onChange({ ...action, allowFailure: checked || undefined })}
+                />
+                <span className="automation-field">
+                    <label htmlFor={`${id}-timeout`}>Time limit</label>
+                    <Input
+                        id={`${id}-timeout`}
                         type="number"
                         min={1}
                         max={HTTP_TIMEOUT_MAX}
-                        className="settings-input automation-number"
+                        className="automation-number"
                         value={action.timeoutSeconds ?? HTTP_TIMEOUT_DEFAULT}
                         onChange={event => {
                             const seconds = Number(event.target.value);
@@ -522,7 +502,7 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
                         }}
                     />{' '}
                     seconds
-                </label>
+                </span>
             </div>
             <VariableHint
                 trigger={trigger}

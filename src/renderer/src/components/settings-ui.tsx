@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Card } from './ui';
 
 interface GroupProps {
     title: string;
@@ -21,7 +22,7 @@ export function SettingsGroup({ title, description, card = false, actions, child
                 </div>
                 {actions && <div className="settings-group-actions">{actions}</div>}
             </div>
-            {card ? <div className="settings-card">{children}</div> : children}
+            {card ? <Card>{children}</Card> : children}
         </section>
     );
 }

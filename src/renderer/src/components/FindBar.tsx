@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import type { DiffSide } from '@shared/github';
 import { findCountText, type RenderedLine } from '../github/diff-notes';
+import { IconButton, Input } from './ui';
 
 /**
  * Returns the element of a diff line. The diff is in a shadow root. A removed line has the old line number,
@@ -63,9 +64,11 @@ export function FindBar({
     }, [focusNonce]);
     return (
         <div className="find-bar" role="search">
-            <Search size={13} strokeWidth={1.6} />
-            <input
+            <Input
                 ref={inputRef}
+                size="sm"
+                className="find-bar-input"
+                icon={<Search size={13} strokeWidth={1.6} />}
                 value={query}
                 placeholder="Find in the changes"
                 aria-label="Find in the changes"
@@ -79,23 +82,17 @@ export function FindBar({
                 }}
             />
             <span className="find-count">{findCountText(query, count, index)}</span>
-            <button
-                className={`icon-button find-case${caseSensitive ? ' selected' : ''}`}
-                title="Match case"
+            <IconButton
+                size="sm"
+                className="find-case"
+                icon="Aa"
+                label="Match case"
                 aria-pressed={caseSensitive}
                 onClick={() => onCaseSensitive(!caseSensitive)}
-            >
-                Aa
-            </button>
-            <button className="icon-button" title="Previous match (Shift+Enter)" disabled={!count} onClick={() => onMove(-1)}>
-                <ChevronUp size={14} />
-            </button>
-            <button className="icon-button" title="Next match (Enter)" disabled={!count} onClick={() => onMove(1)}>
-                <ChevronDown size={14} />
-            </button>
-            <button className="icon-button" title="Close (Escape)" onClick={onClose}>
-                <X size={14} />
-            </button>
+            />
+            <IconButton size="sm" icon={<ChevronUp size={14} />} label="Previous match (Shift+Enter)" disabled={!count} onClick={() => onMove(-1)} />
+            <IconButton size="sm" icon={<ChevronDown size={14} />} label="Next match (Enter)" disabled={!count} onClick={() => onMove(1)} />
+            <IconButton size="sm" icon={<X size={14} />} label="Close (Escape)" onClick={onClose} />
         </div>
     );
 }

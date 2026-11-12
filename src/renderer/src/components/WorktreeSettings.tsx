@@ -13,7 +13,7 @@ import { WORKTREE_SORT_LABELS, type WorktreeSort, type WorktreeSortKey } from '@
 import { errorText } from '../util';
 import { fetchAppInfo } from '../app/task-branch';
 import { SettingsGroup, SettingsRow } from './settings-ui';
-import { Select } from './ui/Select';
+import { Button, ButtonGroup, Input, Select, Switch, TextArea } from './ui';
 import { radioGroupKeys } from './keyboard';
 
 /** Splits the text of the patterns field into patterns, one on each line. */
@@ -33,8 +33,9 @@ export function FolderField({ value, placeholder, onSave }: { value: string | un
     };
     return (
         <div className="ca-file-row">
-            <input
-                className="settings-input mono"
+            <Input
+                className="ca-file-input"
+                mono
                 value={text}
                 placeholder={placeholder}
                 spellCheck={false}
@@ -42,8 +43,8 @@ export function FolderField({ value, placeholder, onSave }: { value: string | un
                 onBlur={() => commit(text)}
                 onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
             />
-            <button
-                className="button"
+            <Button
+                icon={<FolderOpen size={14} strokeWidth={1.6} />}
                 title="Choose a folder"
                 onClick={async () => {
                     const folder = await window.shipwarden.worktrees.chooseFolder();
@@ -53,8 +54,8 @@ export function FolderField({ value, placeholder, onSave }: { value: string | un
                     }
                 }}
             >
-                <FolderOpen size={14} strokeWidth={1.6} /> Choose…
-            </button>
+                Choose…
+            </Button>
         </div>
     );
 }
@@ -110,8 +111,9 @@ export function PatternsField({
     const [text, setText] = useState(joined);
     useEffect(() => setText(joined), [joined]);
     return (
-        <textarea
-            className="settings-input mono patterns-field"
+        <TextArea
+            className="patterns-field"
+            mono
             value={text}
             spellCheck={false}
             placeholder={placeholder.join('\n')}
@@ -138,26 +140,24 @@ export function CopyEditor({ copy, repo, onSave }: { copy: CopyIgnoredSettings; 
     const setMode = (mode: CopyMode) => onSave({ ...copy, mode });
     return (
         <>
-            <div className="copy-mode segmented compact" role="radiogroup" aria-label="What to copy" onKeyDown={radioGroupKeys}>
-                <button
+            <ButtonGroup className="copy-mode" role="radiogroup" label="What to copy" onKeyDown={radioGroupKeys}>
+                <Button
                     role="radio"
                     aria-checked={copy.mode === 'matching'}
-                    className={copy.mode === 'matching' ? 'selected' : ''}
                     onClick={() => setMode('matching')}
                     title="Copy only the ignored files that match the patterns"
                 >
                     Matching files
-                </button>
-                <button
+                </Button>
+                <Button
                     role="radio"
                     aria-checked={copy.mode === 'allExcept'}
-                    className={copy.mode === 'allExcept' ? 'selected' : ''}
                     onClick={() => setMode('allExcept')}
                     title="Copy all ignored files and folders except the patterns"
                 >
                     All except
-                </button>
-            </div>
+                </Button>
+            </ButtonGroup>
             {copy.mode === 'matching' ? (
                 <PatternsField key="patterns" patterns={copy.patterns} onSave={patterns => onSave({ ...copy, patterns })} />
             ) : (
@@ -165,15 +165,16 @@ export function CopyEditor({ copy, repo, onSave }: { copy: CopyIgnoredSettings; 
             )}
             {/* A saved list keeps its values when the defaults change. The link sets the current defaults. */}
             {!sameList(listOf(copy), defaultsOf(copy.mode)) && (
-                <button
-                    className="link-button copy-reset"
+                <Button
+                    variant="link"
+                    className="copy-reset"
                     title={defaultsOf(copy.mode).join('\n')}
                     onClick={() =>
                         onSave(copy.mode === 'matching' ? { ...copy, patterns: [...DEFAULT_COPY_PATTERNS] } : { ...copy, exclude: [...DEFAULT_COPY_EXCLUDE] })
                     }
                 >
                     Reset to the default list
-                </button>
+                </Button>
             )}
             <div className="panel-note">
                 {copy.mode === 'allExcept' &&
@@ -205,8 +206,9 @@ function BranchTemplateField({ value, onSave }: { value: string | undefined; onS
     const example = text.trim() ? renderBranchTemplate(text, exampleValues(username)) : '';
     return (
         <>
-            <input
-                className="settings-input mono"
+            <Input
+                className="settings-text-field"
+                mono
                 aria-label="Branch name template"
                 value={text}
                 placeholder="{username}/{taskKey}-{taskShortDescription}"
@@ -219,9 +221,9 @@ function BranchTemplateField({ value, onSave }: { value: string | undefined; onS
             />
             <div className="branch-variables">
                 {BRANCH_VARIABLES.map(variable => (
-                    <button key={variable.name} type="button" className="link-button mono" title={variable.help} onClick={() => insert(variable.name)}>
+                    <Button key={variable.name} variant="link" className="mono" title={variable.help} onClick={() => insert(variable.name)}>
                         {`{${variable.name}}`}
-                    </button>
+                    </Button>
                 ))}
             </div>
             {unknown.length > 0 && (
@@ -248,25 +250,18 @@ function SortControl({ sort, onSave }: { sort: WorktreeSort; onSave(sort: Worktr
     return (
         <div className="worktree-sort-control">
             <Select
-                className="tasks-select"
                 aria-label="Sort worktrees by"
                 value={sort.by}
                 options={SORT_KEYS.map(by => ({ value: by, label: WORKTREE_SORT_LABELS[by] }))}
                 onChange={by => onSave({ ...sort, by })}
             />
-            <div className="segmented compact" role="radiogroup" aria-label="Sort direction" onKeyDown={radioGroupKeys}>
+            <ButtonGroup role="radiogroup" label="Sort direction" onKeyDown={radioGroupKeys}>
                 {(['asc', 'desc'] as const).map(direction => (
-                    <button
-                        key={direction}
-                        role="radio"
-                        aria-checked={sort.direction === direction}
-                        className={sort.direction === direction ? 'selected' : ''}
-                        onClick={() => onSave({ ...sort, direction })}
-                    >
+                    <Button key={direction} role="radio" aria-checked={sort.direction === direction} onClick={() => onSave({ ...sort, direction })}>
                         {directionLabel(sort.by, direction)}
-                    </button>
+                    </Button>
                 ))}
-            </div>
+            </ButtonGroup>
         </div>
     );
 }
@@ -338,40 +333,23 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                     label="Close stale shells"
                     description="Closes a shell tab with no input and no output for 7 days. A shell that runs a command stays open. Agent tabs stay open."
                     control={
-                        <label className="switch" title={value.closeStaleShells ? 'On' : 'Off'}>
-                            <input
-                                type="checkbox"
-                                aria-label="Close stale shells"
-                                checked={value.closeStaleShells}
-                                onChange={event => void save({ closeStaleShells: event.target.checked })}
-                            />
-                            <span />
-                        </label>
+                        <Switch checked={value.closeStaleShells} title="Close stale shells" onChange={closeStaleShells => void save({ closeStaleShells })} />
                     }
                 />
                 <SettingsRow
                     label="Remove merged worktrees"
                     description="Removes a worktree and its local branch after its pull request is merged. ShipWarden also checks for merged pull requests every 15 minutes, so it finds merges that happened while the app was closed. A worktree with uncommitted changes or new commits stays. The remote branch stays."
-                    control={
-                        <label className="switch" title={value.removeMerged ? 'On' : 'Off'}>
-                            <input
-                                type="checkbox"
-                                aria-label="Remove merged worktrees"
-                                checked={value.removeMerged}
-                                onChange={event => void save({ removeMerged: event.target.checked })}
-                            />
-                            <span />
-                        </label>
-                    }
+                    control={<Switch checked={value.removeMerged} title="Remove merged worktrees" onChange={removeMerged => void save({ removeMerged })} />}
                 />
                 <SettingsRow
                     label="Copy ignored files"
                     description="Copies git-ignored files, for example .env, from the main worktree into each new worktree."
                     control={
-                        <label className="switch" title={value.copyIgnored.enabled ? 'On' : 'Off'}>
-                            <input type="checkbox" checked={value.copyIgnored.enabled} onChange={event => void saveCopy({ enabled: event.target.checked })} />
-                            <span />
-                        </label>
+                        <Switch
+                            checked={value.copyIgnored.enabled}
+                            title={value.copyIgnored.enabled ? 'On' : 'Off'}
+                            onChange={enabled => void saveCopy({ enabled })}
+                        />
                     }
                 >
                     {value.copyIgnored.enabled && (
@@ -385,7 +363,6 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                                 <div className="copy-preview-repo">
                                     Preview in
                                     <Select
-                                        className="tasks-select"
                                         value={previewRepo}
                                         options={repos.map(repo => ({ value: repo, label: repoDisplayName(settings, repo) }))}
                                         onChange={setPreviewRepo}
@@ -398,7 +375,11 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
                         </>
                     )}
                 </SettingsRow>
-                {error && <div className="form-error">{error}</div>}
+                {error && (
+                    <div className="settings-row">
+                        <div className="form-error">{error}</div>
+                    </div>
+                )}
             </SettingsGroup>
         </>
     );

@@ -36,6 +36,7 @@ export function Checkbox({ checked, onChange, label, description, indeterminate 
     );
     if (label === undefined) return input;
     return (
+        // biome-ignore lint/a11y/noLabelWithoutControl: The checkbox is in the `input` value. The label holds it.
         <label className={cx('choice', disabled && 'disabled', className)} title={title}>
             {input}
             <span className="choice-text">
@@ -84,7 +85,15 @@ interface SwitchProps {
 export function Switch({ checked, title, disabled, onChange }: SwitchProps) {
     return (
         <label className={cx('switch', disabled && 'disabled')} title={title}>
-            <input type="checkbox" role="switch" checked={checked} disabled={disabled} aria-label={title} onChange={event => onChange(event.target.checked)} />
+            <input
+                type="checkbox"
+                role="switch"
+                checked={checked}
+                aria-checked={checked}
+                disabled={disabled}
+                aria-label={title}
+                onChange={event => onChange(event.target.checked)}
+            />
             <span />
         </label>
     );

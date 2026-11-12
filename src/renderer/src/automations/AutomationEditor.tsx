@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, ChevronRight, CircleAlert, Filter, GitFork, Info, Play, Plus, Trash2, Zap } from 'lucide-react';
 import {
@@ -33,11 +33,11 @@ import {
 } from '@shared/automations';
 import type { AgentDefinition } from '@shared/settings';
 import type { TaskCollection } from '@shared/tasks';
-import { Combobox, sortedGroups } from '../components/ui/Combobox';
+import { Button, ButtonGroup, Card, CardBody, CardHeader, Checkbox, Combobox, IconButton, Input, Select, sortedGroups } from '../components/ui';
 import { collectionsQueryOptions, connectionsQueryOptions } from '../components/tasks/use-task-source';
 import { SettingsGroup, SettingsRow } from '../components/settings-ui';
 import { TRIGGER_EVENTS, automationSummary, labelWarning } from './automation-summary';
-import { Select } from '../components/ui/Select';
+import { radioGroupKeys } from '../components/keyboard';
 import { errorText } from '../util';
 import { LimitField } from './LimitField';
 import { ActionList } from './AutomationActions';
@@ -79,6 +79,7 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
     const [draft, setDraft] = useState<Automation>(initial);
     const [error, setError] = useState<string>();
     const [saving, setSaving] = useState(false);
+    const id = useId();
     const change = (patch: Partial<Automation>) => setDraft(current => ({ ...current, ...patch }));
     /** Changes the branch pattern or the condition. An empty field goes away. */
     const setConditions = (patch: Partial<NonNullable<Automation['conditions']>>) =>
@@ -150,29 +151,26 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                         />
                     </div>
                     {!imported && (
-                        <div className="segmented automation-status-switch" role="radiogroup" aria-label="Status">
+                        <ButtonGroup className="automation-status-switch" role="radiogroup" label="Status" onKeyDown={radioGroupKeys}>
                             {STATUS_OPTIONS.map(option => (
-                                <button
+                                <Button
                                     key={option.id}
-                                    type="button"
                                     role="radio"
                                     aria-checked={draft.status === option.id}
                                     title={option.title}
-                                    className={`${option.id}${draft.status === option.id ? ' selected' : ''}`}
+                                    className={`status-${option.id}`}
+                                    icon={option.id === 'on' ? <span className="automation-status-dot" /> : undefined}
                                     onClick={() => change({ status: option.id })}
                                 >
-                                    {option.id === 'on' && <span className="automation-status-dot" />}
                                     {option.label}
-                                </button>
+                                </Button>
                             ))}
-                        </div>
+                        </ButtonGroup>
                     )}
-                    <button type="button" className="button" onClick={onCancel}>
-                        Cancel
-                    </button>
-                    <button type="button" className="button primary-solid automation-save" disabled={saving} onClick={() => void save()}>
+                    <Button onClick={onCancel}>Cancel</Button>
+                    <Button variant="solid" disabled={saving} onClick={() => void save()}>
                         {saving ? 'Saving…' : imported ? 'Import' : 'Save'}
-                    </button>
+                    </Button>
                 </div>
                 {imported && (
                     <p className="automation-note">
@@ -185,11 +183,11 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
             <div className="flow-layout">
                 <div className="flow-main">
                     <FlowSection icon={<Zap size={15} />} kind="when">
-                        <div className="flow-card">
+                        <FlowCard>
                             <SectionHead tag="When" text={TRIGGER_EVENTS[trigger.type]} />
                             <div className="automation-trigger-line">
                                 <Select
-                                    className="settings-input automation-strong-select"
+                                    className="automation-type-select"
                                     aria-label="Trigger"
                                     value={trigger.type}
                                     options={TRIGGER_TYPES.map(item => ({ value: item.type, label: item.label }))}
@@ -200,7 +198,7 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                     <>
                                         <span className="automation-joiner">on</span>
                                         <Select<ManualEntity>
-                                            className="settings-input automation-auto-select"
+                                            className="automation-auto-select"
                                             aria-label="Button on"
                                             value={trigger.entity}
                                             options={MANUAL_ENTITIES.map(item => ({ value: item.entity, label: item.label }))}
@@ -211,73 +209,70 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                             </div>
                             {trigger.type === 'task.new' && (
                                 <div className="automation-field-grid">
-                                    <label className="flow-field">
-                                        <span className="automation-field-label">Label is any of</span>
-                                        <input
-                                            className="settings-input"
+                                    <div className="flow-field">
+                                        <label className="automation-field-label" htmlFor={`${id}-field-1`}>
+                                            Label is any of
+                                        </label>
+                                        <Input
+                                            id={`${id}-field-1`}
                                             placeholder="Any label"
                                             defaultValue={trigger.labels?.join(', ') ?? ''}
                                             onBlur={event => setTrigger({ labels: splitNames(event.target.value) })}
                                         />
-                                    </label>
-                                    <label className="flow-field">
-                                        <span className="automation-field-label">Status is</span>
-                                        <input
-                                            className="settings-input"
+                                    </div>
+                                    <div className="flow-field">
+                                        <label className="automation-field-label" htmlFor={`${id}-field-2`}>
+                                            Status is
+                                        </label>
+                                        <Input
+                                            id={`${id}-field-2`}
                                             placeholder="Any status"
                                             value={trigger.status ?? ''}
                                             onChange={event => setTrigger({ status: event.target.value || undefined })}
                                         />
-                                    </label>
+                                    </div>
                                     <div className="flow-field">
                                         <span className="automation-field-label">Assignee</span>
-                                        <label className="automation-check automation-check-field">
-                                            <input
-                                                type="checkbox"
-                                                checked={!!trigger.assignedToMe}
-                                                onChange={event => setTrigger({ assignedToMe: event.target.checked || undefined })}
-                                            />
-                                            Assigned to me
-                                        </label>
+                                        <Checkbox
+                                            className="automation-check-field"
+                                            label="Assigned to me"
+                                            checked={!!trigger.assignedToMe}
+                                            onChange={checked => setTrigger({ assignedToMe: checked || undefined })}
+                                        />
                                     </div>
                                 </div>
                             )}
                             {trigger.type === 'pr.comment' && (
                                 <div className="automation-field-grid">
-                                    <label className="flow-field">
-                                        <span className="automation-field-label">Ignore these authors</span>
-                                        <input
-                                            className="settings-input"
+                                    <div className="flow-field">
+                                        <label className="automation-field-label" htmlFor={`${id}-field-3`}>
+                                            Ignore these authors
+                                        </label>
+                                        <Input
+                                            id={`${id}-field-3`}
                                             placeholder="GitHub logins, separated by commas"
                                             defaultValue={trigger.ignoreAuthors?.join(', ') ?? ''}
                                             onBlur={event => setTrigger({ ignoreAuthors: splitNames(event.target.value) })}
                                         />
-                                    </label>
+                                    </div>
                                     <div className="flow-field">
                                         <span className="automation-field-label">Kind</span>
-                                        <label
-                                            className="automation-check automation-check-field"
+                                        <Checkbox
+                                            className="automation-check-field"
                                             title={'Only reviews, for example "Changes requested". Not single comments.'}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={!!trigger.reviewsOnly}
-                                                onChange={event => setTrigger({ reviewsOnly: event.target.checked || undefined })}
-                                            />
-                                            Only reviews
-                                        </label>
+                                            label="Only reviews"
+                                            checked={!!trigger.reviewsOnly}
+                                            onChange={checked => setTrigger({ reviewsOnly: checked || undefined })}
+                                        />
                                     </div>
                                 </div>
                             )}
                             {trigger.type === 'agent.done' && (
-                                <label className="automation-check">
-                                    <input
-                                        type="checkbox"
-                                        checked={!!trigger.withoutPullRequest}
-                                        onChange={event => setTrigger({ withoutPullRequest: event.target.checked || undefined })}
-                                    />
-                                    Only when the branch has no open pull request
-                                </label>
+                                <Checkbox
+                                    label="Only when the branch has no open pull request"
+                                    checked={!!trigger.withoutPullRequest}
+                                    onChange={checked => setTrigger({ withoutPullRequest: checked || undefined })}
+                                />
                             )}
                             {trigger.type === 'schedule' && (
                                 <div className="automation-schedule">
@@ -298,36 +293,32 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                         </label>
                                     ))}
                                     <span className="automation-joiner">at</span>
-                                    <input
-                                        type="time"
-                                        className="settings-input automation-time"
-                                        aria-label="Time"
-                                        value={trigger.time}
-                                        onChange={event => setTrigger({ time: event.target.value })}
-                                    />
+                                    <Input type="time" aria-label="Time" value={trigger.time} onChange={event => setTrigger({ time: event.target.value })} />
                                 </div>
                             )}
                             {trigger.type === 'manual' && trigger.entity !== 'none' && (
-                                <label className="flow-field automation-narrow-field">
-                                    <span className="automation-field-label">Button text</span>
-                                    <input
-                                        className="settings-input"
+                                <div className="flow-field automation-narrow-field">
+                                    <label className="automation-field-label" htmlFor={`${id}-field-4`}>
+                                        Button text
+                                    </label>
+                                    <Input
+                                        id={`${id}-field-4`}
                                         value={trigger.button ?? ''}
                                         maxLength={40}
                                         placeholder={draft.name}
                                         onChange={event => setTrigger({ button: event.target.value || undefined })}
                                     />
-                                </label>
+                                </div>
                             )}
                             <div className="automation-info">
                                 <Info size={13} />
                                 <span>{triggerNote(trigger)}</span>
                             </div>
-                        </div>
+                        </FlowCard>
                     </FlowSection>
 
                     <FlowSection icon={<GitFork size={15} />} kind="where">
-                        <div className="flow-card">
+                        <FlowCard>
                             <SectionHead
                                 tag="Where"
                                 text={
@@ -352,7 +343,7 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                             ) : singleRepo ? (
                                 <div className="automation-trigger-line">
                                     <Select
-                                        className="settings-input automation-wide-select"
+                                        className="automation-wide-select"
                                         aria-label="Repository"
                                         value={draft.binding.repos?.[0] ?? ''}
                                         options={[
@@ -388,21 +379,24 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                 </div>
                             )}
                             {actsOnWorktrees(trigger) && (
-                                <label className="flow-field automation-narrow-field">
-                                    <span className="automation-field-label">Branches</span>
-                                    <input
-                                        className="settings-input mono"
+                                <div className="flow-field automation-narrow-field">
+                                    <label className="automation-field-label" htmlFor={`${id}-field-5`}>
+                                        Branches
+                                    </label>
+                                    <Input
+                                        id={`${id}-field-5`}
+                                        mono
                                         placeholder="All branches, or a pattern such as eng-*"
                                         value={draft.conditions?.branchPattern ?? ''}
                                         onChange={event => setConditions({ branchPattern: event.target.value || undefined })}
                                     />
-                                </label>
+                                </div>
                             )}
-                        </div>
+                        </FlowCard>
                     </FlowSection>
 
                     <FlowSection icon={<Filter size={14} />} kind="only-if">
-                        <div className={`flow-card automation-only-if${hasConditions ? '' : ' empty'}`}>
+                        <FlowCard>
                             <SectionHead
                                 tag="Only if"
                                 text={
@@ -416,7 +410,7 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                 }
                             />
                             <ConditionEditor value={draft.conditions?.when} variables={triggerVariables(trigger)} onChange={when => setConditions({ when })} />
-                        </div>
+                        </FlowCard>
                     </FlowSection>
 
                     <FlowSection icon={<Play size={13} />} kind="then" last>
@@ -443,9 +437,9 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                 </div>
 
                 <aside className="flow-side automation-side">
-                    <div className="flow-card">
-                        <div className="flow-card-section">
-                            <h3 className="flow-card-title">In short</h3>
+                    <Card as="section">
+                        <CardHeader title="In short" />
+                        <CardBody className="flow-card-body">
                             <p className="automation-summary">{automationSummary(draft, connectionName)}</p>
                             {draft.status === 'dry-run' && !imported && (
                                 <p className="flow-field-note">Dry run: the automation records what it would do, and does nothing.</p>
@@ -456,37 +450,35 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                     <span>{problem}</span>
                                 </div>
                             ))}
-                        </div>
-                    </div>
+                        </CardBody>
+                    </Card>
 
                     {(!manual || hasStartAgent) && (
-                        <div className="flow-card">
-                            <div className="flow-card-section">
-                                <h3 className="flow-card-title">Limits</h3>
-                                {manual && (
-                                    <p className="flow-field-note">A click is the approval, so a manual automation has no approval and no run limits.</p>
-                                )}
-                            </div>
+                        <Card as="section">
+                            <CardHeader
+                                title="Limits"
+                                description={manual ? 'A click is the approval, so a manual automation has no approval and no run limits.' : undefined}
+                            />
                             {!manual && (
                                 <>
-                                    <div className="flow-card-section">
+                                    <CardBody className="flow-card-body automation-limit-row">
                                         <div className="flow-field-label">Approval</div>
-                                        <div className="segmented automation-approval">
+                                        <ButtonGroup role="radiogroup" label="Approval" onKeyDown={radioGroupKeys}>
                                             {(['auto', 'ask'] as const).map(value => (
-                                                <button
+                                                <Button
                                                     key={value}
-                                                    type="button"
-                                                    className={draft.limits.approval === value ? 'selected' : ''}
+                                                    role="radio"
+                                                    aria-checked={draft.limits.approval === value}
                                                     onClick={() => change({ limits: { ...draft.limits, approval: value } })}
                                                 >
                                                     {value === 'auto' ? 'Run at once' : 'Ask first'}
-                                                </button>
+                                                </Button>
                                             ))}
-                                        </div>
+                                        </ButtonGroup>
                                         <div className="flow-field-note">
                                             "Ask first": each run waits for you in the Automations view, and a notification tells you.
                                         </div>
-                                    </div>
+                                    </CardBody>
                                     <LimitRow
                                         label="Tokens each day"
                                         note="Claude Code only. No runs start after the limit until midnight."
@@ -523,12 +515,12 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                         label="Runs for each target"
                                         note="For one pull request, worktree or task. This stops a loop such as fix, fail, fix."
                                         control={
-                                            <input
+                                            <Input
                                                 type="number"
                                                 min={1}
                                                 max={100}
                                                 aria-label="Runs for each target"
-                                                className="settings-input automation-number"
+                                                className="automation-number"
                                                 value={draft.limits.maxRunsPerTarget}
                                                 onChange={event => change({ limits: { ...draft.limits, maxRunsPerTarget: Number(event.target.value) } })}
                                             />
@@ -541,19 +533,19 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                     label="Agents at the same time"
                                     note="More runs wait."
                                     control={
-                                        <input
+                                        <Input
                                             type="number"
                                             min={1}
                                             max={100}
                                             aria-label="Agents at the same time"
-                                            className="settings-input automation-number"
+                                            className="automation-number"
                                             value={draft.limits.maxRunning}
                                             onChange={event => change({ limits: { ...draft.limits, maxRunning: Number(event.target.value) } })}
                                         />
                                     }
                                 />
                             )}
-                        </div>
+                        </Card>
                     )}
                 </aside>
             </div>
@@ -588,6 +580,15 @@ function FlowSection({ icon, kind, last, children }: { icon: ReactNode; kind: st
     );
 }
 
+/** A card in a section of the editor. A combobox popover can show outside the card. */
+function FlowCard({ children }: { children: ReactNode }) {
+    return (
+        <Card className="flow-card">
+            <CardBody className="flow-card-body">{children}</CardBody>
+        </Card>
+    );
+}
+
 function SectionHead({ tag, text }: { tag: string; text: string }) {
     return (
         <div className="flow-section-head">
@@ -599,13 +600,13 @@ function SectionHead({ tag, text }: { tag: string; text: string }) {
 
 function LimitRow({ label, note, control }: { label: string; note: string; control: ReactNode }) {
     return (
-        <div className="flow-card-section automation-limit-row">
+        <CardBody className="flow-card-body automation-limit-row">
             <div className="automation-limit-text">
                 <div className="flow-field-label">{label}</div>
                 <div className="flow-field-note">{note}</div>
             </div>
             {control}
-        </div>
+        </CardBody>
     );
 }
 
@@ -625,7 +626,7 @@ function TaskSourceFields({ draft, change }: { draft: Automation; change(patch: 
         <>
             <span className="automation-joiner">in</span>
             <Select
-                className="settings-input automation-auto-select"
+                className="automation-auto-select"
                 aria-label="Task manager"
                 value={connectionId ?? ''}
                 options={[
@@ -692,37 +693,27 @@ function LabelRepoFields({ rules, repos, repoLabel, fallback, onFallback, onChan
             {rules.map((rule, index) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: The rules have no IDs. The index is their place in the list.
                 <div key={index} className="automation-label-repo">
-                    <input
-                        className="settings-input"
-                        placeholder="Label"
-                        aria-label="Label"
-                        value={rule.label}
-                        onChange={event => setRule(index, { label: event.target.value })}
-                    />
+                    <Input placeholder="Label" aria-label="Label" value={rule.label} onChange={event => setRule(index, { label: event.target.value })} />
                     <ArrowRight size={14} className="automation-joiner" aria-hidden="true" />
                     <Select
-                        className="settings-input"
                         aria-label="Repository"
                         value={rule.repo}
                         options={[{ value: '', label: 'Select a repository' }, ...repoOptions]}
                         onChange={repo => setRule(index, { repo })}
                     />
-                    <button
-                        type="button"
-                        className="icon-button"
-                        title="Remove the rule"
-                        aria-label="Remove the rule"
+                    <IconButton
+                        size="sm"
+                        tone="danger"
+                        label="Remove the rule"
+                        icon={<Trash2 size={14} strokeWidth={1.7} />}
                         onClick={() => onChange(rules.filter((_, i) => i !== index))}
-                    >
-                        <Trash2 size={14} strokeWidth={1.7} />
-                    </button>
+                    />
                 </div>
             ))}
             <div className={`automation-label-repo automation-label-fallback${rules.length > 0 ? ' divided' : ''}`}>
                 <span className="automation-any-label">{rules.length > 0 ? 'Any other label' : 'Any task'}</span>
                 <ArrowRight size={14} className="automation-joiner" aria-hidden="true" />
                 <Select
-                    className="settings-input"
                     aria-label={rules.length > 0 ? 'Repository for any other label' : 'Repository'}
                     value={fallback}
                     options={[{ value: '', label: "Don't run" }, ...repoOptions]}
@@ -731,10 +722,9 @@ function LabelRepoFields({ rules, repos, repoLabel, fallback, onFallback, onChan
                 <span />
             </div>
             <div>
-                <button type="button" className="button" onClick={() => onChange([...rules, { label: '', repo: '' }])}>
-                    <Plus size={13} strokeWidth={1.8} />
+                <Button icon={<Plus size={13} strokeWidth={1.8} />} onClick={() => onChange([...rules, { label: '', repo: '' }])}>
                     Add a rule
-                </button>
+                </Button>
             </div>
         </div>
     );
@@ -794,26 +784,30 @@ function SecretFields({ secrets, used, onChange }: SecretProps) {
             {names.map(name => (
                 <SettingsRow key={name} label={name} description={used.includes(name) ? undefined : 'No HTTP request uses this secret.'}>
                     <div className="automation-label-repo">
-                        <input
+                        <Input
                             type="password"
-                            className="settings-input mono"
+                            mono
                             aria-label={`The value of ${name}`}
                             placeholder="Value"
                             autoComplete="off"
                             value={secrets[name] ?? ''}
                             onChange={event => set(name, event.target.value)}
                         />
-                        <button type="button" className="icon-button" title="Remove the secret" aria-label="Remove the secret" onClick={() => remove(name)}>
-                            <Trash2 size={14} strokeWidth={1.7} />
-                        </button>
+                        <IconButton
+                            size="sm"
+                            tone="danger"
+                            label="Remove the secret"
+                            icon={<Trash2 size={14} strokeWidth={1.7} />}
+                            onClick={() => remove(name)}
+                        />
                     </div>
                 </SettingsRow>
             ))}
             <SettingsRow label="Add a secret" description="Type the name and the value. Then use {{secret.NAME}} in an HTTP request.">
                 <div className="automation-secret-add">
                     <div className="automation-label-repo">
-                        <input
-                            className="settings-input mono"
+                        <Input
+                            mono
                             aria-label="The name of the new secret"
                             placeholder="TOKEN"
                             autoComplete="off"
@@ -822,9 +816,9 @@ function SecretFields({ secrets, used, onChange }: SecretProps) {
                             onChange={event => setNewName(event.target.value.trim())}
                             onKeyDown={event => event.key === 'Enter' && add()}
                         />
-                        <input
+                        <Input
                             type="password"
-                            className="settings-input mono"
+                            mono
                             aria-label="The value of the new secret"
                             placeholder="Value"
                             autoComplete="off"
@@ -832,10 +826,9 @@ function SecretFields({ secrets, used, onChange }: SecretProps) {
                             onChange={event => setNewValue(event.target.value)}
                             onKeyDown={event => event.key === 'Enter' && add()}
                         />
-                        <button type="button" className="button" disabled={!canAdd} onClick={add}>
-                            <Plus size={13} strokeWidth={1.8} />
+                        <Button icon={<Plus size={13} strokeWidth={1.8} />} disabled={!canAdd} onClick={add}>
                             Add
-                        </button>
+                        </Button>
                     </div>
                     {nameProblem && <div className="automation-warning">{nameProblem}</div>}
                 </div>

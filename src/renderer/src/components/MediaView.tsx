@@ -4,6 +4,7 @@ import { formatSize, type FileInfo } from '@shared/file-types';
 import { fileUrl } from '@shared/file-url';
 import { baseName } from '@shared/files';
 import { clampZoom, fitZoom, stepZoom } from '../files/zoom';
+import { Button, ButtonGroup, IconButton } from './ui';
 
 interface FileProps {
     root: string;
@@ -24,17 +25,19 @@ function FileActions({ root, path, onError, canOpen }: { root: string; path: str
     return (
         <>
             {canOpen && (
-                <button
-                    className="icon-button"
-                    title="Open in the default app"
+                <IconButton
+                    size="sm"
+                    icon={<ExternalLink size={14} strokeWidth={1.8} />}
+                    label="Open in the default app"
                     onClick={() => files.openInDefaultApp(root, path).catch(error => onError(errorText(error)))}
-                >
-                    <ExternalLink size={14} strokeWidth={1.8} />
-                </button>
+                />
             )}
-            <button className="icon-button" title="Show in Finder" onClick={() => files.reveal(root, path).catch(error => onError(errorText(error)))}>
-                <FolderOpen size={14} strokeWidth={1.8} />
-            </button>
+            <IconButton
+                size="sm"
+                icon={<FolderOpen size={14} strokeWidth={1.8} />}
+                label="Show in Finder"
+                onClick={() => files.reveal(root, path).catch(error => onError(errorText(error)))}
+            />
         </>
     );
 }
@@ -108,19 +111,23 @@ export function ImageView({ root, path, info, version, onError }: FileProps) {
     return (
         <div className="viewer">
             <ViewerBar details={details}>
-                <button className={`button compact${mode === 'fit' ? ' selected' : ''}`} title="Fit the image in the view" onClick={() => setMode('fit')}>
-                    <Maximize size={13} strokeWidth={1.8} /> Fit
-                </button>
-                <button className={`button compact${mode === 1 ? ' selected' : ''}`} title="Show the image at its real size" onClick={() => setMode(1)}>
-                    100%
-                </button>
-                <button className="icon-button" title="Zoom out" onClick={() => setMode(clampZoom(stepZoom(zoom, -1)))}>
-                    <ZoomOut size={14} strokeWidth={1.8} />
-                </button>
+                <ButtonGroup size="sm" label="Zoom">
+                    <Button
+                        size="sm"
+                        aria-pressed={mode === 'fit'}
+                        title="Fit the image in the view"
+                        icon={<Maximize size={13} strokeWidth={1.8} />}
+                        onClick={() => setMode('fit')}
+                    >
+                        Fit
+                    </Button>
+                    <Button size="sm" aria-pressed={mode === 1} title="Show the image at its real size" onClick={() => setMode(1)}>
+                        100%
+                    </Button>
+                </ButtonGroup>
+                <IconButton size="sm" icon={<ZoomOut size={14} strokeWidth={1.8} />} label="Zoom out" onClick={() => setMode(clampZoom(stepZoom(zoom, -1)))} />
                 <span className="viewer-zoom">{Math.round(zoom * 100)}%</span>
-                <button className="icon-button" title="Zoom in" onClick={() => setMode(clampZoom(stepZoom(zoom, 1)))}>
-                    <ZoomIn size={14} strokeWidth={1.8} />
-                </button>
+                <IconButton size="sm" icon={<ZoomIn size={14} strokeWidth={1.8} />} label="Zoom in" onClick={() => setMode(clampZoom(stepZoom(zoom, 1)))} />
                 <span className="viewer-separator" />
                 <FileActions root={root} path={path} onError={onError} canOpen />
             </ViewerBar>
@@ -207,9 +214,7 @@ export function UnsupportedFileView({ root, path, info, reason, onError }: Unsup
                         : 'ShipWarden cannot show this file. It is larger than 5 MB.'}
                 </div>
                 <div className="unsupported-size">{formatSize(info.size)}</div>
-                <button className="button" onClick={() => window.shipwarden.files.reveal(root, path).catch(error => onError(errorText(error)))}>
-                    Show in Finder
-                </button>
+                <Button onClick={() => window.shipwarden.files.reveal(root, path).catch(error => onError(errorText(error)))}>Show in Finder</Button>
             </div>
         </div>
     );

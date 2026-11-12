@@ -6,6 +6,7 @@ import { fuzzyFilter, fuzzyPositions } from '../files/fuzzy';
 import { onExplorerFocusRequest, takeExplorerFocusRequest } from '../files/explorer-focus';
 import { treeKeyAction, type TreeRow } from '../files/tree-nav';
 import { ErrorBanner } from './ErrorBanner';
+import { IconButton, Input } from './ui';
 
 type Mode = 'names' | 'contents';
 
@@ -492,64 +493,68 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                 <span className="explorer-title" title={root}>
                     {title ?? baseName(root)}
                 </span>
-                <button className="icon-button" title="Collapse all folders" onClick={() => setExpanded(new Set())}>
-                    <ListCollapse size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                </button>
-                <button
-                    className="icon-button"
-                    title="Refresh"
+                <IconButton
+                    size="sm"
+                    icon={<ListCollapse size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} />}
+                    label="Collapse all folders"
+                    onClick={() => setExpanded(new Set())}
+                />
+                <IconButton
+                    size="sm"
+                    icon={<RefreshCw size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} />}
+                    label="Refresh"
                     onClick={() => {
                         reloadLoaded();
                         setAllFiles(undefined);
                     }}
-                >
-                    <RefreshCw size={ICON_SIZE - 1} strokeWidth={ICON_STROKE} />
-                </button>
+                />
             </div>
 
             <div className="explorer-controls">
-                <label className="explorer-search">
-                    <Search size={ICON_SIZE - 1} strokeWidth={ICON_STROKE} />
-                    <input
-                        ref={inputRef}
-                        value={query}
-                        placeholder={mode === 'names' ? 'Find files by name' : 'Search in files'}
-                        spellCheck={false}
-                        onChange={event => setQuery(event.target.value)}
-                        onKeyDown={onSearchKey}
-                    />
-                    <button
-                        type="button"
-                        className={`search-case${caseSensitive ? ' selected' : ''}`}
-                        aria-pressed={caseSensitive}
-                        title={caseSensitive ? 'Match case: on (⌥C)' : 'Match case: off (⌥C)'}
-                        onClick={toggleCase}
-                    >
-                        <CaseSensitive size={16} strokeWidth={1.6} />
-                    </button>
-                    <span className="search-mode" role="radiogroup" aria-label="Search">
-                        <button
-                            type="button"
-                            role="radio"
-                            aria-checked={mode === 'names'}
-                            className={mode === 'names' ? 'selected' : ''}
-                            title="File names (⌥Tab)"
-                            onClick={() => setMode('names')}
-                        >
-                            <File size={14} strokeWidth={1.6} />
-                        </button>
-                        <button
-                            type="button"
-                            role="radio"
-                            aria-checked={mode === 'contents'}
-                            className={mode === 'contents' ? 'selected' : ''}
-                            title="File contents (⌥Tab)"
-                            onClick={() => setMode('contents')}
-                        >
-                            <TextAlignStart size={14} strokeWidth={1.6} />
-                        </button>
-                    </span>
-                </label>
+                <Input
+                    ref={inputRef}
+                    value={query}
+                    placeholder={mode === 'names' ? 'Find files by name' : 'Search in files'}
+                    spellCheck={false}
+                    onChange={event => setQuery(event.target.value)}
+                    onKeyDown={onSearchKey}
+                    icon={<Search size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} />}
+                    suffix={
+                        <>
+                            <button
+                                type="button"
+                                className={`search-case${caseSensitive ? ' selected' : ''}`}
+                                aria-pressed={caseSensitive}
+                                title={caseSensitive ? 'Match case: on (⌥C)' : 'Match case: off (⌥C)'}
+                                onClick={toggleCase}
+                            >
+                                <CaseSensitive size={16} strokeWidth={1.6} />
+                            </button>
+                            <span className="search-mode" role="radiogroup" aria-label="Search">
+                                <button
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={mode === 'names'}
+                                    className={mode === 'names' ? 'selected' : ''}
+                                    title="File names (⌥Tab)"
+                                    onClick={() => setMode('names')}
+                                >
+                                    <File size={14} strokeWidth={1.6} />
+                                </button>
+                                <button
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={mode === 'contents'}
+                                    className={mode === 'contents' ? 'selected' : ''}
+                                    title="File contents (⌥Tab)"
+                                    onClick={() => setMode('contents')}
+                                >
+                                    <TextAlignStart size={14} strokeWidth={1.6} />
+                                </button>
+                            </span>
+                        </>
+                    }
+                />
             </div>
 
             <div className="explorer-body" ref={bodyRef}>

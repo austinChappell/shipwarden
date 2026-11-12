@@ -9,7 +9,7 @@ import { focusFirstItem, moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
 import { refreshReviewOverview, useReviewOverview } from '../github/review-overview-store';
 import { CountPill, Dotted, KeyLegend, useInitialFocus, usePageKeys } from './ReviewParts';
-import { Button, IconButton, Input } from './ui';
+import { Button, ButtonGroup, IconButton, Input } from './ui';
 
 interface Props {
     queue: QueueItem[];
@@ -160,7 +160,6 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                 <div className="tasks-header-group how">
                     <Input
                         ref={filterRef}
-                        size="sm"
                         className="review-repo-filter"
                         icon={<Search size={13} strokeWidth={1.8} />}
                         suffix={query ? undefined : <kbd className="field-key">/</kbd>}
@@ -181,19 +180,17 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                         }}
                     />
                     {state.projectRepos.length > 0 && (
-                        // The look of a small `ButtonGroup`. `ButtonGroup` sets role="group", but this control needs role="radiogroup" and the arrow keys.
-                        <div className="button-group sm" role="radiogroup" aria-label="Repositories" onKeyDown={radioGroupKeys}>
+                        <ButtonGroup role="radiogroup" label="Repositories" onKeyDown={radioGroupKeys}>
                             <Button role="radio" aria-checked={!all} tabIndex={!all ? 0 : -1} onClick={() => setMode('projects')}>
                                 In projects
                             </Button>
                             <Button role="radio" aria-checked={all} tabIndex={all ? 0 : -1} onClick={() => setMode('all')}>
                                 All
                             </Button>
-                        </div>
+                        </ButtonGroup>
                     )}
                     <span className="header-spacer" />
                     <IconButton
-                        size="sm"
                         icon={<RefreshCw size={14} strokeWidth={1.6} className={state.catalogLoading || entries.some(entry => entry.loading) ? 'spin' : ''} />}
                         label="Refresh"
                         onClick={() => void refreshReviewOverview()}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { moveMenuFocus, useMenuClose } from '../use-menu';
 import type { ControlSize } from './Button';
@@ -14,6 +14,10 @@ interface GroupProps {
     className?: string;
     /** The name of the group for a screen reader. */
     label?: string;
+    /** The role of the group. Use "radiogroup" for a segmented control where the user selects one option. */
+    role?: 'group' | 'radiogroup' | 'toolbar';
+    /** Handles the keys of the group, for example the arrow keys of a radio group. */
+    onKeyDown?(event: KeyboardEvent<HTMLDivElement>): void;
     children: ReactNode;
 }
 
@@ -21,9 +25,10 @@ interface GroupProps {
  * Buttons that show as one control, for example a segmented control. The group has the border. A line separates the buttons.
  * Put `.button` elements in it. A menu in the group can use the group as its anchor.
  */
-export function ButtonGroup({ tone = 'default', size = 'md', className, label, children }: GroupProps) {
+export function ButtonGroup({ tone = 'default', size = 'md', className, label, role = 'group', onKeyDown, children }: GroupProps) {
     return (
-        <div className={cx('button-group', tone, size !== 'md' && size, className)} role="group" aria-label={label}>
+        // biome-ignore lint/a11y/useAriaPropsSupportedByRole: The role comes from the props. Each of the roles supports aria-label.
+        <div className={cx('button-group', tone, size !== 'md' && size, className)} role={role} aria-label={label} onKeyDown={onKeyDown}>
             {children}
         </div>
     );

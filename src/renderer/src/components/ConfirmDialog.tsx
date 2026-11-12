@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { CircleAlert, Info, Pencil, TriangleAlert } from 'lucide-react';
+import { Button, Input } from './ui';
 import { modalOpen, trapTab } from './use-modal';
 
 export interface ConfirmOptions {
@@ -143,9 +144,9 @@ export function DialogHost() {
                         ))}
                         {current.detail && <pre className="confirm-detail">{current.detail}</pre>}
                         {current.input && (
-                            <input
+                            <Input
                                 ref={inputRef}
-                                className="settings-input confirm-input"
+                                className="confirm-input"
                                 value={text}
                                 placeholder={current.input.placeholder}
                                 onChange={event => setText(event.target.value)}
@@ -159,15 +160,11 @@ export function DialogHost() {
                         )}
                     </div>
                 </div>
-                <footer className="modal-footer confirm-footer">
-                    {!current.notice && (
-                        <button className="button" onClick={() => answer(current, false)}>
-                            {current.cancelLabel ?? 'Cancel'}
-                        </button>
-                    )}
-                    <button ref={confirmButton} className={`button ${current.danger ? 'danger' : 'primary'}`} onClick={confirm}>
+                <footer className="modal-footer">
+                    {!current.notice && <Button onClick={() => answer(current, false)}>{current.cancelLabel ?? 'Cancel'}</Button>}
+                    <Button ref={confirmButton} variant={current.danger ? 'danger' : 'solid'} onClick={confirm}>
                         {current.confirmLabel ?? 'OK'}
-                    </button>
+                    </Button>
                 </footer>
             </div>
         </div>

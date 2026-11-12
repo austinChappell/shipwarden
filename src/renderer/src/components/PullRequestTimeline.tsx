@@ -25,6 +25,7 @@ import { openLink } from '../links';
 import { Markdown } from './Markdown';
 import { buildTimeline, type TimelineItem } from './pr-timeline';
 import { Avatar } from './Avatar';
+import { Button, Card, CardBody, IconButton } from './ui';
 
 export const REVIEW_STATE_TEXT: Record<string, string> = {
     APPROVED: 'approved',
@@ -82,7 +83,7 @@ function CardRow({
     reactionActions,
     agentPrompt,
     onSendToAgent,
-    className,
+    tone,
     header
 }: {
     author: GitHubUser | null;
@@ -93,7 +94,8 @@ function CardRow({
     /** The prompt that the agent button sends. Without it, the card has no agent button. */
     agentPrompt?: () => string;
     onSendToAgent?(prompt: string): void;
-    className?: string;
+    /** The color of the border, for example "ok" for an approved review. */
+    tone?: 'ok' | 'danger';
     header: ReactNode;
 }) {
     const { name, bot } = authorName(author?.login);
@@ -103,26 +105,33 @@ function CardRow({
     return (
         <li className="pr-timeline-item pr-timeline-event">
             <Avatar login={name} url={author?.avatarUrl} size={34} className={`pr-timeline-badge${bot ? ' bot' : ''}`} />
-            <div className={`pr-timeline-card${className ? ` ${className}` : ''}`}>
-                <div className="pr-timeline-card-header">
+            <Card tone={tone} className="pr-timeline-card">
+                <div className="card-header">
                     <span className="pr-timeline-card-title">
                         <strong>{name}</strong>
                         {bot && <span className="tag pr-timeline-bot">bot</span>} {header}
                     </span>
                     {(reactionState || sendable) && (
-                        <span className="pr-timeline-card-actions">
-                            {reactionState && <ReactionAddButton state={reactionState} className="icon-button" />}
+                        <span className="card-actions">
+                            {reactionState && <ReactionAddButton state={reactionState} look="icon" />}
                             {sendable && (
-                                <button type="button" className="icon-button" title="Send this to the agent" onClick={() => onSendToAgent(agentPrompt())}>
-                                    <Bot size={14} strokeWidth={1.6} />
-                                </button>
+                                <IconButton
+                                    size="sm"
+                                    icon={<Bot size={14} strokeWidth={1.6} />}
+                                    label="Send this to the agent"
+                                    onClick={() => onSendToAgent(agentPrompt())}
+                                />
                             )}
                         </span>
                     )}
                 </div>
-                {hasBody && <Markdown className="pr-timeline-body" text={body} />}
-                {reactionState && <ReactionList state={reactionState} className="pr-timeline-reactions" />}
-            </div>
+                {hasBody && (
+                    <CardBody>
+                        <Markdown className="pr-timeline-body" text={body} />
+                        {reactionState && <ReactionList state={reactionState} />}
+                    </CardBody>
+                )}
+            </Card>
         </li>
     );
 }
@@ -213,13 +222,14 @@ function describe(event: TimelineEvent, pr: PullRequest): { icon: LucideIcon; to
                             <>
                                 commit{' '}
                                 {event.commitUrl ? (
-                                    <button
-                                        className="link-button mono"
+                                    <Button
+                                        variant="link"
+                                        className="mono"
                                         title={`Open the commit on ${hostLabel(pr.host)}`}
                                         onClick={click => openLink(event.commitUrl!, click)}
                                     >
                                         {event.commit}
-                                    </button>
+                                    </Button>
                                 ) : (
                                     <code>{event.commit}</code>
                                 )}{' '}
@@ -297,9 +307,9 @@ function describe(event: TimelineEvent, pr: PullRequest): { icon: LucideIcon; to
                 text: (
                     <>
                         mentioned this in{' '}
-                        <button className="link-button" title={event.url} onClick={click => openLink(event.url, click)}>
+                        <Button variant="link" title={event.url} onClick={click => openLink(event.url, click)}>
                             {event.title} {event.repo}#{event.number}
-                        </button>
+                        </Button>
                     </>
                 )
             };
@@ -364,7 +374,7 @@ function Row({
                     reactionActions={reactions}
                     agentPrompt={sendable ? () => reviewPrompt(pr, review) : undefined}
                     onSendToAgent={onSendToAgent}
-                    className={`review-${review.state.toLowerCase()}`}
+                    tone={review.state === 'APPROVED' ? 'ok' : review.state === 'CHANGES_REQUESTED' ? 'danger' : undefined}
                     header={
                         <>
                             <span className={`tag review-${review.state.toLowerCase()}`}>{REVIEW_STATE_TEXT[review.state] ?? review.state.toLowerCase()}</span>{' '}
@@ -402,13 +412,14 @@ function Row({
                                             <span className="pr-timeline-commit-title" title={commit.messageHeadline}>
                                                 {commit.messageHeadline}
                                             </span>
-                                            <button
-                                                className="link-button mono"
+                                            <Button
+                                                variant="link"
+                                                className="mono"
                                                 title={`Open the commit on ${hostLabel(pr.host)}`}
                                                 onClick={event => openLink(commit.url, event)}
                                             >
                                                 {commit.abbreviatedOid}
-                                            </button>
+                                            </Button>
                                         </>
                                     )}
                                 </li>

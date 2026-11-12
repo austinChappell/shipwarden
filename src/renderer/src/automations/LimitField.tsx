@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Checkbox, Input } from '../components/ui';
 
 interface Props {
     /** The limit, or null for no limit. */
@@ -43,9 +44,9 @@ export function LimitField({ value, fallback, min, max, step, unit, label, onSav
         <span className="automation-limit">
             {limited && (
                 <>
-                    <input
+                    <Input
                         type="number"
-                        className="settings-input automation-limit-input"
+                        className="automation-limit-input"
                         min={min}
                         max={max}
                         step={step}
@@ -60,10 +61,12 @@ export function LimitField({ value, fallback, min, max, step, unit, label, onSav
                     <span className="automation-limit-unit">{unit}</span>
                 </>
             )}
-            <label className="automation-check">
-                <input type="checkbox" checked={!limited} onChange={event => onSave(event.target.checked ? null : clampLimit(text, fallback, min, max))} />
-                No limit
-            </label>
+            <Checkbox
+                className="automation-check"
+                label="No limit"
+                checked={!limited}
+                onChange={checked => onSave(checked ? null : clampLimit(text, fallback, min, max))}
+            />
         </span>
     );
 }

@@ -5,6 +5,7 @@ import type { DiffSide, PullRequest, PullRequestFile, RepoTarget } from '@shared
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { CopyButton } from './CopyButton';
+import { Button, ButtonGroup, Checkbox, IconButton } from './ui';
 import { radioGroupKeys } from './keyboard';
 import { askPrompt, lineLabel, sliceLines } from '@shared/ask-agent';
 import { searchPatches, type PatchMatch } from '@shared/pr-search';
@@ -428,14 +429,13 @@ export function PullRequestFilesStream({
             )}
             <div className="files-stream-toolbar">
                 {fileList && (
-                    <button
-                        className="icon-button file-list-toggle"
-                        title={fileList.open ? 'Hide the file list' : 'Show the file list'}
+                    <IconButton
+                        size="sm"
+                        icon={fileList.open ? <PanelLeftClose size={14} strokeWidth={1.5} /> : <PanelLeftOpen size={14} strokeWidth={1.5} />}
+                        label={fileList.open ? 'Hide the file list' : 'Show the file list'}
                         aria-pressed={fileList.open}
                         onClick={fileList.toggle}
-                    >
-                        {fileList.open ? <PanelLeftClose size={15} strokeWidth={1.5} /> : <PanelLeftOpen size={15} strokeWidth={1.5} />}
-                    </button>
+                    />
                 )}
                 <span className="files-stream-count">
                     {viewedCount} of {files.length} viewed
@@ -447,20 +447,31 @@ export function PullRequestFilesStream({
                         <span className="pending-stepper-count">
                             {pendingCurrent === undefined ? `${pendingStops.length} pending` : `${pendingCurrent + 1} of ${pendingStops.length} pending`}
                         </span>
-                        <button className="icon-button" title="Go to the previous pending comment (P)" onClick={() => movePending(-1)}>
-                            <ChevronUp size={14} strokeWidth={1.8} />
-                        </button>
-                        <button className="icon-button" title="Go to the next pending comment (N)" onClick={() => movePending(1)}>
-                            <ChevronDown size={14} strokeWidth={1.8} />
-                        </button>
+                        <IconButton
+                            size="sm"
+                            icon={<ChevronUp size={14} strokeWidth={1.8} />}
+                            label="Go to the previous pending comment (P)"
+                            onClick={() => movePending(-1)}
+                        />
+                        <IconButton
+                            size="sm"
+                            icon={<ChevronDown size={14} strokeWidth={1.8} />}
+                            label="Go to the next pending comment (N)"
+                            onClick={() => movePending(1)}
+                        />
                     </div>
                 )}
                 {onGoToDefinition && <span className="files-stream-hint">⌘-click a name to go to its definition</span>}
                 {answered.length > 0 && (
                     <div className="answers-menu">
-                        <button className="link-button" aria-expanded={answersOpen} onClick={() => setAnswersOpen(value => !value)}>
-                            <Bot size={12} strokeWidth={1.6} /> Agent answers ({answered.length})
-                        </button>
+                        <Button
+                            variant="link"
+                            icon={<Bot size={12} strokeWidth={1.6} />}
+                            aria-expanded={answersOpen}
+                            onClick={() => setAnswersOpen(value => !value)}
+                        >
+                            Agent answers ({answered.length})
+                        </Button>
                         {answersOpen && (
                             <div className="answers-menu-list" role="menu">
                                 {answered.map(question => (
@@ -476,30 +487,20 @@ export function PullRequestFilesStream({
                         )}
                     </div>
                 )}
-                <button className="link-button" onClick={() => setOpen(allFilesOpen(files, false))}>
+                <Button variant="link" onClick={() => setOpen(allFilesOpen(files, false))}>
                     Collapse all
-                </button>
-                <button className="link-button" onClick={() => setOpen(allFilesOpen(files, true))}>
+                </Button>
+                <Button variant="link" onClick={() => setOpen(allFilesOpen(files, true))}>
                     Expand all
-                </button>
-                <div className="segmented compact" role="radiogroup" aria-label="Diff layout" onKeyDown={radioGroupKeys}>
-                    <button
-                        role="radio"
-                        aria-checked={diffStyle === 'unified'}
-                        className={diffStyle === 'unified' ? 'selected' : ''}
-                        onClick={() => changeStyle('unified')}
-                    >
+                </Button>
+                <ButtonGroup size="sm" role="radiogroup" label="Diff layout" onKeyDown={radioGroupKeys}>
+                    <Button size="sm" role="radio" aria-checked={diffStyle === 'unified'} onClick={() => changeStyle('unified')}>
                         Unified
-                    </button>
-                    <button
-                        role="radio"
-                        aria-checked={diffStyle === 'split'}
-                        className={diffStyle === 'split' ? 'selected' : ''}
-                        onClick={() => changeStyle('split')}
-                    >
+                    </Button>
+                    <Button size="sm" role="radio" aria-checked={diffStyle === 'split'} onClick={() => changeStyle('split')}>
                         Split
-                    </button>
-                </div>
+                    </Button>
+                </ButtonGroup>
             </div>
             <Virtualizer className="files-stream-scroll" contentClassName="files-stream-content">
                 {files.map(file => {
@@ -514,7 +515,14 @@ export function PullRequestFilesStream({
                                 else sections.current.delete(file.path);
                             }}
                         >
-                            <header className="stream-file-header" onClick={() => setOpen(map => ({ ...map, [file.path]: !expanded }))}>
+                            <header
+                                className="stream-file-header"
+                                onClick={event => {
+                                    // A click on the Viewed box changes only the box, not the open state of the file.
+                                    if ((event.target as Element).closest('.viewed-toggle')) return;
+                                    setOpen(map => ({ ...map, [file.path]: !expanded }));
+                                }}
+                            >
                                 <button className="row-toggle" aria-expanded={expanded}>
                                     <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${expanded ? ' open' : ''}`} />
                                     <span className={`file-status status-${file.status}`}>{file.status[0].toUpperCase()}</span>
@@ -525,16 +533,16 @@ export function PullRequestFilesStream({
                                 </button>
                                 <CopyButton text={file.path} title="Copy the file path" size={13} className="stream-file-copy" />
                                 {onOpenFile && file.status !== 'removed' && (
-                                    <button
-                                        className="icon-button stream-file-copy"
-                                        title="Open the full file, with go to definition"
+                                    <IconButton
+                                        size="sm"
+                                        className="stream-file-copy"
+                                        icon={<FileCode size={13} strokeWidth={1.6} />}
+                                        label="Open the full file, with go to definition"
                                         onClick={event => {
                                             event.stopPropagation();
                                             onOpenFile(file.path);
                                         }}
-                                    >
-                                        <FileCode size={13} strokeWidth={1.6} />
-                                    </button>
+                                    />
                                 )}
                                 {count > 0 && (
                                     <span className="comment-count">
@@ -544,10 +552,13 @@ export function PullRequestFilesStream({
                                 )}
                                 <span className="additions">+{file.additions}</span>
                                 <span className="deletions">−{file.deletions}</span>
-                                <label className="viewed-toggle" title="Mark the file as viewed, as on GitHub" onClick={event => event.stopPropagation()}>
-                                    <input type="checkbox" checked={!!file.viewed} onChange={event => setViewed(file, event.target.checked)} />
-                                    Viewed
-                                </label>
+                                <Checkbox
+                                    className="viewed-toggle"
+                                    label="Viewed"
+                                    title="Mark the file as viewed, as on GitHub"
+                                    checked={!!file.viewed}
+                                    onChange={checked => setViewed(file, checked)}
+                                />
                             </header>
                             {expanded && (
                                 <FileBody

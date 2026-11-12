@@ -7,7 +7,7 @@ import { errorText } from '../util';
 import { confirmDiscard } from './ChangesPanel';
 import { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './PullRequestFilesStream';
 import { radioGroupKeys } from './keyboard';
-import { Button, IconButton } from './ui';
+import { Button, ButtonGroup, IconButton } from './ui';
 
 interface Props {
     worktree: string;
@@ -101,24 +101,14 @@ export function ChangeDiffView({ worktree, change, side, onOpenFile }: Props) {
                     {change.oldPath ? `${change.oldPath} → ${change.path}` : change.path}
                 </span>
                 <span className="header-spacer" />
-                <div className="segmented compact" role="radiogroup" aria-label="Diff layout" onKeyDown={radioGroupKeys}>
-                    <button
-                        role="radio"
-                        aria-checked={diffStyle === 'unified'}
-                        className={diffStyle === 'unified' ? 'selected' : ''}
-                        onClick={() => changeStyle('unified')}
-                    >
+                <ButtonGroup size="sm" role="radiogroup" label="Diff layout" onKeyDown={radioGroupKeys}>
+                    <Button size="sm" role="radio" aria-checked={diffStyle === 'unified'} onClick={() => changeStyle('unified')}>
                         Unified
-                    </button>
-                    <button
-                        role="radio"
-                        aria-checked={diffStyle === 'split'}
-                        className={diffStyle === 'split' ? 'selected' : ''}
-                        onClick={() => changeStyle('split')}
-                    >
+                    </Button>
+                    <Button size="sm" role="radio" aria-checked={diffStyle === 'split'} onClick={() => changeStyle('split')}>
                         Split
-                    </button>
-                </div>
+                    </Button>
+                </ButtonGroup>
                 <Button
                     size="sm"
                     disabled={busy}

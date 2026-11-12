@@ -3,8 +3,8 @@ import { FolderInput, LoaderCircle, X } from 'lucide-react';
 import type { RepoRef } from '@shared/github';
 import type { Project, PullRepoTarget } from '@shared/projects';
 import { errorText } from '../util';
-import { Combobox, type ComboboxGroup } from './ui/Combobox';
 import { radioGroupKeys } from './keyboard';
+import { Button, ButtonGroup, Combobox, type ComboboxGroup, IconButton, Input } from './ui';
 import { useModal } from './use-modal';
 
 /** "existing": a project that exists. "new": a new project. */
@@ -81,9 +81,7 @@ export function PullRepoDialog({ repo, projects, activeId, onClose, onPull }: Pr
                         Pull {repo.owner}/{repo.name} into a project
                     </h2>
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Close (Esc)" disabled={busy} onClick={onClose}>
-                        <X size={15} strokeWidth={1.8} />
-                    </button>
+                    <IconButton icon={<X size={15} strokeWidth={1.8} />} label="Close (Esc)" disabled={busy} onClick={onClose} />
                 </header>
                 <form
                     className="modal-body"
@@ -95,14 +93,12 @@ export function PullRepoDialog({ repo, projects, activeId, onClose, onPull }: Pr
                     <p className="panel-note">
                         No project has a clone of this repository. ShipWarden clones it from GitHub into a folder that you choose in the next step.
                     </p>
-                    <div className="segmented new-worktree-mode" role="radiogroup" aria-label="Project" onKeyDown={radioGroupKeys}>
+                    <ButtonGroup className="new-worktree-mode" role="radiogroup" label="Project" onKeyDown={radioGroupKeys}>
                         {(['existing', 'new'] as const).map(value => (
-                            <button
+                            <Button
                                 key={value}
-                                type="button"
                                 role="radio"
                                 aria-checked={mode === value}
-                                className={mode === value ? 'selected' : ''}
                                 disabled={busy}
                                 onClick={() => {
                                     setMode(value);
@@ -110,9 +106,9 @@ export function PullRepoDialog({ repo, projects, activeId, onClose, onPull }: Pr
                                 }}
                             >
                                 {value === 'existing' ? 'Existing project' : 'New project'}
-                            </button>
+                            </Button>
                         ))}
-                    </div>
+                    </ButtonGroup>
                     {mode === 'existing' ? (
                         <div className="run-field">
                             <span className="setting-label">Project</span>
@@ -127,10 +123,12 @@ export function PullRepoDialog({ repo, projects, activeId, onClose, onPull }: Pr
                             />
                         </div>
                     ) : (
-                        <label className="run-field">
-                            <span className="setting-label">Project name</span>
-                            <input className="settings-input" autoFocus value={name} disabled={busy} onChange={event => setName(event.target.value)} />
-                        </label>
+                        <div className="run-field">
+                            <label className="setting-label" htmlFor="pull-repo-name">
+                                Project name
+                            </label>
+                            <Input id="pull-repo-name" autoFocus value={name} disabled={busy} onChange={event => setName(event.target.value)} />
+                        </div>
                     )}
                     {busy && (
                         <p className="panel-note">
@@ -143,12 +141,12 @@ export function PullRepoDialog({ repo, projects, activeId, onClose, onPull }: Pr
                 </form>
                 <footer className="modal-footer">
                     <span className="panel-note">⌘↩ pulls. Esc cancels.</span>
-                    <button className="button" disabled={busy} onClick={onClose}>
+                    <Button disabled={busy} onClick={onClose}>
                         Cancel
-                    </button>
-                    <button className="button primary" disabled={busy || !ready} onClick={() => void submit()}>
-                        {busy && <LoaderCircle size={13} className="spin" />} Pull repository
-                    </button>
+                    </Button>
+                    <Button variant="solid" icon={busy && <LoaderCircle size={13} className="spin" />} disabled={busy || !ready} onClick={() => void submit()}>
+                        Pull repository
+                    </Button>
                 </footer>
             </div>
         </div>

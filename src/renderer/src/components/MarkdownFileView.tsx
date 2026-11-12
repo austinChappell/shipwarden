@@ -7,6 +7,7 @@ import { useFolderVersion } from '../files/use-file-changes';
 import { EditorView } from './EditorView';
 import { HEADING_ID_PREFIX, renderMarkdownFile } from './Markdown';
 import { radioGroupKeys } from './keyboard';
+import { Button, ButtonGroup } from './ui';
 
 export type MarkdownMode = 'source' | 'split' | 'preview';
 
@@ -65,20 +66,21 @@ export function MarkdownFileView(props: Props) {
             <div className="viewer-bar">
                 <span className="viewer-details" />
                 <span className="viewer-actions">
-                    <div className="segmented compact markdown-modes" role="radiogroup" aria-label="Markdown view" onKeyDown={radioGroupKeys}>
+                    <ButtonGroup size="sm" role="radiogroup" label="Markdown view" onKeyDown={radioGroupKeys}>
                         {modes.map(([value, label, Icon]) => (
-                            <button
+                            <Button
                                 key={value}
+                                size="sm"
                                 role="radio"
                                 aria-checked={mode === value}
-                                className={mode === value ? 'selected' : ''}
                                 title={label}
+                                icon={<Icon size={13} strokeWidth={1.8} />}
                                 onClick={() => setMode(value)}
                             >
-                                <Icon size={13} strokeWidth={1.8} /> {label}
-                            </button>
+                                {label}
+                            </Button>
                         ))}
-                    </div>
+                    </ButtonGroup>
                 </span>
             </div>
             <div className={`markdown-file-body ${mode}`}>

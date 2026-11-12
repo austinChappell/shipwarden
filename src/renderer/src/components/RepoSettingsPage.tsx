@@ -5,7 +5,7 @@ import type { CopyIgnoredSettings, RepoWorktreeSettings } from '@shared/worktree
 import { CopyEditor, CopyPreview, FolderField } from './WorktreeSettings';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
-import { Select } from './ui/Select';
+import { Button, ButtonGroup, Input, Select, TextArea } from './ui';
 import { radioGroupKeys } from './keyboard';
 
 interface Props {
@@ -60,8 +60,8 @@ export function RepoSettingsPage({ repo, settings, onSave }: Props) {
                     label="Name"
                     description="The name in the sidebar and the other views. Empty means the folder name."
                     control={
-                        <input
-                            className="settings-input"
+                        <Input
+                            className="settings-text-field"
                             value={name}
                             placeholder={folderName(repo)}
                             onChange={event => setName(event.target.value)}
@@ -75,7 +75,6 @@ export function RepoSettingsPage({ repo, settings, onSave }: Props) {
                     description="The agent that the Agent button and Start in worktree start in this repository. Add agents in Settings > Agents."
                     control={
                         <Select
-                            className="tasks-select"
                             value={current.agentId ?? ''}
                             options={[
                                 { value: '', label: `Global default (${defaultAgent.name})` },
@@ -127,8 +126,9 @@ function ScriptField({ value, placeholder, onSave }: { value: string | undefined
     const [text, setText] = useState(value ?? '');
     useEffect(() => setText(value ?? ''), [value]);
     return (
-        <textarea
-            className="settings-input mono script-field"
+        <TextArea
+            className="script-field"
+            mono
             value={text}
             spellCheck={false}
             placeholder={placeholder}
@@ -196,13 +196,13 @@ function RepoWorktreeGroup({
             </SettingsRow>
             <SettingsRow label="Copy ignored files" description="Git-ignored files from the main worktree that each new worktree of this repository gets.">
                 {/* The choice is below the label, so the label and the description keep the full width. */}
-                <div className="segmented compact copy-source" role="radiogroup" aria-label="Copy settings" onKeyDown={radioGroupKeys}>
+                <ButtonGroup className="copy-source" role="radiogroup" label="Copy settings" onKeyDown={radioGroupKeys}>
                     {(['global', 'custom', 'off'] as CopyMode[]).map(item => (
-                        <button key={item} role="radio" aria-checked={mode === item} className={mode === item ? 'selected' : ''} onClick={() => setMode(item)}>
+                        <Button key={item} role="radio" aria-checked={mode === item} onClick={() => setMode(item)}>
                             {item === 'global' ? 'Global' : item === 'custom' ? 'Custom' : 'Off'}
-                        </button>
+                        </Button>
                     ))}
-                </div>
+                </ButtonGroup>
                 {mode === 'global' && (
                     <div className="panel-note copy-summary">
                         {!global.copyIgnored.enabled ? (

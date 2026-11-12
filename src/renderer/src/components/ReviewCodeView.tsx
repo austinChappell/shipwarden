@@ -46,7 +46,7 @@ export function ReviewCodeView({ root, checkout, location, canGoBack, onBack, on
                 <span className="review-code-path" title={location.path}>
                     {location.path}
                 </span>
-                <CopyButton text={location.path} title="Copy the file path" className="icon-button sm" />
+                <CopyButton text={location.path} title="Copy the file path" />
                 <IconButton size="sm" icon={<X size={14} strokeWidth={1.6} />} label="Close the code" onClick={onClose} />
             </header>
             {root ? <CodeEditor root={root} location={location} onCursor={onCursor} /> : <CheckoutMessage checkout={checkout} onRetry={onRetry} />}

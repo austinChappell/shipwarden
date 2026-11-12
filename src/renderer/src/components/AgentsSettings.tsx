@@ -101,7 +101,7 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                     {isDefault && <span className="agent-default-label">Default</span>}
                 </label>
                 <Input
-                    className="agent-name-input"
+                    className="agent-name-field"
                     aria-label="Agent name"
                     value={name}
                     onChange={event => setName(event.target.value)}
@@ -109,7 +109,7 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                     onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                 />
                 <Input
-                    className="agent-command-input"
+                    className="agent-command-field"
                     mono
                     aria-label="Agent command"
                     value={command}
@@ -210,14 +210,14 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
             >
                 <span className="agent-add-label">Add</span>
                 <Input
-                    className="agent-name-input"
+                    className="agent-name-field"
                     placeholder="Name"
                     aria-label="New agent name"
                     value={newName}
                     onChange={event => setNewName(event.target.value)}
                 />
                 <Input
-                    className="agent-command-input"
+                    className="agent-command-field"
                     mono
                     placeholder="Command, for example aider"
                     aria-label="New agent command"

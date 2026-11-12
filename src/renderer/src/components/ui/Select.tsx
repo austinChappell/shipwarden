@@ -25,6 +25,8 @@ interface Props<T extends string> {
     /** More classes for the button, for example for its width. The look comes from the field style. */
     className?: string;
     size?: ControlSize;
+    /** Shows the button in the danger color, for example when the selected value is not valid. */
+    invalid?: boolean;
     /** The content of the button. The default is the label of the selected option and an arrow. */
     children?: ReactNode;
 }
@@ -54,7 +56,19 @@ export function nextEnabled(options: readonly { disabled?: boolean }[], from: nu
 }
 
 /** A select in the style of the app. It replaces the native select, which has the look of the operating system. */
-export function Select<T extends string>({ value, options, onChange, placeholder = 'Select', disabled, title, className, size, children, ...rest }: Props<T>) {
+export function Select<T extends string>({
+    value,
+    options,
+    onChange,
+    placeholder = 'Select',
+    disabled,
+    title,
+    className,
+    size,
+    invalid,
+    children,
+    ...rest
+}: Props<T>) {
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState(0);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -131,7 +145,7 @@ export function Select<T extends string>({ value, options, onChange, placeholder
             <button
                 ref={trigger}
                 type="button"
-                className={inputClass(size, { className: cx('select-button', open && 'on', className) })}
+                className={inputClass(size, { invalid, className: cx('select-button', open && 'on', className) })}
                 disabled={disabled}
                 title={title}
                 aria-label={rest['aria-label']}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, ExternalLink, Globe, RotateCw, X } from 'lucide-react';
 import { BLANK_PAGE, normalizeAddress, type BrowserBounds } from '@shared/browser';
 import { browserStore, useBrowserStates } from '../browser/browser-store';
+import { Button, IconButton, Input } from './ui';
 
 interface Props {
     /** The ID of the browser view in the main process. */
@@ -126,54 +127,55 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
     return (
         <div className="editor browser-view">
             <form className="diff-header browser-toolbar" onSubmit={submit}>
-                <button type="button" className="icon-button" title="Back" disabled={!state?.canGoBack} onClick={() => api.back(id)}>
-                    <ArrowLeft size={14} strokeWidth={1.7} />
-                </button>
-                <button type="button" className="icon-button" title="Forward" disabled={!state?.canGoForward} onClick={() => api.forward(id)}>
-                    <ArrowRight size={14} strokeWidth={1.7} />
-                </button>
+                <IconButton size="sm" icon={<ArrowLeft size={14} strokeWidth={1.7} />} label="Back" disabled={!state?.canGoBack} onClick={() => api.back(id)} />
+                <IconButton
+                    size="sm"
+                    icon={<ArrowRight size={14} strokeWidth={1.7} />}
+                    label="Forward"
+                    disabled={!state?.canGoForward}
+                    onClick={() => api.forward(id)}
+                />
                 {state?.loading ? (
-                    <button type="button" className="icon-button" title="Stop" onClick={() => api.stop(id)}>
-                        <X size={14} strokeWidth={1.7} />
-                    </button>
+                    <IconButton size="sm" icon={<X size={14} strokeWidth={1.7} />} label="Stop" onClick={() => api.stop(id)} />
                 ) : (
-                    <button type="button" className="icon-button" title="Reload (⌘R)" onClick={() => api.reload(id)}>
-                        <RotateCw size={14} strokeWidth={1.7} />
-                    </button>
+                    <IconButton size="sm" icon={<RotateCw size={14} strokeWidth={1.7} />} label="Reload (⌘R)" onClick={() => api.reload(id)} />
                 )}
-                <div className={`browser-address${addressError ? ' invalid' : ''}`}>
-                    <Globe size={13} strokeWidth={1.6} className="browser-address-icon" />
-                    <input
-                        ref={input}
-                        value={address}
-                        spellCheck={false}
-                        placeholder="Type an address or a search (⌘L)"
-                        aria-label="Address"
-                        title={addressError}
-                        onFocus={event => {
-                            setEditing(true);
-                            event.currentTarget.select();
-                        }}
-                        onBlur={() => setEditing(false)}
-                        onChange={event => {
-                            setAddress(event.target.value);
+                <Input
+                    ref={input}
+                    size="sm"
+                    className="browser-address"
+                    invalid={!!addressError}
+                    icon={<Globe size={13} strokeWidth={1.6} />}
+                    value={address}
+                    spellCheck={false}
+                    placeholder="Type an address or a search (⌘L)"
+                    aria-label="Address"
+                    title={addressError}
+                    onFocus={event => {
+                        setEditing(true);
+                        event.currentTarget.select();
+                    }}
+                    onBlur={() => setEditing(false)}
+                    onChange={event => {
+                        setAddress(event.target.value);
+                        setAddressError(undefined);
+                    }}
+                    onKeyDown={event => {
+                        if (event.key === 'Escape') {
+                            setAddress(url === BLANK_PAGE ? '' : url);
                             setAddressError(undefined);
-                        }}
-                        onKeyDown={event => {
-                            if (event.key === 'Escape') {
-                                setAddress(url === BLANK_PAGE ? '' : url);
-                                setAddressError(undefined);
-                                event.currentTarget.blur();
-                            }
-                        }}
-                    />
-                </div>
-                <button type="button" className="icon-button" title="Open in the default browser" disabled={!url || url === BLANK_PAGE} onClick={openExternal}>
-                    <ExternalLink size={14} strokeWidth={1.7} />
-                </button>
-                <button type="button" className="icon-button" title="Close the browser tab" onClick={onClose}>
-                    <X size={14} strokeWidth={1.8} />
-                </button>
+                            event.currentTarget.blur();
+                        }
+                    }}
+                />
+                <IconButton
+                    size="sm"
+                    icon={<ExternalLink size={14} strokeWidth={1.7} />}
+                    label="Open in the default browser"
+                    disabled={!url || url === BLANK_PAGE}
+                    onClick={openExternal}
+                />
+                <IconButton size="sm" icon={<X size={14} strokeWidth={1.8} />} label="Close the browser tab" onClick={onClose} />
             </form>
             {state?.loading && <div className="browser-progress" />}
             {addressError && <div className="editor-failure">{addressError}</div>}
@@ -182,9 +184,7 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
                     <div className="browser-error">
                         <p>The page did not load: {state.error}</p>
                         <p className="browser-error-url">{state.url}</p>
-                        <button type="button" className="button" onClick={() => api.reload(id)}>
-                            Try again
-                        </button>
+                        <Button onClick={() => api.reload(id)}>Try again</Button>
                     </div>
                 )}
             </div>

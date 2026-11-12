@@ -3,7 +3,7 @@ import { PLAN_STATUS_LABELS, newPlan, planCounts, type Plan } from '@shared/plan
 import type { ViewRoute } from '@shared/nav-history';
 import type { Project } from '@shared/projects';
 import { EmptyState } from '../components/EmptyState';
-import { Button } from '../components/ui';
+import { Button, Card } from '../components/ui';
 import { timeAgo } from '../util';
 import { PlanPage } from './PlanPage';
 import { createPlan, useProjectPlans, usePlans } from './plan-queries';
@@ -38,9 +38,9 @@ export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree }
         return (
             <div className="plans-view">
                 <header className="settings-header plans-header">
-                    <button type="button" className="view-back" onClick={() => onRoute({})}>
-                        <ChevronLeft size={14} /> Plans
-                    </button>
+                    <Button variant="ghost" className="view-back" icon={<ChevronLeft size={14} />} onClick={() => onRoute({})}>
+                        Plans
+                    </Button>
                 </header>
                 <div className="plans-scroll">
                     <PlanPage
@@ -83,11 +83,11 @@ export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree }
                     </EmptyState>
                 ) : (
                     <div className="settings-page plans-page">
-                        <div className="settings-card">
+                        <Card>
                             {plans.map(plan => (
                                 <PlanRow key={plan.id} plan={plan} onOpen={() => onRoute({ page: plan.id })} />
                             ))}
-                        </div>
+                        </Card>
                     </div>
                 )}
             </div>

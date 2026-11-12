@@ -1036,7 +1036,10 @@ export function App() {
                                                     >
                                                         Add a repository
                                                     </Button>
-                                                    <Button icon={<FolderDown size={13} strokeWidth={1.8} aria-hidden="true" />} onClick={() => setCloneOpen(true)}>
+                                                    <Button
+                                                        icon={<FolderDown size={13} strokeWidth={1.8} aria-hidden="true" />}
+                                                        onClick={() => setCloneOpen(true)}
+                                                    >
                                                         Clone a repository
                                                     </Button>
                                                 </>

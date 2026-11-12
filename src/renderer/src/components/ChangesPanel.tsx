@@ -228,7 +228,13 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                         />
                     )}
                     {inIndex ? (
-                        <IconButton size="sm" icon={<Minus size={14} strokeWidth={2} />} label="Unstage" disabled={!!busy} onClick={() => void unstage([change.path])} />
+                        <IconButton
+                            size="sm"
+                            icon={<Minus size={14} strokeWidth={2} />}
+                            label="Unstage"
+                            disabled={!!busy}
+                            onClick={() => void unstage([change.path])}
+                        />
                     ) : (
                         <IconButton
                             size="sm"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import {
@@ -14,7 +14,7 @@ import { providerAdded, providerChanged, providerRemoved, providerTokenChanged, 
 import { optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { SettingsGroup } from './settings-ui';
-import { Select } from './ui/Select';
+import { Button, Card, CardBody, CardFooter, Checkbox, Field, Input, Radio, Select, Switch } from './ui';
 
 const api = window.shipwarden.reviewProviders;
 
@@ -86,16 +86,14 @@ export function CodeReviewSettings() {
                 actions={
                     <div className="add-connection">
                         <Select<ReviewProviderKind | ''>
-                            className="tasks-select"
                             value={adding}
                             aria-label="Provider to add"
                             options={[{ value: '', label: 'Add a provider…' }, ...REVIEW_PROVIDER_KINDS.map(item => ({ value: item.kind, label: item.name }))]}
                             onChange={setAdding}
                         />
-                        <button className="button" disabled={!adding} onClick={add}>
-                            <Plus size={13} strokeWidth={1.8} />
+                        <Button icon={<Plus size={13} strokeWidth={1.8} />} disabled={!adding} onClick={add}>
                             Add
-                        </button>
+                        </Button>
                     </div>
                 }
             >
@@ -138,6 +136,7 @@ function ProviderCard({ provider, open, onToggle }: { provider: ReviewProviderIn
     });
     const error = optionalErrorText(updateMutation.error ?? removeMutation.error);
     const update = (change: ReviewProviderChange) => updateMutation.mutate(change);
+    const nameId = useId();
 
     const remove = async () => {
         if (
@@ -155,12 +154,9 @@ function ProviderCard({ provider, open, onToggle }: { provider: ReviewProviderIn
     };
 
     return (
-        <div className={`connection-card${open ? ' open' : ''}`}>
-            <div className="connection-row">
-                <label className="switch" title={provider.enabled ? 'On' : 'Off'}>
-                    <input type="checkbox" checked={provider.enabled} onChange={event => update({ enabled: event.target.checked })} />
-                    <span />
-                </label>
+        <Card tone={open ? 'accent' : 'default'}>
+            <div className="card-header">
+                <Switch checked={provider.enabled} title={provider.enabled ? 'On' : 'Off'} onChange={enabled => update({ enabled })} />
                 <button className="connection-summary" aria-expanded={open} onClick={onToggle}>
                     <span className="connection-name">{provider.name}</span>
                     <span className="connection-meta">{providerMeta(provider)}</span>
@@ -168,33 +164,33 @@ function ProviderCard({ provider, open, onToggle }: { provider: ReviewProviderIn
                 </button>
             </div>
             {open && (
-                <div className="connection-body">
-                    <label className="setting-row">
-                        <span className="setting-label">Name</span>
-                        <input
+                <CardBody className="connection-body">
+                    <Field label="Name" htmlFor={nameId}>
+                        <Input
+                            id={nameId}
                             value={name}
                             onChange={event => setName(event.target.value)}
                             onBlur={() => name.trim() && name !== provider.name && update({ name })}
                         />
-                    </label>
+                    </Field>
                     {provider.kind === 'github' && <CliAccountField provider={provider} onChange={cliAccount => update({ cliAccount })} />}
                     <TokenFields provider={provider} />
-                    <div className="connection-section-label">Organizations</div>
                     {provider.kind === 'github' ? (
                         <GitHubScope provider={provider} onChange={scope => update({ scope })} />
                     ) : (
                         <AzureScope provider={provider} onChange={scope => update({ scope })} />
                     )}
                     {error && <div className="form-error">{error}</div>}
-                    <div className="row-buttons">
-                        <button className="button danger" onClick={remove}>
-                            <Trash2 size={13} strokeWidth={1.8} />
-                            Remove
-                        </button>
-                    </div>
-                </div>
+                </CardBody>
             )}
-        </div>
+            {open && (
+                <CardFooter>
+                    <Button variant="danger" icon={<Trash2 size={13} strokeWidth={1.8} />} onClick={remove}>
+                        Remove
+                    </Button>
+                </CardFooter>
+            )}
+        </Card>
     );
 }
 
@@ -206,10 +202,15 @@ function CliAccountField({ provider, onChange }: { provider: ReviewProviderInfo;
         const account = value.trim();
         if (account !== (provider.cliAccount ?? '')) onChange(account || null);
     };
+    const id = useId();
     return (
-        <label className="setting-row">
-            <span className="setting-label">GitHub CLI account</span>
-            <input
+        <Field
+            label="GitHub CLI account"
+            htmlFor={id}
+            hint='Without a saved token, ShipWarden gets the token of this account from "gh auth token". Empty: the active account of the GitHub CLI.'
+        >
+            <Input
+                id={id}
                 value={value}
                 placeholder="The active account"
                 spellCheck={false}
@@ -217,10 +218,7 @@ function CliAccountField({ provider, onChange }: { provider: ReviewProviderInfo;
                 onBlur={save}
                 onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
             />
-            <span className="panel-note">
-                Without a saved token, ShipWarden gets the token of this account from "gh auth token". Empty: the active account of the GitHub CLI.
-            </span>
-        </label>
+        </Field>
     );
 }
 
@@ -250,20 +248,25 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
     const act = (run: () => Promise<string>) => action.mutate(run);
 
     const azure = provider.kind === 'azure';
+    const tokenId = useId();
+    const testId = useId();
     return (
         <>
-            <div className="setting-row">
-                <span className="setting-label">Personal access token</span>
+            <Field
+                label="Personal access token"
+                htmlFor={tokenId}
+                hint={`${source === null ? 'Loading…' : tokenSourceText(provider, source)} ${TOKEN_SCOPES[provider.kind]}`}
+            >
                 <div className="row-buttons inline-field">
-                    <input
+                    <Input
+                        id={tokenId}
                         type="password"
                         value={token}
                         placeholder={provider.tokenSaved ? 'Saved. Type a new value to change it.' : 'Paste a token'}
                         onChange={event => setToken(event.target.value)}
                         disabled={busy}
                     />
-                    <button
-                        className="button"
+                    <Button
                         disabled={busy || !token.trim()}
                         onClick={() =>
                             act(async () => {
@@ -275,10 +278,9 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
                         }
                     >
                         Save
-                    </button>
+                    </Button>
                     {provider.tokenSaved && (
-                        <button
-                            className="button"
+                        <Button
                             disabled={busy}
                             onClick={() =>
                                 act(async () => {
@@ -289,26 +291,26 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
                             }
                         >
                             Remove
-                        </button>
+                        </Button>
                     )}
                 </div>
-                <span className="panel-note">
-                    {source === null ? 'Loading…' : tokenSourceText(provider, source)} {TOKEN_SCOPES[provider.kind]}
-                </span>
-            </div>
-            <div className="setting-row">
-                <span className="setting-label">Test the token</span>
+            </Field>
+            <Field
+                label="Test the token"
+                htmlFor={azure ? testId : undefined}
+                hint={azure ? 'Type the name of an organization, for example "contoso" for dev.azure.com/contoso.' : undefined}
+            >
                 <div className="row-buttons inline-field">
                     {azure && (
-                        <input
+                        <Input
+                            id={testId}
                             value={organization}
                             placeholder={provider.scope?.[0] ?? 'Organization'}
                             onChange={event => setOrganization(event.target.value)}
                             disabled={busy}
                         />
                     )}
-                    <button
-                        className="button"
+                    <Button
                         disabled={busy || (azure && !organization.trim() && !provider.scope?.[0])}
                         onClick={() =>
                             act(async () => {
@@ -318,10 +320,9 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
                         }
                     >
                         Test
-                    </button>
+                    </Button>
                 </div>
-                {azure && <span className="panel-note">Type the name of an organization, for example "contoso" for dev.azure.com/contoso.</span>}
-            </div>
+            </Field>
             {message && <div className="panel-note">{message}</div>}
             {error && <div className="form-error">{error}</div>}
         </>
@@ -341,46 +342,43 @@ function GitHubScope({ provider, onChange }: { provider: ReviewProviderInfo; onC
     const value = provider.scope;
     const mode = value ? 'some' : 'all';
     return (
-        <div className="scope-picker">
-            <p className="panel-note">The Review view, the Pipelines view and the Dashboard show the repositories of these organizations.</p>
-            <label className="scope-option">
-                <input type="radio" checked={mode === 'all'} onChange={() => onChange(null)} />
-                All organizations, also new ones
-            </label>
-            <label className="scope-option">
-                <input type="radio" checked={mode === 'some'} onChange={() => onChange(value ?? (owners ?? []).map(owner => owner.login))} />
-                Only these organizations:
-            </label>
-            {error && <div className="form-error">{error}</div>}
-            {!owners && !error && (
-                <div className="panel-note">
-                    <LoaderCircle size={12} className="spin" /> Loading the organizations…
-                </div>
-            )}
-            {owners && (
-                <div className={`scope-list${mode === 'some' ? '' : ' disabled'}`}>
-                    {owners.map(owner => (
-                        <label key={owner.login} className="scope-item">
-                            <input
-                                type="checkbox"
+        <Field label="Organizations" hint="The Review view, the Pipelines view and the Dashboard show the repositories of these organizations.">
+            <div className="scope-picker">
+                <Radio checked={mode === 'all'} onSelect={() => onChange(null)} label="All organizations, also new ones" />
+                <Radio
+                    checked={mode === 'some'}
+                    onSelect={() => onChange(value ?? (owners ?? []).map(owner => owner.login))}
+                    label="Only these organizations:"
+                />
+                {error && <div className="form-error">{error}</div>}
+                {!owners && !error && (
+                    <div className="panel-note">
+                        <LoaderCircle size={12} className="spin" /> Loading the organizations…
+                    </div>
+                )}
+                {owners && (
+                    <div className="scope-list">
+                        {owners.map(owner => (
+                            <Checkbox
+                                key={owner.login}
                                 disabled={mode !== 'some'}
                                 checked={mode === 'some' && !!value?.some(item => item.toLowerCase() === owner.login.toLowerCase())}
-                                onChange={event => {
+                                onChange={checked => {
                                     const current = value ?? [];
-                                    onChange(
-                                        event.target.checked
-                                            ? [...current, owner.login]
-                                            : current.filter(item => item.toLowerCase() !== owner.login.toLowerCase())
-                                    );
+                                    onChange(checked ? [...current, owner.login] : current.filter(item => item.toLowerCase() !== owner.login.toLowerCase()));
                                 }}
+                                label={
+                                    <>
+                                        {owner.login}
+                                        {owner.kind === 'user' && <span className="scope-detail"> your account</span>}
+                                    </>
+                                }
                             />
-                            <span>{owner.login}</span>
-                            {owner.kind === 'user' && <span className="scope-detail">your account</span>}
-                        </label>
-                    ))}
-                </div>
-            )}
-        </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </Field>
     );
 }
 
@@ -396,9 +394,15 @@ function AzureScope({ provider, onChange }: { provider: ReviewProviderInfo; onCh
             .filter(Boolean);
         if (names.join(', ') !== text) onChange(names.length ? names : null);
     };
+    const id = useId();
     return (
-        <label className="setting-row">
-            <input
+        <Field
+            label="Organizations"
+            htmlFor={id}
+            hint='The names of the organizations, with a comma between them. For example "contoso" for dev.azure.com/contoso. Empty: all organizations.'
+        >
+            <Input
+                id={id}
                 value={value}
                 placeholder="All organizations"
                 spellCheck={false}
@@ -406,9 +410,6 @@ function AzureScope({ provider, onChange }: { provider: ReviewProviderInfo; onCh
                 onBlur={save}
                 onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
             />
-            <span className="panel-note">
-                The names of the organizations, with a comma between them. For example "contoso" for dev.azure.com/contoso. Empty: all organizations.
-            </span>
-        </label>
+        </Field>
     );
 }

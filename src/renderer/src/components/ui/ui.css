@@ -1,5 +1,6 @@
 /*
  * The shared controls of the app (components/ui). Each button, field, choice, and card gets its look from this file.
+ * This file loads before styles.css. Thus a page rule with one class can set the layout of a control.
  * A page can set the layout of a control (margin, width, flex). A page must not change its look
  * (height, padding, border, background, color, font size). Add a variant or a size here when a page needs a new look.
  */
@@ -44,6 +45,16 @@
     flex: none;
 }
 
+/* A button with only an icon. It is narrower than a button with text. */
+.button.icon-only {
+    padding: 0 8px;
+}
+
+.button.sm.icon-only,
+.button-group.sm > .button.icon-only {
+    padding: 0 6px;
+}
+
 .button:hover:not(:disabled),
 .button.on {
     border-color: color-mix(in srgb, var(--muted) 55%, var(--border));
@@ -78,8 +89,7 @@
     color: var(--accent);
 }
 
-.button.solid,
-.button.primary-solid {
+.button.solid {
     border-color: var(--accent);
     background: var(--accent);
     color: var(--bg);
@@ -87,9 +97,7 @@
 }
 
 .button.solid:hover:not(:disabled),
-.button.solid.on,
-.button.primary-solid:hover:not(:disabled),
-.button.primary-solid.on {
+.button.solid.on {
     border-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 85%, var(--text-strong));
     color: var(--bg);
@@ -386,8 +394,7 @@
     border-color: var(--danger);
 }
 
-.textarea,
-textarea.input {
+.textarea {
     height: auto;
     padding: 6px 9px;
     line-height: 1.45;
@@ -641,7 +648,22 @@ input[type="radio"]:disabled {
     border: 1px solid var(--border);
     border-radius: var(--card-radius);
     background: var(--panel);
-    overflow: hidden;
+}
+
+/* The first and the last parts get the corners of the card, so a background in a part does not show at the corners. */
+.card > :first-child {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+}
+
+.card > :last-child {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+}
+
+.card.dashed,
+.card.dashed > * + * {
+    border-style: dashed;
 }
 
 .card.ok {
@@ -654,6 +676,10 @@ input[type="radio"]:disabled {
 
 .card.accent {
     border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.card.info {
+    border-color: color-mix(in srgb, var(--info) 60%, var(--border));
 }
 
 .card.merge {
@@ -739,41 +765,4 @@ input[type="radio"]:disabled {
     justify-content: flex-end;
     gap: 8px;
     padding: 10px 14px;
-}
-
-/*
- * Old class names. Some fields still use these classes. They get the look of `.input` until they use the shared
- * components. Do not use these classes in new code.
- */
-.settings-input,
-.agent-name-input,
-.agent-command-input {
-    min-width: 0;
-    height: var(--control-height);
-    padding: 0 9px;
-    border: 1px solid var(--border);
-    border-radius: var(--control-radius);
-    outline: none;
-    background: var(--bg);
-    color: var(--text-strong);
-    font: inherit;
-    font-size: var(--control-font-size);
-}
-
-.settings-input:focus,
-.agent-name-input:focus,
-.agent-command-input:focus {
-    border-color: var(--accent);
-}
-
-textarea.settings-input {
-    height: auto;
-    padding: 6px 9px;
-    line-height: 1.45;
-}
-
-.settings-input.mono,
-.agent-command-input {
-    font-family: "JetBrains Mono", Menlo, monospace;
-    font-size: 12px;
 }

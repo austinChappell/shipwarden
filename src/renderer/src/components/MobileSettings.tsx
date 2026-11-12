@@ -6,6 +6,7 @@ import type { AppSettings } from '@shared/settings';
 import { errorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { Button, Input, Switch } from './ui';
 
 interface Props {
     settings: AppSettings;
@@ -62,15 +63,11 @@ function PairingCode({ offer, onRenew, onClose }: { offer: PairingOffer; onRenew
                     <p className="panel-note">The code stopped. Make a new code.</p>
                 )}
                 <div className="pairing-actions">
-                    <button className="button" onClick={() => void copy()}>
-                        {copied ? <CircleCheck size={13} /> : <Copy size={13} />} {copied ? 'Copied' : 'Copy link'}
-                    </button>
-                    <button className="button" onClick={onRenew}>
-                        New code
-                    </button>
-                    <button className="button" onClick={onClose}>
-                        Close
-                    </button>
+                    <Button icon={copied ? <CircleCheck size={13} /> : <Copy size={13} />} onClick={() => void copy()}>
+                        {copied ? 'Copied' : 'Copy link'}
+                    </Button>
+                    <Button onClick={onRenew}>New code</Button>
+                    <Button onClick={onClose}>Close</Button>
                 </div>
             </div>
         </div>
@@ -203,15 +200,7 @@ export function MobileSettings({ settings, onSave }: Props) {
                     label="Allow phone connections"
                     description="Only paired phones can connect. Each phone has its own key, and you can remove it at any time."
                     control={
-                        <label className="switch" title={remote.enabled ? 'On' : 'Off'}>
-                            <input
-                                type="checkbox"
-                                checked={remote.enabled}
-                                disabled={saving}
-                                onChange={event => void save({ enabled: event.target.checked })}
-                            />
-                            <span />
-                        </label>
+                        <Switch checked={remote.enabled} title={remote.enabled ? 'On' : 'Off'} disabled={saving} onChange={enabled => void save({ enabled })} />
                     }
                 >
                     {remote.enabled &&
@@ -232,15 +221,12 @@ export function MobileSettings({ settings, onSave }: Props) {
                     label="Keep agents and phone access running when ShipWarden is closed"
                     description="A background helper runs the phone connection. macOS starts it at login and lists it in System Settings › General › Login Items. The agents always continue to run when ShipWarden quits."
                     control={
-                        <label className="switch" title={remote.keepRunning ? 'On' : 'Off'}>
-                            <input
-                                type="checkbox"
-                                checked={remote.keepRunning}
-                                disabled={saving}
-                                onChange={event => void toggleKeepRunning(event.target.checked)}
-                            />
-                            <span />
-                        </label>
+                        <Switch
+                            checked={remote.keepRunning}
+                            title={remote.keepRunning ? 'On' : 'Off'}
+                            disabled={saving}
+                            onChange={value => void toggleKeepRunning(value)}
+                        />
                     }
                 >
                     {remote.keepRunning &&
@@ -261,8 +247,9 @@ export function MobileSettings({ settings, onSave }: Props) {
                     label="Port"
                     description="The TCP port of the server. A change disconnects the phones. They find the new port only after a new pairing."
                 >
-                    <input
-                        className="settings-input mono port-input"
+                    <Input
+                        className="port-input"
+                        mono
                         value={port}
                         inputMode="numeric"
                         onChange={event => setPort(event.target.value.replace(/\D/g, ''))}
@@ -275,15 +262,19 @@ export function MobileSettings({ settings, onSave }: Props) {
                         <code className="fingerprint">{status.fingerprint.match(/.{1,4}/g)?.join(' ')}</code>
                     </SettingsRow>
                 )}
-                {error && <div className="form-error">{error}</div>}
+                {error && (
+                    <div className="settings-row">
+                        <div className="form-error">{error}</div>
+                    </div>
+                )}
             </SettingsGroup>
 
             <SettingsGroup
                 title="Paired phones"
                 actions={
-                    <button className="button primary" disabled={!status?.running} onClick={() => void pair()}>
-                        <Smartphone size={13} /> Pair a phone
-                    </button>
+                    <Button variant="primary" icon={<Smartphone size={13} />} disabled={!status?.running} onClick={() => void pair()}>
+                        Pair a phone
+                    </Button>
                 }
                 card
             >
@@ -309,9 +300,9 @@ export function MobileSettings({ settings, onSave }: Props) {
                             {connected.has(device.id) ? 'Connected now' : `Last seen ${since(device.lastSeenAt)}`} · paired{' '}
                             {new Date(device.pairedAt).toLocaleDateString()}
                         </span>
-                        <button className="button danger" onClick={() => void remove(device.id, device.name)}>
+                        <Button variant="danger" size="sm" onClick={() => void remove(device.id, device.name)}>
                             Remove
-                        </button>
+                        </Button>
                     </div>
                 ))}
             </SettingsGroup>

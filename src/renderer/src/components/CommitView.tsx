@@ -9,6 +9,7 @@ import { errorText, timeAgo } from '../util';
 import { CopyButton } from './CopyButton';
 import { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './diff-style';
 import { radioGroupKeys } from './keyboard';
+import { Button, ButtonGroup, IconButton } from './ui';
 
 interface Props {
     target: RepoTarget;
@@ -60,21 +61,29 @@ export function CommitView({ target, pr, commit, onBack, onSelect }: Props) {
         <div className="commit-view">
             <header className="commit-view-header">
                 <div className="commit-view-nav">
-                    <button className="link-button commit-view-back" onClick={onBack}>
-                        <ArrowLeft size={13} strokeWidth={1.8} /> All commits
-                    </button>
+                    <Button variant="link" icon={<ArrowLeft size={13} strokeWidth={1.8} />} onClick={onBack}>
+                        All commits
+                    </Button>
                     <span className="header-spacer" />
                     {index >= 0 && (
                         <span className="commit-view-position">
                             Commit {index + 1} of {pr.commits.length}
                         </span>
                     )}
-                    <button className="icon-button" title="Show the previous commit" disabled={!previous} onClick={() => previous && onSelect(previous)}>
-                        <ChevronLeft size={15} strokeWidth={1.8} />
-                    </button>
-                    <button className="icon-button" title="Show the next commit" disabled={!next} onClick={() => next && onSelect(next)}>
-                        <ChevronRight size={15} strokeWidth={1.8} />
-                    </button>
+                    <IconButton
+                        size="sm"
+                        icon={<ChevronLeft size={14} strokeWidth={1.8} />}
+                        label="Show the previous commit"
+                        disabled={!previous}
+                        onClick={() => previous && onSelect(previous)}
+                    />
+                    <IconButton
+                        size="sm"
+                        icon={<ChevronRight size={14} strokeWidth={1.8} />}
+                        label="Show the next commit"
+                        disabled={!next}
+                        onClick={() => next && onSelect(next)}
+                    />
                 </div>
                 <h3 className="commit-view-title">{commit.messageHeadline}</h3>
                 <div className="commit-view-meta">
@@ -86,12 +95,12 @@ export function CommitView({ target, pr, commit, onBack, onSelect }: Props) {
                     </span>
                     <span className="commit-view-sha">
                         <code>{commit.abbreviatedOid}</code>
-                        <CopyButton text={commit.oid} title="Copy the full commit SHA" size={12} className="icon-button" />
+                        <CopyButton text={commit.oid} title="Copy the full commit SHA" size={12} />
                     </span>
                     <span className="header-spacer" />
-                    <button className="button commit-view-external" onClick={event => openLink(commit.url, event)}>
-                        Open on {hostLabel(pr.host)} <ExternalLink size={12} strokeWidth={1.8} />
-                    </button>
+                    <Button iconEnd={<ExternalLink size={12} strokeWidth={1.8} />} onClick={event => openLink(commit.url, event)}>
+                        Open on {hostLabel(pr.host)}
+                    </Button>
                 </div>
             </header>
 
@@ -109,32 +118,22 @@ export function CommitView({ target, pr, commit, onBack, onSelect }: Props) {
                         <span className="header-spacer" />
                         {files && files.length > 0 && (
                             <>
-                                <button className="link-button" onClick={() => setClosed(new Set(files.map(file => file.path)))}>
+                                <Button variant="link" onClick={() => setClosed(new Set(files.map(file => file.path)))}>
                                     Collapse all
-                                </button>
-                                <button className="link-button" onClick={() => setClosed(new Set())}>
+                                </Button>
+                                <Button variant="link" onClick={() => setClosed(new Set())}>
                                     Expand all
-                                </button>
+                                </Button>
                             </>
                         )}
-                        <div className="segmented compact" role="radiogroup" aria-label="Diff layout" onKeyDown={radioGroupKeys}>
-                            <button
-                                role="radio"
-                                aria-checked={diffStyle === 'unified'}
-                                className={diffStyle === 'unified' ? 'selected' : ''}
-                                onClick={() => changeStyle('unified')}
-                            >
+                        <ButtonGroup size="sm" role="radiogroup" label="Diff layout" onKeyDown={radioGroupKeys}>
+                            <Button size="sm" role="radio" aria-checked={diffStyle === 'unified'} onClick={() => changeStyle('unified')}>
                                 Unified
-                            </button>
-                            <button
-                                role="radio"
-                                aria-checked={diffStyle === 'split'}
-                                className={diffStyle === 'split' ? 'selected' : ''}
-                                onClick={() => changeStyle('split')}
-                            >
+                            </Button>
+                            <Button size="sm" role="radio" aria-checked={diffStyle === 'split'} onClick={() => changeStyle('split')}>
                                 Split
-                            </button>
-                        </div>
+                            </Button>
+                        </ButtonGroup>
                     </div>
                     {query.error && <div className="form-error commit-view-error">{errorText(query.error)}</div>}
                     {query.isPending && (
@@ -158,7 +157,7 @@ export function CommitView({ target, pr, commit, onBack, onSelect }: Props) {
                                                     {file.path}
                                                 </span>
                                             </button>
-                                            <CopyButton text={file.path} title="Copy the file path" size={13} className="icon-button stream-file-copy" />
+                                            <CopyButton text={file.path} title="Copy the file path" size={13} className="stream-file-copy" />
                                             {(file.additions > 0 || file.deletions > 0) && (
                                                 <>
                                                     <span className="additions">+{file.additions}</span>

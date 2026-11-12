@@ -37,10 +37,13 @@ export function CopyButton({ text, title, size = 14, className }: Props) {
             label={title}
             title={copied ? 'Copied' : title}
             size="sm"
-            className={cx(className
-                ?.split(' ')
-                .filter(name => name !== 'icon-button')
-                .join(' '), copied && 'copied')}
+            className={cx(
+                className
+                    ?.split(' ')
+                    .filter(name => name !== 'icon-button')
+                    .join(' '),
+                copied && 'copied'
+            )}
             onClick={copy}
         />
     );

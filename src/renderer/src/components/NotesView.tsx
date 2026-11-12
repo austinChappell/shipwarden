@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronRight, Copy, Folder, FolderInput, FolderOpen, FolderPlus, NotebookPen, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react';
+import { ChevronRight, Copy, Folder, FolderInput, FolderOpen, FolderPlus, NotebookPen, Pencil, Plus, Tag, Trash2, X } from 'lucide-react';
 import {
     folderBaseName,
     folderMoveTargets,
@@ -23,8 +23,7 @@ import { itemKeys } from '../keyboard/list-nav';
 import { errorText, timeAgo } from '../util';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
-import { Button } from './ui/Button';
-import { Select, type SelectOption } from './ui/Select';
+import { Button, IconButton, Input, SearchInput, Select, type SelectOption } from './ui';
 
 const api = window.shipwarden.notes;
 const SELECTED_KEY = 'shipwarden.note';
@@ -94,9 +93,11 @@ function NameInput({
     };
     return (
         <div className="note-name-input">
-            <input
+            <Input
                 ref={ref}
-                className="settings-input mono"
+                size="sm"
+                mono
+                invalid={!!error}
                 value={value}
                 spellCheck={false}
                 placeholder={placeholder}
@@ -426,15 +427,13 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
                     >
                         <FolderInput size={14} strokeWidth={1.6} />
                     </Select>
-                    <button className="icon-button" title={`Copy the path: ${path}`} onClick={() => void navigator.clipboard.writeText(path)}>
-                        <Copy size={14} strokeWidth={1.6} />
-                    </button>
-                    <button className="icon-button" title="Reveal in Finder" onClick={() => api.reveal(note.name)}>
-                        <FolderOpen size={14} strokeWidth={1.6} />
-                    </button>
-                    <button className="icon-button" title="Move to the Trash" onClick={() => void remove()}>
-                        <Trash2 size={14} strokeWidth={1.6} />
-                    </button>
+                    <IconButton
+                        icon={<Copy size={14} strokeWidth={1.6} />}
+                        label={`Copy the path: ${path}`}
+                        onClick={() => void navigator.clipboard.writeText(path)}
+                    />
+                    <IconButton icon={<FolderOpen size={14} strokeWidth={1.6} />} label="Reveal in Finder" onClick={() => api.reveal(note.name)} />
+                    <IconButton tone="danger" icon={<Trash2 size={14} strokeWidth={1.6} />} label="Move to the Trash" onClick={() => void remove()} />
                 </div>
                 <TagEditor tags={note.tags} allTags={allTags} onChange={onTags} />
                 {error && <div className="form-error">{error}</div>}
@@ -806,15 +805,19 @@ export function NotesView({ route, onRoute }: Props) {
                         <span className="note-folder-name">{name}</span>
                         <span className="note-folder-count">{subtree.length}</span>
                         <span className="note-folder-actions" onClick={event => event.stopPropagation()}>
-                            <button className="icon-button" title={`New note in ${name}`} onClick={() => startNote(path)}>
-                                <Plus size={13} strokeWidth={1.8} />
-                            </button>
-                            <button className="icon-button" title={`New folder in ${name}`} onClick={() => startFolder(path)}>
-                                <FolderPlus size={13} strokeWidth={1.8} />
-                            </button>
-                            <button className="icon-button" title="Rename the folder" onClick={() => setEditing({ kind: 'renameFolder', folder: path })}>
-                                <Pencil size={12} strokeWidth={1.8} />
-                            </button>
+                            <IconButton size="sm" icon={<Plus size={13} strokeWidth={1.8} />} label={`New note in ${name}`} onClick={() => startNote(path)} />
+                            <IconButton
+                                size="sm"
+                                icon={<FolderPlus size={13} strokeWidth={1.8} />}
+                                label={`New folder in ${name}`}
+                                onClick={() => startFolder(path)}
+                            />
+                            <IconButton
+                                size="sm"
+                                icon={<Pencil size={12} strokeWidth={1.8} />}
+                                label="Rename the folder"
+                                onClick={() => setEditing({ kind: 'renameFolder', folder: path })}
+                            />
                             {/* The keyboard alternative to a drag of the folder. */}
                             <Select
                                 className="note-move note-folder-move"
@@ -826,9 +829,13 @@ export function NotesView({ route, onRoute }: Props) {
                             >
                                 <FolderInput size={13} strokeWidth={1.8} />
                             </Select>
-                            <button className="icon-button" title="Move the folder to the Trash" onClick={() => void deleteFolder(path)}>
-                                <Trash2 size={12} strokeWidth={1.8} />
-                            </button>
+                            <IconButton
+                                size="sm"
+                                tone="danger"
+                                icon={<Trash2 size={12} strokeWidth={1.8} />}
+                                label="Move the folder to the Trash"
+                                onClick={() => void deleteFolder(path)}
+                            />
                         </span>
                     </div>
                 )}
@@ -857,21 +864,11 @@ export function NotesView({ route, onRoute }: Props) {
                 <div className="tasks-header-group where">
                     <NotebookPen size={16} strokeWidth={1.7} />
                     <h1 className="notes-heading">Notes</h1>
-                    <label className="tasks-search">
-                        <Search size={14} strokeWidth={1.6} />
-                        <input
-                            value={query}
-                            placeholder="Search names, folders and #tags"
-                            spellCheck={false}
-                            onChange={event => setQuery(event.target.value)}
-                        />
-                    </label>
+                    <SearchInput className="tasks-search-field" value={query} placeholder="Search names, folders, and #tags" onChange={setQuery} />
                 </div>
                 <div className="tasks-header-group how">
                     <span className="header-spacer" />
-                    <button className="icon-button" title={`Open the notes folder: ${folder}`} onClick={() => api.reveal()}>
-                        <FolderOpen size={15} strokeWidth={1.6} />
-                    </button>
+                    <IconButton icon={<FolderOpen size={14} strokeWidth={1.6} />} label={`Open the notes folder: ${folder}`} onClick={() => api.reveal()} />
                     <Button icon={<FolderPlus size={14} strokeWidth={1.8} />} title="Make a folder at the top level" onClick={() => startFolder('')}>
                         New folder
                     </Button>

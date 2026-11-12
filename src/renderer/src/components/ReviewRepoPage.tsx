@@ -20,8 +20,7 @@ import { optionalErrorText, timeAgo } from '../util';
 import { focusFirstItem, itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { seenStore, useIsSeen } from '../seen-store';
 import { overviewKeys, refreshRepo, useRepoEntry } from '../github/review-overview-store';
-import { Combobox, type ComboboxGroup } from './ui/Combobox';
-import { Select } from './ui/Select';
+import { Button, Combobox, IconButton, Input, Select, type ComboboxGroup } from './ui';
 import { ChecksLabel, Dotted, KeyLegend, focusedData, useInitialFocus, usePageKeys } from './ReviewParts';
 import { InlineTip } from './Tips';
 
@@ -142,16 +141,17 @@ function PrRow({ pr, group, onOpen, onMarkSeen }: { pr: OpenPullRequest; group: 
                     <span className="pr-row-since">
                         <SinceReviewLine pr={pr} />
                         {onMarkSeen && (
-                            <button
-                                className="link-button pr-row-seen"
+                            <Button
+                                variant="link"
+                                icon={<Check size={12} strokeWidth={2} />}
                                 title="Remove the pull request from your review list. It shows again after a new commit or comment."
                                 onClick={event => {
                                     event.stopPropagation();
                                     onMarkSeen();
                                 }}
                             >
-                                <Check size={12} strokeWidth={2} /> Mark as seen
-                            </button>
+                                Mark as seen
+                            </Button>
                         )}
                     </span>
                 )}
@@ -329,9 +329,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         <div className="review-repo-page" ref={rootRef} hidden={hidden}>
             <header className="tasks-header review-header">
                 <div className="tasks-header-group where">
-                    <button className="icon-button" title="All repositories (Esc)" onClick={onBack}>
-                        <ArrowLeft size={15} strokeWidth={1.7} />
-                    </button>
+                    <IconButton icon={<ArrowLeft size={14} strokeWidth={1.7} />} label="All repositories (Esc)" onClick={onBack} />
                     <Combobox
                         className="review-repo-select"
                         value={repo}
@@ -343,32 +341,32 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                     />
                 </div>
                 <div className="tasks-header-group how">
-                    <label className="tasks-search review-pr-search">
-                        <Search size={14} strokeWidth={1.6} />
-                        <input
-                            ref={searchRef}
-                            value={query}
-                            placeholder="Search title, #, author, ENG-…"
-                            aria-label="Search pull requests"
-                            spellCheck={false}
-                            onChange={event => setQuery(event.target.value)}
-                            onKeyDown={event => {
-                                if (event.key === 'ArrowDown' && focusFirstItem(listRef.current)) event.preventDefault();
-                                if (event.key === 'Escape') {
-                                    event.preventDefault();
-                                    setQuery('');
-                                    event.currentTarget.blur();
-                                    focusFirstItem(listRef.current);
-                                }
-                            }}
-                        />
-                    </label>
+                    <Input
+                        ref={searchRef}
+                        className="review-pr-search"
+                        icon={<Search size={13} strokeWidth={1.8} />}
+                        value={query}
+                        placeholder="Search title, #, author, ENG-…"
+                        aria-label="Search pull requests"
+                        spellCheck={false}
+                        onChange={event => setQuery(event.target.value)}
+                        onKeyDown={event => {
+                            if (event.key === 'ArrowDown' && focusFirstItem(listRef.current)) event.preventDefault();
+                            if (event.key === 'Escape') {
+                                event.preventDefault();
+                                setQuery('');
+                                event.currentTarget.blur();
+                                focusFirstItem(listRef.current);
+                            }
+                        }}
+                    />
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Refresh" onClick={() => void refreshRepo(repo)}>
-                        <RefreshCw size={15} strokeWidth={1.6} className={entry?.loading ? 'spin' : ''} />
-                    </button>
+                    <IconButton
+                        icon={<RefreshCw size={14} strokeWidth={1.6} className={entry?.loading ? 'spin' : ''} />}
+                        label="Refresh"
+                        onClick={() => void refreshRepo(repo)}
+                    />
                     <Select
-                        className="tasks-select"
                         value={sort}
                         title="Sort"
                         aria-label="Sort"
@@ -414,9 +412,9 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                                 <p className="review-waiting-note">
                                     Waiting on authors: {byGroup.waiting.length} PR{byGroup.waiting.length === 1 ? '' : 's'} you reviewed with no new activity,
                                     or with activity that you marked as seen ·{' '}
-                                    <button className="link-button" onClick={() => setShowWaiting(true)}>
+                                    <Button variant="link" onClick={() => setShowWaiting(true)}>
                                         show
-                                    </button>
+                                    </Button>
                                 </p>
                             ))}
                     </>

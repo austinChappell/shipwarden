@@ -44,11 +44,10 @@ import {
 } from '@shared/plans';
 import type { Project } from '@shared/projects';
 import type { TaskLink } from '@shared/tasks';
-import { Combobox, sortedGroups } from '../components/ui/Combobox';
+import { Button, Card, CardBody, CardHeader, Checkbox, Combobox, IconButton, Select, Switch, TextArea, sortedGroups } from '../components/ui';
 import { confirmDialog } from '../components/ConfirmDialog';
 import { showContextMenu } from '../components/ContextMenu';
 import { Markdown } from '../components/Markdown';
-import { Select } from '../components/ui/Select';
 import { collectionsQueryOptions, connectionsQueryOptions } from '../components/tasks/use-task-source';
 import { taskQueryKeys } from '../components/tasks/task-view-logic';
 import { loadCollectionTasks } from '../automations/engine';
@@ -303,106 +302,100 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan }: Props) {
                 }
                 status={<span className="plan-status draft">{PLAN_STATUS_LABELS.draft}</span>}
                 actions={
-                    <button
-                        type="button"
-                        className="icon-button"
-                        title="More"
+                    <IconButton
+                        label="More"
+                        icon={<MoreHorizontal size={14} />}
                         onClick={event => void planMenu(draft, event.currentTarget, onClosed, onOpenPlan)}
-                    >
-                        <MoreHorizontal size={16} />
-                    </button>
+                    />
                 }
             />
 
             <div className="flow-layout">
                 <div className="flow-main">
-                    <section className="flow-card plan-idea-card">
-                        {explore.running ? (
-                            <>
-                                <div className="plan-idea-top">
-                                    <div className="plan-idea-text">
-                                        <div className="flow-label">Idea</div>
-                                        <div className="plan-idea-body">{draft.idea}</div>
-                                    </div>
-                                    <div className="plan-idea-actions">
-                                        <button type="button" className="button" onClick={() => void cancelExplore(plan.id)}>
-                                            <X size={14} /> Cancel
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="plan-idea-note">
-                                    <Loader2 size={14} className="spin" aria-hidden="true" /> The agent reads {repoNames}. This can take a few minutes. You can
-                                    leave this page.
-                                </div>
-                            </>
-                        ) : !hasSteps || editingIdea ? (
-                            <>
-                                <label className="flow-label" htmlFor={`plan-idea-${plan.id}`}>
-                                    Idea
-                                </label>
-                                <div className="plan-idea-note">
-                                    {project.repos.length === 0
-                                        ? `${project.name} has no repositories. Add a repository to the project first.`
-                                        : `What do you want to try? The agent reads ${repoNames}. It does not change files.`}
-                                </div>
-                                <textarea
-                                    id={`plan-idea-${plan.id}`}
-                                    className="settings-input plan-idea"
-                                    value={draft.idea}
-                                    disabled={locked}
-                                    autoFocus={editingIdea}
-                                    placeholder="For example: Add a dark mode to the web app and the API settings, with a toggle in the user menu."
-                                    onChange={event => edit(current => ({ ...current, idea: event.target.value }))}
-                                />
-                                <div className="plan-idea-buttons">
-                                    {hasSteps && (
-                                        <button type="button" className="button" onClick={() => setEditingIdea(false)}>
-                                            Done
-                                        </button>
-                                    )}
-                                    <button
-                                        type="button"
-                                        className="button primary-solid"
-                                        disabled={locked || project.repos.length === 0}
-                                        onClick={() => void runExplore()}
-                                    >
-                                        <Sparkles size={14} /> {hasSteps ? 'Explore again' : 'Explore with an agent'}
-                                    </button>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <div className="plan-idea-top">
-                                    <div className="plan-idea-text">
-                                        <div className="flow-label">Idea</div>
-                                        <div className={`plan-idea-body${draft.idea.trim() ? '' : ' empty'}`}>
-                                            {draft.idea.trim() || 'No idea. You wrote the steps yourself.'}
+                    <Card as="section" className="plan-idea-card">
+                        <CardBody>
+                            {explore.running ? (
+                                <>
+                                    <div className="plan-idea-top">
+                                        <div className="plan-idea-text">
+                                            <div className="flow-label">Idea</div>
+                                            <div className="plan-idea-body">{draft.idea}</div>
+                                        </div>
+                                        <div className="plan-idea-actions">
+                                            <Button icon={<X size={14} />} onClick={() => void cancelExplore(plan.id)}>
+                                                Cancel
+                                            </Button>
                                         </div>
                                     </div>
-                                    <div className="plan-idea-actions">
-                                        <button type="button" className="button" disabled={locked} onClick={() => setEditingIdea(true)}>
-                                            Edit idea
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="button"
+                                    <div className="plan-idea-note">
+                                        <Loader2 size={14} className="spin" aria-hidden="true" /> The agent reads {repoNames}. This can take a few minutes. You
+                                        can leave this page.
+                                    </div>
+                                </>
+                            ) : !hasSteps || editingIdea ? (
+                                <>
+                                    <label className="flow-label" htmlFor={`plan-idea-${plan.id}`}>
+                                        Idea
+                                    </label>
+                                    <div className="plan-idea-note">
+                                        {project.repos.length === 0
+                                            ? `${project.name} has no repositories. Add a repository to the project first.`
+                                            : `What do you want to try? The agent reads ${repoNames}. It does not change files.`}
+                                    </div>
+                                    <TextArea
+                                        id={`plan-idea-${plan.id}`}
+                                        className="plan-idea"
+                                        value={draft.idea}
+                                        disabled={locked}
+                                        autoFocus={editingIdea}
+                                        placeholder="For example: Add a dark mode to the web app and the API settings, with a toggle in the user menu."
+                                        onChange={event => edit(current => ({ ...current, idea: event.target.value }))}
+                                    />
+                                    <div className="plan-idea-buttons">
+                                        {hasSteps && <Button onClick={() => setEditingIdea(false)}>Done</Button>}
+                                        <Button
+                                            variant="solid"
+                                            icon={<Sparkles size={14} />}
                                             disabled={locked || project.repos.length === 0}
                                             onClick={() => void runExplore()}
                                         >
-                                            <RefreshCw size={13} /> Explore again
-                                        </button>
+                                            {hasSteps ? 'Explore again' : 'Explore with an agent'}
+                                        </Button>
                                     </div>
-                                </div>
-                                {draft.summary && <Markdown className="plan-summary plan-idea-summary" text={draft.summary} />}
-                                {draft.agent && (
-                                    <div className="plan-idea-note">
-                                        {draft.agent} read {repoNames} and proposed the steps. It did not change files.
+                                </>
+                            ) : (
+                                <>
+                                    <div className="plan-idea-top">
+                                        <div className="plan-idea-text">
+                                            <div className="flow-label">Idea</div>
+                                            <div className={`plan-idea-body${draft.idea.trim() ? '' : ' empty'}`}>
+                                                {draft.idea.trim() || 'No idea. You wrote the steps yourself.'}
+                                            </div>
+                                        </div>
+                                        <div className="plan-idea-actions">
+                                            <Button disabled={locked} onClick={() => setEditingIdea(true)}>
+                                                Edit idea
+                                            </Button>
+                                            <Button
+                                                icon={<RefreshCw size={13} />}
+                                                disabled={locked || project.repos.length === 0}
+                                                onClick={() => void runExplore()}
+                                            >
+                                                Explore again
+                                            </Button>
+                                        </div>
                                     </div>
-                                )}
-                            </>
-                        )}
-                        {explore.error && <div className="form-error">{explore.error}</div>}
-                    </section>
+                                    {draft.summary && <Markdown className="plan-summary plan-idea-summary" text={draft.summary} />}
+                                    {draft.agent && (
+                                        <div className="plan-idea-note">
+                                            {draft.agent} read {repoNames} and proposed the steps. It did not change files.
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                            {explore.error && <div className="form-error">{explore.error}</div>}
+                        </CardBody>
+                    </Card>
 
                     <section className="plan-steps-section">
                         <div className="plan-section-head">
@@ -447,53 +440,53 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan }: Props) {
                     </section>
 
                     {hasSteps && (
-                        <section className="flow-card plan-revise">
-                            <label className="plan-revise-title" htmlFor={`plan-feedback-${plan.id}`}>
-                                <Sparkles size={15} /> Ask the agent to revise
-                            </label>
-                            <div className="plan-revise-row">
-                                <textarea
-                                    id={`plan-feedback-${plan.id}`}
-                                    className="settings-input plan-feedback"
-                                    value={feedback}
-                                    disabled={locked}
-                                    placeholder="For example: Merge steps 1 and 2. Put the API change first."
-                                    onChange={event => setFeedback(event.target.value)}
-                                    onKeyDown={event => {
-                                        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && feedback.trim() && !locked) {
-                                            event.preventDefault();
-                                            void runExplore(feedback);
-                                        }
-                                    }}
-                                />
-                                <button
-                                    type="button"
-                                    className="button plan-revise-send"
-                                    title="Revise the plan (⌘↩)"
-                                    aria-label="Revise the plan"
-                                    disabled={locked || !feedback.trim()}
-                                    onClick={() => void runExplore(feedback)}
-                                >
-                                    <ArrowRight size={15} />
-                                </button>
-                            </div>
-                            <div className="plan-idea-note">Steps that need no change stay as they are.</div>
-                        </section>
+                        <Card as="section" className="plan-revise">
+                            <CardBody>
+                                <label className="plan-revise-title" htmlFor={`plan-feedback-${plan.id}`}>
+                                    <Sparkles size={15} /> Ask the agent to revise
+                                </label>
+                                <div className="plan-revise-row">
+                                    <TextArea
+                                        id={`plan-feedback-${plan.id}`}
+                                        className="plan-feedback"
+                                        value={feedback}
+                                        disabled={locked}
+                                        placeholder="For example: Merge steps 1 and 2. Put the API change first."
+                                        onChange={event => setFeedback(event.target.value)}
+                                        onKeyDown={event => {
+                                            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && feedback.trim() && !locked) {
+                                                event.preventDefault();
+                                                void runExplore(feedback);
+                                            }
+                                        }}
+                                    />
+                                    <IconButton
+                                        variant="outline"
+                                        label="Revise the plan"
+                                        title="Revise the plan (⌘↩)"
+                                        icon={<ArrowRight size={14} />}
+                                        disabled={locked || !feedback.trim()}
+                                        onClick={() => void runExplore(feedback)}
+                                    />
+                                </div>
+                                <div className="plan-idea-note">Steps that need no change stay as they are.</div>
+                            </CardBody>
+                        </Card>
                     )}
                 </div>
 
                 <aside className="flow-side">
-                    <div className="flow-card">
-                        <div className="flow-card-section">
-                            <h3 className="flow-card-title">Run plan</h3>
-                            <div className="flow-card-note">
-                                {[
-                                    plural(counts.steps, 'step', 'steps'),
-                                    plural(counts.repos, 'repository', 'repositories'),
-                                    plural(counts.pullRequests, 'pull request', 'pull requests')
-                                ].join(' · ')}
-                            </div>
-                            {problems.length > 0 && (
+                    <Card as="section" className="flow-card">
+                        <CardHeader
+                            title="Run plan"
+                            description={[
+                                plural(counts.steps, 'step', 'steps'),
+                                plural(counts.repos, 'repository', 'repositories'),
+                                plural(counts.pullRequests, 'pull request', 'pull requests')
+                            ].join(' · ')}
+                        />
+                        {problems.length > 0 && (
+                            <CardBody>
                                 <div className="flow-problems">
                                     <div className="flow-problems-title">{plural(problems.length, 'thing', 'things')} to fix before the run</div>
                                     <ul>
@@ -510,27 +503,24 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan }: Props) {
                                         ))}
                                     </ul>
                                 </div>
-                            )}
-                        </div>
+                            </CardBody>
+                        )}
                         <PlanSettings
                             draft={draft}
                             disabled={locked}
                             canCreateTasks={canCreateTasks}
                             onChange={patch => edit(current => ({ ...current, ...patch }))}
                         />
-                        <div className="flow-card-section">
+                        <CardBody className="flow-card-body">
                             {error && <div className="form-error">{error}</div>}
-                            <button
-                                type="button"
-                                className="button primary-solid plan-execute"
-                                disabled={locked || problems.length > 0}
-                                onClick={() => void execute()}
-                            >
-                                <Play size={14} /> {starting ? 'Starting…' : 'Execute plan'}
-                            </button>
+                            <div className="flow-actions">
+                                <Button variant="solid" icon={<Play size={14} />} disabled={locked || problems.length > 0} onClick={() => void execute()}>
+                                    {starting ? 'Starting…' : 'Execute plan'}
+                                </Button>
+                            </div>
                             <div className="plan-execute-note">{executeNote(draft, problems)}</div>
-                        </div>
-                    </div>
+                        </CardBody>
+                    </Card>
                 </aside>
             </div>
         </div>
@@ -568,11 +558,10 @@ function PlanSettings({
     const collections = useQuery({ ...collectionsQueryOptions(connectionId), enabled: !!connectionId, staleTime: 5 * 60_000 });
     const setTarget = (taskTarget: PlanTaskTarget | undefined) => onChange({ taskTarget });
     return (
-        <div className="flow-card-section plan-settings">
+        <CardBody className="flow-card-body plan-settings">
             <div className="flow-field">
                 <div className="flow-field-label">Task manager</div>
                 <Select
-                    className="settings-input"
                     aria-label="Task manager"
                     value={connectionId ?? ''}
                     disabled={disabled}
@@ -613,7 +602,6 @@ function PlanSettings({
             <div className="flow-field">
                 <div className="flow-field-label">Agent mode</div>
                 <Select
-                    className="settings-input"
                     aria-label="Agent mode"
                     value={draft.agentMode ?? ''}
                     disabled={disabled}
@@ -622,19 +610,16 @@ function PlanSettings({
                 />
                 <div className="flow-field-note">A mode without questions runs the plan without you.</div>
             </div>
-            <label className="flow-toggle-row">
+            <div className="flow-toggle-row">
                 <span className="flow-field-label">Open pull requests as drafts</span>
-                <span className="switch">
-                    <input
-                        type="checkbox"
-                        checked={draft.draftPullRequests}
-                        disabled={disabled}
-                        onChange={event => onChange({ draftPullRequests: event.target.checked })}
-                    />
-                    <span />
-                </span>
-            </label>
-        </div>
+                <Switch
+                    title="Open pull requests as drafts"
+                    checked={draft.draftPullRequests}
+                    disabled={disabled}
+                    onChange={value => onChange({ draftPullRequests: value })}
+                />
+            </div>
+        </CardBody>
     );
 }
 
@@ -694,103 +679,99 @@ function StepEditor({
     return (
         <div className={classes} id={stepElementId(step.id)}>
             <StepRail index={index} last={index === count - 1} nextStacks={nextStacks} />
-            <div className="plan-step">
-                <div className="plan-step-head">
-                    <input
-                        className="plan-step-title"
-                        value={step.title}
-                        maxLength={MAX_TITLE_LENGTH}
-                        placeholder="Step title"
-                        disabled={disabled}
-                        aria-label={`Title of step ${index + 1}`}
-                        onChange={event => onChange({ title: event.target.value })}
-                    />
-                    {step.skip && <span className="plan-badge">Skipped</span>}
-                    {stackedOn >= 0 && (
-                        <span className="plan-badge stacked" title="This step starts from the branch of the earlier step.">
-                            <Layers size={12} /> Stacks on step {stackedOn + 1}
-                        </span>
-                    )}
-                    <Select
-                        className={`settings-input plan-repo-select${repoProblem ? ' warn' : step.repo ? ' set' : ''}`}
-                        aria-label="Repository"
-                        value={step.repo ?? ''}
-                        disabled={disabled}
-                        placeholder="Choose repository"
-                        options={[{ value: '', label: 'Choose repository', disabled: true }, ...repos.map(repo => ({ value: repo, label: repoLabel(repo) }))]}
-                        onChange={repo => onChange({ repo })}
-                    />
-                    <div className="plan-step-tools">
-                        {index > 0 && (
-                            <button type="button" className="icon-button" title="Move up" disabled={disabled} onClick={() => onMove(-1)}>
-                                <ArrowUp size={15} />
-                            </button>
-                        )}
-                        {index < count - 1 && (
-                            <button type="button" className="icon-button" title="Move down" disabled={disabled} onClick={() => onMove(1)}>
-                                <ArrowDown size={15} />
-                            </button>
-                        )}
-                        <button
-                            type="button"
-                            className="icon-button"
-                            title={step.skip ? 'Include the step' : 'Skip the step'}
-                            aria-pressed={step.skip}
-                            disabled={disabled}
-                            onClick={() => onChange({ skip: !step.skip })}
-                        >
-                            <EyeOff size={15} />
-                        </button>
-                        <button type="button" className="icon-button" title="Remove the step" disabled={disabled} onClick={onRemove}>
-                            <Trash2 size={15} />
-                        </button>
-                    </div>
-                </div>
-                {problems.map(problem => (
-                    <div key={problem.message} className="plan-step-problem">
-                        <CircleAlert size={14} /> {problem.hint ?? problem.message}
-                    </div>
-                ))}
-                <textarea
-                    className="settings-input plan-step-description"
-                    value={step.description}
-                    placeholder="What the agent must do in this step, in Markdown."
-                    disabled={disabled}
-                    aria-label={`Instructions of step ${index + 1}`}
-                    onChange={event => onChange({ description: event.target.value })}
-                />
-                <div className="plan-step-fields">
-                    <span className="flow-field-label muted">Task</span>
-                    <Select
-                        className="settings-input plan-task-select"
-                        aria-label="Task"
-                        value={choice}
-                        disabled={disabled}
-                        options={TASK_CHOICES}
-                        onChange={value => {
-                            setChoice(value);
-                            if (value !== 'existing') onChange({ task: { kind: value } as StepTask });
-                        }}
-                    />
-                    {choice === 'existing' && (
-                        <TaskPicker
-                            target={target}
-                            value={step.task.kind === 'existing' ? step.task.link : undefined}
-                            disabled={disabled}
-                            onChange={link => onChange({ task: { kind: 'existing', link } })}
-                        />
-                    )}
-                    <label className="plan-check" title="Off: the step is an experiment. Its branch stays on this Mac.">
+            <Card className="plan-step flow-card">
+                <CardBody className="plan-step-body">
+                    <div className="plan-step-head">
                         <input
-                            type="checkbox"
+                            className="plan-step-title"
+                            value={step.title}
+                            maxLength={MAX_TITLE_LENGTH}
+                            placeholder="Step title"
+                            disabled={disabled}
+                            aria-label={`Title of step ${index + 1}`}
+                            onChange={event => onChange({ title: event.target.value })}
+                        />
+                        {step.skip && <span className="plan-badge">Skipped</span>}
+                        {stackedOn >= 0 && (
+                            <span className="plan-badge stacked" title="This step starts from the branch of the earlier step.">
+                                <Layers size={12} /> Stacks on step {stackedOn + 1}
+                            </span>
+                        )}
+                        <Select
+                            className="plan-repo-select"
+                            invalid={!!repoProblem}
+                            aria-label="Repository"
+                            value={step.repo ?? ''}
+                            disabled={disabled}
+                            placeholder="Choose repository"
+                            options={[
+                                { value: '', label: 'Choose repository', disabled: true },
+                                ...repos.map(repo => ({ value: repo, label: repoLabel(repo) }))
+                            ]}
+                            onChange={repo => onChange({ repo })}
+                        />
+                        <div className="plan-step-tools">
+                            {index > 0 && <IconButton size="sm" label="Move up" icon={<ArrowUp size={14} />} disabled={disabled} onClick={() => onMove(-1)} />}
+                            {index < count - 1 && (
+                                <IconButton size="sm" label="Move down" icon={<ArrowDown size={14} />} disabled={disabled} onClick={() => onMove(1)} />
+                            )}
+                            <IconButton
+                                size="sm"
+                                label={step.skip ? 'Include the step' : 'Skip the step'}
+                                icon={<EyeOff size={14} />}
+                                aria-pressed={step.skip}
+                                disabled={disabled}
+                                onClick={() => onChange({ skip: !step.skip })}
+                            />
+                            <IconButton size="sm" tone="danger" label="Remove the step" icon={<Trash2 size={14} />} disabled={disabled} onClick={onRemove} />
+                        </div>
+                    </div>
+                    {problems.map(problem => (
+                        <div key={problem.message} className="plan-step-problem">
+                            <CircleAlert size={14} /> {problem.hint ?? problem.message}
+                        </div>
+                    ))}
+                    <TextArea
+                        mono
+                        className="plan-step-description"
+                        value={step.description}
+                        placeholder="What the agent must do in this step, in Markdown."
+                        disabled={disabled}
+                        aria-label={`Instructions of step ${index + 1}`}
+                        onChange={event => onChange({ description: event.target.value })}
+                    />
+                    <div className="plan-step-fields">
+                        <span className="flow-field-label muted">Task</span>
+                        <Select
+                            className="plan-task-select"
+                            aria-label="Task"
+                            value={choice}
+                            disabled={disabled}
+                            options={TASK_CHOICES}
+                            onChange={value => {
+                                setChoice(value);
+                                if (value !== 'existing') onChange({ task: { kind: value } as StepTask });
+                            }}
+                        />
+                        {choice === 'existing' && (
+                            <TaskPicker
+                                target={target}
+                                value={step.task.kind === 'existing' ? step.task.link : undefined}
+                                disabled={disabled}
+                                onChange={link => onChange({ task: { kind: 'existing', link } })}
+                            />
+                        )}
+                        <Checkbox
+                            className="plan-check"
+                            title="Off: the step is an experiment. Its branch stays on this Mac."
+                            label="Open a pull request"
                             checked={step.pullRequest}
                             disabled={disabled}
-                            onChange={event => onChange({ pullRequest: event.target.checked })}
+                            onChange={value => onChange({ pullRequest: value })}
                         />
-                        Open a pull request
-                    </label>
-                </div>
-            </div>
+                    </div>
+                </CardBody>
+            </Card>
         </div>
     );
 }
@@ -867,29 +848,28 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan }: Prop
                 title={<h2 className="flow-title">{plan.title}</h2>}
                 status={<span className={`plan-status ${plan.status}`}>{PLAN_STATUS_LABELS[plan.status]}</span>}
                 actions={
-                    <button
-                        type="button"
-                        className="icon-button"
-                        title="More"
+                    <IconButton
+                        label="More"
+                        icon={<MoreHorizontal size={14} />}
                         onClick={event => void planMenu(plan, event.currentTarget, onClosed, onOpenPlan)}
-                    >
-                        <MoreHorizontal size={16} />
-                    </button>
+                    />
                 }
             />
 
             <div className="flow-layout">
                 <div className="flow-main">
                     {(plan.idea.trim() || plan.summary) && (
-                        <section className="flow-card plan-idea-card">
-                            {plan.idea.trim() && (
-                                <>
-                                    <div className="flow-label">Idea</div>
-                                    <div className="plan-idea-body">{plan.idea}</div>
-                                </>
-                            )}
-                            {plan.summary && <Markdown className="plan-summary plan-idea-summary" text={plan.summary} />}
-                        </section>
+                        <Card as="section" className="plan-idea-card">
+                            <CardBody>
+                                {plan.idea.trim() && (
+                                    <>
+                                        <div className="flow-label">Idea</div>
+                                        <div className="plan-idea-body">{plan.idea}</div>
+                                    </>
+                                )}
+                                {plan.summary && <Markdown className="plan-summary plan-idea-summary" text={plan.summary} />}
+                            </CardBody>
+                        </Card>
                     )}
 
                     <section className="plan-steps-section">
@@ -915,37 +895,40 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan }: Prop
                 </div>
 
                 <aside className="flow-side">
-                    <div className="flow-card">
-                        <div className="flow-card-section">
-                            <h3 className="flow-card-title">{finished ? 'Run finished' : 'Run'}</h3>
-                            <div className="flow-card-note">
-                                {[
-                                    `${done} of ${plural(ran, 'step', 'steps')} done`,
-                                    plan.executedAt ? `started ${timeAgo(new Date(plan.executedAt).toISOString())}` : '',
-                                    plan.finishedAt ? `finished ${timeAgo(new Date(plan.finishedAt).toISOString())}` : ''
-                                ]
-                                    .filter(Boolean)
-                                    .join(' · ')}
-                            </div>
-                            {error && <div className="form-error">{error}</div>}
-                            {plan.status === 'running' && (
-                                <button
-                                    type="button"
-                                    className="button plan-execute"
-                                    title="Stop after the current step"
-                                    onClick={() => void act(() => planRunner.pause(plan.id))}
-                                >
-                                    <Pause size={14} /> Pause
-                                </button>
-                            )}
-                            {plan.status === 'paused' && (
-                                <button type="button" className="button primary-solid plan-execute" onClick={() => void act(() => planRunner.resume(plan.id))}>
-                                    <Play size={14} /> Resume
-                                </button>
-                            )}
-                        </div>
+                    <Card as="section">
+                        <CardHeader
+                            title={finished ? 'Run finished' : 'Run'}
+                            description={[
+                                `${done} of ${plural(ran, 'step', 'steps')} done`,
+                                plan.executedAt ? `started ${timeAgo(new Date(plan.executedAt).toISOString())}` : '',
+                                plan.finishedAt ? `finished ${timeAgo(new Date(plan.finishedAt).toISOString())}` : ''
+                            ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                        />
+                        {(error || plan.status === 'running' || plan.status === 'paused') && (
+                            <CardBody className="flow-card-body">
+                                {error && <div className="form-error">{error}</div>}
+                                <div className="flow-actions">
+                                    {plan.status === 'running' && (
+                                        <Button
+                                            icon={<Pause size={14} />}
+                                            title="Stop after the current step"
+                                            onClick={() => void act(() => planRunner.pause(plan.id))}
+                                        >
+                                            Pause
+                                        </Button>
+                                    )}
+                                    {plan.status === 'paused' && (
+                                        <Button variant="solid" icon={<Play size={14} />} onClick={() => void act(() => planRunner.resume(plan.id))}>
+                                            Resume
+                                        </Button>
+                                    )}
+                                </div>
+                            </CardBody>
+                        )}
                         {withPullRequests.length > 0 && (
-                            <div className="flow-card-section">
+                            <CardBody className="flow-card-body">
                                 <div className="flow-field-label">Merge order</div>
                                 <div className="flow-field-note">A stacked pull request targets the branch of the step before it.</div>
                                 <ol className="plan-merge-list">
@@ -960,16 +943,16 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan }: Prop
                                                 </div>
                                             </div>
                                             {step.pr && (
-                                                <button type="button" className="button" onClick={() => openLink(step.pr?.url ?? '')}>
-                                                    <GitPullRequest size={14} /> #{step.pr.number}
-                                                </button>
+                                                <Button size="sm" icon={<GitPullRequest size={14} />} onClick={() => openLink(step.pr?.url ?? '')}>
+                                                    #{step.pr.number}
+                                                </Button>
                                             )}
                                         </li>
                                     ))}
                                 </ol>
-                            </div>
+                            </CardBody>
                         )}
-                    </div>
+                    </Card>
                 </aside>
             </div>
         </div>
@@ -998,108 +981,112 @@ function StepRun({
     return (
         <div className={`plan-step-row run ${step.status}`}>
             <StepRail index={index} last={index === plan.steps.length - 1} nextStacks={stackedOnIndex(plan.steps, index + 1) === index} />
-            <div className="plan-step">
-                <div className="plan-step-head">
-                    <div className="plan-step-heading">
-                        <div className="plan-step-name">
-                            <span className={`step-status ${step.status}`}>{STEP_STATUS_LABELS[step.status]}</span> {step.title}
+            <Card className="plan-step">
+                <CardBody className="plan-step-body">
+                    <div className="plan-step-head">
+                        <div className="plan-step-heading">
+                            <div className="plan-step-name">
+                                <span className={`step-status ${step.status}`}>{STEP_STATUS_LABELS[step.status]}</span> {step.title}
+                            </div>
+                            <div className="plan-step-meta">
+                                {step.repo ? repoLabel(step.repo) : 'No repository'}
+                                {step.branch && (
+                                    <>
+                                        {' · '}
+                                        <code>{step.branch}</code>
+                                        {step.baseBranch && (
+                                            <>
+                                                {' from '}
+                                                <code>{step.baseBranch}</code>
+                                            </>
+                                        )}
+                                    </>
+                                )}
+                                {!step.pullRequest && ' · experiment'}
+                            </div>
                         </div>
-                        <div className="plan-step-meta">
-                            {step.repo ? repoLabel(step.repo) : 'No repository'}
-                            {step.branch && (
-                                <>
-                                    {' · '}
-                                    <code>{step.branch}</code>
-                                    {step.baseBranch && (
-                                        <>
-                                            {' from '}
-                                            <code>{step.baseBranch}</code>
-                                        </>
-                                    )}
-                                </>
+                        <div className="plan-step-tools">
+                            {step.pr && (
+                                <Button size="sm" title={step.pr.url} icon={<GitPullRequest size={14} />} onClick={() => openLink(step.pr?.url ?? '')}>
+                                    #{step.pr.number}
+                                </Button>
                             )}
-                            {!step.pullRequest && ' · experiment'}
+                            {link && (
+                                <Button
+                                    size="sm"
+                                    title={link.url ?? link.title}
+                                    icon={<SquareCheck size={14} />}
+                                    disabled={!link.url}
+                                    onClick={() => link.url && openLink(link.url)}
+                                >
+                                    {link.key ?? 'Task'}
+                                </Button>
+                            )}
+                            {step.worktreePath && (
+                                <Button
+                                    size="sm"
+                                    title={step.worktreePath}
+                                    icon={<ArrowUpRight size={14} />}
+                                    onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}
+                                >
+                                    Open
+                                </Button>
+                            )}
                         </div>
                     </div>
-                    <div className="plan-step-tools">
-                        {step.pr && (
-                            <button type="button" className="button" title={step.pr.url} onClick={() => openLink(step.pr?.url ?? '')}>
-                                <GitPullRequest size={14} /> #{step.pr.number}
-                            </button>
-                        )}
-                        {link && (
-                            <button
-                                type="button"
-                                className="button"
-                                title={link.url ?? link.title}
-                                disabled={!link.url}
-                                onClick={() => link.url && openLink(link.url)}
-                            >
-                                <SquareCheck size={14} /> {link.key ?? 'Task'}
-                            </button>
-                        )}
-                        {step.worktreePath && (
-                            <button
-                                type="button"
-                                className="button"
-                                title={step.worktreePath}
-                                onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}
-                            >
-                                <ArrowUpRight size={14} /> Open
-                            </button>
-                        )}
-                    </div>
-                </div>
-                {step.detail && <div className="plan-step-detail">{step.detail}</div>}
-                {step.description.trim() && (
-                    <details className="plan-step-details">
-                        <summary>Instructions</summary>
-                        <Markdown className="plan-summary" text={step.description} />
-                    </details>
-                )}
-                {!finished && (open || step.status === 'pending') && (
-                    <div className="plan-step-actions">
-                        {step.status === 'attention' && step.worktreePath && (
-                            <button type="button" className="button primary-solid" onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}>
-                                <Check size={14} /> Continue
-                            </button>
-                        )}
-                        {step.status === 'attention' && step.worktreePath && (
-                            <button type="button" className="button" onClick={() => void act(() => planRunner.resendPrompt(plan.id, step.id))}>
-                                <Send size={14} /> Send the prompt again
-                            </button>
-                        )}
-                        {step.status === 'running' && (
-                            <button
-                                type="button"
-                                className="button"
-                                title="Check the worktree for a new commit now"
-                                onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}
-                            >
-                                <RotateCcw size={14} /> Check now
-                            </button>
-                        )}
-                        {step.status === 'failed' && (
-                            <button type="button" className="button primary-solid" onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}>
-                                <RotateCcw size={14} /> Try again
-                            </button>
-                        )}
-                        {open && (
-                            <button
-                                type="button"
-                                className="button"
-                                title="Continue with the next step. This step gets no pull request."
-                                onClick={() => void act(() => planRunner.markDone(plan.id, step.id))}
-                            >
-                                <CircleCheck size={14} /> Mark done
-                            </button>
-                        )}
-                        <button type="button" className="button" onClick={() => void act(() => planRunner.skipStep(plan.id, step.id))}>
-                            <SkipForward size={14} /> Skip
-                        </button>
-                    </div>
-                )}
-            </div>
+                    {step.detail && <div className="plan-step-detail">{step.detail}</div>}
+                    {step.description.trim() && (
+                        <details className="plan-step-details">
+                            <summary>Instructions</summary>
+                            <Markdown className="plan-summary" text={step.description} />
+                        </details>
+                    )}
+                    {!finished && (open || step.status === 'pending') && (
+                        <div className="plan-step-actions">
+                            {step.status === 'attention' && step.worktreePath && (
+                                <Button variant="solid" icon={<Check size={14} />} onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}>
+                                    Continue
+                                </Button>
+                            )}
+                            {step.status === 'attention' && step.worktreePath && (
+                                <Button icon={<Send size={14} />} onClick={() => void act(() => planRunner.resendPrompt(plan.id, step.id))}>
+                                    Send the prompt again
+                                </Button>
+                            )}
+                            {step.status === 'running' && (
+                                <Button
+                                    title="Check the worktree for a new commit now"
+                                    icon={<RotateCcw size={14} />}
+                                    onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}
+                                >
+                                    Check now
+                                </Button>
+                            )}
+                            {step.status === 'failed' && (
+                                <Button
+                                    variant="solid"
+                                    icon={<RotateCcw size={14} />}
+                                    onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}
+                                >
+                                    Try again
+                                </Button>
+                            )}
+                            {open && (
+                                <Button
+                                    title="Continue with the next step. This step gets no pull request."
+                                    icon={<CircleCheck size={14} />}
+                                    onClick={() => void act(() => planRunner.markDone(plan.id, step.id))}
+                                >
+                                    Mark done
+                                </Button>
+                            )}
+                            <Button icon={<SkipForward size={14} />} onClick={() => void act(() => planRunner.skipStep(plan.id, step.id))}>
+                                Skip
+                            </Button>
+                        </div>
+                    )}
+                </CardBody>
+            </Card>
         </div>
     );
 }
