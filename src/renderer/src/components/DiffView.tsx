@@ -5,7 +5,7 @@ import { monaco } from '../editor/monaco';
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { replyToThread, setThreadResolved } from '../github/pull-request-mutations';
-import { threadPrompt } from '../github/agent-prompts';
+import { lineNotePrompt, threadPrompt } from '../github/agent-prompts';
 import { selectionLines, threadsWithLine } from '../github/diff-notes';
 import { seenStore } from '../seen-store';
 import { errorText } from '../util';
@@ -312,6 +312,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onSendToAg
                         comment={comment}
                         onRemove={() => reviewStore.removePending(target, pr.number, comment)}
                         onEdit={body => reviewStore.updatePending(target, pr.number, comment, body)}
+                        onSendToAgent={onSendToAgentRef.current && (() => onSendToAgentRef.current?.(lineNotePrompt(pr, comment)))}
                     />
                 );
             }
@@ -323,6 +324,14 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onSendToAg
                 <ComposerZone
                     line={composer.line}
                     startLine={composer.startLine}
+                    onSendToAgent={
+                        onSendToAgentRef.current &&
+                        (body => {
+                            const startLine = composer.startLine !== undefined && composer.startLine < composer.line ? composer.startLine : undefined;
+                            onSendToAgentRef.current?.(lineNotePrompt(pr, { path: file.path, line: composer.line, startLine, side: composer.side, body }));
+                            setComposer(undefined);
+                        })
+                    }
                     onCancel={() => setComposer(undefined)}
                     onSuggest={
                         composer.side === 'RIGHT'

@@ -4,7 +4,7 @@ import { ExternalLink, LoaderCircle } from 'lucide-react';
 import type { DiffSide, FileVersions, PendingComment, PullRequest, PullRequestFile, RepoTarget } from '@shared/github';
 import { unifiedPatch } from '@shared/patch';
 import { sliceLines } from '@shared/ask-agent';
-import { threadPrompt } from '../github/agent-prompts';
+import { lineNotePrompt, threadPrompt } from '../github/agent-prompts';
 import { reviewStore } from '../github/review-store';
 import { replyToThread, setThreadResolved } from '../github/pull-request-mutations';
 import { composerFromRange, lineAnnotations, toSide, type Composer, type Note } from '../github/diff-notes';
@@ -34,7 +34,10 @@ interface FileBodyProps {
     /** Not used. A reply or a resolve puts its result into the cache, so the view does not load the pull request again. */
     onRefresh?(): Promise<void>;
     onGoToDefinition?(path: string, line: number, column: number): void;
-    /** Sends a prompt to an agent. Without it, the review threads have no "Send to agent" button. */
+    /**
+     * Sends a prompt to an agent. Without it, the review threads and the pending comments have no "Send to agent" button,
+     * and the comment box has no "Send to agent" mode.
+     */
     onSendToAgent?(prompt: string): void;
 }
 
@@ -90,7 +93,7 @@ export const FileBody = memo(function FileBody({
             overflow: 'wrap',
             lineDiffType: 'word',
             // A closed pull request takes no comments, but the agent can still answer questions about it.
-            enableGutterUtility: canComment || !!onAsk,
+            enableGutterUtility: canComment || !!onAsk || !!onSendToAgent,
             onGutterUtilityClick: range => onComposer(composerFromRange(range)),
             // Only the new side is in the local copy of the pull request. A removed line has no definition there.
             ...(onGoToDefinition
@@ -112,7 +115,7 @@ export const FileBody = memo(function FileBody({
                 };
             }
         }),
-        [diffStyle, mode, canComment, onAsk, onComposer, onGoToDefinition, target, file, pr.baseRefOid, pr.headRefOid]
+        [diffStyle, mode, canComment, onAsk, onSendToAgent, onComposer, onGoToDefinition, target, file, pr.baseRefOid, pr.headRefOid]
     );
 
     const renderAnnotation = (annotation: DiffLineAnnotation<Note>): ReactNode => (
@@ -145,6 +148,7 @@ export const FileBody = memo(function FileBody({
                         onRemove={() => reviewStore.removePending(target, pr.number, note.comment)}
                         onEdit={canComment ? body => reviewStore.updatePending(target, pr.number, note.comment, body) : undefined}
                         onAccept={() => reviewStore.acceptPending(target, pr.number, note.comment)}
+                        onSendToAgent={onSendToAgent && (() => onSendToAgent(lineNotePrompt(pr, note.comment)))}
                     />
                 </div>
             );
@@ -164,6 +168,14 @@ export const FileBody = memo(function FileBody({
                     startLine={note.startLine}
                     canComment={canComment}
                     onAsk={onAsk && (question => onAsk({ line: note.line, startLine: note.startLine, side: note.side }, question))}
+                    onSendToAgent={
+                        onSendToAgent &&
+                        (body => {
+                            const startLine = note.startLine < note.line ? note.startLine : undefined;
+                            onSendToAgent(lineNotePrompt(pr, { path: file.path, line: note.line, startLine, side: note.side, body }));
+                            onComposer(undefined);
+                        })
+                    }
                     onCancel={() => onComposer(undefined)}
                     onSuggest={
                         note.side === 'RIGHT' && canComment
