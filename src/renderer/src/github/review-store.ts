@@ -24,6 +24,8 @@ interface ReviewState {
     pending: PendingComment[];
     /** The text of the review that the user writes. It stays when the user changes tabs. */
     body: string;
+    /** The review text just after the last agent review added its summary. Submit compares it with `body`. */
+    agentBody?: string;
     agentReview?: AgentReviewState;
 }
 
@@ -89,8 +91,9 @@ class ReviewStore {
         }));
     }
 
+    /** Sets the review text. An empty text also clears `agentBody`, because no agent text is left. */
     setBody(target: RepoTarget, number: number, body: string): void {
-        this.update(target, number, state => ({ ...state, body }));
+        this.update(target, number, state => ({ ...state, body, agentBody: body ? state.agentBody : undefined }));
     }
 
     /**
@@ -109,12 +112,16 @@ class ReviewStore {
             if (!this.isRun(repo, pr.number, id)) return;
             const review = parseAgentReview(result.answer, files);
             const text = reviewBody(review);
-            this.update(repo, pr.number, state => ({
-                ...state,
-                pending: [...state.pending, ...review.comments],
-                body: [state.body.trim(), text].filter(Boolean).join('\n\n'),
-                agentReview: { status: 'done', agent: result.agent, comments: review.comments.length, notes: review.unplaced.length }
-            }));
+            this.update(repo, pr.number, state => {
+                const body = [state.body.trim(), text].filter(Boolean).join('\n\n');
+                return {
+                    ...state,
+                    pending: [...state.pending, ...review.comments],
+                    body,
+                    agentBody: text ? body : state.agentBody,
+                    agentReview: { status: 'done', agent: result.agent, comments: review.comments.length, notes: review.unplaced.length }
+                };
+            });
         } catch (error) {
             if (!this.isRun(repo, pr.number, id)) return;
             this.update(repo, pr.number, state => ({ ...state, agentReview: { status: 'error', error: errorText(error) } }));

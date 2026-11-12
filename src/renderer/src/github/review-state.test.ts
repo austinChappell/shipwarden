@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PendingComment, PullRequest, PullRequestFile, ReviewThread } from '@shared/github';
 import {
+    agentBodyUnedited,
     conversationOf,
     decisionEvents,
     firstUndecided,
@@ -161,6 +162,21 @@ describe('reviewConfirmTitle', () => {
         expect(reviewConfirmTitle(pr({ host: 'azure' }), 'REQUEST_CHANGES', 2)).toBe(
             'Submit a review to Azure DevOps: request changes on pull request #7 with 2 inline comment(s)?'
         );
+    });
+});
+
+describe('agentBodyUnedited', () => {
+    it('is true when the text is the agent text, also with other spaces at the ends', () => {
+        expect(agentBodyUnedited('Looks good.\n', 'Looks good.')).toBe(true);
+    });
+
+    it('is false after the user changes the text', () => {
+        expect(agentBodyUnedited('Looks good. Thanks!', 'Looks good.')).toBe(false);
+    });
+
+    it('is false without an agent review or with an empty text', () => {
+        expect(agentBodyUnedited('Looks good.', undefined)).toBe(false);
+        expect(agentBodyUnedited('', '')).toBe(false);
     });
 });
 
