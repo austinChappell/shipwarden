@@ -85,7 +85,7 @@ interface Options {
     /** The name of a repository in the UI. */
     repoLabel: (repo: string) => string;
     startTerminal: (worktree: Worktree, target: 'shell' | 'agent' | AgentDefinition) => Promise<TerminalSession | undefined>;
-    sendToAgent: (prompt: string, worktree?: Worktree) => Promise<void>;
+    sendToAgent: (prompt: string, worktree?: Worktree, target?: undefined, onSession?: (session: TerminalSession) => void) => Promise<void>;
     /** Sends a prompt to an agent without a banner and without a change of the selected tab. See `useAgentActions`. */
     promptAgent: (
         worktree: Pick<Worktree, 'path'>,
@@ -233,8 +233,15 @@ export function useWorktreeActions(options: Options) {
      * Else the New worktree dialog opens on the remote branch.
      * When the active project does not have the repository, ShipWarden makes the first project that has it active.
      * With a prompt, ShipWarden sends the prompt to the agent of the worktree. For a new worktree, it sends the prompt after the dialog creates it.
+     * With a prompt and `onAgent`, a worktree that has the branch does not open. The view stays, and `onAgent` gets the
+     * agent session, for example for the agent drawer of the Review view.
      */
-    const openPullRequestWorktree = async (repo: RepoRef, pr: Pick<PullRequest, 'headRefName'>, prompt?: string) => {
+    const openPullRequestWorktree = async (
+        repo: RepoRef,
+        pr: Pick<PullRequest, 'headRefName'>,
+        prompt?: string,
+        onAgent?: (session: TerminalSession) => void
+    ) => {
         const found = await findRepoPath(repo);
         if (!found) {
             setError(`No project has a repository with ${repo.owner}/${repo.name} as its "origin" remote. Add a clone of it to a project.`);
@@ -248,6 +255,10 @@ export function useWorktreeActions(options: Options) {
             worktrees = await refreshWorktrees(repoPath);
         }
         const existing = worktrees?.find(worktree => worktree.branch === pr.headRefName);
+        if (existing && prompt && onAgent) {
+            await options.sendToAgent(prompt, existing, undefined, onAgent);
+            return;
+        }
         if (existing) {
             setSelectedPath(existing.path);
             setMainView('worktree');

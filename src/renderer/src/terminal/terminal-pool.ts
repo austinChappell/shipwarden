@@ -22,6 +22,12 @@ interface Entry {
     fit: FitAddon;
     /** The element that holds the terminal canvas. The pool moves it between containers. */
     host: HTMLDivElement;
+    /**
+     * The containers of the views that show the session, in the order of their attach. The last one holds the host.
+     * Two views can show one session, for example the agent tab and the agent drawer of the Review view. When the newer
+     * view detaches, the host goes back to the older view.
+     */
+    containers: HTMLElement[];
     /** The sequence number of the last chunk that the terminal shows. It is -1 until the replay arrives. */
     shownSeq: number;
     /** Live chunks that arrive before the replay. */
@@ -123,6 +129,15 @@ export class TerminalPool {
         if (!entry || this.entries.get(session.id) !== entry) {
             return;
         }
+        const others = entry.containers.filter(item => item !== container);
+        const current = entry.host.parentElement;
+        // A hidden view does not take the terminal from a visible view. For example, the agent tab of a worktree view
+        // that is not shown does not take the terminal from the agent drawer. The hidden view gets it after the drawer closes.
+        if (current && current !== container && current.isConnected && isShown(current) && !isShown(container)) {
+            entry.containers = [container, ...others];
+            return;
+        }
+        entry.containers = [...others, container];
         if (entry.host.parentElement !== container) {
             container.appendChild(entry.host);
         }
@@ -137,11 +152,24 @@ export class TerminalPool {
         this.entries.get(sessionId)?.terminal.focus();
     }
 
-    /** Removes the terminal of the session from its container. The terminal continues to receive output. */
+    /**
+     * Removes the terminal of the session from its container. The terminal continues to receive output.
+     * When an older view of the session is still in the document, the terminal goes back to that view.
+     */
     detach(sessionId: string, container: HTMLElement): void {
         const entry = this.entries.get(sessionId);
-        if (entry && entry.host.parentElement === container) {
-            container.removeChild(entry.host);
+        if (!entry) {
+            return;
+        }
+        entry.containers = entry.containers.filter(item => item !== container && item.isConnected);
+        if (entry.host.parentElement !== container) {
+            return;
+        }
+        container.removeChild(entry.host);
+        const previous = entry.containers.at(-1);
+        if (previous) {
+            previous.appendChild(entry.host);
+            this.fit(sessionId);
         }
     }
 
@@ -270,7 +298,7 @@ export class TerminalPool {
         routeLinkClicks(terminal);
         stopClickCopy(terminal);
 
-        const entry: Entry = { session, terminal, fit, host, shownSeq: -1, pending: [], bindings: [] };
+        const entry: Entry = { session, terminal, fit, host, containers: [], shownSeq: -1, pending: [], bindings: [] };
         this.entries.set(session.id, entry);
         this.hosts.set(host, terminal);
         this.visibility.observe(host);
@@ -384,6 +412,11 @@ function stopClickCopy(terminal: Terminal): void {
 }
 
 /** Returns true when the host of the terminal is in the document and has a size. */
+/** Returns true when an element has a box on the screen. An element in a hidden view (display: none) has no box. */
+function isShown(element: HTMLElement): boolean {
+    return element.getClientRects().length > 0;
+}
+
 function isVisible(entry: Entry): boolean {
     return entry.host.isConnected && entry.host.clientWidth > 0 && entry.host.clientHeight > 0;
 }

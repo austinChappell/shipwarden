@@ -38,6 +38,7 @@ import { planRunner } from './plans/plan-runner';
 import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
 import { AutomationButtons } from './automations/AutomationButtons';
+import { AgentDrawer } from './components/AgentDrawer';
 import { useDashboardCount, useDashboardLoader } from './dashboard-store';
 import { useReviewOverviewLoader, useReviewQueue } from './github/review-overview-store';
 import { reviewScopeKey, useReviewProviders } from './review-providers-store';
@@ -113,6 +114,11 @@ export function App() {
     // The note box in the editor is outside this React tree. It reads the sessions from the store.
     useEffect(() => sessionListStore.set(sessions), [sessions]);
     const [settings, setSettings] = useState<TerminalSettings>();
+    /**
+     * The agent drawer of the Review view. It opens when the user sends a prompt from a pull request to the agent of a
+     * worktree. The user can read the pull request and type to the agent at the same time.
+     */
+    const [agentDrawer, setAgentDrawer] = useState<{ sessionId: string; collapsed: boolean }>();
     const [selectedPath, setSelectedPath] = useState<string>();
     const [explorerOpen, toggleExplorer] = useStoredFlag(EXPLORER_STORAGE_KEY, true);
     const [sidebarCollapsed, toggleSidebar] = useStoredFlag(SIDEBAR_COLLAPSED_KEY, false);
@@ -795,6 +801,12 @@ export function App() {
             setError
         });
 
+    /** Opens the agent drawer of the Review view on a session. See `agentDrawer`. */
+    const showAgentDrawer = (session: TerminalSession) => setAgentDrawer({ sessionId: session.id, collapsed: false });
+    // The drawer closes when its session closes.
+    const drawerSession = agentDrawer && sessions.find(session => session.id === agentDrawer.sessionId);
+    const drawerWorktree = drawerSession?.worktreePath ? worktrees.find(worktree => worktree.path === drawerSession.worktreePath) : undefined;
+
     // The cover hides the app layout until the first view is known. Without it, a new user sees the layout for a moment
     // before the welcome page opens. A current user sees the cover only until the settings load.
     const startCover = !startupDone && (!settingsLoaded || shouldOpenWelcome(appSettings.onboarding));
@@ -902,16 +914,44 @@ export function App() {
                                 route={routeOf('review')}
                                 onRoute={route => setRoute('review', route)}
                                 onNewWorktree={(repo, pr) => void worktreeActions.openPullRequestWorktree(repo, pr)}
-                                onSendToAgent={(repo, pr, prompt) => void worktreeActions.openPullRequestWorktree(repo, pr, prompt)}
+                                onSendToAgent={(repo, pr, prompt) => void worktreeActions.openPullRequestWorktree(repo, pr, prompt, showAgentDrawer)}
                                 onSendLogToAgent={(repo, pr, check) =>
-                                    void agents.sendLogToAgent(check, repo, prompt => worktreeActions.openPullRequestWorktree(repo, pr, prompt))
+                                    void agents.sendLogToAgent(check, repo, prompt =>
+                                        worktreeActions.openPullRequestWorktree(repo, pr, prompt, showAgentDrawer)
+                                    )
                                 }
                                 onSendChecksToAgent={(repo, pr, checks) =>
-                                    void agents.sendChecksToAgent(checks, repo, prompt => worktreeActions.openPullRequestWorktree(repo, pr, prompt))
+                                    void agents.sendChecksToAgent(checks, repo, prompt =>
+                                        worktreeActions.openPullRequestWorktree(repo, pr, prompt, showAgentDrawer)
+                                    )
                                 }
                                 projects={projects}
                                 onPullRepo={project.pullRepo}
                             />
+                            {drawerSession && agentDrawer && (terminalSettings ?? settings) && (
+                                <AgentDrawer
+                                    session={drawerSession}
+                                    worktreeName={
+                                        drawerWorktree
+                                            ? worktreeLabel(drawerWorktree, appSettings.worktreeNames)
+                                            : (drawerSession.worktreePath?.split('/').pop() ?? '')
+                                    }
+                                    branch={drawerWorktree?.branch}
+                                    settings={(terminalSettings ?? settings) as TerminalSettings}
+                                    terminalKey={`${drawerSession.id}:${terminalColorsKey}`}
+                                    collapsed={agentDrawer.collapsed}
+                                    onToggle={() => setAgentDrawer({ ...agentDrawer, collapsed: !agentDrawer.collapsed })}
+                                    onClose={() => setAgentDrawer(undefined)}
+                                    onOpenWorktree={() => {
+                                        const path = drawerSession.worktreePath;
+                                        if (!path) return;
+                                        void worktreeActions
+                                            .showTaskWorktree(path)
+                                            .then(() => activate(path, `t:${drawerSession.id}`))
+                                            .catch(err => setError(errorText(err)));
+                                    }}
+                                />
+                            )}
                         </main>
                     )}
                     {mainView === 'pipelines' && (
