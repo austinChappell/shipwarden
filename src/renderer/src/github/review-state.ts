@@ -114,6 +114,18 @@ export function reviewConfirmTitle(pr: PullRequest, event: ReviewEvent, pendingC
     return `Submit a review to ${hostLabel(pr.host)}: ${REVIEW_EVENT_TEXT[event].confirm} pull request #${pr.number}${pending}?`;
 }
 
+/**
+ * Returns true when the review text is the text of an agent review and the user did not change it.
+ * `agentBody` is the review text just after the agent added its summary.
+ */
+export function agentBodyUnedited(body: string, agentBody: string | undefined): boolean {
+    return agentBody !== undefined && body.trim() !== '' && body.trim() === agentBody.trim();
+}
+
+/** The warning before the user submits a review text that an agent wrote and the user did not change. */
+export const AGENT_BODY_WARNING =
+    'An agent wrote the review summary. You did not change it. The summary goes out under your name.\n\nCancel to read or edit the summary first.';
+
 /** The text of the label that counts the pending comments. */
 export function pendingText(count: number): string {
     return `${count} pending comment${count === 1 ? '' : 's'}`;

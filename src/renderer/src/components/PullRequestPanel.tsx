@@ -41,7 +41,7 @@ import {
     selectMergeMethod,
     stateConfirm
 } from '../github/merge-state';
-import { conversationOf, reviewConfirmTitle, shownCommentIds } from '../github/review-state';
+import { AGENT_BODY_WARNING, agentBodyUnedited, conversationOf, reviewConfirmTitle, shownCommentIds } from '../github/review-state';
 import { CreatePullRequest } from './CreatePullRequest';
 import { BranchName, ConflictBadge, PullRequestCommitList, PullRequestDescription, PullRequestFileList, StateBadge } from './PullRequestParts';
 import { HelmLoader } from './HelmLoader';
@@ -167,9 +167,15 @@ export function PullRequestPanel({
 
     const submit = async (event: ReviewEvent) => {
         if (undecidedCount(review.pending) > 0) return;
-        if (!(await confirmDialog({ title: reviewConfirmTitle(pr, event, review.pending.length), confirmLabel: 'Submit review' }))) {
-            return;
-        }
+        // A summary from an agent that the user did not change gets a red warning, so the user does not submit it by accident.
+        const unedited = agentBodyUnedited(body, review.agentBody);
+        const confirmed = await confirmDialog({
+            title: reviewConfirmTitle(pr, event, review.pending.length),
+            message: unedited ? AGENT_BODY_WARNING : undefined,
+            danger: unedited,
+            confirmLabel: unedited ? 'Submit anyway' : 'Submit review'
+        });
+        if (!confirmed) return;
         run(async () => {
             await submitReview(target, pr, event, body.trim(), review.pending);
             reviewStore.clearPending(target, pr.number);
