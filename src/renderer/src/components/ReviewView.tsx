@@ -246,6 +246,7 @@ export function ReviewView({
                         status={status}
                         pr={pr ?? undefined}
                         loading={prLoading}
+                        syncedAt={prQuery.dataUpdatedAt}
                         error={prError}
                         onRefresh={refresh}
                         onBack={backToList}

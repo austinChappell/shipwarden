@@ -46,7 +46,7 @@ import { CreatePullRequest } from './CreatePullRequest';
 import { BranchName, ConflictBadge, PullRequestCommitList, PullRequestDescription, PullRequestFileList, StateBadge } from './PullRequestParts';
 import { HelmLoader } from './HelmLoader';
 import { PullRequestMergeCard } from './PullRequestMergeCard';
-import { PullRequestReviewCard } from './PullRequestReviewCard';
+import { PullRequestReviewCard, type AgentReviewControl } from './PullRequestReviewCard';
 import { PullRequestConversation, PullRequestThreads } from './PullRequestThreads';
 import { reactionActions } from './Reactions';
 import { MentionContext, mentionSourceOf } from './mention-context';
@@ -77,8 +77,8 @@ interface Props {
     variant?: 'panel' | 'overview';
     /** The counts of the checks of the head commit, for the merge checklist of the Overview tab. */
     checks?: CheckCounts;
-    /** Starts an agent review. Without it, the review card has no link for an agent review. */
-    agentReview?: { running: boolean; run(): void };
+    /** Starts and stops an agent review. Without it, the review card has no Run agent review button. */
+    agentReview?: AgentReviewControl;
     /** Opens the pull request in the Review view. Without it, the header has no "Open in Review" button. */
     onOpenInReview?(pr: PullRequest): void;
     /** Shows the diff of one commit. Without it, a commit in the timeline is a link to the host. */

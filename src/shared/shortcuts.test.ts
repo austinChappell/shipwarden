@@ -12,6 +12,7 @@ import {
     OTHER_KEY_INFO,
     parseKeys,
     pendingCommentStep,
+    pullRequestKeyAction,
     SHORTCUT_GROUPS,
     SHORTCUT_INFO,
     shortcutAction,
@@ -322,6 +323,8 @@ describe('the Keyboard Shortcuts page', () => {
         expect(OTHER_KEY_INFO.clear.keys.every(keys => isClearKey(asEvent(keys)))).toBe(true);
         expect(OTHER_KEY_INFO.pasteImage.keys.every(keys => isCtrlV(asEvent(keys)))).toBe(true);
         expect(OTHER_KEY_INFO.comment.keys.every(keys => isCommentKey(asEvent(keys)))).toBe(true);
+        expect(OTHER_KEY_INFO.openWorktree.keys.every(keys => pullRequestKeyAction(asEvent(keys)) === 'openWorktree')).toBe(true);
+        expect(OTHER_KEY_INFO.openOnHost.keys.every(keys => pullRequestKeyAction(asEvent(keys)) === 'openOnHost')).toBe(true);
     });
 
     it('gives each key combination to one item only', () => {
