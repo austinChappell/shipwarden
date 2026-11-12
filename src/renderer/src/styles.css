@@ -264,7 +264,7 @@ button {
 }
 
 .status-dot.working {
-    background: var(--accent);
+    background: var(--pending);
     animation: pulse 1.4s ease-in-out infinite;
 }
 
@@ -290,7 +290,7 @@ button {
 }
 
 .agent-state.working {
-    color: var(--accent);
+    color: var(--pending);
 }
 .agent-state.waiting {
     color: var(--danger);
@@ -427,7 +427,7 @@ button {
     color: var(--danger);
 }
 .worktree-pr .ci.pending {
-    color: var(--accent);
+    color: var(--pending);
 }
 
 .worktree-text {
@@ -1868,7 +1868,7 @@ code {
 
 .status-modified,
 .status-changed {
-    color: var(--accent);
+    color: var(--warning);
 }
 
 .status-renamed,
@@ -2358,7 +2358,7 @@ textarea.review-body {
 }
 
 .checks-summary.pending {
-    color: var(--accent);
+    color: var(--pending);
 }
 
 .checks-subtitle {
@@ -2478,7 +2478,7 @@ textarea.review-body {
 
 .check-icon.running,
 .check-icon.queued {
-    color: var(--accent);
+    color: var(--pending);
 }
 
 .check-icon.skipped {
@@ -2504,7 +2504,7 @@ textarea.review-body {
 
 .check-dot.in_progress,
 .check-dot.queued {
-    background: var(--accent);
+    background: var(--pending);
 }
 
 /* Sidebar navigation */
@@ -2745,7 +2745,7 @@ textarea.review-body {
 }
 
 .task-status-dot.in_progress {
-    background: var(--accent);
+    background: var(--pending);
 }
 .task-status-dot.todo {
     background: var(--info);
@@ -3645,7 +3645,7 @@ body.resizing * {
 }
 
 .settings-check.warn {
-    color: var(--accent);
+    color: var(--warning);
 }
 
 .settings-status {
@@ -3882,7 +3882,7 @@ body.resizing * {
 }
 
 .usage-warning {
-    color: var(--accent);
+    color: var(--warning);
 }
 
 .usage-value {
@@ -3891,7 +3891,7 @@ body.resizing * {
 }
 
 .usage-value.medium {
-    color: var(--accent);
+    color: var(--warning);
 }
 
 .usage-value.high {
@@ -4804,7 +4804,7 @@ body.resizing * {
 }
 
 .connection-warning {
-    color: var(--accent);
+    color: var(--warning);
 }
 
 .connection-summary .group-chevron {
@@ -5274,7 +5274,7 @@ button:focus-visible,
 }
 
 .agent-row.waiting .agent-activity {
-    color: var(--accent);
+    color: var(--danger);
 }
 
 .agent-side {
@@ -5678,7 +5678,7 @@ button:focus-visible,
     color: var(--danger);
 }
 .review-decision.review_required {
-    color: var(--accent);
+    color: var(--info);
 }
 
 .review-content {
@@ -7155,7 +7155,7 @@ button:focus-visible,
 }
 
 .dash-dot.review {
-    background: var(--accent);
+    background: var(--info);
 }
 .dash-dot.ready {
     background: var(--ok);
@@ -7777,7 +7777,7 @@ button:focus-visible,
 }
 
 .note-state.edited {
-    color: var(--accent);
+    color: var(--warning);
 }
 
 .note-tags {
@@ -9170,7 +9170,7 @@ body.resizing-column * {
 }
 
 .step-icon.running {
-    color: var(--accent);
+    color: var(--pending);
 }
 
 .step-icon.pending,
@@ -9319,7 +9319,7 @@ body.resizing-column * {
 
 .change-letter.modified,
 .change-letter.typechange {
-    color: var(--accent);
+    color: var(--warning);
 }
 
 .change-letter.added,
@@ -9416,8 +9416,8 @@ body.resizing-column * {
 }
 
 .change-side.unstaged {
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
-    color: var(--accent);
+    background: color-mix(in srgb, var(--warning) 16%, transparent);
+    color: var(--warning);
 }
 
 .change-diff-body {
@@ -10240,7 +10240,7 @@ button.gg-ref:hover {
 }
 
 .zone-card.pending.needs-decision {
-    border-color: var(--accent);
+    border-color: var(--info);
 }
 
 .review-undecided {
@@ -10625,9 +10625,12 @@ button.pr-summary-cell:hover {
 .tone-fail {
     color: var(--danger);
 }
-.tone-wait,
+.tone-wait {
+    color: var(--pending);
+}
+/* "Waiting on you": it needs the user. */
 .tone-mine {
-    color: var(--accent);
+    color: var(--info);
 }
 .tone-muted {
     color: var(--muted);
@@ -10671,7 +10674,7 @@ button.pr-summary-cell:hover {
 }
 
 .review-requested {
-    color: var(--accent);
+    color: var(--info);
     font-size: 12.5px;
 }
 
@@ -10731,7 +10734,7 @@ button.pr-summary-cell:hover {
     color: var(--danger);
 }
 .merge-condition.wait {
-    color: var(--accent);
+    color: var(--pending);
 }
 
 /* In the side column, the merge card is near the top. The menu of the merge methods opens down. */
@@ -11178,7 +11181,7 @@ button.pr-summary-cell:hover {
     color: var(--ok);
 }
 .pr-row-icon.re-review {
-    color: var(--accent);
+    color: var(--info);
 }
 .pr-row-icon.waiting {
     color: var(--muted);
@@ -11266,7 +11269,7 @@ button.pr-summary-cell:hover {
     background: var(--info);
 }
 .diff-bar > .medium {
-    background: var(--accent);
+    background: var(--warning);
 }
 .diff-bar > .large {
     background: var(--danger);
@@ -12589,13 +12592,16 @@ button.pr-summary-cell:hover {
     white-space: nowrap;
 }
 
-.plan-step-row.run.attention .plan-step,
+.plan-step-row.run.attention .plan-step {
+    border-color: var(--warning);
+}
+
 .plan-step-row.run.failed .plan-step {
-    border-color: var(--accent);
+    border-color: var(--danger);
 }
 
 .plan-step-row.run.running .plan-step {
-    border-color: var(--info);
+    border-color: var(--pending);
 }
 
 .plan-step-row.run.done .plan-step-number {
@@ -12695,7 +12701,7 @@ button.pr-summary-cell:hover {
 }
 
 .welcome-icon.warning {
-    color: var(--accent);
+    color: var(--warning);
 }
 
 .welcome-icon.problem {
@@ -13431,7 +13437,7 @@ button.pr-summary-cell:hover {
 }
 
 .welcome-dot.warning {
-    background: color-mix(in srgb, var(--accent) 85%, transparent);
+    background: color-mix(in srgb, var(--warning) 85%, transparent);
 }
 
 .welcome-dot.problem {

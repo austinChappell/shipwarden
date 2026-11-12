@@ -7,13 +7,15 @@ import { cx } from './cx';
  * - "primary": the accent fill. Use it for one action per view: the main create or start action, or the action of an
  *   empty state.
  * - "accent": a soft accent fill. Use it only for the one recommended action of a row, for example "Merge".
+ * - "success": a green fill. Use it only for an action that gives a "done" status, for example "Approve" on a pull
+ *   request. The accent changes with the theme. Thus the accent must not show a status.
  * - "danger": red text on a secondary button. Use it for an action that deletes or stops something.
  * - "danger-solid": a red fill. Use it only for the confirm button of a confirm dialog.
  * - "ghost": no border and no background until the pointer is on it. Use it in toolbars and menus.
  * - "link": text only, with no box. Use it for a small action in a line of text.
  * - "link-danger": a red "link". Use it for a small action that deletes something, for example "Discard all".
  */
-export type ButtonVariant = 'secondary' | 'primary' | 'accent' | 'danger' | 'danger-solid' | 'ghost' | 'link' | 'link-danger';
+export type ButtonVariant = 'secondary' | 'primary' | 'accent' | 'success' | 'danger' | 'danger-solid' | 'ghost' | 'link' | 'link-danger';
 
 /**
  * The height of a control. "sm" is 24 px, "md" is 28 px, and "lg" is 32 px.

@@ -72,7 +72,7 @@ export function RunIcon({ run }: { run: WorkflowRun }) {
 
 /** Returns the text and the chip tone of the state of a run. */
 function runState(run: WorkflowRun): { text: string; tone: ChipTone } {
-    if (run.status !== 'completed') return { text: run.status.replace('_', ' '), tone: run.status === 'in_progress' ? 'info' : 'neutral' };
+    if (run.status !== 'completed') return { text: run.status.replace('_', ' '), tone: run.status === 'in_progress' ? 'pending' : 'neutral' };
     switch (run.conclusion) {
         case 'success':
             return { text: 'success', tone: 'success' };

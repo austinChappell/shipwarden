@@ -192,7 +192,7 @@ function listText(items: readonly string[]): string {
 /** The tone of the chip of each plan status. */
 export const PLAN_STATUS_TONES: Record<PlanStatus, ChipTone> = {
     draft: 'neutral',
-    running: 'info',
+    running: 'pending',
     paused: 'warning',
     done: 'success'
 };
@@ -200,7 +200,7 @@ export const PLAN_STATUS_TONES: Record<PlanStatus, ChipTone> = {
 /** The tone of the chip of each step status. */
 const STEP_STATUS_TONES: Record<StepStatus, ChipTone> = {
     pending: 'neutral',
-    running: 'info',
+    running: 'pending',
     attention: 'warning',
     done: 'success',
     skipped: 'neutral',

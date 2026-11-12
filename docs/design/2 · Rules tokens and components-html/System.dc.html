@@ -29,6 +29,7 @@ a{color:#7DB2F5}a:hover{color:#A9CBF8}
 .p{background:#5B9DF0;color:#0A1324;font-weight:600}
 .s{background:#161D2B;border-color:#2E3A4D;color:#E6EAF2}
 .a{background:rgba(91,157,240,.16);color:#9CC4F7}
+.ok{background:#4CC38A;color:#08180F;font-weight:600}
 .d{background:#161D2B;border-color:#2E3A4D;color:#F59A9A}
 .ic{width:32px;padding:0;justify-content:center;background:transparent;color:#9AA4B5}
 .chip{height:20px;box-sizing:border-box;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
@@ -67,16 +68,26 @@ a{color:#7DB2F5}a:hover{color:#A9CBF8}
       <div class="sw"><b style="background: #9AA4B5"></b><span>text-secondary</span><span class="m" style="color: #7A8599">#9AA4B5</span></div>
       <div class="sw"><b style="background: #7A8599"></b><span>text-muted</span><span class="m" style="color: #7A8599">#7A8599 · 5.1:1</span></div>
     </div>
-    <p class="eb" style="padding-top: 8px">Color · meaning (reserved: never for labels)</p>
+    <p class="eb" style="padding-top: 8px">Color · accent (follows the theme, never a status)</p>
     <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 16px">
-      <div class="sw"><b style="background: #5B9DF0"></b><span>accent / needs review</span><span class="m" style="color: #7A8599">#5B9DF0</span></div>
-      <div class="sw"><b style="background: #4CC38A"></b><span>success / ready</span><span class="m" style="color: #7A8599">#4CC38A</span></div>
-      <div class="sw"><b style="background: #A78BFA"></b><span>review / changes req.</span><span class="m" style="color: #7A8599">#A78BFA</span></div>
-      <div class="sw"><b style="background: #E5A03A"></b><span>warning / conflict</span><span class="m" style="color: #7A8599">#E5A03A</span></div>
-      <div class="sw"><b style="background: #EF6B6B"></b><span>danger / blocked</span><span class="m" style="color: #7A8599">#EF6B6B</span></div>
-      <div class="sw"><b style="background: #6B7688"></b><span>stale</span><span class="m" style="color: #7A8599">#6B7688</span></div>
-      <div class="sw" style="grid-column: span 2"><b style="background: linear-gradient(90deg, #3B4A63 0 20%, #4A3F5E 20% 40%, #3F5446 40% 60%, #5A4A35 60% 80%, #3C5359 80%)"></b><span>label palette (task labels)</span><span style="color: #7A8599">Muted, low-chroma. Text #C9D1DD on all five.</span></div>
+      <div class="sw" style="grid-column: span 2"><b style="background: linear-gradient(90deg, #E6B450 0 16.6%, #5FC28A 16.6% 33.3%, #5AA9F5 33.3% 50%, #E5734F 50% 66.6%, #9FB4C8 66.6% 83.3%, #C78BF0 83.3%)"></b><span>accent</span><span class="m" style="color: #7A8599">One per theme: amber, green, blue, orange, steel, purple</span></div>
+      <div style="grid-column: span 6; display: flex; flex-direction: column; justify-content: center; gap: 6px; font-size: 13px; line-height: 1.6; color: #9AA4B5">
+        <span><span style="color: #E6EAF2; font-weight: 500">Use the accent for:</span> the focus ring, the selection, the active tab or pane, the primary button, the soft accent row action (Merge), a count that needs you, progress bars, drop targets, and the logo.</span>
+        <span><span style="color: #E6EAF2; font-weight: 500">Do not use the accent for a status.</span> The accent is green in one theme and purple in a different theme. A green “Working” looks like “Done”. A purple “Approve” looks like “Merge”.</span>
+      </div>
     </div>
+    <p class="eb" style="padding-top: 8px">Color · status (same meaning in every theme, never for labels)</p>
+    <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 16px">
+      <div class="sw"><b style="background: #E5A03A"></b><span>pending / working</span><span class="m" style="color: #7A8599">#E5A03A · runs, queued</span></div>
+      <div class="sw"><b style="background: #E5A03A"></b><span>warning / conflict</span><span class="m" style="color: #7A8599">#E5A03A · modified</span></div>
+      <div class="sw"><b style="background: #4CC38A"></b><span>success / done</span><span class="m" style="color: #7A8599">#4CC38A · approved</span></div>
+      <div class="sw"><b style="background: #EF6B6B"></b><span>danger / blocked</span><span class="m" style="color: #7A8599">#EF6B6B · waits for input</span></div>
+      <div class="sw"><b style="background: #5B9DF0"></b><span>info / needs review</span><span class="m" style="color: #7A8599">#5B9DF0 · waiting on you</span></div>
+      <div class="sw"><b style="background: #A78BFA"></b><span>review / merged</span><span class="m" style="color: #7A8599">#A78BFA · changes req.</span></div>
+      <div class="sw"><b style="background: #6B7688"></b><span>stale</span><span class="m" style="color: #7A8599">#6B7688</span></div>
+      <div class="sw"><b style="background: linear-gradient(90deg, #3B4A63 0 20%, #4A3F5E 20% 40%, #3F5446 40% 60%, #5A4A35 60% 80%, #3C5359 80%)"></b><span>label palette</span><span style="color: #7A8599">Muted. Text #C9D1DD.</span></div>
+    </div>
+    <p class="cap" style="margin: 0">Each theme can change the lightness of a status color for contrast. The hue stays the same. Pending and warning share the amber. In code: <span class="m">--pending</span>, <span class="m">--warning</span>, <span class="m">--ok</span>, <span class="m">--danger</span>, <span class="m">--info</span>, <span class="m">--purple</span>. A test (<span class="m">status-colors.test.ts</span>) fails when a status rule uses <span class="m">--accent</span>.</p>
   </section>
 
   <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
@@ -113,10 +124,11 @@ a{color:#7DB2F5}a:hover{color:#A9CBF8}
 
   <section class="panel sec">
     <p class="eb">Buttons</p>
-    <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; align-items: start">
+    <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 20px; align-items: start">
       <div style="display: flex; flex-direction: column; gap: 10px"><div><button type="button" class="btn p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>New note</button></div><span class="cap">Primary. One per view: the page's create/start, or the empty-state action.</span></div>
       <div style="display: flex; flex-direction: column; gap: 10px"><div><button type="button" class="btn s">Import</button></div><span class="cap">Secondary. Everything else, including Open, Choose…, Test.</span></div>
       <div style="display: flex; flex-direction: column; gap: 10px"><div><button type="button" class="btn sm a">Merge</button></div><span class="cap">Soft accent. The one recommended row action. Replaces the blue outline.</span></div>
+      <div style="display: flex; flex-direction: column; gap: 10px"><div><button type="button" class="btn ok"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Approve</button></div><span class="cap">Success. The green fill. Only for an action that gives a “done” status, for example Approve. Never the accent.</span></div>
       <div style="display: flex; flex-direction: column; gap: 10px"><div><button type="button" class="btn s d">Remove</button></div><span class="cap">Destructive. Red text; a filled red button only inside the confirm dialog.</span></div>
       <div style="display: flex; flex-direction: column; gap: 10px"><div style="display: flex; gap: 2px"><button type="button" class="btn ic" aria-label="Open on GitHub"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></button><button type="button" class="btn ic" aria-label="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-15.7-6L3 8M3 3v5h5M3 12a9 9 0 0 0 15.7 6L21 16M16 16h5v5"></path></svg></button></div><span class="cap">Icon. Grouped left of the primary; refresh last.</span></div>
       <div style="display: flex; flex-direction: column; gap: 10px"><div><button type="button" class="btn s" disabled="disabled" style="opacity: .4; cursor: default">Add rule</button></div><span class="cap">Disabled. Same style, 40% opacity. No second disabled look.</span></div>
@@ -130,6 +142,7 @@ a{color:#7DB2F5}a:hover{color:#A9CBF8}
       <div style="display: flex; flex-wrap: wrap; gap: 8px">
         <span class="chip n">Draft</span>
         <span class="chip i">Default</span>
+        <span class="chip w">Working</span>
         <span class="chip g">Passing</span>
         <span class="chip w">Conflict</span>
         <span class="chip w">No ticket</span>
@@ -146,7 +159,7 @@ a{color:#7DB2F5}a:hover{color:#A9CBF8}
         <span class="chip" style="background: #3F5446; color: #C9D1DD">api</span>
         <span class="chip" style="background: #5A4A35; color: #C9D1DD">bug</span>
       </div>
-      <p class="cap" style="margin: 0">20px, radius 6, soft fill, no border. Mono for identifiers. Task labels use the label palette. Outline exists only for git refs in the graph (main, origin/main).</p>
+      <p class="cap" style="margin: 0">20px, radius 6, soft fill, no border. A chip tone is a status color, never the accent: “Working” and “Running” are pending (amber). Mono for identifiers. Task labels use the label palette. Outline exists only for git refs in the graph (main, origin/main).</p>
     </section>
 
     <section class="panel sec">
