@@ -1,8 +1,13 @@
 import { useId, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { Bot, Check, LoaderCircle, MessageSquare } from 'lucide-react';
+import { Bot, Check, LoaderCircle, MessageSquare, X } from 'lucide-react';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, ReviewEvent } from '@shared/github';
 import { decisionEvents, firstUndecided, pendingText, REVIEW_EVENT_TEXT, reviewButtons, reviewEvents, undecidedText } from '../github/review-state';
+import { ButtonGroup } from './ButtonGroup';
 import { MentionTextarea } from './MentionTextarea';
+
+/** The tooltip of the buttons that start an agent review. */
+export const AGENT_REVIEW_TITLE =
+    'An agent reviews the changes. You accept or remove each of its comments. Nothing goes to GitHub until you submit the review.';
 
 interface Props {
     pr: PullRequest;
@@ -15,8 +20,38 @@ interface Props {
     busy: boolean;
     onSubmit(event: ReviewEvent): void;
     onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number, side?: DiffSide): void;
-    /** Starts an agent review. Without it, the card has no link for an agent review. */
-    agentReview?: { running: boolean; run(): void };
+    /** Starts and stops an agent review. Without it, the card has no Run agent review button. */
+    agentReview?: AgentReviewControl;
+}
+
+/** The state of the agent review of a pull request, and the functions that start and stop it. */
+export interface AgentReviewControl {
+    running: boolean;
+    run(): void;
+    cancel(): void;
+}
+
+/** The button that starts an agent review. While the review runs, it shows the progress and a Cancel button. */
+function AgentReviewButton({ control }: { control: AgentReviewControl }) {
+    if (control.running) {
+        return (
+            <ButtonGroup className="agent-review-button" label="Agent review">
+                <button className="button" disabled>
+                    <LoaderCircle size={13} className="spin" />
+                    Agent review in progress
+                </button>
+                <button className="button button-group-arrow" title="Cancel the agent review" aria-label="Cancel the agent review" onClick={control.cancel}>
+                    <X size={13} strokeWidth={1.8} />
+                </button>
+            </ButtonGroup>
+        );
+    }
+    return (
+        <button className="button agent-review-button" title={AGENT_REVIEW_TITLE} onClick={control.run}>
+            <Bot size={14} strokeWidth={1.6} />
+            Run agent review
+        </button>
+    );
 }
 
 /** The card where the user writes a review and submits it. The Overview tab shows it in the side column. */
@@ -93,9 +128,14 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
             <header className="side-card-header">
                 <span className="side-card-title">Your review</span>
                 <span className="header-spacer" />
-                {pr.viewerIsRequested && <span className="review-requested">Requested from you</span>}
+                {agentReview && <AgentReviewButton control={agentReview} />}
             </header>
-            {pendingPill && <div>{pendingPill}</div>}
+            {(pr.viewerIsRequested || pendingPill) && (
+                <div className="review-card-notes">
+                    {pr.viewerIsRequested && <span className="review-requested">Requested from you</span>}
+                    {pendingPill}
+                </div>
+            )}
             <label className="side-card-field" htmlFor={summaryId}>
                 <span>Summary (optional)</span>
                 <MentionTextarea
@@ -109,25 +149,12 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
             </label>
             {undecidedNote}
             <div className={`review-decisions count-${decisions.length}`}>{decisions.map(eventButton)}</div>
-            {(agentReview || decisions.length < events.length) && (
+            {decisions.length < events.length && (
                 <div className="review-card-foot">
-                    {agentReview && (
-                        <button
-                            className="link-button"
-                            title="An agent reviews the changes. You accept or remove each of its comments. Nothing goes to GitHub until you submit the review."
-                            disabled={agentReview.running}
-                            onClick={agentReview.run}
-                        >
-                            {agentReview.running ? <LoaderCircle size={13} className="spin" /> : <Bot size={13} strokeWidth={1.6} />}
-                            {agentReview.running ? 'The agent reviews the changes…' : 'Run agent review first'}
-                        </button>
-                    )}
                     <span className="header-spacer" />
-                    {decisions.length < events.length && (
-                        <span className="review-shortcut" title="Press ⌘↵ in the summary to submit a comment without a decision.">
-                            Comment only: ⌘↵
-                        </span>
-                    )}
+                    <span className="review-shortcut" title="Press ⌘↵ in the summary to submit a comment without a decision.">
+                        Comment only: ⌘↵
+                    </span>
                 </div>
             )}
         </section>

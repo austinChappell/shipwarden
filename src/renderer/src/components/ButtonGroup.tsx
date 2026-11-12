@@ -1,0 +1,117 @@
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { moveMenuFocus, useMenuClose } from './use-menu';
+
+/** The color of a button group. "merge" is the purple of the merge button. */
+export type ButtonGroupTone = 'default' | 'merge';
+
+interface GroupProps {
+    tone?: ButtonGroupTone;
+    className?: string;
+    /** The name of the group for a screen reader. */
+    label?: string;
+    children: ReactNode;
+}
+
+/**
+ * Buttons that show as one control. The group has the border. A line separates the buttons.
+ * Put `.button` elements in it. A menu in the group can use the group as its anchor.
+ */
+export function ButtonGroup({ tone = 'default', className, label, children }: GroupProps) {
+    return (
+        <div className={`button-group ${tone}${className ? ` ${className}` : ''}`} role="group" aria-label={label}>
+            {children}
+        </div>
+    );
+}
+
+/** An item of the menu of a split button. */
+export type SplitMenuItem =
+    | {
+          label: string;
+          icon?: ReactNode;
+          /** The key combination that also runs the item, for example "⌘O". */
+          shortcut?: string;
+          title?: string;
+          disabled?: boolean;
+          onSelect(): void;
+      }
+    | 'separator';
+
+interface SplitProps {
+    /** The main button. */
+    label: ReactNode;
+    icon?: ReactNode;
+    title?: string;
+    disabled?: boolean;
+    onClick(): void;
+    /** The items of the menu of the arrow button. */
+    items: SplitMenuItem[];
+    /** The tooltip of the arrow button. */
+    menuTitle: string;
+    tone?: ButtonGroupTone;
+    className?: string;
+    /** The side of the group where the menu opens. */
+    align?: 'left' | 'right';
+}
+
+/** A button group with a main button and an arrow button. The arrow button opens a menu of more actions. */
+export function SplitButton({ label, icon, title, disabled, onClick, items, menuTitle, tone, className, align = 'right' }: SplitProps) {
+    const [open, setOpen] = useState(false);
+    const root = useRef<HTMLDivElement>(null);
+    useMenuClose(open, root, () => setOpen(false));
+    useEffect(() => {
+        if (open) root.current?.querySelector<HTMLButtonElement>('.button-group-item:not(:disabled)')?.focus();
+    }, [open]);
+
+    return (
+        <div className="button-group-anchor" ref={root}>
+            <ButtonGroup tone={tone} className={className}>
+                <button className="button button-group-main" title={title} disabled={disabled} onClick={onClick}>
+                    {icon}
+                    {label}
+                </button>
+                <button
+                    className={`button button-group-arrow${open ? ' on' : ''}`}
+                    title={menuTitle}
+                    aria-label={menuTitle}
+                    aria-haspopup="menu"
+                    aria-expanded={open}
+                    onClick={() => setOpen(value => !value)}
+                >
+                    <ChevronDown size={14} strokeWidth={1.8} />
+                </button>
+            </ButtonGroup>
+            {open && (
+                <div
+                    className={`button-group-menu ${align}`}
+                    role="menu"
+                    onKeyDown={event => moveMenuFocus(event, [...(root.current?.querySelectorAll<HTMLElement>('.button-group-item:not(:disabled)') ?? [])])}
+                >
+                    {items.map((item, index) =>
+                        item === 'separator' ? (
+                            // biome-ignore lint/suspicious/noArrayIndexKey: The items of one menu do not change order while it is open.
+                            <div key={index} className="button-group-separator" role="separator" />
+                        ) : (
+                            <button
+                                key={item.label}
+                                className="button-group-item"
+                                role="menuitem"
+                                title={item.title}
+                                disabled={item.disabled}
+                                onClick={() => {
+                                    setOpen(false);
+                                    item.onSelect();
+                                }}
+                            >
+                                <span className="button-group-item-icon">{item.icon}</span>
+                                <span className="button-group-item-label">{item.label}</span>
+                                {item.shortcut && <kbd className="button-group-item-keys">{item.shortcut}</kbd>}
+                            </button>
+                        )
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}

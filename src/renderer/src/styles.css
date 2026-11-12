@@ -1443,6 +1443,133 @@ code {
     color: var(--purple);
 }
 
+/*
+ * A button group (ButtonGroup.tsx): buttons that show as one control.
+ * The group has the border and the corners. A line separates the buttons.
+ */
+.button-group {
+    --group-line: var(--border);
+    --group-hover: var(--hover);
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--group-line);
+    border-radius: 6px;
+    background: var(--raised);
+}
+
+.button-group.merge {
+    --group-line: color-mix(in srgb, var(--purple) 50%, transparent);
+    --group-hover: color-mix(in srgb, var(--purple) 15%, var(--raised));
+}
+
+.button-group > .button {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.button-group > .button:first-child {
+    border-top-left-radius: inherit;
+    border-bottom-left-radius: inherit;
+}
+
+.button-group > .button:last-child {
+    border-top-right-radius: inherit;
+    border-bottom-right-radius: inherit;
+}
+
+.button-group > .button + .button {
+    border-left: 1px solid var(--group-line);
+}
+
+.button-group > .button:not(:disabled):hover,
+.button-group > .button.on {
+    background: var(--group-hover);
+}
+
+.button-group > .button-group-arrow {
+    padding-right: 7px;
+    padding-left: 7px;
+}
+
+/* The wrapper of a split button. The menu opens below it. */
+.button-group-anchor {
+    position: relative;
+    display: inline-flex;
+}
+
+.button-group-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    z-index: 60;
+    min-width: 240px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--raised);
+    box-shadow: 0 10px 30px var(--shadow);
+}
+
+.button-group-menu.right {
+    right: 0;
+}
+
+.button-group-menu.left {
+    left: 0;
+}
+
+.button-group-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.button-group-item:not(:disabled):hover,
+.button-group-item:focus-visible {
+    background: var(--selected);
+    color: var(--text-strong);
+    outline: none;
+}
+
+.button-group-item:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.button-group-item-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 16px;
+    color: var(--muted);
+}
+
+.button-group-item-label {
+    flex: 1;
+}
+
+.button-group-item-keys {
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+}
+
+.button-group-separator {
+    height: 1px;
+    margin: 4px 2px;
+    background: var(--border);
+}
+
 .row-buttons {
     display: flex;
     flex-wrap: wrap;
@@ -6477,15 +6604,19 @@ button:focus-visible,
     padding: 14px 20px 18px;
 }
 
-.review-pr-title {
+/* The back link and the title at the left, the actions at the right. */
+.review-pr-top {
     display: flex;
     align-items: flex-start;
-    gap: 4px;
+    gap: 16px;
 }
 
-.review-pr-title h2 {
+.review-pr-heading {
     flex: 1;
     min-width: 0;
+}
+
+.review-pr-title {
     margin: 4px 0 0;
     color: var(--text-strong);
     font-size: 21px;
@@ -6497,6 +6628,14 @@ button:focus-visible,
 .review-pr-number {
     color: var(--muted);
     font-weight: 400;
+}
+
+/* The link to the pull request on the host, after the number. */
+.review-pr-host-link {
+    display: inline-grid;
+    vertical-align: middle;
+    margin-left: 2px;
+    color: var(--muted);
 }
 
 .review-pr-meta {
@@ -7266,36 +7405,6 @@ button:focus-visible,
     position: relative;
     display: inline-flex;
     border-radius: 6px;
-}
-
-/* With a menu, the wrapper has the border. The two parts show as one button with a line between them. */
-.merge-split.joined {
-    border: 1px solid color-mix(in srgb, var(--purple) 50%, transparent);
-    background: var(--raised);
-}
-
-.merge-split.joined > .button {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-}
-
-.merge-split.joined > .merge-split-main {
-    border-top-left-radius: inherit;
-    border-bottom-left-radius: inherit;
-}
-
-.merge-split.joined > .merge-split-arrow {
-    padding-right: 7px;
-    padding-left: 7px;
-    border-left: 1px solid color-mix(in srgb, var(--purple) 50%, transparent);
-    border-top-right-radius: inherit;
-    border-bottom-right-radius: inherit;
-}
-
-.merge-split.joined > .button:not(:disabled):hover,
-.merge-split.joined > .merge-split-arrow.on {
-    background: color-mix(in srgb, var(--purple) 15%, var(--raised));
 }
 
 /* The footer is at the bottom of the view, so the menu opens up. */
@@ -11530,25 +11639,38 @@ button.gg-ref:hover {
     display: flex;
     flex: none;
     gap: 8px;
-    margin-left: 12px;
 }
 
+.review-pr-actions .button-group {
+    border-radius: 8px;
+}
+
+/* The Refresh button at the right of the button group. It has the same height and border. */
 .review-pr-actions .icon-button {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--raised);
 }
 
-.review-pr-actions .icon-button:hover {
+.review-pr-actions .icon-button:not(:disabled):hover {
     border-color: var(--muted);
 }
 
-/* The link to the worktree of the head branch. It shows in place of the New worktree button. */
-.review-pr-actions .review-pr-worktree {
-    margin-right: 4px;
+/* The icon spins while the pull request loads. The button does not fade. */
+.review-pr-actions .icon-button:disabled {
+    opacity: 1;
+}
+
+.review-pr-actions .button {
+    min-height: 34px;
+    padding: 0 12px;
     font-size: 13px;
+}
+
+.review-pr-actions .button-group-arrow {
+    padding: 0 9px;
 }
 
 /* The strip below the title: review, checks, size and merge. */
@@ -11708,6 +11830,28 @@ button.pr-summary-cell:hover {
     font-size: 12.5px;
 }
 
+/* "Requested from you" and the count of pending comments, below the header of the review card. */
+.review-card-notes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.side-card-header .agent-review-button {
+    flex: none;
+    font-size: 12.5px;
+}
+
+.side-card-header .button.agent-review-button,
+.side-card-header .agent-review-button > .button {
+    padding: 4px 10px;
+}
+
+.side-card-header .agent-review-button > .button-group-arrow {
+    padding: 4px 7px;
+}
+
 .side-card-field {
     display: flex;
     flex-direction: column;
@@ -11750,16 +11894,17 @@ button.pr-summary-cell:hover {
     font-weight: 600;
 }
 
-/* The parts of a split button get their corners from the wrapper. */
+/* The parts of a button group get their corners from the group. */
 .pr-overview .review-decisions .button,
 .pr-overview .merge-card .merge-row > .button,
 .pr-overview .merge-card .merge-split,
-.pr-overview .merge-card .merge-split-main.alone {
+.pr-overview .merge-card .button-group,
+.pr-overview .merge-card .merge-split > .merge-split-main {
     border-radius: 8px;
 }
 
-/* The wrapper border adds 2px. The joined button then has the same height as the other buttons. */
-.pr-overview .merge-card .merge-split.joined > .button {
+/* The group border adds 2px. The grouped button then has the same height as the other buttons. */
+.pr-overview .merge-card .button-group > .button {
     min-height: 38px;
 }
 
@@ -11780,12 +11925,6 @@ button.pr-summary-cell:hover {
     align-items: center;
     gap: 8px;
     margin-top: -2px;
-    font-size: 12.5px;
-}
-
-.review-card-foot .link-button {
-    gap: 6px;
-    color: var(--info);
     font-size: 12.5px;
 }
 
@@ -11844,6 +11983,7 @@ button.pr-summary-cell:hover {
     flex: 1;
 }
 
+.side-card.merge-card .merge-row:not(:has(.auto-merge-button)) .button-group,
 .side-card.merge-card .merge-row:not(:has(.auto-merge-button)) .merge-split-main {
     flex: 1;
 }

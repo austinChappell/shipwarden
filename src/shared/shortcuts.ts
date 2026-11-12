@@ -138,6 +138,26 @@ export function isCommentKey(input: { key: string; code?: string; metaKey: boole
     return key === 'm' && input.metaKey && input.shiftKey && !input.ctrlKey && !input.altKey;
 }
 
+/** The keys of the header of a pull request in the Review view. */
+export type PullRequestKeyAction = 'openWorktree' | 'openOnHost';
+
+/**
+ * Returns the action of a key in the header of a pull request: ⌘O (open the worktree of the head branch) and ⇧⌘O (open
+ * the pull request on the host). Other keys return undefined.
+ */
+export function pullRequestKeyAction(input: {
+    key: string;
+    code?: string;
+    metaKey: boolean;
+    ctrlKey: boolean;
+    altKey: boolean;
+    shiftKey: boolean;
+}): PullRequestKeyAction | undefined {
+    const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
+    if (key !== 'o' || !input.metaKey || input.ctrlKey || input.altKey) return undefined;
+    return input.shiftKey ? 'openOnHost' : 'openWorktree';
+}
+
 /** The app keys of the macOS menu that the main process runs itself. */
 export type AppKeyAction = 'quit' | 'quitAndStop' | 'settings' | 'checkForUpdates' | 'hide';
 
@@ -291,7 +311,9 @@ export const APP_KEY_INFO: Record<AppKeyAction, ShortcutInfo> = {
 export const OTHER_KEY_INFO = {
     clear: { label: 'Clear the terminal screen and scrollback', keys: ['⌘K'], group: 'Terminal and review' },
     pasteImage: { label: 'Paste an image into Claude Code or Codex', keys: ['⌃V'], group: 'Terminal and review' },
-    comment: { label: 'Comment on the selected lines of a diff', keys: ['⇧⌘M'], group: 'Terminal and review' }
+    comment: { label: 'Comment on the selected lines of a diff', keys: ['⇧⌘M'], group: 'Terminal and review' },
+    openWorktree: { label: 'Open the worktree of a pull request', keys: ['⌘O'], group: 'Terminal and review' },
+    openOnHost: { label: 'Open a pull request on GitHub', keys: ['⇧⌘O'], group: 'Terminal and review' }
 } as const satisfies Record<string, ShortcutInfo>;
 
 /** Returns all shortcuts, in the order of the groups. Each entry is one action. */

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, Link, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { Worktree } from '@shared/worktrees';
@@ -16,7 +16,9 @@ import { PullRequestSummary } from './PullRequestSummary';
 import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
-import { CopyButton } from './CopyButton';
+import { AGENT_REVIEW_TITLE } from './PullRequestReviewCard';
+import { SplitButton, type SplitMenuItem } from './ButtonGroup';
+import { pullRequestKeyAction } from '@shared/shortcuts';
 import { HelmLoader } from './HelmLoader';
 import { FileExplorer } from './FileExplorer';
 import { ErrorBanner } from './ErrorBanner';
@@ -43,6 +45,24 @@ interface CodeHistory {
     back: CodeLocation[];
 }
 
+/** An action of the header of a pull request: the main button or an item of its menu. */
+type HeaderAction = Exclude<SplitMenuItem, 'separator'>;
+
+/** The handlers of ⌘O and ⇧⌘O. Undefined when the action is not available. */
+interface HeaderKeys {
+    openWorktree?(): void;
+    openOnHost?(): void;
+}
+
+/** Renders the component again each 30 seconds, so a relative time such as "synced 2m ago" stays correct. */
+function useTick(): void {
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        const timer = setInterval(() => setTick(value => value + 1), 30_000);
+        return () => clearInterval(timer);
+    }, []);
+}
+
 function readFileSide(): FileSide {
     try {
         return localStorage.getItem(FILE_SIDE_KEY) === 'all' ? 'all' : 'changed';
@@ -57,6 +77,8 @@ interface Props {
     status: BranchStatus | undefined;
     pr: PullRequest | undefined;
     loading: boolean;
+    /** The time of the last load of the pull request, in milliseconds. 0 or undefined when it did not load. */
+    syncedAt?: number;
     error?: string;
     onRefresh(): Promise<void>;
     /** Shows the list of pull requests again. */
@@ -189,6 +211,7 @@ export function ReviewPullRequest({
     status,
     pr,
     loading,
+    syncedAt,
     error,
     onRefresh,
     onBack,
@@ -205,6 +228,9 @@ export function ReviewPullRequest({
     const tab = routeTab ?? storedTab;
     const onSelectTabRef = useRef(onSelectTab);
     onSelectTabRef.current = onSelectTab;
+    // The render writes the newest handlers. The key listener attaches one time.
+    const headerKeys = useRef<HeaderKeys>({});
+    useTick();
     // The tab of the history entry stays when the user opens a different pull request without a tab.
     useEffect(() => {
         if (routeTab) setTab(routeTab);
@@ -298,6 +324,7 @@ export function ReviewPullRequest({
     };
 
     // ⌘F searches the changed files when no CI log owns ⌘F. The capture phase gets the key before a comment box can stop it.
+    // The listener also runs ⌘O and ⇧⌘O of the header.
     // biome-ignore lint/correctness/useExhaustiveDependencies: The listener attaches one time. selectTab uses only state setters and a ref, so the first copy is correct.
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
@@ -305,6 +332,14 @@ export function ReviewPullRequest({
                 event.preventDefault();
                 selectTab('files');
                 setFindRequest(Date.now());
+                return;
+            }
+            // ⌘O opens the worktree of the head branch. ⇧⌘O opens the pull request on GitHub.
+            const action = pullRequestKeyAction(event);
+            const run = action && headerKeys.current[action];
+            if (run) {
+                event.preventDefault();
+                run();
             }
         };
         window.addEventListener('keydown', onKey, true);
@@ -380,52 +415,86 @@ export function ReviewPullRequest({
     /** The code pane leaves space for the file list and for a narrow diff. */
     const codeMax = () => (document.querySelector<HTMLElement>('.pr-tab-body')?.offsetWidth ?? Infinity) - (fileListOpen ? sideWidth.width : 0) - 320;
 
+    const openOnHost = () => openLink(pr.url);
+    const runAgentReview = () => void reviewStore.runAgentReview(repo, pr);
+    /** Opens the worktree of the head branch, or makes one. A branch in a fork cannot get a worktree. */
+    const worktreeAction: HeaderAction | undefined = onNewWorktree && {
+        label: branchWorktree ? 'Open worktree' : 'New worktree',
+        icon: <FolderGit2 size={14} strokeWidth={1.6} />,
+        shortcut: '⌘O',
+        title: branchWorktree
+            ? `Open the worktree ${branchWorktree.path}`
+            : pr.isCrossRepository
+              ? `The branch ${pr.headRefName} is in a fork. ShipWarden can make a worktree only from a branch of origin.`
+              : `Make a worktree from the branch ${pr.headRefName}`,
+        disabled: !branchWorktree && pr.isCrossRepository,
+        onSelect: () => onNewWorktree(pr)
+    };
+    const pullAction: HeaderAction | undefined =
+        onPullRepo && inProject === false
+            ? {
+                  label: 'Pull into project',
+                  icon: <FolderInput size={14} strokeWidth={1.6} />,
+                  title: `No project has a clone of ${repo.owner}/${repo.name}. Clone it and add it to a project.`,
+                  onSelect: () => setPullOpen(true)
+              }
+            : undefined;
+    const hostAction: HeaderAction = {
+        label: 'Open on GitHub',
+        icon: <ExternalLink size={14} strokeWidth={1.6} />,
+        shortcut: '⇧⌘O',
+        onSelect: openOnHost
+    };
+    // Without a clone, the main button adds the repository to a project. Else it opens the worktree.
+    const mainAction = pullAction ?? (worktreeAction && !worktreeAction.disabled ? worktreeAction : hostAction);
+    const menuItems: SplitMenuItem[] = [
+        ...(pullAction ? [pullAction] : []),
+        ...(worktreeAction ? [worktreeAction] : []),
+        hostAction,
+        'separator',
+        {
+            label: 'Copy PR link',
+            icon: <Link size={14} strokeWidth={1.6} />,
+            onSelect: () => void navigator.clipboard.writeText(pr.url).catch(() => undefined)
+        },
+        ...(pr.state === 'OPEN'
+            ? [
+                  'separator' as const,
+                  {
+                      label: agentReview?.status === 'running' ? 'Agent review in progress' : 'Run agent review',
+                      icon: <Bot size={14} strokeWidth={1.6} />,
+                      title: AGENT_REVIEW_TITLE,
+                      disabled: agentReview?.status === 'running',
+                      onSelect: runAgentReview
+                  }
+              ]
+            : [])
+    ];
+    headerKeys.current = { openWorktree: worktreeAction?.disabled ? undefined : worktreeAction?.onSelect, openOnHost };
+
     return (
         <div className={`review-pr${tab === 'overview' ? ' overview' : ''}`}>
             <header className="review-pr-header">
-                {back}
-                <div className="review-pr-title">
-                    <h2>
-                        {pr.title} <span className="review-pr-number">#{pr.number}</span>
-                    </h2>
+                <div className="review-pr-top">
+                    <div className="review-pr-heading">
+                        {back}
+                        <h2 className="review-pr-title">
+                            {pr.title} <span className="review-pr-number">#{pr.number}</span>
+                            <button className="icon-button review-pr-host-link" title="Open on GitHub (⇧⌘O)" onClick={event => openLink(pr.url, event)}>
+                                <ExternalLink size={15} strokeWidth={1.6} />
+                            </button>
+                        </h2>
+                    </div>
                     <div className="review-pr-actions">
-                        {onPullRepo && inProject === false && (
-                            <button
-                                className="button"
-                                title={`No project has a clone of ${repo.owner}/${repo.name}. Clone it and add it to a project.`}
-                                onClick={() => setPullOpen(true)}
-                            >
-                                <FolderInput size={14} strokeWidth={1.6} /> Pull into project
-                            </button>
-                        )}
-                        {onNewWorktree && branchWorktree && (
-                            <button
-                                className="link-button review-pr-worktree"
-                                title={`Open the worktree ${branchWorktree.path}`}
-                                onClick={() => onNewWorktree(pr)}
-                            >
-                                <FolderGit2 size={14} strokeWidth={1.6} /> Open worktree
-                            </button>
-                        )}
-                        {onNewWorktree && !branchWorktree && (
-                            <button
-                                className="icon-button"
-                                title={
-                                    pr.isCrossRepository
-                                        ? `The branch ${pr.headRefName} is in a fork. ShipWarden can make a worktree only from a branch of origin.`
-                                        : `Make a worktree from the branch ${pr.headRefName}`
-                                }
-                                disabled={pr.isCrossRepository}
-                                onClick={() => onNewWorktree(pr)}
-                            >
-                                <FolderGit2 size={15} strokeWidth={1.6} />
-                            </button>
-                        )}
-                        <CopyButton text={pr.url} title="Copy the pull request URL" />
-                        <button className="icon-button" title="Open on GitHub" onClick={event => openLink(pr.url, event)}>
-                            <ExternalLink size={15} strokeWidth={1.6} />
-                        </button>
-                        <button className="icon-button" title="Refresh" onClick={() => onRefresh()}>
+                        <SplitButton
+                            label={mainAction.label}
+                            icon={mainAction.icon}
+                            title={mainAction.title}
+                            onClick={mainAction.onSelect}
+                            items={menuItems}
+                            menuTitle="More actions for this pull request"
+                        />
+                        <button className="icon-button" title="Refresh" disabled={loading} onClick={() => void onRefresh()}>
                             <RefreshCw size={15} strokeWidth={1.6} className={loading ? 'spin' : ''} />
                         </button>
                     </div>
@@ -438,20 +507,26 @@ export function ReviewPullRequest({
                         {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} {pr.commitCount} commit
                         {pr.commitCount === 1 ? '' : 's'} into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
                         <span className="dot-separator">·</span>
-                        {timeAgo(pr.createdAt)}
+                        opened {timeAgo(pr.createdAt)}
+                        {syncedAt ? (
+                            <>
+                                <span className="dot-separator">·</span>
+                                synced {timeAgo(new Date(syncedAt).toISOString())}
+                            </>
+                        ) : null}
                     </span>
                 </div>
-                {agentReview && (
+                {agentReview?.status === 'running' && tab !== 'overview' && (
+                    <div className="agent-review-status running" role="status">
+                        <LoaderCircle size={13} className="spin" />
+                        <span>Agent review in progress</span>
+                        <button className="link-button" onClick={() => reviewStore.cancelAgentReview(repo, pr.number)}>
+                            Cancel
+                        </button>
+                    </div>
+                )}
+                {agentReview && agentReview.status !== 'running' && (
                     <div className={`agent-review-status ${agentReview.status}`}>
-                        {agentReview.status === 'running' && (
-                            <>
-                                <LoaderCircle size={13} className="spin" />
-                                <span>The agent reviews the changes. This can take a few minutes.</span>
-                                <button className="link-button" onClick={() => reviewStore.cancelAgentReview(repo, pr.number)}>
-                                    Cancel
-                                </button>
-                            </>
-                        )}
                         {agentReview.status === 'done' && (
                             <>
                                 <Bot size={13} strokeWidth={1.6} />
@@ -472,11 +547,9 @@ export function ReviewPullRequest({
                             </>
                         )}
                         {agentReview.status === 'error' && <span className="agent-review-error">The agent review failed: {agentReview.error}</span>}
-                        {agentReview.status !== 'running' && (
-                            <button className="icon-button" title="Close" onClick={() => reviewStore.dismissAgentReview(repo, pr.number)}>
-                                <X size={13} />
-                            </button>
-                        )}
+                        <button className="icon-button" title="Close" onClick={() => reviewStore.dismissAgentReview(repo, pr.number)}>
+                            <X size={13} />
+                        </button>
                     </div>
                 )}
                 <PullRequestSummary pr={pr} checks={checkCounts} onSelectTab={selectTab} />
@@ -515,7 +588,8 @@ export function ReviewPullRequest({
                             onSendChecksToAgent={inProject && onSendChecksToAgent ? checks => onSendChecksToAgent(pr, checks) : undefined}
                             agentReview={{
                                 running: agentReview?.status === 'running',
-                                run: () => void reviewStore.runAgentReview(repo, pr)
+                                run: runAgentReview,
+                                cancel: () => reviewStore.cancelAgentReview(repo, pr.number)
                             }}
                         />
                     </div>

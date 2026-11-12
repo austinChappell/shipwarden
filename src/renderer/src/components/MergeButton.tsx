@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, GitMerge } from 'lucide-react';
 import type { MergeMethod } from '@shared/github';
 import { MERGE_LABELS } from '../github/merge-state';
+import { ButtonGroup } from './ButtonGroup';
 import { useMenuClose } from './use-menu';
 
 export { MERGE_LABELS };
@@ -50,22 +51,29 @@ export function MergeButton({ methods, method, label, disabled, title, onSelect,
     };
 
     const choice = methods.length > 1;
+    const main = (
+        <button className="button merge merge-split-main" disabled={disabled} title={title} onClick={onRun}>
+            <GitMerge size={14} strokeWidth={1.8} />
+            {label ?? BUTTON_LABELS[method]}
+        </button>
+    );
     return (
-        <div className={`merge-split${choice ? ' joined' : ''}`} ref={root}>
-            <button className={`button merge merge-split-main${choice ? '' : ' alone'}`} disabled={disabled} title={title} onClick={onRun}>
-                <GitMerge size={14} strokeWidth={1.8} />
-                {label ?? BUTTON_LABELS[method]}
-            </button>
-            {choice && (
-                <button
-                    className={`button merge merge-split-arrow${open ? ' on' : ''}`}
-                    title="Select the merge method"
-                    aria-haspopup="menu"
-                    aria-expanded={open}
-                    onClick={() => setOpen(value => !value)}
-                >
-                    <ChevronDown size={14} strokeWidth={1.8} />
-                </button>
+        <div className="merge-split" ref={root}>
+            {choice ? (
+                <ButtonGroup tone="merge">
+                    {main}
+                    <button
+                        className={`button merge button-group-arrow${open ? ' on' : ''}`}
+                        title="Select the merge method"
+                        aria-haspopup="menu"
+                        aria-expanded={open}
+                        onClick={() => setOpen(value => !value)}
+                    >
+                        <ChevronDown size={14} strokeWidth={1.8} />
+                    </button>
+                </ButtonGroup>
+            ) : (
+                main
             )}
             {open && (
                 <div className="new-tab-menu merge-menu" role="menu" onKeyDown={onMenuKey}>
