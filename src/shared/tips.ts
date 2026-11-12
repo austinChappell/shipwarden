@@ -3,12 +3,16 @@ import type { OnboardingSettings } from './onboarding';
 /** A view that a tip can open. */
 export type TipView = 'dashboard' | 'agents' | 'tasks' | 'review' | 'pipelines' | 'notes' | 'automations';
 
-/** The button of a tip: it opens a view, a settings section, the New worktree dialog, or the keyboard shortcuts. */
+/**
+ * The button of a tip: it opens a view, a settings section, the New worktree dialog, the keyboard shortcuts, or the
+ * command palette.
+ */
 export type TipAction =
     | { kind: 'view'; view: TipView; label: string }
     | { kind: 'settings'; section: string; label: string }
     | { kind: 'newWorktree'; label: string }
-    | { kind: 'shortcuts'; label: string };
+    | { kind: 'shortcuts'; label: string }
+    | { kind: 'commandPalette'; label: string };
 
 export interface Tip {
     id: string;
@@ -80,6 +84,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         title: 'Open each view with the keyboard',
         body: '⌥⌘1 to ⌥⌘7 open Dashboard, Agents, Tasks, Review, Pipelines, Notes, and Automations. ⌘[ and ⌘] go back and forward.',
         action: { kind: 'shortcuts', label: 'Keyboard shortcuts' }
+    },
+    {
+        id: 'commandPalette',
+        title: 'Do it from the command palette',
+        body: 'Press ⇧⌘P and type. Create, open, or remove a worktree, open a pull request, a plan, or a note, change the theme, and more.',
+        action: { kind: 'commandPalette', label: 'Open the command palette' }
     },
     {
         id: 'quit',
