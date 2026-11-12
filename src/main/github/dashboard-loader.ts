@@ -20,6 +20,12 @@ const DASHBOARD_SUMMARY_FIELDS = `
   author { login }
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
 
+/**
+ * The fields of the comment searches. The comments come from a second query, so these searches need only the
+ * identity of each pull request. GitHub calculates the merge state and the CI state slowly, so these searches do not ask for them.
+ */
+const DASHBOARD_COMMENT_SEARCH_FIELDS = 'id number title url state updatedAt repository { name owner { login } }';
+
 /** The comments of pull requests by node ID. The Dashboard asks only for pull requests that changed. */
 const DASHBOARD_COMMENTS_QUERY = `query($ids: [ID!]!) { nodes(ids: $ids) { ... on PullRequest {
   id updatedAt
@@ -28,10 +34,16 @@ const DASHBOARD_COMMENTS_QUERY = `query($ids: [ID!]!) { nodes(ids: $ids) { ... o
   reviewThreads(last: 30) { nodes { path comments(last: 10) { nodes { ${DASHBOARD_COMMENT_FIELDS} } } } }
 } } }`;
 
-/** The number of pull requests in one request for comments. A larger request can pass the time limit of GitHub. */
-const DASHBOARD_COMMENTS_BATCH = 10;
+/**
+ * The number of pull requests in one request for comments. A larger request can pass the time limit of GitHub (502).
+ * A request that passes the time limit also counts for the secondary rate limit.
+ */
+const DASHBOARD_COMMENTS_BATCH = 5;
 
-function dashboardRepo(pr: DashboardPr): RepoRef {
+/** The number of the user's pull requests in the Dashboard. Each one asks for its review threads, so a larger number makes a slow query. */
+const MY_PULL_REQUESTS_LIMIT = 50;
+
+function dashboardRepo(pr: Pick<DashboardPr, 'repository'>): RepoRef {
     return { owner: pr.repository.owner.login, name: pr.repository.name };
 }
 
@@ -44,8 +56,8 @@ const DASHBOARD_ACTIVITY_FIELDS = `
 /** The unresolved review threads of the user's pull requests. Only the search for the user's pull requests asks for them. */
 const DASHBOARD_THREAD_FIELDS = 'reviewThreads(first: 100) { nodes { isResolved } }';
 
-function dashboardSearch(first: number, extraFields = ''): string {
-    return `query($q: String!) { viewer { login } search(query: $q, type: ISSUE, first: ${first}) { nodes { ... on PullRequest { ${DASHBOARD_SUMMARY_FIELDS} ${extraFields} } } } }`;
+function dashboardSearch(first: number, fields: string): string {
+    return `query($q: String!) { viewer { login } search(query: $q, type: ISSUE, first: ${first}) { nodes { ... on PullRequest { ${fields} } } } }`;
 }
 
 interface DashboardComment {
@@ -79,6 +91,9 @@ interface DashboardPr {
     comments?: { nodes: { createdAt: string; author: { __typename?: string; login: string } | null }[] };
     reviews?: { nodes: { submittedAt: string | null; author: { __typename?: string; login: string } | null }[] };
 }
+
+/** A pull request of a comment search. It has only the fields of `DASHBOARD_COMMENT_SEARCH_FIELDS`. */
+type DashboardCommentPr = Pick<DashboardPr, 'id' | 'number' | 'title' | 'url' | 'state' | 'updatedAt' | 'repository'>;
 
 /** Returns the new activity after the last review of the viewer, or undefined when the pull request has none. */
 function reviewActivity(pr: DashboardPr, viewer: string): ReviewActivity | undefined {
@@ -124,7 +139,7 @@ export class DashboardLoader {
         const scope = `${ownerQualifiers(owners)} archived:false is:pr`.trim();
         const [review, mine, reviewed] = await Promise.all([
             this.dashboardSearch(`${scope} is:open draft:false review-requested:@me sort:updated-desc`, 100),
-            this.dashboardSearch(`${scope} is:open author:@me sort:updated-desc`, 100, DASHBOARD_THREAD_FIELDS),
+            this.dashboardSearch(`${scope} is:open author:@me sort:updated-desc`, MY_PULL_REQUESTS_LIMIT, DASHBOARD_THREAD_FIELDS),
             this.dashboardSearch(`${scope} is:open draft:false reviewed-by:@me -author:@me sort:updated-desc`, 50, DASHBOARD_ACTIVITY_FIELDS)
         ]);
         const item = (pr: DashboardPr): ReviewRequestItem => ({
@@ -170,12 +185,12 @@ export class DashboardLoader {
         const since = new Date(Date.now() - DASHBOARD_WINDOW_DAYS * 24 * 3600 * 1000);
         const recent = `${ownerQualifiers(owners)} archived:false is:pr updated:>=${since.toISOString().slice(0, 10)} sort:updated-desc`.trim();
         const results = await Promise.all([
-            this.dashboardSearch(`${recent} author:@me`, 30),
-            this.dashboardSearch(`${recent} commenter:@me`, 30),
-            this.dashboardSearch(`${recent} reviewed-by:@me`, 30)
+            this.dashboardCommentSearch(`${recent} author:@me`),
+            this.dashboardCommentSearch(`${recent} commenter:@me`),
+            this.dashboardCommentSearch(`${recent} reviewed-by:@me`)
         ]);
         const viewer = results[0].viewer;
-        const involved = new Map<string, DashboardPr>();
+        const involved = new Map<string, DashboardCommentPr>();
         for (const pr of results.flatMap(result => result.prs)) {
             involved.set(pr.id, pr);
         }
@@ -221,20 +236,31 @@ export class DashboardLoader {
         return [...comments.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     }
 
-    private async dashboardSearch(q: string, first: number, extraFields?: string): Promise<{ viewer: string; prs: DashboardPr[] }> {
-        const data = await this.client.graphql<{ viewer: { login: string }; search: { nodes: (DashboardPr | Record<string, never>)[] } }>(
-            dashboardSearch(first, extraFields),
-            { q }
+    private dashboardSearch(q: string, first: number, extraFields = ''): Promise<{ viewer: string; prs: DashboardPr[] }> {
+        return this.search<DashboardPr>(q, first, `${DASHBOARD_SUMMARY_FIELDS} ${extraFields}`);
+    }
+
+    /** Finds the pull requests of a comment search, with only the fields that the comment list needs. */
+    private dashboardCommentSearch(q: string): Promise<{ viewer: string; prs: DashboardCommentPr[] }> {
+        return this.search<DashboardCommentPr>(q, 30, DASHBOARD_COMMENT_SEARCH_FIELDS);
+    }
+
+    private async search<T extends { number: number }>(q: string, first: number, fields: string): Promise<{ viewer: string; prs: T[] }> {
+        const data = await this.client.graphql<{ viewer: { login: string }; search: { nodes: (T | Record<string, never>)[] } }>(
+            dashboardSearch(first, fields),
+            {
+                q
+            }
         );
-        return { viewer: data.viewer.login, prs: data.search.nodes.filter((node): node is DashboardPr => 'number' in node) };
+        return { viewer: data.viewer.login, prs: data.search.nodes.filter((node): node is T => 'number' in node) };
     }
 
     /**
-     * Loads the comments of the pull requests that changed since the last load, 10 pull requests in each request.
+     * Loads the comments of the pull requests that changed since the last load, 5 pull requests in each request.
      * A failed request fails the load. The pull requests of the batches that loaded keep their comments.
      * The comments of a pull request without a change come from memory, so a refresh is cheap.
      */
-    private async loadDashboardComments(prs: DashboardPr[]): Promise<void> {
+    private async loadDashboardComments(prs: DashboardCommentPr[]): Promise<void> {
         const changed = prs.filter(pr => this.dashboardCommentCache.get(pr.id)?.updatedAt !== pr.updatedAt).map(pr => pr.id);
         const batches: string[][] = [];
         for (let index = 0; index < changed.length; index += DASHBOARD_COMMENTS_BATCH) {

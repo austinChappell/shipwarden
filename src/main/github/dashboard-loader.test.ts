@@ -156,11 +156,11 @@ describe('DashboardLoader.dashboardComments', () => {
         expect(calls.filter(call => queryHas(call, 'nodes(ids:')).map(call => call.body)).toEqual([{ ids: ['P1'] }]);
     });
 
-    it('asks for the comments of at most 10 pull requests in one request', async () => {
+    it('asks for the comments of at most 5 pull requests in one request', async () => {
         const many = Array.from({ length: 23 }, (_, index) => pr(`P${index + 1}`));
         const { client, calls } = fakeClient(call => (queryHas(call, 'nodes(ids:') ? { nodes: [] } : { viewer: { login: 'me' }, search: { nodes: many } }));
         await new DashboardLoader(client).dashboardComments(undefined);
         const sizes = calls.filter(call => queryHas(call, 'nodes(ids:')).map(call => (call.body as { ids: string[] }).ids.length);
-        expect(sizes.sort((a, b) => a - b)).toEqual([3, 10, 10]);
+        expect(sizes.sort((a, b) => a - b)).toEqual([3, 5, 5, 5, 5]);
     });
 });
