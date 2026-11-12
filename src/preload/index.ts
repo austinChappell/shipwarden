@@ -174,6 +174,13 @@ const api: ShipWardenApi = {
         explore: request => ipcRenderer.invoke(IpcChannels.plansExplore, request),
         cancelExplore: id => ipcRenderer.invoke(IpcChannels.plansCancelExplore, id)
     },
+    prGroups: {
+        list: () => ipcRenderer.invoke(IpcChannels.prGroupsList),
+        save: group => ipcRenderer.invoke(IpcChannels.prGroupsSave, group),
+        remove: id => ipcRenderer.invoke(IpcChannels.prGroupsRemove, id),
+        review: request => ipcRenderer.invoke(IpcChannels.prGroupsReview, request),
+        cancelReview: id => ipcRenderer.invoke(IpcChannels.prGroupsCancelReview, id)
+    },
     automations: {
         list: () => ipcRenderer.invoke(IpcChannels.automationsList),
         save: (automation, previousId) => ipcRenderer.invoke(IpcChannels.automationsSave, automation, previousId),

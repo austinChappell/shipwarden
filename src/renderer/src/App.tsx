@@ -25,7 +25,7 @@ import { readSettingsSection, SETTINGS_SECTIONS, SettingsView } from './componen
 import { AgentsView } from './components/AgentsView';
 import { NewTabMenu } from './components/NewTabMenu';
 import { ReviewView } from './components/ReviewView';
-import { reviewPage } from './app/review-page';
+import { groupPage, reviewPage } from './app/review-page';
 import { DashboardView, type ReviewTabRequest } from './components/DashboardView';
 import { NotesView } from './components/NotesView';
 import { AutomationsView, type AutomationRequest } from './automations/AutomationsView';
@@ -334,6 +334,12 @@ export function App() {
             return;
         }
         setRoute('review', { page: reviewPage(repoId(repo), number), query: { tab } });
+        setMainView('review');
+    };
+
+    /** Opens the page of a PR group in the Review view. */
+    const openPrGroup = (id: string) => {
+        setRoute('review', { page: groupPage(id) });
         setMainView('review');
     };
 
@@ -958,6 +964,7 @@ export function App() {
                                 route={routeOf('plans')}
                                 onRoute={route => setRoute('plans', route)}
                                 onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
+                                onOpenGroup={openPrGroup}
                             />
                         </main>
                     )}

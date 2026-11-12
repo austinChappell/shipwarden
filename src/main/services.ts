@@ -22,6 +22,7 @@ import { TrustedCertificates } from './network/trusted-certificates';
 import { NotesService } from './notes/notes-service';
 import { AutomationStore } from './automations/automation-store';
 import { PlanStore } from './plans/plan-store';
+import { PrGroupStore } from './pr-groups/pr-group-store';
 import { LEGACY_NAMES } from './legacy-migration';
 import { NotificationService } from './notifications';
 import { buildSocketPath, ptyHostSocketFolder, ptyHostSocketPath } from './pty-host/protocol';
@@ -380,6 +381,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
 
     const askRunner = new AskAgentRunner();
     const plans = new PlanStore(join(userData, 'plans.json'));
+    const prGroups = new PrGroupStore(join(userData, 'pr-groups.json'));
     const confirm = new ConfirmDialogs(() => window.get());
     const hookPaths = hookSettingsPaths(userData);
     /** The shell setup that adds the hook settings to a `claude`, `gemini` or `opencode` that the user types in a shell tab. */
@@ -422,6 +424,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         projectWorktrees,
         askRunner,
         plans,
+        prGroups,
         confirm,
         hookPaths,
         shellIntegration,

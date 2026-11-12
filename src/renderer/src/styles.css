@@ -10947,6 +10947,127 @@ button.pr-summary-cell:hover {
     flex-direction: column;
 }
 
+/* PR groups: a saved list of pull requests that an agent reviews together. */
+.review-section-title .button {
+    margin: -4px 0;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+.review-group-page {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.review-group-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.review-group-status {
+    margin: 0 0 16px;
+}
+
+.review-group-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.review-group-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border);
+}
+
+.review-group-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px 8px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.review-group-open {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.review-group-open:hover .review-group-title {
+    text-decoration: underline;
+}
+
+.review-group-repo {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.review-group-title {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.review-group-meta {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.review-group-tools {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.review-group-result {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.review-group-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.review-group-add .input {
+    flex: 1;
+    min-width: 0;
+}
+
+.review-group-summary {
+    margin-bottom: 12px;
+}
+
+.add-group-dialog {
+    width: min(480px, calc(100vw - 32px));
+}
+
+.add-group-dialog .modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
 .review-home-body {
     flex: 1;
     min-height: 0;

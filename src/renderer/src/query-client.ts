@@ -83,7 +83,9 @@ export const keyRoots = {
     /** The app version, the data folder and the login name. Local data: no request goes to a service. */
     appInfo: ['appInfo'],
     /** The plans of the projects. Local data: no request goes to a service. */
-    plans: ['plans']
+    plans: ['plans'],
+    /** The PR groups of the Review view. Local data: no request goes to a service. */
+    prGroups: ['prGroups']
 } as const;
 
 /** The roots that a change to a pull request, a branch or a CI run can make stale. */

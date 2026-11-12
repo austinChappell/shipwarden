@@ -56,6 +56,7 @@ import type { BrowserBounds, BrowserState } from './browser';
 import type { Automation, AutomationList, AutomationRun, AutomationRunState, HttpMethod, TokenCount } from './automations';
 import type { HttpResponse } from './automation-templates';
 import type { Plan, PlanExploreRequest, PlanExploreResult } from './plans';
+import type { GroupReviewAnswer, GroupReviewRequest, PrGroup } from './pr-groups';
 
 /** Where a click on a notification goes. */
 export type NotificationTarget = { view: 'worktree'; worktreePath: string; sessionId?: string } | { view: 'dashboard' } | { view: 'automations' };
@@ -362,6 +363,20 @@ export interface ShipWardenApi {
         explore(request: PlanExploreRequest): Promise<PlanExploreResult>;
         /** Stops an exploration that runs. */
         cancelExplore(id: string): Promise<void>;
+    };
+    prGroups: {
+        /** The PR groups of the Review view, the newest change first. */
+        list(): Promise<PrGroup[]>;
+        /** Writes a group and returns the saved copy. */
+        save(group: PrGroup): Promise<PrGroup>;
+        remove(id: string): Promise<void>;
+        /**
+         * Makes a local copy of each pull request, and runs the agent in print mode on all copies.
+         * The agent does not change files and posts nothing.
+         */
+        review(request: GroupReviewRequest): Promise<GroupReviewAnswer>;
+        /** Stops a group review that runs. */
+        cancelReview(id: string): Promise<void>;
     };
     automations: {
         /** The automations in ~/.shipwarden/automations, and the files that ShipWarden could not read. */
@@ -694,6 +709,11 @@ export const IpcChannels = {
     plansRemove: 'plans:remove',
     plansExplore: 'plans:explore',
     plansCancelExplore: 'plans:cancelExplore',
+    prGroupsList: 'prGroups:list',
+    prGroupsSave: 'prGroups:save',
+    prGroupsRemove: 'prGroups:remove',
+    prGroupsReview: 'prGroups:review',
+    prGroupsCancelReview: 'prGroups:cancelReview',
     automationsList: 'automations:list',
     automationsSave: 'automations:save',
     automationsRemove: 'automations:remove',

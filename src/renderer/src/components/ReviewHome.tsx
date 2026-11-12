@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { CircleCheck, CircleX, Clock, FolderGit2, GitPullRequest, RefreshCw } from 'lucide-react';
+import { CircleCheck, CircleX, Clock, FolderGit2, GitPullRequest, Plus, RefreshCw } from 'lucide-react';
 import { parseRepoId, repoId, repoLabel } from '@shared/github';
 import { isWaiting, summarizeRepo, type QueueItem, type RepoReviewSummary } from '@shared/review-queue';
 import { formatAgo, pluralize } from '@shared/format';
@@ -8,6 +8,8 @@ import { timeAgo } from '../util';
 import { focusFirstItem, moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
 import { refreshReviewOverview, useReviewOverview } from '../github/review-overview-store';
+import { useGroups } from '../github/pr-group-store';
+import { groupSize, type PrGroup } from '@shared/pr-groups';
 import { CountPill, Dotted, KeyLegend, useInitialFocus, usePageKeys } from './ReviewParts';
 import { EmptyState } from './EmptyState';
 import { Age, Button, ButtonGroup, Count, FilterField, IconButton, PageHeader, SkeletonRows } from './ui';
@@ -19,6 +21,10 @@ interface Props {
     onSelect(repo: string): void;
     onStartQueue(): void;
     onOpenSettings(): void;
+    /** Opens the page of a PR group. */
+    onOpenGroup(id: string): void;
+    /** Makes a new PR group and opens its page. */
+    onNewGroup(): void;
 }
 
 /** "In projects" or "All". It stays for the session. */
@@ -42,6 +48,12 @@ function label(id: string): string {
 function matches(id: string, words: string[]): boolean {
     const text = id.toLowerCase();
     return words.every(word => text.includes(word));
+}
+
+/** Returns "3 PRs in 2 repositories · reviewed 2h ago". */
+function groupMeta(group: PrGroup): string {
+    const size = groupSize(group);
+    return group.lastReview ? `${size} · reviewed ${formatAgo(new Date(group.lastReview.at).toISOString())}` : size;
 }
 
 function RepoChecks({ summary }: { summary: RepoReviewSummary }) {
@@ -74,7 +86,8 @@ function RepoChecks({ summary }: { summary: RepoReviewSummary }) {
  * The entry page of the Review view. The top part shows the repositories with pull requests that wait on the user.
  * The bottom part shows the other repositories: of the projects, or all repositories of the providers.
  */
-export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSettings }: Props) {
+export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSettings, onOpenGroup, onNewGroup }: Props) {
+    const { groups } = useGroups();
     const state = useReviewOverview();
     const [query, setQuery] = useState('');
     const [mode, setModeState] = useState<'projects' | 'all'>(savedMode ?? 'projects');
@@ -121,6 +134,7 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
             });
     }, [all, state.catalog, state.projectRepos, state.repos, waiting, isSeen]);
 
+    const shownGroups = groups.filter(group => matches(group.name, words));
     const shownWaiting = waiting.filter(row => matches(row.id, words));
     const shownIdle = idle.filter(row => matches(row.id, words));
     const reviewRepos = waiting.filter(row => row.summary.toReview + row.summary.reReview > 0);
@@ -216,6 +230,29 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                     >
                         The selected organizations have no repositories that you can access.
                     </EmptyState>
+                )}
+
+                {(shownGroups.length > 0 || words.length === 0) && (
+                    <section aria-label="PR groups">
+                        <h3 className="review-section-title">
+                            PR groups <Count value={shownGroups.length} />
+                            <span className="header-spacer" />
+                            <Button size="sm" variant="ghost" icon={<Plus size={14} />} onClick={onNewGroup}>
+                                New group
+                            </Button>
+                        </h3>
+                        {shownGroups.length === 0 && (
+                            <p className="review-waiting-note">
+                                Put pull requests that belong together in a group. An agent then reviews them together, also across repositories.
+                            </p>
+                        )}
+                        {shownGroups.map(group => (
+                            <button key={group.id} className="review-idle-row" data-nav-item onClick={() => onOpenGroup(group.id)}>
+                                <span className="review-idle-name">{group.name}</span>
+                                <span className="review-idle-meta">{groupMeta(group)}</span>
+                            </button>
+                        ))}
+                    </section>
                 )}
 
                 {shownWaiting.length > 0 && (

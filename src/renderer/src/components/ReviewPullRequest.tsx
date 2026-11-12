@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, Link, ListChecks, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, Layers, Link, ListChecks, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import { pluralize } from '@shared/format';
 import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
@@ -30,6 +30,7 @@ import { lspBridge } from '../lsp/bridge';
 import { documents } from '../editor/documents';
 import { moveTabFocus } from '../tablist';
 import { PullRepoDialog } from './PullRepoDialog';
+import { AddToGroupDialog } from './AddToGroupDialog';
 import { isFindShortcut, openLogFind } from './log-find';
 import { findRequest as makeFindRequest, type FindRequest } from './selected-text';
 
@@ -108,6 +109,8 @@ interface Props {
     projects?: ProjectsState;
     /** Adds the repository to a project. Without it, the "Pull into project" button does not show. */
     onPullRepo?(target: PullRepoTarget): Promise<boolean>;
+    /** Opens the page of a PR group. Without it, the "Add to a PR group" item does not show. */
+    onOpenGroup?(id: string): void;
 }
 
 /**
@@ -222,7 +225,8 @@ export function ReviewPullRequest({
     onSendLogToAgent,
     onSendChecksToAgent,
     projects,
-    onPullRepo
+    onPullRepo,
+    onOpenGroup
 }: Props) {
     const [storedTab, setTab] = useState<ReviewTab>(readTab);
     const tab = routeTab ?? storedTab;
@@ -245,6 +249,7 @@ export function ReviewPullRequest({
     const inProject = clone === undefined ? undefined : clone !== null;
     const branchWorktree = useBranchWorktree(clone, pr?.headRefName);
     const [pullOpen, setPullOpen] = useState(false);
+    const [groupOpen, setGroupOpen] = useState(false);
     const [file, setFile] = useState<{ file: PullRequestFile; line?: number; side?: DiffSide; nonce: number }>();
     const [check, setCheck] = useState<CheckRun>();
     const [fileError, setFileError] = useState<string>();
@@ -466,6 +471,16 @@ export function ReviewPullRequest({
             icon: <Link size={14} strokeWidth={1.6} />,
             onSelect: () => void navigator.clipboard.writeText(pr.url).catch(() => undefined)
         },
+        ...(onOpenGroup
+            ? [
+                  {
+                      label: 'Add to a PR group…',
+                      icon: <Layers size={14} strokeWidth={1.6} />,
+                      title: 'An agent reviews the pull requests of a group together, also across repositories.',
+                      onSelect: () => setGroupOpen(true)
+                  }
+              ]
+            : []),
         ...(pr.state === 'OPEN'
             ? [
                   'separator' as const,
@@ -567,6 +582,7 @@ export function ReviewPullRequest({
                 )}
                 <PullRequestSummary pr={pr} checks={checkCounts} onSelectTab={selectTab} />
             </header>
+            {groupOpen && onOpenGroup && <AddToGroupDialog repo={repo} pr={pr} onClose={() => setGroupOpen(false)} onOpenGroup={onOpenGroup} />}
             {pullOpen && onPullRepo && projects && (
                 <PullRepoDialog repo={repo} projects={projects.projects} activeId={projects.activeId} onClose={() => setPullOpen(false)} onPull={onPullRepo} />
             )}

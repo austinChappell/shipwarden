@@ -10,6 +10,7 @@ import { registerGitIpc } from './git';
 import { registerGitHubIpc } from './github';
 import { registerNotesIpc } from './notes';
 import { registerPlanIpc } from './plans';
+import { registerPrGroupIpc } from './pr-groups';
 import { registerProjectIpc } from './projects';
 import { registerRemoteIpc } from './remote';
 import { registerSettingsIpc } from './settings';
@@ -32,6 +33,7 @@ export function registerIpc(services: Services, runAppKey: (action: AppKeyAction
     registerNotesIpc(services);
     registerAutomationIpc(services);
     registerPlanIpc(services);
+    registerPrGroupIpc(services);
     registerRemoteIpc(services);
     registerGitIpc(services);
     registerAppIpc({ ...services, runAppKey });
