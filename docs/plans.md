@@ -66,5 +66,8 @@ these notifications on and off.
 A plan that ran stays in the list. Its page shows the steps, the branches, the tasks, the pull requests, and the merge
 order. "Duplicate as a new draft" makes a new draft with the same steps and tasks.
 
+"Review the pull requests together" in the "More" menu puts the pull requests of the plan in a PR group. An agent then
+reviews all of them in one run. See [PR groups](pr-groups.md).
+
 The plans are in `plans.json` in the app data folder. Deleting a project deletes its plans. Deleting a plan does not
 remove its worktrees, branches, pull requests, or tasks.

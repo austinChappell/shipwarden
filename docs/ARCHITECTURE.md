@@ -771,6 +771,20 @@ Next:
 - Viewed files: `viewerViewedState` from GraphQL, changed with `markFileAsViewed` and `unmarkFileAsViewed`.
   The file list shows "x of y viewed". The diff header has a "Viewed" box. The change shows at once and goes back on an error.
 
+#### PR groups
+
+- A PR group (`shared/pr-groups.ts`) is a saved list of pull requests from any repository and host, with a name and a
+  note for the agent. `PrGroupStore` (`main/pr-groups/`) keeps the groups in `pr-groups.json`. The page reads them
+  with one TanStack query, and each change patches the cache (`renderer/src/github/pr-group-store.ts`).
+- The page of a group is the page `group:<id>` of the Review view (`groupPage` in `app/review-page.ts`).
+- A group review loads each pull request and its files, and builds one prompt (`groupReviewPrompt`). The main process
+  (`main/ipc/pr-groups.ts`) makes a review checkout of each pull request and runs the agent in print mode in the first
+  checkout, with the other checkouts as extra folders (`exploreCommand`). The answer is JSON with a review for each
+  pull request (`parseGroupReview`). `reviewStore.applyAgentReview` adds each review to the pending comments and the
+  review text of its pull request, the same as a review of one pull request.
+- The group keeps only the summary, the head commits, and the counts of the last review (`lastReview`). A head commit
+  that is different now shows the pull request as changed.
+
 #### Azure DevOps (Azure Repos)
 
 - `SourceHost` (`main/source-host.ts`) is the interface of a host of pull requests and pipelines. `GitHubHost` adapts

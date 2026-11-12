@@ -10,7 +10,7 @@ import {
     type RepoRef,
     type RepoTarget
 } from '@shared/github';
-import { parseAgentReview, reviewBody, reviewPrompt } from '@shared/agent-review';
+import { parseAgentReview, reviewBody, reviewPrompt, type ParsedReview } from '@shared/agent-review';
 import { keyRoots, queryClient } from '../query-client';
 import { errorText } from '../util';
 
@@ -43,6 +43,11 @@ export const reviewKeys = {
     fileVersions: (target: RepoTarget, path: string, baseSha: string, headSha: string) =>
         [...keyRoots.pullRequestFiles, targetKey(target), 'versions', path, baseSha, headSha] as const
 };
+
+/** The query of one pull request. The query cache keeps it, so a pull request that opens again shows at once. */
+export function pullRequestQuery(repo: RepoRef, number: number) {
+    return { queryKey: reviewKeys.pullRequest(repo, number), queryFn: () => window.shipwarden.github.pullRequest(repo, number) };
+}
 
 /** Sets the viewed flag of one file in a file list. */
 export function withViewed(files: PullRequestFile[], path: string, viewed: boolean): PullRequestFile[] {
@@ -110,22 +115,29 @@ class ReviewStore {
             const result = await window.shipwarden.ask.run({ id, repo, headRefOid: pr.headRefOid, prompt: reviewPrompt({ pr, repo, files }) });
             // The user can cancel the run, or start a new run, while this run works.
             if (!this.isRun(repo, pr.number, id)) return;
-            const review = parseAgentReview(result.answer, files);
-            const text = reviewBody(review);
-            this.update(repo, pr.number, state => {
-                const body = [state.body.trim(), text].filter(Boolean).join('\n\n');
-                return {
-                    ...state,
-                    pending: [...state.pending, ...review.comments],
-                    body,
-                    agentBody: text ? body : state.agentBody,
-                    agentReview: { status: 'done', agent: result.agent, comments: review.comments.length, notes: review.unplaced.length }
-                };
-            });
+            this.applyAgentReview(repo, pr.number, parseAgentReview(result.answer, files), result.agent);
         } catch (error) {
             if (!this.isRun(repo, pr.number, id)) return;
             this.update(repo, pr.number, state => ({ ...state, agentReview: { status: 'error', error: errorText(error) } }));
         }
+    }
+
+    /**
+     * Adds the result of an agent review to the review of the user: the line comments become pending comments, and the
+     * summary goes at the end of the review text. A group review uses it for each pull request of the group.
+     */
+    applyAgentReview(target: RepoTarget, number: number, review: ParsedReview, agent: string): void {
+        const text = reviewBody(review);
+        this.update(target, number, state => {
+            const body = [state.body.trim(), text].filter(Boolean).join('\n\n');
+            return {
+                ...state,
+                pending: [...state.pending, ...review.comments],
+                body,
+                agentBody: text ? body : state.agentBody,
+                agentReview: { status: 'done', agent, comments: review.comments.length, notes: review.unplaced.length }
+            };
+        });
     }
 
     /** Stops the agent review of a pull request. */

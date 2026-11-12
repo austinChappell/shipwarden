@@ -29,25 +29,41 @@ export function commentableLines(patch: string | undefined): CommentableLines {
     return result;
 }
 
-/** Returns the prompt that asks an agent to review a pull request and to answer in JSON. */
-export function reviewPrompt(input: ReviewPromptInput): string {
-    const { pr, repo } = input;
-    let budget = MAX_REVIEW_PATCH;
+/** The file diffs of a pull request for a prompt, from `fileDiffs`. */
+export interface FileDiffs {
+    /** One text for each file. Each text starts with a "---" line. */
+    diffs: string[];
+    /** The files without a diff in `diffs`, with the reason. */
+    skipped: string[];
+    /** The number of diff characters in `diffs`. */
+    used: number;
+}
+
+/** Returns the diffs of the files for a prompt. A file diff that does not fit in `budget` characters goes to `skipped`. */
+export function fileDiffs(files: ReviewPromptInput['files'], budget: number): FileDiffs {
+    let left = budget;
     const diffs: string[] = [];
     const skipped: string[] = [];
-    for (const file of input.files) {
+    for (const file of files) {
         const name = file.previousPath && file.previousPath !== file.path ? `${file.previousPath} → ${file.path}` : file.path;
         if (!file.patch) {
             skipped.push(`${name} (${file.status}, no diff from GitHub: binary or too large)`);
             continue;
         }
-        if (file.patch.length > budget) {
+        if (file.patch.length > left) {
             skipped.push(`${name} (${file.status}, the diff is too large for this prompt)`);
             continue;
         }
-        budget -= file.patch.length;
+        left -= file.patch.length;
         diffs.push(`--- ${name} (${file.status})\n${file.patch}`);
     }
+    return { diffs, skipped, used: budget - left };
+}
+
+/** Returns the prompt that asks an agent to review a pull request and to answer in JSON. */
+export function reviewPrompt(input: ReviewPromptInput): string {
+    const { pr, repo } = input;
+    const { diffs, skipped } = fileDiffs(input.files, MAX_REVIEW_PATCH);
     const parts = [
         `Review pull request #${pr.number} "${pr.title}" in ${repo.owner}/${repo.name}: ${pr.url}`,
         `It merges ${pr.headRefName} (${pr.headRefOid}) into ${pr.baseRefName} (${pr.baseRefOid}).`
@@ -81,7 +97,7 @@ export interface ParsedReview {
 }
 
 /** Returns the JSON object in an answer. The object can be in a code fence or have text around it. */
-function extractJson(answer: string): unknown {
+export function extractJson(answer: string): unknown {
     const fenced = /```(?:json)?\s*\n([\s\S]*?)\n```/.exec(answer);
     const candidates = [answer.trim(), fenced?.[1], answer.slice(answer.indexOf('{'), answer.lastIndexOf('}') + 1)];
     for (const text of candidates) {
@@ -104,6 +120,14 @@ export function parseAgentReview(answer: string, files: { path: string; patch?: 
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
         return { summary: answer.trim(), comments: [], unplaced: [] };
     }
+    return readReview(data, files);
+}
+
+/**
+ * Reads one review object of an agent: `{ summary, comments }`. A comment on a line that is not in the diff of its
+ * file goes to `unplaced`.
+ */
+export function readReview(data: object, files: { path: string; patch?: string }[]): ParsedReview {
     const raw = data as { summary?: unknown; comments?: unknown };
     const summary = typeof raw.summary === 'string' ? raw.summary.trim() : '';
     const lines = new Map(files.map(file => [file.path, commentableLines(file.patch)]));

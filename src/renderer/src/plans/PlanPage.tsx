@@ -63,7 +63,7 @@ import {
     sortedGroups,
     type ChipTone
 } from '../components/ui';
-import { confirmDialog } from '../components/ConfirmDialog';
+import { alertDialog, confirmDialog } from '../components/ConfirmDialog';
 import { showContextMenu } from '../components/ContextMenu';
 import { Markdown } from '../components/Markdown';
 import { collectionsQueryOptions, connectionsQueryOptions } from '../components/tasks/use-task-source';
@@ -75,6 +75,8 @@ import { errorText } from '../util';
 import { cancelExplore, explorePlan } from './plan-explore';
 import { cachedPlan, createPlan, removePlan, updatePlan, useExploreState } from './plan-queries';
 import { planRunner } from './plan-runner';
+import { newGroup, parsePullRequestLink, prKey, withPullRequest, type GroupPullRequest, type PrGroup } from '@shared/pr-groups';
+import { createGroup, loadGroups, updateGroup } from '../github/pr-group-store';
 
 const api = window.shipwarden;
 
@@ -89,6 +91,8 @@ interface Props {
     /** The plan was deleted. */
     onClosed(): void;
     onOpenPlan(id: string): void;
+    /** Opens the page of a PR group in the Review view. */
+    onOpenGroup(id: string): void;
 }
 
 /** One plan: the editor of a draft, or the steps of a plan that ran. */
@@ -96,15 +100,51 @@ export function PlanPage(props: Props) {
     return props.plan.status === 'draft' ? <PlanEditor {...props} /> : <PlanRun {...props} />;
 }
 
-/** The "More" menu of a plan: duplicate and delete. */
-async function planMenu(plan: Plan, anchor: Element, onClosed: () => void, onOpenPlan: (id: string) => void): Promise<void> {
+/** The pull requests of the steps, in the order of the steps. */
+function planPullRequests(plan: Plan): GroupPullRequest[] {
+    return plan.steps.flatMap(step => {
+        const parsed = step.pr ? parsePullRequestLink(step.pr.url) : undefined;
+        return parsed ? [{ ...parsed, title: step.title }] : [];
+    });
+}
+
+/**
+ * Returns the PR group of the plan with all pull requests of the plan. The group of an earlier call gets the new pull
+ * requests. Without a group, a new group gets the title of the plan, and the merge order as its note.
+ */
+async function planGroup(plan: Plan, pullRequests: GroupPullRequest[]): Promise<PrGroup> {
+    const existing = (await loadGroups()).find(group => group.planId === plan.id);
+    if (existing) {
+        const updated = await updateGroup(existing.id, current => pullRequests.reduce((group, pr) => withPullRequest(group, pr), current));
+        return updated ?? existing;
+    }
+    const group: PrGroup = {
+        ...newGroup(Date.now(), plan.title, pullRequests),
+        planId: plan.id,
+        note: `The pull requests come from the plan "${plan.title}". Merge them in this order: ${pullRequests.map(pr => prKey(pr)).join(', ')}.`
+    };
+    return createGroup(group);
+}
+
+/** The "More" menu of a plan: review the pull requests together, duplicate, and delete. */
+async function planMenu(plan: Plan, anchor: Element, props: Pick<Props, 'onClosed' | 'onOpenPlan' | 'onOpenGroup'>): Promise<void> {
+    const { onClosed, onOpenPlan, onOpenGroup } = props;
+    const pullRequests = planPullRequests(plan);
     const choice = await showContextMenu(
         [
+            ...(pullRequests.length > 0 ? [{ id: 'group', label: 'Review the pull requests together' }] : []),
             { id: 'duplicate', label: plan.status === 'draft' ? 'Duplicate' : 'Duplicate as a new draft' },
             { id: 'delete', label: 'Delete…', danger: true }
         ],
         anchor
     );
+    if (choice === 'group') {
+        try {
+            onOpenGroup((await planGroup(plan, pullRequests)).id);
+        } catch (error) {
+            await alertDialog('ShipWarden could not make the PR group.', errorText(error));
+        }
+    }
     if (choice === 'duplicate') {
         const copy = duplicatePlan(plan, Date.now());
         await createPlan(copy);
@@ -223,7 +263,7 @@ function withStepTitle(plan: Plan, stepId: string, title: string): Plan {
 /* Draft                                                                                                               */
 /* ------------------------------------------------------------------------------------------------------------------ */
 
-function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan }: Props) {
+function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan, onOpenGroup }: Props) {
     const explore = useExploreState(plan.id);
     const [draft, setDraft] = useState(plan);
     const [feedback, setFeedback] = useState('');
@@ -352,7 +392,7 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan }: Props) {
                     <IconButton
                         label="More"
                         icon={<MoreHorizontal size={14} />}
-                        onClick={event => void planMenu(draft, event.currentTarget, onClosed, onOpenPlan)}
+                        onClick={event => void planMenu(draft, event.currentTarget, { onClosed, onOpenPlan, onOpenGroup })}
                     />
                 }
             />
@@ -878,7 +918,7 @@ function TaskPicker({
 /* Run                                                                                                                 */
 /* ------------------------------------------------------------------------------------------------------------------ */
 
-function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan }: Props) {
+function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan, onOpenGroup }: Props) {
     const [error, setError] = useState<string>();
     const act = async (work: () => Promise<unknown>) => {
         setError(undefined);
@@ -903,7 +943,7 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan }: Prop
                     <IconButton
                         label="More"
                         icon={<MoreHorizontal size={14} />}
-                        onClick={event => void planMenu(plan, event.currentTarget, onClosed, onOpenPlan)}
+                        onClick={event => void planMenu(plan, event.currentTarget, { onClosed, onOpenPlan, onOpenGroup })}
                     />
                 }
             />

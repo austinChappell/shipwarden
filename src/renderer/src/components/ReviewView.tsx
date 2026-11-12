@@ -8,20 +8,16 @@ import type { QueueItem } from '@shared/review-queue';
 import type { ViewRoute } from '@shared/nav-history';
 import { queryClient } from '../query-client';
 import { errorText, optionalErrorText } from '../util';
-import { reviewKeys, reviewStore } from '../github/review-store';
+import { pullRequestQuery, reviewStore } from '../github/review-store';
 import { refreshRepo, useReviewOverview, useReviewQueue } from '../github/review-overview-store';
 import { Button, IconButton, PageHeader, sortedGroups } from './ui';
 import { ReviewHome } from './ReviewHome';
 import { ReviewRepoPage } from './ReviewRepoPage';
 import { isReviewTab, ReviewPullRequest, type ReviewTab } from './ReviewPullRequest';
-import { parseReviewPage, reviewPage } from '../app/review-page';
-
-const api = window.shipwarden.github;
-
-/** The query of one pull request. The query cache keeps it, so a pull request that opens again shows at once. */
-function pullRequestQuery(repo: RepoRef, number: number) {
-    return { queryKey: reviewKeys.pullRequest(repo, number), queryFn: () => api.pullRequest(repo, number) };
-}
+import { groupPage, parseGroupPage, parseReviewPage, reviewPage } from '../app/review-page';
+import { newGroup } from '@shared/pr-groups';
+import { createGroup } from '../github/pr-group-store';
+import { ReviewGroupPage } from './ReviewGroupPage';
 
 interface Props {
     /** A key for the providers of Settings › Code review. Undefined: not loaded yet. Null: no provider is on. */
@@ -73,7 +69,8 @@ export function ReviewView({
 }: Props) {
     const overview = useReviewOverview();
     const queueItems = useReviewQueue();
-    const { repo, number: selected } = parseReviewPage(route.page);
+    // A group page is not a repository page.
+    const { repo, number: selected } = parseGroupPage(route.page) ? {} : parseReviewPage(route.page);
     const routeTab = isReviewTab(route.query?.tab) ? route.query.tab : undefined;
     /** The error of the last agent review start, for the pull request that the user selected then. */
     const [agentError, setAgentError] = useState<{ repo: string; number: number; text: string }>();
@@ -198,10 +195,36 @@ export function ReviewView({
         );
     }
 
+    const groupId = parseGroupPage(route.page);
+    if (groupId) {
+        return (
+            <div className="review-view">
+                <ReviewGroupPage key={groupId} groupId={groupId} onBack={backToHome} onOpenPullRequest={(target, number) => openPr(repoId(target), number)} />
+            </div>
+        );
+    }
+
+    /** Makes an empty group and opens its page. */
+    const startGroup = async () => {
+        const group = newGroup(Date.now());
+        // createGroup puts the group in the cache at once, so the page can show it.
+        const saving = createGroup(group);
+        onRoute({ page: groupPage(group.id) });
+        await saving;
+    };
+
     if (!repo || !repoRef) {
         return (
             <div className="review-view">
-                <ReviewHome queue={queueItems} focusRepo={lastRepo} onSelect={value => go(value)} onStartQueue={startQueue} onOpenSettings={onOpenSettings} />
+                <ReviewHome
+                    queue={queueItems}
+                    focusRepo={lastRepo}
+                    onSelect={value => go(value)}
+                    onStartQueue={startQueue}
+                    onOpenSettings={onOpenSettings}
+                    onOpenGroup={id => onRoute({ page: groupPage(id) })}
+                    onNewGroup={() => void startGroup()}
+                />
             </div>
         );
     }
@@ -253,6 +276,7 @@ export function ReviewView({
                         onSendChecksToAgent={onSendChecksToAgent && ((target, checks) => onSendChecksToAgent(repoRef, target, checks))}
                         projects={projects}
                         onPullRepo={onPullRepo && (target => onPullRepo(repoRef, target))}
+                        onOpenGroup={id => onRoute({ page: groupPage(id) })}
                     />
                 </div>
             )}

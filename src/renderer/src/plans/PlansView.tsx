@@ -15,13 +15,15 @@ interface Props {
     route: ViewRoute;
     onRoute(route: ViewRoute): void;
     onOpenWorktree(path: string, sessionId?: string): void;
+    /** Opens the page of a PR group in the Review view. */
+    onOpenGroup(id: string): void;
 }
 
 /**
  * The Plans view of a project: the list of plans, and one plan. A plan starts as an idea. An agent reads all
  * repositories of the project and proposes steps. The user edits the steps and executes the plan.
  */
-export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree }: Props) {
+export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree, onOpenGroup }: Props) {
     const { loaded } = usePlans();
     const plans = useProjectPlans(project.id);
     const open = route.page ? plans.find(plan => plan.id === route.page) : undefined;
@@ -51,6 +53,7 @@ export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree }
                         onOpenWorktree={onOpenWorktree}
                         onClosed={() => onRoute({})}
                         onOpenPlan={id => onRoute({ page: id })}
+                        onOpenGroup={onOpenGroup}
                     />
                 </div>
             </div>
