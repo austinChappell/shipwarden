@@ -1,15 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Ban, CaseSensitive, ChevronRight, File, ListCollapse, RefreshCw, Search, TextAlignStart } from 'lucide-react';
-import { baseName, matchLine, parentPath, type ContentMatch, type FileEntry } from '@shared/files';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Ban, CaseSensitive, ChevronRight, File, FilePlus, FolderPlus, ListCollapse, RefreshCw, Search, TextAlignStart } from 'lucide-react';
+import { baseName, fileNameError, isSameOrInside, joinPath, matchLine, parentPath, type ContentMatch, type FileEntry } from '@shared/files';
 import { fileIcon, folderIcon } from '../files/file-icons';
 import { fuzzyFilter, fuzzyPositions } from '../files/fuzzy';
 import { onExplorerFocusRequest, takeExplorerFocusRequest } from '../files/explorer-focus';
 import { treeKeyAction, type TreeRow } from '../files/tree-nav';
 import { ErrorBanner } from './ErrorBanner';
+import { confirmDialog } from './ConfirmDialog';
+import { showContextMenu, type ContextMenuItem } from './ContextMenu';
 import { pluralize } from '@shared/format';
-import { Count, IconButton, Input, SkeletonRows } from './ui';
+import { Count, IconButton, Input, inputClass, SkeletonRows } from './ui';
 
 type Mode = 'names' | 'contents';
+
+/** The row with a text field: a rename of `path`, or a new file or folder in the folder `parent`. */
+type Edit = { kind: 'rename'; path: string } | { kind: 'file' | 'folder'; parent: string };
 
 interface Props {
     root: string;
@@ -18,6 +23,10 @@ interface Props {
     onOpenFile(path: string, line?: number): void;
     /** The name in the header. The default is the folder name of the root. */
     title?: string;
+    /** The explorer renamed or moved a file or a folder. */
+    onMoved?(from: string, to: string): void;
+    /** The explorer moved files or folders to the Trash. */
+    onDeleted?(paths: string[]): void;
 }
 
 const api = window.shipwarden.files;
@@ -25,6 +34,8 @@ const ICON_SIZE = 16;
 const ICON_STROKE = 1.5;
 const INDENT = 14;
 const CASE_SENSITIVE_KEY = 'shipwarden.explorerCaseSensitive';
+/** The time that the pointer stays on a closed folder in a drag before the folder opens. */
+const DRAG_EXPAND_MS = 700;
 
 /** Reads the saved case setting. The default is a search that ignores case. */
 function readCaseSensitive(): boolean {
@@ -90,8 +101,100 @@ function markPositions(text: string, positions: readonly number[], offset: numbe
     return parts;
 }
 
-/** The file explorer: a tree of the worktree, a file name filter and a content search. */
-export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
+/** Returns the tree row of a DOM element, or null when the element is not in a row. */
+function rowOf(target: EventTarget | null): HTMLElement | null {
+    return target instanceof Element ? target.closest<HTMLElement>('[data-path]') : null;
+}
+
+interface EditRowProps {
+    depth: number;
+    isDirectory: boolean;
+    /** The name at the start. A rename selects the name without the extension. */
+    initial: string;
+    label: string;
+    /** Makes the change. `fromBlur` is true when the field lost the focus. Returns the error text when the change fails. */
+    onCommit(name: string, fromBlur: boolean): Promise<string | undefined>;
+    onCancel(): void;
+    /** The change failed after the field lost the focus. The field closes and the explorer shows the error. */
+    onFail(message: string): void;
+}
+
+/** A tree row with a text field, for a new name. Enter saves the name and Escape cancels. A click outside saves the name. */
+function EditRow({ depth, isDirectory, initial, label, onCommit, onCancel, onFail }: EditRowProps) {
+    const [value, setValue] = useState(initial);
+    const [error, setError] = useState<string>();
+    const inputRef = useRef<HTMLInputElement>(null);
+    /** True while the change runs. A blur then does not start a second change. */
+    const busy = useRef(false);
+    /** True after Escape or a change. The blur that comes after it then does nothing. */
+    const done = useRef(false);
+
+    useEffect(() => {
+        const input = inputRef.current;
+        if (!input) return;
+        input.focus();
+        const dot = isDirectory ? -1 : initial.lastIndexOf('.');
+        input.setSelectionRange(0, dot > 0 ? dot : initial.length);
+    }, [initial, isDirectory]);
+
+    const commit = async (fromBlur: boolean) => {
+        if (busy.current || done.current) return;
+        busy.current = true;
+        const message = await onCommit(value, fromBlur);
+        busy.current = false;
+        if (!message) {
+            done.current = true;
+        } else if (fromBlur) {
+            done.current = true;
+            onFail(message);
+        } else {
+            setError(message);
+        }
+    };
+
+    const Icon = isDirectory ? folderIcon(false) : fileIcon(value || initial);
+    return (
+        <>
+            <div className="tree-row editing" style={{ paddingLeft: 8 + depth * INDENT }}>
+                <span className="tree-chevron">{isDirectory && <ChevronRight size={14} strokeWidth={ICON_STROKE} />}</span>
+                <Icon className="tree-icon" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+                <input
+                    ref={inputRef}
+                    className={inputClass('sm', { invalid: !!error, className: 'tree-edit-input' })}
+                    aria-label={label}
+                    aria-invalid={!!error || undefined}
+                    spellCheck={false}
+                    value={value}
+                    onChange={event => {
+                        setValue(event.target.value);
+                        setError(undefined);
+                    }}
+                    onClick={event => event.stopPropagation()}
+                    onKeyDown={event => {
+                        event.stopPropagation();
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            commit(false);
+                        } else if (event.key === 'Escape') {
+                            event.preventDefault();
+                            done.current = true;
+                            onCancel();
+                        }
+                    }}
+                    onBlur={() => commit(true)}
+                />
+            </div>
+            {error && (
+                <div className="tree-edit-error" role="alert" style={{ paddingLeft: 8 + depth * INDENT + 20 }}>
+                    {error}
+                </div>
+            )}
+        </>
+    );
+}
+
+/** The file explorer: a tree of the worktree, a file name filter, a content search, and the changes of files and folders. */
+export function FileExplorer({ root, activePath, onOpenFile, title, onMoved, onDeleted }: Props) {
     const [mode, setMode] = useState<Mode>('names');
     const [query, setQuery] = useState('');
     const [caseSensitive, setCaseSensitive] = useState(readCaseSensitive);
@@ -112,6 +215,13 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
     const scrolledTo = useRef<string | undefined>(undefined);
     const childrenRef = useRef(children);
     childrenRef.current = children;
+    const [edit, setEdit] = useState<Edit>();
+    /** The folder under the pointer in a drag. An empty string is the root. */
+    const [dropTarget, setDropTarget] = useState<string>();
+    /** The path of the tree row that the user drags. It is undefined for files from the Finder. */
+    const dragged = useRef<string | undefined>(undefined);
+    /** The closed folder under the pointer in a drag. It opens after a short time. */
+    const dragExpand = useRef<{ path: string; timer: ReturnType<typeof setTimeout> } | undefined>(undefined);
 
     const loadDirectory = useCallback(
         async (directory: string) => {
@@ -212,6 +322,41 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
         });
     };
 
+    /** Expands a folder and all its parent folders. */
+    const revealFolder = (folder: string) => {
+        if (!folder) return;
+        const parts = folder.split('/');
+        for (let index = 1; index <= parts.length; index += 1) {
+            setFolderOpen(parts.slice(0, index).join('/'), true);
+        }
+    };
+
+    /** Loads the folders again now. The watcher also loads them, but later. */
+    const refresh = (...directories: string[]) => {
+        for (const directory of new Set(directories)) {
+            if (directory === '' || childrenRef.current.has(directory)) {
+                loadDirectory(directory);
+            }
+        }
+        setAllFiles(undefined);
+    };
+
+    /** Moves the open folders and the loaded folders of a renamed or moved entry to the new path. */
+    const afterMove = (from: string, to: string) => {
+        const target = (path: string) => (isSameOrInside(from, path) ? to + path.slice(from.length) : path);
+        const stale = [...childrenRef.current.keys()].filter(directory => isSameOrInside(from, directory));
+        setChildren(map => {
+            const next = new Map(map);
+            stale.forEach(directory => next.delete(directory));
+            return next;
+        });
+        stale.forEach(directory => loadDirectory(target(directory)));
+        setExpanded(set => new Set([...set].map(target)));
+        setCursor(current => current && target(current));
+        refresh(parentPath(from), parentPath(to));
+        onMoved?.(from, to);
+    };
+
     const nameMatches = useMemo(
         () => (mode === 'names' && query && allFiles ? fuzzyFilter(allFiles, query, undefined, caseSensitive) : []),
         [mode, query, allFiles, caseSensitive]
@@ -258,10 +403,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
         // The focus event can put the cursor on the first row. The cursor of the active file comes after it.
         treeRef.current?.focus();
         if (activePath) {
-            const parts = activePath.split('/');
-            for (let index = 1; index < parts.length; index += 1) {
-                setFolderOpen(parts.slice(0, index).join('/'), true);
-            }
+            revealFolder(parentPath(activePath));
             setCursor(activePath);
         }
         scrolledTo.current = undefined;
@@ -287,7 +429,264 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
         setCursor(treeRows.find(row => row.path === activePath)?.path ?? treeRows[0]?.path);
     };
 
+    const rowByPath = (path: string | undefined) => (path === undefined ? undefined : treeRows.find(row => row.path === path));
+
+    /** The folder for a new entry: the folder of the row, or the parent folder of a file row. Without a row, the root. */
+    const folderFor = (path: string | undefined): string => {
+        const row = rowByPath(path);
+        return !row ? '' : row.isDirectory ? row.path : row.parent;
+    };
+
+    const startCreate = (kind: 'file' | 'folder', parent: string) => {
+        setQuery('');
+        revealFolder(parent);
+        setEdit({ kind, parent });
+    };
+
+    /**
+     * Makes the change of the text field. Returns the error text when the change fails.
+     * After Enter, the tree gets the keyboard focus again. After a click outside, the focus stays on the clicked element.
+     */
+    const commitEdit = async (current: Edit, input: string, fromBlur: boolean): Promise<string | undefined> => {
+        const name = input.trim();
+        const focusTree = () => {
+            if (!fromBlur) treeRef.current?.focus();
+        };
+        if (current.kind === 'rename') {
+            const to = joinPath(parentPath(current.path), name);
+            if (!name || to === current.path) {
+                setEdit(undefined);
+                focusTree();
+                return undefined;
+            }
+            const invalid = fileNameError(name);
+            if (invalid) return invalid;
+            try {
+                await api.move(root, current.path, to);
+            } catch (err) {
+                return errorText(err);
+            }
+            setEdit(undefined);
+            afterMove(current.path, to);
+            focusTree();
+            return undefined;
+        }
+        if (!name) {
+            setEdit(undefined);
+            focusTree();
+            return undefined;
+        }
+        // A name with "/" makes subfolders, for example "src/utils/index.ts".
+        const invalid = fileNameError(name, true);
+        if (invalid) return invalid;
+        const path = joinPath(current.parent, name);
+        try {
+            await (current.kind === 'file' ? api.createFile(root, path) : api.createFolder(root, path));
+        } catch (err) {
+            return errorText(err);
+        }
+        setEdit(undefined);
+        refresh(current.parent);
+        revealFolder(parentPath(path));
+        setCursor(path);
+        if (current.kind === 'file') {
+            onOpenFile(path);
+        } else {
+            focusTree();
+        }
+        return undefined;
+    };
+
+    const cancelEdit = () => {
+        setEdit(undefined);
+        treeRef.current?.focus();
+    };
+
+    /** Asks the user, then moves a file or a folder to the Trash. */
+    const remove = async (path: string) => {
+        const row = rowByPath(path);
+        const confirmed = await confirmDialog({
+            title: `Delete "${baseName(path)}"?`,
+            message: row?.isDirectory ? 'The folder and all its files go to the Trash.' : 'The file goes to the Trash.',
+            confirmLabel: 'Move to Trash',
+            danger: true
+        });
+        if (!confirmed) return;
+        // After the delete, the cursor goes to the next row below the entry, or to the row above it.
+        const index = treeRows.findIndex(item => item.path === path);
+        const next = treeRows.slice(index + 1).find(item => !isSameOrInside(path, item.path)) ?? treeRows[index - 1];
+        try {
+            await api.delete(root, [path]);
+        } catch (err) {
+            setError(errorText(err));
+            return;
+        }
+        setExpanded(set => new Set([...set].filter(item => !isSameOrInside(path, item))));
+        setCursor(next?.path);
+        refresh(parentPath(path));
+        onDeleted?.([path]);
+        treeRef.current?.focus();
+    };
+
+    const copyText = (text: string) => navigator.clipboard.writeText(text).catch(err => setError(errorText(err)));
+
+    /** Opens the context menu of a row. Without a path, the menu is for the root. */
+    const openMenu = async (path: string | undefined, anchor?: Element) => {
+        const items: ContextMenuItem[] = [{ id: 'new-file', label: 'New file…' }, { id: 'new-folder', label: 'New folder…' }, { type: 'separator' }];
+        if (path !== undefined) {
+            items.push(
+                { id: 'rename', label: 'Rename…' },
+                { id: 'delete', label: 'Delete…', danger: true },
+                { type: 'separator' },
+                { id: 'copy-path', label: 'Copy path' },
+                { id: 'copy-relative-path', label: 'Copy relative path' }
+            );
+        }
+        items.push({ id: 'reveal', label: 'Reveal in Finder' });
+        const choice = await showContextMenu(items, anchor);
+        switch (choice) {
+            case 'new-file':
+            case 'new-folder':
+                startCreate(choice === 'new-file' ? 'file' : 'folder', folderFor(path));
+                break;
+            case 'rename':
+                if (path !== undefined) setEdit({ kind: 'rename', path });
+                break;
+            case 'delete':
+                if (path !== undefined) remove(path);
+                break;
+            case 'copy-path':
+                copyText(path ? `${root}/${path}` : root);
+                break;
+            case 'copy-relative-path':
+                if (path !== undefined) copyText(path);
+                break;
+            case 'reveal':
+                api.reveal(root, path ?? '').catch(err => setError(errorText(err)));
+                break;
+        }
+    };
+
+    const onTreeContextMenu = (event: React.MouseEvent) => {
+        if (query) return;
+        event.preventDefault();
+        const path = rowOf(event.target)?.dataset.path;
+        if (path !== undefined) setCursor(path);
+        openMenu(path);
+    };
+
+    const stopDragExpand = () => {
+        clearTimeout(dragExpand.current?.timer);
+        dragExpand.current = undefined;
+    };
+
+    const endDrag = () => {
+        dragged.current = undefined;
+        setDropTarget(undefined);
+        stopDragExpand();
+    };
+
+    /** The folder that gets a drop on the element: the folder of the row, the parent folder of a file row, or the root. */
+    const dropFolder = (target: EventTarget | null): string => {
+        const row = rowOf(target);
+        if (!row) return '';
+        const path = row.dataset.path ?? '';
+        return row.dataset.directory === 'true' ? path : parentPath(path);
+    };
+
+    /** True when the drag can drop in the folder. A row cannot go into itself or into the folder that has it now. */
+    const canDrop = (event: React.DragEvent, folder: string): boolean => {
+        const source = dragged.current;
+        if (source !== undefined) {
+            return !isSameOrInside(source, folder) && parentPath(source) !== folder;
+        }
+        return event.dataTransfer.types.includes('Files');
+    };
+
+    const onDragOver = (event: React.DragEvent) => {
+        if (query) return;
+        const folder = dropFolder(event.target);
+        if (!canDrop(event, folder)) {
+            setDropTarget(undefined);
+            stopDragExpand();
+            return;
+        }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = dragged.current !== undefined ? 'move' : 'copy';
+        setDropTarget(folder);
+        // A closed folder under the pointer opens after a short time, so that the drop can go deeper.
+        const row = rowOf(event.target);
+        const closed = row?.dataset.directory === 'true' && row.getAttribute('aria-expanded') !== 'true' ? row.dataset.path : undefined;
+        if (dragExpand.current?.path !== closed) {
+            stopDragExpand();
+            if (closed) {
+                dragExpand.current = { path: closed, timer: setTimeout(() => setFolderOpen(closed, true), DRAG_EXPAND_MS) };
+            }
+        }
+    };
+
+    const onDragLeave = (event: React.DragEvent) => {
+        if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) {
+            setDropTarget(undefined);
+            stopDragExpand();
+        }
+    };
+
+    const onDrop = async (event: React.DragEvent) => {
+        const folder = dropFolder(event.target);
+        const allowed = !query && canDrop(event, folder);
+        const source = dragged.current;
+        // Read the files before the first await. The data of the drag is not available after the event.
+        const files = source === undefined ? [...event.dataTransfer.files].map(file => api.pathForFile(file)).filter(Boolean) : [];
+        endDrag();
+        if (!allowed) return;
+        event.preventDefault();
+        if (source !== undefined) {
+            const to = joinPath(folder, baseName(source));
+            try {
+                await api.move(root, source, to);
+            } catch (err) {
+                setError(errorText(err));
+                return;
+            }
+            revealFolder(folder);
+            afterMove(source, to);
+            setCursor(to);
+            return;
+        }
+        if (files.length === 0) return;
+        try {
+            const copied = await api.copyIn(root, files, folder);
+            refresh(folder);
+            revealFolder(folder);
+            setCursor(copied[0]);
+        } catch (err) {
+            setError(errorText(err));
+            refresh(folder);
+        }
+    };
+
     const onTreeKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        // The keys of the text field of a rename do not move the cursor.
+        if (event.target !== event.currentTarget) {
+            return;
+        }
+        const row = rowByPath(cursor);
+        if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+            event.preventDefault();
+            openMenu(row?.path, row ? (treeRef.current?.querySelector('.tree-row.cursor') ?? undefined) : undefined);
+            return;
+        }
+        if (row && event.key === 'F2' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+            event.preventDefault();
+            setEdit({ kind: 'rename', path: row.path });
+            return;
+        }
+        if (row && (event.key === 'Delete' || (event.key === 'Backspace' && event.metaKey))) {
+            event.preventDefault();
+            remove(row.path);
+            return;
+        }
         if (event.metaKey || event.ctrlKey || event.altKey) {
             return;
         }
@@ -316,35 +715,71 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
         }
     };
 
+    const editRow = (depth: number, isDirectory: boolean, initial: string, label: string) =>
+        edit && (
+            <EditRow
+                key={edit.kind === 'rename' ? edit.path : `new:${edit.parent}`}
+                depth={depth}
+                isDirectory={isDirectory}
+                initial={initial}
+                label={label}
+                onCommit={(name, fromBlur) => commitEdit(edit, name, fromBlur)}
+                onCancel={cancelEdit}
+                onFail={message => {
+                    setEdit(undefined);
+                    setError(message);
+                }}
+            />
+        );
+
+    const newRow = (depth: number) =>
+        edit && edit.kind !== 'rename' ? editRow(depth, edit.kind === 'folder', '', edit.kind === 'file' ? 'New file name' : 'New folder name') : null;
+
     const renderTree = () => (
         <div ref={treeRef} className="explorer-tree" role="tree" aria-label="Files" tabIndex={0} onFocus={onTreeFocus} onKeyDown={onTreeKey}>
+            {edit?.kind !== 'rename' && edit?.parent === '' && newRow(0)}
             {treeRows.map(({ entry, depth, open }) => {
+                if (edit?.kind === 'rename' && edit.path === entry.path) {
+                    return editRow(depth, entry.isDirectory, entry.name, `New name of ${entry.name}`);
+                }
                 const Icon = entry.isDirectory ? folderIcon(open) : fileIcon(entry.name);
+                const dropInside = dropTarget !== undefined && dropTarget !== '' && isSameOrInside(dropTarget, entry.path);
                 return (
-                    <div
-                        key={entry.path}
-                        role="treeitem"
-                        aria-expanded={entry.isDirectory ? open : undefined}
-                        aria-selected={entry.path === cursor}
-                        className={`tree-row${entry.ignored ? ' ignored' : ''}${entry.path === activePath ? ' active' : ''}${entry.path === cursor ? ' cursor' : ''}`}
-                        style={{ paddingLeft: 8 + depth * INDENT }}
-                        title={entry.path}
-                        onClick={() => {
-                            setCursor(entry.path);
-                            if (entry.isDirectory) {
-                                setFolderOpen(entry.path);
-                            } else {
-                                onOpenFile(entry.path);
-                            }
-                        }}
-                    >
-                        <span className={`tree-chevron${open ? ' open' : ''}`}>
-                            {entry.isDirectory && <ChevronRight size={14} strokeWidth={ICON_STROKE} />}
-                        </span>
-                        <Icon className="tree-icon" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                        <span className="tree-name">{entry.name}</span>
-                        {entry.ignored && <Ban className="tree-ignored" size={14} strokeWidth={ICON_STROKE} aria-label="Ignored by git" />}
-                    </div>
+                    <Fragment key={entry.path}>
+                        <div
+                            role="treeitem"
+                            aria-expanded={entry.isDirectory ? open : undefined}
+                            aria-selected={entry.path === cursor}
+                            data-path={entry.path}
+                            data-directory={entry.isDirectory}
+                            className={`tree-row${entry.ignored ? ' ignored' : ''}${entry.path === activePath ? ' active' : ''}${entry.path === cursor ? ' cursor' : ''}${dropInside ? ' drop-inside' : ''}`}
+                            style={{ paddingLeft: 8 + depth * INDENT }}
+                            title={entry.path}
+                            draggable={!edit}
+                            onDragStart={event => {
+                                dragged.current = entry.path;
+                                event.dataTransfer.effectAllowed = 'move';
+                                event.dataTransfer.setData('text/plain', `${root}/${entry.path}`);
+                            }}
+                            onDragEnd={endDrag}
+                            onClick={() => {
+                                setCursor(entry.path);
+                                if (entry.isDirectory) {
+                                    setFolderOpen(entry.path);
+                                } else {
+                                    onOpenFile(entry.path);
+                                }
+                            }}
+                        >
+                            <span className={`tree-chevron${open ? ' open' : ''}`}>
+                                {entry.isDirectory && <ChevronRight size={14} strokeWidth={ICON_STROKE} />}
+                            </span>
+                            <Icon className="tree-icon" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+                            <span className="tree-name">{entry.name}</span>
+                            {entry.ignored && <Ban className="tree-ignored" size={14} strokeWidth={ICON_STROKE} aria-label="Ignored by git" />}
+                        </div>
+                        {open && edit?.kind !== 'rename' && edit?.parent === entry.path && newRow(depth + 1)}
+                    </Fragment>
                 );
             })}
         </div>
@@ -496,6 +931,18 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                 </span>
                 <IconButton
                     size="sm"
+                    icon={<FilePlus size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} />}
+                    label="New file"
+                    onClick={() => startCreate('file', folderFor(cursor))}
+                />
+                <IconButton
+                    size="sm"
+                    icon={<FolderPlus size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} />}
+                    label="New folder"
+                    onClick={() => startCreate('folder', folderFor(cursor))}
+                />
+                <IconButton
+                    size="sm"
                     icon={<ListCollapse size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} />}
                     label="Collapse all folders"
                     onClick={() => setExpanded(new Set())}
@@ -558,7 +1005,14 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                 />
             </div>
 
-            <div className="explorer-body" ref={bodyRef}>
+            <div
+                className={`explorer-body${dropTarget === '' ? ' drop-root' : ''}`}
+                ref={bodyRef}
+                onContextMenu={onTreeContextMenu}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+            >
                 {error && (
                     <ErrorBanner className="explorer-message error" onClose={() => setError(undefined)}>
                         {error}

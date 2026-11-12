@@ -80,6 +80,24 @@ export class DocumentStore {
         this.release(root);
     }
 
+    /**
+     * Moves the model of a renamed file to the new path. The unsaved changes stay. The undo history is lost, because
+     * the model of the new path is a new model.
+     */
+    async rename(root: string, from: string, to: string): Promise<void> {
+        const document = this.documents.get(key(root, from));
+        if (!document) {
+            return;
+        }
+        const dirty = this.isDirty(root, from);
+        const value = document.model.getValue();
+        this.close(root, from);
+        const model = await this.open(root, to);
+        if (dirty && model.getValue() !== value) {
+            model.pushEditOperations([], [{ range: model.getFullModelRange(), text: value }], () => null);
+        }
+    }
+
     /** Removes the models of all files in a root. Unsaved changes are lost. */
     closeRoot(root: string): void {
         for (const document of [...this.documents.values()]) {

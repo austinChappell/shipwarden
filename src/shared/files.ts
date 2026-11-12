@@ -61,3 +61,57 @@ export function matchLine(text: string, query: string, caseSensitive = false): s
     if (index <= CONTEXT_BEFORE + 8) return line;
     return `…${line.slice(index - CONTEXT_BEFORE).trimStart()}`;
 }
+
+/** Joins a folder and a name to a relative path. An empty folder is the root. */
+export function joinPath(directory: string, name: string): string {
+    return directory ? `${directory}/${name}` : name;
+}
+
+/**
+ * Checks a name of a new or renamed file or folder. Returns the error text, or undefined when the name is valid.
+ * A name with "/" makes subfolders when `allowFolders` is true.
+ */
+export function fileNameError(name: string, allowFolders = false): string | undefined {
+    if (!name.trim()) {
+        return 'Type a name.';
+    }
+    if (name.includes('\0')) {
+        return 'The name contains a character that is not permitted.';
+    }
+    if (!allowFolders && name.includes('/')) {
+        return 'The name must not contain "/".';
+    }
+    for (const part of name.split('/')) {
+        if (part === '' || part === '.' || part === '..') {
+            return `The name "${name}" is not valid.`;
+        }
+        if (part === '.git') {
+            return 'ShipWarden does not change the .git folder.';
+        }
+    }
+    return undefined;
+}
+
+/** True when `path` is the folder `folder` or is in it. Both paths are relative to the root. */
+export function isSameOrInside(folder: string, path: string): boolean {
+    return folder === '' || path === folder || path.startsWith(`${folder}/`);
+}
+
+/**
+ * Returns a name that is not in `taken`, as the Finder does: "name copy.ext", then "name copy 2.ext".
+ * Returns the name itself when it is free.
+ */
+export function freeName(name: string, taken: ReadonlySet<string>): string {
+    if (!taken.has(name)) {
+        return name;
+    }
+    const dot = name.lastIndexOf('.');
+    const stem = dot > 0 ? name.slice(0, dot) : name;
+    const extension = dot > 0 ? name.slice(dot) : '';
+    for (let index = 1; ; index += 1) {
+        const candidate = `${stem} copy${index === 1 ? '' : ` ${index}`}${extension}`;
+        if (!taken.has(candidate)) {
+            return candidate;
+        }
+    }
+}

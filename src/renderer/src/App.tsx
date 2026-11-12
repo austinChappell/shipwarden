@@ -218,7 +218,7 @@ export function App() {
         prepareWorktree: agents.prepareWorktree,
         setError
     });
-    const { openLinkedTask, removeWorktree } = worktreeActions;
+    const { openLinkedTask } = worktreeActions;
 
     /**
      * Shows the settings page on a section, for example "repo:<path>" for the settings of one repository. Each section is
@@ -734,7 +734,6 @@ export function App() {
                             onSelect={worktree => showWorktree(worktree.path)}
                             onCreate={worktreeActions.createWorktree}
                             worktreeNames={appSettings.worktreeNames}
-                            onRemove={(repo, worktree) => removeWorktree(repo, worktree)}
                             onWorktreeMenu={worktreeActions.worktreeMenu}
                             onOpenTask={openLinkedTask}
                             worktreeSort={appSettings.worktrees.sort}
@@ -1120,6 +1119,8 @@ export function App() {
                             activeFile={tabs.activeFile}
                             github={github}
                             onOpenFile={(path, line) => openFile(path, line)}
+                            onFileMoved={(from, to) => tabs.filesMoved(selectedPath, from, to)}
+                            onFilesDeleted={paths => tabs.filesDeleted(selectedPath, paths)}
                             onOpenDiff={openDiff}
                             renderPrAutomations={
                                 selected && selectedRepo

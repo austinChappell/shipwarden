@@ -1,5 +1,5 @@
 import type { ShortcutAction } from '@shared/shortcuts';
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 import { IpcChannels, type ConfirmRequest, type NotificationTarget, type ShipWardenApi } from '@shared/api';
 import type { FilesChangedEvent } from '@shared/files';
 import type { LspInstallState, LspServerMessage } from '@shared/lsp';
@@ -104,6 +104,12 @@ const api: ShipWardenApi = {
         reveal: (root, file) => ipcRenderer.invoke(IpcChannels.filesReveal, root, file),
         openInDefaultApp: (root, file) => ipcRenderer.invoke(IpcChannels.filesOpenInDefaultApp, root, file),
         write: (root, file, content) => ipcRenderer.invoke(IpcChannels.filesWrite, root, file, content),
+        createFile: (root, file) => ipcRenderer.invoke(IpcChannels.filesCreateFile, root, file),
+        createFolder: (root, folder) => ipcRenderer.invoke(IpcChannels.filesCreateFolder, root, folder),
+        move: (root, from, to) => ipcRenderer.invoke(IpcChannels.filesMove, root, from, to),
+        delete: (root, paths) => ipcRenderer.invoke(IpcChannels.filesDelete, root, paths),
+        copyIn: (root, sources, directory) => ipcRenderer.invoke(IpcChannels.filesCopyIn, root, sources, directory),
+        pathForFile: file => webUtils.getPathForFile(file),
         readExternal: absolutePath => ipcRenderer.invoke(IpcChannels.filesReadExternal, absolutePath),
         watch: root => ipcRenderer.send(IpcChannels.filesWatch, root),
         unwatch: root => ipcRenderer.send(IpcChannels.filesUnwatch, root),

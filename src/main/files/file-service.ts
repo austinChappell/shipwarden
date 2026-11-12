@@ -1,7 +1,7 @@
 import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { compareEntries, type ContentMatch, type ContentSearchResult, type FileEntry } from '@shared/files';
+import { compareEntries, fileNameError, freeName, isSameOrInside, joinPath, type ContentMatch, type ContentSearchResult, type FileEntry } from '@shared/files';
 import { kindFromExtension, MAX_TEXT_FILE_SIZE, sniffKind, type FileInfo, type FileKind } from '@shared/file-types';
 
 /** ShipWarden does not open text files that are larger than this limit. */
@@ -109,8 +109,31 @@ export function parseGitGrep(output: string, limit = MAX_CONTENT_MATCHES): Conte
     return { matches, truncated };
 }
 
-/** Reads folders and files of a worktree for the file explorer and the editor. */
+/** Throws an error when a relative path is not a valid path for a new or moved entry. */
+function checkNewPath(relativePath: string): void {
+    const error = fileNameError(relativePath, true);
+    if (error) {
+        throw new Error(error);
+    }
+}
+
+/** True when an entry is at the absolute path. A broken symbolic link is also an entry. */
+async function exists(absolute: string): Promise<boolean> {
+    return fs.lstat(absolute).then(
+        () => true,
+        () => false
+    );
+}
+
+/** Reads folders and files of a worktree for the file explorer and the editor, and changes them. */
 export class FileService {
+    /** `trash` moves a file or a folder to the Trash. The tests replace it. */
+    constructor(
+        private readonly trash: (absolute: string) => Promise<void> = async () => {
+            throw new Error('The Trash is not available.');
+        }
+    ) {}
+
     /** Lists one folder. `directory` is relative to the root. An empty string is the root. */
     async listDirectory(root: string, directory: string): Promise<FileEntry[]> {
         const absolute = resolveInside(root, directory);
@@ -208,6 +231,85 @@ export class FileService {
 
     async writeFile(root: string, file: string, content: string): Promise<void> {
         await fs.writeFile(resolveInside(root, file), content, 'utf8');
+    }
+
+    /** Makes an empty file. A path with "/" also makes the missing folders. */
+    async createFile(root: string, file: string): Promise<void> {
+        checkNewPath(file);
+        const absolute = resolveInside(root, file);
+        if (await exists(absolute)) {
+            throw new Error(`"${file}" already exists.`);
+        }
+        await fs.mkdir(path.dirname(absolute), { recursive: true });
+        await fs.writeFile(absolute, '', { flag: 'wx' });
+    }
+
+    /** Makes a folder. A path with "/" also makes the missing parent folders. */
+    async createFolder(root: string, folder: string): Promise<void> {
+        checkNewPath(folder);
+        const absolute = resolveInside(root, folder);
+        if (await exists(absolute)) {
+            throw new Error(`"${folder}" already exists.`);
+        }
+        await fs.mkdir(absolute, { recursive: true });
+    }
+
+    /**
+     * Renames or moves a file or a folder. The parent folder of `to` must exist.
+     * A change of the case only ("readme.md" to "README.md") is permitted on a file system that ignores case.
+     */
+    async move(root: string, from: string, to: string): Promise<void> {
+        if (from === to) {
+            return;
+        }
+        checkNewPath(from);
+        checkNewPath(to);
+        if (isSameOrInside(from, to)) {
+            throw new Error(`ShipWarden cannot move "${from}" into itself.`);
+        }
+        const source = resolveInside(root, from);
+        const target = resolveInside(root, to);
+        if (!(await exists(source))) {
+            throw new Error(`"${from}" does not exist.`);
+        }
+        if (from.toLowerCase() !== to.toLowerCase() && (await exists(target))) {
+            throw new Error(`"${to}" already exists.`);
+        }
+        await fs.rename(source, target);
+    }
+
+    /** Moves files and folders to the Trash. */
+    async delete(root: string, paths: string[]): Promise<void> {
+        for (const relative of paths) {
+            checkNewPath(relative);
+            await this.trash(resolveInside(root, relative));
+        }
+    }
+
+    /**
+     * Copies files and folders at absolute paths into a folder of the worktree, for example files that the user drops
+     * from the Finder. A name that is in use gets " copy", as in the Finder. Returns the new relative paths.
+     */
+    async copyIn(root: string, sources: string[], directory: string): Promise<string[]> {
+        if (directory) {
+            checkNewPath(directory);
+        }
+        const target = resolveInside(root, directory);
+        const taken = new Set(await fs.readdir(target));
+        const copied: string[] = [];
+        for (const source of sources) {
+            if (typeof source !== 'string' || !path.isAbsolute(source)) {
+                throw new Error(`The path "${source}" is not absolute.`);
+            }
+            if (isInside(source, target)) {
+                throw new Error(`ShipWarden cannot copy "${path.basename(source)}" into itself.`);
+            }
+            const name = freeName(path.basename(source), taken);
+            taken.add(name);
+            await fs.cp(source, path.join(target, name), { recursive: true, errorOnExist: true, force: false, verbatimSymlinks: true });
+            copied.push(joinPath(directory, name));
+        }
+        return copied;
     }
 
     /** Returns the entries that git ignores. Returns an empty set when the root is not a git worktree. */
