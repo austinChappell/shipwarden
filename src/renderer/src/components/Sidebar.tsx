@@ -24,7 +24,6 @@ import {
     Plus,
     Settings,
     SquareTerminal,
-    X,
     Zap,
     ClipboardList
 } from 'lucide-react';
@@ -159,7 +158,6 @@ interface Props {
     onCreate(repo: string, request: NewWorktreeRequest): Promise<void>;
     /** The display names of worktrees, by path. */
     worktreeNames?: Record<string, string>;
-    onRemove(repo: string, worktree: Worktree): void;
     /** The right-click menu of a worktree: open its task, remove it, or remove it and delete its branch. */
     onWorktreeMenu(repo: string, worktree: Worktree): void;
     /** Opens the task of a worktree in the Tasks view. */
@@ -616,18 +614,6 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                         {(pr.checks === 'FAILURE' || pr.checks === 'ERROR') && <CircleX size={12} strokeWidth={2} className="ci failure" />}
                         {(pr.checks === 'PENDING' || pr.checks === 'EXPECTED') && <CircleDot size={12} strokeWidth={2} className="ci pending" />}
                     </span>
-                )}
-                {!worktree.isMain && (
-                    <IconButton
-                        size="sm"
-                        className="row-action"
-                        icon={<X size={13} strokeWidth={1.8} />}
-                        label="Remove worktree"
-                        onClick={event => {
-                            event.stopPropagation();
-                            parent.onRemove(repo, worktree);
-                        }}
-                    />
                 )}
             </li>
         );

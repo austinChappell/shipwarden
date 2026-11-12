@@ -25,6 +25,10 @@ interface Props {
     activeFile?: string;
     github: BranchStatusState;
     onOpenFile(path: string, line?: number): void;
+    /** The explorer renamed or moved a file or a folder. */
+    onFileMoved?(from: string, to: string): void;
+    /** The explorer moved files or folders to the Trash. */
+    onFilesDeleted?(paths: string[]): void;
     onOpenDiff(pr: PullRequest, file: PullRequestFile, line?: number, side?: DiffSide): void;
     onSendToAgent(prompt: string): void;
     onSendLogToAgent(check: CheckRun): void;
@@ -124,7 +128,16 @@ export function RightPanel(props: Props) {
                 {tabButton('pipelines', 'Pipelines of this repository', <Workflow size={17} strokeWidth={1.5} />)}
                 {tabButton('processes', 'Processes and ports', <Plug size={17} strokeWidth={1.5} />)}
             </div>
-            {tab === 'files' && <FileExplorer key={props.root} root={props.root} activePath={props.activeFile} onOpenFile={props.onOpenFile} />}
+            {tab === 'files' && (
+                <FileExplorer
+                    key={props.root}
+                    root={props.root}
+                    activePath={props.activeFile}
+                    onOpenFile={props.onOpenFile}
+                    onMoved={props.onFileMoved}
+                    onDeleted={props.onFilesDeleted}
+                />
+            )}
             {tab === 'pr' && (
                 <PullRequestPanel
                     target={props.root}

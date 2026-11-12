@@ -246,6 +246,18 @@ export interface ShipWardenApi {
         /** Opens an image, PDF, audio or video file in the default app of macOS. Other files are refused. */
         openInDefaultApp(root: string, file: string): Promise<void>;
         write(root: string, file: string, content: string): Promise<void>;
+        /** Makes an empty file. A path with "/" also makes the missing folders. */
+        createFile(root: string, file: string): Promise<void>;
+        /** Makes a folder. A path with "/" also makes the missing parent folders. */
+        createFolder(root: string, folder: string): Promise<void>;
+        /** Renames or moves a file or a folder in the worktree. */
+        move(root: string, from: string, to: string): Promise<void>;
+        /** Moves files and folders of the worktree to the Trash. */
+        delete(root: string, paths: string[]): Promise<void>;
+        /** Copies files and folders at absolute paths into a folder of the worktree. Returns the new relative paths. */
+        copyIn(root: string, sources: string[], directory: string): Promise<string[]>;
+        /** Returns the absolute path of a file that the user drops from the Finder. Returns an empty string for other files. */
+        pathForFile(file: File): string;
         /** Reads a text file outside the worktrees, for example a type declaration that a definition points to. */
         readExternal(absolutePath: string): Promise<string>;
         /** Starts to send change events for the worktree. Each call needs one call of `unwatch`. */
@@ -602,6 +614,11 @@ export const IpcChannels = {
     filesReveal: 'files:reveal',
     filesOpenInDefaultApp: 'files:openInDefaultApp',
     filesWrite: 'files:write',
+    filesCreateFile: 'files:createFile',
+    filesCreateFolder: 'files:createFolder',
+    filesMove: 'files:move',
+    filesDelete: 'files:delete',
+    filesCopyIn: 'files:copyIn',
     filesReadExternal: 'files:readExternal',
     filesWatch: 'files:watch',
     filesUnwatch: 'files:unwatch',

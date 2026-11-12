@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
-import { baseName } from '@shared/files';
+import { baseName, isSameOrInside } from '@shared/files';
 import {
     closePane,
     findLeaf,
@@ -192,6 +192,37 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
             return next;
         });
         setOpenFiles(map => ({ ...map, [root]: (map[root] ?? []).filter(item => item !== path) }));
+    };
+
+    /** Moves the open tabs of a renamed or moved file or folder to the new paths. */
+    const filesMoved = (root: string, from: string, to: string) => {
+        const moved = (openFiles[root] ?? []).filter(path => isSameOrInside(from, path));
+        if (moved.length === 0) {
+            return;
+        }
+        const target = (path: string) => to + path.slice(from.length);
+        const tabKey = (key: TabKey): TabKey => (key.startsWith('f:') && isSameOrInside(from, key.slice(2)) ? `f:${target(key.slice(2))}` : key);
+        setOpenFiles(map => ({ ...map, [root]: (map[root] ?? []).map(path => (isSameOrInside(from, path) ? target(path) : path)) }));
+        setActiveTabs(map => (map[root] ? { ...map, [root]: tabKey(map[root]) } : map));
+        setTabOrders(map => (map[root] ? { ...map, [root]: map[root].map(tabKey) } : map));
+        setDirtyFiles(set => {
+            const next = new Set(set);
+            moved.forEach(path => next.delete(fileKey(root, path)));
+            return next;
+        });
+        for (const path of moved) {
+            editorPositions.forget(root, path);
+            documents.rename(root, path, target(path)).catch(err => setError(errorText(err)));
+        }
+    };
+
+    /** Closes the open tabs of deleted files and folders. A file with unsaved changes asks first. */
+    const filesDeleted = async (root: string, deleted: string[]) => {
+        for (const path of openFiles[root] ?? []) {
+            if (deleted.some(item => isSameOrInside(item, path))) {
+                await closeFile(root, path);
+            }
+        }
     };
 
     const closeSession = async (session: TerminalSession) => {
@@ -418,6 +449,8 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
         tabKeysOf,
         openExtra,
         openFile,
+        filesMoved,
+        filesDeleted,
         commitGroup,
         editableLayout,
         focusPane,

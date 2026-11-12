@@ -13526,3 +13526,30 @@ button.pr-summary-cell:hover {
     flex-direction: column;
     align-items: flex-start;
 }
+
+/* The changes of files and folders in the file explorer. */
+.tree-row.editing {
+    cursor: default;
+}
+
+.tree-edit-input {
+    flex: 1;
+    height: 20px;
+    padding: 0 5px;
+}
+
+.tree-edit-error {
+    padding-top: 2px;
+    padding-right: 10px;
+    padding-bottom: 4px;
+    color: var(--danger);
+    font-size: 12px;
+}
+
+.tree-row.drop-inside {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.explorer-body.drop-root {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent);
+}

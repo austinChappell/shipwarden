@@ -7,7 +7,11 @@ import { FileService, parseGitGrep, resolveInside } from './file-service';
 
 describe('FileService', () => {
     let root: string;
-    const service = new FileService();
+    let trashed: string[] = [];
+    const service = new FileService(async file => {
+        trashed.push(file);
+        await fs.rm(file, { recursive: true });
+    });
 
     beforeEach(async () => {
         root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'shipwarden-files-')));
@@ -26,6 +30,7 @@ describe('FileService', () => {
 
     afterEach(async () => {
         await fs.rm(root, { recursive: true, force: true });
+        trashed = [];
     });
 
     it('lists a folder with folders first, hides .git and marks ignored entries', async () => {
@@ -83,6 +88,88 @@ describe('FileService', () => {
     it('does not read or write outside the worktree', async () => {
         await expect(service.readFile(root, '../outside.txt')).rejects.toThrow('outside the worktree');
         await expect(service.writeFile(root, '/etc/hosts', 'x')).rejects.toThrow('outside the worktree');
+    });
+
+    describe('changes of files and folders', () => {
+        const isFile = (relative: string) =>
+            fs.stat(path.join(root, relative)).then(
+                stat => stat.isFile(),
+                () => false
+            );
+        const isFolder = (relative: string) =>
+            fs.stat(path.join(root, relative)).then(
+                stat => stat.isDirectory(),
+                () => false
+            );
+
+        it('makes an empty file and its missing folders', async () => {
+            await service.createFile(root, 'src/new/a.ts');
+            expect(await fs.readFile(path.join(root, 'src/new/a.ts'), 'utf8')).toBe('');
+        });
+
+        it('does not replace a file that exists', async () => {
+            await expect(service.createFile(root, 'README.md')).rejects.toThrow('already exists');
+            expect(await service.readFile(root, 'README.md')).toContain('Hello World');
+        });
+
+        it('makes a folder with its parents and refuses one that exists', async () => {
+            await service.createFolder(root, 'docs/guides');
+            expect(await isFolder('docs/guides')).toBe(true);
+            await expect(service.createFolder(root, 'src')).rejects.toThrow('already exists');
+        });
+
+        it('refuses names that are not valid', async () => {
+            await expect(service.createFile(root, '../x.txt')).rejects.toThrow('not valid');
+            await expect(service.createFolder(root, '.git/hooks')).rejects.toThrow('.git');
+            await expect(service.createFile(root, '  ')).rejects.toThrow('Type a name');
+        });
+
+        it('renames and moves files and folders', async () => {
+            await service.move(root, 'README.md', 'NOTES.md');
+            expect(await isFile('NOTES.md')).toBe(true);
+            await service.move(root, 'NOTES.md', 'src/NOTES.md');
+            expect(await isFile('src/NOTES.md')).toBe(true);
+            await service.move(root, 'src', '.github/src');
+            expect(await isFile('.github/src/index.ts')).toBe(true);
+        });
+
+        it('changes only the case of a name', async () => {
+            await service.move(root, 'README.md', 'readme.md');
+            expect((await fs.readdir(root)).includes('readme.md')).toBe(true);
+        });
+
+        it('does not replace an entry or move a folder into itself', async () => {
+            await expect(service.move(root, 'README.md', 'package.json')).rejects.toThrow('already exists');
+            await expect(service.move(root, 'src', 'src/inner')).rejects.toThrow('into itself');
+            await expect(service.move(root, 'missing.txt', 'b.txt')).rejects.toThrow('does not exist');
+        });
+
+        it('moves entries to the Trash', async () => {
+            await service.delete(root, ['README.md', 'src']);
+            expect(trashed).toEqual([path.join(root, 'README.md'), path.join(root, 'src')]);
+            await expect(service.delete(root, [''])).rejects.toThrow();
+        });
+
+        it('copies dropped files and folders, and adds " copy" to a name in use', async () => {
+            const outside = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'shipwarden-drop-')));
+            try {
+                await fs.writeFile(path.join(outside, 'README.md'), 'dropped\n');
+                await fs.mkdir(path.join(outside, 'assets'));
+                await fs.writeFile(path.join(outside, 'assets', 'logo.svg'), '<svg/>');
+                const copied = await service.copyIn(root, [path.join(outside, 'README.md'), path.join(outside, 'assets')], '');
+                expect(copied).toEqual(['README copy.md', 'assets']);
+                expect(await service.readFile(root, 'README copy.md')).toBe('dropped\n');
+                expect(await isFile('assets/logo.svg')).toBe(true);
+                expect(await service.copyIn(root, [path.join(outside, 'README.md')], 'src')).toEqual(['src/README.md']);
+            } finally {
+                await fs.rm(outside, { recursive: true, force: true });
+            }
+        });
+
+        it('does not copy a folder into itself', async () => {
+            await expect(service.copyIn(root, [path.join(root, 'src')], 'src')).rejects.toThrow('into itself');
+            await expect(service.copyIn(root, ['relative.txt'], '')).rejects.toThrow('not absolute');
+        });
     });
 });
 

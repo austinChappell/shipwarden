@@ -75,7 +75,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const userData = app.getPath('userData');
     const worktrees = new GitWorktreeService();
     const projects = new ProjectStore(join(userData, 'projects.json'), join(userData, 'state.json'));
-    const files = new FileService();
+    const files = new FileService(file => shell.trashItem(file));
 
     const fileWatcher = new FileWatcher(event => window.send(IpcChannels.filesChanged, event));
     // Language servers need the PATH of the login shell. Load it in the background.
