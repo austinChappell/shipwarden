@@ -2,6 +2,7 @@ import { ChevronRight } from 'lucide-react';
 import { collapsedByDefault, type StatusGroup, type Task } from '@shared/tasks';
 import { itemKeys } from '../../keyboard/list-nav';
 import { groupStatus, taskLabel } from './task-view-logic';
+import { Count } from '../ui';
 import { StatusDot, TaskAssignees, TaskLabels, WorktreeButton } from './TaskParts';
 
 interface RowProps {
@@ -59,7 +60,7 @@ export function TaskStatusGroups({ groups, selectedId, isCollapsed, toggleGroup,
                     <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${closed ? '' : ' open'}`} />
                     <StatusDot status={groupStatus(group)} />
                     <span className="status-group-name">{group.name}</span>
-                    <span className="status-group-count">{group.tasks.length}</span>
+                    <Count value={group.tasks.length} />
                 </button>
                 {!closed &&
                     group.tasks.map(task => (

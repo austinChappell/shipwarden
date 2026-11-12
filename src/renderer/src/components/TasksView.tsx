@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FolderSearch, ListTodo } from 'lucide-react';
+import { CircleAlert, FolderSearch, ListTodo, SearchX, Settings } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import type { ViewRoute } from '@shared/nav-history';
 import {
@@ -28,7 +28,7 @@ import { TaskBoardColumns } from './tasks/TaskBoard';
 import { TaskDetails } from './tasks/TaskDetails';
 import { TaskDialog } from './tasks/TaskDialog';
 import { InlineTip } from './Tips';
-import { Button } from './ui';
+import { Button, SkeletonRows } from './ui';
 
 /** An empty task list. A constant keeps the props of the details the same between renders. */
 const NO_TASKS: Task[] = [];
@@ -236,50 +236,70 @@ export function TasksView({
                 query={query}
                 setQuery={setQuery}
                 loading={list.loading}
+                updatedAt={list.updatedAt}
                 createTask={list.createTask}
                 refresh={() => (sourceState.collections?.length ? loadTasks() : sourceState.reloadCollections())}
                 onOpenSettings={onOpenSettings}
             />
 
-            {connections === undefined && !sourceError && <div className="panel-message">Loading the task managers…</div>}
+            {connections === undefined && !sourceError && <SkeletonRows dot={false} label="Loading the task managers" />}
             {connections?.length === 0 && !sourceError && (
                 <EmptyState
                     icon={ListTodo}
                     title="No task manager"
                     actions={
-                        <Button variant="primary" onClick={onOpenSettings}>
+                        <Button variant="primary" size="lg" onClick={onOpenSettings}>
                             Open Settings › Task managers
                         </Button>
                     }
+                    hint="Then “Start in worktree” gives a task to a new agent."
                 >
-                    Connect GitHub Issues, ClickUp or a plugin to see your tasks here. “Start in worktree” then gives a task to a new agent.
+                    Connect GitHub Issues, ClickUp, or a plugin to see your tasks here.
                 </EmptyState>
             )}
             {currentConnection && !currentConnection.configured && (
-                <div className="panel-message">
-                    <p>
-                        {currentConnection.name} needs its {missingSettingsText(currentConnection)}.
-                    </p>
-                    <Button variant="primary" onClick={onOpenSettings}>
-                        Open the settings
-                    </Button>
-                </div>
+                <EmptyState
+                    icon={Settings}
+                    title={`Set up ${currentConnection.name}`}
+                    actions={
+                        <Button variant="primary" size="lg" onClick={onOpenSettings}>
+                            Open the settings
+                        </Button>
+                    }
+                >
+                    {currentConnection.name} needs its {missingSettingsText(currentConnection)}.
+                </EmptyState>
             )}
-            {currentConnection?.configured && source === undefined && !sourceError && <div className="panel-message">Starting {currentConnection.name}…</div>}
+            {currentConnection?.configured && source === undefined && !sourceError && <SkeletonRows label={`Starting ${currentConnection.name}`} />}
             {sourceError && (
-                <div className="panel-message">
-                    <div className="form-error">{sourceError}</div>
-                    <Button onClick={onOpenSettings}>Open the settings</Button>
-                </div>
+                <EmptyState
+                    icon={CircleAlert}
+                    title="The task manager has an error"
+                    actions={
+                        <Button variant="primary" size="lg" onClick={onOpenSettings}>
+                            Open the settings
+                        </Button>
+                    }
+                >
+                    {sourceError}
+                </EmptyState>
             )}
 
             {source && listState === 'choose' && (
                 <EmptyState icon={FolderSearch} title="Select a collection">
-                    {source.name} has no default collection for the repositories of this project. Select a collection in the menu above to see its tasks.
+                    {source.name} has no default collection for this project. Select a collection in the header to see its tasks.
                 </EmptyState>
             )}
             {source && listState === 'empty' && (
-                <EmptyState icon={FolderSearch} title="No collections" actions={<Button onClick={onOpenSettings}>Open Settings › Task managers</Button>}>
+                <EmptyState
+                    icon={FolderSearch}
+                    title="No collections"
+                    actions={
+                        <Button variant="primary" size="lg" onClick={onOpenSettings}>
+                            Open Settings › Task managers
+                        </Button>
+                    }
+                >
                     {source.name} has no collections that you can access. Check the scope of the task manager in the settings.
                 </EmptyState>
             )}
@@ -289,7 +309,7 @@ export function TasksView({
                     <div className="task-board">
                         <InlineTip id="tasks" />
                         {listError && <div className="form-error task-list-error">{listError}</div>}
-                        {listed === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
+                        {listed === undefined && !listError && <SkeletonRows label="Loading tasks" />}
                         {listed !== undefined && (
                             <div className="board-columns">
                                 <TaskBoardColumns {...itemProps} columns={columns} canMove={canMove} moving={list.moving} onMove={moveTask} />
@@ -304,9 +324,17 @@ export function TasksView({
                     <div className="task-list" onKeyDown={moveListFocus}>
                         <InlineTip id="tasks" inset />
                         {listError && <div className="form-error task-list-error">{listError}</div>}
-                        {listed === undefined && !listError && <div className="panel-message">Loading tasks…</div>}
-                        {listed?.length === 0 && <div className="panel-message">No tasks in this collection.</div>}
-                        {!!listed?.length && shown.length === 0 && <div className="panel-message">{noMatchText(query, assignee, label)}</div>}
+                        {listed === undefined && !listError && <SkeletonRows label="Loading tasks" />}
+                        {listed?.length === 0 && (
+                            <EmptyState icon={ListTodo} title="No tasks">
+                                This collection has no tasks.
+                            </EmptyState>
+                        )}
+                        {!!listed?.length && shown.length === 0 && (
+                            <EmptyState icon={SearchX} title="No matching tasks">
+                                {noMatchText(query, assignee, label)}
+                            </EmptyState>
+                        )}
                         <TaskStatusGroups {...itemProps} groups={statusGroups} />
                     </div>
                 </div>

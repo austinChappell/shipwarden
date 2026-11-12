@@ -2,19 +2,23 @@ import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
 import { cx } from './cx';
 
 /**
- * The look of a button.
- * - "default": a border and a raised background. Use it for most actions.
- * - "primary": the accent color as an outline. Use it for the main action of a section.
- * - "solid": a fill in the accent color. Use it for the one main action of a page or a dialog.
- * - "danger": the danger color. Use it for an action that deletes or stops something.
- * - "approve": the ok color, for example "Approve".
- * - "merge": the purple of the merge button.
- * - "ghost": no border and no background until the pointer is on it. Use it in toolbars and rows.
+ * The look of a button. The rules come from docs/design (board 2).
+ * - "secondary": a neutral raised button. It is the default. Use it for all actions that are not the one below.
+ * - "primary": the accent fill. Use it for one action per view: the main create or start action, or the action of an
+ *   empty state.
+ * - "accent": a soft accent fill. Use it only for the one recommended action of a row, for example "Merge".
+ * - "danger": red text on a secondary button. Use it for an action that deletes or stops something.
+ * - "danger-solid": a red fill. Use it only for the confirm button of a confirm dialog.
+ * - "ghost": no border and no background until the pointer is on it. Use it in toolbars and menus.
  * - "link": text only, with no box. Use it for a small action in a line of text.
+ * - "link-danger": a red "link". Use it for a small action that deletes something, for example "Discard all".
  */
-export type ButtonVariant = 'default' | 'primary' | 'solid' | 'danger' | 'approve' | 'merge' | 'ghost' | 'link';
+export type ButtonVariant = 'secondary' | 'primary' | 'accent' | 'danger' | 'danger-solid' | 'ghost' | 'link' | 'link-danger';
 
-/** The height of a control. "sm" is 24 px, "md" is 28 px, and "lg" is 32 px. */
+/**
+ * The height of a control. "sm" is 24 px, "md" is 28 px, and "lg" is 32 px.
+ * Use "lg" in page headers, forms, and empty states. Use "md" in list rows.
+ */
 export type ControlSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -30,9 +34,9 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /** Returns the classes of a button. Use it for an element that must look like a button but is not a `Button`. */
-export function buttonClass(variant: ButtonVariant = 'default', size: ControlSize = 'md', active = false, className?: string): string {
-    if (variant === 'link') return cx('link-button', active && 'on', className);
-    return cx('button', variant !== 'default' && variant, size !== 'md' && size, active && 'on', className);
+export function buttonClass(variant: ButtonVariant = 'secondary', size: ControlSize = 'md', active = false, className?: string): string {
+    if (variant === 'link' || variant === 'link-danger') return cx('link-button', variant === 'link-danger' && 'danger', active && 'on', className);
+    return cx('button', variant !== 'secondary' && variant, size !== 'md' && size, active && 'on', className);
 }
 
 /**

@@ -89,7 +89,7 @@ export function CloneRepoDialog({ projectName, onClose, onClone }: Props) {
                     <Button onClick={onClose} disabled={busy}>
                         Cancel
                     </Button>
-                    <Button variant="solid" icon={busy && <LoaderCircle size={13} className="spin" />} onClick={() => void submit()} disabled={busy || !repo}>
+                    <Button variant="primary" icon={busy && <LoaderCircle size={13} className="spin" />} onClick={() => void submit()} disabled={busy || !repo}>
                         Clone
                     </Button>
                 </footer>

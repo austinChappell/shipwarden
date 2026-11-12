@@ -37,8 +37,9 @@ import type { TaskLink } from '@shared/tasks';
 import { openShellCount, runsAgent, type TerminalSession } from '@shared/terminal';
 import { isHiddenAt, nextSnoozeEnd, snoozeText, sortWorktrees, type HiddenWorktree, type Worktree, type WorktreeSort } from '@shared/worktrees';
 import { errorText } from '../util';
+import { pluralize } from '@shared/format';
 import { Logo } from './Logo';
-import { Button, IconButton, Input, SearchInput } from './ui';
+import { Button, Chip, Count, IconButton, Input, SearchInput } from './ui';
 import { confirmDialog } from './ConfirmDialog';
 import { NewWorktreeDialog, type NewWorktreeRequest } from './NewWorktreeDialog';
 import { moveMenuFocus, useMenuClose } from './use-menu';
@@ -409,7 +410,7 @@ function ProjectSwitcher(props: Props) {
                         >
                             <span className="project-menu-check">{project.id === projects.activeId && <Check size={13} strokeWidth={2} />}</span>
                             <span className="project-menu-name">{project.name}</span>
-                            <span className="project-menu-count">{project.repos.length}</span>
+                            <Count value={project.repos.length} label={pluralize(project.repos.length, 'repository', 'repositories')} />
                             {projects.projects.length > 1 && <GripVertical className="drag-grip" size={12} strokeWidth={1.75} />}
                         </button>
                     ))}
@@ -664,14 +665,23 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                     />
                 )}
                 {repoPorts.length > 0 && (
-                    <span
-                        className="worktree-ports repo-ports"
+                    <Chip
+                        tone="info"
+                        className="repo-ports"
                         title={`Processes in this repository listen on ${portList(repoPorts.map(port => ({ port })))}. Expand the repository to open or stop them.`}
                     >
-                        <Plug size={11} strokeWidth={1.9} />
-                    </span>
+                        <Plug size={12} strokeWidth={2} aria-hidden="true" />
+                    </Chip>
                 )}
-                {(collapsed || shown.length < total) && <span className="repo-header-count">{shown.length < total ? `${shown.length}/${total}` : total}</span>}
+                {(collapsed || shown.length < total) &&
+                    (shown.length < total ? (
+                        // A filtered count is a fraction. The Count component takes only a number, so this span uses its class.
+                        <span className="count" title={`${shown.length} of ${total} worktrees`}>
+                            {shown.length}/{total}
+                        </span>
+                    ) : (
+                        <Count value={total} label={pluralize(total, 'worktree')} />
+                    ))}
                 <IconButton
                     size="sm"
                     className="repo-action"
@@ -839,13 +849,13 @@ export function Sidebar(outerProps: Props) {
             <button data-sidebar-item className={`nav-row${props.dashboardActive ? ' selected' : ''}`} onClick={props.onOpenDashboard}>
                 <LayoutDashboard size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Dashboard</span>
-                {props.dashboardCount > 0 && <span className="nav-row-count attention">{props.dashboardCount}</span>}
+                {props.dashboardCount > 0 && <Count value={props.dashboardCount} tone="accent" label={`Items that need you: ${props.dashboardCount}`} />}
             </button>
             <button data-sidebar-item data-tour="agents" className={`nav-row${props.agentsActive ? ' selected' : ''}`} onClick={props.onOpenAgents}>
                 <Bot size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Agents</span>
                 {agentsState && <span className={`status-dot ${agentsState}`} title={AGENT_STATE_LABELS[agentsState]} />}
-                {runningAgents > 0 && <span className="nav-row-count">{runningAgents}</span>}
+                {runningAgents > 0 && <Count value={runningAgents} label={`Running agents: ${runningAgents}`} />}
             </button>
             {props.repos.length > 0 && (
                 <button data-sidebar-item data-tour="tasks" className={`nav-row${props.tasksActive ? ' selected' : ''}`} onClick={props.onOpenTasks}>
@@ -857,11 +867,7 @@ export function Sidebar(outerProps: Props) {
             <button data-sidebar-item data-tour="review" className={`nav-row${props.reviewActive ? ' selected' : ''}`} onClick={props.onOpenReview}>
                 <GitPullRequest size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Review</span>
-                {props.reviewCount > 0 && (
-                    <span className="nav-row-count attention review" title={`${props.reviewCount} pull requests wait for your review`}>
-                        {props.reviewCount}
-                    </span>
-                )}
+                {props.reviewCount > 0 && <Count value={props.reviewCount} tone="accent" label={`${props.reviewCount} pull requests wait for your review`} />}
             </button>
             <button data-sidebar-item className={`nav-row${props.pipelinesActive ? ' selected' : ''}`} onClick={props.onOpenPipelines}>
                 <Workflow size={15} strokeWidth={1.6} />
@@ -875,19 +881,13 @@ export function Sidebar(outerProps: Props) {
                 <Zap size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Automations</span>
                 {props.automationsCount > 0 && (
-                    <span className="nav-row-count attention" title={`${props.automationsCount} automation runs wait for your approval`}>
-                        {props.automationsCount}
-                    </span>
+                    <Count value={props.automationsCount} label={`${props.automationsCount} automation runs wait for your approval`} />
                 )}
             </button>
             <button data-sidebar-item className={`nav-row${props.plansActive ? ' selected' : ''}`} onClick={props.onOpenPlans}>
                 <ClipboardList size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Plans</span>
-                {props.plansCount > 0 && (
-                    <span className="nav-row-count attention" title={`${props.plansCount} plan steps wait for you`}>
-                        {props.plansCount}
-                    </span>
-                )}
+                {props.plansCount > 0 && <Count value={props.plansCount} label={`${props.plansCount} plan steps wait for you`} />}
             </button>
 
             {/* Only the repositories change with the project, so the project switcher is their header. */}

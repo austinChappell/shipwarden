@@ -79,7 +79,7 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
                 Comment
             </Button>
         ) : event === 'APPROVE' ? (
-            <Button key={event} variant="approve" size={size} icon={<Check size={14} strokeWidth={2} />} disabled={!canDecide} onClick={() => onSubmit(event)}>
+            <Button key={event} variant="primary" size={size} icon={<Check size={14} strokeWidth={2} />} disabled={!canDecide} onClick={() => onSubmit(event)}>
                 Approve
             </Button>
         ) : (

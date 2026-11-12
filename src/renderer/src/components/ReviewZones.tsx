@@ -15,7 +15,7 @@ import { applyThreadSuggestion } from '../github/suggestions';
 import { radioGroupKeys } from './keyboard';
 import { Reactions, type ReactionActions } from './Reactions';
 import { MentionTextarea } from './MentionTextarea';
-import { Button, ButtonGroup, Card, CardBody, Select, type SelectOption } from './ui';
+import { Button, ButtonGroup, Card, CardBody, Chip, Select, type SelectOption } from './ui';
 
 export type { AgentQuestion, ComposerMode, QuestionAction };
 
@@ -123,11 +123,11 @@ export function PendingZone({
         <Card tone="accent" dashed={comment.fromAgent} className={`zone-card pending${comment.needsDecision ? ' needs-decision' : ''}`}>
             <CardBody>
                 <div className="comment-author">
-                    <span className="tag">pending</span>
+                    <Chip>pending</Chip>
                     {comment.fromAgent && (
-                        <span className="tag agent-tag">
-                            <Bot size={11} strokeWidth={1.8} /> agent draft
-                        </span>
+                        <Chip tone="info" icon={<Bot size={12} strokeWidth={1.8} />}>
+                            agent draft
+                        </Chip>
                     )}
                     {comment.needsDecision
                         ? ' Accept or remove this comment. You cannot submit your review until you do.'
@@ -175,7 +175,7 @@ export function PendingZone({
                             Accept
                         </Button>
                     )}
-                    <Button variant="link" onClick={onRemove}>
+                    <Button variant="link-danger" onClick={onRemove}>
                         Remove
                     </Button>
                 </div>
@@ -438,7 +438,7 @@ export function QuestionZone({
                             <Button variant="link" onClick={() => onAction('toggle')}>
                                 Hide
                             </Button>
-                            <Button variant="link" onClick={() => onAction('delete')}>
+                            <Button variant="link-danger" onClick={() => onAction('delete')}>
                                 Delete
                             </Button>
                         </>

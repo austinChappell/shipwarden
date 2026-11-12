@@ -358,7 +358,7 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                     <>
                         <div className="welcome-actions">
                             <Button
-                                variant="solid"
+                                variant="primary"
                                 size="lg"
                                 icon={<Play size={16} strokeWidth={2} aria-hidden="true" />}
                                 onClick={() => {
@@ -486,7 +486,7 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                     Back
                 </Button>
                 {index < last && (
-                    <Button variant="solid" size="lg" iconEnd={<ArrowRight size={16} strokeWidth={2} aria-hidden="true" />} onClick={() => go(index + 1)}>
+                    <Button variant="primary" size="lg" iconEnd={<ArrowRight size={16} strokeWidth={2} aria-hidden="true" />} onClick={() => go(index + 1)}>
                         {index === 0 ? 'Get started' : 'Continue'}
                     </Button>
                 )}

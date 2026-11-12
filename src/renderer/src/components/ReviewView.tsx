@@ -10,7 +10,7 @@ import { queryClient } from '../query-client';
 import { errorText, optionalErrorText } from '../util';
 import { reviewKeys, reviewStore } from '../github/review-store';
 import { refreshRepo, useReviewOverview, useReviewQueue } from '../github/review-overview-store';
-import { Button, IconButton, sortedGroups } from './ui';
+import { Button, IconButton, PageHeader, sortedGroups } from './ui';
 import { ReviewHome } from './ReviewHome';
 import { ReviewRepoPage } from './ReviewRepoPage';
 import { isReviewTab, ReviewPullRequest, type ReviewTab } from './ReviewPullRequest';
@@ -177,11 +177,12 @@ export function ReviewView({
     if (reviewKey === null) {
         return (
             <div className="review-view">
+                <PageHeader icon={GitPullRequest} title="Review" />
                 <EmptyState
                     icon={GitPullRequest}
                     title="No code review account"
                     actions={
-                        <Button variant="primary" onClick={onOpenSettings}>
+                        <Button variant="primary" size="lg" onClick={onOpenSettings}>
                             Open Settings › Code review
                         </Button>
                     }
@@ -230,10 +231,8 @@ export function ReviewView({
                                 Review queue · {shownQueue.index + 1} of {shownQueue.items.length}
                             </span>
                             <span className="header-spacer" />
-                            <Button size="sm" onClick={stepQueue}>
-                                {shownQueue.index + 1 < shownQueue.items.length ? 'Next pull request' : 'Finish queue'}
-                            </Button>
-                            <IconButton size="sm" icon={<X size={14} strokeWidth={1.7} />} label="End the review queue" onClick={endQueue} />
+                            <Button onClick={stepQueue}>{shownQueue.index + 1 < shownQueue.items.length ? 'Next pull request' : 'Finish queue'}</Button>
+                            <IconButton icon={<X size={14} strokeWidth={1.7} />} label="End the review queue" onClick={endQueue} />
                         </div>
                     )}
                     <ReviewPullRequest

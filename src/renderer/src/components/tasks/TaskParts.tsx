@@ -1,21 +1,24 @@
 import { useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import type { Task, TaskPerson, TaskStatus } from '@shared/tasks';
-import { IconButton } from '../ui';
+import { Chip, IconButton } from '../ui';
 import { personInitials } from './task-view-logic';
 
 export function StatusDot({ status }: { status: TaskStatus }) {
     return <span className={`task-status-dot ${status.category}`} style={status.color ? { background: status.color } : undefined} title={status.name} />;
 }
 
-/** The labels of a task. `limit` sets the maximum number of labels. */
+/**
+ * The labels of a task. `limit` sets the maximum number of labels. The chips use the muted label palette, not the color
+ * from the task manager, because the status colors have other meanings (docs/design, finding 13).
+ */
 export function TaskLabels({ labels, limit }: { labels: Task['labels']; limit?: number }) {
     return (
         <>
             {labels?.slice(0, limit).map(label => (
-                <span key={label.name} className="task-label" style={label.color ? { borderColor: label.color } : undefined}>
+                <Chip key={label.name} tone="label" className="task-label">
                     {label.name}
-                </span>
+                </Chip>
             ))}
         </>
     );

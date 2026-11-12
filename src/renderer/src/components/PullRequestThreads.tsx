@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bot } from 'lucide-react';
+import { Bot, MessageSquare } from 'lucide-react';
 import type { PullRequest, RepoTarget, ReviewThread } from '@shared/github';
 import { commentPrompt, reviewPrompt, reviewThreads, threadLine, threadPrompt } from '../github/agent-prompts';
 import { visibleThreads, type ConversationItem } from '../github/review-state';
@@ -9,10 +9,10 @@ import { CommentBody } from './CommentBody';
 import { threadSuggestionTarget } from '@shared/suggestion';
 import { applyThreadSuggestion } from '../github/suggestions';
 import { replyToThread, setThreadResolved } from '../github/pull-request-mutations';
-import { REVIEW_STATE_TEXT } from './PullRequestTimeline';
+import { REVIEW_STATE_TEXT, reviewStateTone } from './PullRequestTimeline';
 import { Reactions, reactionActions, type ReactionActions } from './Reactions';
 import { MentionTextarea } from './MentionTextarea';
-import { Button } from './ui';
+import { Button, Chip, Count } from './ui';
 
 interface Props {
     target: RepoTarget;
@@ -51,8 +51,9 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
     return (
         <section className="pr-section">
             <div className="section-title">
-                <span>
-                    Review threads <span className="section-title-count">· {unresolved} unresolved</span>
+                <span className="section-title-group">
+                    Review threads
+                    <Chip icon={<MessageSquare size={12} strokeWidth={1.6} />}>{unresolved} unresolved</Chip>
                 </span>
                 {pr.threads.length > unresolved && (
                     <Button variant="link" onClick={() => onShowResolved(!showResolved)}>
@@ -66,8 +67,8 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
                     <button className="thread-location" onClick={() => onOpen(thread)}>
                         {thread.path}
                         {threadLine(thread) ? `:${threadLine(thread)}` : ''}
-                        {thread.isOutdated && <span className="tag">outdated</span>}
-                        {thread.isResolved && <span className="tag">resolved</span>}
+                        {thread.isOutdated && <Chip>outdated</Chip>}
+                        {thread.isResolved && <Chip>resolved</Chip>}
                     </button>
                     {thread.comments.map(comment => (
                         <div key={comment.id} className="thread-comment">
@@ -144,16 +145,18 @@ export function PullRequestConversation({
 }) {
     return (
         <section className="pr-section">
-            <div className="section-title">Conversation ({items.length})</div>
+            <div className="section-title">
+                <span className="section-title-group">
+                    Conversation <Count value={items.length} />
+                </span>
+            </div>
             {items.map(item => {
                 const review = pr.reviews.find(candidate => candidate.id === item.id);
                 return (
                     <div key={item.id} className="thread-card">
                         <div className="comment-author">
                             {item.author ?? 'unknown'}
-                            {item.state && (
-                                <span className={`tag review-${item.state.toLowerCase()}`}>{REVIEW_STATE_TEXT[item.state] ?? item.state.toLowerCase()}</span>
-                            )}
+                            {item.state && <Chip tone={reviewStateTone(item.state)}>{REVIEW_STATE_TEXT[item.state] ?? item.state.toLowerCase()}</Chip>}
                             <span>{timeAgo(item.createdAt)}</span>
                         </div>
                         {item.body.trim() && <Markdown className="comment-body" text={item.body} />}

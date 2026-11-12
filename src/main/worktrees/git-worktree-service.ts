@@ -86,9 +86,9 @@ export class GitWorktreeService {
 
     /**
      * Creates a worktree. `parentFolder` is the folder that gets the worktree folder.
-     * The default is <worktrees root>/<repository name>.
+     * The default is <worktrees root>/<repository name>. `onStep` gets each slow step before it starts.
      */
-    async create(options: CreateWorktreeOptions, parentFolder?: string): Promise<Worktree> {
+    async create(options: CreateWorktreeOptions, parentFolder?: string, onStep?: (step: 'fetch' | 'checkout') => void): Promise<Worktree> {
         const branch = options.branch.trim();
         await this.git(options.repoPath, ['check-ref-format', '--branch', branch]);
 
@@ -108,6 +108,7 @@ export class GitWorktreeService {
             throw new Error(`The remote branch "${trackRef}" does not exist. Fetch the remote and try again.`);
         }
         // A new branch starts from the newest default branch of "origin", not from a local branch that can be old.
+        if (!branchExists && !trackRef && !options.baseRef) onStep?.('fetch');
         const base = branchExists || trackRef ? undefined : (options.baseRef ?? (await this.remoteDefaultBranch(main.path)));
         // --no-track: the new branch must not push to the default branch by mistake.
         // --track: a checkout of a remote branch pulls from and pushes to that remote branch.
@@ -116,6 +117,7 @@ export class GitWorktreeService {
             : trackRef
               ? ['worktree', 'add', '--track', '-b', branch, target, trackRef]
               : ['worktree', 'add', '--no-track', '-b', branch, target, ...(base ? [base] : [])];
+        onStep?.('checkout');
         await this.git(main.path, args);
 
         const created = await this.find(main.path, target);
@@ -317,13 +319,16 @@ export class GitWorktreeService {
 
     /**
      * Copies the git-ignored files of the copy settings from the main worktree to a new worktree, for example ".env".
-     * A file that exists in the new worktree stays. Returns the copied paths.
+     * A file that exists in the new worktree stays. Returns the copied paths. `onItem` gets the count of the done items
+     * and the total, before each item and after the last item.
      */
-    async copyIgnored(repoPath: string, worktreePath: string, copy: CopyIgnoredSettings): Promise<string[]> {
+    async copyIgnored(repoPath: string, worktreePath: string, copy: CopyIgnoredSettings, onItem?: (done: number, total: number) => void): Promise<string[]> {
         const main = (await this.list(repoPath)).find(worktree => worktree.isMain);
         if (!main) return [];
         const copied: string[] = [];
-        for (const entry of await this.ignoredMatches(repoPath, copy)) {
+        const entries = await this.ignoredMatches(repoPath, copy);
+        for (const [index, entry] of entries.entries()) {
+            onItem?.(index, entries.length);
             const relative = entry.replace(/\/+$/, '');
             const from = path.join(main.path, relative);
             const to = path.join(worktreePath, relative);
@@ -332,6 +337,7 @@ export class GitWorktreeService {
             await fs.cp(from, to, { recursive: true, errorOnExist: false, force: false, preserveTimestamps: true });
             copied.push(entry);
         }
+        onItem?.(entries.length, entries.length);
         return copied;
     }
 

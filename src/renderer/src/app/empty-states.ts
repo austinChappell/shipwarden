@@ -1,5 +1,5 @@
 /**
- * The action of "Start an agent in a worktree" in the empty Agents view:
+ * The action of "Start agent" in the Agents view (the header and the empty state):
  * - worktree: show the selected worktree, where the Agent button is.
  * - newWorktree: open the New worktree dialog for the first repository.
  * - addRepo: the project has no repositories, so add one first.

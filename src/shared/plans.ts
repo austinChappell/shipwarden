@@ -118,6 +118,9 @@ export interface PlanProposal {
 }
 
 export const MAX_TITLE_LENGTH = 120;
+
+/** The title of a new plan. The plan gets the title of its first step, or the title of the proposal of an agent. */
+export const NEW_PLAN_TITLE = 'New plan';
 const MAX_TEXT_LENGTH = 50_000;
 const MAX_STEPS = 50;
 
@@ -158,7 +161,17 @@ export function newStep(repo?: string): PlanStep {
 
 /** Returns a new draft plan for a project. */
 export function newPlan(projectId: string, now: number): Plan {
-    return { id: newPlanId(), projectId, title: 'New plan', idea: '', steps: [], status: 'draft', draftPullRequests: false, createdAt: now, updatedAt: now };
+    return {
+        id: newPlanId(),
+        projectId,
+        title: NEW_PLAN_TITLE,
+        idea: '',
+        steps: [],
+        status: 'draft',
+        draftPullRequests: false,
+        createdAt: now,
+        updatedAt: now
+    };
 }
 
 /** Returns a draft copy of the plan, with new IDs and no results of a run. New tasks that the run made stay linked. */
@@ -500,7 +513,7 @@ export function applyProposal(plan: Plan, proposal: PlanProposal, agent: string,
         const before = plan.steps.find(step => step.title.trim().toLowerCase() === item.title.trim().toLowerCase());
         return { ...newStep(item.repo), ...item, ...(before ? { task: before.task, skip: before.skip } : {}) };
     });
-    const keepTitle = plan.title !== 'New plan' && plan.title.trim();
+    const keepTitle = plan.title !== NEW_PLAN_TITLE && plan.title.trim();
     return {
         ...plan,
         title: keepTitle ? plan.title : (proposal.title ?? plan.title),

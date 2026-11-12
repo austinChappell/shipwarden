@@ -2,7 +2,7 @@ import { basename } from 'path';
 import * as os from 'os';
 import { ipcMain } from 'electron';
 import { IpcChannels } from '@shared/api';
-import type { CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult } from '@shared/worktrees';
+import type { CreatedWorktree, CreateWorktreeOptions, CreateWorktreeProgress, RemoveWorktreeResult } from '@shared/worktrees';
 import { normalizeWorktreeSettings, resolveWorktreeSettings, scriptEnvironment } from '@shared/worktree-settings';
 import { worktreesRoot } from '../worktrees/git-worktree-service';
 import { runScript } from '../worktrees/run-script';
@@ -25,13 +25,20 @@ export function registerWorktreeIpc({ worktrees, settings, reviewCheckouts, proc
     );
     ipcMain.handle(IpcChannels.worktreesBranches, (_event, repoPath: string) => worktrees.branches(String(repoPath)));
     ipcMain.handle(IpcChannels.worktreesCreate, async (_event, options: CreateWorktreeOptions): Promise<CreatedWorktree> => {
+        const { progressId } = options;
+        const report = (progress: CreateWorktreeProgress) => {
+            if (progressId) window.send(IpcChannels.worktreesProgress, progressId, progress);
+        };
         const config = await worktreeSettingsFor(options.repoPath);
-        const worktree = await worktrees.create(options, config.parentFolder);
+        const worktree = await worktrees.create(options, config.parentFolder, step => report({ step }));
         if (!config.copyIgnored.enabled) {
             return { ...worktree, copied: [] };
         }
         try {
-            return { ...worktree, copied: await worktrees.copyIgnored(options.repoPath, worktree.path, config.copyIgnored) };
+            const copied = await worktrees.copyIgnored(options.repoPath, worktree.path, config.copyIgnored, (done, total) =>
+                report({ step: 'copy', done, total })
+            );
+            return { ...worktree, copied };
         } catch (error) {
             return { ...worktree, copied: [], copyError: error instanceof Error ? error.message : String(error) };
         }

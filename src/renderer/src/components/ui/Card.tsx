@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
+import { Count } from './Count';
 import { cx } from './cx';
 
 export interface CardProps extends HTMLAttributes<HTMLElement> {
@@ -50,7 +51,7 @@ export function CardHeader({ title, icon, count, description, meta, actions, lev
             <div className="card-heading">
                 <div className="card-title-row">
                     <Heading className="card-title">{title}</Heading>
-                    {count !== undefined && <span className="card-count">{count}</span>}
+                    {count !== undefined && <Count value={count} />}
                     {meta}
                 </div>
                 {description && <div className="card-description">{description}</div>}

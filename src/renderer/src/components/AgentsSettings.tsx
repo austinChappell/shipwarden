@@ -5,7 +5,7 @@ import { agentProgramOf } from '@shared/agent-programs';
 import { hookAgentOf } from '@shared/agents';
 import { cleanCommand, commandProgram, missingDefaultAgents, type AgentDefinition, type AppSettings, type CommandCheck } from '@shared/settings';
 import { errorText } from '../util';
-import { Button, IconButton, Input, Select } from './ui';
+import { Button, Chip, IconButton, Input, Select } from './ui';
 import { SettingsGroup } from './settings-ui';
 
 const api = window.shipwarden;
@@ -98,7 +98,7 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
             <div className="agent-setting-main">
                 <label className="agent-default" title={isDefault ? 'The default agent' : 'Make this the default agent'}>
                     <input type="radio" name="default-agent" checked={isDefault} onChange={onMakeDefault} />
-                    {isDefault && <span className="agent-default-label">Default</span>}
+                    {isDefault && <Chip tone="info">Default</Chip>}
                 </label>
                 <Input
                     className="agent-name-field"

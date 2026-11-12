@@ -1,19 +1,16 @@
 import type { ReactNode } from 'react';
 import type { PullRequest } from '@shared/github';
+import { pluralize as plural } from '@shared/format';
 import type { CheckCounts } from '../github/use-check-counts';
 import type { ReviewTab } from './ReviewPullRequest';
 
-/** The color of a status text. */
-export type Tone = 'ok' | 'fail' | 'wait' | 'mine' | 'muted' | 'merged';
+/** The color of a status text. "review" is for "changes requested". */
+export type Tone = 'ok' | 'fail' | 'wait' | 'mine' | 'muted' | 'merged' | 'review';
 
 /** One condition of a merge. "ok" passes, "fail" stops the merge, "wait" is not done yet. */
 export interface MergeCondition {
     state: 'ok' | 'fail' | 'wait';
     text: string;
-}
-
-function plural(count: number, word: string): string {
-    return `${count} ${word}${count === 1 ? '' : 's'}`;
 }
 
 /** The conditions of a merge of an open pull request, in the order of the checklist. */
@@ -61,7 +58,7 @@ function reviewState(pr: PullRequest): { text: string; tone: Tone } {
         case 'APPROVED':
             return { text: 'Approved', tone: 'ok' };
         case 'CHANGES_REQUESTED':
-            return { text: 'Changes requested', tone: 'fail' };
+            return { text: 'Changes requested', tone: 'review' };
         case 'REVIEW_REQUIRED':
             return { text: pr.viewerDidAuthor ? 'Waiting on reviewers' : 'Review required', tone: 'wait' };
         default:

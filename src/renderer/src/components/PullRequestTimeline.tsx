@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
     Bookmark,
     Bot,
@@ -20,12 +20,20 @@ import {
 import { hostLabel, type GitHubLabel, type GitHubUser, type PullRequest, type PullRequestCommit, type Reaction, type TimelineEvent } from '@shared/github';
 import { ReactionAddButton, ReactionList, useReactionState, type ReactionActions } from './Reactions';
 import { commentPrompt, reviewPrompt, reviewThreads } from '../github/agent-prompts';
+import { pluralize } from '@shared/format';
 import { timeAgo } from '../util';
 import { openLink } from '../links';
 import { Markdown } from './Markdown';
 import { buildTimeline, type TimelineItem } from './pr-timeline';
 import { Avatar } from './Avatar';
-import { Button, Card, CardBody, IconButton } from './ui';
+import { Button, Card, CardBody, Chip, type ChipTone, IconButton } from './ui';
+
+/** The chip tone of a review state: approved is success, changes requested is review. The other states are neutral. */
+export function reviewStateTone(state: string): ChipTone {
+    if (state === 'APPROVED' || state === 'APPROVED_WITH_SUGGESTIONS') return 'success';
+    if (state === 'CHANGES_REQUESTED') return 'review';
+    return 'neutral';
+}
 
 export const REVIEW_STATE_TEXT: Record<string, string> = {
     APPROVED: 'approved',
@@ -94,8 +102,8 @@ function CardRow({
     /** The prompt that the agent button sends. Without it, the card has no agent button. */
     agentPrompt?: () => string;
     onSendToAgent?(prompt: string): void;
-    /** The color of the border, for example "ok" for an approved review. */
-    tone?: 'ok' | 'danger';
+    /** The color of the border, for example "ok" for an approved review and "merge" (purple) for requested changes. */
+    tone?: 'ok' | 'merge';
     header: ReactNode;
 }) {
     const { name, bot } = authorName(author?.login);
@@ -109,7 +117,7 @@ function CardRow({
                 <div className="card-header">
                     <span className="pr-timeline-card-title">
                         <strong>{name}</strong>
-                        {bot && <span className="tag pr-timeline-bot">bot</span>} {header}
+                        {bot && <Chip className="pr-timeline-bot">bot</Chip>} {header}
                     </span>
                     {(reactionState || sendable) && (
                         <span className="card-actions">
@@ -138,9 +146,9 @@ function CardRow({
 
 function LabelChip({ label }: { label: GitHubLabel }) {
     return (
-        <span className="pr-chip label" style={{ '--label-color': `#${label.color}` } as CSSProperties}>
+        <Chip tone="label" title={label.description ?? undefined}>
             {label.name}
-        </span>
+        </Chip>
     );
 }
 
@@ -374,10 +382,10 @@ function Row({
                     reactionActions={reactions}
                     agentPrompt={sendable ? () => reviewPrompt(pr, review) : undefined}
                     onSendToAgent={onSendToAgent}
-                    tone={review.state === 'APPROVED' ? 'ok' : review.state === 'CHANGES_REQUESTED' ? 'danger' : undefined}
+                    tone={review.state === 'APPROVED' ? 'ok' : review.state === 'CHANGES_REQUESTED' ? 'merge' : undefined}
                     header={
                         <>
-                            <span className={`tag review-${review.state.toLowerCase()}`}>{REVIEW_STATE_TEXT[review.state] ?? review.state.toLowerCase()}</span>{' '}
+                            <Chip tone={reviewStateTone(review.state)}>{REVIEW_STATE_TEXT[review.state] ?? review.state.toLowerCase()}</Chip>{' '}
                             <When iso={item.createdAt} />
                         </>
                     }
@@ -393,8 +401,7 @@ function Row({
                     </span>
                     <div className="pr-timeline-text">
                         <ActorAvatar pr={pr} login={authors[0] ?? null} />
-                        <strong>{authors.join(', ')}</strong> added {item.commits.length} commit{item.commits.length === 1 ? '' : 's'}{' '}
-                        <When iso={item.createdAt} />
+                        <strong>{authors.join(', ')}</strong> added {pluralize(item.commits.length, 'commit')} <When iso={item.createdAt} />
                         <ul className="pr-timeline-commits">
                             {item.commits.map(commit => (
                                 <li key={commit.oid}>

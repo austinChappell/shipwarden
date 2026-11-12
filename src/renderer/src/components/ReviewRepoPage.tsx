@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Check, GitMerge, GitPullRequest, GitPullRequestDraft, RefreshCw, Search } from 'lucide-react';
+import { ArrowLeft, Check, GitMerge, GitPullRequest, GitPullRequestDraft, RefreshCw } from 'lucide-react';
 import { parseRepoId, repoLabel, type PullRequestSummary, type RepoRef } from '@shared/github';
-import { MY_PULL_REQUEST_REASON_LABELS, parsePullRequestTitle, shortAge } from '@shared/dashboard';
+import { MY_PULL_REQUEST_REASON_LABELS, parsePullRequestTitle, type MyPullRequestReason } from '@shared/dashboard';
+import { pluralize } from '@shared/format';
 import {
     PULL_REQUEST_SORTS,
-    ageLevel,
     diffSize,
     hasUnseenActivity,
     matchesSearch,
@@ -20,7 +20,7 @@ import { optionalErrorText, timeAgo } from '../util';
 import { focusFirstItem, itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { seenStore, useIsSeen } from '../seen-store';
 import { overviewKeys, refreshRepo, useRepoEntry } from '../github/review-overview-store';
-import { Button, Combobox, IconButton, Input, Select, type ComboboxGroup } from './ui';
+import { Age, Button, Chip, type ChipTone, Combobox, Count, FilterField, IconButton, PageHeader, Select, SkeletonRows, type ComboboxGroup } from './ui';
 import { ChecksLabel, Dotted, KeyLegend, focusedData, useInitialFocus, usePageKeys } from './ReviewParts';
 import { InlineTip } from './Tips';
 
@@ -71,6 +71,14 @@ const REVIEW_TEXT: Record<string, string> = {
     DISMISSED: 'Your review was dismissed'
 };
 
+/** The chip tone of each action on a pull request of the user. */
+const REASON_TONES: Record<MyPullRequestReason, ChipTone> = {
+    'changes-requested': 'review',
+    'ci-failing': 'danger',
+    conflicts: 'warning',
+    'ready-to-merge': 'success'
+};
+
 function PrIcon({ pr, group }: { pr: OpenPullRequest; group: ReviewGroup }) {
     const props = { size: 15, strokeWidth: 1.7 };
     if (pr.isDraft) return <GitPullRequestDraft {...props} className="pr-row-icon draft" />;
@@ -81,7 +89,7 @@ function TitleLine({ title }: { title: string }) {
     const parsed = parsePullRequestTitle(title);
     return (
         <span className="pr-row-title">
-            {parsed.ticket && <span className="ticket-chip">{parsed.ticket}</span>}
+            {parsed.ticket && <Chip mono>{parsed.ticket}</Chip>}
             <span className="pr-row-title-text">{parsed.ticket ? parsed.text : title}</span>
         </span>
     );
@@ -102,7 +110,7 @@ function SinceReviewLine({ pr }: { pr: OpenPullRequest }) {
             {' · '}
             <Dotted
                 parts={[
-                    commits ? `${commits} new commit${commits === 1 ? '' : 's'}` : changed ? 'New commits' : 'No new commits',
+                    commits ? pluralize(commits, 'new commit') : changed ? 'New commits' : 'No new commits',
                     newComments && `new comments ${timeAgo(pr.lastActivityAt!)}`,
                     since && since.threads > 0 && `${since.resolved} of ${since.threads} of your threads resolved`
                 ]}
@@ -158,9 +166,9 @@ function PrRow({ pr, group, onOpen, onMarkSeen }: { pr: OpenPullRequest; group: 
                 {pr.viewerDidAuthor && pr.actions.length > 0 && (
                     <span className="pr-row-meta">
                         {pr.actions.map(reason => (
-                            <span key={reason} className={`pr-action ${reason}`}>
+                            <Chip key={reason} tone={REASON_TONES[reason]}>
                                 {MY_PULL_REQUEST_REASON_LABELS[reason]}
-                            </span>
+                            </Chip>
                         ))}
                     </span>
                 )}
@@ -172,16 +180,14 @@ function PrRow({ pr, group, onOpen, onMarkSeen }: { pr: OpenPullRequest; group: 
                 <span>
                     <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>
                     {' · '}
-                    {pr.changedFiles} file{pr.changedFiles === 1 ? '' : 's'}
+                    {pluralize(pr.changedFiles, 'file')}
                 </span>
                 <span className="diff-bar">
                     <span className={size.size} style={{ width: `${Math.round(size.fill * 100)}%` }} />
                 </span>
             </span>
             <span className="pr-row-comments">{pr.comments} cmt</span>
-            <span className={`review-age ${ageLevel(waitingSince)}`} title={`Opened ${new Date(waitingSince).toLocaleString()}`}>
-                {shortAge(waitingSince)}
-            </span>
+            <Age className="pr-row-age" date={waitingSince} />
         </div>
     );
 }
@@ -224,7 +230,6 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
     const [showWaiting, setShowWaiting] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const searchRef = useRef<HTMLInputElement>(null);
 
     const isSeen = useIsSeen();
     const prs = useMemo(() => (data?.pullRequests ?? []).filter(pr => matchesSearch(pr, query)), [data, query]);
@@ -278,7 +283,6 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         rootRef,
         listRef,
         {
-            '/': () => searchRef.current?.focus(),
             Escape: onBack,
             c: () => {
                 const pr = focusedPr();
@@ -319,7 +323,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         list.length > 0 && (
             <section aria-label={title}>
                 <h3 className="review-section-title">
-                    {title} · {list.length}
+                    {title} <Count value={list.length} />
                 </h3>
                 {rows(list)}
             </section>
@@ -327,29 +331,28 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
 
     return (
         <div className="review-repo-page" ref={rootRef} hidden={hidden}>
-            <header className="tasks-header review-header">
-                <div className="tasks-header-group where">
-                    <IconButton icon={<ArrowLeft size={14} strokeWidth={1.7} />} label="All repositories (Esc)" onClick={onBack} />
+            <PageHeader
+                leading={<IconButton size="lg" icon={<ArrowLeft size={16} strokeWidth={1.7} />} label="All repositories (Esc)" onClick={onBack} />}
+                icon={GitPullRequest}
+                title="Review"
+                meta={data && (needsCount > 0 ? `${needsCount} need${needsCount === 1 ? 's' : ''} you` : 'Nothing needs you')}
+                scope={
                     <Combobox
                         className="review-repo-select"
+                        size="lg"
                         value={repo}
                         groups={groups}
                         placeholder={repoLabel(parseRepoId(repo))}
-                        searchPlaceholder="Search repositories"
+                        searchPlaceholder="Filter repositories"
                         title="Repository"
                         onChange={onSelectRepo}
                     />
-                </div>
-                <div className="tasks-header-group how">
-                    <Input
-                        ref={searchRef}
-                        className="review-pr-search"
-                        icon={<Search size={13} strokeWidth={1.8} />}
+                }
+                filter={
+                    <FilterField
                         value={query}
-                        placeholder="Search title, #, author, ENG-…"
-                        aria-label="Search pull requests"
-                        spellCheck={false}
-                        onChange={event => setQuery(event.target.value)}
+                        placeholder="Filter pull requests"
+                        onChange={setQuery}
                         onKeyDown={event => {
                             if (event.key === 'ArrowDown' && focusFirstItem(listRef.current)) event.preventDefault();
                             if (event.key === 'Escape') {
@@ -360,21 +363,26 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                             }
                         }}
                     />
-                    <span className="header-spacer" />
-                    <IconButton
-                        icon={<RefreshCw size={14} strokeWidth={1.6} className={entry?.loading ? 'spin' : ''} />}
-                        label="Refresh"
-                        onClick={() => void refreshRepo(repo)}
-                    />
-                    <Select
-                        value={sort}
-                        title="Sort"
-                        aria-label="Sort"
-                        options={PULL_REQUEST_SORTS.map(item => ({ value: item.id, label: `Sort: ${item.label}` }))}
-                        onChange={setSort}
-                    />
-                </div>
-            </header>
+                }
+                actions={
+                    <>
+                        <Select
+                            size="lg"
+                            value={sort}
+                            title="Sort"
+                            aria-label="Sort"
+                            options={PULL_REQUEST_SORTS.map(item => ({ value: item.id, label: `Sort: ${item.label}` }))}
+                            onChange={setSort}
+                        />
+                        <IconButton
+                            size="lg"
+                            icon={<RefreshCw size={16} strokeWidth={1.6} className={entry?.loading ? 'spin' : ''} />}
+                            label="Refresh"
+                            onClick={() => void refreshRepo(repo)}
+                        />
+                    </>
+                }
+            />
 
             <div className="review-tabs" role="tablist" aria-label="Pull requests">
                 {tabs.map(item => (
@@ -386,7 +394,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                         onClick={() => setTab(item.id)}
                     >
                         {item.label}
-                        {item.count !== undefined && <span className={`tab-count${item.id === 'needs' && item.count > 0 ? ' info' : ''}`}>{item.count}</span>}
+                        {item.count !== undefined && <Count value={item.count} tone={item.id === 'needs' && item.count > 0 ? 'accent' : 'neutral'} />}
                     </button>
                 ))}
             </div>
@@ -394,7 +402,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
             <div className="review-list" ref={listRef} onKeyDown={moveListFocus}>
                 <InlineTip id="review" inset />
                 {entry?.error && <div className="form-error task-list-error">{entry.error}</div>}
-                {!data && !entry?.error && current !== 'merged' && <div className="panel-message">Loading pull requests…</div>}
+                {!data && !entry?.error && current !== 'merged' && <SkeletonRows label="Loading pull requests" />}
 
                 {data && current === 'needs' && (
                     <>
@@ -410,8 +418,8 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                                 section('Waiting on authors', byGroup.waiting)
                             ) : (
                                 <p className="review-waiting-note">
-                                    Waiting on authors: {byGroup.waiting.length} PR{byGroup.waiting.length === 1 ? '' : 's'} you reviewed with no new activity,
-                                    or with activity that you marked as seen ·{' '}
+                                    Waiting on authors: {pluralize(byGroup.waiting.length, 'PR')} you reviewed with no new activity, or with activity that you
+                                    marked as seen ·{' '}
                                     <Button variant="link" onClick={() => setShowWaiting(true)}>
                                         show
                                     </Button>
@@ -443,7 +451,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                 {current === 'merged' && (
                     <>
                         {mergedError && <div className="form-error task-list-error">{mergedError}</div>}
-                        {!merged && !mergedError && <div className="panel-message">Loading pull requests…</div>}
+                        {!merged && !mergedError && <SkeletonRows label="Loading pull requests" />}
                         {merged?.length === 0 && <div className="panel-message">No merged pull requests.</div>}
                         {merged?.map(pr => (
                             <MergedRow key={pr.number} pr={pr} onOpen={() => onOpen(pr.number)} />

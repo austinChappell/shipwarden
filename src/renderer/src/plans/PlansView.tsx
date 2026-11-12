@@ -3,9 +3,9 @@ import { PLAN_STATUS_LABELS, newPlan, planCounts, type Plan } from '@shared/plan
 import type { ViewRoute } from '@shared/nav-history';
 import type { Project } from '@shared/projects';
 import { EmptyState } from '../components/EmptyState';
-import { Button, Card } from '../components/ui';
-import { timeAgo } from '../util';
-import { PlanPage } from './PlanPage';
+import { Button, Card, Chip, PageHeader } from '../components/ui';
+import { formatAgo, pluralize } from '@shared/format';
+import { PLAN_STATUS_TONES, PlanPage } from './PlanPage';
 import { createPlan, useProjectPlans, usePlans } from './plan-queries';
 
 interface Props {
@@ -37,8 +37,8 @@ export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree }
     if (open) {
         return (
             <div className="plans-view">
-                <header className="settings-header plans-header">
-                    <Button variant="ghost" className="view-back" icon={<ChevronLeft size={14} />} onClick={() => onRoute({})}>
+                <header className="form-page-back">
+                    <Button variant="ghost" size="lg" className="view-back" icon={<ChevronLeft size={16} />} onClick={() => onRoute({})}>
                         Plans
                     </Button>
                 </header>
@@ -59,21 +59,23 @@ export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree }
 
     return (
         <div className="plans-view">
-            <header className="settings-header plans-header">
-                <h1>
-                    <ClipboardList size={13} strokeWidth={1.8} /> Plans
-                </h1>
-                <Button variant="solid" icon={<Plus size={14} />} onClick={() => void startPlan()}>
-                    New plan
-                </Button>
-            </header>
+            <PageHeader
+                icon={ClipboardList}
+                title="Plans"
+                meta={loaded && plans.length > 0 ? plansMeta(plans) : undefined}
+                primary={
+                    <Button size="lg" variant="primary" icon={<Plus size={14} />} onClick={() => void startPlan()}>
+                        New plan
+                    </Button>
+                }
+            />
             <div className="plans-scroll">
                 {loaded && plans.length === 0 ? (
                     <EmptyState
                         icon={ClipboardList}
                         title="Explore an idea"
                         actions={
-                            <Button variant="solid" icon={<Plus size={14} />} onClick={() => void startPlan()}>
+                            <Button size="lg" variant="primary" icon={<Plus size={14} />} onClick={() => void startPlan()}>
                                 New plan
                             </Button>
                         }
@@ -95,21 +97,30 @@ export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree }
     );
 }
 
+/** The meta line of the header: the number of drafts, or the number of plans when there are no drafts. */
+function plansMeta(plans: readonly Plan[]): string {
+    const drafts = plans.filter(plan => plan.status === 'draft').length;
+    const running = plans.filter(plan => plan.status === 'running').length;
+    const parts = [drafts > 0 ? pluralize(drafts, 'draft') : '', running > 0 ? `${running} running` : ''].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : pluralize(plans.length, 'plan');
+}
+
 function PlanRow({ plan, onOpen }: { plan: Plan; onOpen(): void }) {
     const counts = planCounts(plan);
     const done = plan.steps.filter(step => step.status === 'done').length;
+    const opened = plan.steps.filter(step => step.pr).length;
     const parts = [
-        counts.steps === 1 ? '1 step' : `${counts.steps} steps`,
-        plan.status === 'draft' ? `${counts.pullRequests} pull requests` : `${done} done`,
-        plan.steps.filter(step => step.pr).length > 0 ? `${plan.steps.filter(step => step.pr).length} pull requests open` : '',
-        `changed ${timeAgo(new Date(plan.updatedAt).toISOString())}`
+        pluralize(counts.steps, 'step'),
+        plan.status === 'draft' ? pluralize(counts.pullRequests, 'pull request') : `${done} done`,
+        opened > 0 ? `${pluralize(opened, 'pull request')} open` : '',
+        `changed ${formatAgo(new Date(plan.updatedAt).toISOString())}`
     ].filter(Boolean);
     return (
         <button type="button" className="settings-row plan-row" onClick={onOpen}>
             <div className="settings-row-main">
                 <div className="settings-row-text">
                     <div className="settings-row-label">
-                        <span className={`plan-status ${plan.status}`}>{PLAN_STATUS_LABELS[plan.status]}</span> {plan.title}
+                        <Chip tone={PLAN_STATUS_TONES[plan.status]}>{PLAN_STATUS_LABELS[plan.status]}</Chip> {plan.title}
                     </div>
                     <div className="settings-row-description">{parts.join(' · ')}</div>
                 </div>

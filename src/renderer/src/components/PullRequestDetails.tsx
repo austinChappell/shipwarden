@@ -7,7 +7,7 @@ import { keyRoots } from '../query-client';
 import { errorText, optionalErrorText } from '../util';
 import { applyMetaChanges, metaChangeKey, type MetaChange } from './pr-meta-changes';
 import { MentionTextarea } from './MentionTextarea';
-import { Button, Card, IconButton, Input } from './ui';
+import { Button, Card, Chip as UiChip, type ChipTone, IconButton, Input, labelIndex } from './ui';
 
 /**
  * The users and the labels that the user can add to the pull requests of a repository. The list loads when the user
@@ -160,7 +160,7 @@ function MultiPicker({
                         <input
                             autoFocus
                             value={query}
-                            placeholder="Search"
+                            placeholder="Filter"
                             spellCheck={false}
                             onChange={event => {
                                 setQuery(event.target.value);
@@ -185,7 +185,7 @@ function MultiPicker({
                                     onClick={() => onToggle(option.value, !on)}
                                 >
                                     <span className="pr-picker-check">{on && <Check size={13} strokeWidth={2} />}</span>
-                                    {option.color && <span className="pr-label-dot" style={{ background: `#${option.color}` }} />}
+                                    {option.color && <span className="pr-label-dot" style={{ background: `var(--label-${labelIndex(option.label) + 1})` }} />}
                                     <span className="combobox-label">{option.label}</span>
                                     {option.detail && <span className="pr-picker-detail">{option.detail}</span>}
                                 </div>
@@ -222,21 +222,39 @@ function MetaRow({ title, picker, empty, card, children }: { title: string; pick
     );
 }
 
-function Chip({ children, color, onRemove, title }: { children: ReactNode; color?: string; onRemove?(): void; title?: string }) {
-    const style = color ? ({ '--label-color': `#${color}` } as React.CSSProperties) : undefined;
+/**
+ * A value of a meta row as a chip, with an optional button that removes it. A `label` chip uses the label palette.
+ * The palette color comes from the label name. The color of the label on GitHub does not apply.
+ */
+function Chip({
+    children,
+    label,
+    tone = 'neutral',
+    onRemove,
+    title
+}: {
+    children: ReactNode;
+    label?: string;
+    tone?: ChipTone;
+    onRemove?(): void;
+    title?: string;
+}) {
     return (
-        <span className={`pr-chip${color ? ' label' : ''}`} style={style} title={title}>
+        <UiChip tone={label !== undefined ? 'label' : tone} labelIndex={label !== undefined ? labelIndex(label) : undefined} title={title} className="pr-chip">
             {children}
             {onRemove && (
-                <button title="Remove" onClick={onRemove}>
+                <button type="button" className="pr-chip-remove" title="Remove" aria-label="Remove" onClick={onRemove}>
                     <X size={11} strokeWidth={2} />
                 </button>
             )}
-        </span>
+        </UiChip>
     );
 }
 
-const REVIEW_STATE: Record<string, string> = { APPROVED: 'approved', CHANGES_REQUESTED: 'changes', COMMENTED: 'commented', DISMISSED: 'dismissed' };
+const REVIEW_STATE: Record<string, string> = { APPROVED: 'approved', CHANGES_REQUESTED: 'changes requested', COMMENTED: 'commented', DISMISSED: 'dismissed' };
+
+/** The chip tone of each review state. Only "changes requested" uses the review tone. */
+const REVIEW_TONE: Record<string, ChipTone> = { APPROVED: 'success', CHANGES_REQUESTED: 'review' };
 
 /** The latest review state of each reviewer that is not the author, from the newest review to the oldest. */
 function reviewedBy(pr: PullRequest): Map<string, string> {
@@ -402,15 +420,15 @@ export function PullRequestMeta({
                         >
                             {reviewer.kind === 'team' && <Users size={11} strokeWidth={1.8} />}
                             {reviewer.kind === 'team' ? (reviewer.name ?? reviewer.login) : reviewer.login}
-                            <span className="pr-chip-state pending">pending</span>
+                            <span className="pr-chip-state">· pending</span>
                         </Chip>
                     )),
                     ...[...reviewed]
                         .filter(([login]) => !requestedUsers.has(login))
                         .map(([login, state]) => (
-                            <Chip key={`reviewed:${login}`}>
+                            <Chip key={`reviewed:${login}`} tone={REVIEW_TONE[state] ?? 'neutral'}>
                                 {login}
-                                <span className={`pr-chip-state review-${state.toLowerCase()}`}>{REVIEW_STATE[state] ?? state.toLowerCase()}</span>
+                                <span className="pr-chip-state">· {REVIEW_STATE[state] ?? state.toLowerCase()}</span>
                             </Chip>
                         ))
                 ]}
@@ -466,7 +484,7 @@ export function PullRequestMeta({
                 {shown.labels.map(label => (
                     <Chip
                         key={label.name}
-                        color={label.color}
+                        label={label.name}
                         title={label.description ?? undefined}
                         onRemove={manage ? () => onChange({ kind: 'label', name: label.name, add: false }) : undefined}
                     >

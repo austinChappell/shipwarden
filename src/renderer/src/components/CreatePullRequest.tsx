@@ -74,7 +74,7 @@ export function CreatePullRequest({
                     <Checkbox label="Draft" checked={draft} onChange={setDraft} disabled={busy} />
                     {error && <div className="form-error">{error}</div>}
                     <div className="row-buttons">
-                        <Button variant="approve" icon={<GitPullRequest {...ICON} />} disabled={busy || !title.trim()} onClick={create}>
+                        <Button variant="primary" icon={<GitPullRequest {...ICON} />} disabled={busy || !title.trim()} onClick={create}>
                             Create pull request
                         </Button>
                         <Button iconEnd={<ExternalLink {...ICON} />} onClick={event => openLink(webUrl, event)}>

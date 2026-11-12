@@ -168,7 +168,7 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                         </ButtonGroup>
                     )}
                     <Button onClick={onCancel}>Cancel</Button>
-                    <Button variant="solid" disabled={saving} onClick={() => void save()}>
+                    <Button variant="primary" disabled={saving} onClick={() => void save()}>
                         {saving ? 'Saving…' : imported ? 'Import' : 'Save'}
                     </Button>
                 </div>

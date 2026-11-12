@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FolderGit2, LoaderCircle, X } from 'lucide-react';
+import { Check, FolderGit2, LoaderCircle, X } from 'lucide-react';
 import { branchFromName, localNameOfRemote, type BranchList } from '@shared/worktrees';
+import { CreationInBackground, stepLabel, useWorktreeProgress, worktreeProgress } from '../app/worktree-progress';
 import { errorText } from '../util';
 import { radioGroupKeys } from './keyboard';
 import { Button, ButtonGroup, Checkbox, Combobox, type ComboboxGroup, IconButton, Input } from './ui';
@@ -15,6 +16,8 @@ export interface NewWorktreeRequest {
     /** The remote branch to check out and track, for example "origin/feature". Undefined for a new branch. */
     trackRef?: string;
     startAgent: boolean;
+    /** The ID of the progress of this creation in `worktreeProgress`. */
+    progressId?: string;
 }
 
 /** "new": a new branch from a start point. "remote": a checkout of a remote branch. */
@@ -60,6 +63,9 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
     const [startAgent, setStartAgent] = useState(true);
     const [error, setError] = useState<string>();
     const [busy, setBusy] = useState(false);
+    /** The ID of the creation that runs now. The dialog shows its steps. */
+    const [progressId, setProgressId] = useState<string>();
+    const progress = useWorktreeProgress(progressId);
     /** True while `suggestBranch` runs. */
     const [suggesting, setSuggesting] = useState(!!suggestBranch);
     const [suggestNote, setSuggestNote] = useState<string>();
@@ -145,14 +151,7 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                 setError('Choose the remote branch to check out.');
                 return;
             }
-            setBusy(true);
-            setError(undefined);
-            try {
-                await onCreate({ name: name.trim(), branch: branchName, trackRef: exists ? undefined : remoteRef, startAgent });
-            } catch (err) {
-                setError(errorText(err));
-                setBusy(false);
-            }
+            await create({ name: name.trim(), branch: branchName, trackRef: exists ? undefined : remoteRef, startAgent });
             return;
         }
         if (!branchName) {
@@ -167,14 +166,29 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
             setError('Choose the branch to start from.');
             return;
         }
+        await create({ name: name.trim(), branch: branchName, baseRef: exists ? undefined : base, startAgent });
+    };
+
+    /** Runs the creation with a new progress ID. A creation that the user moved to the background has no dialog any more. */
+    const create = async (request: Omit<NewWorktreeRequest, 'progressId'>) => {
+        const id = crypto.randomUUID();
+        setProgressId(id);
         setBusy(true);
         setError(undefined);
         try {
-            await onCreate({ name: name.trim(), branch: branchName, baseRef: exists ? undefined : base, startAgent });
+            await onCreate({ ...request, progressId: id });
         } catch (err) {
+            if (err instanceof CreationInBackground) return;
             setError(errorText(err));
             setBusy(false);
         }
+    };
+
+    /** Closes the dialog. The creation continues, and a notice shows its progress and its end. */
+    const notifyWhenReady = () => {
+        if (!progressId) return;
+        worktreeProgress.moveToBackground(progressId);
+        onClose();
     };
 
     return (
@@ -323,21 +337,38 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                         </div>
                     )}
                     <Checkbox className="new-worktree-agent" checked={startAgent} onChange={setStartAgent} label="Start an agent in the new worktree" />
+                    {busy && (
+                        <ol className="new-worktree-progress" aria-live="polite">
+                            {(progress?.steps.length ? progress.steps : [undefined]).map((step, index, steps) => {
+                                const running = index === steps.length - 1;
+                                return (
+                                    <li key={step?.step ?? 'start'} className={running ? 'running' : 'done'}>
+                                        {running ? <LoaderCircle size={13} className="spin" /> : <Check size={13} strokeWidth={2} />}
+                                        {step ? stepLabel(step, running) : 'Starting…'}
+                                    </li>
+                                );
+                            })}
+                        </ol>
+                    )}
                     {error && <div className="form-error">{error}</div>}
                     <button type="submit" hidden />
                 </form>
                 <footer className="modal-footer">
-                    <span className="panel-note">⌘↩ creates. Esc cancels.</span>
-                    <Button disabled={busy} onClick={onClose}>
-                        Cancel
-                    </Button>
+                    <span className="panel-note">{busy ? 'A large repository can take a few minutes.' : '⌘↩ creates. Esc cancels.'}</span>
+                    {busy ? (
+                        <Button title="Close this dialog. ShipWarden tells you when the worktree is ready." onClick={notifyWhenReady}>
+                            Notify me when ready
+                        </Button>
+                    ) : (
+                        <Button onClick={onClose}>Cancel</Button>
+                    )}
                     <Button
-                        variant="solid"
+                        variant="primary"
                         icon={busy && <LoaderCircle size={13} className="spin" />}
                         disabled={busy || !branchName}
                         onClick={() => void submit()}
                     >
-                        Create worktree
+                        {busy ? 'Creating…' : 'Create worktree'}
                     </Button>
                 </footer>
             </div>

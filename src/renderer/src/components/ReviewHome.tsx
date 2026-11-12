@@ -1,15 +1,16 @@
 import { useMemo, useRef, useState } from 'react';
-import { CircleCheck, CircleX, Clock, RefreshCw, Search } from 'lucide-react';
+import { CircleCheck, CircleX, Clock, FolderGit2, GitPullRequest, RefreshCw } from 'lucide-react';
 import { parseRepoId, repoId, repoLabel } from '@shared/github';
-import { isWaiting, summarizeRepo, ageLevel, type QueueItem, type RepoReviewSummary } from '@shared/review-queue';
+import { isWaiting, summarizeRepo, type QueueItem, type RepoReviewSummary } from '@shared/review-queue';
+import { formatAgo, pluralize } from '@shared/format';
 import { useIsSeen } from '../seen-store';
-import { shortAge } from '@shared/dashboard';
 import { timeAgo } from '../util';
 import { focusFirstItem, moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
 import { refreshReviewOverview, useReviewOverview } from '../github/review-overview-store';
 import { CountPill, Dotted, KeyLegend, useInitialFocus, usePageKeys } from './ReviewParts';
-import { Button, ButtonGroup, IconButton, Input } from './ui';
+import { EmptyState } from './EmptyState';
+import { Age, Button, ButtonGroup, Count, FilterField, IconButton, PageHeader, SkeletonRows } from './ui';
 
 interface Props {
     queue: QueueItem[];
@@ -41,10 +42,6 @@ function label(id: string): string {
 function matches(id: string, words: string[]): boolean {
     const text = id.toLowerCase();
     return words.every(word => text.includes(word));
-}
-
-function days(iso: string): number {
-    return Math.max(1, Math.round((Date.now() - Date.parse(iso)) / 86_400_000));
 }
 
 function RepoChecks({ summary }: { summary: RepoReviewSummary }) {
@@ -87,7 +84,6 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
     };
     const rootRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const filterRef = useRef<HTMLInputElement>(null);
 
     const entries = Object.values(state.repos);
     const anyLoaded = entries.some(entry => entry.data);
@@ -116,7 +112,7 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                 if (entry?.data) {
                     const summary = summarizeRepo(entry.data, isSeen);
                     const count = summary.openCount;
-                    const open = count === 0 ? 'No open PRs' : `${count} open PR${count === 1 ? '' : 's'}`;
+                    const open = count === 0 ? 'No open PRs' : pluralize(count, 'open PR');
                     return { id: entry.id, meta: count > 0 && summary.lastActivity ? `${open} · last activity ${timeAgo(summary.lastActivity)}` : open };
                 }
                 if (entry?.error) return { id, meta: 'Could not load the pull requests' };
@@ -133,41 +129,50 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
     const first = shownWaiting[0]?.id ?? shownIdle[0]?.id;
 
     usePageKeys(rootRef, listRef, {
-        '/': () => filterRef.current?.focus(),
         r: () => queue.length > 0 && onStartQueue()
     });
     useInitialFocus(listRef, focusRepo ? `[data-repo="${CSS.escape(focusRepo.toLowerCase())}"]` : undefined, anyLoaded || !!state.catalog);
 
-    const title =
-        !anyLoaded && !state.catalog
-            ? 'Loading pull requests…'
-            : queue.length === 0
-              ? 'Nothing waiting on your review'
-              : `${queue.length} pull request${queue.length === 1 ? '' : 's'} waiting on you`;
-    const subtitle = (
-        <Dotted
-            parts={[
-                queue.length > 0 && `across ${reviewRepos.length} ${reviewRepos.length === 1 ? 'repository' : 'repositories'}`,
-                oldest && `oldest waiting ${days(oldest)} ${days(oldest) === 1 ? 'day' : 'days'}`,
-                yourPrs > 0 && `${yourPrs} of your PRs need${yourPrs === 1 ? 's' : ''} action`
-            ]}
-        />
+    const loading = !anyLoaded && !state.catalog;
+    const reviewRepoText = pluralize(reviewRepos.length, 'repository', 'repositories');
+    // The meta line of the header replaces the headline of the body (docs/design, finding 08).
+    const meta = loading ? (
+        'Loading pull requests…'
+    ) : (
+        <span title={queue.length > 0 ? `${pluralize(queue.length, 'pull request')} in ${reviewRepoText} wait for your review` : undefined}>
+            <Dotted
+                parts={[
+                    queue.length === 0 ? 'Nothing waiting on you' : `${queue.length} waiting on you`,
+                    oldest && `oldest ${formatAgo(oldest)}`,
+                    yourPrs > 0 && `${yourPrs} of yours need${yourPrs === 1 ? 's' : ''} action`
+                ]}
+            />
+        </span>
     );
 
     return (
         <div className="review-home" ref={rootRef}>
-            <header className="tasks-header review-header">
-                <div className="tasks-header-group how">
-                    <Input
-                        ref={filterRef}
-                        className="review-repo-filter"
-                        icon={<Search size={13} strokeWidth={1.8} />}
-                        suffix={query ? undefined : <kbd className="field-key">/</kbd>}
+            <PageHeader
+                icon={GitPullRequest}
+                title="Review"
+                meta={meta}
+                scope={
+                    state.projectRepos.length > 0 && (
+                        <ButtonGroup role="radiogroup" label="Repositories" onKeyDown={radioGroupKeys}>
+                            <Button role="radio" aria-checked={!all} tabIndex={!all ? 0 : -1} onClick={() => setMode('projects')}>
+                                In projects
+                            </Button>
+                            <Button role="radio" aria-checked={all} tabIndex={all ? 0 : -1} onClick={() => setMode('all')}>
+                                All
+                            </Button>
+                        </ButtonGroup>
+                    )
+                }
+                filter={
+                    <FilterField
                         value={query}
                         placeholder="Filter repositories"
-                        aria-label="Filter repositories"
-                        spellCheck={false}
-                        onChange={event => setQuery(event.target.value)}
+                        onChange={setQuery}
                         onKeyDown={event => {
                             if (event.key === 'Enter' && first) onSelect(first);
                             if (event.key === 'ArrowDown' && focusFirstItem(listRef.current)) event.preventDefault();
@@ -179,40 +184,38 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                             }
                         }}
                     />
-                    {state.projectRepos.length > 0 && (
-                        <ButtonGroup role="radiogroup" label="Repositories" onKeyDown={radioGroupKeys}>
-                            <Button role="radio" aria-checked={!all} tabIndex={!all ? 0 : -1} onClick={() => setMode('projects')}>
-                                In projects
-                            </Button>
-                            <Button role="radio" aria-checked={all} tabIndex={all ? 0 : -1} onClick={() => setMode('all')}>
-                                All
-                            </Button>
-                        </ButtonGroup>
-                    )}
-                    <span className="header-spacer" />
+                }
+                actions={
                     <IconButton
-                        icon={<RefreshCw size={14} strokeWidth={1.6} className={state.catalogLoading || entries.some(entry => entry.loading) ? 'spin' : ''} />}
+                        size="lg"
+                        icon={<RefreshCw size={16} strokeWidth={1.6} className={state.catalogLoading || entries.some(entry => entry.loading) ? 'spin' : ''} />}
                         label="Refresh"
                         onClick={() => void refreshReviewOverview()}
                     />
-                    <Button variant="solid" className="review-queue-button" disabled={queue.length === 0} onClick={onStartQueue}>
+                }
+                primary={
+                    <Button variant="primary" size="lg" className="review-queue-button" disabled={queue.length === 0} onClick={onStartQueue}>
                         Start review queue
-                        {queue.length > 0 && <span className="button-count">{queue.length}</span>}
+                        {queue.length > 0 && <Count value={queue.length} tone="on-primary" />}
                     </Button>
-                </div>
-            </header>
+                }
+            />
 
             <div className="review-home-body" ref={listRef} onKeyDown={moveListFocus}>
-                <div className="review-home-title">
-                    <h2>{title}</h2>
-                    <span className="review-home-subtitle">{subtitle}</span>
-                </div>
                 {state.catalogError && <div className="form-error task-list-error">{state.catalogError}</div>}
+                {loading && !state.catalogError && <SkeletonRows label="Loading pull requests" />}
                 {state.catalog?.length === 0 && (
-                    <div className="review-empty">
-                        <p>The selected organizations have no repositories that you can access.</p>
-                        <Button onClick={onOpenSettings}>Open Settings › Code review</Button>
-                    </div>
+                    <EmptyState
+                        icon={FolderGit2}
+                        title="No repositories"
+                        actions={
+                            <Button size="lg" onClick={onOpenSettings}>
+                                Open Settings › Code review
+                            </Button>
+                        }
+                    >
+                        The selected organizations have no repositories that you can access.
+                    </EmptyState>
                 )}
 
                 {shownWaiting.length > 0 && (
@@ -240,23 +243,21 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                                         <Dotted
                                             parts={[
                                                 summary.lastActivity && `Last activity ${timeAgo(summary.lastActivity)}`,
-                                                `${summary.openCount} open PR${summary.openCount === 1 ? '' : 's'}`
+                                                pluralize(summary.openCount, 'open PR')
                                             ]}
                                         />
                                     </span>
                                 </span>
                                 <span>
-                                    <CountPill value={summary.toReview} tone="info" />
+                                    <CountPill value={summary.toReview} tone="accent" />
                                 </span>
                                 <span>
-                                    <CountPill value={summary.reReview} tone="accent" />
+                                    <CountPill value={summary.reReview} />
                                 </span>
                                 <span>
-                                    <CountPill value={summary.yourPrs} tone="plain" />
+                                    <CountPill value={summary.yourPrs} />
                                 </span>
-                                <span className={`review-age ${summary.oldest ? ageLevel(summary.oldest) : ''}`}>
-                                    {summary.oldest ? shortAge(summary.oldest) : '—'}
-                                </span>
+                                <span>{summary.oldest ? <Age date={summary.oldest} /> : <span className="count-pill-none">—</span>}</span>
                                 <span>
                                     <RepoChecks summary={summary} />
                                 </span>
@@ -267,7 +268,9 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
 
                 {shownIdle.length > 0 && (
                     <section aria-label="Nothing waiting">
-                        <h3 className="review-section-title">Nothing waiting · {shownIdle.length}</h3>
+                        <h3 className="review-section-title">
+                            Nothing waiting <Count value={shownIdle.length} />
+                        </h3>
                         {shownIdle.map(row => (
                             <button key={row.id} className="review-idle-row" data-nav-item data-repo={row.id.toLowerCase()} onClick={() => onSelect(row.id)}>
                                 <span className="review-idle-name">{label(row.id)}</span>
@@ -280,7 +283,9 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                 {anyLoaded && shownWaiting.length === 0 && shownIdle.length === 0 && <div className="panel-message">No repositories match the filter.</div>}
                 {!all && state.catalog && (
                     <div className="review-show-all-row">
-                        <Button onClick={() => setMode('all')}>Show all repositories ({state.catalog.length})</Button>
+                        <Button onClick={() => setMode('all')}>
+                            Show all repositories <Count value={state.catalog.length} />
+                        </Button>
                     </div>
                 )}
             </div>

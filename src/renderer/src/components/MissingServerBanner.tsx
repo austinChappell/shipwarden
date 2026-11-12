@@ -70,7 +70,7 @@ export function MissingServerBanner({ server, install, features }: Props) {
             {icon}
             <span className="editor-server-text">{text}</span>
             {!running && server.install && (
-                <Button size="sm" variant="primary" title={server.install.source} onClick={() => void installMissingServer(server)}>
+                <Button size="sm" title={server.install.source} onClick={() => void installMissingServer(server)}>
                     {failed ? 'Try again' : 'Install'}
                 </Button>
             )}

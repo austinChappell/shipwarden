@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, type RefObject } from 'react';
 import { CircleCheck, CircleX, Clock } from 'lucide-react';
 import { checkLevel, type CheckSummary } from '@shared/review-queue';
 import { NAV_ITEM } from '../keyboard/list-nav';
+import { Count } from './ui';
 
 /** One entry of the key legend at the bottom of a page. */
 export interface LegendItem {
@@ -25,10 +26,10 @@ export function KeyLegend({ items }: { items: LegendItem[] }) {
     );
 }
 
-/** A count in a column. Zero shows a dash. */
-export function CountPill({ value, tone }: { value: number; tone: 'info' | 'accent' | 'plain' }) {
+/** A count in a column. Zero shows a dash. Use the accent tone only for a count that needs the user. */
+export function CountPill({ value, tone = 'neutral' }: { value: number; tone?: 'neutral' | 'accent' }) {
     if (value === 0) return <span className="count-pill-none">—</span>;
-    return <span className={`count-pill ${tone}`}>{value}</span>;
+    return <Count value={value} tone={tone} />;
 }
 
 /** The checks of one pull request, as an icon and a short text. */

@@ -36,6 +36,7 @@ import { listPatch, taskQueryKeys } from '../components/tasks/task-view-logic';
 import { patchCachedTask } from '../components/tasks/use-task-list';
 import { linkWorktreeToTask, saveTaskLink, taskLinkOf } from './task-links';
 import { taskBranchName } from './task-branch';
+import { CreationInBackground, worktreeProgress } from './worktree-progress';
 
 const api = window.shipwarden;
 
@@ -279,33 +280,57 @@ export function useWorktreeActions(options: Options) {
     };
 
     /**
-     * Creates a worktree from the New worktree dialog: its branch, start point, display name and agent.
-     * With a prompt, ShipWarden sends the prompt to an agent of the new worktree, also when "startAgent" is false.
+     * Creates the worktree of the New worktree dialog: its branch, start point, display name, and agent. With a task, the
+     * worktree works on the task, the same as `startTaskQuietly`. With a prompt, ShipWarden sends the prompt to an agent of
+     * the new worktree, also when "startAgent" is false.
+     *
+     * With `request.progressId`, `worktreeProgress` gets each step. The user can close the dialog before the end with
+     * "Notify me when ready". Then the creation continues: it does not open the worktree, a notice shows the progress, and
+     * at the end this function throws `CreationInBackground`, so that the caller does not close a dialog again.
      */
-    /** Creates the worktree of the New worktree dialog. With a task, the worktree works on the task, the same as `startTaskQuietly`. */
     const createWorktree = async (repoPath: string, request: NewWorktreeRequest, prompt?: string, start?: TaskStart) => {
-        const worktree = await api.worktrees.create({
-            repoPath,
-            branch: request.branch,
-            ...(request.baseRef ? { baseRef: request.baseRef } : {}),
-            ...(request.trackRef ? { trackRef: request.trackRef } : {})
-        });
-        if (request.name) await setWorktreeName(worktree.path, request.name);
-        if (start) {
-            const { task, connectionId, pluginId } = start;
-            await saveTaskLink(queryClient, worktree.path, taskLinkOf(task, connectionId, pluginId));
-            void moveTaskToStartStatus(task, connectionId);
-            if (!prompt && request.startAgent) prompt = taskPrompt(task, request.branch);
+        const id = request.progressId;
+        if (id) worktreeProgress.start(id, repoPath, request.branch);
+        const inBackground = () => !!id && worktreeProgress.isBackground(id);
+        try {
+            const worktree = await api.worktrees.create({
+                repoPath,
+                branch: request.branch,
+                ...(request.baseRef ? { baseRef: request.baseRef } : {}),
+                ...(request.trackRef ? { trackRef: request.trackRef } : {}),
+                ...(id ? { progressId: id } : {})
+            });
+            if (request.name) await setWorktreeName(worktree.path, request.name);
+            if (start) {
+                const { task, connectionId, pluginId } = start;
+                await saveTaskLink(queryClient, worktree.path, taskLinkOf(task, connectionId, pluginId));
+                void moveTaskToStartStatus(task, connectionId);
+                if (!prompt && request.startAgent) prompt = taskPrompt(task, request.branch);
+            }
+            await refreshWorktrees(repoPath);
+            // In the background, the user works on something else. Do not move the user to the new worktree.
+            if (!inBackground()) {
+                setSelectedPath(worktree.path);
+                // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
+                setMainView('worktree');
+            }
+            if (id && appSettings.repos[repoPath]?.worktrees?.setupScript) worktreeProgress.step(id, 'setup');
+            await options.prepareWorktree(repoPath, worktree);
+            // Do not wait for the prompt. The agent can show a question, for example a folder trust question. The user must
+            // answer it in the agent tab, and the open dialog blocks that tab. The dialog closes when this function returns.
+            if (prompt) void options.sendToAgent(prompt, worktree).catch(err => setError(errorText(err)));
+            else if (request.startAgent) {
+                if (id) worktreeProgress.step(id, 'agent');
+                await options.startTerminal(worktree, 'agent');
+            }
+            const background = inBackground();
+            if (id) worktreeProgress.finish(id, worktree);
+            if (background) throw new CreationInBackground();
+        } catch (err) {
+            if (err instanceof CreationInBackground) throw err;
+            if (id) worktreeProgress.fail(id, errorText(err));
+            throw err;
         }
-        await refreshWorktrees(repoPath);
-        setSelectedPath(worktree.path);
-        // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
-        setMainView('worktree');
-        await options.prepareWorktree(repoPath, worktree);
-        // Do not wait for the prompt. The agent can show a question, for example a folder trust question. The user must
-        // answer it in the agent tab, and the open dialog blocks that tab. The dialog closes when this function returns.
-        if (prompt) void options.sendToAgent(prompt, worktree).catch(err => setError(errorText(err)));
-        else if (request.startAgent) await options.startTerminal(worktree, 'agent');
     };
 
     const renameWorktree = async (worktree: Worktree) => {

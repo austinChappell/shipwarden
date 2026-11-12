@@ -6,7 +6,8 @@ import { fuzzyFilter, fuzzyPositions } from '../files/fuzzy';
 import { onExplorerFocusRequest, takeExplorerFocusRequest } from '../files/explorer-focus';
 import { treeKeyAction, type TreeRow } from '../files/tree-nav';
 import { ErrorBanner } from './ErrorBanner';
-import { IconButton, Input } from './ui';
+import { pluralize } from '@shared/format';
+import { Count, IconButton, Input, SkeletonRows } from './ui';
 
 type Mode = 'names' | 'contents';
 
@@ -404,14 +405,14 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
 
     const summary = (count: number, more = false) => (
         <div className="search-summary">
-            {mode === 'names' ? 'Files' : 'Contents'} · {count}
-            {more ? '+' : ''} {count === 1 ? 'match' : 'matches'}
+            {count}
+            {more ? '+' : ''} {count === 1 ? 'match' : 'matches'} in {mode === 'names' ? 'file names' : 'file contents'}
         </div>
     );
 
     const renderNameMatches = () => {
         if (!allFiles) {
-            return <div className="explorer-message">Loading files…</div>;
+            return <SkeletonRows count={6} dot={false} label="Loading files" />;
         }
         if (nameMatches.length === 0) {
             return <div className="explorer-message">No files match "{query}".</div>;
@@ -457,7 +458,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                         <button className="search-group-head" title={path} onClick={() => onOpenFile(path, matches[0].line)}>
                             <span className="search-file-name">{baseName(path)}</span>
                             <span className="search-file-path">{parentPath(path)}</span>
-                            <span className="search-count">{matches.length}</span>
+                            <Count className="search-count" value={matches.length} label={pluralize(matches.length, 'match', 'matches')} />
                         </button>
                         {matches.map(match => {
                             index += 1;
@@ -514,7 +515,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title }: Props) {
                 <Input
                     ref={inputRef}
                     value={query}
-                    placeholder={mode === 'names' ? 'Find files by name' : 'Search in files'}
+                    placeholder={mode === 'names' ? 'Filter files' : 'Search in files'}
                     spellCheck={false}
                     onChange={event => setQuery(event.target.value)}
                     onKeyDown={onSearchKey}

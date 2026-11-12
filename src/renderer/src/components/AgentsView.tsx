@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueries, type UseQueryResult } from '@tanstack/react-query';
-import { Bot, ChevronRight, Play } from 'lucide-react';
+import { Bot, ChevronRight, Plus } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import {
     ciStateOf,
@@ -17,9 +17,7 @@ import {
 import type { BranchSummary } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
 import type { RepoColor } from '@shared/settings';
-import { highestWindow, PROVIDER_NAMES, type ProviderUsage } from '@shared/usage';
 import { branchSummariesQuery, summariesByRepo } from '../github/use-branch-status';
-import { useUsage } from '../usage-query';
 import { RepoIcon } from './RepoIcon';
 import { useAgentSessions } from '../terminal/agent-state-store';
 import { outputActivity } from '../terminal/output-activity';
@@ -28,7 +26,7 @@ import { runsAgent, type TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
 import { moveListFocus } from '../keyboard/list-nav';
 import { InlineTip } from './Tips';
-import { Button } from './ui';
+import { Button, Chip, Count, PageHeader, type ChipTone } from './ui';
 
 const api = window.shipwarden;
 
@@ -73,6 +71,24 @@ const DOT_CLASS: Record<OverviewState, string> = {
     quiet: ''
 };
 
+/** The chip tone of each state. The tones follow the status colors of docs/design (board 2). */
+const STATE_TONE: Record<OverviewState, ChipTone> = {
+    waiting: 'warning',
+    'blocked-ci': 'danger',
+    working: 'info',
+    starting: 'neutral',
+    done: 'success',
+    quiet: 'neutral'
+};
+
+/** The chip tone of the CI state of a pull request. */
+function ciTone(ci: CiState | undefined): ChipTone {
+    if (ci === 'failed') return 'danger';
+    if (ci === 'running') return 'info';
+    if (ci === 'passed') return 'success';
+    return 'neutral';
+}
+
 /** Gives the text about the last sign of life of an agent, for example "Output 12s ago". */
 function activityText(row: Row, now: number): string | undefined {
     if (row.lastOutputAt !== undefined) {
@@ -82,18 +98,6 @@ function activityText(row: Row, now: number): string | undefined {
     return changed ? `Changed ${changed} ago` : undefined;
 }
 
-/** Gives the short plan usage of each signed-in provider, for example "Claude 42%". */
-function usageText(usage: readonly ProviderUsage[]): string | undefined {
-    const parts = usage
-        .filter(item => item.status !== 'signed-out')
-        .map(item => {
-            const top = highestWindow(item.windows);
-            return top ? `${PROVIDER_NAMES[item.provider]} ${top.usedPercent}%` : undefined;
-        })
-        .filter((part): part is string => !!part);
-    return parts.length > 0 ? parts.join(' · ') : undefined;
-}
-
 /**
  * The agents of all projects that still run, grouped by project. Each row shows the state of the agent, the time since
  * its last output, a name for the work (the linked task, the last prompt or the branch), what the agent does now,
@@ -101,8 +105,6 @@ function usageText(usage: readonly ProviderUsage[]): string | undefined {
  */
 export function AgentsView({ sessions: sessionList, projects, links, repoLabel, repoColor, onOpen, onStartAgent }: Props) {
     const [places, setPlaces] = useState<Record<string, Place>>({});
-    // The plan usage of the agents. ShipWarden has no usage for each agent, only for each sign-in.
-    const usage = useUsage();
     const sessions = useAgentSessions(sessionList);
     const [now, setNow] = useState(Date.now());
 
@@ -190,42 +192,46 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
     }, [rows, projects]);
 
     const counts = countStates(rows.map(row => row.state));
-    const plan = usageText(usage);
 
     return (
         <div className="agents-view">
-            <header className="agents-header">
-                <h1>Agents</h1>
-                <span className="agents-count">{agents.length} running</span>
-                {counts.length > 0 && (
-                    <span className="agents-states">
-                        {counts.map(({ state, count }) => (
-                            <span key={state} className={`agents-state-count ${state}`}>
-                                {count} {OVERVIEW_LABELS[state].toLowerCase()}
-                            </span>
-                        ))}
-                    </span>
-                )}
-                {plan && (
-                    <span className="agents-usage" title="The plan usage of the account. ShipWarden has no usage for each agent.">
-                        Plan usage: {plan}
-                    </span>
-                )}
-            </header>
+            <PageHeader
+                className="agents-header"
+                icon={Bot}
+                title="Agents"
+                meta={`${agents.length} running`}
+                scope={
+                    counts.length > 0 && (
+                        <span className="agents-states">
+                            {counts.map(({ state, count }) => (
+                                <span key={state} className="agents-state-count">
+                                    {OVERVIEW_LABELS[state]}
+                                    <Count value={count} label={`${count} ${OVERVIEW_LABELS[state].toLowerCase()}`} />
+                                </span>
+                            ))}
+                        </span>
+                    )
+                }
+                primary={
+                    <Button variant="primary" size="lg" icon={<Plus size={14} strokeWidth={2} aria-hidden="true" />} onClick={onStartAgent}>
+                        Start agent
+                    </Button>
+                }
+            />
             <div className="agents-scroll" onKeyDown={moveListFocus}>
                 {agents.length > 0 && <InlineTip id="agents" />}
                 {agents.length === 0 && (
                     <EmptyState
                         icon={Bot}
-                        title="No agents run now"
+                        title="No agents running"
                         actions={
-                            <Button variant="primary" icon={<Play size={13} strokeWidth={1.8} aria-hidden="true" />} onClick={onStartAgent}>
-                                Start an agent in a worktree
+                            <Button variant="primary" size="lg" icon={<Plus size={14} strokeWidth={2} aria-hidden="true" />} onClick={onStartAgent}>
+                                Start agent
                             </Button>
                         }
-                        hint="You can also start an agent from a task with “Start in worktree”."
+                        hint="Or use “Start in worktree” on a task."
                     >
-                        This view shows all agents of all projects and their state. Start an agent in a worktree to see it here.
+                        Agents from every project show here with their state.
                     </EmptyState>
                 )}
                 {groups.map(group => {
@@ -234,7 +240,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                         <section key={group.id ?? 'other'} className="agents-group" aria-labelledby={headingId}>
                             <h2 id={headingId}>
                                 {group.name}
-                                {group.id === projects?.activeId && <span className="agents-current">current project</span>}
+                                {group.id === projects?.activeId && <Chip>Current project</Chip>}
                             </h2>
                             {/* biome-ignore lint/a11y/noRedundantRoles: Safari removes the list role when the list has no bullets. */}
                             <ul className="agents-list" role="list">
@@ -269,11 +275,11 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                                 </span>
                                                 <span className="agent-side">
                                                     <span className="agent-state-line">
-                                                        <span className={`agent-state ${state}`}>{label}</span>
-                                                        {activity && <span className="agent-since"> · {activity}</span>}
+                                                        {activity && <span className="agent-since">{activity}</span>}
+                                                        <Chip tone={STATE_TONE[state]}>{label}</Chip>
                                                     </span>
                                                     <span className="agent-where">
-                                                        {prText && <span className={`agent-pr ${ci ?? ''}`}>{prText}</span>}
+                                                        {prText && <Chip tone={ciTone(ci)}>{prText}</Chip>}
                                                         {place && repoColor(place.repo) && <RepoIcon color={repoColor(place.repo)} size={12} />}
                                                         <span className="agent-where-text">{where}</span>
                                                     </span>

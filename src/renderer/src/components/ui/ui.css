@@ -5,17 +5,71 @@
  * (height, padding, border, background, color, font size). Add a variant or a size here when a page needs a new look.
  */
 
+/*
+ * Design tokens. The values come from docs/design (board 2, "Tokens and components"). The palette of the theme gives
+ * the base colors. The tokens below add the roles that a palette does not have.
+ */
 :root {
     --control-height-sm: 24px;
     --control-height: 28px;
     --control-height-lg: 32px;
     --control-radius: 6px;
-    --control-font-size: 12.5px;
+    --control-font-size: 13px;
     --card-radius: 10px;
+    --track-radius: 8px;
     --focus-ring: color-mix(in srgb, var(--accent) 70%, transparent);
+    /* The page header (PageHeader.tsx). */
+    --page-header-height: 52px;
+    /* The space between the edge of a page and its content. */
+    --gutter: 32px;
+    /* The width of the column of a form page (Settings, Automations, Plans). */
+    --form-width: 880px;
+    /* The border of a control. It is a little stronger than the border of a card. */
+    --control-border: color-mix(in srgb, var(--muted) 28%, var(--border));
+    /* The status colors that the palette does not have. */
+    --warning: #e5a03a;
+    --stale: color-mix(in srgb, var(--muted) 85%, var(--bg));
+    /* The soft fill of a chip in each tone. */
+    --tone-neutral-bg: color-mix(in srgb, var(--muted) 16%, transparent);
+    --tone-neutral-text: color-mix(in srgb, var(--text) 80%, var(--muted));
+    --tone-info-bg: color-mix(in srgb, var(--accent) 16%, transparent);
+    --tone-info-text: color-mix(in srgb, var(--accent) 65%, var(--text-strong));
+    --tone-success-bg: color-mix(in srgb, var(--ok) 16%, transparent);
+    --tone-success-text: color-mix(in srgb, var(--ok) 70%, var(--text-strong));
+    --tone-warning-bg: color-mix(in srgb, var(--warning) 16%, transparent);
+    --tone-warning-text: color-mix(in srgb, var(--warning) 75%, var(--text-strong));
+    --tone-danger-bg: color-mix(in srgb, var(--danger) 16%, transparent);
+    --tone-danger-text: color-mix(in srgb, var(--danger) 70%, var(--text-strong));
+    --tone-review-bg: color-mix(in srgb, var(--purple) 16%, transparent);
+    --tone-review-text: color-mix(in srgb, var(--purple) 65%, var(--text-strong));
+    /* The label palette: muted, low-chroma fills for task labels. Never use the status colors for labels. */
+    --label-text: color-mix(in srgb, var(--text-strong) 82%, var(--muted));
+    --label-1: color-mix(in srgb, #6f8fc7 30%, var(--raised));
+    --label-2: color-mix(in srgb, #9a82c9 28%, var(--raised));
+    --label-3: color-mix(in srgb, #7fae8a 28%, var(--raised));
+    --label-4: color-mix(in srgb, #c69a5e 30%, var(--raised));
+    --label-5: color-mix(in srgb, #6fb0b8 28%, var(--raised));
 }
 
-/* Buttons */
+:root[data-mode="light"] {
+    --warning: #a8670f;
+    --label-1: color-mix(in srgb, #6f8fc7 22%, var(--bg));
+    --label-2: color-mix(in srgb, #9a82c9 22%, var(--bg));
+    --label-3: color-mix(in srgb, #7fae8a 24%, var(--bg));
+    --label-4: color-mix(in srgb, #c69a5e 26%, var(--bg));
+    --label-5: color-mix(in srgb, #6fb0b8 24%, var(--bg));
+    --label-text: var(--text-strong);
+}
+
+/*
+ * Buttons (board 2). Five looks:
+ * - secondary (the default): a neutral raised button for most actions.
+ * - primary: the accent fill. One per view: the main create or start action, or the action of an empty state.
+ * - accent: a soft accent fill. Only for the one recommended action of a row, for example Merge.
+ * - danger: red text on a secondary button. A red fill only in a confirm dialog ("danger-solid").
+ * - ghost: no box until the pointer is on it. For toolbars and menus.
+ * Disabled: the normal look at 40% opacity.
+ */
 
 .button {
     display: inline-flex;
@@ -24,11 +78,11 @@
     justify-content: center;
     gap: 6px;
     height: var(--control-height);
-    padding: 0 12px;
-    border: 1px solid var(--border);
+    padding: 0 10px;
+    border: 1px solid var(--control-border);
     border-radius: var(--control-radius);
     background: var(--raised);
-    color: var(--text);
+    color: var(--text-strong);
     font: inherit;
     font-size: var(--control-font-size);
     font-weight: 500;
@@ -70,76 +124,59 @@
 }
 
 .button.lg {
-    gap: 8px;
     height: var(--control-height-lg);
-    padding: 0 14px;
-    font-size: 13px;
+    padding: 0 12px;
 }
 
 .button.primary {
-    border-color: color-mix(in srgb, var(--accent) 70%, transparent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
-    color: var(--accent);
-}
-
-.button.primary:hover:not(:disabled),
-.button.primary.on {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
-    color: var(--accent);
-}
-
-.button.solid {
     border-color: var(--accent);
     background: var(--accent);
     color: var(--bg);
     font-weight: 600;
 }
 
-.button.solid:hover:not(:disabled),
-.button.solid.on {
+.button.primary:hover:not(:disabled),
+.button.primary.on {
     border-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 85%, var(--text-strong));
     color: var(--bg);
 }
 
+.button.accent {
+    border-color: transparent;
+    background: var(--tone-info-bg);
+    color: var(--tone-info-text);
+}
+
+.button.accent:hover:not(:disabled),
+.button.accent.on {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--accent) 26%, transparent);
+    color: var(--text-strong);
+}
+
 .button.danger {
-    border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
-    background: transparent;
-    color: var(--danger);
+    color: var(--tone-danger-text);
 }
 
 .button.danger:hover:not(:disabled),
 .button.danger.on {
-    border-color: var(--danger);
-    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
     color: var(--danger);
 }
 
-.button.approve {
-    border-color: color-mix(in srgb, var(--ok) 50%, transparent);
-    background: transparent;
-    color: var(--ok);
+.button.danger-solid {
+    border-color: var(--danger);
+    background: var(--danger);
+    color: var(--bg);
+    font-weight: 600;
 }
 
-.button.approve:hover:not(:disabled),
-.button.approve.on {
-    border-color: var(--ok);
-    background: color-mix(in srgb, var(--ok) 12%, transparent);
-    color: var(--ok);
-}
-
-.button.merge {
-    border-color: color-mix(in srgb, var(--purple) 50%, transparent);
-    background: transparent;
-    color: var(--purple);
-}
-
-.button.merge:hover:not(:disabled),
-.button.merge.on {
-    border-color: var(--purple);
-    background: color-mix(in srgb, var(--purple) 12%, transparent);
-    color: var(--purple);
+.button.danger-solid:hover:not(:disabled),
+.button.danger-solid.on {
+    border-color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 85%, var(--text-strong));
+    color: var(--bg);
 }
 
 .button.ghost {
@@ -172,6 +209,15 @@
 .link-button:hover:not(:disabled),
 .link-button.on {
     color: var(--text-strong);
+}
+
+.link-button.danger {
+    color: var(--tone-danger-text);
+}
+
+.link-button.danger:hover:not(:disabled),
+.link-button.danger.on {
+    color: var(--danger);
 }
 
 .link-button.mono {
@@ -248,13 +294,13 @@
 .button:disabled,
 .icon-button:disabled,
 .link-button:disabled {
-    opacity: 0.45;
+    opacity: 0.4;
     cursor: default;
 }
 
 /* Button groups (ButtonGroup.tsx): buttons that show as one control. The group has the border and the corners. */
 .button-group {
-    --group-line: var(--border);
+    --group-line: var(--control-border);
     --group-hover: var(--hover);
     display: inline-flex;
     flex: none;
@@ -264,9 +310,16 @@
     background: var(--raised);
 }
 
-.button-group.merge {
-    --group-line: color-mix(in srgb, var(--purple) 50%, transparent);
-    --group-hover: color-mix(in srgb, var(--purple) 15%, var(--raised));
+.button-group.accent {
+    --group-line: color-mix(in srgb, var(--accent) 22%, transparent);
+    --group-hover: color-mix(in srgb, var(--accent) 26%, transparent);
+    border-color: transparent;
+    background: var(--tone-info-bg);
+    color: var(--tone-info-text);
+}
+
+.button-group.accent > .button {
+    color: var(--tone-info-text);
 }
 
 /* The group border adds 2 px. The buttons in a group are 2 px lower, so the group has the height of a single button. */
@@ -279,9 +332,7 @@
 
 .button-group.lg > .button {
     height: calc(var(--control-height-lg) - 2px);
-    gap: 8px;
-    padding: 0 14px;
-    font-size: 13px;
+    padding: 0 12px;
 }
 
 .button-group.sm > .button {
@@ -315,6 +366,63 @@
 .button-group > .button[aria-pressed="true"],
 .button-group > .button[aria-checked="true"],
 .button-group > .button.selected {
+    background: var(--selected);
+    color: var(--text-strong);
+}
+
+.button-group.primary {
+    --group-line: color-mix(in srgb, var(--bg) 30%, var(--accent));
+    --group-hover: color-mix(in srgb, var(--accent) 85%, var(--text-strong));
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.button-group.primary > .button {
+    color: var(--bg);
+    font-weight: 600;
+}
+
+/*
+ * A segmented control (board 2): a track with the options in it. The selected option gets a raised fill.
+ * A button group with the role "radiogroup" gets this look.
+ */
+.button-group[role="radiogroup"] {
+    gap: 2px;
+    padding: 2px;
+    border-color: var(--border);
+    border-radius: var(--track-radius);
+    background: color-mix(in srgb, var(--bg) 70%, var(--panel));
+}
+
+.button-group[role="radiogroup"] > .button {
+    height: calc(var(--control-height) - 6px);
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--control-radius);
+    color: var(--muted);
+}
+
+.button-group.lg[role="radiogroup"] > .button {
+    height: calc(var(--control-height-lg) - 6px);
+    padding: 0 12px;
+}
+
+.button-group.sm[role="radiogroup"] > .button {
+    height: calc(var(--control-height-sm) - 6px);
+    padding: 0 8px;
+}
+
+.button-group[role="radiogroup"] > .button + .button {
+    border-left: 0;
+}
+
+.button-group[role="radiogroup"] > .button:not(:disabled):hover {
+    background: transparent;
+    color: var(--text-strong);
+}
+
+.button-group[role="radiogroup"] > .button[aria-checked="true"],
+.button-group[role="radiogroup"] > .button.selected {
     background: var(--selected);
     color: var(--text-strong);
 }
@@ -730,17 +838,6 @@ input[type="radio"]:disabled {
     white-space: nowrap;
 }
 
-.card-count {
-    flex: none;
-    padding: 0 6px;
-    border-radius: 8px;
-    background: var(--hover);
-    color: var(--muted);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    line-height: 17px;
-}
-
 .card-description {
     color: var(--muted);
     font-size: 12px;
@@ -765,4 +862,356 @@ input[type="radio"]:disabled {
     justify-content: flex-end;
     gap: 8px;
     padding: 10px 14px;
+}
+
+/* Chips (Chip.tsx, board 2): 20 px, radius 6, a soft fill, and no border. */
+.chip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: var(--control-radius);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.chip > svg {
+    flex: none;
+}
+
+.chip.mono {
+    font-family: "JetBrains Mono", Menlo, monospace;
+    font-weight: 400;
+}
+
+.chip.tone-neutral {
+    background: var(--tone-neutral-bg);
+    color: var(--tone-neutral-text);
+}
+
+.chip.tone-info {
+    background: var(--tone-info-bg);
+    color: var(--tone-info-text);
+}
+
+.chip.tone-success {
+    background: var(--tone-success-bg);
+    color: var(--tone-success-text);
+}
+
+.chip.tone-warning {
+    background: var(--tone-warning-bg);
+    color: var(--tone-warning-text);
+}
+
+.chip.tone-danger {
+    background: var(--tone-danger-bg);
+    color: var(--tone-danger-text);
+}
+
+.chip.tone-review {
+    background: var(--tone-review-bg);
+    color: var(--tone-review-text);
+}
+
+.chip.tone-label {
+    color: var(--label-text);
+}
+
+.chip.label-1 {
+    background: var(--label-1);
+}
+
+.chip.label-2 {
+    background: var(--label-2);
+}
+
+.chip.label-3 {
+    background: var(--label-3);
+}
+
+.chip.label-4 {
+    background: var(--label-4);
+}
+
+.chip.label-5 {
+    background: var(--label-5);
+}
+
+/* The color of an age (ageTone in shared/format.ts). Color only the age in a column. A sentence keeps its color. */
+.age {
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.age.warning {
+    color: var(--tone-warning-text);
+}
+
+.age.danger {
+    color: var(--tone-danger-text);
+}
+
+/* Count badges (Count.tsx, board 2): an 18 px pill. Neutral by default. Accent only when the count means "needs you". */
+.count {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--selected);
+    color: var(--tone-neutral-text);
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    line-height: 1;
+    text-transform: none;
+}
+
+.count.accent {
+    background: var(--accent);
+    color: var(--bg);
+}
+
+.count.on-primary {
+    background: color-mix(in srgb, var(--bg) 22%, transparent);
+    color: var(--bg);
+}
+
+/* The filter field of a page header (FilterField.tsx, board 2). */
+.filter-field {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    width: 240px;
+    height: var(--control-height-lg);
+    padding: 0 6px 0 10px;
+    border: 1px solid var(--control-border);
+    border-radius: var(--control-radius);
+    background: var(--panel);
+    color: var(--muted);
+    transition: border-color 100ms ease;
+}
+
+.filter-field:focus-within {
+    border-color: var(--accent);
+}
+
+.filter-field > svg {
+    flex: none;
+}
+
+.filter-field input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--text-strong);
+    font: inherit;
+    font-size: 13px;
+}
+
+.filter-field input::placeholder {
+    color: var(--muted);
+}
+
+.filter-field kbd {
+    flex: none;
+    padding: 0 5px;
+    border: 1px solid var(--control-border);
+    border-radius: 4px;
+    color: var(--text);
+    font:
+        11px "JetBrains Mono",
+        Menlo,
+        monospace;
+    line-height: 16px;
+}
+
+/* The page header (PageHeader.tsx, board 3). */
+.page-header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    box-sizing: border-box;
+    height: var(--page-header-height);
+    min-width: 0;
+    padding: 0 12px 0 20px;
+    border-bottom: 1px solid var(--border);
+    /* The header is in the title bar area. A drag on it moves the window. Its controls do not move the window. */
+    -webkit-app-region: drag;
+}
+
+.page-header button,
+.page-header input,
+.page-header select,
+.page-header a,
+.page-header [role="button"],
+.page-header .filter-field,
+.page-header .button-group {
+    -webkit-app-region: no-drag;
+}
+
+.page-header-title {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.page-header-title > svg {
+    flex: none;
+    color: var(--text);
+}
+
+.page-header-title h1 {
+    margin: 0;
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: 15px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+}
+
+.page-header-meta {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+}
+
+.page-header-scope,
+.page-header-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.page-header-actions {
+    gap: 2px;
+}
+
+.page-header-space {
+    flex: 1;
+    min-width: 0;
+}
+
+/*
+ * A narrow page. First the meta line goes, then the filter gets narrower. On a very narrow page, the filter is only its
+ * icon until it has the focus or a value.
+ */
+@container page (max-width: 760px) {
+    .page-header-meta {
+        display: none;
+    }
+
+    .page-header .filter-field {
+        width: 160px;
+    }
+}
+
+@container page (max-width: 680px) {
+    .page-header {
+        gap: 8px;
+        padding-left: 16px;
+    }
+
+    .page-header .filter-field:not(:focus-within):not(:has(input:not(:placeholder-shown))) {
+        justify-content: center;
+        width: var(--control-height-lg);
+        padding: 0;
+        cursor: text;
+    }
+
+    .page-header .filter-field:not(:focus-within):not(:has(input:not(:placeholder-shown))) input {
+        position: absolute;
+        width: var(--control-height-lg);
+        height: var(--control-height-lg);
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    .page-header .filter-field:not(:focus-within):not(:has(input:not(:placeholder-shown))) kbd {
+        display: none;
+    }
+
+    .page-header .filter-field:focus-within,
+    .page-header .filter-field:has(input:not(:placeholder-shown)) {
+        width: 180px;
+    }
+}
+
+/* Skeleton rows (Skeleton.tsx, board 4). */
+.skeleton-rows {
+    display: flex;
+    flex-direction: column;
+}
+
+.skeleton-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 44px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--raised);
+}
+
+.skeleton-row:last-child {
+    border-bottom: 0;
+}
+
+.skeleton-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--selected);
+}
+
+.skeleton-bar {
+    flex: none;
+    height: 10px;
+    border-radius: 4px;
+    background: var(--selected);
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-space {
+    flex: 1;
+}
+
+@keyframes skeleton-pulse {
+    50% {
+        opacity: 0.55;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton-bar {
+        animation: none;
+    }
 }

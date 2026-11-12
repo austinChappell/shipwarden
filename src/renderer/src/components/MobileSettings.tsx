@@ -7,6 +7,7 @@ import { errorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { Button, Input, Switch } from './ui';
+import { formatAgo } from '@shared/format';
 
 interface Props {
     settings: AppSettings;
@@ -17,11 +18,7 @@ const api = window.shipwarden.remote;
 
 function since(time: number | undefined): string {
     if (!time) return 'never';
-    const seconds = Math.round((Date.now() - time) / 1000);
-    if (seconds < 60) return 'just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    return `${Math.floor(seconds / 86400)}d ago`;
+    return formatAgo(new Date(time).toISOString());
 }
 
 /** Shows the pairing QR code, and the time until the code stops. */
@@ -300,7 +297,7 @@ export function MobileSettings({ settings, onSave }: Props) {
                             {connected.has(device.id) ? 'Connected now' : `Last seen ${since(device.lastSeenAt)}`} · paired{' '}
                             {new Date(device.pairedAt).toLocaleDateString()}
                         </span>
-                        <Button variant="danger" size="sm" onClick={() => void remove(device.id, device.name)}>
+                        <Button variant="danger" onClick={() => void remove(device.id, device.name)}>
                             Remove
                         </Button>
                     </div>

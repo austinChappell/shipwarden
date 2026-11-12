@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MultiFileDiff, Virtualizer } from '@pierre/diffs/react';
-import { ChevronRight, FileText, LoaderCircle, Minus, Plus, RefreshCw, Search, Undo2 } from 'lucide-react';
+import { ChevronRight, FileText, GitCompareArrows, LoaderCircle, Minus, Plus, RefreshCw, Search, Undo2 } from 'lucide-react';
 import { changeLetter, type ChangeContents, type ChangeSide, type FileChange } from '@shared/git';
 import type { DiffSide } from '@shared/github';
 import { changePatch } from '@shared/change-search';
@@ -11,7 +11,9 @@ import { confirmDiscard } from './ChangesPanel';
 import { FindBar, findLineElement, readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './PullRequestFilesStream';
 import { radioGroupKeys } from './keyboard';
 import { isFindShortcut, openLogFind } from './log-find';
-import { Button, ButtonGroup, IconButton } from './ui';
+import { pluralize } from '@shared/format';
+import { EmptyState } from './EmptyState';
+import { Button, ButtonGroup, Count, IconButton, SkeletonRows } from './ui';
 
 interface Props {
     worktree: string;
@@ -281,15 +283,7 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
     };
 
     if (!changes) {
-        return (
-            <div className="panel-message">
-                {error ?? (
-                    <>
-                        <LoaderCircle size={14} className="spin" /> Reading the changes…
-                    </>
-                )}
-            </div>
-        );
+        return error ? <div className="panel-message">{error}</div> : <SkeletonRows label="Loading the changes" />;
     }
 
     const fileCount = new Set(entries.map(entry => entry.change.path)).size;
@@ -310,7 +304,7 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
                 />
             )}
             <div className="files-stream-toolbar">
-                <span className="files-stream-count">{fileCount === 0 ? 'No changes' : `${fileCount} changed ${fileCount === 1 ? 'file' : 'files'}`}</span>
+                <span className="files-stream-count">{fileCount === 0 ? 'No changes' : pluralize(fileCount, 'changed file')}</span>
                 <span className="header-spacer" />
                 {entries.length > 0 && (
                     <>
@@ -343,7 +337,9 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
             </div>
             {(actionError || error) && <div className="editor-failure">{actionError ?? error}</div>}
             {entries.length === 0 ? (
-                <div className="panel-message">No changes. The working tree is clean.</div>
+                <EmptyState icon={GitCompareArrows} title="No changes">
+                    The working tree is clean.
+                </EmptyState>
             ) : (
                 <Virtualizer className="files-stream-scroll" contentClassName="files-stream-content">
                     {entries.map((entry, index) => {
@@ -355,7 +351,7 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
                             <div key={entry.key}>
                                 {firstOfGroup && (
                                     <h3 className="worktree-changes-group">
-                                        {GROUP_TITLES[group]} <span className="changes-group-count">{count}</span>
+                                        {GROUP_TITLES[group]} <Count value={count} label={pluralize(count, 'file')} />
                                     </h3>
                                 )}
                                 <section

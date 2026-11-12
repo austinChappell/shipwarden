@@ -4,8 +4,11 @@ import { moveMenuFocus, useMenuClose } from '../use-menu';
 import type { ControlSize } from './Button';
 import { cx } from './cx';
 
-/** The color of a button group. "merge" is the purple of the merge button. */
-export type ButtonGroupTone = 'default' | 'merge';
+/**
+ * The look of a button group. "accent" is the soft accent fill of the recommended row action, for example Merge.
+ * "primary" is the accent fill of the main action of a view.
+ */
+export type ButtonGroupTone = 'default' | 'accent' | 'primary';
 
 interface GroupProps {
     tone?: ButtonGroupTone;

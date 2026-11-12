@@ -1,5 +1,6 @@
 import { Tag } from 'lucide-react';
 import { ALL_LABELS, labelKey, showsAllLabels, type LabelFilter, type TaskLabel } from '@shared/tasks';
+import { labelIndex } from '../ui';
 import { FilterPicker, toggleKey, type FilterRow } from './FilterPicker';
 
 interface Props {
@@ -45,7 +46,8 @@ export function LabelFilterPicker({ labels, value, onChange }: Props) {
         ...labelRows(value, labels).map(row => ({
             key: row.key,
             label: row.name,
-            icon: <span className="label-swatch" style={row.color ? { background: row.color } : undefined} aria-hidden="true" />,
+            // The swatch has the color of the label chip. The label palette never uses the status colors.
+            icon: <span className="label-swatch" style={{ background: `var(--label-${labelIndex(row.name) + 1})` }} aria-hidden="true" />,
             checked: value.labels.includes(row.key)
         }))
     ];
