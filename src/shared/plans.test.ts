@@ -16,6 +16,7 @@ import {
     pullRequestBaseOf,
     pullRequestBody,
     pullRequestTitle,
+    stackedOnIndex,
     stepBranch,
     stepPrompt,
     worktreeBaseOf,
@@ -96,18 +97,39 @@ describe('planProblems', () => {
             step({ title: '', skip: true })
         ];
         const problems = planProblems(plan(steps), [API], true);
-        expect(problems).toEqual([
+        expect(problems.map(problem => problem.message)).toEqual([
             'Step 1 has no title.',
             'Step 2 has no repository.',
             'Step 3: the repository is not in the project anymore.',
-            'Step 4 makes a new task. Select a task manager and a collection for new tasks.'
+            'Step 4 makes a new task. Select a task manager and a collection.'
         ]);
+        expect(problems[3].field).toBe('task');
+        expect(problems[3].stepId).toBeUndefined();
+        expect(problems[1]).toMatchObject({ stepId: steps[1].id, field: 'repo', hint: 'Choose the repository this step runs in.' });
     });
 
     it('reports new tasks when the task manager cannot make tasks', () => {
         const steps = [step({ title: 'A', repo: API, task: { kind: 'new' } })];
         expect(planProblems(plan(steps, { taskTarget: { connectionId: 'c', collectionId: 'l' } }), [API], false)).toHaveLength(1);
         expect(planProblems(plan(steps, { taskTarget: { connectionId: 'c', collectionId: 'l' } }), [API], true)).toEqual([]);
+    });
+
+    it('reports all steps with new tasks in one problem', () => {
+        const steps = [step({ title: 'A', repo: API, task: { kind: 'new' } }), step({ title: 'B', repo: API, task: { kind: 'new' } })];
+        expect(planProblems(plan(steps), [API], true).map(problem => problem.message)).toEqual([
+            '2 steps make new tasks. Select a task manager and a collection.'
+        ]);
+    });
+});
+
+describe('stackedOnIndex', () => {
+    it('finds the nearest earlier step in the same repository that runs', () => {
+        const steps = [step({ repo: API }), step({ repo: WEB }), step({ repo: API, skip: true }), step({ repo: API }), step({})];
+        expect(stackedOnIndex(steps, 0)).toBe(-1);
+        expect(stackedOnIndex(steps, 1)).toBe(-1);
+        expect(stackedOnIndex(steps, 2)).toBe(-1);
+        expect(stackedOnIndex(steps, 3)).toBe(0);
+        expect(stackedOnIndex(steps, 4)).toBe(-1);
     });
 });
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowUpRight, Check, ChevronDown, FolderOpen, MoreHorizontal, Pencil, Play, Plus, Upload, X, Zap } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronDown, ChevronLeft, FolderOpen, MoreHorizontal, Pencil, Play, Plus, Upload, X, Zap } from 'lucide-react';
 import {
     AUTOMATION_TEMPLATES,
     automationFromTemplate,
@@ -87,7 +87,9 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
         return (
             <div className="automations-view">
                 <header className="settings-header">
-                    <h1>Automations</h1>
+                    <button type="button" className="view-back" onClick={() => setEditing(undefined)}>
+                        <ChevronLeft size={14} /> Automations
+                    </button>
                 </header>
                 <div className="automations-scroll">
                     <AutomationEditor

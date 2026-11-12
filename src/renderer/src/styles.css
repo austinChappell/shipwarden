@@ -12674,29 +12674,292 @@ button.pr-summary-cell:hover {
     color: var(--purple);
 }
 
-.automation-editor-head h2 {
-    margin: 0 0 6px;
-    color: var(--text-strong);
-    font-size: 16px;
-    font-weight: 600;
+/*
+ * The automation editor. It uses the page layout of a plan (.flow-page, .flow-layout, .flow-card). The sections
+ * "When", "Where", "Only if" and "Then" sit on a line with an icon at the left.
+ */
+
+.automation-editor-names {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
 }
 
-.automation-editor-head {
-    margin-bottom: 24px;
+.automation-description-input {
+    margin-left: -6px;
+    padding: 3px 6px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    outline: none;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+}
+
+.automation-description-input:hover {
+    border-color: var(--border);
+}
+
+.automation-description-input:focus {
+    border-color: var(--accent);
+    background: var(--bg);
+    color: var(--text-strong);
+}
+
+.automation-editor-head .flow-title-row {
+    align-items: flex-start;
+}
+
+/* The status switch, Cancel and Save have the same height, and the same line as the name. */
+.automation-status-switch,
+.automation-editor-head .button {
+    height: 32px;
+    margin-top: 3px;
+}
+
+.automation-status-switch {
+    flex: none;
+    align-items: stretch;
+    padding: 2px;
+}
+
+.automation-status-switch button {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    font-size: 12.5px;
+    white-space: nowrap;
+}
+
+.automation-status-switch button.on.selected {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--ok) 16%, var(--raised));
+    box-shadow: none;
+    color: var(--ok);
+}
+
+.automation-status-switch button.dry-run.selected {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--purple) 16%, var(--raised));
+    box-shadow: none;
+    color: var(--purple);
+}
+
+.automation-status-switch button.off.selected {
+    border-color: transparent;
+    background: var(--hover);
+    box-shadow: none;
+    color: var(--text-strong);
+}
+
+.automation-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.flow-page .automation-save {
+    padding: 0 18px;
+}
+
+.automation-editor-head .form-error,
+.automation-note {
+    margin: 10px 0 0;
 }
 
 .automation-note {
-    margin: 0;
     color: var(--muted);
     font-size: 12.5px;
     line-height: 1.45;
 }
 
-.automation-editor-actions {
+/* The sections on the line */
+
+.flow-main > .flow-section + .flow-section {
+    margin-top: -26px;
+}
+
+.flow-section {
     display: flex;
-    justify-content: flex-end;
+    gap: 16px;
+}
+
+.flow-rail {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    width: 30px;
+    padding-top: 12px;
+}
+
+.flow-icon {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--raised);
+    color: var(--muted);
+}
+
+.flow-section.when .flow-icon {
+    border-color: color-mix(in srgb, var(--info) 40%, transparent);
+    background: color-mix(in srgb, var(--info) 14%, transparent);
+    color: var(--info);
+}
+
+.flow-section.only-if .flow-icon {
+    border-style: dashed;
+    background: none;
+}
+
+.flow-section.then .flow-icon {
+    border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+    background: color-mix(in srgb, var(--ok) 16%, transparent);
+    color: var(--ok);
+}
+
+.flow-section.then .flow-rail {
+    padding-top: 0;
+}
+
+.flow-line {
+    flex: 1;
+    width: 2px;
+    min-height: 16px;
+    margin-top: 6px;
+    border-radius: 1px;
+    background: var(--border);
+}
+
+.flow-body {
+    flex: 1;
+    min-width: 0;
+    padding-bottom: 22px;
+}
+
+.flow-body > .flow-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.flow-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+}
+
+.flow-tag {
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.flow-section.when .flow-tag {
+    color: var(--info);
+}
+
+.flow-section.then .flow-tag {
+    color: var(--ok);
+}
+
+.flow-section-text {
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.automation-only-if.empty {
+    border-style: dashed;
+    background: none;
+}
+
+.automation-then {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 6px;
+}
+
+/* The fields */
+
+.automation-trigger-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
-    margin-top: 24px;
+}
+
+.automation-joiner {
+    flex: none;
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.automation-editor .flow-field .settings-input,
+.automation-editor .automation-label-repo .settings-input {
+    width: 100%;
+}
+
+.automation-editor .automation-auto-select.settings-input,
+.automation-editor .automation-strong-select.settings-input {
+    width: auto;
+    min-width: 140px;
+}
+
+.automation-editor .automation-wide-select.settings-input {
+    width: 280px;
+}
+
+.automation-strong-select.settings-input {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.automation-field-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+}
+
+.automation-field-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.automation-narrow-field {
+    max-width: 320px;
+}
+
+.automation-check-field {
+    min-height: 31px;
+}
+
+.automation-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.automation-info svg {
+    flex: none;
+    margin-top: 2px;
 }
 
 .automation-schedule,
@@ -12708,17 +12971,45 @@ button.pr-summary-cell:hover {
     gap: 8px 12px;
 }
 
-.automation-repos {
-    flex-direction: column;
-    align-items: flex-start;
+.automation-schedule {
+    gap: 6px;
 }
 
 .automation-day,
 .automation-check {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 7px;
     font-size: 12.5px;
+}
+
+/* A day of a schedule and a repository of a worktree automation: a toggle chip. */
+.automation-day,
+.automation-chip {
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.automation-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+}
+
+.automation-day input,
+.automation-chip input {
+    display: none;
+}
+
+.automation-day.on,
+.automation-chip.on {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--text-strong);
 }
 
 .automation-inline label,
@@ -12729,14 +13020,14 @@ button.pr-summary-cell:hover {
     font-size: 12.5px;
 }
 
-.automation-time {
+.automation-editor .automation-time.settings-input {
     width: auto;
 }
 
 /* The collections of a task automation: a multi-select with the size of the other fields. */
 .automation-editor .combobox {
     width: 240px;
-    max-width: none;
+    max-width: 100%;
 }
 
 .automation-editor .combobox-button {
@@ -12745,43 +13036,230 @@ button.pr-summary-cell:hover {
     color: var(--text-strong);
 }
 
+/* The label rules: "If the label is" → "use repository". */
 .automation-label-repos {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
     gap: 8px;
 }
 
 .automation-label-repo {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1.4fr) 28px;
     align-items: center;
     gap: 8px;
 }
 
-.automation-label-repo input {
-    width: 140px;
+.automation-label-repo-head {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
 }
 
-.automation-label-repos > .button {
+.automation-label-fallback.divided {
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+}
+
+.automation-any-label {
+    color: var(--muted);
+    font-size: 13px;
+    font-style: italic;
+}
+
+.automation-label-repos .button {
     display: inline-flex;
     align-items: center;
     gap: 5px;
 }
 
-.automation-number {
+.automation-editor .automation-number.settings-input {
     width: 72px;
+    text-align: right;
+}
+
+/* The actions */
+
+.automation-action {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+}
+
+.automation-action .automation-action {
+    background: var(--bg);
+}
+
+.automation-action-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+}
+
+.automation-action-number {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--raised);
+    color: var(--text-strong);
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+.automation-action-description {
+    flex: 1 1 160px;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.automation-editor .automation-status-input.settings-input {
+    flex: 1 1 160px;
+    width: auto;
+}
+
+.automation-action-head:has(.automation-status-input) .automation-action-description {
+    display: none;
+}
+
+.automation-action-tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+}
+
+.automation-action-tools .icon-button {
+    width: 28px;
+    height: 28px;
+    color: var(--muted);
+}
+
+.automation-action-tools .icon-button:hover:not(:disabled) {
+    color: var(--text-strong);
 }
 
 .automation-action-body {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+}
+
+.automation-action-body:empty {
+    display: none;
+}
+
+/* The prompt: a header, the text and the variables in one box. */
+.automation-prompt-box {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+}
+
+.automation-prompt-box:focus-within {
+    border-color: var(--accent);
+}
+
+.automation-prompt-head {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
 }
 
 .automation-prompt {
+    display: block;
     width: 100%;
-    min-height: 96px;
+    min-height: 110px;
+    padding: 10px 12px;
+    border: 0;
+    outline: none;
+    background: none;
+    color: var(--text-strong);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    line-height: 1.5;
     resize: vertical;
+}
+
+.automation-http-headers ~ .automation-prompt,
+.automation-action-body > .automation-prompt {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.automation-variable-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+}
+
+.automation-action-body > .automation-variable-box {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.automation-variable-group {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.automation-variable-label {
+    flex: none;
+    width: 86px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.automation-variable-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.automation-variable {
+    padding: 2px 7px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: var(--raised);
+    color: var(--text);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    cursor: pointer;
+}
+
+.automation-variable:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--text-strong);
+}
+
+.automation-variable:disabled {
+    cursor: help;
+}
+
+.automation-variable-filters {
+    align-self: flex-end;
+    color: var(--muted);
+    font-size: 11.5px;
 }
 
 .automation-variables {
@@ -12790,25 +13268,101 @@ button.pr-summary-cell:hover {
     line-height: 1.8;
 }
 
-.automation-variables code {
-    margin-right: 6px;
-    cursor: help;
+/* The "Add an action" button: a dashed box that opens the list of the action types. */
+.automation-add-action.select-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 12px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    cursor: pointer;
+}
+
+/* The plus icon stays next to the text. A select button puts its arrow icon at the right. */
+.automation-add-action.select-button > svg {
+    margin-left: 0;
+}
+
+.automation-add-action.select-button:hover,
+.automation-add-action.select-button.on {
+    border-color: var(--muted);
+    color: var(--text-strong);
+}
+
+/* The panel at the right */
+
+.automation-side {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.automation-summary {
+    margin: 0;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.automation-summary b {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.automation-side .flow-field-note {
+    margin: 0;
+}
+
+.automation-side-warning {
+    overflow-wrap: anywhere;
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    color: var(--flow-warn);
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.automation-side-warning svg {
+    flex: none;
+    margin-top: 2px;
+}
+
+.automation-side .flow-card-section + .flow-card-section {
+    border-top: 1px solid var(--border);
+}
+
+.automation-approval button {
+    padding: 6px 0;
+}
+
+.automation-limit-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
 }
 
 .automation-limit {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     color: var(--muted);
     font-size: 12.5px;
 }
 
-.automation-limit-input {
+.automation-editor .automation-limit-input.settings-input {
     width: 120px;
 }
 
 .automation-limit .automation-check {
-    margin-left: 6px;
+    margin-left: auto;
 }
 
 /* The Plans view: an idea, the steps of the plan, and the run of the steps. */
@@ -12827,10 +13381,30 @@ button.pr-summary-cell:hover {
 }
 
 .plans-header .button,
-.plan-page .button {
+.flow-page .button {
     display: inline-flex;
     align-items: center;
     gap: 5px;
+}
+
+/* The "‹ Plans" link in the title bar of an open plan. */
+.view-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: -6px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    cursor: pointer;
+}
+
+.view-back:hover {
+    background: var(--hover);
+    color: var(--text-strong);
 }
 
 .plans-scroll {
@@ -12839,8 +13413,7 @@ button.pr-summary-cell:hover {
     overflow-y: auto;
 }
 
-.plans-page,
-.plan-page {
+.plans-page {
     max-width: 860px;
 }
 
@@ -12895,32 +13468,229 @@ button.pr-summary-cell:hover {
     color: var(--danger);
 }
 
-.plan-title-row {
+/* One plan. The page has two columns: the idea and the steps at the left, the run panel at the right. */
+
+.flow-page {
+    /* Amber for a field that needs a change, in every theme. The themes have no warning color. */
+    --flow-warn: #e5a54b;
+    container-type: inline-size;
+    max-width: 1180px;
+    padding: 22px 32px 56px;
+}
+
+:root[data-mode="light"] .flow-page {
+    --flow-warn: #a8670f;
+}
+
+.flow-header {
+    margin-bottom: 22px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.flow-title-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
+    gap: 10px;
 }
 
-.plan-title-row .plan-status {
+.flow-title-row .plan-status {
     margin-right: 0;
+    padding: 3px 10px;
+    font-size: 11.5px;
 }
 
-.plan-title,
-.plan-title-input.settings-input {
+.flow-title,
+.flow-title-input {
     flex: 1;
-    width: auto;
-    margin: 0;
+    min-width: 0;
+    margin: 0 0 0 -6px;
+    padding: 2px 6px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    outline: none;
+    background: none;
     color: var(--text-strong);
-    font-size: 16px;
+    font: inherit;
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+}
+
+.flow-title-input:hover {
+    border-color: var(--border);
+}
+
+.flow-title-input:focus {
+    border-color: var(--accent);
+    background: var(--bg);
+}
+
+/* The three stages: explore the idea, review the steps, run. */
+.plan-stages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 0;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.plan-stage {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.plan-stage + .plan-stage::before {
+    content: "";
+    width: 28px;
+    height: 1px;
+    margin: 0 10px;
+    background: var(--border);
+}
+
+.plan-stage-mark {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    font-size: 10.5px;
     font-weight: 600;
 }
 
-.plan-dates {
-    min-height: 18px;
-    margin-bottom: 20px;
+.plan-stage.done .plan-stage-mark {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--ok) 22%, transparent);
+    color: var(--ok);
+}
+
+.plan-stage.current {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.plan-stage.current .plan-stage-mark {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--bg);
+}
+
+.flow-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: start;
+    gap: 24px;
+}
+
+.flow-main {
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    min-width: 0;
+}
+
+.flow-side {
+    position: sticky;
+    top: 16px;
+}
+
+/* A narrow page has one column. The side panel goes to the top and scrolls with the page. */
+@container (max-width: 860px) {
+    .flow-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .flow-side {
+        position: static;
+        order: -1;
+    }
+}
+
+.flow-card {
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+}
+
+.flow-label {
+    display: block;
+    margin-bottom: 4px;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* The idea card */
+
+.plan-idea-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.plan-idea-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.plan-idea-body {
+    color: var(--text-strong);
+    font-size: 13.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+}
+
+.plan-idea-body.empty {
+    color: var(--muted);
+}
+
+.plan-idea-actions,
+.plan-idea-buttons {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.plan-idea-buttons {
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.plan-idea-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.plan-idea-card > .flow-label + .plan-idea-note {
+    margin: 0 0 8px;
+}
+
+.plan-idea-summary {
+    margin-top: 10px;
+    color: var(--text);
+}
+
+.plan-summary {
+    font-size: 13px;
+    line-height: 1.5;
+    user-select: text;
 }
 
 .plan-idea.settings-input,
@@ -12930,53 +13700,182 @@ button.pr-summary-cell:hover {
     width: 100%;
     min-height: 88px;
     resize: vertical;
-    line-height: 1.45;
+    line-height: 1.5;
 }
 
-.plan-feedback.settings-input {
-    min-height: 56px;
-}
+/* The steps */
 
-.plan-explore-row {
+.plan-section-head {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin-top: 8px;
+    align-items: baseline;
+    gap: 4px 12px;
+    margin-bottom: 12px;
 }
 
-.plan-explore-note {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+.plan-section-head h3 {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: 16px;
+    font-weight: 650;
+}
+
+.plan-section-note {
     color: var(--muted);
     font-size: 12.5px;
-}
-
-.plan-summary {
-    font-size: 13px;
-    line-height: 1.5;
-    user-select: text;
 }
 
 .plan-steps {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+}
+
+.plan-step-row {
+    display: flex;
+    gap: 14px;
+}
+
+.plan-step-rail {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    width: 26px;
+    padding-top: 14px;
+}
+
+.plan-step-number {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--raised);
+    color: var(--text-strong);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* The line runs to the number of the next step, through the gap between the cards. */
+.plan-step-line {
+    flex: 1;
+    width: 2px;
+    margin: 6px 0 -18px;
+    border-radius: 1px;
+    background: var(--border);
+}
+
+.plan-step-line.stacked {
+    background: color-mix(in srgb, var(--ok) 55%, transparent);
 }
 
 .plan-step {
     display: flex;
+    flex: 1;
     flex-direction: column;
-    gap: 8px;
-    padding: 12px 14px;
+    gap: 10px;
+    min-width: 0;
+    padding: 12px 16px 14px;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--panel);
 }
 
-.plan-step.skipped {
+.plan-step-row.skipped .plan-step {
     opacity: 0.55;
+}
+
+.plan-step-row.invalid .plan-step {
+    border-color: color-mix(in srgb, var(--flow-warn) 55%, var(--border));
+}
+
+.plan-step-row.invalid .plan-step-number {
+    border-color: color-mix(in srgb, var(--flow-warn) 45%, transparent);
+    background: color-mix(in srgb, var(--flow-warn) 18%, transparent);
+    color: var(--flow-warn);
+}
+
+.plan-step-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+}
+
+.plan-step-title {
+    flex: 1 1 200px;
+    min-width: 0;
+    margin-left: -7px;
+    padding: 5px 6px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    outline: none;
+    background: none;
+    color: var(--text-strong);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.plan-step-title:hover:not(:disabled) {
+    border-color: var(--border);
+}
+
+.plan-step-title:focus {
+    border-color: var(--accent);
+    background: var(--bg);
+}
+
+.plan-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--raised);
+    color: var(--muted);
+    font-size: 11.5px;
+    white-space: nowrap;
+}
+
+.plan-badge.stacked {
+    background: color-mix(in srgb, var(--ok) 13%, transparent);
+    color: var(--ok);
+}
+
+.plan-repo-select.settings-input {
+    width: 170px;
+}
+
+.plan-repo-select.warn.settings-input {
+    border-color: color-mix(in srgb, var(--flow-warn) 70%, transparent);
+    color: var(--flow-warn);
+}
+
+.plan-step-tools,
+.plan-step-actions,
+.plan-step-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.plan-step-tools {
+    gap: 2px;
+}
+
+.plan-step-tools .icon-button {
+    width: 28px;
+    height: 28px;
+    color: var(--muted);
+}
+
+.plan-step-tools .icon-button:hover:not(:disabled) {
+    color: var(--text-strong);
 }
 
 .plan-step-tools .icon-button[aria-pressed="true"] {
@@ -12984,83 +13883,32 @@ button.pr-summary-cell:hover {
     color: var(--accent);
 }
 
-.plan-step.run.attention,
-.plan-step.run.failed {
-    border-color: var(--accent);
-}
-
-.plan-step.run.running {
-    border-color: var(--info);
-}
-
-.plan-step-head {
+.plan-step-problem {
     display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.plan-step-number {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--raised);
-    color: var(--muted);
-    font-size: 11.5px;
-    font-weight: 600;
-}
-
-.plan-step-title.settings-input {
-    flex: 1;
-    width: auto;
-    font-weight: 500;
-}
-
-.plan-step-heading {
-    flex: 1;
-    min-width: 0;
-}
-
-.plan-step-name {
-    color: var(--text-strong);
-    font-size: 13px;
-    font-weight: 500;
-}
-
-.plan-step-meta {
-    margin-top: 2px;
-    overflow: hidden;
-    color: var(--muted);
-    font-size: 12px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.plan-step-tools,
-.plan-step-actions,
-.plan-step-fields,
-.plan-inline {
-    display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
+    color: var(--flow-warn);
+    font-size: 12.5px;
+}
+
+.plan-step-description.settings-input {
+    min-height: 76px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
 }
 
 .plan-step-fields {
     gap: 8px 12px;
 }
 
-.plan-step-fields .settings-input {
-    width: 200px;
+.plan-task-select.settings-input {
+    width: 140px;
 }
 
 .plan-task-picker.combobox,
 .plan-collection-picker.combobox {
     width: 260px;
-    max-width: none;
+    max-width: 100%;
 }
 
 .plan-task-picker .combobox-button,
@@ -13073,13 +13921,245 @@ button.pr-summary-cell:hover {
 .plan-check {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 7px;
+    margin-left: 6px;
     font-size: 12.5px;
 }
 
 .plan-hint {
     color: var(--muted);
     font-size: 12px;
+}
+
+.flow-add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-left: 40px;
+    padding: 12px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    cursor: pointer;
+}
+
+.flow-add:hover:not(:disabled) {
+    border-color: var(--muted);
+    color: var(--text-strong);
+}
+
+.flow-add:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+/* The "Ask the agent to revise" card */
+
+.plan-revise {
+    margin-left: 40px;
+}
+
+.plan-revise-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 10px;
+    color: var(--text-strong);
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.plan-revise-title svg {
+    color: var(--accent);
+}
+
+.plan-revise-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.plan-feedback.settings-input {
+    flex: 1;
+    min-height: 40px;
+    height: 40px;
+}
+
+.flow-page .plan-revise-send {
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+}
+
+/* The run panel at the right */
+
+/* A card with sections gets its padding from the sections. */
+.flow-card:has(> .flow-card-section) {
+    padding: 0;
+}
+
+.flow-card-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 18px;
+}
+
+.flow-card-section + .flow-card-section {
+    border-top: 1px solid var(--border);
+}
+
+.flow-card-title {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: 15px;
+    font-weight: 650;
+}
+
+.flow-card-note {
+    margin-top: -6px;
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.flow-problems {
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--flow-warn) 40%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--flow-warn) 8%, transparent);
+    color: var(--flow-warn);
+    font-size: 12.5px;
+}
+
+.flow-problems-title {
+    font-weight: 600;
+}
+
+.flow-problems ul {
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+    line-height: 1.5;
+}
+
+.flow-problem-link {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.flow-problem-link svg {
+    vertical-align: -1px;
+}
+
+.plan-settings {
+    gap: 16px;
+}
+
+.flow-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.flow-field .settings-input,
+.flow-field .plan-collection-picker.combobox {
+    width: 100%;
+}
+
+.flow-field-label {
+    color: var(--text-strong);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.flow-field-label.muted {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.flow-field-note {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.flow-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.flow-page .plan-execute {
+    justify-content: center;
+    width: 100%;
+    padding: 9px 16px;
+    font-size: 13.5px;
+}
+
+.plan-execute-note {
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+}
+
+/* The run of a plan */
+
+.plan-step-heading {
+    flex: 1;
+    min-width: 0;
+}
+
+.plan-step-name {
+    color: var(--text-strong);
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.plan-step-meta {
+    margin-top: 2px;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plan-step-row.run.attention .plan-step,
+.plan-step-row.run.failed .plan-step {
+    border-color: var(--accent);
+}
+
+.plan-step-row.run.running .plan-step {
+    border-color: var(--info);
+}
+
+.plan-step-row.run.done .plan-step-number {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--ok) 22%, transparent);
+    color: var(--ok);
+}
+
+.plan-step-row.run.running .plan-step-number {
+    border-color: var(--info);
+    color: var(--info);
+}
+
+.plan-step-row.run.skipped .plan-step {
+    opacity: 0.55;
 }
 
 .plan-step-detail {
@@ -13091,8 +14171,8 @@ button.pr-summary-cell:hover {
     user-select: text;
 }
 
-.plan-step.run.attention .plan-step-detail,
-.plan-step.run.failed .plan-step-detail {
+.plan-step-row.run.attention .plan-step-detail,
+.plan-step-row.run.failed .plan-step-detail {
     color: var(--text);
 }
 
@@ -13106,33 +14186,45 @@ button.pr-summary-cell:hover {
     margin-top: 6px;
 }
 
-.plan-merge-row .settings-row-main {
-    flex-wrap: nowrap;
-}
-
-.plan-footer {
+.plan-merge-list {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-    margin-top: 28px;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
-.plan-problems {
-    align-self: stretch;
-    margin: 0;
-    padding: 10px 14px 10px 30px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
+.plan-merge-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.plan-merge-number {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
     background: var(--raised);
     color: var(--muted);
-    font-size: 12.5px;
-    line-height: 1.6;
+    font-size: 11px;
+    font-weight: 600;
 }
 
-.plan-execute {
-    padding: 8px 16px;
-    font-size: 13px;
+.plan-merge-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.plan-merge-title {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: 12.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Text for screen readers only. */
@@ -14473,10 +15565,6 @@ button.pr-summary-cell:hover {
     font-size: 11.5px;
     font-weight: 600;
     text-transform: uppercase;
-}
-
-.automation-add-action {
-    border: none;
 }
 
 .automation-http-url {

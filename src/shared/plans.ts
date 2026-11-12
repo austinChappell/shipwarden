@@ -313,23 +313,62 @@ export function normalizePlan(value: unknown): Plan | undefined {
     return plan;
 }
 
+/** A problem that stops the execution of a plan. */
+export interface PlanProblem {
+    /** One sentence for the list of problems, for example "Step 3 has no repository." */
+    message: string;
+    /** The step with the problem. Undefined: a problem of the plan. */
+    stepId?: string;
+    /** The field of the step with the problem. */
+    field?: 'title' | 'repo' | 'task';
+    /** One sentence for the step itself, without the step number. */
+    hint?: string;
+}
+
 /**
- * Returns the problems that stop the execution of the plan, one sentence each. Empty: the plan can run.
+ * Returns the problems that stop the execution of the plan. Empty: the plan can run.
  * `repos` are the repositories of the project now.
  */
-export function planProblems(plan: Plan, repos: readonly string[], canCreateTasks: boolean): string[] {
-    const problems: string[] = [];
+export function planProblems(plan: Plan, repos: readonly string[], canCreateTasks: boolean): PlanProblem[] {
+    const problems: PlanProblem[] = [];
     const active = plan.steps.filter(step => !step.skip);
-    if (active.length === 0) problems.push('The plan has no steps to run. Add a step, or include a skipped step.');
+    if (active.length === 0) problems.push({ message: 'The plan has no steps to run. Add a step, or include a skipped step.' });
     active.forEach(step => {
         const name = `Step ${plan.steps.indexOf(step) + 1}`;
-        if (!step.title.trim()) problems.push(`${name} has no title.`);
-        if (!step.repo) problems.push(`${name} has no repository.`);
-        else if (!repos.includes(step.repo)) problems.push(`${name}: the repository is not in the project anymore.`);
-        if (step.task.kind === 'new' && !plan.taskTarget) problems.push(`${name} makes a new task. Select a task manager and a collection for new tasks.`);
-        if (step.task.kind === 'new' && plan.taskTarget && !canCreateTasks) problems.push(`${name} makes a new task, but the task manager cannot make tasks.`);
+        const add = (field: PlanProblem['field'], message: string, hint: string) => problems.push({ message, stepId: step.id, field, hint });
+        if (!step.title.trim()) add('title', `${name} has no title.`, 'Write a title for this step.');
+        if (!step.repo) add('repo', `${name} has no repository.`, 'Choose the repository this step runs in.');
+        else if (!repos.includes(step.repo)) {
+            add(
+                'repo',
+                `${name}: the repository is not in the project anymore.`,
+                'The repository is not in the project anymore. Choose a different repository.'
+            );
+        }
     });
+    // One problem for all steps with a new task. The fix is in the settings of the plan, not in the steps.
+    const newTaskSteps = active.filter(step => step.task.kind === 'new').map(step => plan.steps.indexOf(step) + 1);
+    if (newTaskSteps.length > 0 && (!plan.taskTarget || !canCreateTasks)) {
+        const steps = newTaskSteps.length === 1 ? `Step ${newTaskSteps[0]} makes a new task` : `${newTaskSteps.length} steps make new tasks`;
+        problems.push({
+            message: plan.taskTarget ? `${steps}, but the task manager cannot make tasks.` : `${steps}. Select a task manager and a collection.`,
+            field: 'task'
+        });
+    }
     return problems;
+}
+
+/**
+ * Returns the index of the step that the step at `index` stacks on: the nearest earlier step in the same repository
+ * that runs. Returns -1 when the step starts from the default branch.
+ */
+export function stackedOnIndex(steps: readonly PlanStep[], index: number): number {
+    const step = steps[index];
+    if (!step?.repo || step.skip) return -1;
+    for (let at = index - 1; at >= 0; at--) {
+        if (steps[at].repo === step.repo && !steps[at].skip) return at;
+    }
+    return -1;
 }
 
 /* ------------------------------------------------------------------------------------------------------------------ */
@@ -643,6 +682,6 @@ export function planCounts(plan: Pick<Plan, 'steps'>): { steps: number; pullRequ
         steps: active.length,
         pullRequests: active.filter(step => step.pullRequest).length,
         newTasks: active.filter(step => step.task.kind === 'new').length,
-        repos: new Set(active.map(step => step.repo)).size
+        repos: new Set(active.flatMap(step => (step.repo ? [step.repo] : []))).size
     };
 }
