@@ -12,6 +12,11 @@ import {
 } from './settings';
 
 describe('normalizeSettings', () => {
+    it('shows agent tabs as a chat by default', () => {
+        expect(normalizeSettings({}).agentChat).toBe(true);
+        expect(normalizeSettings({ agentChat: false }).agentChat).toBe(false);
+    });
+
     it('keeps the onboarding state and leaves a missing state missing', () => {
         expect(normalizeSettings({}).onboarding).toBeUndefined();
         expect(normalizeSettings({ onboarding: 'done' }).onboarding).toBeUndefined();

@@ -36,6 +36,7 @@ import type { ReviewProviderChange, ReviewProviderInfo, ReviewProviderKind, Revi
 import type { LspInstallState, LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentUpdate } from './agents';
+import type { TranscriptChunk } from './agent-chat';
 import type { AgentProgram } from './agent-programs';
 import type { AskAgentRequest, AskAgentResult, SavedAnswer, SavedCodeAnswer } from './ask-agent';
 import type { ReviewCheckout, ReviewCheckoutStatus } from './review-checkout';
@@ -567,7 +568,25 @@ export interface ShipWardenApi {
          * show, so that the page has no terminal for it. Undefined when the session does not exist.
          */
         screenText(id: string): Promise<string | undefined>;
+        /**
+         * Reads the complete lines of a Claude Code transcript after `offset` (bytes). Use -1 for the first read. The first
+         * read gets only the end of a long file.
+         */
+        readTranscript(file: string, offset: number): Promise<TranscriptChunk>;
+        /**
+         * Starts to watch a Claude Code transcript. `onTranscriptChanged` then reports each change. Each call needs one
+         * call of `unwatchTranscript`. Rejects when the file cannot be watched.
+         */
+        watchTranscript(file: string): Promise<void>;
+        unwatchTranscript(file: string): void;
+        /** Calls the listener when a watched transcript changes. */
+        onTranscriptChanged(listener: (file: string) => void): () => void;
         write(id: string, data: string): void;
+        /**
+         * Puts an image (a data URL) on the clipboard and sends Ctrl+V to the session. Claude Code then reads the image
+         * from the clipboard and adds it to its prompt. The image replaces the content of the clipboard.
+         */
+        pasteImage(id: string, dataUrl: string): Promise<void>;
         resize(id: string, cols: number, rows: number): void;
         kill(id: string): Promise<void>;
         /** Stops the PTY hosts of older builds and their sessions. Returns the number of sessions that stopped. */
@@ -753,7 +772,12 @@ export const IpcChannels = {
     terminalsCreate: 'terminals:create',
     terminalsReplay: 'terminals:replay',
     terminalsScreenText: 'terminals:screenText',
+    terminalsReadTranscript: 'terminals:readTranscript',
+    terminalsWatchTranscript: 'terminals:watchTranscript',
+    terminalsUnwatchTranscript: 'terminals:unwatchTranscript',
+    terminalsTranscriptChanged: 'terminals:transcriptChanged',
     terminalsWrite: 'terminals:write',
+    terminalsPasteImage: 'terminals:pasteImage',
     terminalsResize: 'terminals:resize',
     terminalsKill: 'terminals:kill',
     terminalsStopOutdated: 'terminals:stopOutdated',

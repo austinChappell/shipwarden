@@ -45,7 +45,7 @@ export function addResponses(responses: Map<string, Response>, lines: readonly s
 export class TokenCounter {
     private readonly files = new Map<string, FileState>();
 
-    constructor(private readonly allowedRoots: readonly string[] = defaultRoots()) {}
+    constructor(private readonly allowedRoots: readonly string[] = claudeDataRoots()) {}
 
     /**
      * Returns the tokens and the cache reads of the responses in the time from `from` to `to` (milliseconds, `to` is
@@ -108,7 +108,7 @@ async function subagentFiles(file: string): Promise<string[]> {
 }
 
 /** The Claude Code data folders: ~/.claude, and CLAUDE_CONFIG_DIR when it is set. */
-function defaultRoots(): string[] {
+export function claudeDataRoots(): string[] {
     const roots = [path.join(os.homedir(), '.claude')];
     if (process.env.CLAUDE_CONFIG_DIR) roots.push(path.resolve(process.env.CLAUDE_CONFIG_DIR));
     return roots;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bracketedPaste, checkLine, checksPrompt, logPrompt, repoFolderName, showsAgentDialog } from './agent-text';
+import { bracketedPaste, checkLine, countImageMarks, checksPrompt, logPrompt, repoFolderName, showsAgentDialog } from './agent-text';
 
 describe('showsAgentDialog', () => {
     it('finds a dialog in text with or without spaces', () => {
@@ -68,5 +68,13 @@ describe('repoFolderName', () => {
 
     it('returns the path when it has no parts', () => {
         expect(repoFolderName('/')).toBe('/');
+    });
+});
+
+describe('countImageMarks', () => {
+    it('counts the image marks of Claude Code, also without spaces', () => {
+        expect(countImageMarks('> [Image #1] [Image #2] What is this?')).toBe(2);
+        expect(countImageMarks('>[Image#3]text')).toBe(1);
+        expect(countImageMarks('> no images')).toBe(0);
     });
 });

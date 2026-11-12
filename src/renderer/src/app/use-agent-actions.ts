@@ -49,7 +49,7 @@ function waitForQuietOutput(sessionId: string, timeout = AGENT_START_TIMEOUT_MS)
  * Returns the text of the screen of a session. The page has a terminal only for a session that it showed. For other
  * sessions, for example an agent that an automation started, the main process makes the screen from the output.
  */
-async function screenTextOf(sessionId: string): Promise<string | undefined> {
+export async function screenTextOf(sessionId: string): Promise<string | undefined> {
     return terminalPool.screenText(sessionId) ?? (await api.terminals.screenText(sessionId).catch(() => undefined));
 }
 
