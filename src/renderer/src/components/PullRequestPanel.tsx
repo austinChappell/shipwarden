@@ -50,6 +50,7 @@ import { PullRequestReviewCard, type AgentReviewControl } from './PullRequestRev
 import { PullRequestConversation, PullRequestThreads } from './PullRequestThreads';
 import { reactionActions } from './Reactions';
 import { MentionContext, mentionSourceOf } from './mention-context';
+import { Button, IconButton } from './ui';
 
 export { BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, StateBadge } from './PullRequestParts';
 export { hasConflicts, reviewText } from '../github/merge-state';
@@ -293,17 +294,29 @@ export function PullRequestPanel({
                             <div className="pr-title-row">
                                 <StateBadge pr={pr} />
                                 <ConflictBadge pr={pr} />
-                                <button className="link-button" title={`Open on ${hostLabel(pr.host)}`} onClick={event => openLink(pr.url, event)}>
-                                    #{pr.number} <ExternalLink size={12} strokeWidth={1.6} />
-                                </button>
+                                <Button
+                                    variant="link"
+                                    iconEnd={<ExternalLink size={12} strokeWidth={1.6} />}
+                                    title={`Open on ${hostLabel(pr.host)}`}
+                                    onClick={event => openLink(pr.url, event)}
+                                >
+                                    #{pr.number}
+                                </Button>
                                 {onOpenInReview && pr.host !== 'azure' && (
-                                    <button className="icon-button" title="Open in Review" onClick={() => onOpenInReview(pr)}>
-                                        <Maximize2 size={14} strokeWidth={1.6} />
-                                    </button>
+                                    <IconButton
+                                        size="sm"
+                                        icon={<Maximize2 size={14} strokeWidth={1.6} />}
+                                        label="Open in Review"
+                                        onClick={() => onOpenInReview(pr)}
+                                    />
                                 )}
-                                <button className="icon-button pr-refresh" title="Refresh" onClick={() => onRefresh()}>
-                                    <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
-                                </button>
+                                <IconButton
+                                    size="sm"
+                                    className="pr-refresh"
+                                    icon={<RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />}
+                                    label="Refresh"
+                                    onClick={() => onRefresh()}
+                                />
                             </div>
                             <h3 className="pr-title">{pr.title}</h3>
                             <div className="pr-meta">
@@ -332,9 +345,9 @@ export function PullRequestPanel({
                                 </span>
                             </div>
                             {onSendToAgent && (
-                                <button className="button" onClick={() => onSendToAgent(conflictPrompt(pr))}>
-                                    <Bot size={13} strokeWidth={1.6} /> Send to agent
-                                </button>
+                                <Button icon={<Bot size={13} strokeWidth={1.6} />} onClick={() => onSendToAgent(conflictPrompt(pr))}>
+                                    Send to agent
+                                </Button>
                             )}
                         </div>
                     )}
@@ -347,9 +360,9 @@ export function PullRequestPanel({
                                 <span>{failedCheckNames(failedChecks)}</span>
                             </div>
                             {onSendChecksToAgent && (
-                                <button className="button" onClick={() => onSendChecksToAgent(failedChecks)}>
-                                    <Bot size={13} strokeWidth={1.6} /> Send to agent
-                                </button>
+                                <Button icon={<Bot size={13} strokeWidth={1.6} />} onClick={() => onSendChecksToAgent(failedChecks)}>
+                                    Send to agent
+                                </Button>
                             )}
                         </div>
                     )}
@@ -424,10 +437,9 @@ export function PullRequestPanel({
                     <div className="pr-footer">
                         {actionError && <div className="form-error">{actionError}</div>}
                         <div className="row-buttons">
-                            <button className="button" disabled={busy} onClick={() => setState('open')}>
-                                <GitPullRequest size={14} strokeWidth={1.8} />
+                            <Button icon={<GitPullRequest size={14} strokeWidth={1.8} />} disabled={busy} onClick={() => setState('open')}>
                                 Reopen pull request
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}

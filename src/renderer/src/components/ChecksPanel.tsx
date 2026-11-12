@@ -7,6 +7,7 @@ import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { LogView } from './LogView';
+import { Button, IconButton } from './ui';
 import { checksQuery, ciActions, isFailedConclusion, useCiAction, workflowsQuery } from '../github/ci-queries';
 
 interface Props {
@@ -101,14 +102,13 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                 </div>
                 <div className="checks-subtitle">
                     {status.pullRequest?.state === 'OPEN' ? `PR #${status.pullRequest.number} head` : status.branch} · <code>{status.sha.slice(0, 7)}</code>
-                    <button className="icon-button" title="Refresh" onClick={() => void checksQueryResult.refetch()}>
-                        <RefreshCw size={14} strokeWidth={1.6} />
-                    </button>
+                    <IconButton size="sm" icon={<RefreshCw size={14} strokeWidth={1.6} />} label="Refresh" onClick={() => void checksQueryResult.refetch()} />
                 </div>
                 <div className="row-buttons">
                     {failedRuns.length > 0 && (
-                        <button
-                            className="button"
+                        <Button
+                            size="sm"
+                            icon={<RotateCw size={14} strokeWidth={1.8} />}
                             disabled={busy}
                             onClick={() =>
                                 run(`Run the failed jobs again in ${failedRuns.length} workflow run(s)?`, async () => {
@@ -118,14 +118,18 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                                 })
                             }
                         >
-                            <RotateCw size={14} strokeWidth={1.8} />
                             Re-run failed
-                        </button>
+                        </Button>
                     )}
-                    <button className="button" onClick={() => setShowWorkflows(open => !open)}>
-                        <Play size={14} strokeWidth={1.8} />
+                    <Button
+                        size="sm"
+                        active={showWorkflows}
+                        icon={<Play size={14} strokeWidth={1.8} />}
+                        aria-expanded={showWorkflows}
+                        onClick={() => setShowWorkflows(open => !open)}
+                    >
                         Run workflow
-                    </button>
+                    </Button>
                 </div>
                 {showWorkflows && (
                     <div className="workflow-list">
@@ -175,41 +179,38 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                             <span className="check-duration">{formatDuration(check.startedAt, check.completedAt)}</span>
                             <span className="check-actions">
                                 {check.isActions && failed && onSendLogToAgent && (
-                                    <button
-                                        className="icon-button"
-                                        title="Send the log to the agent"
+                                    <IconButton
+                                        size="sm"
+                                        icon={<Bot size={14} strokeWidth={1.6} />}
+                                        label="Send the log to the agent"
                                         onClick={event => {
                                             event.stopPropagation();
                                             onSendLogToAgent(check);
                                         }}
-                                    >
-                                        <Bot size={14} strokeWidth={1.6} />
-                                    </button>
+                                    />
                                 )}
                                 {check.isActions && check.status === 'completed' && (
-                                    <button
-                                        className="icon-button"
-                                        title="Run this job again"
+                                    <IconButton
+                                        size="sm"
+                                        icon={<RotateCw size={14} strokeWidth={1.6} />}
+                                        label="Run this job again"
                                         disabled={busy}
                                         onClick={event => {
                                             event.stopPropagation();
                                             run(`Run the job "${check.name}" again?`, () => ciActions.rerunJob(target, check.id, check.runId));
                                         }}
-                                    >
-                                        <RotateCw size={14} strokeWidth={1.6} />
-                                    </button>
+                                    />
                                 )}
                                 {check.url && (
-                                    <button
-                                        className="icon-button"
-                                        title={`Open on ${hostLabel(status.host)}`}
+                                    <IconButton
+                                        size="sm"
+                                        icon={<ExternalLink size={14} strokeWidth={1.6} />}
+                                        label={`Open on ${hostLabel(status.host)}`}
                                         onClick={event => {
                                             event.stopPropagation();
                                             openLink(check.url!, event);
                                         }}
-                                    >
-                                        <ExternalLink size={14} strokeWidth={1.6} />
-                                    </button>
+                                    />
                                 )}
                             </span>
                         </div>

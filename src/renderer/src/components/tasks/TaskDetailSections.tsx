@@ -16,6 +16,7 @@ import type {
 } from '@shared/tasks';
 import { openLink } from '../../links';
 import { timeAgo } from '../../util';
+import { Button, IconButton } from '../ui';
 import { checklistProgress, customFieldEmpty, dayInputValue, formatBytes, formatDay, formatDuration, labelId } from './task-view-logic';
 import { DateEditor, EmptyValue, InlineText, OptionPicker } from './TaskEditors';
 import { TaskCard } from './TaskBody';
@@ -64,9 +65,9 @@ function FieldValue({ field }: { field: TaskCustomField }) {
             return <span>{formatDay(String(field.value))}</span>;
         case 'url':
             return (
-                <button className="link-button task-field-link" onClick={event => openLink(String(field.value), event)}>
+                <Button variant="link" className="task-field-link" onClick={event => openLink(String(field.value), event)}>
                     {String(field.value)}
-                </button>
+                </Button>
             );
         case 'people':
             return (
@@ -257,9 +258,9 @@ export function CustomFieldsSection({ fields, canUpdate, canLoad, busy, onChange
             count={fields.length}
             actions={
                 empty > 0 && (
-                    <button className="link-button task-fields-toggle" onClick={() => setShowEmpty(!showEmpty)}>
+                    <Button variant="link" onClick={() => setShowEmpty(!showEmpty)}>
                         {showEmpty ? `Hide ${empty} empty` : `Show ${empty} empty`}
-                    </button>
+                    </Button>
                 )
             }
         >
@@ -310,9 +311,7 @@ function TaskRefRow({ task, known, onOpenTask }: RefProps) {
             </button>
             <TaskAssignees assignees={assignees} limit={3} />
             {url && (
-                <button className="icon-button" title="Open in the browser" onClick={event => openLink(url, event)}>
-                    <ExternalLink size={13} strokeWidth={1.6} />
-                </button>
+                <IconButton size="sm" icon={<ExternalLink size={13} strokeWidth={1.6} />} label="Open in the browser" onClick={event => openLink(url, event)} />
             )}
         </div>
     );

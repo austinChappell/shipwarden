@@ -26,8 +26,10 @@ import {
 } from '@shared/automations';
 import type { AppSettings } from '@shared/settings';
 import { confirmDialog } from '../components/ConfirmDialog';
+import { Button, ButtonGroup, IconButton, Switch } from '../components/ui';
 import { showContextMenu } from '../components/ContextMenu';
 import { SettingsGroup, SettingsRow } from '../components/settings-ui';
+import { radioGroupKeys } from '../components/keyboard';
 import { useUsage } from '../usage-query';
 import { errorText, timeAgo } from '../util';
 import { AutomationEditor, STATUS_OPTIONS } from './AutomationEditor';
@@ -87,9 +89,9 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
         return (
             <div className="automations-view">
                 <header className="settings-header">
-                    <button type="button" className="view-back" onClick={() => setEditing(undefined)}>
-                        <ChevronLeft size={14} /> Automations
-                    </button>
+                    <Button variant="ghost" className="view-back" icon={<ChevronLeft size={14} />} onClick={() => setEditing(undefined)}>
+                        Automations
+                    </Button>
                 </header>
                 <div className="automations-scroll">
                     <AutomationEditor
@@ -247,15 +249,15 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                     <Zap size={13} strokeWidth={1.8} /> Automations
                 </h1>
                 <div className="automations-head-actions">
-                    <button type="button" className="button" title="Show the folder of the automation files" onClick={() => api.reveal()}>
-                        <FolderOpen size={14} /> Folder
-                    </button>
-                    <button type="button" className="button" onClick={event => void importMenu(event.currentTarget)}>
-                        <Upload size={14} /> Import <ChevronDown size={12} />
-                    </button>
-                    <button type="button" className="button primary-solid" onClick={event => void newMenu(event.currentTarget)}>
-                        <Plus size={14} /> New <ChevronDown size={12} />
-                    </button>
+                    <Button icon={<FolderOpen size={14} />} title="Show the folder of the automation files" onClick={() => api.reveal()}>
+                        Folder
+                    </Button>
+                    <Button icon={<Upload size={14} />} iconEnd={<ChevronDown size={12} />} onClick={event => void importMenu(event.currentTarget)}>
+                        Import
+                    </Button>
+                    <Button variant="solid" icon={<Plus size={14} />} iconEnd={<ChevronDown size={12} />} onClick={event => void newMenu(event.currentTarget)}>
+                        New
+                    </Button>
                 </div>
             </header>
             <div className="automations-scroll">
@@ -274,14 +276,11 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                             label="Automations run"
                             description="Off pauses all automations. Events that occur during the pause do not run later."
                             control={
-                                <label className="switch" title={automationSettings.paused ? 'Paused' : 'On'}>
-                                    <input
-                                        type="checkbox"
-                                        checked={!automationSettings.paused}
-                                        onChange={event => void saveAutomationSettings({ paused: !event.target.checked })}
-                                    />
-                                    <span />
-                                </label>
+                                <Switch
+                                    title={automationSettings.paused ? 'Paused' : 'On'}
+                                    checked={!automationSettings.paused}
+                                    onChange={on => void saveAutomationSettings({ paused: !on })}
+                                />
                             }
                         />
                         <SettingsRow
@@ -336,16 +335,17 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                             </div>
                                         </div>
                                         <div className="settings-row-control automation-run-actions">
-                                            <button type="button" className="button" onClick={() => void act(() => automationEngine.skip(run.id))}>
-                                                <X size={14} /> Skip
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="button primary-solid"
+                                            <Button size="sm" icon={<X size={14} />} onClick={() => void act(() => automationEngine.skip(run.id))}>
+                                                Skip
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="solid"
+                                                icon={<Check size={14} />}
                                                 onClick={() => void act(() => automationEngine.approve(run.id))}
                                             >
-                                                <Check size={14} /> Approve
-                                            </button>
+                                                Approve
+                                            </Button>
                                         </div>
                                     </div>
                                 </div>
@@ -382,44 +382,39 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                             {problems.length > 0 && <div className="automation-warning">{problems.join(' ')}</div>}
                                         </div>
                                         <div className="settings-row-control automation-row-actions">
-                                            <div className="segmented compact">
+                                            <ButtonGroup size="sm" role="radiogroup" label={`The status of "${automation.name}"`} onKeyDown={radioGroupKeys}>
                                                 {STATUS_OPTIONS.map(option => (
-                                                    <button
+                                                    <Button
                                                         key={option.id}
-                                                        type="button"
+                                                        size="sm"
                                                         title={option.title}
-                                                        className={automation.status === option.id ? 'selected' : ''}
+                                                        role="radio"
+                                                        aria-checked={automation.status === option.id}
                                                         onClick={() => void setStatus(automation, option.id)}
                                                     >
                                                         {option.label}
-                                                    </button>
+                                                    </Button>
                                                 ))}
-                                            </div>
-                                            <button
-                                                type="button"
-                                                className="icon-button"
+                                            </ButtonGroup>
+                                            <IconButton
+                                                size="sm"
+                                                label={`Run "${automation.name}" now`}
                                                 title="Run now"
-                                                aria-label={`Run "${automation.name}" now`}
+                                                icon={<Play size={14} />}
                                                 onClick={event => void runNow(automation, event.currentTarget)}
-                                            >
-                                                <Play size={14} />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="icon-button"
-                                                title="Edit"
+                                            />
+                                            <IconButton
+                                                size="sm"
+                                                label="Edit"
+                                                icon={<Pencil size={14} />}
                                                 onClick={() => setEditing({ automation: structuredClone(automation), previousId: automation.id })}
-                                            >
-                                                <Pencil size={14} />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="icon-button"
-                                                title="More"
+                                            />
+                                            <IconButton
+                                                size="sm"
+                                                label="More"
+                                                icon={<MoreHorizontal size={14} />}
                                                 onClick={event => void moreMenu(automation, event.currentTarget)}
-                                            >
-                                                <MoreHorizontal size={14} />
-                                            </button>
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -435,9 +430,9 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                     label={<code>{problem.file}</code>}
                                     description={problem.error}
                                     control={
-                                        <button type="button" className="button" onClick={() => api.reveal(problem.file.replace(/\.json$/, ''))}>
+                                        <Button size="sm" onClick={() => api.reveal(problem.file.replace(/\.json$/, ''))}>
                                             Show
-                                        </button>
+                                        </Button>
                                     }
                                 />
                             ))}
@@ -450,9 +445,8 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                         card={history.length > 0}
                         actions={
                             history.some(run => !isOpenRun(run)) ? (
-                                <button
-                                    type="button"
-                                    className="button"
+                                <Button
+                                    size="sm"
                                     onClick={() =>
                                         void act(async () => {
                                             await api.clearHistory();
@@ -461,7 +455,7 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                     }
                                 >
                                     Clear
-                                </button>
+                                </Button>
                             ) : undefined
                         }
                     >
@@ -487,24 +481,24 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                     </div>
                                     <div className="settings-row-control automation-run-actions">
                                         {run.status === 'held' && (
-                                            <button type="button" className="button" onClick={() => void act(() => automationEngine.skip(run.id))}>
+                                            <Button size="sm" onClick={() => void act(() => automationEngine.skip(run.id))}>
                                                 Skip
-                                            </button>
+                                            </Button>
                                         )}
                                         {run.noteName && (
-                                            <button type="button" className="button" onClick={onOpenNotes}>
+                                            <Button size="sm" onClick={onOpenNotes}>
                                                 Notes
-                                            </button>
+                                            </Button>
                                         )}
                                         {run.worktreePath && (
-                                            <button
-                                                type="button"
-                                                className="button"
+                                            <Button
+                                                size="sm"
                                                 title={run.worktreePath}
+                                                icon={<ArrowUpRight size={14} />}
                                                 onClick={() => onOpenWorktree(run.worktreePath as string, run.sessionId)}
                                             >
-                                                <ArrowUpRight size={14} /> Open
-                                            </button>
+                                                Open
+                                            </Button>
                                         )}
                                     </div>
                                 </div>

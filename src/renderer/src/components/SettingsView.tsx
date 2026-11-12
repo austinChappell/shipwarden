@@ -30,7 +30,8 @@ import { WorktreeSettings } from './WorktreeSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { RepoSettingsPage } from './RepoSettingsPage';
 import { TaskManagersSettings } from './TaskManagersSettings';
-import { SettingsGroup, SettingsRow, Switch } from './settings-ui';
+import { SettingsGroup, SettingsRow } from './settings-ui';
+import { IconButton, Switch } from './ui';
 import { changeOnboarding } from '@shared/onboarding';
 import { UpdateSettings } from './UpdateNotice';
 
@@ -192,9 +193,7 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
                     <span className="settings-crumb-separator">/</span>
                     {current.label}
                 </h1>
-                <button className="icon-button" title="Close settings (Escape)" onClick={onClose}>
-                    <X size={16} strokeWidth={1.75} />
-                </button>
+                <IconButton icon={<X size={14} strokeWidth={1.75} />} label="Close settings" title="Close settings (Escape)" onClick={onClose} />
             </header>
             <div className="settings-body">
                 <nav className="settings-nav" aria-label="Settings sections">

@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import { PanelLeft } from 'lucide-react';
+import { IconButton } from './ui';
 
 export interface SidebarState {
     collapsed: boolean;
@@ -16,13 +17,11 @@ export const SidebarContext = createContext<SidebarState>({ collapsed: false, to
 export function SidebarToggle() {
     const { collapsed, toggle } = useContext(SidebarContext);
     return (
-        <button
-            className="icon-button sidebar-toggle"
-            title={collapsed ? 'Show the sidebar (⌘B)' : 'Hide the sidebar (⌘B)'}
+        <IconButton
+            icon={<PanelLeft size={16} strokeWidth={1.5} />}
+            label={collapsed ? 'Show the sidebar (⌘B)' : 'Hide the sidebar (⌘B)'}
             aria-pressed={!collapsed}
             onClick={toggle}
-        >
-            <PanelLeft size={16} strokeWidth={1.5} />
-        </button>
+        />
     );
 }

@@ -13,6 +13,7 @@ import { openLink } from '../links';
 import { THEME_CSS, type DiffStyle } from './diff-style';
 import { ComposerZone, PendingZone, QuestionZone, ThreadZone } from './ReviewZones';
 import { reactionActions } from './Reactions';
+import { Button } from './ui';
 import { MentionContext, mentionSourceOf } from './mention-context';
 
 interface FileBodyProps {
@@ -212,9 +213,9 @@ export const FileBody = memo(function FileBody({
         return (
             <div className="stream-file-note">
                 ShipWarden cannot show this file. It is possibly binary or too large.
-                <button className="link-button" onClick={event => openLink(`${pr.url}/files`, event)}>
-                    Open on GitHub <ExternalLink size={12} />
-                </button>
+                <Button variant="link" iconEnd={<ExternalLink size={12} />} onClick={event => openLink(`${pr.url}/files`, event)}>
+                    Open on GitHub
+                </Button>
             </div>
         );
     }

@@ -1,0 +1,768 @@
+/*
+ * The shared controls of the app (components/ui). Each button, field, choice, and card gets its look from this file.
+ * This file loads before styles.css. Thus a page rule with one class can set the layout of a control.
+ * A page can set the layout of a control (margin, width, flex). A page must not change its look
+ * (height, padding, border, background, color, font size). Add a variant or a size here when a page needs a new look.
+ */
+
+:root {
+    --control-height-sm: 24px;
+    --control-height: 28px;
+    --control-height-lg: 32px;
+    --control-radius: 6px;
+    --control-font-size: 12.5px;
+    --card-radius: 10px;
+    --focus-ring: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+/* Buttons */
+
+.button {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: var(--control-height);
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--control-radius);
+    background: var(--raised);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--control-font-size);
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        background 100ms ease,
+        border-color 100ms ease,
+        color 100ms ease;
+}
+
+.button > svg {
+    flex: none;
+}
+
+/* A button with only an icon. It is narrower than a button with text. */
+.button.icon-only {
+    padding: 0 8px;
+}
+
+.button.sm.icon-only,
+.button-group.sm > .button.icon-only {
+    padding: 0 6px;
+}
+
+.button:hover:not(:disabled),
+.button.on {
+    border-color: color-mix(in srgb, var(--muted) 55%, var(--border));
+    background: var(--hover);
+    color: var(--text-strong);
+}
+
+.button.sm {
+    gap: 4px;
+    height: var(--control-height-sm);
+    padding: 0 8px;
+    font-size: 12px;
+}
+
+.button.lg {
+    gap: 8px;
+    height: var(--control-height-lg);
+    padding: 0 14px;
+    font-size: 13px;
+}
+
+.button.primary {
+    border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--accent);
+}
+
+.button.primary:hover:not(:disabled),
+.button.primary.on {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+}
+
+.button.solid {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+}
+
+.button.solid:hover:not(:disabled),
+.button.solid.on {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 85%, var(--text-strong));
+    color: var(--bg);
+}
+
+.button.danger {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+    background: transparent;
+    color: var(--danger);
+}
+
+.button.danger:hover:not(:disabled),
+.button.danger.on {
+    border-color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    color: var(--danger);
+}
+
+.button.approve {
+    border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+    background: transparent;
+    color: var(--ok);
+}
+
+.button.approve:hover:not(:disabled),
+.button.approve.on {
+    border-color: var(--ok);
+    background: color-mix(in srgb, var(--ok) 12%, transparent);
+    color: var(--ok);
+}
+
+.button.merge {
+    border-color: color-mix(in srgb, var(--purple) 50%, transparent);
+    background: transparent;
+    color: var(--purple);
+}
+
+.button.merge:hover:not(:disabled),
+.button.merge.on {
+    border-color: var(--purple);
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
+    color: var(--purple);
+}
+
+.button.ghost {
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted);
+}
+
+.button.ghost:hover:not(:disabled),
+.button.ghost.on {
+    border-color: transparent;
+    background: var(--hover);
+    color: var(--text-strong);
+}
+
+/* A link button: text only, with no box. */
+.link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.link-button:hover:not(:disabled),
+.link-button.on {
+    color: var(--text-strong);
+}
+
+.link-button.mono {
+    font-family: "JetBrains Mono", Menlo, monospace;
+}
+
+/* Icon buttons. "ghost" is the default: no border and no background until the pointer is on it. */
+.icon-button {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: var(--control-height);
+    height: var(--control-height);
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--control-radius);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+        background 100ms ease,
+        border-color 100ms ease,
+        color 100ms ease;
+}
+
+.icon-button:hover:not(:disabled),
+.icon-button.on,
+.icon-button[aria-pressed="true"] {
+    background: var(--hover);
+    color: var(--text-strong);
+}
+
+.icon-button.sm {
+    width: var(--control-height-sm);
+    height: var(--control-height-sm);
+    border-radius: 5px;
+}
+
+.icon-button.lg {
+    width: var(--control-height-lg);
+    height: var(--control-height-lg);
+}
+
+.icon-button.outline {
+    border-color: var(--border);
+    background: var(--raised);
+    color: var(--text);
+}
+
+.icon-button.outline:hover:not(:disabled),
+.icon-button.outline.on,
+.icon-button.outline[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--muted) 55%, var(--border));
+    background: var(--hover);
+    color: var(--text-strong);
+}
+
+.icon-button.danger:hover:not(:disabled) {
+    color: var(--danger);
+}
+
+/* An icon button with a count or a short text after the icon. */
+.icon-button.with-text {
+    display: inline-flex;
+    gap: 4px;
+    width: auto;
+    padding: 0 6px;
+    font-variant-numeric: tabular-nums;
+}
+
+.button:disabled,
+.icon-button:disabled,
+.link-button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* Button groups (ButtonGroup.tsx): buttons that show as one control. The group has the border and the corners. */
+.button-group {
+    --group-line: var(--border);
+    --group-hover: var(--hover);
+    display: inline-flex;
+    flex: none;
+    align-items: stretch;
+    border: 1px solid var(--group-line);
+    border-radius: var(--control-radius);
+    background: var(--raised);
+}
+
+.button-group.merge {
+    --group-line: color-mix(in srgb, var(--purple) 50%, transparent);
+    --group-hover: color-mix(in srgb, var(--purple) 15%, var(--raised));
+}
+
+/* The group border adds 2 px. The buttons in a group are 2 px lower, so the group has the height of a single button. */
+.button-group > .button {
+    height: calc(var(--control-height) - 2px);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.button-group.lg > .button {
+    height: calc(var(--control-height-lg) - 2px);
+    gap: 8px;
+    padding: 0 14px;
+    font-size: 13px;
+}
+
+.button-group.sm > .button {
+    height: calc(var(--control-height-sm) - 2px);
+    gap: 4px;
+    padding: 0 8px;
+    font-size: 12px;
+}
+
+.button-group > .button:first-child {
+    border-top-left-radius: inherit;
+    border-bottom-left-radius: inherit;
+}
+
+.button-group > .button:last-child {
+    border-top-right-radius: inherit;
+    border-bottom-right-radius: inherit;
+}
+
+.button-group > .button + .button {
+    border-left: 1px solid var(--group-line);
+}
+
+.button-group > .button:not(:disabled):hover,
+.button-group > .button.on {
+    border-color: var(--group-line);
+    background: var(--group-hover);
+}
+
+/* The selected button of a segmented control. */
+.button-group > .button[aria-pressed="true"],
+.button-group > .button[aria-checked="true"],
+.button-group > .button.selected {
+    background: var(--selected);
+    color: var(--text-strong);
+}
+
+.button-group > .button-group-arrow {
+    padding-right: 7px;
+    padding-left: 7px;
+}
+
+.button-group.lg > .button-group-arrow {
+    padding-right: 9px;
+    padding-left: 9px;
+}
+
+/* Text fields, and the buttons of selects, comboboxes, and date pickers. */
+
+.input {
+    min-width: 0;
+    height: var(--control-height);
+    padding: 0 9px;
+    border: 1px solid var(--border);
+    border-radius: var(--control-radius);
+    outline: none;
+    background: var(--bg);
+    color: var(--text-strong);
+    font: inherit;
+    font-size: var(--control-font-size);
+    transition: border-color 100ms ease;
+}
+
+.input::placeholder,
+.input-inner::placeholder {
+    color: var(--muted);
+    opacity: 0.8;
+}
+
+.input:hover:not(:disabled):not(.disabled):not(:focus):not(:focus-within) {
+    border-color: color-mix(in srgb, var(--muted) 45%, var(--border));
+}
+
+.input:focus,
+.input:focus-within,
+.input.on {
+    border-color: var(--accent);
+}
+
+.input:disabled,
+.input.disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.input.sm {
+    height: var(--control-height-sm);
+    padding: 0 7px;
+    font-size: 12px;
+}
+
+.input.lg {
+    height: var(--control-height-lg);
+    padding: 0 10px;
+    font-size: 13px;
+}
+
+.input.mono,
+.input.mono .input-inner {
+    font-family: "JetBrains Mono", Menlo, monospace;
+    font-size: 12px;
+}
+
+.input.invalid {
+    border-color: color-mix(in srgb, var(--danger) 70%, var(--border));
+}
+
+.input.invalid:focus,
+.input.invalid:focus-within {
+    border-color: var(--danger);
+}
+
+.textarea {
+    height: auto;
+    padding: 6px 9px;
+    line-height: 1.45;
+}
+
+/* A field with an icon or a suffix. The box has the border. The field in it has none. */
+.input-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.input-inner {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+}
+
+.input-icon,
+.input-suffix {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    color: var(--muted);
+}
+
+.input-clear {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.input-clear:hover {
+    background: var(--hover);
+    color: var(--text-strong);
+}
+
+/* The button of a select, a combobox, or a date picker. It has the look of a field. */
+.select-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.select-button > svg {
+    flex: none;
+    color: var(--muted);
+}
+
+.select-button > svg:last-child {
+    margin-left: auto;
+}
+
+.date-button > svg:last-child {
+    margin-left: 0;
+}
+
+.select-value {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.select-value.placeholder {
+    color: var(--muted);
+}
+
+/* A label above a control, with help text or an error below it. */
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.field-label {
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.field-hint {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.field-error {
+    color: var(--danger);
+    font-size: 12px;
+}
+
+/* Checkboxes, radio buttons, and switches. The look of the box itself is in styles.css, for all checkboxes. */
+
+.choice {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--text);
+    font-size: var(--control-font-size);
+    cursor: pointer;
+}
+
+.choice > input {
+    margin-top: 1px;
+}
+
+.choice.disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.choice-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.choice-description {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* The radio button of the app. It replaces the native radio button. */
+input[type="radio"] {
+    position: relative;
+    flex: none;
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    border: 1.5px solid color-mix(in srgb, var(--text) 45%, transparent);
+    border-radius: 50%;
+    background: var(--bg);
+    vertical-align: middle;
+    cursor: pointer;
+    appearance: none;
+    transition: border-color 100ms ease;
+}
+
+input[type="radio"]:hover:not(:disabled),
+input[type="radio"]:checked {
+    border-color: var(--accent);
+}
+
+input[type="radio"]:checked::after {
+    content: "";
+    position: absolute;
+    inset: 2.5px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+input[type="radio"]:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+}
+
+input[type="radio"]:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* An on/off switch: a checkbox with a sliding knob. */
+.switch {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    width: 30px;
+    height: 17px;
+}
+
+.switch.disabled {
+    opacity: 0.5;
+}
+
+.switch input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.switch input:disabled {
+    cursor: default;
+}
+
+.switch span {
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--hover);
+    pointer-events: none;
+    transition: background 120ms ease;
+}
+
+.switch span::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition:
+        transform 120ms ease,
+        background 120ms ease;
+}
+
+.switch input:checked + span {
+    border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+    background: color-mix(in srgb, var(--accent) 35%, var(--hover));
+}
+
+.switch input:checked + span::after {
+    transform: translateX(13px);
+    background: var(--accent);
+}
+
+.switch input:focus-visible + span {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Cards */
+
+.card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    background: var(--panel);
+}
+
+/* The first and the last parts get the corners of the card, so a background in a part does not show at the corners. */
+.card > :first-child {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+}
+
+.card > :last-child {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+}
+
+.card.dashed,
+.card.dashed > * + * {
+    border-style: dashed;
+}
+
+.card.ok {
+    border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+}
+
+.card.danger {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+
+.card.accent {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.card.info {
+    border-color: color-mix(in srgb, var(--info) 60%, var(--border));
+}
+
+.card.merge {
+    border-color: color-mix(in srgb, var(--purple) 45%, var(--border));
+}
+
+.card > * + * {
+    border-top: 1px solid var(--border);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 8px 10px 8px 14px;
+}
+
+.card-icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--muted);
+}
+
+.card-heading {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.card-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.card-title {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-count {
+    flex: none;
+    padding: 0 6px;
+    border-radius: 8px;
+    background: var(--hover);
+    color: var(--muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    line-height: 17px;
+}
+
+.card-description {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.card-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.card-body {
+    padding: 14px;
+}
+
+.card-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 14px;
+}

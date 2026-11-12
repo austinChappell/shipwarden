@@ -2,8 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type R
 import { Check, LoaderCircle, Plus, Search } from 'lucide-react';
 import type { TaskOption, TaskOptions } from '@shared/tasks';
 import { errorText } from '../../util';
-import { DatePicker } from '../DatePicker';
-import { Popover } from '../Popover';
+import { DatePicker } from '../ui/DatePicker';
+import { Popover } from '../ui/Popover';
 import { formatDay } from './task-view-logic';
 import { TaskAvatar } from './TaskParts';
 

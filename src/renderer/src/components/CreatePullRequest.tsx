@@ -8,8 +8,9 @@ import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
 import { MentionTextarea } from './MentionTextarea';
 import { MentionContext, mentionSourceOfRepo } from './mention-context';
+import { Button, Checkbox, IconButton, Input } from './ui';
 
-const ICON = { size: 15, strokeWidth: 1.6 };
+const ICON = { size: 14, strokeWidth: 1.6 };
 
 /**
  * The form that creates a pull request for the branch of a worktree, on GitHub or Azure DevOps.
@@ -57,29 +58,28 @@ export function CreatePullRequest({
                 <p>
                     No pull request for <code>{status.branch}</code>. Push the branch before you create one.
                 </p>
-                <button className="icon-button" title="Check for a pull request" onClick={() => onRefresh()}>
-                    <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />
-                </button>
+                <IconButton
+                    size="sm"
+                    icon={<RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />}
+                    label="Check for a pull request"
+                    onClick={() => onRefresh()}
+                />
             </div>
             {typeof target === 'string' && (
                 <div className="pr-create-form">
-                    <input value={title} placeholder="Title" onChange={event => setTitle(event.target.value)} disabled={busy} />
+                    <Input value={title} placeholder="Title" onChange={event => setTitle(event.target.value)} disabled={busy} />
                     <MentionContext value={mentionSourceOfRepo(target, { ...status.repo, host: status.host })}>
-                        <MentionTextarea className="review-body" value={body} placeholder="Description" onValueChange={setBody} disabled={busy} />
+                        <MentionTextarea className="input textarea" rows={5} value={body} placeholder="Description" onValueChange={setBody} disabled={busy} />
                     </MentionContext>
-                    <label className="scope-option">
-                        <input type="checkbox" checked={draft} onChange={event => setDraft(event.target.checked)} disabled={busy} />
-                        Draft
-                    </label>
+                    <Checkbox label="Draft" checked={draft} onChange={setDraft} disabled={busy} />
                     {error && <div className="form-error">{error}</div>}
                     <div className="row-buttons">
-                        <button className="button approve" disabled={busy || !title.trim()} onClick={create}>
-                            <GitPullRequest {...ICON} />
+                        <Button variant="approve" icon={<GitPullRequest {...ICON} />} disabled={busy || !title.trim()} onClick={create}>
                             Create pull request
-                        </button>
-                        <button className="button" onClick={event => openLink(webUrl, event)}>
-                            Create on {host} <ExternalLink {...ICON} />
-                        </button>
+                        </Button>
+                        <Button iconEnd={<ExternalLink {...ICON} />} onClick={event => openLink(webUrl, event)}>
+                            Create on {host}
+                        </Button>
                     </div>
                 </div>
             )}

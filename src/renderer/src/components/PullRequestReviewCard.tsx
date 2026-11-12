@@ -2,7 +2,7 @@ import { useId, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Bot, Check, LoaderCircle, MessageSquare, X } from 'lucide-react';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, ReviewEvent } from '@shared/github';
 import { decisionEvents, firstUndecided, pendingText, REVIEW_EVENT_TEXT, reviewButtons, reviewEvents, undecidedText } from '../github/review-state';
-import { ButtonGroup } from './ButtonGroup';
+import { Button, ButtonGroup, Card, CardBody, CardFooter, CardHeader } from './ui';
 import { MentionTextarea } from './MentionTextarea';
 
 /** The tooltip of the buttons that start an agent review. */
@@ -35,22 +35,25 @@ export interface AgentReviewControl {
 function AgentReviewButton({ control }: { control: AgentReviewControl }) {
     if (control.running) {
         return (
-            <ButtonGroup className="agent-review-button" label="Agent review">
-                <button className="button" disabled>
-                    <LoaderCircle size={13} className="spin" />
+            <ButtonGroup size="sm" label="Agent review">
+                <Button size="sm" icon={<LoaderCircle size={13} className="spin" />} disabled>
                     Agent review in progress
-                </button>
-                <button className="button button-group-arrow" title="Cancel the agent review" aria-label="Cancel the agent review" onClick={control.cancel}>
-                    <X size={13} strokeWidth={1.8} />
-                </button>
+                </Button>
+                <Button
+                    size="sm"
+                    className="button-group-arrow"
+                    icon={<X size={13} strokeWidth={1.8} />}
+                    title="Cancel the agent review"
+                    aria-label="Cancel the agent review"
+                    onClick={control.cancel}
+                />
             </ButtonGroup>
         );
     }
     return (
-        <button className="button agent-review-button" title={AGENT_REVIEW_TITLE} onClick={control.run}>
-            <Bot size={14} strokeWidth={1.6} />
+        <Button size="sm" icon={<Bot size={14} strokeWidth={1.6} />} title={AGENT_REVIEW_TITLE} onClick={control.run}>
             Run agent review
-        </button>
+        </Button>
     );
 }
 
@@ -68,20 +71,21 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
             onSubmit('COMMENT');
         }
     };
+    /** The overview page shows the review decisions as large buttons. */
+    const size = overview ? 'lg' : undefined;
     const eventButton = (event: ReviewEvent) =>
         event === 'COMMENT' ? (
-            <button key={event} className="button" disabled={!canComment} onClick={() => onSubmit(event)}>
+            <Button key={event} size={size} disabled={!canComment} onClick={() => onSubmit(event)}>
                 Comment
-            </button>
+            </Button>
         ) : event === 'APPROVE' ? (
-            <button key={event} className="button approve" disabled={!canDecide} onClick={() => onSubmit(event)}>
-                <Check size={14} strokeWidth={2} />
+            <Button key={event} variant="approve" size={size} icon={<Check size={14} strokeWidth={2} />} disabled={!canDecide} onClick={() => onSubmit(event)}>
                 Approve
-            </button>
+            </Button>
         ) : (
-            <button key={event} className="button" disabled={!canDecide} onClick={() => onSubmit(event)}>
+            <Button key={event} size={size} disabled={!canDecide} onClick={() => onSubmit(event)}>
                 {REVIEW_EVENT_TEXT[event].button}
-            </button>
+            </Button>
         );
     const decisions = decisionEvents(events, overview);
     const pendingPill = pending.length > 0 && (
@@ -96,9 +100,9 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
             {first && firstFile && (
                 <>
                     {' '}
-                    <button className="link-button" onClick={() => onOpenDiff(pr, firstFile, first.comment.line, first.comment.side)}>
+                    <Button variant="link" onClick={() => onOpenDiff(pr, firstFile, first.comment.line, first.comment.side)}>
                         Show the first one
-                    </button>
+                    </Button>
                 </>
             )}
         </div>
@@ -106,57 +110,53 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
 
     if (!overview) {
         return (
-            <section className="footer-card review-card" aria-label="Your review">
-                <header className="footer-card-header">
-                    <span className="footer-card-title">Your review</span>
-                    {pendingPill}
-                </header>
-                <MentionTextarea
-                    className="review-body"
-                    value={body}
-                    placeholder="Write a summary of your review (optional)"
-                    onValueChange={onBody}
-                    onKeyDown={onReviewKey}
-                />
-                {undecidedNote}
-                <div className="review-actions">{events.map(eventButton)}</div>
-            </section>
+            <Card as="section" className="review-card" aria-label="Your review">
+                <CardHeader title="Your review" meta={pendingPill} />
+                <CardBody className="review-card-body">
+                    <MentionTextarea
+                        className="input textarea review-text"
+                        value={body}
+                        placeholder="Write a summary of your review (optional)"
+                        onValueChange={onBody}
+                        onKeyDown={onReviewKey}
+                    />
+                    {undecidedNote}
+                </CardBody>
+                <CardFooter>{events.map(eventButton)}</CardFooter>
+            </Card>
         );
     }
     return (
-        <section className="side-card review-card" aria-label="Your review">
-            <header className="side-card-header">
-                <span className="side-card-title">Your review</span>
-                <span className="header-spacer" />
-                {agentReview && <AgentReviewButton control={agentReview} />}
-            </header>
-            {(pr.viewerIsRequested || pendingPill) && (
-                <div className="review-card-notes">
-                    {pr.viewerIsRequested && <span className="review-requested">Requested from you</span>}
-                    {pendingPill}
-                </div>
-            )}
-            <label className="side-card-field" htmlFor={summaryId}>
-                <span>Summary (optional)</span>
-                <MentionTextarea
-                    id={summaryId}
-                    className="review-body"
-                    value={body}
-                    placeholder={pr.author?.login ? `Leave a note for ${pr.author.login}…` : 'Leave a note…'}
-                    onValueChange={onBody}
-                    onKeyDown={onReviewKey}
-                />
-            </label>
-            {undecidedNote}
-            <div className={`review-decisions count-${decisions.length}`}>{decisions.map(eventButton)}</div>
-            {decisions.length < events.length && (
-                <div className="review-card-foot">
-                    <span className="header-spacer" />
-                    <span className="review-shortcut" title="Press ⌘↵ in the summary to submit a comment without a decision.">
-                        Comment only: ⌘↵
-                    </span>
-                </div>
-            )}
-        </section>
+        <Card as="section" className="review-card" aria-label="Your review">
+            <CardHeader title="Your review" actions={agentReview && <AgentReviewButton control={agentReview} />} />
+            <CardBody className="review-card-body">
+                {(pr.viewerIsRequested || pendingPill) && (
+                    <div className="review-card-notes">
+                        {pr.viewerIsRequested && <span className="review-requested">Requested from you</span>}
+                        {pendingPill}
+                    </div>
+                )}
+                <label className="field" htmlFor={summaryId}>
+                    <span className="field-label">Summary (optional)</span>
+                    <MentionTextarea
+                        id={summaryId}
+                        className="input textarea review-summary"
+                        value={body}
+                        placeholder={pr.author?.login ? `Leave a note for ${pr.author.login}…` : 'Leave a note…'}
+                        onValueChange={onBody}
+                        onKeyDown={onReviewKey}
+                    />
+                </label>
+                {undecidedNote}
+                <div className="review-decisions">{decisions.map(eventButton)}</div>
+                {decisions.length < events.length && (
+                    <div className="review-card-foot">
+                        <span className="review-shortcut" title="Press ⌘↵ in the summary to submit a comment without a decision.">
+                            Comment only: ⌘↵
+                        </span>
+                    </div>
+                )}
+            </CardBody>
+        </Card>
     );
 }

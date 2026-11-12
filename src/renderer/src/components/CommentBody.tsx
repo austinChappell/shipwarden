@@ -3,6 +3,7 @@ import { Check, FileDiff, LoaderCircle } from 'lucide-react';
 import { splitSuggestions } from '@shared/suggestion';
 import { errorText } from '../util';
 import { Markdown } from './Markdown';
+import { Button } from './ui';
 
 interface Props {
     body: string;
@@ -65,9 +66,15 @@ function SuggestionDiff({
                 {outdated && <span className="tag">outdated</span>}
                 <span className="header-spacer" />
                 {onApply && (
-                    <button className="link-button" disabled={busy} title="Change the file in the worktree. You commit the change." onClick={apply}>
-                        {busy ? <LoaderCircle size={12} className="spin" /> : <Check size={12} strokeWidth={2} />} Apply suggestion
-                    </button>
+                    <Button
+                        variant="link"
+                        icon={busy ? <LoaderCircle size={12} className="spin" /> : <Check size={12} strokeWidth={2} />}
+                        disabled={busy}
+                        title="Change the file in the worktree. You commit the change."
+                        onClick={apply}
+                    >
+                        Apply suggestion
+                    </Button>
                 )}
             </div>
             <div className="suggestion-lines">

@@ -7,6 +7,7 @@ import { Markdown } from '../Markdown';
 import { MentionTextarea, type MentionItem, type MentionItems } from '../MentionTextarea';
 import { commentLinks, rankPeople, rankTasks, referenceText } from './task-view-logic';
 import { StatusDot, TaskAvatar } from './TaskParts';
+import { Button } from '../ui';
 import { TaskCard } from './TaskBody';
 import type { useTaskDetail } from './use-task-detail';
 
@@ -120,9 +121,9 @@ export function TaskComments({ state, canLoadPeople, tasks }: Props) {
                 }}
             />
             <div className="row-buttons">
-                <button className="button" disabled={busy || !commentText.trim()} title="Comment (⌘↩)" onClick={send}>
+                <Button disabled={busy || !commentText.trim()} title="Comment (⌘↩)" onClick={send}>
                     Comment
-                </button>
+                </Button>
             </div>
         </TaskCard>
     );

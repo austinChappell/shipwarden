@@ -22,7 +22,6 @@ import {
     Bot,
     Settings2,
     Plus,
-    Search,
     Settings,
     SquareTerminal,
     X,
@@ -39,6 +38,7 @@ import { openShellCount, runsAgent, type TerminalSession } from '@shared/termina
 import { isHiddenAt, nextSnoozeEnd, snoozeText, sortWorktrees, type HiddenWorktree, type Worktree, type WorktreeSort } from '@shared/worktrees';
 import { errorText } from '../util';
 import { Logo } from './Logo';
+import { Button, IconButton, Input, SearchInput } from './ui';
 import { confirmDialog } from './ConfirmDialog';
 import { NewWorktreeDialog, type NewWorktreeRequest } from './NewWorktreeDialog';
 import { moveMenuFocus, useMenuClose } from './use-menu';
@@ -416,7 +416,8 @@ function ProjectSwitcher(props: Props) {
                     <div className="project-menu-separator" />
                     {form ? (
                         <form className="project-menu-form" onSubmit={submit}>
-                            <input
+                            <Input
+                                size="sm"
                                 autoFocus
                                 value={name}
                                 disabled={busy}
@@ -430,9 +431,9 @@ function ProjectSwitcher(props: Props) {
                                     }
                                 }}
                             />
-                            <button type="submit" className="button primary" disabled={busy}>
+                            <Button type="submit" size="sm" variant="primary" disabled={busy}>
                                 {form === 'create' ? 'Create' : 'Rename'}
-                            </button>
+                            </Button>
                         </form>
                     ) : (
                         <>
@@ -616,16 +617,16 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                     </span>
                 )}
                 {!worktree.isMain && (
-                    <button
-                        className="icon-button row-action"
-                        title="Remove worktree"
+                    <IconButton
+                        size="sm"
+                        className="row-action"
+                        icon={<X size={13} strokeWidth={1.8} />}
+                        label="Remove worktree"
                         onClick={event => {
                             event.stopPropagation();
                             parent.onRemove(repo, worktree);
                         }}
-                    >
-                        ×
-                    </button>
+                    />
                 )}
             </li>
         );
@@ -671,9 +672,11 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                     </span>
                 )}
                 {(collapsed || shown.length < total) && <span className="repo-header-count">{shown.length < total ? `${shown.length}/${total}` : total}</span>}
-                <button
-                    className="icon-button repo-action"
-                    title="New worktree"
+                <IconButton
+                    size="sm"
+                    className="repo-action"
+                    icon={<Plus size={14} strokeWidth={1.75} />}
+                    label="New worktree"
                     onClick={event => {
                         event.stopPropagation();
                         if (collapsed) {
@@ -681,39 +684,38 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                         }
                         setCreating(true);
                     }}
-                >
-                    <Plus size={14} strokeWidth={1.75} />
-                </button>
-                <button
-                    className={`icon-button repo-action${parent.graphRepo === repo ? ' on' : ''}`}
-                    title="Commit graph"
+                />
+                <IconButton
+                    size="sm"
+                    className="repo-action"
+                    active={parent.graphRepo === repo}
+                    icon={<GitGraph size={14} strokeWidth={1.6} />}
+                    label="Commit graph"
                     onClick={event => {
                         event.stopPropagation();
                         parent.onOpenGraph(repo);
                     }}
-                >
-                    <GitGraph size={14} strokeWidth={1.6} />
-                </button>
-                <button
-                    className="icon-button repo-action"
-                    title="Repository settings"
+                />
+                <IconButton
+                    size="sm"
+                    className="repo-action"
+                    icon={<Settings2 size={14} strokeWidth={1.6} />}
+                    label="Repository settings"
                     onClick={event => {
                         event.stopPropagation();
                         parent.onOpenRepoSettings(repo);
                     }}
-                >
-                    <Settings2 size={14} strokeWidth={1.6} />
-                </button>
-                <button
-                    className="icon-button repo-action"
-                    title="Remove from project"
+                />
+                <IconButton
+                    size="sm"
+                    className="repo-action"
+                    icon={<FolderMinus size={14} strokeWidth={1.6} />}
+                    label="Remove from project"
                     onClick={event => {
                         event.stopPropagation();
                         parent.onRemoveRepo(repo);
                     }}
-                >
-                    <FolderMinus size={14} strokeWidth={1.6} />
-                </button>
+                />
             </div>
 
             {creating && (
@@ -891,32 +893,23 @@ export function Sidebar(outerProps: Props) {
             {/* Only the repositories change with the project, so the project switcher is their header. */}
             <div className="project-header">
                 <ProjectSwitcher {...props} />
-                <button className="icon-button" title="Add a repository to this project" onClick={props.onAddRepo}>
-                    <FolderPlus size={14} strokeWidth={1.6} />
-                </button>
+                <IconButton size="sm" icon={<FolderPlus size={14} strokeWidth={1.6} />} label="Add a repository to this project" onClick={props.onAddRepo} />
             </div>
 
             {props.repos.length > 0 && (
-                <div className="sidebar-search">
-                    <Search size={13} strokeWidth={1.75} />
-                    <input
-                        value={query}
-                        placeholder="Search repositories and worktrees"
-                        spellCheck={false}
-                        onChange={event => setQuery(event.target.value)}
-                        onKeyDown={event => {
-                            if (event.key === 'Escape') {
-                                setQuery('');
-                                event.currentTarget.blur();
-                            }
-                        }}
-                    />
-                    {query && (
-                        <button className="icon-button" title="Clear the search" onClick={() => setQuery('')}>
-                            <X size={12} strokeWidth={2} />
-                        </button>
-                    )}
-                </div>
+                <SearchInput
+                    size="sm"
+                    className="sidebar-search"
+                    value={query}
+                    placeholder="Search repositories and worktrees"
+                    onChange={setQuery}
+                    onKeyDown={event => {
+                        if (event.key === 'Escape') {
+                            setQuery('');
+                            event.currentTarget.blur();
+                        }
+                    }}
+                />
             )}
 
             <ul className="repo-list">
@@ -942,9 +935,7 @@ export function Sidebar(outerProps: Props) {
                 {search && groups.length === 0 && <li className="repo-empty repo-no-match">No repositories or worktrees match “{query.trim()}”.</li>}
                 {props.projects && props.repos.length === 0 && (
                     <li className="repo-empty">
-                        <button className="button" onClick={props.onAddRepo}>
-                            Add a repository
-                        </button>
+                        <Button onClick={props.onAddRepo}>Add a repository</Button>
                     </li>
                 )}
             </ul>

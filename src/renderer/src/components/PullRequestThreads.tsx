@@ -12,6 +12,7 @@ import { replyToThread, setThreadResolved } from '../github/pull-request-mutatio
 import { REVIEW_STATE_TEXT } from './PullRequestTimeline';
 import { Reactions, reactionActions, type ReactionActions } from './Reactions';
 import { MentionTextarea } from './MentionTextarea';
+import { Button } from './ui';
 
 interface Props {
     target: RepoTarget;
@@ -54,9 +55,9 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
                     Review threads <span className="section-title-count">· {unresolved} unresolved</span>
                 </span>
                 {pr.threads.length > unresolved && (
-                    <button className="link-button" onClick={() => onShowResolved(!showResolved)}>
+                    <Button variant="link" onClick={() => onShowResolved(!showResolved)}>
                         {showResolved ? 'Hide resolved' : 'Show resolved'}
-                    </button>
+                    </Button>
                 )}
             </div>
             {threads.length === 0 && <div className="panel-note pr-threads-empty">No review comments yet.</div>}
@@ -88,34 +89,38 @@ export function PullRequestThreads({ target, pr, showResolved, onShowResolved, b
                     ))}
                     {replyTo === thread.id && (
                         <div className="reply-box">
-                            <MentionTextarea autoFocus value={replyText} placeholder="Reply" onValueChange={setReplyText} />
+                            <MentionTextarea
+                                autoFocus
+                                className="input textarea reply-text"
+                                value={replyText}
+                                placeholder="Reply"
+                                onValueChange={setReplyText}
+                            />
                             <div className="row-buttons">
-                                <button className="button" onClick={() => setReplyTo(undefined)}>
-                                    Cancel
-                                </button>
-                                <button className="button primary" disabled={busy || !replyText.trim()} onClick={() => sendReply(thread)}>
+                                <Button onClick={() => setReplyTo(undefined)}>Cancel</Button>
+                                <Button variant="primary" disabled={busy || !replyText.trim()} onClick={() => sendReply(thread)}>
                                     Reply
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     )}
                     <div className="thread-actions">
-                        <button
-                            className="link-button"
+                        <Button
+                            variant="link"
                             onClick={() => {
                                 setReplyTo(thread.id);
                                 setReplyText('');
                             }}
                         >
                             Reply
-                        </button>
-                        <button className="link-button" disabled={busy} onClick={() => run(() => setThreadResolved(target, pr, thread, !thread.isResolved))}>
+                        </Button>
+                        <Button variant="link" disabled={busy} onClick={() => run(() => setThreadResolved(target, pr, thread, !thread.isResolved))}>
                             {thread.isResolved ? 'Unresolve' : 'Resolve'}
-                        </button>
+                        </Button>
                         {onSendToAgent && (
-                            <button className="link-button" onClick={() => onSendToAgent(threadPrompt(pr, thread))}>
-                                <Bot size={13} strokeWidth={1.6} /> Send to agent
-                            </button>
+                            <Button variant="link" icon={<Bot size={13} strokeWidth={1.6} />} onClick={() => onSendToAgent(threadPrompt(pr, thread))}>
+                                Send to agent
+                            </Button>
                         )}
                     </div>
                 </div>
@@ -155,12 +160,13 @@ export function PullRequestConversation({
                         {item.body.trim() && <Reactions subjectId={item.id} reactions={item.reactions} actions={reactions} />}
                         {onSendToAgent && (item.body.trim() || (review && reviewThreads(pr, review).length > 0)) && (
                             <div className="thread-actions">
-                                <button
-                                    className="link-button"
+                                <Button
+                                    variant="link"
+                                    icon={<Bot size={13} strokeWidth={1.6} />}
                                     onClick={() => onSendToAgent(review ? reviewPrompt(pr, review) : commentPrompt(pr, item.author, item.body))}
                                 >
-                                    <Bot size={13} strokeWidth={1.6} /> Send to agent
-                                </button>
+                                    Send to agent
+                                </Button>
                             </div>
                         )}
                     </div>

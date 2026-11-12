@@ -7,6 +7,7 @@ import type { PullRequest } from '@shared/github';
 import type { Task, TaskLink } from '@shared/tasks';
 import type { Worktree } from '@shared/worktrees';
 import { showContextMenu } from '../components/ContextMenu';
+import { Button, IconButton } from '../components/ui';
 import { branchSummariesQuery } from '../github/use-branch-status';
 import { errorText } from '../util';
 import { useAutomationList } from './automation-queries';
@@ -118,11 +119,17 @@ export function AutomationButtons({ target, variant = 'buttons', onError }: Prop
 
     if (variant === 'menu') {
         return (
-            <button
-                type="button"
-                className="icon-button automation-menu-button"
-                title="Run an automation"
-                aria-label="Run an automation"
+            <IconButton
+                label="Run an automation"
+                icon={
+                    busy ? (
+                        <LoaderCircle size={14} strokeWidth={1.8} className="spin" />
+                    ) : started ? (
+                        <Check size={14} strokeWidth={1.8} />
+                    ) : (
+                        <Zap size={14} strokeWidth={1.8} />
+                    )
+                }
                 onClick={async event => {
                     const choice = await showContextMenu(
                         shown.map(automation => ({ id: automation.id, label: buttonLabel(automation), enabled: busy !== automation.id })),
@@ -131,38 +138,30 @@ export function AutomationButtons({ target, variant = 'buttons', onError }: Prop
                     const automation = shown.find(item => item.id === choice);
                     if (automation) await run(automation);
                 }}
-            >
-                {busy ? (
-                    <LoaderCircle size={14} strokeWidth={1.8} className="spin" />
-                ) : started ? (
-                    <Check size={14} strokeWidth={1.8} />
-                ) : (
-                    <Zap size={14} strokeWidth={1.8} />
-                )}
-            </button>
+            />
         );
     }
 
     return (
         <div className="automation-buttons">
             {shown.map(automation => (
-                <button
+                <Button
                     key={automation.id}
-                    type="button"
-                    className="button"
                     disabled={busy === automation.id}
                     title={title(automation)}
+                    icon={
+                        busy === automation.id ? (
+                            <LoaderCircle size={13} strokeWidth={1.8} className="spin" />
+                        ) : started === automation.id ? (
+                            <Check size={13} strokeWidth={1.8} />
+                        ) : (
+                            <Zap size={13} strokeWidth={1.8} />
+                        )
+                    }
                     onClick={() => void run(automation)}
                 >
-                    {busy === automation.id ? (
-                        <LoaderCircle size={13} strokeWidth={1.8} className="spin" />
-                    ) : started === automation.id ? (
-                        <Check size={13} strokeWidth={1.8} />
-                    ) : (
-                        <Zap size={13} strokeWidth={1.8} />
-                    )}
                     {buttonLabel(automation)}
-                </button>
+                </Button>
             ))}
             {error && (
                 <button type="button" className="automation-button-error" title="Click to close" onClick={() => setError(undefined)}>

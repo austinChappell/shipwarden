@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ExternalLink, List, Plus, RefreshCw, Search, Settings, SquareKanban } from 'lucide-react';
+import { ExternalLink, List, Plus, RefreshCw, Settings, SquareKanban } from 'lucide-react';
 import {
     showsAllLabels,
     type AssigneeFilter,
@@ -11,8 +11,7 @@ import {
     type TaskSource
 } from '@shared/tasks';
 import { openLink } from '../../links';
-import { Combobox, sortedGroups } from '../Combobox';
-import { Select } from '../Select';
+import { Button, ButtonGroup, Combobox, IconButton, SearchInput, Select, sortedGroups } from '../ui';
 import { AssigneeFilterPicker } from './AssigneeFilterPicker';
 import { LabelFilterPicker } from './LabelFilterPicker';
 import { collectionPlaceholder, collectionTitle, type ViewMode } from './task-view-logic';
@@ -50,9 +49,11 @@ export function CollectionPicker({ collections, collection, onSelect }: PickerPr
                 onChange={onSelect}
             />
             {current?.url && (
-                <button className="icon-button collection-open" title="Open the collection in the browser" onClick={event => openLink(current.url!, event)}>
-                    <ExternalLink size={14} strokeWidth={1.6} />
-                </button>
+                <IconButton
+                    icon={<ExternalLink size={14} strokeWidth={1.6} />}
+                    label="Open the collection in the browser"
+                    onClick={event => openLink(current.url!, event)}
+                />
             )}
         </div>
     );
@@ -102,7 +103,6 @@ export function TasksHeader(props: Props) {
             <div className="tasks-header-group where">
                 {connections && connections.length > 0 && (
                     <Select
-                        className="tasks-select"
                         value={connectionId ?? ''}
                         options={connections.map(item => ({ value: item.id, label: item.name }))}
                         onChange={props.selectConnection}
@@ -114,7 +114,6 @@ export function TasksHeader(props: Props) {
             <div className="tasks-header-group how">
                 {source && source.filters.length > 0 && (
                     <Select
-                        className="tasks-select"
                         value={filter}
                         options={source.filters.map(item => ({ value: item.id, label: item.label }))}
                         onChange={props.setFilter}
@@ -135,48 +134,33 @@ export function TasksHeader(props: Props) {
                     <LabelFilterPicker labels={props.labels} value={props.label} onChange={props.setLabel} />
                 )}
                 {source && (
-                    <div className="segmented compact view-switch" role="group" aria-label="View">
-                        <button
-                            className={viewMode === 'board' ? 'selected' : ''}
+                    <ButtonGroup label="View">
+                        <Button
+                            icon={<SquareKanban size={14} strokeWidth={1.8} />}
                             title="Board"
                             aria-label="Board"
                             aria-pressed={viewMode === 'board'}
                             onClick={() => props.changeViewMode('board')}
-                        >
-                            <SquareKanban size={15} strokeWidth={1.8} />
-                        </button>
-                        <button
-                            className={viewMode === 'list' ? 'selected' : ''}
+                        />
+                        <Button
+                            icon={<List size={14} strokeWidth={1.8} />}
                             title="List"
                             aria-label="List"
                             aria-pressed={viewMode === 'list'}
                             onClick={() => props.changeViewMode('list')}
-                        >
-                            <List size={15} strokeWidth={1.8} />
-                        </button>
-                    </div>
+                        />
+                    </ButtonGroup>
                 )}
-                {source && (
-                    <label className="tasks-search">
-                        <Search size={14} strokeWidth={1.6} />
-                        <input value={query} placeholder="Search tasks" spellCheck={false} onChange={event => props.setQuery(event.target.value)} />
-                    </label>
-                )}
+                {source && <SearchInput className="tasks-search-field" value={query} placeholder="Search tasks" onChange={props.setQuery} />}
                 <span className="header-spacer" />
                 {source?.capabilities.create && (
-                    <button className="icon-button" title="New task" disabled={!props.collection} onClick={props.createTask}>
-                        <Plus size={15} strokeWidth={1.6} />
-                    </button>
+                    <IconButton icon={<Plus size={14} strokeWidth={1.6} />} label="New task" disabled={!props.collection} onClick={props.createTask} />
                 )}
                 {source && (
-                    <button className="icon-button" title="Refresh" onClick={props.refresh}>
-                        <RefreshCw size={15} strokeWidth={1.6} className={loading ? 'spin' : ''} />
-                    </button>
+                    <IconButton icon={<RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />} label="Refresh" onClick={props.refresh} />
                 )}
                 {currentConnection && (
-                    <button className="icon-button" title="Task manager settings" onClick={props.onOpenSettings}>
-                        <Settings size={15} strokeWidth={1.6} />
-                    </button>
+                    <IconButton icon={<Settings size={14} strokeWidth={1.6} />} label="Task manager settings" onClick={props.onOpenSettings} />
                 )}
             </div>
         </header>

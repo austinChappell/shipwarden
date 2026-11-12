@@ -1,6 +1,9 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { Popover } from './Popover';
+import type { ControlSize } from './Button';
+import { cx } from './cx';
+import { inputClass } from './Input';
 
 export interface SelectOption<T extends string = string> {
     value: T;
@@ -19,8 +22,11 @@ interface Props<T extends string> {
     disabled?: boolean;
     title?: string;
     'aria-label'?: string;
-    /** The class of the button. The default is "tasks-select". Use "settings-input" in the settings pages. */
+    /** More classes for the button, for example for its width. The look comes from the field style. */
     className?: string;
+    size?: ControlSize;
+    /** Shows the button in the danger color, for example when the selected value is not valid. */
+    invalid?: boolean;
     /** The content of the button. The default is the label of the selected option and an arrow. */
     children?: ReactNode;
 }
@@ -57,7 +63,9 @@ export function Select<T extends string>({
     placeholder = 'Select',
     disabled,
     title,
-    className = 'tasks-select',
+    className,
+    size,
+    invalid,
     children,
     ...rest
 }: Props<T>) {
@@ -137,7 +145,7 @@ export function Select<T extends string>({
             <button
                 ref={trigger}
                 type="button"
-                className={`${className} select-button${open ? ' on' : ''}`}
+                className={inputClass(size, { invalid, className: cx('select-button', open && 'on', className) })}
                 disabled={disabled}
                 title={title}
                 aria-label={rest['aria-label']}

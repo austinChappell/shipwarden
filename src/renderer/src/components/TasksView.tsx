@@ -28,6 +28,7 @@ import { TaskBoardColumns } from './tasks/TaskBoard';
 import { TaskDetails } from './tasks/TaskDetails';
 import { TaskDialog } from './tasks/TaskDialog';
 import { InlineTip } from './Tips';
+import { Button } from './ui';
 
 /** An empty task list. A constant keeps the props of the details the same between renders. */
 const NO_TASKS: Task[] = [];
@@ -246,9 +247,9 @@ export function TasksView({
                     icon={ListTodo}
                     title="No task manager"
                     actions={
-                        <button className="button primary" onClick={onOpenSettings}>
+                        <Button variant="primary" onClick={onOpenSettings}>
                             Open Settings › Task managers
-                        </button>
+                        </Button>
                     }
                 >
                     Connect GitHub Issues, ClickUp or a plugin to see your tasks here. “Start in worktree” then gives a task to a new agent.
@@ -259,18 +260,16 @@ export function TasksView({
                     <p>
                         {currentConnection.name} needs its {missingSettingsText(currentConnection)}.
                     </p>
-                    <button className="button primary" onClick={onOpenSettings}>
+                    <Button variant="primary" onClick={onOpenSettings}>
                         Open the settings
-                    </button>
+                    </Button>
                 </div>
             )}
             {currentConnection?.configured && source === undefined && !sourceError && <div className="panel-message">Starting {currentConnection.name}…</div>}
             {sourceError && (
                 <div className="panel-message">
                     <div className="form-error">{sourceError}</div>
-                    <button className="button" onClick={onOpenSettings}>
-                        Open the settings
-                    </button>
+                    <Button onClick={onOpenSettings}>Open the settings</Button>
                 </div>
             )}
 
@@ -280,15 +279,7 @@ export function TasksView({
                 </EmptyState>
             )}
             {source && listState === 'empty' && (
-                <EmptyState
-                    icon={FolderSearch}
-                    title="No collections"
-                    actions={
-                        <button className="button" onClick={onOpenSettings}>
-                            Open Settings › Task managers
-                        </button>
-                    }
-                >
+                <EmptyState icon={FolderSearch} title="No collections" actions={<Button onClick={onOpenSettings}>Open Settings › Task managers</Button>}>
                     {source.name} has no collections that you can access. Check the scope of the task manager in the settings.
                 </EmptyState>
             )}

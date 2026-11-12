@@ -1,6 +1,7 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { Button, ButtonGroup } from './ui';
 import { swatchGradient, themeById, THEMES, type Appearance, type ColorScheme, type Mode, type Palette } from '@shared/themes';
 
 interface Props {
@@ -162,14 +163,14 @@ export function AppearanceSettings({ appearance, mode, onChange }: Props) {
                             : 'The background and text colors of the theme, with ANSI colors for light or dark mode. Open terminals draw again, and their programs continue to run.'
                     }
                     control={
-                        <div className="segmented compact">
-                            <button className={appearance.terminalColors === 'ghostty' ? 'selected' : ''} onClick={() => set({ terminalColors: 'ghostty' })}>
+                        <ButtonGroup label="Terminal colors">
+                            <Button aria-pressed={appearance.terminalColors === 'ghostty'} onClick={() => set({ terminalColors: 'ghostty' })}>
                                 Ghostty config
-                            </button>
-                            <button className={appearance.terminalColors === 'theme' ? 'selected' : ''} onClick={() => set({ terminalColors: 'theme' })}>
+                            </Button>
+                            <Button aria-pressed={appearance.terminalColors === 'theme'} onClick={() => set({ terminalColors: 'theme' })}>
                                 Match theme
-                            </button>
-                        </div>
+                            </Button>
+                        </ButtonGroup>
                     }
                 />
             </SettingsGroup>

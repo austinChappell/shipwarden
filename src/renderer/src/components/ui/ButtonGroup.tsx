@@ -1,25 +1,34 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { moveMenuFocus, useMenuClose } from './use-menu';
+import { moveMenuFocus, useMenuClose } from '../use-menu';
+import type { ControlSize } from './Button';
+import { cx } from './cx';
 
 /** The color of a button group. "merge" is the purple of the merge button. */
 export type ButtonGroupTone = 'default' | 'merge';
 
 interface GroupProps {
     tone?: ButtonGroupTone;
+    /** The height of the buttons in the group. */
+    size?: ControlSize;
     className?: string;
     /** The name of the group for a screen reader. */
     label?: string;
+    /** The role of the group. Use "radiogroup" for a segmented control where the user selects one option. */
+    role?: 'group' | 'radiogroup' | 'toolbar';
+    /** Handles the keys of the group, for example the arrow keys of a radio group. */
+    onKeyDown?(event: KeyboardEvent<HTMLDivElement>): void;
     children: ReactNode;
 }
 
 /**
- * Buttons that show as one control. The group has the border. A line separates the buttons.
+ * Buttons that show as one control, for example a segmented control. The group has the border. A line separates the buttons.
  * Put `.button` elements in it. A menu in the group can use the group as its anchor.
  */
-export function ButtonGroup({ tone = 'default', className, label, children }: GroupProps) {
+export function ButtonGroup({ tone = 'default', size = 'md', className, label, role = 'group', onKeyDown, children }: GroupProps) {
     return (
-        <div className={`button-group ${tone}${className ? ` ${className}` : ''}`} role="group" aria-label={label}>
+        // biome-ignore lint/a11y/useAriaPropsSupportedByRole: The role comes from the props. Each of the roles supports aria-label.
+        <div className={cx('button-group', tone, size !== 'md' && size, className)} role={role} aria-label={label} onKeyDown={onKeyDown}>
             {children}
         </div>
     );
@@ -50,13 +59,14 @@ interface SplitProps {
     /** The tooltip of the arrow button. */
     menuTitle: string;
     tone?: ButtonGroupTone;
+    size?: ControlSize;
     className?: string;
     /** The side of the group where the menu opens. */
     align?: 'left' | 'right';
 }
 
 /** A button group with a main button and an arrow button. The arrow button opens a menu of more actions. */
-export function SplitButton({ label, icon, title, disabled, onClick, items, menuTitle, tone, className, align = 'right' }: SplitProps) {
+export function SplitButton({ label, icon, title, disabled, onClick, items, menuTitle, tone, size, className, align = 'right' }: SplitProps) {
     const [open, setOpen] = useState(false);
     const root = useRef<HTMLDivElement>(null);
     useMenuClose(open, root, () => setOpen(false));
@@ -66,12 +76,13 @@ export function SplitButton({ label, icon, title, disabled, onClick, items, menu
 
     return (
         <div className="button-group-anchor" ref={root}>
-            <ButtonGroup tone={tone} className={className}>
-                <button className="button button-group-main" title={title} disabled={disabled} onClick={onClick}>
+            <ButtonGroup tone={tone} size={size} className={className}>
+                <button type="button" className="button button-group-main" title={title} disabled={disabled} onClick={onClick}>
                     {icon}
                     {label}
                 </button>
                 <button
+                    type="button"
                     className={`button button-group-arrow${open ? ' on' : ''}`}
                     title={menuTitle}
                     aria-label={menuTitle}
@@ -94,6 +105,7 @@ export function SplitButton({ label, icon, title, disabled, onClick, items, menu
                             <div key={index} className="button-group-separator" role="separator" />
                         ) : (
                             <button
+                                type="button"
                                 key={item.label}
                                 className="button-group-item"
                                 role="menuitem"

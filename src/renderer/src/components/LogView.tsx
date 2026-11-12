@@ -6,6 +6,7 @@ import { monaco } from '../editor/monaco';
 import { errorText, formatDuration, optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
+import { IconButton } from './ui';
 import { ciActions, ciKeys, isFailedConclusion, useCiAction } from '../github/ci-queries';
 import { claimLogFind, isFindShortcut, type LogFindOwner, openLogFind, releaseLogFind } from './log-find';
 
@@ -234,32 +235,31 @@ export function LogView({ target, check, onSendToAgent, onBack }: Props) {
     return (
         <div className="editor" ref={rootRef}>
             <div className="diff-header">
-                {onBack && (
-                    <button className="icon-button" title="Back to the checks" onClick={onBack}>
-                        <ArrowLeft size={14} strokeWidth={1.6} />
-                    </button>
-                )}
+                {onBack && <IconButton size="sm" icon={<ArrowLeft size={14} strokeWidth={1.6} />} label="Back to the checks" onClick={onBack} />}
                 <span className={`check-dot ${check.conclusion ?? check.status}`} />
                 <span className="diff-path">{check.name}</span>
                 <span className="check-duration">{formatDuration(check.startedAt, check.completedAt)}</span>
                 <span className="header-spacer" />
-                <button className="icon-button" title="Load the log again" onClick={() => void logQuery.refetch()}>
-                    <RefreshCw size={14} strokeWidth={1.6} />
-                </button>
+                <IconButton size="sm" icon={<RefreshCw size={14} strokeWidth={1.6} />} label="Load the log again" onClick={() => void logQuery.refetch()} />
                 {check.status === 'completed' && (
-                    <button className="icon-button" title="Run this job again" disabled={action.isPending} onClick={() => void rerun()}>
-                        <RotateCw size={14} strokeWidth={1.6} />
-                    </button>
+                    <IconButton
+                        size="sm"
+                        icon={<RotateCw size={14} strokeWidth={1.6} />}
+                        label="Run this job again"
+                        disabled={action.isPending}
+                        onClick={() => void rerun()}
+                    />
                 )}
                 {onSendToAgent && (
-                    <button className="icon-button" title="Send the log to the agent" onClick={() => onSendToAgent(check)}>
-                        <Bot size={14} strokeWidth={1.6} />
-                    </button>
+                    <IconButton size="sm" icon={<Bot size={14} strokeWidth={1.6} />} label="Send the log to the agent" onClick={() => onSendToAgent(check)} />
                 )}
                 {check.url && (
-                    <button className="icon-button" title="Open on GitHub" onClick={event => openLink(check.url!, event)}>
-                        <ExternalLink size={14} strokeWidth={1.6} />
-                    </button>
+                    <IconButton
+                        size="sm"
+                        icon={<ExternalLink size={14} strokeWidth={1.6} />}
+                        label="Open on GitHub"
+                        onClick={event => openLink(check.url!, event)}
+                    />
                 )}
             </div>
             {message && <div className="editor-failure">{message}</div>}

@@ -3,6 +3,7 @@ import type { MergeMethod, PullRequest } from '@shared/github';
 import type { CheckCounts } from '../github/use-check-counts';
 import { autoMergeButtonText, canActOnMerge, MERGE_LABELS, mergeBlocker, mergeButtonState, mergeCardTitle } from '../github/merge-state';
 import { MergeButton } from './MergeButton';
+import { Button, Card, CardBody, CardHeader, IconButton } from './ui';
 import { mergeConditions } from './PullRequestSummary';
 
 const CONDITION_ICON = { size: 16, strokeWidth: 1.8 };
@@ -27,19 +28,19 @@ interface Props {
 export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSelectMethod, onMerge, onAutoMerge, onDraft, onMoreActions }: Props) {
     const blocker = mergeBlocker(pr);
     const moreButton = pr.viewerCanUpdate && (
-        <button
-            className="icon-button"
-            title="More actions"
-            aria-label="More actions"
+        <IconButton
+            size="sm"
+            icon={<Ellipsis size={14} strokeWidth={1.8} />}
+            label="More actions"
             aria-haspopup="menu"
             disabled={busy}
             onClick={event => onMoreActions(event.currentTarget)}
-        >
-            <Ellipsis size={15} strokeWidth={1.8} />
-        </button>
+        />
     );
     const conditions = overview ? mergeConditions(pr, checks) : [];
     const button = method && mergeButtonState(pr, method, overview, busy);
+    /** The overview page shows the merge actions as large buttons. */
+    const size = overview ? 'lg' : undefined;
     const mergeActions = pr.autoMerge ? (
         <>
             <div className="panel-note">
@@ -48,9 +49,9 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
             </div>
             {pr.viewerCanDisableAutoMerge && (
                 <div className="merge-row">
-                    <button className="button" disabled={busy} onClick={() => onAutoMerge(false)}>
+                    <Button size={size} disabled={busy} onClick={() => onAutoMerge(false)}>
                         Disable auto-merge
-                    </button>
+                    </Button>
                 </div>
             )}
         </>
@@ -61,10 +62,9 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
                 {method && button && (
                     <div className="merge-row">
                         {pr.viewerCanMerge && pr.viewerCanEnableAutoMerge && (
-                            <button className="button auto-merge-button" disabled={busy} onClick={() => onAutoMerge(true)}>
-                                {!overview && <GitMerge size={14} strokeWidth={1.8} />}
+                            <Button size={size} icon={!overview && <GitMerge size={14} strokeWidth={1.8} />} disabled={busy} onClick={() => onAutoMerge(true)}>
                                 {autoMergeButtonText(pr, conditions, overview)}
-                            </button>
+                            </Button>
                         )}
                         <MergeButton
                             methods={pr.allowedMergeMethods}
@@ -72,6 +72,7 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
                             label={button.label}
                             disabled={button.disabled}
                             title={button.title}
+                            size={size}
                             onSelect={onSelectMethod}
                             onRun={button.merges ? onMerge : () => onAutoMerge(true)}
                         />
@@ -82,50 +83,45 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
     );
     const readyButton = pr.viewerCanUpdate && pr.isDraft && (
         <div className="merge-row">
-            <button className="button" disabled={busy} onClick={() => onDraft(false)}>
-                <GitPullRequest size={14} strokeWidth={1.8} />
+            <Button size={size} icon={<GitPullRequest size={14} strokeWidth={1.8} />} disabled={busy} onClick={() => onDraft(false)}>
                 Ready for review
-            </button>
+            </Button>
         </div>
     );
 
     if (overview) {
         return (
-            <section className="side-card merge-card" aria-label="Merge">
-                <header className="side-card-header">
-                    <span className="side-card-title">{mergeCardTitle(conditions)}</span>
-                    <span className="header-spacer" />
-                    {moreButton}
-                </header>
-                <ul className="merge-conditions">
-                    {conditions.map(item => (
-                        <li key={item.text} className={`merge-condition ${item.state}`}>
-                            {item.state === 'ok' ? (
-                                <CircleCheck {...CONDITION_ICON} />
-                            ) : item.state === 'fail' ? (
-                                <CircleX {...CONDITION_ICON} />
-                            ) : (
-                                <Circle {...CONDITION_ICON} />
-                            )}
-                            {item.text}
-                        </li>
-                    ))}
-                </ul>
-                {mergeActions}
-                {readyButton}
-            </section>
+            <Card as="section" className="merge-card" aria-label="Merge">
+                <CardHeader title={mergeCardTitle(conditions)} actions={moreButton} />
+                <CardBody className="merge-card-body">
+                    <ul className="merge-conditions">
+                        {conditions.map(item => (
+                            <li key={item.text} className={`merge-condition ${item.state}`}>
+                                {item.state === 'ok' ? (
+                                    <CircleCheck {...CONDITION_ICON} />
+                                ) : item.state === 'fail' ? (
+                                    <CircleX {...CONDITION_ICON} />
+                                ) : (
+                                    <Circle {...CONDITION_ICON} />
+                                )}
+                                {item.text}
+                            </li>
+                        ))}
+                    </ul>
+                    {mergeActions}
+                    {readyButton}
+                </CardBody>
+            </Card>
         );
     }
     if (!canActOnMerge(pr)) return null;
     return (
-        <section className="footer-card merge-card" aria-label="Merge">
-            <header className="footer-card-header">
-                <span className="footer-card-title">Merge</span>
-                <span className="header-spacer" />
-                {moreButton}
-            </header>
-            {mergeActions}
-            {readyButton}
-        </section>
+        <Card as="section" className="merge-card" aria-label="Merge">
+            <CardHeader title="Merge" actions={moreButton} />
+            <CardBody className="merge-card-body">
+                {mergeActions}
+                {readyButton}
+            </CardBody>
+        </Card>
     );
 }

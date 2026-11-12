@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Card } from './ui';
 
 interface GroupProps {
     title: string;
@@ -21,7 +22,7 @@ export function SettingsGroup({ title, description, card = false, actions, child
                 </div>
                 {actions && <div className="settings-group-actions">{actions}</div>}
             </div>
-            {card ? <div className="settings-card">{children}</div> : children}
+            {card ? <Card>{children}</Card> : children}
         </section>
     );
 }
@@ -51,12 +52,5 @@ export function SettingsRow({ label, description, control, children }: RowProps)
     );
 }
 
-/** An on/off switch for a settings row. */
-export function Switch({ checked, title, disabled, onChange }: { checked: boolean; title: string; disabled?: boolean; onChange(value: boolean): void }) {
-    return (
-        <label className="switch" title={title}>
-            <input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />
-            <span />
-        </label>
-    );
-}
+/** The switch moved to the shared controls. This export keeps the old imports working. */
+export { Switch } from './ui/Choice';

@@ -3,6 +3,7 @@ import { SmilePlus } from 'lucide-react';
 import { REACTION_INFO, reactionKinds, type PullRequest, type Reaction, type ReactionContent, type RepoTarget } from '@shared/github';
 import { setReaction } from '../github/pull-request-mutations';
 import { errorText } from '../util';
+import { IconButton } from './ui';
 
 /** The reactions that the host accepts, and the function that adds or removes a reaction of the user. */
 export interface ReactionActions {
@@ -87,20 +88,38 @@ export function useReactionState(
     };
 }
 
-/** The button that adds a reaction. It opens the picker, or it adds the one reaction that the host accepts. */
-export function ReactionAddButton({ state, className }: { state: ReactionState; className?: string }) {
+/**
+ * The button that adds a reaction. It opens the picker, or it adds the one reaction that the host accepts.
+ * The "chip" look matches the reaction chips. The "icon" look is a small icon button for a card header.
+ */
+export function ReactionAddButton({ state, look = 'chip' }: { state: ReactionState; look?: 'chip' | 'icon' }) {
     if (!state.canAdd) return null;
     const { single, picking } = state;
+    const label = single ? `Add ${REACTION_INFO[single].label.toLowerCase()}` : 'Add a reaction';
+    const icon = <SmilePlus size={14} strokeWidth={1.6} />;
+    if (look === 'icon') {
+        return (
+            <IconButton
+                size="sm"
+                icon={icon}
+                label={label}
+                active={picking}
+                aria-expanded={single ? undefined : picking}
+                disabled={state.busy}
+                onClick={state.add}
+            />
+        );
+    }
     return (
         <button
             type="button"
-            className={`${className ?? 'reaction-add'}${picking ? ' on' : ''}`}
-            title={single ? `Add ${REACTION_INFO[single].label.toLowerCase()}` : 'Add a reaction'}
+            className={`reaction-add${picking ? ' on' : ''}`}
+            title={label}
             aria-expanded={single ? undefined : picking}
             disabled={state.busy}
             onClick={state.add}
         >
-            <SmilePlus size={14} strokeWidth={1.6} />
+            {icon}
         </button>
     );
 }

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Pencil, Play, Plus, Trash2, X } from 'lucide-react';
 import type { RepoScript } from '@shared/settings';
 import { errorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { useMenuClose } from './use-menu';
 import { useModal } from './use-modal';
+import { Button, Field, IconButton, Input, TextArea } from './ui';
 
 interface Props {
     /** The display name of the repository, for the titles. */
@@ -32,6 +33,7 @@ function ScriptDialog({
     const [error, setError] = useState<string>();
     const [busy, setBusy] = useState(false);
     const dialog = useRef<HTMLDivElement>(null);
+    const ids = useId();
     useModal(dialog);
 
     const submit = async () => {
@@ -62,26 +64,29 @@ function ScriptDialog({
                     <Play size={15} strokeWidth={1.8} />
                     <h2>{script ? `Edit "${script.name}"` : `New script for ${repoName}`}</h2>
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Close" onClick={onClose}>
-                        <X size={15} strokeWidth={1.8} />
-                    </button>
+                    <IconButton icon={<X size={15} strokeWidth={1.8} />} label="Close" onClick={onClose} />
                 </header>
                 <div className="modal-body">
-                    <label className="run-field">
-                        <span className="setting-label">Name</span>
-                        <input
-                            className="settings-input"
+                    <Field className="run-field" label="Name" htmlFor={`${ids}-name`}>
+                        <Input
+                            id={`${ids}-name`}
                             autoFocus
                             value={name}
                             placeholder="Test"
                             spellCheck={false}
                             onChange={event => setName(event.target.value)}
                         />
-                    </label>
-                    <label className="run-field">
-                        <span className="setting-label">Command</span>
-                        <textarea
-                            className="settings-input mono script-field"
+                    </Field>
+                    <Field
+                        className="run-field"
+                        label="Command"
+                        htmlFor={`${ids}-command`}
+                        hint="The script runs in a new terminal tab of the selected worktree, in your login shell. It gets SHIPWARDEN_ROOT_PATH, SHIPWARDEN_WORKTREE_PATH, SHIPWARDEN_BRANCH, and SHIPWARDEN_REPO_NAME."
+                    >
+                        <TextArea
+                            id={`${ids}-command`}
+                            mono
+                            className="script-field"
                             value={command}
                             placeholder={'npm test\n# More lines are fine.'}
                             spellCheck={false}
@@ -93,21 +98,15 @@ function ScriptDialog({
                                 }
                             }}
                         />
-                        <span className="panel-note">
-                            The script runs in a new terminal tab of the selected worktree, in your login shell. It gets SHIPWARDEN_ROOT_PATH,
-                            SHIPWARDEN_WORKTREE_PATH, SHIPWARDEN_BRANCH and SHIPWARDEN_REPO_NAME.
-                        </span>
-                    </label>
+                    </Field>
                     {error && <div className="form-error">{error}</div>}
                 </div>
                 <footer className="modal-footer">
                     <span className="panel-note">⌘↩ saves.</span>
-                    <button className="button" onClick={onClose}>
-                        Cancel
-                    </button>
-                    <button className="button primary" disabled={busy} onClick={() => void submit()}>
+                    <Button onClick={onClose}>Cancel</Button>
+                    <Button variant="primary" disabled={busy} onClick={() => void submit()}>
                         {script ? 'Save' : 'Add script'}
-                    </button>
+                    </Button>
                 </footer>
             </div>
         </div>
@@ -169,16 +168,15 @@ export function ScriptsMenu({ repoName, scripts, onRun, onSave }: Props) {
 
     return (
         <div className="new-tab scripts-menu" ref={root}>
-            <button
+            <IconButton
                 ref={button}
-                className={`icon-button scripts-button${open ? ' on' : ''}`}
-                title={`Scripts of ${repoName}`}
+                active={open}
+                icon={<Play size={15} strokeWidth={1.7} />}
+                label={`Scripts of ${repoName}`}
                 aria-haspopup="menu"
                 aria-expanded={open}
                 onClick={() => setOpen(value => !value)}
-            >
-                <Play size={15} strokeWidth={1.7} />
-            </button>
+            />
             {open && (
                 <div className="new-tab-menu scripts-dropdown" role="menu" onKeyDown={onMenuKey}>
                     <div className="new-tab-heading">Scripts</div>
@@ -197,26 +195,27 @@ export function ScriptsMenu({ repoName, scripts, onRun, onSave }: Props) {
                                 <Play size={13} strokeWidth={1.8} />
                                 <span className="new-tab-label">{script.name}</span>
                             </button>
-                            <button
-                                className="icon-button script-action"
-                                title={`Edit "${script.name}"`}
+                            <IconButton
+                                size="sm"
+                                className="script-action"
+                                icon={<Pencil size={12} strokeWidth={1.8} />}
+                                label={`Edit "${script.name}"`}
                                 onClick={() => {
                                     setOpen(false);
                                     setEditing(script);
                                 }}
-                            >
-                                <Pencil size={12} strokeWidth={1.8} />
-                            </button>
-                            <button
-                                className="icon-button script-action"
-                                title={`Delete "${script.name}"`}
+                            />
+                            <IconButton
+                                size="sm"
+                                tone="danger"
+                                className="script-action"
+                                icon={<Trash2 size={12} strokeWidth={1.8} />}
+                                label={`Delete "${script.name}"`}
                                 onClick={() => {
                                     setOpen(false);
                                     void remove(script);
                                 }}
-                            >
-                                <Trash2 size={12} strokeWidth={1.8} />
-                            </button>
+                            />
                         </div>
                     ))}
                     <div className="new-tab-separator" />

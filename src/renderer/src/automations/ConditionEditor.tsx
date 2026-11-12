@@ -10,7 +10,7 @@ import {
     type ConditionRule
 } from '@shared/automation-templates';
 import type { VariableInfo } from '@shared/automations';
-import { Select } from '../components/Select';
+import { Button, IconButton, Input, Select } from '../components/ui';
 
 type Group = { all: Condition[] } | { any: Condition[] };
 
@@ -94,7 +94,6 @@ function GroupEditor({ group, listId, depth, onChange, onRemove }: GroupProps) {
             {(items.length > 1 || depth > 0) && (
                 <div className="automation-condition-head">
                     <Select<'all' | 'any'>
-                        className="settings-input"
                         aria-label="How the conditions combine"
                         value={'all' in group ? 'all' : 'any'}
                         options={[
@@ -104,9 +103,7 @@ function GroupEditor({ group, listId, depth, onChange, onRemove }: GroupProps) {
                         onChange={mode => onChange(mode === 'all' ? { all: items } : { any: items })}
                     />
                     {onRemove && (
-                        <button type="button" className="icon-button" title="Remove the group" aria-label="Remove the group" onClick={onRemove}>
-                            <Trash2 size={14} strokeWidth={1.7} />
-                        </button>
+                        <IconButton size="sm" tone="danger" label="Remove the group" icon={<Trash2 size={14} strokeWidth={1.7} />} onClick={onRemove} />
                     )}
                 </div>
             )}
@@ -120,9 +117,13 @@ function GroupEditor({ group, listId, depth, onChange, onRemove }: GroupProps) {
                     return (
                         <div key={key} className="automation-condition-rule">
                             <span className="automation-variables">{describeCondition(item)} (change it in the file)</span>
-                            <button type="button" className="icon-button" title="Remove the condition" onClick={() => removeItem(index)}>
-                                <Trash2 size={14} strokeWidth={1.7} />
-                            </button>
+                            <IconButton
+                                size="sm"
+                                tone="danger"
+                                label="Remove the condition"
+                                icon={<Trash2 size={14} strokeWidth={1.7} />}
+                                onClick={() => removeItem(index)}
+                            />
                         </div>
                     );
                 }
@@ -138,15 +139,13 @@ function GroupEditor({ group, listId, depth, onChange, onRemove }: GroupProps) {
                 );
             })}
             <div className="automation-condition-add">
-                <button type="button" className="button" onClick={() => onChange(withItems(group, [...items, { ...NEW_RULE }]))}>
-                    <Plus size={13} strokeWidth={1.8} />
+                <Button icon={<Plus size={13} strokeWidth={1.8} />} onClick={() => onChange(withItems(group, [...items, { ...NEW_RULE }]))}>
                     Add a condition
-                </button>
+                </Button>
                 {depth < MAX_NESTING - 1 && (
-                    <button type="button" className="button" onClick={() => onChange(withItems(group, [...items, { any: [{ ...NEW_RULE }] }]))}>
-                        <Plus size={13} strokeWidth={1.8} />
+                    <Button icon={<Plus size={13} strokeWidth={1.8} />} onClick={() => onChange(withItems(group, [...items, { any: [{ ...NEW_RULE }] }]))}>
                         Add a group
-                    </button>
+                    </Button>
                 )}
             </div>
         </div>
@@ -164,8 +163,9 @@ function RuleEditor({ rule, listId, onChange, onRemove }: RuleProps) {
     const op = CONDITION_OPS.find(item => item.op === rule.op);
     return (
         <div className="automation-condition-rule">
-            <input
-                className="settings-input mono automation-condition-var"
+            <Input
+                mono
+                className="automation-condition-var"
                 list={listId}
                 aria-label="Variable"
                 placeholder="Variable, for example branch"
@@ -174,7 +174,6 @@ function RuleEditor({ rule, listId, onChange, onRemove }: RuleProps) {
                 onChange={event => onChange({ ...rule, var: event.target.value.replace(/[{}\s]/g, '') })}
             />
             <Select<ConditionOp>
-                className="settings-input"
                 aria-label="Operator"
                 value={rule.op}
                 options={CONDITION_OPS.map(item => ({ value: item.op, label: item.label }))}
@@ -184,8 +183,9 @@ function RuleEditor({ rule, listId, onChange, onRemove }: RuleProps) {
                 }}
             />
             {op?.needsValue && (
-                <input
-                    className="settings-input mono automation-condition-value"
+                <Input
+                    mono
+                    className="automation-condition-value"
                     aria-label="Value"
                     placeholder={rule.op === 'matches' || rule.op === 'notMatches' ? 'eng-*' : 'Value or {{variable}}'}
                     value={rule.value ?? ''}
@@ -193,9 +193,7 @@ function RuleEditor({ rule, listId, onChange, onRemove }: RuleProps) {
                     onChange={event => onChange({ ...rule, value: event.target.value })}
                 />
             )}
-            <button type="button" className="icon-button" title="Remove the condition" aria-label="Remove the condition" onClick={onRemove}>
-                <Trash2 size={14} strokeWidth={1.7} />
-            </button>
+            <IconButton size="sm" tone="danger" label="Remove the condition" icon={<Trash2 size={14} strokeWidth={1.7} />} onClick={onRemove} />
         </div>
     );
 }

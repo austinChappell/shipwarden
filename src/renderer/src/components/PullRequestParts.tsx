@@ -23,6 +23,7 @@ import { EditDescriptionButton } from './PullRequestDetails';
 import { openLink } from '../links';
 import { CopyButton } from './CopyButton';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
+import { Button, Card } from './ui';
 
 const ICON = { size: 15, strokeWidth: 1.6 };
 
@@ -61,7 +62,7 @@ export function BranchName({ name }: { name: string }) {
     return (
         <span className="branch-name">
             <code>{name}</code>
-            <CopyButton text={name} title="Copy the branch name" size={12} className="icon-button branch-copy" />
+            <CopyButton text={name} title="Copy the branch name" size={12} className="branch-copy" />
         </span>
     );
 }
@@ -116,13 +117,14 @@ export function PullRequestCommitList({ pr, onOpen }: { pr: PullRequest; onOpen?
                     return (
                         <div key={commit.oid} className="pr-commit">
                             {content}
-                            <button
-                                className="link-button pr-commit-sha"
+                            <Button
+                                variant="link"
+                                className="mono pr-commit-sha"
                                 title={`Open the commit on ${hostLabel(pr.host)}`}
                                 onClick={event => openLink(commit.url, event)}
                             >
                                 {commit.abbreviatedOid}
-                            </button>
+                            </Button>
                         </div>
                     );
                 })}
@@ -159,8 +161,8 @@ export function PullRequestDescription({ pr, overview, onEdit }: { pr: PullReque
         const author = pr.author?.login ?? 'unknown';
         return (
             <section className="pr-section">
-                <div className="pr-description-card">
-                    <div className="pr-description-card-header">
+                <Card className="pr-description-card">
+                    <div className="card-header">
                         <Avatar login={author} url={pr.author?.avatarUrl} size={24} className="pr-description-avatar" />
                         <span className="pr-description-card-title">
                             <strong>{author}</strong> opened this <span className="dot-separator">·</span>{' '}
@@ -170,9 +172,13 @@ export function PullRequestDescription({ pr, overview, onEdit }: { pr: PullReque
                         </span>
                         {editButton}
                     </div>
-                    {text ? <Markdown className="pr-description open" text={text} /> : <div className="panel-note pr-description-empty">No description.</div>}
-                    {footer && <Markdown className="pr-description-card-footer" text={footer} />}
-                </div>
+                    {text ? (
+                        <Markdown className="card-body pr-description open" text={text} />
+                    ) : (
+                        <div className="card-body panel-note pr-description-empty">No description.</div>
+                    )}
+                    {footer && <Markdown className="card-body pr-description-card-footer" text={footer} />}
+                </Card>
             </section>
         );
     }
@@ -207,9 +213,9 @@ export function PullRequestDescription({ pr, overview, onEdit }: { pr: PullReque
                 <Markdown text={pr.body} />
             </div>
             {toggleable && (
-                <button className="link-button pr-description-more" onClick={() => setOpen(value => !value)}>
+                <Button variant="link" className="pr-description-more" onClick={() => setOpen(value => !value)}>
                     {open ? 'Show less' : 'Show more'}
-                </button>
+                </Button>
             )}
         </section>
     );

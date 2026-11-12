@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderGit2, LoaderCircle, X } from 'lucide-react';
 import { branchFromName, localNameOfRemote, type BranchList } from '@shared/worktrees';
 import { errorText } from '../util';
-import { Combobox, type ComboboxGroup } from './Combobox';
 import { radioGroupKeys } from './keyboard';
+import { Button, ButtonGroup, Checkbox, Combobox, type ComboboxGroup, IconButton, Input } from './ui';
 import { useModal } from './use-modal';
 
 export interface NewWorktreeRequest {
@@ -194,9 +194,7 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                     <FolderGit2 size={15} strokeWidth={1.8} />
                     <h2>{title ?? `New worktree in ${repoName}`}</h2>
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Close (Esc)" disabled={busy} onClick={onClose}>
-                        <X size={15} strokeWidth={1.8} />
-                    </button>
+                    <IconButton icon={<X size={15} strokeWidth={1.8} />} label="Close (Esc)" disabled={busy} onClick={onClose} />
                 </header>
                 <form
                     className="modal-body"
@@ -205,14 +203,12 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                         void submit();
                     }}
                 >
-                    <div className="segmented new-worktree-mode" role="radiogroup" aria-label="Branch source" onKeyDown={radioGroupKeys}>
+                    <ButtonGroup className="new-worktree-mode" role="radiogroup" label="Branch source" onKeyDown={radioGroupKeys}>
                         {(['new', 'remote'] as const).map(value => (
-                            <button
+                            <Button
                                 key={value}
-                                type="button"
                                 role="radio"
                                 aria-checked={mode === value}
-                                className={mode === value ? 'selected' : ''}
                                 disabled={busy}
                                 onClick={() => {
                                     setMode(value);
@@ -220,9 +216,9 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                                 }}
                             >
                                 {value === 'new' ? 'New branch' : 'Remote branch'}
-                            </button>
+                            </Button>
                         ))}
-                    </div>
+                    </ButtonGroup>
                     {mode === 'remote' && (
                         <div className="run-field">
                             <span className="setting-label">Remote branch</span>
@@ -263,10 +259,13 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                         </div>
                     )}
                     {mode === 'new' && (
-                        <label className="run-field">
-                            <span className="setting-label">Branch</span>
-                            <input
-                                className="settings-input mono"
+                        <div className="run-field">
+                            <label className="setting-label" htmlFor="new-worktree-branch">
+                                Branch
+                            </label>
+                            <Input
+                                id="new-worktree-branch"
+                                mono
                                 autoFocus
                                 value={branch}
                                 placeholder={suggesting ? 'Making the branch name…' : 'login-page-rework'}
@@ -285,21 +284,21 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                             )}
                             {suggestNote && <span className="panel-note">{suggestNote}</span>}
                             {exists && <span className="panel-note">This branch exists. The worktree checks it out.</span>}
-                        </label>
+                        </div>
                     )}
-                    <label className="run-field">
-                        <span className="setting-label">
+                    <div className="run-field">
+                        <label className="setting-label" htmlFor="new-worktree-name">
                             Name <span className="new-worktree-optional">(optional)</span>
-                        </span>
-                        <input
-                            className="settings-input"
+                        </label>
+                        <Input
+                            id="new-worktree-name"
                             autoFocus={mode === 'remote'}
                             value={name}
                             placeholder={mode === 'remote' ? branchName || 'Login page rework' : 'Login page rework'}
                             onChange={event => changeName(event.target.value)}
                         />
                         <span className="panel-note">The sidebar shows this name. Without a name, it shows the branch.</span>
-                    </label>
+                    </div>
                     {mode === 'new' && (
                         <div className="run-field">
                             <span className="setting-label">Start from</span>
@@ -323,21 +322,23 @@ export function NewWorktreeDialog({ repoName, repoPath, onClose, onCreate, initi
                             )}
                         </div>
                     )}
-                    <label className="new-worktree-agent">
-                        <input type="checkbox" checked={startAgent} onChange={event => setStartAgent(event.target.checked)} />
-                        Start an agent in the new worktree
-                    </label>
+                    <Checkbox className="new-worktree-agent" checked={startAgent} onChange={setStartAgent} label="Start an agent in the new worktree" />
                     {error && <div className="form-error">{error}</div>}
                     <button type="submit" hidden />
                 </form>
                 <footer className="modal-footer">
                     <span className="panel-note">⌘↩ creates. Esc cancels.</span>
-                    <button className="button" disabled={busy} onClick={onClose}>
+                    <Button disabled={busy} onClick={onClose}>
                         Cancel
-                    </button>
-                    <button className="button primary" disabled={busy || !branchName} onClick={() => void submit()}>
-                        {busy && <LoaderCircle size={13} className="spin" />} Create worktree
-                    </button>
+                    </Button>
+                    <Button
+                        variant="solid"
+                        icon={busy && <LoaderCircle size={13} className="spin" />}
+                        disabled={busy || !branchName}
+                        onClick={() => void submit()}
+                    >
+                        Create worktree
+                    </Button>
                 </footer>
             </div>
         </div>

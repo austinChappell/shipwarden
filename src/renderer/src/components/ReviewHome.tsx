@@ -9,6 +9,7 @@ import { focusFirstItem, moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
 import { refreshReviewOverview, useReviewOverview } from '../github/review-overview-store';
 import { CountPill, Dotted, KeyLegend, useInitialFocus, usePageKeys } from './ReviewParts';
+import { Button, ButtonGroup, IconButton, Input } from './ui';
 
 interface Props {
     queue: QueueItem[];
@@ -157,52 +158,47 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
         <div className="review-home" ref={rootRef}>
             <header className="tasks-header review-header">
                 <div className="tasks-header-group how">
-                    <label className="tasks-search review-repo-filter">
-                        <Search size={14} strokeWidth={1.6} />
-                        <input
-                            ref={filterRef}
-                            value={query}
-                            placeholder="Filter repositories"
-                            aria-label="Filter repositories"
-                            spellCheck={false}
-                            onChange={event => setQuery(event.target.value)}
-                            onKeyDown={event => {
-                                if (event.key === 'Enter' && first) onSelect(first);
-                                if (event.key === 'ArrowDown' && focusFirstItem(listRef.current)) event.preventDefault();
-                                if (event.key === 'Escape') {
-                                    event.preventDefault();
-                                    setQuery('');
-                                    event.currentTarget.blur();
-                                    focusFirstItem(listRef.current);
-                                }
-                            }}
-                        />
-                        {!query && <kbd className="field-key">/</kbd>}
-                    </label>
+                    <Input
+                        ref={filterRef}
+                        className="review-repo-filter"
+                        icon={<Search size={13} strokeWidth={1.8} />}
+                        suffix={query ? undefined : <kbd className="field-key">/</kbd>}
+                        value={query}
+                        placeholder="Filter repositories"
+                        aria-label="Filter repositories"
+                        spellCheck={false}
+                        onChange={event => setQuery(event.target.value)}
+                        onKeyDown={event => {
+                            if (event.key === 'Enter' && first) onSelect(first);
+                            if (event.key === 'ArrowDown' && focusFirstItem(listRef.current)) event.preventDefault();
+                            if (event.key === 'Escape') {
+                                event.preventDefault();
+                                setQuery('');
+                                event.currentTarget.blur();
+                                focusFirstItem(listRef.current);
+                            }
+                        }}
+                    />
                     {state.projectRepos.length > 0 && (
-                        <div className="segmented compact" role="radiogroup" aria-label="Repositories" onKeyDown={radioGroupKeys}>
-                            <button
-                                role="radio"
-                                aria-checked={!all}
-                                tabIndex={!all ? 0 : -1}
-                                className={!all ? 'selected' : ''}
-                                onClick={() => setMode('projects')}
-                            >
+                        <ButtonGroup role="radiogroup" label="Repositories" onKeyDown={radioGroupKeys}>
+                            <Button role="radio" aria-checked={!all} tabIndex={!all ? 0 : -1} onClick={() => setMode('projects')}>
                                 In projects
-                            </button>
-                            <button role="radio" aria-checked={all} tabIndex={all ? 0 : -1} className={all ? 'selected' : ''} onClick={() => setMode('all')}>
+                            </Button>
+                            <Button role="radio" aria-checked={all} tabIndex={all ? 0 : -1} onClick={() => setMode('all')}>
                                 All
-                            </button>
-                        </div>
+                            </Button>
+                        </ButtonGroup>
                     )}
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Refresh" onClick={() => void refreshReviewOverview()}>
-                        <RefreshCw size={15} strokeWidth={1.6} className={state.catalogLoading || entries.some(entry => entry.loading) ? 'spin' : ''} />
-                    </button>
-                    <button className="button primary-solid review-queue-button" disabled={queue.length === 0} onClick={onStartQueue}>
+                    <IconButton
+                        icon={<RefreshCw size={14} strokeWidth={1.6} className={state.catalogLoading || entries.some(entry => entry.loading) ? 'spin' : ''} />}
+                        label="Refresh"
+                        onClick={() => void refreshReviewOverview()}
+                    />
+                    <Button variant="solid" className="review-queue-button" disabled={queue.length === 0} onClick={onStartQueue}>
                         Start review queue
                         {queue.length > 0 && <span className="button-count">{queue.length}</span>}
-                    </button>
+                    </Button>
                 </div>
             </header>
 
@@ -215,9 +211,7 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                 {state.catalog?.length === 0 && (
                     <div className="review-empty">
                         <p>The selected organizations have no repositories that you can access.</p>
-                        <button className="button" onClick={onOpenSettings}>
-                            Open Settings › Code review
-                        </button>
+                        <Button onClick={onOpenSettings}>Open Settings › Code review</Button>
                     </div>
                 )}
 
@@ -286,9 +280,7 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                 {anyLoaded && shownWaiting.length === 0 && shownIdle.length === 0 && <div className="panel-message">No repositories match the filter.</div>}
                 {!all && state.catalog && (
                     <div className="review-show-all-row">
-                        <button className="button review-show-all" onClick={() => setMode('all')}>
-                            Show all repositories ({state.catalog.length})
-                        </button>
+                        <Button onClick={() => setMode('all')}>Show all repositories ({state.catalog.length})</Button>
                     </div>
                 )}
             </div>

@@ -19,9 +19,8 @@ import type { NavQuery, ViewRoute } from '@shared/nav-history';
 import { dispatchInputs, runIsActive, type WorkflowInput, type WorkflowRun } from '@shared/pipelines';
 import { formatDuration, optionalErrorText, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
-import { Combobox, sortedGroups } from './Combobox';
 import { LogView } from './LogView';
-import { Select } from './Select';
+import { Button, Combobox, IconButton, Input, Select, Switch, sortedGroups } from './ui';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
 import { useModal } from './use-modal';
@@ -73,32 +72,18 @@ export function RunIcon({ run }: { run: WorkflowRun }) {
 /** The value field of one workflow input: a switch, a choice, or text. */
 function InputField({ input, value, onChange }: { input: WorkflowInput; value: string; onChange(value: string): void }) {
     if (input.type === 'boolean') {
-        return (
-            <label className="switch">
-                <input type="checkbox" checked={value === 'true'} onChange={event => onChange(String(event.target.checked))} />
-                <span />
-            </label>
-        );
+        return <Switch title={input.name} checked={value === 'true'} onChange={checked => onChange(String(checked))} />;
     }
     if (input.type === 'choice' && input.options?.length) {
         return (
             <Select
-                className="settings-input"
                 value={value}
                 options={[...(input.required ? [] : [{ value: '', label: '—' }]), ...input.options.map(option => ({ value: option, label: option }))]}
                 onChange={onChange}
             />
         );
     }
-    return (
-        <input
-            className="settings-input"
-            type={input.type === 'number' ? 'number' : 'text'}
-            value={value}
-            spellCheck={false}
-            onChange={event => onChange(event.target.value)}
-        />
-    );
+    return <Input type={input.type === 'number' ? 'number' : 'text'} value={value} spellCheck={false} onChange={event => onChange(event.target.value)} />;
 }
 
 interface RunDialogProps {
@@ -165,9 +150,7 @@ export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }
                     <Play size={15} strokeWidth={1.8} />
                     <h2>Run {workflow.name}</h2>
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Close" onClick={onClose}>
-                        <X size={15} strokeWidth={1.8} />
-                    </button>
+                    <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close" onClick={onClose} />
                 </header>
                 <div className="modal-body">
                     <label className="run-field">
@@ -213,12 +196,15 @@ export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }
                             </>
                         )}
                     </span>
-                    <button className="button" onClick={onClose}>
-                        Cancel
-                    </button>
-                    <button className="button primary" disabled={dispatch.isPending || !inputs || !branch} onClick={run}>
-                        {dispatch.isPending ? <LoaderCircle size={13} className="spin" /> : <Play size={13} strokeWidth={2} />} Run workflow
-                    </button>
+                    <Button onClick={onClose}>Cancel</Button>
+                    <Button
+                        variant="primary"
+                        icon={dispatch.isPending ? <LoaderCircle size={13} className="spin" /> : <Play size={13} strokeWidth={2} />}
+                        disabled={dispatch.isPending || !inputs || !branch}
+                        onClick={run}
+                    >
+                        Run workflow
+                    </Button>
                 </footer>
             </div>
         </div>
@@ -300,9 +286,9 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                     icon={WorkflowIcon}
                     title="No code review account"
                     actions={
-                        <button className="button primary" onClick={onOpenSettings}>
+                        <Button variant="primary" onClick={onOpenSettings}>
                             Open Settings › Code review
-                        </button>
+                        </Button>
                     }
                 >
                     Add a GitHub or Azure DevOps account to see the pipelines of its repositories. The Review view uses the same accounts.
@@ -337,19 +323,19 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                 <div className="tasks-header-group how">
                     <span className="header-spacer" />
                     {repoRef && (
-                        <button
-                            className="icon-button"
-                            title={
+                        <IconButton
+                            icon={<ExternalLink size={14} strokeWidth={1.6} />}
+                            label={
                                 repoRef.host === 'azure' ? 'Open the pipelines of the project on Azure DevOps' : 'Open the Actions of the repository on GitHub'
                             }
                             onClick={event => openLink(pipelinesWebUrl(repoRef), event)}
-                        >
-                            <ExternalLink size={15} strokeWidth={1.6} />
-                        </button>
+                        />
                     )}
-                    <button className="icon-button" title="Refresh" onClick={() => void runsQuery.refetch()}>
-                        <RefreshCw size={15} strokeWidth={1.6} className={runsQuery.isFetching ? 'spin' : ''} />
-                    </button>
+                    <IconButton
+                        icon={<RefreshCw size={14} strokeWidth={1.6} className={runsQuery.isFetching ? 'spin' : ''} />}
+                        label="Refresh"
+                        onClick={() => void runsQuery.refetch()}
+                    />
                 </div>
             </header>
             {error && <div className="form-error task-list-error">{error}</div>}
@@ -389,16 +375,15 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                 </span>
                             </button>
                             {workflow.dispatchable && (
-                                <button
-                                    className="icon-button pipeline-run-button"
-                                    title={`Run ${workflow.name}`}
+                                <IconButton
+                                    size="sm"
+                                    icon={<Play size={13} strokeWidth={1.9} />}
+                                    label={`Run ${workflow.name}`}
                                     onClick={event => {
                                         event.stopPropagation();
                                         setDialog(workflow);
                                     }}
-                                >
-                                    <Play size={13} strokeWidth={1.9} />
-                                </button>
+                                />
                             )}
                         </div>
                     ))}
@@ -411,9 +396,9 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                         return selectedWorkflow?.dispatchable ? (
                             <div className="pipeline-runs-header">
                                 <span className="pipeline-runs-title">{selectedWorkflow.name}</span>
-                                <button className="button primary" onClick={() => setDialog(selectedWorkflow)}>
-                                    <Play size={13} strokeWidth={2} /> Run workflow
-                                </button>
+                                <Button size="sm" variant="primary" icon={<Play size={13} strokeWidth={2} />} onClick={() => setDialog(selectedWorkflow)}>
+                                    Run workflow
+                                </Button>
                             </div>
                         ) : null;
                     })()}
@@ -463,44 +448,44 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                 </div>
                                 <div className="row-buttons pipeline-actions">
                                     {runIsActive(selectedRun) && (
-                                        <button
-                                            className="button"
+                                        <Button
+                                            icon={<Square size={12} strokeWidth={2} />}
                                             onClick={() =>
                                                 void act(`Cancel run #${selectedRun.runNumber} of ${selectedRun.workflowName}?`, () =>
                                                     ciActions.cancelRun(repoRef, selectedRun.id)
                                                 )
                                             }
                                         >
-                                            <Square size={12} strokeWidth={2} /> Cancel run
-                                        </button>
+                                            Cancel run
+                                        </Button>
                                     )}
                                     {!runIsActive(selectedRun) && selectedRun.conclusion === 'failure' && (
-                                        <button
-                                            className="button"
+                                        <Button
+                                            icon={<RotateCw size={12} strokeWidth={2} />}
                                             onClick={() =>
                                                 void act(`Run the failed jobs of run #${selectedRun.runNumber} again?`, () =>
                                                     ciActions.rerunFailedJobs(repoRef, selectedRun.id)
                                                 )
                                             }
                                         >
-                                            <RotateCw size={12} strokeWidth={2} /> Re-run failed jobs
-                                        </button>
+                                            Re-run failed jobs
+                                        </Button>
                                     )}
                                     {!runIsActive(selectedRun) && (
-                                        <button
-                                            className="button"
+                                        <Button
+                                            icon={<RotateCw size={12} strokeWidth={2} />}
                                             onClick={() =>
                                                 void act(`Run all jobs of run #${selectedRun.runNumber} again?`, () =>
                                                     ciActions.rerunRun(repoRef, selectedRun.id)
                                                 )
                                             }
                                         >
-                                            <RotateCw size={12} strokeWidth={2} /> Re-run all jobs
-                                        </button>
+                                            Re-run all jobs
+                                        </Button>
                                     )}
-                                    <button className="button" onClick={event => openLink(selectedRun.url, event)}>
-                                        <ExternalLink size={12} strokeWidth={2} /> {host}
-                                    </button>
+                                    <Button icon={<ExternalLink size={12} strokeWidth={2} />} onClick={event => openLink(selectedRun.url, event)}>
+                                        {host}
+                                    </Button>
                                 </div>
                                 {actionError && <div className="form-error">{actionError}</div>}
                             </div>

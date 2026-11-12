@@ -1,5 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
+import type { ControlSize } from './Button';
+import { cx } from './cx';
+import { inputClass } from './Input';
 
 export interface ComboboxItem {
     value: string;
@@ -40,11 +43,13 @@ interface Props {
     searchPlaceholder?: string;
     disabled?: boolean;
     title?: string;
+    /** More classes for the box around the button, for example for its width. */
     className?: string;
+    size?: ControlSize;
 }
 
 /** A select with a search field, for long lists in groups. With `values`, it is a multi-select. */
-export function Combobox({ value, values, groups, onChange, placeholder, searchPlaceholder = 'Search', disabled, title, className }: Props) {
+export function Combobox({ value, values, groups, onChange, placeholder, searchPlaceholder = 'Search', disabled, title, className, size }: Props) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
@@ -169,7 +174,7 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
     let index = -1;
     return (
         <div
-            className={`combobox${className ? ` ${className}` : ''}`}
+            className={cx('combobox', className)}
             ref={root}
             onBlur={event => {
                 // A click on an option gives no new focus. Only a focus outside the combobox closes the popover.
@@ -179,14 +184,14 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
             <button
                 ref={trigger}
                 type="button"
-                className={`tasks-select combobox-button${open ? ' on' : ''}`}
+                className={inputClass(size, { className: cx('select-button', 'combobox-button', open && 'on') })}
                 disabled={disabled}
                 title={title}
                 aria-haspopup="listbox"
                 aria-expanded={open}
                 onClick={() => (open ? setOpen(false) : show())}
             >
-                <span className="combobox-value">
+                <span className={cx('select-value', !(multiple ? multipleText : selected) && 'placeholder')}>
                     {multiple ? (
                         (multipleText ?? placeholder)
                     ) : selected ? (

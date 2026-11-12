@@ -12,6 +12,7 @@ import { errorText } from '../util';
 import { ComposerZone, PendingZone, ThreadZone } from './ReviewZones';
 import { reactionActions } from './Reactions';
 import { MentionContext, mentionSourceOf } from './mention-context';
+import { Checkbox } from './ui';
 
 export {
     ComposerZone,
@@ -370,16 +371,13 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onSendToAg
                 <span className="deletions">−{file.deletions}</span>
                 <span className="diff-hint">Click a line number to comment</span>
                 {viewedFile && (
-                    <label className="viewed-toggle" title="Mark the file as viewed, as on GitHub">
-                        <input
-                            type="checkbox"
-                            checked={!!viewedFile.viewed}
-                            onChange={event =>
-                                reviewStore.setViewed(target, pr.number, pr.id, file.path, event.target.checked).catch(err => setMessage(errorText(err)))
-                            }
-                        />
-                        Viewed
-                    </label>
+                    <Checkbox
+                        className="viewed-toggle"
+                        label="Viewed"
+                        title="Mark the file as viewed, as on GitHub"
+                        checked={!!viewedFile.viewed}
+                        onChange={checked => reviewStore.setViewed(target, pr.number, pr.id, file.path, checked).catch(err => setMessage(errorText(err)))}
+                    />
                 )}
             </div>
             {message && <div className="editor-failure">{message}</div>}

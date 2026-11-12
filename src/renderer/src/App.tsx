@@ -41,6 +41,7 @@ import { pullRequestWebUrl, repoId, type RepoRef } from '@shared/github';
 import { useAppearance } from './theme/appearance';
 import { StatusBar } from './components/StatusBar';
 import { ErrorBanner } from './components/ErrorBanner';
+import { Button, IconButton } from './components/ui';
 import { agentForRepo, DEFAULT_SETTINGS, repoDisplayName, type AppSettings } from '@shared/settings';
 import { changeOnboarding, type HelpAction } from '@shared/onboarding';
 import { shouldOpenWelcome } from '@shared/welcome';
@@ -1028,12 +1029,19 @@ export function App() {
                                             title={`${activeProject.name} has no repositories`}
                                             actions={
                                                 <>
-                                                    <button className="button primary" onClick={project.addRepo}>
-                                                        <FolderPlus size={13} strokeWidth={1.8} aria-hidden="true" /> Add a repository
-                                                    </button>
-                                                    <button className="button" onClick={() => setCloneOpen(true)}>
-                                                        <FolderDown size={13} strokeWidth={1.8} aria-hidden="true" /> Clone a repository
-                                                    </button>
+                                                    <Button
+                                                        variant="primary"
+                                                        icon={<FolderPlus size={13} strokeWidth={1.8} aria-hidden="true" />}
+                                                        onClick={project.addRepo}
+                                                    >
+                                                        Add a repository
+                                                    </Button>
+                                                    <Button
+                                                        icon={<FolderDown size={13} strokeWidth={1.8} aria-hidden="true" />}
+                                                        onClick={() => setCloneOpen(true)}
+                                                    >
+                                                        Clone a repository
+                                                    </Button>
                                                 </>
                                             }
                                         >
@@ -1045,9 +1053,14 @@ export function App() {
                                             icon={SquareTerminal}
                                             title={selected.branch ?? selected.path}
                                             actions={
-                                                <button className="button primary" data-tour="agent" onClick={() => startTerminal(selected, 'agent')}>
-                                                    <Play size={13} strokeWidth={1.8} aria-hidden="true" /> Start {agentForRepo(appSettings, selectedRepo).name}
-                                                </button>
+                                                <Button
+                                                    variant="primary"
+                                                    data-tour="agent"
+                                                    icon={<Play size={13} strokeWidth={1.8} aria-hidden="true" />}
+                                                    onClick={() => startTerminal(selected, 'agent')}
+                                                >
+                                                    Start {agentForRepo(appSettings, selectedRepo).name}
+                                                </Button>
                                             }
                                             hint={
                                                 <>
@@ -1066,9 +1079,13 @@ export function App() {
                                             icon={GitBranchPlus}
                                             title="No worktree is selected"
                                             actions={
-                                                <button className="button primary" onClick={() => setNewWorktree({ repo: selectedRepo ?? repos[0] })}>
-                                                    <GitBranchPlus size={13} strokeWidth={1.8} aria-hidden="true" /> Create a worktree
-                                                </button>
+                                                <Button
+                                                    variant="primary"
+                                                    icon={<GitBranchPlus size={13} strokeWidth={1.8} aria-hidden="true" />}
+                                                    onClick={() => setNewWorktree({ repo: selectedRepo ?? repos[0] })}
+                                                >
+                                                    Create a worktree
+                                                </Button>
                                             }
                                             hint={
                                                 <>
@@ -1177,14 +1194,13 @@ export function App() {
                 </div>
                 {mainView === 'worktree' && selectedPath && (
                     <div className="titlebar-controls right">
-                        <button
-                            className="icon-button panel-toggle"
-                            title={explorerOpen ? 'Hide the right panel (⌘E)' : 'Show the right panel (⌘E)'}
+                        <IconButton
+                            className="panel-toggle"
+                            icon={<PanelRight size={16} strokeWidth={1.5} />}
+                            label={explorerOpen ? 'Hide the right panel (⌘E)' : 'Show the right panel (⌘E)'}
                             aria-pressed={explorerOpen}
                             onClick={toggleExplorer}
-                        >
-                            <PanelRight size={16} strokeWidth={1.5} />
-                        </button>
+                        />
                     </div>
                 )}
                 <StatusBar />

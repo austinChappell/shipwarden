@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { SquareArrowOutUpRight, X } from 'lucide-react';
 import { leafOfTab, type PaneLayout, type PaneNode, type SplitSide } from '@shared/panes';
 import { SplitDivider } from '../components/SplitDivider';
+import { IconButton } from '../components/ui';
 import { nearestSide, type TabKey } from './tabs';
 
 interface Props {
@@ -59,12 +60,13 @@ export function PaneTree(props: Props): ReactNode {
             {split && (
                 <div className="pane-actions">
                     <span className="pane-title">{tabTitle(node.tab)}</span>
-                    <button className="icon-button" title="Move to its own tab" onClick={() => props.onMoveToTab(node.id)}>
-                        <SquareArrowOutUpRight size={13} strokeWidth={1.7} />
-                    </button>
-                    <button className="icon-button" title="Close this pane" onClick={() => props.onClosePane(node.id)}>
-                        <X size={13} strokeWidth={1.8} />
-                    </button>
+                    <IconButton
+                        size="sm"
+                        icon={<SquareArrowOutUpRight size={13} strokeWidth={1.7} />}
+                        label="Move to its own tab"
+                        onClick={() => props.onMoveToTab(node.id)}
+                    />
+                    <IconButton size="sm" icon={<X size={13} strokeWidth={1.8} />} label="Close this pane" onClick={() => props.onClosePane(node.id)} />
                 </div>
             )}
             {draggingTab && !leafOfTab(layout, draggingTab) && (

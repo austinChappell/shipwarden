@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Globe, Plus, SquareTerminal } from 'lucide-react';
 import type { AgentDefinition } from '@shared/settings';
+import { IconButton } from './ui';
 import { useMenuClose } from './use-menu';
 
 interface Props {
@@ -45,15 +46,14 @@ export function NewTabMenu({ agents, defaultAgentId, onStart }: Props) {
 
     return (
         <div className="new-tab" ref={root}>
-            <button
-                className={`icon-button new-tab-button${open ? ' on' : ''}`}
-                title="New tab: an agent, a shell or a browser"
+            <IconButton
+                icon={<Plus size={16} strokeWidth={1.75} />}
+                label="New tab: an agent, a shell or a browser"
+                active={open}
                 aria-haspopup="menu"
                 aria-expanded={open}
                 onClick={() => setOpen(value => !value)}
-            >
-                <Plus size={16} strokeWidth={1.75} />
-            </button>
+            />
             {open && (
                 <div className="new-tab-menu" role="menu" onKeyDown={onMenuKey}>
                     {agents.length === 1 ? (

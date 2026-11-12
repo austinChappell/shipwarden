@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link2, LoaderCircle, Search, X } from 'lucide-react';
+import { Link2, LoaderCircle, X } from 'lucide-react';
 import { pickCollection, taskMatches, type Task, type TaskLink, type TaskSource } from '@shared/tasks';
 import { errorText } from '../util';
-import { Combobox, sortedGroups } from './Combobox';
-import { Select } from './Select';
+import { Button, Combobox, IconButton, SearchInput, Select, sortedGroups } from './ui';
 import { loadTaskList } from './tasks/use-task-list';
 import { collectionsQueryOptions, connectionsQueryOptions } from './tasks/use-task-source';
 import { pickConnection, taskQueryKeys } from './tasks/task-view-logic';
@@ -142,9 +141,7 @@ export function LinkTaskDialog({ worktreeName, current, otherWorktreeOf, onClose
                     <Link2 size={15} strokeWidth={1.8} />
                     <h2>Link "{worktreeName}" to a task</h2>
                     <span className="header-spacer" />
-                    <button className="icon-button" title="Close (Esc)" disabled={busy} onClick={onClose}>
-                        <X size={15} strokeWidth={1.8} />
-                    </button>
+                    <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close" title="Close (Esc)" disabled={busy} onClick={onClose} />
                 </header>
                 <div className="modal-body">
                     {current && (
@@ -178,29 +175,27 @@ export function LinkTaskDialog({ worktreeName, current, otherWorktreeOf, onClose
                             />
                         )}
                     </div>
-                    <label className="combobox-search link-task-search">
-                        <Search size={13} strokeWidth={1.8} />
-                        <input
-                            autoFocus
-                            value={query}
-                            placeholder="Find a task by key, title, label or assignee"
-                            aria-label="Find a task"
-                            disabled={busy}
-                            onChange={event => setQuery(event.target.value)}
-                            onKeyDown={event => {
-                                if (event.key === 'ArrowDown') {
-                                    event.preventDefault();
-                                    setActive(index => Math.min(index + 1, shown.length - 1));
-                                } else if (event.key === 'ArrowUp') {
-                                    event.preventDefault();
-                                    setActive(index => Math.max(index - 1, 0));
-                                } else if (event.key === 'Enter') {
-                                    event.preventDefault();
-                                    choose(shown[active]);
-                                }
-                            }}
-                        />
-                    </label>
+                    <SearchInput
+                        className="link-task-search"
+                        autoFocus
+                        value={query}
+                        placeholder="Find a task by key, title, label, or assignee"
+                        aria-label="Find a task"
+                        disabled={busy}
+                        onChange={setQuery}
+                        onKeyDown={event => {
+                            if (event.key === 'ArrowDown') {
+                                event.preventDefault();
+                                setActive(index => Math.min(index + 1, shown.length - 1));
+                            } else if (event.key === 'ArrowUp') {
+                                event.preventDefault();
+                                setActive(index => Math.max(index - 1, 0));
+                            } else if (event.key === 'Enter') {
+                                event.preventDefault();
+                                choose(shown[active]);
+                            }
+                        }}
+                    />
                     <div ref={list} className="combobox-list link-task-list" role="listbox" aria-label="Tasks">
                         {loading && (
                             <div className="combobox-empty">
@@ -241,16 +236,21 @@ export function LinkTaskDialog({ worktreeName, current, otherWorktreeOf, onClose
                 <footer className="modal-footer">
                     <span className="panel-note">↑↓ select. ↩ links. Esc cancels.</span>
                     {current && (
-                        <button className="button" disabled={busy} onClick={() => void run(onUnlink)}>
+                        <Button disabled={busy} onClick={() => void run(onUnlink)}>
                             Unlink task
-                        </button>
+                        </Button>
                     )}
-                    <button className="button" disabled={busy} onClick={onClose}>
+                    <Button disabled={busy} onClick={onClose}>
                         Cancel
-                    </button>
-                    <button className="button primary" disabled={busy || !shown[active]} onClick={() => choose(shown[active])}>
-                        {busy && <LoaderCircle size={13} className="spin" />} Link task
-                    </button>
+                    </Button>
+                    <Button
+                        variant="primary"
+                        icon={busy ? <LoaderCircle size={13} className="spin" /> : undefined}
+                        disabled={busy || !shown[active]}
+                        onClick={() => choose(shown[active])}
+                    >
+                        Link task
+                    </Button>
                 </footer>
             </div>
         </div>

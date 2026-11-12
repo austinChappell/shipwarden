@@ -5,6 +5,7 @@ import { openLink } from '../links';
 import { errorText } from '../util';
 import { useStopPortProcess } from '../worktree-ports-query';
 import { moveMenuFocus, useMenuClose } from './use-menu';
+import { IconButton } from './ui';
 
 interface Props {
     worktreePath: string;
@@ -133,16 +134,17 @@ export function WorktreePorts({ worktreePath, ports }: Props) {
                                 <span className="port-menu-name">{item.name}</span>
                                 <ExternalLink size={11} strokeWidth={1.8} />
                             </button>
-                            <button
-                                className="icon-button port-menu-stop"
+                            <IconButton
+                                size="sm"
+                                tone="danger"
+                                className="port-menu-stop"
                                 role="menuitem"
+                                icon={stopping.has(item.pid) ? <LoaderCircle size={12} className="spin" /> : <CircleStop size={13} strokeWidth={1.7} />}
+                                label={`Stop ${item.name}, which listens on :${item.port}`}
                                 title={`Stop ${item.name} (PID ${item.pid}), which listens on :${item.port}`}
-                                aria-label={`Stop ${item.name}, which listens on :${item.port}`}
                                 disabled={stopping.has(item.pid)}
                                 onClick={() => void stop([item.pid])}
-                            >
-                                {stopping.has(item.pid) ? <LoaderCircle size={12} className="spin" /> : <CircleStop size={13} strokeWidth={1.7} />}
-                            </button>
+                            />
                         </div>
                     ))}
                     {error && <div className="port-menu-error">The stop failed: {error}</div>}

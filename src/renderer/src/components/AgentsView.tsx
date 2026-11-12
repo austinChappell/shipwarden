@@ -28,6 +28,7 @@ import { runsAgent, type TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
 import { moveListFocus } from '../keyboard/list-nav';
 import { InlineTip } from './Tips';
+import { Button } from './ui';
 
 const api = window.shipwarden;
 
@@ -218,9 +219,9 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                         icon={Bot}
                         title="No agents run now"
                         actions={
-                            <button className="button primary" onClick={onStartAgent}>
-                                <Play size={13} strokeWidth={1.8} aria-hidden="true" /> Start an agent in a worktree
-                            </button>
+                            <Button variant="primary" icon={<Play size={13} strokeWidth={1.8} aria-hidden="true" />} onClick={onStartAgent}>
+                                Start an agent in a worktree
+                            </Button>
                         }
                         hint="You can also start an agent from a task with “Start in worktree”."
                     >

@@ -7,6 +7,7 @@ import { keyRoots } from '../query-client';
 import { errorText, optionalErrorText } from '../util';
 import { applyMetaChanges, metaChangeKey, type MetaChange } from './pr-meta-changes';
 import { MentionTextarea } from './MentionTextarea';
+import { Button, Card, IconButton, Input } from './ui';
 
 /**
  * The users and the labels that the user can add to the pull requests of a repository. The list loads when the user
@@ -109,6 +110,15 @@ function MultiPicker({
         }
     };
 
+    const toggleOpen = () => {
+        if (!open) {
+            setQuery('');
+            setActive(0);
+            onOpen();
+        }
+        setOpen(!open);
+    };
+
     return (
         <div
             className="tag-picker"
@@ -118,34 +128,31 @@ function MultiPicker({
                 if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
             }}
         >
-            <button
-                ref={trigger}
-                className={textTrigger ? `link-button pr-meta-add${open ? ' on' : ''}` : `icon-button pr-meta-edit${open ? ' on' : ''}`}
-                title={title}
-                aria-haspopup="listbox"
-                aria-expanded={open}
-                onClick={() => {
-                    if (!open) {
-                        setQuery('');
-                        setActive(0);
-                        onOpen();
-                    }
-                    setOpen(!open);
-                }}
-            >
-                {textTrigger ? (
-                    selected.size > 0 ? (
-                        'Edit'
-                    ) : (
-                        <>
-                            <Plus size={12} strokeWidth={2} />
-                            Add
-                        </>
-                    )
-                ) : (
-                    <Settings2 size={13} strokeWidth={1.7} />
-                )}
-            </button>
+            {textTrigger ? (
+                <Button
+                    ref={trigger}
+                    variant="link"
+                    active={open}
+                    icon={selected.size > 0 ? undefined : <Plus size={12} strokeWidth={2} />}
+                    title={title}
+                    aria-haspopup="listbox"
+                    aria-expanded={open}
+                    onClick={toggleOpen}
+                >
+                    {selected.size > 0 ? 'Edit' : 'Add'}
+                </Button>
+            ) : (
+                <IconButton
+                    ref={trigger}
+                    size="sm"
+                    active={open}
+                    icon={<Settings2 size={13} strokeWidth={1.7} />}
+                    label={title}
+                    aria-haspopup="listbox"
+                    aria-expanded={open}
+                    onClick={toggleOpen}
+                />
+            )}
             {open && (
                 <div className="combobox-popover tag-picker-popover align-right">
                     <label className="combobox-search">
@@ -355,8 +362,8 @@ export function PullRequestMeta({
             labelled
         ).map(option => ({ ...option, color: option.color ?? shown.labels.find(label => label.name === option.value)?.color }));
 
-    return (
-        <section className={card ? 'side-card pr-meta-card' : 'pr-section pr-meta-section'}>
+    const rows = (
+        <>
             {error && <div className="form-error">{error}</div>}
             {card && (
                 <div className="pr-meta-row card-row">
@@ -467,7 +474,14 @@ export function PullRequestMeta({
                     </Chip>
                 ))}
             </MetaRow>
-        </section>
+        </>
+    );
+    return card ? (
+        <Card as="section" className="pr-meta-card">
+            {rows}
+        </Card>
+    ) : (
+        <section className="pr-section pr-meta-section">{rows}</section>
     );
 }
 
@@ -497,15 +511,19 @@ export function DescriptionEditor({
                 if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) save();
             }}
         >
-            <input className="pr-title-input" value={title} placeholder="Title" onChange={event => setTitle(event.target.value)} />
-            <MentionTextarea autoFocus className="review-body pr-body-input" value={body} placeholder="Description (Markdown)" onValueChange={setBody} />
+            <Input value={title} placeholder="Title" onChange={event => setTitle(event.target.value)} />
+            <MentionTextarea
+                autoFocus
+                className="input textarea mono pr-body-input"
+                value={body}
+                placeholder="Description (Markdown)"
+                onValueChange={setBody}
+            />
             <div className="row-buttons">
-                <button className="button" onClick={onCancel}>
-                    Cancel
-                </button>
-                <button className="button primary" disabled={busy || !title.trim() || !changed} onClick={save}>
+                <Button onClick={onCancel}>Cancel</Button>
+                <Button variant="primary" disabled={busy || !title.trim() || !changed} onClick={save}>
                     Save
-                </button>
+                </Button>
             </div>
         </div>
     );
@@ -514,15 +532,15 @@ export function DescriptionEditor({
 /** The button that opens the description editor. */
 export function EditDescriptionButton({ onClick }: { onClick(): void }) {
     return (
-        <button
-            className="icon-button pr-meta-edit"
-            title="Edit the title and the description"
+        <IconButton
+            size="sm"
+            className="pr-meta-edit"
+            icon={<Pencil size={12} strokeWidth={1.7} />}
+            label="Edit the title and the description"
             onClick={event => {
                 event.stopPropagation();
                 onClick();
             }}
-        >
-            <Pencil size={12} strokeWidth={1.7} />
-        </button>
+        />
     );
 }

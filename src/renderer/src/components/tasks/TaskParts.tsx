@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import type { Task, TaskPerson, TaskStatus } from '@shared/tasks';
+import { IconButton } from '../ui';
 import { personInitials } from './task-view-logic';
 
 export function StatusDot({ status }: { status: TaskStatus }) {
@@ -23,16 +24,16 @@ export function TaskLabels({ labels, limit }: { labels: Task['labels']; limit?: 
 /** The worktree button of a task card or row. It opens the worktree, not the task. */
 export function WorktreeButton({ worktree, onOpenWorktree }: { worktree: string; onOpenWorktree(path: string): void }) {
     return (
-        <button
-            className="icon-button task-linked"
-            title="Open the worktree of this task"
+        <IconButton
+            size="sm"
+            className="task-linked"
+            icon={<GitBranch size={13} strokeWidth={1.6} />}
+            label="Open the worktree of this task"
             onClick={event => {
                 event.stopPropagation();
                 onOpenWorktree(worktree);
             }}
-        >
-            <GitBranch size={13} strokeWidth={1.6} />
-        </button>
+        />
     );
 }
 

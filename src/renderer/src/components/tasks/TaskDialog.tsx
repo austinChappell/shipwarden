@@ -1,5 +1,6 @@
 import type { ReactNode, RefObject } from 'react';
 import { X } from 'lucide-react';
+import { IconButton } from '../ui';
 import { useModal } from '../use-modal';
 
 interface Props {
@@ -32,9 +33,7 @@ export function TaskDialog({ dialogRef, label, canClose, onClose, children }: Pr
                     }
                 }}
             >
-                <button className="icon-button task-dialog-close" title="Close (Esc)" onClick={onClose}>
-                    <X size={16} strokeWidth={1.75} />
-                </button>
+                <IconButton className="task-dialog-close" icon={<X size={16} strokeWidth={1.75} />} label="Close" title="Close (Esc)" onClick={onClose} />
                 {children}
             </div>
         </div>

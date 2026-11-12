@@ -48,6 +48,7 @@ import { HelmLoader } from './HelmLoader';
 import { confirmDialog } from './ConfirmDialog';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { InlineTip } from './Tips';
+import { Button, Card, CardHeader, IconButton, Input } from './ui';
 
 export type ReviewTabRequest = 'overview' | 'checks' | 'files';
 
@@ -147,17 +148,16 @@ function PrCard({
     children: ReactNode;
 }) {
     return (
-        <section id={id} className="dash-card dash-pr-card">
-            <header className="dash-card-head">
-                <span className={`dash-dot ${tone}`} />
-                <h3>{title}</h3>
-                <span className="dash-card-count">{count}</span>
-                {hint && <span className="dash-hint">{hint}</span>}
-                <span className="header-spacer" />
-                {actions}
-            </header>
-            {children}
-        </section>
+        <Card as="section" id={id} className="dash-pr-card">
+            <CardHeader
+                icon={<span className={`dash-dot ${tone}`} />}
+                title={title}
+                count={count}
+                meta={hint && <span className="dash-hint">{hint}</span>}
+                actions={actions}
+            />
+            <div className="dash-card-rows">{children}</div>
+        </Card>
     );
 }
 
@@ -246,17 +246,17 @@ function ReviewRow({ pr, indented, showAuthor, onOpen }: { pr: ReviewRequestItem
             <RepoPill repo={pr.repo} number={pr.number} />
             <Age iso={pr.createdAt} title={`Opened ${timeAgo(pr.createdAt)}`} />
             {activity && (
-                <button
-                    className="icon-button dash-review-seen"
+                <IconButton
+                    size="sm"
+                    className="dash-review-seen"
+                    icon={<Check size={14} strokeWidth={2} />}
+                    label={`Mark ${pr.repo.name} #${pr.number} as seen`}
                     title={`${activityText(pr)}. Mark as seen: the pull request shows again after a new commit or comment.`}
-                    aria-label={`Mark ${pr.repo.name} #${pr.number} as seen`}
                     onClick={event => {
                         event.stopPropagation();
                         seenStore.mark([activity.seenKey]);
                     }}
-                >
-                    <Check size={14} strokeWidth={2} />
-                </button>
+                />
             )}
         </div>
     );
@@ -323,19 +323,19 @@ function CommentRow({
                     {shortAge(createdAt)}
                 </span>
                 <span className="dash-actions">
-                    <button
-                        className="icon-button dash-hide"
-                        title="Hide comments like this one with a rule"
+                    <IconButton
+                        size="sm"
+                        icon={<Filter size={14} strokeWidth={1.7} />}
+                        label="Hide comments like this one with a rule"
                         onClick={event => {
                             event.stopPropagation();
                             onCreateRule(author, preview);
                         }}
-                    >
-                        <Filter size={13} strokeWidth={1.7} />
-                    </button>
-                    <button
-                        className="icon-button dash-hide"
-                        title={`Hide all comments from ${author}, for example an automation account`}
+                    />
+                    <IconButton
+                        size="sm"
+                        icon={<EyeOff size={14} strokeWidth={1.7} />}
+                        label={`Hide all comments from ${author}, for example an automation account`}
                         onClick={event => {
                             event.stopPropagation();
                             void confirmDialog({
@@ -344,31 +344,27 @@ function CommentRow({
                                 confirmLabel: 'Hide comments'
                             }).then(ok => ok && onHideAuthor(author));
                         }}
-                    >
-                        <EyeOff size={13} strokeWidth={1.7} />
-                    </button>
-                    <button
-                        className="icon-button"
-                        title={openTitle}
+                    />
+                    <IconButton
+                        size="sm"
+                        icon={<ExternalLink size={14} strokeWidth={1.7} />}
+                        label={openTitle}
                         onClick={event => {
                             event.stopPropagation();
                             seenStore.mark([seenKey]);
                             onOpen(event);
                         }}
-                    >
-                        <ExternalLink size={13} strokeWidth={1.7} />
-                    </button>
+                    />
                     {!seen && (
-                        <button
-                            className="icon-button"
-                            title="Mark as seen"
+                        <IconButton
+                            size="sm"
+                            icon={<Check size={14} strokeWidth={2} />}
+                            label="Mark as seen"
                             onClick={event => {
                                 event.stopPropagation();
                                 seenStore.mark([seenKey]);
                             }}
-                        >
-                            <Check size={14} strokeWidth={2} />
-                        </button>
+                        />
                     )}
                 </span>
             </div>
@@ -562,35 +558,34 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                 </div>
                 <div className="tasks-header-group how">
                     <span className="header-spacer" />
-                    <label className="tasks-search dash-filter">
-                        <Search size={14} strokeWidth={1.6} />
-                        <input
-                            ref={filterInput}
-                            value={query}
-                            placeholder="Filter by title, ticket, repo…"
-                            aria-label="Filter the Dashboard"
-                            spellCheck={false}
-                            onChange={event => setQuery(event.target.value)}
-                            onKeyDown={event => {
-                                if (event.key === 'Escape') {
-                                    setQuery('');
-                                    event.currentTarget.blur();
-                                }
-                            }}
-                        />
-                        {!query && <kbd className="dash-kbd">/</kbd>}
-                    </label>
+                    <Input
+                        ref={filterInput}
+                        className="dash-filter"
+                        icon={<Search size={13} strokeWidth={1.8} />}
+                        suffix={query ? undefined : <kbd className="field-key">/</kbd>}
+                        value={query}
+                        placeholder="Filter by title, ticket, repo…"
+                        aria-label="Filter the Dashboard"
+                        spellCheck={false}
+                        onChange={event => setQuery(event.target.value)}
+                        onKeyDown={event => {
+                            if (event.key === 'Escape') {
+                                setQuery('');
+                                event.currentTarget.blur();
+                            }
+                        }}
+                    />
                     {hiddenCount > 0 && (
-                        <button className="button dash-header-button" title="Show the hidden authors and rules" onClick={onOpenSettings}>
+                        <Button title="Show the hidden authors and rules" onClick={onOpenSettings}>
                             {hiddenCount} hiding rule{hiddenCount === 1 ? '' : 's'}
-                        </button>
+                        </Button>
                     )}
-                    <button className="icon-button" title="Dashboard settings" onClick={onOpenSettings}>
-                        <Settings2 size={15} strokeWidth={1.6} />
-                    </button>
-                    <button className="icon-button" title="Refresh" onClick={() => void refreshDashboard()}>
-                        <RefreshCw size={15} strokeWidth={1.6} className={state.loading ? 'spin' : ''} />
-                    </button>
+                    <IconButton icon={<Settings2 size={14} strokeWidth={1.6} />} label="Dashboard settings" onClick={onOpenSettings} />
+                    <IconButton
+                        icon={<RefreshCw size={14} strokeWidth={1.6} className={state.loading ? 'spin' : ''} />}
+                        label="Refresh"
+                        onClick={() => void refreshDashboard()}
+                    />
                 </div>
             </header>
 
@@ -610,9 +605,9 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                 title="Connect GitHub or Azure DevOps"
                                 size="compact"
                                 actions={
-                                    <button className="button primary" onClick={onOpenReviewSettings}>
+                                    <Button variant="primary" onClick={onOpenReviewSettings}>
                                         Open Settings › Code review
-                                    </button>
+                                    </Button>
                                 }
                                 hint={
                                     <>
@@ -672,16 +667,20 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                         <div className="dash-column">
                             <h2 className="dash-heading">Your pull requests · {query ? `${shownYourCount} of ${yourCount}` : yourCount}</h2>
                             {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
-                            {!pullRequests && !state.pullRequestsError && <div className="dash-card dash-line">Loading…</div>}
+                            {!pullRequests && !state.pullRequestsError && (
+                                <Card>
+                                    <div className="dash-line">Loading…</div>
+                                </Card>
+                            )}
                             {loaded && yourCount === 0 && (
-                                <div className="dash-card">
+                                <Card>
                                     <Empty text="None of your pull requests needs an action." />
-                                </div>
+                                </Card>
                             )}
                             {loaded && yourCount > 0 && shownYourCount === 0 && (
-                                <div className="dash-card">
+                                <Card>
                                     <Empty text="No pull requests match the filter." />
-                                </div>
+                                </Card>
                             )}
 
                             {buckets.ready.length > 0 && (
@@ -693,9 +692,9 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                     hint="Approved, CI green, no conflicts"
                                     actions={
                                         buckets.ready.length > 1 && (
-                                            <button className="button dash-merge" disabled={merging} onClick={() => void merge(buckets.ready)}>
+                                            <Button variant="merge" size="sm" disabled={merging} onClick={() => void merge(buckets.ready)}>
                                                 {buckets.ready.length === 2 ? 'Merge both' : `Merge all ${buckets.ready.length}`}
-                                            </button>
+                                            </Button>
                                         )
                                     }
                                 >
@@ -706,8 +705,10 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                             pr={pr}
                                             onOpen={() => openMine(pr)}
                                             action={
-                                                <button
-                                                    className="button dash-merge dash-row-action"
+                                                <Button
+                                                    variant="merge"
+                                                    size="sm"
+                                                    className="dash-row-action"
                                                     disabled={merging || !pr.headSha}
                                                     title={pr.mergeMethod ? MERGE_LABELS[pr.mergeMethod] : undefined}
                                                     onClick={event => {
@@ -716,7 +717,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                                     }}
                                                 >
                                                     Merge
-                                                </button>
+                                                </Button>
                                             }
                                         />
                                     ))}
@@ -743,15 +744,16 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                                 </>
                                             }
                                             action={
-                                                <button
-                                                    className="button dash-row-action"
+                                                <Button
+                                                    size="sm"
+                                                    className="dash-row-action"
                                                     onClick={event => {
                                                         event.stopPropagation();
                                                         onOpenPullRequest(pr.repo, pr.number, 'overview');
                                                     }}
                                                 >
                                                     Open
-                                                </button>
+                                                </Button>
                                             }
                                         />
                                     ))}
@@ -773,22 +775,28 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                             )}
 
                             {buckets.stale.length > 0 && (
-                                <section id="dash-stale" className={`dash-card dash-pr-card dash-stale${staleOpen ? ' open' : ''}`}>
-                                    <button className="dash-card-head dash-stale-head" aria-expanded={staleOpen} onClick={() => setStaleOpen(open => !open)}>
-                                        <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${staleOpen ? ' open' : ''}`} />
-                                        <h3>Stale · {DASHBOARD_STALE_DAYS}+ days</h3>
-                                        <span className="dash-card-count">{buckets.stale.length}</span>
-                                        {oldestStale && <span className="dash-hint">Oldest {shortAge(oldestStale.updatedAt)}.</span>}
-                                    </button>
+                                <Card as="section" id="dash-stale" className={`dash-pr-card dash-stale${staleOpen ? ' open' : ''}`}>
+                                    <div className="card-header">
+                                        <button className="dash-stale-toggle" aria-expanded={staleOpen} onClick={() => setStaleOpen(open => !open)}>
+                                            <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${staleOpen ? ' open' : ''}`} />
+                                            <h3 className="card-title">Stale · {DASHBOARD_STALE_DAYS}+ days</h3>
+                                            <span className="card-count">{buckets.stale.length}</span>
+                                            {oldestStale && <span className="dash-hint">Oldest {shortAge(oldestStale.updatedAt)}.</span>}
+                                        </button>
+                                    </div>
                                     {staleOpen ? (
-                                        buckets.stale.map(pr => <PrRow key={pr.url} pr={pr} onOpen={() => openMine(pr)} badges={<ProblemBadges pr={pr} />} />)
+                                        <div className="dash-card-rows">
+                                            {buckets.stale.map(pr => (
+                                                <PrRow key={pr.url} pr={pr} onOpen={() => openMine(pr)} badges={<ProblemBadges pr={pr} />} />
+                                            ))}
+                                        </div>
                                     ) : (
                                         <div className="dash-stale-preview">
                                             {stalePreview.join(' · ')}
                                             {buckets.stale.length > stalePreview.length && ` · +${buckets.stale.length - stalePreview.length} more`}
                                         </div>
                                     )}
-                                </section>
+                                </Card>
                             )}
                         </div>
 
@@ -796,7 +804,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                             <h2 className="dash-heading">
                                 Waiting on your review · {query ? `${shownReviews.length} of ${reviewRequests.length}` : reviewRequests.length}
                             </h2>
-                            <section id="dash-review" className="dash-card dash-review-card">
+                            <Card as="section" id="dash-review" className="dash-review-card">
                                 <div className="dash-chips" role="group" aria-label="Sort the review requests">
                                     {(Object.keys(REVIEW_SORT_LABELS) as ReviewSort[]).map(sort => (
                                         <button
@@ -809,42 +817,48 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                         </button>
                                     ))}
                                 </div>
-                                {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
-                                {!pullRequests && !state.pullRequestsError && <div className="panel-note">Loading…</div>}
-                                {loaded && reviewRequests.length === 0 && <Empty text="No pull requests wait for your review." />}
-                                {loaded && reviewRequests.length > 0 && shownReviews.length === 0 && <Empty text="No review requests match the filter." />}
-                                {reviewGroups.map(group => (
-                                    <div key={group.key || 'all'} className="dash-review-group">
-                                        {group.key && (
-                                            <div className="dash-review-group-head">
-                                                {reviewSort === 'author' && <span className="dash-avatar">{group.key.charAt(0).toUpperCase()}</span>}
-                                                <strong>{group.key}</strong>
-                                                <span className="dash-card-count">{group.items.length}</span>
-                                            </div>
-                                        )}
-                                        {group.items.map(pr => (
-                                            <ReviewRow
-                                                key={pr.url}
-                                                pr={pr}
-                                                indented={!!group.key}
-                                                showAuthor={reviewSort !== 'author'}
-                                                onOpen={() => onOpenPullRequest(pr.repo, pr.number, 'files')}
-                                            />
-                                        ))}
-                                    </div>
-                                ))}
-                            </section>
+                                <div className="dash-card-rows">
+                                    {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
+                                    {!pullRequests && !state.pullRequestsError && <div className="panel-note">Loading…</div>}
+                                    {loaded && reviewRequests.length === 0 && <Empty text="No pull requests wait for your review." />}
+                                    {loaded && reviewRequests.length > 0 && shownReviews.length === 0 && <Empty text="No review requests match the filter." />}
+                                    {reviewGroups.map(group => (
+                                        <div key={group.key || 'all'} className="dash-review-group">
+                                            {group.key && (
+                                                <div className="dash-review-group-head">
+                                                    {reviewSort === 'author' && <span className="dash-avatar">{group.key.charAt(0).toUpperCase()}</span>}
+                                                    <strong>{group.key}</strong>
+                                                    <span className="dash-card-count">{group.items.length}</span>
+                                                </div>
+                                            )}
+                                            {group.items.map(pr => (
+                                                <ReviewRow
+                                                    key={pr.url}
+                                                    pr={pr}
+                                                    indented={!!group.key}
+                                                    showAuthor={reviewSort !== 'author'}
+                                                    onOpen={() => onOpenPullRequest(pr.repo, pr.number, 'files')}
+                                                />
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            </Card>
 
                             {!commentsLoaded && !state.prCommentsError && (
-                                <div className="dash-card dash-line">Loading comments… The first load can take a few seconds.</div>
+                                <Card>
+                                    <div className="dash-line">Loading comments… The first load can take a few seconds.</div>
+                                </Card>
                             )}
                             {noComments && (
-                                <div className="dash-card dash-line">
-                                    <CircleCheck size={15} strokeWidth={1.8} className="dash-ok" />
-                                    {query
-                                        ? 'No new comments match the filter.'
-                                        : `No new ${state.tasks.length ? 'PR or task comments' : 'PR comments'} in the last ${DASHBOARD_WINDOW_DAYS} days.`}
-                                </div>
+                                <Card>
+                                    <div className="dash-line">
+                                        <CircleCheck size={15} strokeWidth={1.8} className="dash-ok" />
+                                        {query
+                                            ? 'No new comments match the filter.'
+                                            : `No new ${state.tasks.length ? 'PR or task comments' : 'PR comments'} in the last ${DASHBOARD_WINDOW_DAYS} days.`}
+                                    </div>
+                                </Card>
                             )}
 
                             {(state.prCommentsError || shownPrComments.length > 0) && (
@@ -936,19 +950,20 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
 /** A card of new comments, with a count of the comments that the user did not see. */
 function CommentSection({ title, count, onMarkAll, children }: { title: string; count: number; onMarkAll(): void; children: ReactNode }) {
     return (
-        <section className="dash-card dash-comment-card">
-            <header className="dash-card-head">
-                <MessageSquare size={14} strokeWidth={1.7} />
-                <h3>{title}</h3>
-                <span className="dash-card-count">{count}</span>
-                <span className="header-spacer" />
-                {count > 0 && (
-                    <button className="link-button" onClick={onMarkAll}>
-                        <CheckCheck size={13} strokeWidth={1.8} /> Mark all as seen
-                    </button>
-                )}
-            </header>
-            {children}
-        </section>
+        <Card as="section" className="dash-comment-card">
+            <CardHeader
+                icon={<MessageSquare size={14} strokeWidth={1.7} />}
+                title={title}
+                count={count}
+                actions={
+                    count > 0 && (
+                        <Button variant="ghost" size="sm" icon={<CheckCheck size={14} strokeWidth={1.8} />} onClick={onMarkAll}>
+                            Mark all as seen
+                        </Button>
+                    )
+                }
+            />
+            <div className="dash-card-rows">{children}</div>
+        </Card>
     );
 }
