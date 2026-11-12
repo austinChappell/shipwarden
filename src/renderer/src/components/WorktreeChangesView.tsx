@@ -11,6 +11,7 @@ import { confirmDiscard } from './ChangesPanel';
 import { FindBar, findLineElement, readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './PullRequestFilesStream';
 import { radioGroupKeys } from './keyboard';
 import { isFindShortcut, openLogFind } from './log-find';
+import { findRequest as makeFindRequest, useCopySelection, type FindRequest } from './selected-text';
 import { pluralize } from '@shared/format';
 import { EmptyState } from './EmptyState';
 import { Button, ButtonGroup, Count, IconButton, SkeletonRows } from './ui';
@@ -136,7 +137,9 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
     const [actionError, setActionError] = useState<string>();
 
     const [findOpen, setFindOpen] = useState(false);
-    const [findRequest, setFindRequest] = useState(0);
+    const [findRequest, setFindRequest] = useState<FindRequest>({ at: 0 });
+    const rootRef = useRef<HTMLDivElement>(null);
+    useCopySelection(rootRef);
     const [query, setQuery] = useState('');
     const [caseSensitive, setCaseSensitive] = useState(false);
     const [matchIndex, setMatchIndex] = useState(0);
@@ -163,20 +166,28 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
         };
     }, [worktree]);
 
+    /** Opens the search bar and focuses its field. The text of the request replaces the search text. */
+    const openFind = useCallback((request: FindRequest) => {
+        setFindOpen(true);
+        setFindRequest(request);
+        if (request.text) setQuery(request.text);
+    }, []);
+
     // ⌘F opens the search bar when this tab has the focus and no CI log owns ⌘F. The capture phase gets the key before the diff can stop it.
+    // The selected text of the changes goes into the search field.
     useEffect(() => {
         if (!focused) return;
         const onKey = (event: KeyboardEvent) => {
             if (isFindShortcut(event) && !openLogFind(event)) {
                 event.preventDefault();
                 event.stopPropagation();
-                setFindOpen(true);
-                setFindRequest(Date.now());
+                // Read the selection before the search field gets the focus.
+                openFind(makeFindRequest(rootRef.current));
             }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [focused]);
+    }, [focused, openFind]);
 
     const entries = useMemo((): Entry[] => {
         if (!changes) return [];
@@ -289,14 +300,14 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
     const fileCount = new Set(entries.map(entry => entry.change.path)).size;
 
     return (
-        <div className="editor worktree-changes">
+        <div ref={rootRef} className="editor worktree-changes">
             {findOpen && (
                 <FindBar
                     query={query}
                     caseSensitive={caseSensitive}
                     count={matches.length}
                     index={currentIndex}
-                    focusNonce={findRequest}
+                    focusNonce={findRequest.at}
                     onQuery={setQuery}
                     onCaseSensitive={setCaseSensitive}
                     onMove={moveMatch}
@@ -328,10 +339,7 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
                     size="sm"
                     icon={<Search size={14} strokeWidth={1.6} />}
                     label="Find in the changes (⌘F)"
-                    onClick={() => {
-                        setFindOpen(true);
-                        setFindRequest(Date.now());
-                    }}
+                    onClick={() => openFind(makeFindRequest(rootRef.current))}
                 />
                 <IconButton size="sm" icon={<RefreshCw size={14} strokeWidth={1.6} />} label="Load again" onClick={reloadAll} />
             </div>
