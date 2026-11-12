@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ShipWarden page headers</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0F17}
+a{color:#7DB2F5}a:hover{color:#A9CBF8}
+.eb{margin:0;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#7A8599}
+.row{display:flex;flex-direction:column;gap:8px}
+.lab{display:flex;gap:16px;align-items:baseline}
+.chg{font-size:12px;color:#9AA4B5}
+.hb{height:52px;box-sizing:border-box;display:flex;align-items:center;gap:12px;padding:0 12px 0 20px;background:#0B0F17;border:1px solid #222B3A;border-radius:10px}
+.ti{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.ti svg{color:#9AA4B5}
+.t{font-size:15px;font-weight:600;color:#E6EAF2}
+.meta{font-size:12px;font-weight:500;color:#7A8599}
+.sp{flex:1}
+.btn{height:32px;padding:0 12px;border-radius:6px;font-family:inherit;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;white-space:nowrap;cursor:pointer}
+.p{background:#5B9DF0;color:#0A1324;font-weight:600}
+.s{background:#161D2B;border-color:#2E3A4D;color:#E6EAF2}
+.sel{background:transparent;border-color:#222B3A;color:#E6EAF2}
+.sel svg{color:#7A8599}
+.ic{width:32px;padding:0;justify-content:center;background:transparent;color:#9AA4B5}
+.cnt{height:18px;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:999px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+.f{display:flex;align-items:center;gap:8px;width:240px;height:32px;box-sizing:border-box;padding:0 6px 0 10px;background:#111723;border:1px solid #2E3A4D;border-radius:6px;color:#7A8599;font-size:13px}
+.f input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#E6EAF2;font-family:inherit;font-size:13px}
+.f kbd{font-family:'JetBrains Mono',monospace;font-size:11px;color:#9AA4B5;border:1px solid #2E3A4D;border-radius:4px;padding:0 5px}
+.seg{display:inline-flex;background:#0E131C;border:1px solid #222B3A;border-radius:8px;padding:2px;gap:2px}
+.seg button{height:26px;padding:0 12px;border:0;border-radius:6px;background:transparent;color:#9AA4B5;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer}
+.seg .on{background:#1F2735;color:#E6EAF2}
+.zone{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#9AA4B5}
+.zone b{height:40px;border-radius:6px;border:1px dashed #3A4A63;background:rgba(91,157,240,.06);display:flex;align-items:center;justify-content:center;font-weight:500;color:#9CC4F7;font-size:12px}
+</style>
+</helmet>
+<div style="width: 1440px; min-height: 1560px; box-sizing: border-box; padding: 72px 80px; background: #0B0F17; color: #E6EAF2; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 32px">
+
+  <header style="display: flex; flex-direction: column; gap: 10px; max-width: 900px">
+    <p class="eb" style="color: #7DB2F5">Fix 01, 02, 10</p>
+    <h1 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: -0.01em">One page header, every page</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #9AA4B5">Same five zones in the same order. A zone can be empty; it never moves. The note above each bar says what changes from today.</p>
+  </header>
+
+  <div style="display: grid; grid-template-columns: 220px 300px minmax(0, 1fr) 240px 120px 140px; gap: 12px">
+    <div class="zone"><b>Icon · Title · meta</b>Always present. Meta = count or freshness.</div>
+    <div class="zone"><b>Scope</b>What the page shows: source, repo, segmented.</div>
+    <div class="zone"><b>spacer</b></div>
+    <div class="zone"><b>Filter</b>240px, “Filter …”, with / hint.</div>
+    <div class="zone"><b>Icon actions</b>Refresh last.</div>
+    <div class="zone"><b>Primary</b>Zero or one.</div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 20px">
+
+    <div class="row">
+      <div class="lab"><span class="eb">Dashboard</span><span class="chg">Sort pills move to segmented in the body · filter gets its “Filter pull requests” label · hiding rules stays as secondary</span></div>
+      <div class="hb">
+        <div class="ti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg><span class="t">Dashboard</span><span class="meta">Updated 1m ago</span></div>
+        <div class="sp"></div>
+        <label class="f"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><input type="text" placeholder="Filter pull requests" aria-label="Filter pull requests"><kbd>/</kbd></label>
+        <button type="button" class="btn s">2 hiding rules</button>
+        <button type="button" class="btn ic" aria-label="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-15.7-6L3 8M3 3v5h5M3 12a9 9 0 0 0 15.7 6L21 16M16 16h5v5"></path></svg></button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="lab"><span class="eb">Agents</span><span class="chg">Gains its icon · plan usage removed (the footer shows it) · Start agent becomes the primary, so the empty state's button is the same action</span></div>
+      <div class="hb">
+        <div class="ti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2M20 14h2M15 13v2M9 13v2"></path></svg><span class="t">Agents</span><span class="meta">0 running</span></div>
+        <div class="sp"></div>
+        <button type="button" class="btn p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>Start agent</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="lab"><span class="eb">Tasks</span><span class="chg">Gains a title · source and list are scope · status, assignee, labels and view toggle stay in scope · search becomes “Filter tasks” on the right · settings gear joins the icon group</span></div>
+      <div class="hb">
+        <div class="ti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="6" height="6" rx="1"></rect><path d="m3 17 2 2 4-4M13 6h8M13 12h8M13 18h8"></path></svg><span class="t">Tasks</span><span class="meta">Updated 2m ago</span></div>
+        <button type="button" class="btn sel">ClickUp<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <button type="button" class="btn sel"><span style="color: #7A8599">Projects /</span> The Repair Shop<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <button type="button" class="btn sel">Open<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <button type="button" class="btn sel">Me<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <div class="seg" role="group" aria-label="View"><button type="button" class="on" aria-label="Board"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 5v11M12 5v6M18 5v14"></path></svg></button><button type="button" aria-label="List"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path></svg></button></div>
+        <div class="sp"></div>
+        <label class="f"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><input type="text" placeholder="Filter tasks" aria-label="Filter tasks"><kbd>/</kbd></label>
+        <button type="button" class="btn ic" aria-label="Open in ClickUp"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></button>
+        <button type="button" class="btn ic" aria-label="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-15.7-6L3 8M3 3v5h5M3 12a9 9 0 0 0 15.7 6L21 16M16 16h5v5"></path></svg></button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="lab"><span class="eb">Review</span><span class="chg">Gains a title · the body headline “1 pull request waiting on you” becomes meta · filter moves right · refresh sits left of the primary · queue count uses the count badge</span></div>
+      <div class="hb">
+        <div class="ti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7M6 9v12"></path></svg><span class="t">Review</span><span class="meta">1 waiting on you · 24 of yours need action</span></div>
+        <div class="seg" role="group" aria-label="Repositories"><button type="button" class="on">In projects</button><button type="button">All</button></div>
+        <div class="sp"></div>
+        <label class="f"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><input type="text" placeholder="Filter repositories" aria-label="Filter repositories"><kbd>/</kbd></label>
+        <button type="button" class="btn ic" aria-label="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-15.7-6L3 8M3 3v5h5M3 12a9 9 0 0 0 15.7 6L21 16M16 16h5v5"></path></svg></button>
+        <button type="button" class="btn p">Start review queue<span class="cnt" style="background: rgba(10,19,36,.22); color: #0A1324">1</span></button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="lab"><span class="eb">Pipelines</span><span class="chg">Gains a title · repo picker becomes scope · open-on-GitHub and refresh stay as icons</span></div>
+      <div class="hb">
+        <div class="ti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="8" x="3" y="3" rx="2"></rect><path d="M7 11v4a2 2 0 0 0 2 2h4"></path><rect width="8" height="8" x="13" y="13" rx="2"></rect></svg><span class="t">Pipelines</span><span class="meta">Updated just now</span></div>
+        <button type="button" class="btn sel"><span style="color: #7A8599">presto-assistant /</span> web_app<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <div class="sp"></div>
+        <button type="button" class="btn ic" aria-label="Open on GitHub"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></button>
+        <button type="button" class="btn ic" aria-label="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-15.7-6L3 8M3 3v5h5M3 12a9 9 0 0 0 15.7 6L21 16M16 16h5v5"></path></svg></button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="lab"><span class="eb">Notes</span><span class="chg">Search moves from beside the title to the filter slot, untruncated · reveal-folder becomes an icon action</span></div>
+      <div class="hb">
+        <div class="ti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4M2 6h4M2 10h4M2 14h4M2 18h4M18.4 2.6a2.1 2.1 0 1 1 3 3L16 11l-4 1 1-4Z"></path></svg><span class="t">Notes</span><span class="meta">2 notes</span></div>
+        <div class="sp"></div>
+        <label class="f"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><input type="text" placeholder="Filter notes" aria-label="Filter notes"><kbd>/</kbd></label>
+        <button type="button" class="btn ic" aria-label="Show in Finder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg></button>
+        <button type="button" class="btn s">New folder</button>
+        <button type="button" class="btn p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>New note</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="lab"><span class="eb">Automations</span><span class="chg">Gains meta showing the master switch state · Folder becomes an icon action like Notes</span></div>
+      <div class="hb">
+        <div class="ti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path></svg><span class="t">Automations</span><span class="meta">2 on · paused</span></div>
+        <div class="sp"></div>
+        <button type="button" class="btn ic" aria-label="Show in Finder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg></button>
+        <button type="button" class="btn s">Import<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <button type="button" class="btn p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>New automation<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="lab"><span class="eb">Plans</span><span class="chg">Gains meta · otherwise already right</span></div>
+      <div class="hb">
+        <div class="ti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01"></path></svg><span class="t">Plans</span><span class="meta">2 drafts</span></div>
+        <div class="sp"></div>
+        <button type="button" class="btn p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>New plan</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="lab"><span class="eb">Repository graph</span><span class="chg">Branch toggle moves from the right edge into scope · refresh joins the icon group · times read “7h ago”, not “7 h ago”</span></div>
+      <div class="hb">
+        <div class="ti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v12"></path><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg><span class="t">App</span><span class="meta">426 commits</span></div>
+        <div class="seg" role="group" aria-label="Branches"><button type="button" class="on">All branches</button><button type="button">Local branches</button></div>
+        <div class="sp"></div>
+        <label class="f"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><input type="text" placeholder="Filter commits" aria-label="Filter commits"><kbd>/</kbd></label>
+        <button type="button" class="btn ic" aria-label="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-15.7-6L3 8M3 3v5h5M3 12a9 9 0 0 0 15.7 6L21 16M16 16h5v5"></path></svg></button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="lab"><span class="eb">Settings</span><span class="chg">The one exception: a breadcrumb and close, because Settings sits over the app. Same 52px height, same title type.</span></div>
+      <div class="hb">
+        <div class="ti"><span class="t" style="color: #9AA4B5; font-weight: 500">Settings</span><span style="color: #4B5566">/</span><span class="t">Appearance</span></div>
+        <div class="sp"></div>
+        <button type="button" class="btn ic" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

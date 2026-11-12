@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ShipWarden consistency audit</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0F17}
+a{color:#7DB2F5}a:hover{color:#A9CBF8}
+.card{background:#111723;border:1px solid #222B3A;border-radius:10px;padding:24px;display:flex;flex-direction:column;gap:12px}
+.num{font:500 12px 'JetBrains Mono',monospace;color:#7A8599;padding-top:3px}
+.h2{margin:0;font-size:16px;font-weight:600;color:#E6EAF2;line-height:1.35}
+.lbl{margin:0;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#7A8599}
+.seen{margin:0;padding-left:18px;color:#9AA4B5;font-size:13px;line-height:1.6}
+.rule{margin:0;color:#E6EAF2;font-size:13px;line-height:1.6;background:#0F1A2B;border:1px solid #1F3354;border-radius:8px;padding:10px 12px}
+.ex{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;border:1px dashed #2E3A4D;border-radius:8px}
+.m{font-family:'JetBrains Mono',monospace}
+</style>
+</helmet>
+<div style="width: 1440px; min-height: 2520px; box-sizing: border-box; padding: 72px 80px; background: #0B0F17; color: #E6EAF2; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 40px">
+  <header style="display: flex; flex-direction: column; gap: 12px; max-width: 900px">
+    <p class="lbl" style="color: #7DB2F5">ShipWarden · design consistency pass</p>
+    <h1 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: -0.01em">15 places the app disagrees with itself</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #9AA4B5">Pulled from the 20 screenshots. The look (dark navy, blue accent, system type, 10px cards) is already coherent; what drifts is structure: headers, button weights, chips, counts, and states. Each finding ends in one rule. Boards 2–4 show the rules applied.</p>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px">
+      <span style="font-size: 12px; font-weight: 500; padding: 3px 8px; border-radius: 6px; background: rgba(239,107,107,.14); color: #F59A9A">High impact: 1–6</span>
+      <span style="font-size: 12px; font-weight: 500; padding: 3px 8px; border-radius: 6px; background: rgba(229,160,58,.14); color: #EDB765">Medium: 7–12</span>
+      <span style="font-size: 12px; font-weight: 500; padding: 3px 8px; border-radius: 6px; background: rgba(154,164,181,.14); color: #B5BECC">Polish: 13–15</span>
+    </div>
+  </header>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">01</span><h2 class="h2">Page headers come in four shapes</h2></div>
+      <p class="lbl">Seen</p>
+      <ul class="seen">
+        <li>Icon + title + meta: Dashboard, Notes, Automations, Plans, repo graph</li>
+        <li>Title, no icon: Agents</li>
+        <li>No title at all, controls start at the left edge: Tasks, Review, Pipelines, worktree</li>
+        <li>Breadcrumb + close: Settings</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">Every page header: icon + title + one meta line on the left, scope controls next to it, then a spacer, then filter, icon actions, and at most one primary button on the right. Settings keeps its breadcrumb because it is a modal layer. (Board 3)</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">02</span><h2 class="h2">Filter fields move and change their wording</h2></div>
+      <p class="lbl">Seen</p>
+      <ul class="seen">
+        <li>Right side on Dashboard, first item on Review, beside the title on Notes, after six dropdowns on Tasks</li>
+        <li>“Filter by title, ticket, repo…”, “Search tasks”, “Search names, folders, a…” (truncated), “Filter repositories”, “Find files by name”</li>
+        <li>The <span class="m">/</span> shortcut hint shows on 2 of 6</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">One filter field, 240px, always in the right group, placeholder “Filter &lt;things&gt;”, always with the <span class="m">/</span> hint. Reserve “Search” for a future global search.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">03</span><h2 class="h2">Button weight has no rule</h2></div>
+      <div class="ex">
+        <button type="button" style="height: 32px; padding: 0 12px; border-radius: 6px; border: 0; background: #5B9DF0; color: #0A1324; font-family: inherit; font-size: 13px; font-weight: 600">New note</button>
+        <button type="button" style="height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid #5B9DF0; background: transparent; color: #7DB2F5; font-family: inherit; font-size: 13px; font-weight: 500">Start an agent in a worktree</button>
+        <button type="button" style="height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid #5B9DF0; background: transparent; color: #7DB2F5; font-family: inherit; font-size: 13px; font-weight: 500">Merge</button>
+        <button type="button" style="height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid #2E3A4D; background: #161D2B; color: #E6EAF2; font-family: inherit; font-size: 13px; font-weight: 500">Open</button>
+      </div>
+      <ul class="seen">
+        <li>Filled: New note, New plan, New, Start review queue</li>
+        <li>Blue outline: Merge, Merge both, Start an agent, Start Claude Code, Pair a phone, Add rule</li>
+        <li>Neutral: Open, Folder, Import, Test, Choose…, Clear, Send a test</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">Primary (filled) = the page's main create/start, one per view, including the empty-state button. Secondary (neutral) = everything else. Soft accent only for the one recommended row action (Merge). Drop the blue outline style.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">04</span><h2 class="h2">Chips come in seven shapes</h2></div>
+      <div class="ex">
+        <span style="font-size: 12px; font-weight: 500; padding: 3px 8px; border-radius: 6px; background: rgba(239,107,107,.16); color: #F59A9A">CI failing</span>
+        <span style="font-size: 12px; font-weight: 500; padding: 3px 8px; border-radius: 6px; background: rgba(229,160,58,.16); color: #EDB765">Conflict</span>
+        <span style="font-size: 12px; padding: 2px 7px; border-radius: 6px; border: 1px dashed #E5A03A; color: #EDB765">no ticket</span>
+        <span style="font-size: 13px; color: #A78BFA">2 unresolved</span>
+        <span style="font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid #A78BFA; color: #C4B1FC">spike</span>
+        <span class="m" style="font-size: 12px; padding: 3px 8px; border-radius: 6px; background: #1A2130; color: #9AA4B5">api #3199</span>
+        <span class="m" style="font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid #5B9DF0; color: #7DB2F5">:5173 +2</span>
+      </div>
+      <p class="lbl">Rule</p>
+      <p class="rule">One chip: 20px tall, radius 6, 12px/500, soft tone fill, no border. Tones: neutral, info, success, warning, danger, review. Monospace only for identifiers (repo #, port, branch). Outline is reserved for git refs in the graph. “no ticket” becomes a warning chip; “2 unresolved” becomes a neutral chip with a comment icon.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">05</span><h2 class="h2">Counts are written six ways</h2></div>
+      <div class="ex">
+        <span class="lbl" style="color: #9AA4B5">Your pull requests · 24</span>
+        <span style="font-size: 12px; color: #9AA4B5; background: #1A2130; border-radius: 999px; padding: 1px 7px">2</span>
+        <span style="font-size: 12px; font-weight: 600; color: #E6EAF2; background: #1F2735; border-radius: 999px; padding: 3px 9px">14</span>
+        <span style="font-size: 12px; font-weight: 600; color: #0A1324; background: #5B9DF0; border-radius: 999px; padding: 1px 7px">1</span>
+        <span style="font-size: 12px; color: #9AA4B5; border: 1px solid #2E3A4D; border-radius: 999px; padding: 1px 8px">#note 2</span>
+      </div>
+      <p class="lbl">Rule</p>
+      <p class="rule">One count badge (18px pill, 11px/600). Neutral after any heading or filter. Accent only when the number means “needs you” (sidebar Dashboard and Review, Review's To review column). No “· N” text counts.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">06</span><h2 class="h2">Empty and waiting states have no pattern</h2></div>
+      <ul class="seen">
+        <li>Centered icon, title, text, outline button: Agents, worktree</li>
+        <li>Plain grey text in the top-left corner: “Select a note.”, “Select a run to see its jobs and logs.”</li>
+        <li>“Loading runs...” as text with three dots</li>
+        <li>Dashed box “No tasks” in an empty Kanban column</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">Pane empty state = centered icon, title, one line, primary button, optional shortcut hint. Selection placeholder = same layout without the button. Loading = skeleton rows in the shape of the result. Empty column keeps the dashed box. (Board 4)</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">07</span><h2 class="h2">Sort and view toggles use two controls</h2></div>
+      <div class="ex">
+        <span style="font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid #5B9DF0; color: #E6EAF2">By author</span>
+        <span style="font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid #2E3A4D; color: #9AA4B5">Oldest first</span>
+        <span style="width: 12px"></span>
+        <span style="display: inline-flex; background: #0E131C; border: 1px solid #222B3A; border-radius: 8px; padding: 2px">
+          <span style="font-size: 13px; padding: 4px 12px; border-radius: 6px; background: #1F2735; color: #E6EAF2">In projects</span>
+          <span style="font-size: 13px; padding: 4px 12px; color: #9AA4B5">All</span>
+        </span>
+      </div>
+      <p class="lbl">Rule</p>
+      <p class="rule">The track segmented control everywhere (Review, repo graph, Settings, Automations already use it). The Dashboard's By author / Oldest first / By repo pills switch to it.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">08</span><h2 class="h2">Section headings mix three styles</h2></div>
+      <ul class="seen">
+        <li>Caps eyebrows: YOUR PULL REQUESTS, WAITING ON YOU, WORKFLOWS, REPOSITORIES, NOTHING WAITING</li>
+        <li>Bold title case: Run automations, History, Paired phones, New pull request comments</li>
+        <li>A 22px headline in the body: Review's “1 pull request waiting on you”</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">Caps eyebrow = a group inside a list or column. 15/600 title + 13px description = a card or form section. No headline in the body: Review's summary moves into the header meta line.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">09</span><h2 class="h2">Ages and times use five formats and two color rules</h2></div>
+      <ul class="seen">
+        <li>“7h”, “7 h ago” (repo graph has a space), “16h ago”, “Last activity 6h ago”, “oldest waiting 1 day”</li>
+        <li>Review's Oldest column is red for every value (8w–18w); Dashboard ages stay grey until 4w</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">Columns: “7h · 2d · 4w”. Prose: “7h ago”. Age tone by threshold everywhere: muted under 7 days, warning 7–29 days, danger 30 days and up (matches the Stale 30d+ tile).</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">10</span><h2 class="h2">Refresh lives in five places</h2></div>
+      <ul class="seen">
+        <li>Top-right on Dashboard and Pipelines, beside a gear on Tasks, left of the primary button on Review, after the segmented control on the repo graph, plus the footer</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">Icon actions sit together just left of the primary button; refresh is always the last icon. Pages that refresh show “Updated 1m ago” in the meta line, like the Dashboard does.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">11</span><h2 class="h2">Content width and gutter change per page</h2></div>
+      <ul class="seen">
+        <li>Dashboard and Review: full width, ~28px gutter</li>
+        <li>Automations and Plans: ~1100px column, ~44px gutter</li>
+        <li>Settings: ~960px column, indented ~80px past its nav</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">One 32px gutter. Data pages (Dashboard, Review, Tasks, Pipelines) go full width. Form pages (Settings, Automations, Plans) use an 880px column, left-aligned at the gutter.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">12</span><h2 class="h2">Disabled controls look two ways</h2></div>
+      <div class="ex">
+        <button type="button" disabled="disabled" style="height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid #222B3A; background: transparent; color: #4B5566; font-family: inherit; font-size: 13px; font-weight: 500">+ Add</button>
+        <button type="button" disabled="disabled" style="height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid #2B4A75; background: transparent; color: #4F7BB5; font-family: inherit; font-size: 13px; font-weight: 500">Add rule</button>
+      </div>
+      <p class="lbl">Rule</p>
+      <p class="rule">Disabled = the button's normal style at 40% opacity. “Add rule” becomes a secondary button.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">13</span><h2 class="h2">Status colors are reused for other meanings</h2></div>
+      <ul class="seen">
+        <li>Purple = Changes requested, but also “unresolved” text and the spike / integrations labels</li>
+        <li>Red = Blocked and CI failing, but also every Review age and the Remove button</li>
+        <li>Footer: “Claude” in orange, “Codex” in white</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">Reserve the five Dashboard tile hues for PR state. Task labels get a separate muted label palette. Destructive buttons use red text only. Both provider names in the footer use the label color; the bar carries the provider color.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">14</span><h2 class="h2">Text fields size at random</h2></div>
+      <ul class="seen">
+        <li>Worktrees › Branch names: a ~400px field truncates “story/{taskKey}/{taskShortDescr…”</li>
+        <li>Mixed full-width and fixed fields on the same Settings page</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">Text fields fill the row. Only short typed values (port, percent, number) get a fixed 120px field.</p>
+    </article>
+
+    <article class="card">
+      <div style="display: flex; gap: 12px"><span class="num">15</span><h2 class="h2">Copy nits</h2></div>
+      <ul class="seen">
+        <li>“No agents run now” → “No agents running”</li>
+        <li>Plans: “1 pull requests” → “1 pull request”</li>
+        <li>“...” → “…” (Loading runs, Choose, Add a provider, Filter by…)</li>
+        <li>Agents header repeats “Plan usage: Claude 39% · Codex 0%” from the footer; remove it</li>
+        <li>Two plans both titled “New plan”: name new plans from their first step</li>
+      </ul>
+      <p class="lbl">Rule</p>
+      <p class="rule">One pluralize helper, the real ellipsis character, and no number shown twice on one screen.</p>
+    </article>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2520}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
