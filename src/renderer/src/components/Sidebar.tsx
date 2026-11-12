@@ -132,6 +132,8 @@ interface Props {
     /** The number of plan steps that wait for the user. */
     plansCount: number;
     onOpenPlans(): void;
+    terminalActive: boolean;
+    onOpenTerminal(): void;
     dashboardActive: boolean;
     /** The number of items on the Dashboard that need the user. */
     dashboardCount: number;
@@ -522,6 +524,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
         !parent.notesActive &&
         !parent.automationsActive &&
         !parent.plansActive &&
+        !parent.terminalActive &&
         !parent.pipelinesActive &&
         shown.some(worktree => worktree.path === selectedPath);
     const color = parent.repoColor(repo);
@@ -544,7 +547,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
         return (
             <li
                 key={worktree.path}
-                className={`worktree-row${isHidden ? ' hidden-worktree' : ''}${worktree.path === selectedPath && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.automationsActive && !parent.plansActive && !parent.pipelinesActive ? ' selected' : ''}`}
+                className={`worktree-row${isHidden ? ' hidden-worktree' : ''}${worktree.path === selectedPath && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.automationsActive && !parent.plansActive && !parent.terminalActive && !parent.pipelinesActive ? ' selected' : ''}`}
                 title={worktree.path}
                 tabIndex={0}
                 role="button"
@@ -874,6 +877,10 @@ export function Sidebar(outerProps: Props) {
                 <ClipboardList size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Plans</span>
                 {props.plansCount > 0 && <Count value={props.plansCount} label={`${props.plansCount} plan steps wait for you`} />}
+            </button>
+            <button data-sidebar-item className={`nav-row${props.terminalActive ? ' selected' : ''}`} onClick={props.onOpenTerminal}>
+                <SquareTerminal size={15} strokeWidth={1.6} />
+                <span className="nav-row-label">Terminal</span>
             </button>
 
             {/* Only the repositories change with the project, so the project switcher is their header. */}

@@ -12,6 +12,7 @@ export type MainView =
     | 'notes'
     | 'automations'
     | 'plans'
+    | 'terminal'
     | 'graph'
     | 'settings'
     | 'welcome';
@@ -51,6 +52,7 @@ export function viewAfterProjectSwitch(view: MainView): MainView {
 
 /**
  * Returns the history entry of the current place in the app. Each section of the settings page is a page. The worktree view has an entry only when a worktree is selected. `route` is the page and the query of the current view.
+ * In the Terminal view, `selectedPath` is the home folder, because the Terminal view keeps its tabs under the home folder.
  */
 export function navLocationOf(
     mainView: MainView,
@@ -61,16 +63,18 @@ export function navLocationOf(
 ): NavLocation | undefined {
     if (mainView === 'settings') return { view: mainView, page: route.page };
     if (mainView === 'worktree') return selectedPath ? { view: mainView, worktree: selectedPath, tab: activeTab, query: route.query } : undefined;
+    if (mainView === 'terminal') return selectedPath ? { view: mainView, worktree: selectedPath, tab: activeTab } : { view: mainView };
     if (mainView === 'graph') return { view: mainView, repo: graphRepo };
     return { view: mainView, page: route.page, query: route.query };
 }
 
 /**
  * True when a history entry is valid. An entry is not valid when its worktree, its tab or its repository
- * does not exist now. `tabsOf` returns the tab keys of a worktree.
+ * does not exist now. `tabsOf` returns the tab keys of a worktree. An entry of the Terminal view is not valid when its tab closed.
  */
 export function isNavValid(location: NavLocation, repos: readonly string[], worktreePaths: readonly string[], tabsOf: (worktree: string) => string[]): boolean {
     if (location.view === 'graph') return !!location.repo && repos.includes(location.repo);
+    if (location.view === 'terminal') return !location.tab || !location.worktree || tabsOf(location.worktree).includes(location.tab);
     if (location.view !== 'worktree') return true;
     if (!location.worktree || !worktreePaths.includes(location.worktree)) return false;
     return !location.tab || tabsOf(location.worktree).includes(location.tab);

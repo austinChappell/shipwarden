@@ -846,6 +846,8 @@ export interface AppInfo {
     version: string;
     /** The folder with the settings, the task plugin settings and the logs. */
     dataFolder: string;
+    /** The home folder of the user. The Terminal page starts its shells in it. */
+    homeFolder: string;
     /** The log of the PTY host process. */
     ptyHostLog: string;
     /** The login name of the user on this computer. */
