@@ -7,6 +7,7 @@ import { cleanCommand, commandProgram, missingDefaultAgents, type AgentDefinitio
 import { errorText } from '../util';
 import { Button, Chip, IconButton, Input, Select, Switch } from './ui';
 import { SettingsGroup, SettingsRow } from './settings-ui';
+import { AGENT_CHAT_ENABLED } from '../terminal/agent-view-store';
 
 const api = window.shipwarden;
 
@@ -252,13 +253,15 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                     </div>
                 )}
             </SettingsGroup>
-            <SettingsGroup title="Agent tabs" card>
-                <SettingsRow
-                    label="Show agent tabs as a chat"
-                    description="A Claude Code tab shows its messages as a chat, with a prompt field at the bottom. The agent still runs in the terminal. Each tab can show the terminal at any time. Other agents always show the terminal."
-                    control={<Switch checked={settings.agentChat} title="Show agent tabs as a chat" onChange={agentChat => void save({ agentChat })} />}
-                />
-            </SettingsGroup>
+            {AGENT_CHAT_ENABLED && (
+                <SettingsGroup title="Agent tabs" card>
+                    <SettingsRow
+                        label="Show agent tabs as a chat"
+                        description="A Claude Code tab shows its messages as a chat, with a prompt field at the bottom. The agent still runs in the terminal. Each tab can show the terminal at any time. Other agents always show the terminal."
+                        control={<Switch checked={settings.agentChat} title="Show agent tabs as a chat" onChange={agentChat => void save({ agentChat })} />}
+                    />
+                </SettingsGroup>
+            )}
         </>
     );
 }

@@ -99,7 +99,8 @@ window.shipwarden.terminals.onTranscriptChanged(file => {
 /**
  * Returns the chat of a transcript file. The main process watches the file, and the hook reads the new lines at each
  * change. The hook also reads the file when `version` changes (for example at each state change of the agent).
- * When the watch fails, the hook reads the file each second while `live` is true.
+ * When the watch fails, the hook reads the file each second while `live` is true, and one more time after `live`
+ * changes to false.
  */
 export function useTranscript(file: string, live: boolean, version: unknown): TranscriptState {
     const getSnapshot = useCallback(() => transcriptStore.get(file), [file]);
@@ -134,8 +135,14 @@ export function useTranscript(file: string, live: boolean, version: unknown): Tr
     }, [file]);
 
     useEffect(() => {
-        if (!file || !watchFailed || !live) return;
-        const timer = setInterval(() => void transcriptStore.refresh(file), FALLBACK_POLL_MS);
+        if (!file || !watchFailed) return;
+        const refresh = () => void transcriptStore.refresh(file);
+        if (!live) {
+            // Claude Code can write the last answer after the turn ends. One more read gets it.
+            const timer = setTimeout(refresh, FALLBACK_POLL_MS);
+            return () => clearTimeout(timer);
+        }
+        const timer = setInterval(refresh, FALLBACK_POLL_MS);
         return () => clearInterval(timer);
     }, [file, live, watchFailed]);
 

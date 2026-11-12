@@ -38,6 +38,12 @@ export function useAgentViewChoices(): ReadonlyMap<string, AgentViewChoice> {
     return useSyncExternalStore(agentViewStore.subscribe, agentViewStore.getSnapshot);
 }
 
+/**
+ * The chat of the agent tabs is not ready for users. While this is false, each agent tab shows the terminal, and
+ * Settings › Agents does not show the chat setting. The chat code stays, so that work on it can continue.
+ */
+export const AGENT_CHAT_ENABLED = false;
+
 type ChatSession = Pick<TerminalSession, 'isAgent' | 'exited' | 'agentState' | 'agentTranscript'>;
 
 /**

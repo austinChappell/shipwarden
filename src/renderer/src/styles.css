@@ -942,6 +942,16 @@ details.chat-tool[open] > .chat-tool-summary {
     font-size: 12px;
 }
 
+/* The line after the last answer of a turn. The agent waits for the next prompt. */
+.chat-status.done {
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.chat-done-icon {
+    color: var(--ok);
+}
+
 .chat-waiting {
     display: flex;
     align-items: center;
