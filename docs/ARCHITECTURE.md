@@ -19,6 +19,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-09 | "Apply suggestion" changes the file in the local worktree. It does not commit with the GitHub API. | An agent works on the branch in the worktree. A commit on GitHub makes the local branch fall behind, and the next push fails. The user can check, test and commit the change with other changes. |
 | 2026-11-10 | The onboarding state is in `settings.json`, and the setup checks reuse the PATH check and the GitHub token order. | All windows see the same state, and a cache clear does not show the welcome page again. One PATH check and one token lookup cannot disagree. See `docs/onboarding-plan.md`. |
 | 2026-11-10 | Automations run in the page, while the app is open. Each automation is one JSON file in ~/.shipwarden/automations. | The page owns the agent tabs, the branch summaries and the Dashboard data, so it sees the events and can start agents. One file for each rule makes export, import and hand edits simple. An export has no paths of the Mac. |
+| 2026-11-12 | A prompt from a pull request in the Review view goes to the agent of the worktree, and the Review view stays. A drawer at the bottom shows the agent terminal. | The user can read the pull request and type to the agent at the same time. The drawer shows the same terminal as the agent tab. The terminal pool keeps a list of the views of a session. A hidden view does not take the terminal from a visible view, and the terminal goes back to the agent tab when the drawer closes. |
 
 ## The old name (Yardmaster)
 

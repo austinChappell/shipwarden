@@ -168,8 +168,14 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
      * Without a target, the prompt goes to the agent that runs in the worktree. Else ShipWarden starts the agent of the repository.
      * A target selects an agent tab, or a new session of an agent definition.
      * The prompt goes in as a bracketed paste, so that new lines do not submit it early. Then Enter submits it.
+     * `onSession` gets the session before ShipWarden waits for the agent. Thus a view can show the agent while it starts.
      */
-    const sendToAgent = async (prompt: string, worktree: Worktree | undefined = selected, target?: NoteTarget) => {
+    const sendToAgent = async (
+        prompt: string,
+        worktree: Worktree | undefined = selected,
+        target?: NoteTarget,
+        onSession?: (session: TerminalSession) => void
+    ) => {
         if (!worktree) {
             return;
         }
@@ -193,6 +199,7 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
             return;
         }
         showSession(session);
+        onSession?.(session);
         if (!running) {
             await waitForQuietOutput(session.id);
         }
