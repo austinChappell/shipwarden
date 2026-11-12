@@ -1,4 +1,4 @@
-import { userInfo } from 'os';
+import { homedir, userInfo } from 'os';
 import { app, ipcMain } from 'electron';
 import { IpcChannels } from '@shared/api';
 import type { AppKeyAction } from '@shared/shortcuts';
@@ -12,7 +12,13 @@ type AppIpcDependencies = Pick<Services, 'window' | 'confirm' | 'ptyHostLog'> & 
 
 /** Registers the IPC handlers of the app: the app info, the window focus, the app keys and the confirm answers. */
 export function registerAppIpc({ window, confirm, ptyHostLog, runAppKey }: AppIpcDependencies): void {
-    ipcMain.handle(IpcChannels.appInfo, () => ({ version: app.getVersion(), dataFolder: app.getPath('userData'), ptyHostLog, username: loginName() }));
+    ipcMain.handle(IpcChannels.appInfo, () => ({
+        version: app.getVersion(),
+        dataFolder: app.getPath('userData'),
+        ptyHostLog,
+        username: loginName(),
+        homeFolder: homedir()
+    }));
     ipcMain.on(IpcChannels.appFocus, () => {
         const current = window.get();
         if (current) {

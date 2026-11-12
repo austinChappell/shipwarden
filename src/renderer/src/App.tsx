@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { FolderDown, FolderGit2, FolderPlus, GitBranchPlus, ListTodo, PanelRight, Play, SquareTerminal } from 'lucide-react';
+import { keyRoots } from './query-client';
 import { EmptyState } from './components/EmptyState';
 import { CloneRepoDialog } from './components/CloneRepoDialog';
 import { startAgentAction } from './app/empty-states';
@@ -184,7 +186,18 @@ export function App() {
     /** The name of a repository in the UI: its name from the repository settings, else its folder name. */
     const repoLabel = (repo: string) => repoDisplayName(appSettings, repo);
 
-    const tabs = useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setSessions, setError });
+    /** The home folder. The Terminal view keeps its tabs under it, as the worktree view keeps the tabs of a worktree under its path. */
+    const homeFolder = useQuery({ queryKey: keyRoots.appInfo, queryFn: () => api.app.info(), staleTime: Number.POSITIVE_INFINITY }).data?.homeFolder;
+    const terminalView = mainView === 'terminal';
+    /** The folder of the tabs on the screen: the home folder in the Terminal view, else the selected worktree. */
+    const workspacePath = terminalView ? homeFolder : selectedPath;
+    /** The home folder as a worktree, so the Terminal view can use the actions of the worktree view. It has no repository. */
+    const homeWorktree = useMemo<Worktree | undefined>(
+        () => (homeFolder ? { path: homeFolder, head: '', isMain: false, isBare: false, locked: false, prunable: false } : undefined),
+        [homeFolder]
+    );
+
+    const tabs = useWorkspaceTabs({ selectedPath: workspacePath, setSelectedPath, sessions, setSessions, setError });
     const { activeTab, layout, worktreeSessions, worktreeExtras, activate, openExtra, openFile } = tabs;
     const project = useProjects({
         selectedPath,
@@ -204,7 +217,18 @@ export function App() {
     });
     const { projects, activeProject, repos, worktreesByRepo, worktrees, selectedRepo, showProject } = project;
     const selected = worktrees.find(worktree => worktree.path === selectedPath);
-    const agents = useAgentActions({ sessions, setSessions, appSettings, selectedPath, selected, repoOfWorktree: project.repoOfWorktree, activate, setError });
+    /** The worktree of the tabs on the screen: the home folder in the Terminal view, else the selected worktree. */
+    const workspaceWorktree = terminalView ? homeWorktree : selected;
+    const agents = useAgentActions({
+        sessions,
+        setSessions,
+        appSettings,
+        selectedPath: workspacePath,
+        selected: workspaceWorktree,
+        repoOfWorktree: project.repoOfWorktree,
+        activate,
+        setError
+    });
     const { startTerminal, sendToAgent } = agents;
     const worktreeActions = useWorktreeActions({
         appSettings,
@@ -272,6 +296,12 @@ export function App() {
         setSelectedPath(path);
         setMainView('worktree');
     };
+    /** Shows the tabs of a session folder: the Terminal view for the home folder, else the worktree view. Then selects the tab of the session. */
+    const showSessionTab = (worktreePath: string, sessionId?: string) => {
+        if (worktreePath === homeFolder) setMainView('terminal');
+        else showWorktree(worktreePath);
+        if (sessionId) activate(worktreePath, `t:${sessionId}`);
+    };
 
     /**
      * Shows the tab of an agent from the Agents view. When the agent runs in another project, the sidebar switches
@@ -281,11 +311,8 @@ export function App() {
         if (projectId && projectId !== projects?.activeId) {
             await project.switchProject(projectId);
         }
-        if (session.worktreePath) {
-            setSelectedPath(session.worktreePath);
-            activate(session.worktreePath, `t:${session.id}`);
-        }
-        setMainView('worktree');
+        if (session.worktreePath) showSessionTab(session.worktreePath, session.id);
+        else setMainView('worktree');
     };
 
     const reviewProviders = useReviewProviders();
@@ -315,8 +342,7 @@ export function App() {
             setMainView(target.view);
             return;
         }
-        showWorktree(target.worktreePath);
-        if (target.sessionId) activate(target.worktreePath, `t:${target.sessionId}`);
+        showSessionTab(target.worktreePath, target.sessionId);
     };
     const notifyAgent = useNotifications({
         appSettings,
@@ -330,7 +356,11 @@ export function App() {
         openTarget: openNotificationTarget,
         // A terminal in any pane of the split view is visible, not only the focused one.
         isSessionVisible: session =>
-            document.hasFocus() && mainView === 'worktree' && session.worktreePath === selectedPath && !!layout && !!leafOfTab(layout, `t:${session.id}`)
+            document.hasFocus() &&
+            (mainView === 'worktree' || terminalView) &&
+            session.worktreePath === workspacePath &&
+            !!layout &&
+            !!leafOfTab(layout, `t:${session.id}`)
     });
 
     // The automations run while the app is open. The engine gets the state of the app and its events here.
@@ -553,10 +583,11 @@ export function App() {
     const openBrowser = useBrowserTabs({
         extraTabs: tabs.extraTabs,
         openExtra,
-        defaultRoot: selectedPath ?? worktrees[0]?.path,
+        defaultRoot: workspacePath ?? worktrees[0]?.path,
         selectedPath,
         setSelectedPath,
         setMainView,
+        homeFolder,
         focusBrowserPane: tabs.focusBrowserPane
     });
 
@@ -567,7 +598,7 @@ export function App() {
      * Each section of the settings page is a page.
      */
     const currentRoute: ViewRoute = mainView === 'worktree' ? { query: { panel: panelTab } } : routeOf(mainView);
-    const stepHistory = useNavHistory(navLocationOf(mainView, selectedPath, activeTab, graphRepo, currentRoute));
+    const stepHistory = useNavHistory(navLocationOf(mainView, workspacePath, activeTab, graphRepo, currentRoute));
     /**
      * Moves one step back (-1) or forward (1) in the history. `skip` rejects more entries. Returns false when no entry
      * is in that direction.
@@ -594,6 +625,7 @@ export function App() {
             setSelectedPath(location.worktree);
             if (location.tab) activate(location.worktree, location.tab);
         }
+        if (location.view === 'terminal' && location.worktree && location.tab) activate(location.worktree, location.tab);
         if (location.view === 'graph') setGraphRepo(location.repo);
         setMainView(view);
         return true;
@@ -604,7 +636,7 @@ export function App() {
         if (!navigate(-1, item => item.view === 'settings')) setMainView(viewBeforeSettings.current);
     };
 
-    const focusWorkspace = () => tabs.focusWorkspace(mainView === 'worktree');
+    const focusWorkspace = () => tabs.focusWorkspace(mainView === 'worktree' || terminalView);
     /**
      * The workspace shortcuts, as in Ghostty. ⌘T: a new shell tab. ⌘W: close the focused pane, or the tab when it has
      * one pane. ⌘D and ⇧⌘D: a new shell pane at the right of, or below, the focused pane. ⌥⌘ and an arrow key: move the focus
@@ -659,12 +691,14 @@ export function App() {
             focusWorkspace();
             return;
         }
-        if (mainView !== 'worktree' || !selected) return;
+        // The tab and pane shortcuts work the same in the worktree view and in the Terminal view.
+        const target = mainView === 'worktree' ? selected : terminalView ? homeWorktree : undefined;
+        if (!target) return;
         if (action === 'newTab') {
-            await startTerminal(selected, 'shell');
+            await startTerminal(target, 'shell');
             return;
         }
-        await tabs.paneShortcut(action, selected);
+        await tabs.paneShortcut(action, target);
     };
     useShortcuts(shortcut, focusWorkspace);
 
@@ -727,13 +761,13 @@ export function App() {
     lspBridge.setOpener((root, path, line, column) => openFile(path, line, column, root));
 
     /** The data of the selected worktree for the tab titles and icons. */
-    const tabContext = { selectedPath, sessions: worktreeSessions, extras: worktreeExtras, dirtyFiles: tabs.dirtyFiles, browserStates };
+    const tabContext = { selectedPath: workspacePath, sessions: worktreeSessions, extras: worktreeExtras, dirtyFiles: tabs.dirtyFiles, browserStates };
 
     /** The view of one tab. `focused` is false for a pane without the focus. */
     const renderTab = (tab: TabKey, focused: boolean): ReactNode =>
         renderTabView(tab, focused, {
-            selectedPath,
-            selected,
+            selectedPath: workspacePath,
+            selected: workspaceWorktree,
             sessions: worktreeSessions,
             extras: worktreeExtras,
             dragging: !!tabs.draggingTab,
@@ -744,7 +778,7 @@ export function App() {
             terminalColorsKey,
             agents: appSettings.agents,
             agentChat: appSettings.agentChat,
-            defaultAgentId: agentForRepo(appSettings, selectedPath && project.repoOfWorktree(selectedPath)).id,
+            defaultAgentId: agentForRepo(appSettings, workspacePath && project.repoOfWorktree(workspacePath)).id,
             latestPullRequest,
             refreshGitHub: github.refresh,
             closeFromView: tabs.closeFromView,
@@ -801,6 +835,8 @@ export function App() {
                             plansActive={mainView === 'plans'}
                             plansCount={plansCount}
                             onOpenPlans={() => enterView('plans')}
+                            terminalActive={terminalView}
+                            onOpenTerminal={() => enterView('terminal')}
                             dashboardActive={mainView === 'dashboard'}
                             dashboardCount={dashboardCount}
                             onOpenDashboard={() => enterView('dashboard')}
@@ -1017,13 +1053,13 @@ export function App() {
                             />
                         </main>
                     )}
-                    <main className="workspace" style={mainView !== 'worktree' ? { display: 'none' } : undefined}>
+                    <main className="workspace" style={mainView !== 'worktree' && !terminalView ? { display: 'none' } : undefined}>
                         <header className="workspace-header" data-tour="tabs">
                             <TabStrip
                                 items={tabs.stripItems}
                                 activeTab={activeTab}
                                 info={key => tabInfo(key, tabContext)}
-                                onSelect={key => selectedPath && activate(selectedPath, key)}
+                                onSelect={key => workspacePath && activate(workspacePath, key)}
                                 onMove={tabs.moveStripItem}
                                 onCloseTab={tabs.closeTabView}
                                 onCloseGroup={tabs.closeGroup}
@@ -1034,19 +1070,22 @@ export function App() {
                                 }}
                             />
                             {/* The "+" sits right after the last tab. It is outside the tab strip, which scrolls and would cut off the menu. */}
-                            {selected && (
+                            {workspaceWorktree && (
                                 <div className="tab-strip-actions" data-tour="agent">
                                     <NewTabMenu
                                         agents={appSettings.agents}
-                                        defaultAgentId={agentForRepo(appSettings, selectedRepo).id}
+                                        defaultAgentId={agentForRepo(appSettings, terminalView ? undefined : selectedRepo).id}
                                         onStart={target =>
-                                            target === 'browser' ? void openBrowser(BLANK_PAGE, selected.path) : startTerminal(selected, target)
+                                            target === 'browser'
+                                                ? void openBrowser(BLANK_PAGE, workspaceWorktree.path)
+                                                : startTerminal(workspaceWorktree, target)
                                         }
                                     />
                                 </div>
                             )}
                             <div className="header-spacer" />
-                            {selectedPath && links[selectedPath] && (
+                            {/* The Terminal view has no repository, so it has no task, no automations and no scripts. */}
+                            {!terminalView && selectedPath && links[selectedPath] && (
                                 <Button
                                     className="task-chip"
                                     title={`Open the task: ${links[selectedPath].title}`}
@@ -1057,14 +1096,14 @@ export function App() {
                                 </Button>
                             )}
                             <div className="header-actions">
-                                {selected && selectedRepo && (
+                                {!terminalView && selected && selectedRepo && (
                                     <AutomationButtons
                                         variant="menu"
                                         target={{ entity: 'worktree', repoPath: selectedRepo, worktree: selected, link: links[selected.path] }}
                                         onError={setError}
                                     />
                                 )}
-                                {selected && selectedRepo && (
+                                {!terminalView && selected && selectedRepo && (
                                     <ScriptsMenu
                                         repoName={repoLabel(selectedRepo)}
                                         scripts={appSettings.repos[selectedRepo]?.scripts ?? []}
@@ -1101,6 +1140,31 @@ export function App() {
                                         tabs.setDropTarget(undefined);
                                     }}
                                 />
+                            ) : terminalView ? (
+                                <div className="empty-state">
+                                    <EmptyState
+                                        icon={SquareTerminal}
+                                        title="No tabs are open"
+                                        actions={
+                                            <Button
+                                                variant="primary"
+                                                size="lg"
+                                                icon={<SquareTerminal size={14} strokeWidth={1.8} aria-hidden="true" />}
+                                                disabled={!homeWorktree}
+                                                onClick={() => homeWorktree && void startTerminal(homeWorktree, 'shell')}
+                                            >
+                                                Open a shell
+                                            </Button>
+                                        }
+                                        hint={
+                                            <>
+                                                Press <kbd>⌘T</kbd> for a shell tab.
+                                            </>
+                                        }
+                                    >
+                                        Shells and agents on this page start in your home folder.
+                                    </EmptyState>
+                                </div>
                             ) : (
                                 <div className="empty-state">
                                     {!activeProject && <div className="empty-title">Loading…</div>}

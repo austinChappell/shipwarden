@@ -13,7 +13,9 @@ interface Options {
     defaultRoot: string | undefined;
     selectedPath: string | undefined;
     setSelectedPath: (path: string) => void;
-    setMainView: (view: 'worktree') => void;
+    setMainView: (view: 'worktree' | 'terminal') => void;
+    /** The home folder. The Terminal view keeps its tabs under it. */
+    homeFolder: string | undefined;
     /** Moves the focus to the pane of a browser tab. */
     focusBrowserPane: (id: string) => void;
 }
@@ -22,10 +24,11 @@ interface Options {
  * The in-app browser tabs. Links in the app and new windows of a page open in a browser tab.
  * Returns the function that opens an address in a new browser tab.
  */
-export function useBrowserTabs({ extraTabs, openExtra, defaultRoot, selectedPath, setSelectedPath, setMainView, focusBrowserPane }: Options) {
+export function useBrowserTabs({ extraTabs, openExtra, defaultRoot, selectedPath, setSelectedPath, setMainView, homeFolder, focusBrowserPane }: Options) {
     /**
      * Opens an address in a new browser tab of a worktree: `root`, else the selected worktree, else the first worktree
-     * of the project. The worktree view then shows. Returns false when the project has no worktree.
+     * of the project. The worktree view then shows. A tab of the home folder shows in the Terminal view.
+     * Returns false when the project has no worktree.
      */
     const openBrowser = (url: string, root?: string): boolean => {
         const target = root ?? defaultRoot;
@@ -34,6 +37,10 @@ export function useBrowserTabs({ extraTabs, openExtra, defaultRoot, selectedPath
         browserStore.set({ id, url, title: '', canGoBack: false, canGoForward: false, loading: url !== BLANK_PAGE });
         api.browser.create(id, url);
         openExtra(target, { key: browserTabKey(id), kind: 'browser', id });
+        if (target === homeFolder) {
+            setMainView('terminal');
+            return true;
+        }
         if (target !== selectedPath) setSelectedPath(target);
         setMainView('worktree');
         return true;

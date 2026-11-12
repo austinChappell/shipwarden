@@ -16,6 +16,7 @@ import {
     Plus,
     Rocket,
     Settings,
+    SquareTerminal,
     Trash2,
     Workflow,
     Zap
@@ -487,6 +488,14 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             icon: Workflow,
             keys: SHORTCUT_INFO.viewPipelines.keys[0],
             run: () => actions.enterView('pipelines')
+        },
+        {
+            id: 'view-terminal',
+            label: 'Open Terminal',
+            group: 'Views',
+            keywords: ['shell', 'home'],
+            icon: SquareTerminal,
+            run: () => actions.enterView('terminal')
         }
     );
 

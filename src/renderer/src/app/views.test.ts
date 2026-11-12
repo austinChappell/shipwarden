@@ -52,6 +52,11 @@ describe('navLocationOf', () => {
             query: { panel: 'checks' }
         });
     });
+
+    it('gives the home folder and the tab in the Terminal view, without a query', () => {
+        expect(navLocationOf('terminal', '/home', 't:2', '/repo', { query: { panel: 'checks' } })).toEqual({ view: 'terminal', worktree: '/home', tab: 't:2' });
+        expect(navLocationOf('terminal', undefined, undefined, undefined)).toEqual({ view: 'terminal' });
+    });
 });
 
 describe('isNavValid', () => {
@@ -68,6 +73,12 @@ describe('isNavValid', () => {
         expect(isNavValid({ view: 'worktree', worktree: '/w' }, [], ['/w'], tabsOf)).toBe(true);
         expect(isNavValid({ view: 'worktree', worktree: '/w', tab: 't:closed' }, [], ['/w'], tabsOf)).toBe(false);
         expect(isNavValid({ view: 'worktree', worktree: '/gone' }, [], ['/w'], tabsOf)).toBe(false);
+    });
+
+    it('accepts a Terminal entry only when its tab exists', () => {
+        expect(isNavValid({ view: 'terminal', worktree: '/w', tab: 't:1' }, [], [], tabsOf)).toBe(true);
+        expect(isNavValid({ view: 'terminal', worktree: '/w', tab: 't:closed' }, [], [], tabsOf)).toBe(false);
+        expect(isNavValid({ view: 'terminal' }, [], [], tabsOf)).toBe(true);
     });
 
     it('accepts all entries of other views', () => {
