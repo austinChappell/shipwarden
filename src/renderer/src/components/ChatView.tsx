@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
-import { ArrowUp, CircleAlert, LoaderCircle, MessagesSquare, Square, SquareTerminal, X } from 'lucide-react';
+import { ArrowUp, CircleAlert, CircleCheck, LoaderCircle, MessagesSquare, Square, SquareTerminal, X } from 'lucide-react';
 import type { ChatItem, ChatToolItem } from '@shared/agent-chat';
 import { isImageOnlyPaste } from '@shared/shortcuts';
 import type { TerminalSession } from '@shared/terminal';
 import { bracketedPaste, countImageMarks, showsAgentDialog } from '../app/agent-text';
-import { errorText } from '../util';
+import { errorText, formatDuration } from '../util';
 import { screenTextOf } from '../app/use-agent-actions';
 import { agentViewStore } from '../terminal/agent-view-store';
 import { useTranscript } from '../terminal/transcript-store';
@@ -142,6 +142,19 @@ function groupItems(items: readonly ChatItem[]): (ChatItem | ChatToolItem[])[] {
 }
 
 /**
+ * Returns the text of the "done" line after the last answer of the agent, for example "Done in 2m 31s".
+ * `endedAt` is the time of the idle state (milliseconds). The turn starts at the last prompt of the user.
+ * Returns undefined when the last item is a prompt, because the agent did not answer it yet.
+ */
+function doneText(items: readonly ChatItem[], endedAt?: number): string | undefined {
+    const last = items[items.length - 1];
+    if (!last || last.kind === 'user') return undefined;
+    const prompt = items.findLast(item => item.kind === 'user');
+    if (!prompt?.at || !endedAt || endedAt < prompt.at) return 'Done';
+    return `Done in ${formatDuration(new Date(prompt.at).toISOString(), new Date(endedAt).toISOString())}`;
+}
+
+/**
  * Shows an agent tab as a chat. The chat comes from the Claude Code transcript. The agent still runs in its terminal:
  * a prompt from the chat goes to the terminal, and the user can show the terminal at any time.
  */
@@ -269,6 +282,7 @@ export function ChatView({ session, focused = true }: Props) {
 
     const groups = groupItems(transcript.items);
     const empty = !transcript.loading && transcript.items.length === 0 && !pending;
+    const done = state === 'idle' && !pending ? doneText(transcript.items, session.agentStateAt) : undefined;
 
     return (
         <div className="chat-view">
@@ -310,6 +324,12 @@ export function ChatView({ session, focused = true }: Props) {
                         {pending && (
                             <div className="chat-user pending">
                                 <UserBubble text={pending.text} images={pending.images} />
+                            </div>
+                        )}
+                        {done && (
+                            <div className="chat-status done" role="status">
+                                <CircleCheck size={13} strokeWidth={2} className="chat-done-icon" aria-hidden="true" />
+                                <span>{done}</span>
                             </div>
                         )}
                         {working && (

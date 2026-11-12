@@ -1,4 +1,4 @@
-import { appendFile, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
+import { appendFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -42,6 +42,25 @@ describe('TranscriptWatcher', () => {
         changes.length = 0;
         await appendFile(file, '{"b":2}\n');
         await until(() => changes.length > 0);
+    });
+
+    it('reports a change of the file, also when the folder of the file is made after the start', async () => {
+        const folder = path.join(root, 'new-project');
+        const file = path.join(folder, 'session.jsonl');
+        watcher.start(file);
+        await mkdir(folder);
+        await writeFile(file, '{"a":1}\n');
+        await until(() => changes.length > 0);
+        expect(changes.every(item => item === file)).toBe(true);
+        changes.length = 0;
+        await appendFile(file, '{"b":2}\n');
+        await until(() => changes.length > 0);
+    });
+
+    it('refuses a file when its folder and the parent folder are missing', () => {
+        expect(() => watcher.start(path.join(root, 'a', 'b', 'session.jsonl'))).toThrow();
+        // A failed start keeps no watch, so a new start tries again.
+        expect(() => watcher.start(path.join(root, 'a', 'b', 'session.jsonl'))).toThrow();
     });
 
     it('does not report other files in the folder', async () => {
