@@ -19,6 +19,7 @@ describe('parseLayout', () => {
         const text = JSON.stringify({
             selectedPath: '/wt/a',
             mainView: 'tasks',
+            route: { page: 'task-1', query: { filter: 'mine', bad: 4 } },
             openFiles: { '/wt/a': ['src/a.ts', 3], '/wt/b': 'bad' },
             activeTabs: { '/wt/a': 'f:src/a.ts', '/wt/b': 5 },
             panes: { '/wt/a': [split], '/wt/b': { root: 'bad' } }
@@ -26,10 +27,16 @@ describe('parseLayout', () => {
         expect(parseLayout(text)).toEqual({
             selectedPath: '/wt/a',
             mainView: 'tasks',
+            route: { page: 'task-1', query: { filter: 'mine' } },
             openFiles: { '/wt/a': ['src/a.ts'] },
             activeTabs: { '/wt/a': 'f:src/a.ts' },
             panes: { '/wt/a': [split] }
         });
+    });
+
+    it('ignores a route without a page or a query', () => {
+        expect(parseLayout(JSON.stringify({ route: { page: 5, query: { a: 1 } } })).route).toBeUndefined();
+        expect(parseLayout(JSON.stringify({ route: 'bad' })).route).toBeUndefined();
     });
 
     it('returns an empty layout for missing or bad JSON', () => {
@@ -56,6 +63,10 @@ describe('pruneLayout', () => {
             activeTabs: { '/wt/a': 'f:b.ts', '/wt/c': 't:live' },
             panes: { '/wt/a': layout.panes['/wt/a'] }
         });
+    });
+
+    it('keeps the route of the main view', () => {
+        expect(pruneLayout({ ...layout, mainView: 'review', route: { page: 'pr' } }, []).route).toEqual({ page: 'pr' });
     });
 
     it('keeps the selected worktree when it exists', () => {

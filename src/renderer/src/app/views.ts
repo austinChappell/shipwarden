@@ -43,6 +43,15 @@ export function viewToSave(mainView: MainView, viewBeforeSettings: ContentView):
 }
 
 /**
+ * Returns the view that shows when the app starts: the view that the project saved. Without a saved view, the Dashboard shows.
+ * The worktree view needs a worktree. Without a worktree, the Dashboard shows.
+ */
+export function startView(saved: MainView | undefined, selectedPath: string | undefined): MainView {
+    if (!saved || (saved === 'worktree' && !selectedPath)) return 'dashboard';
+    return saved;
+}
+
+/**
  * Returns the view after a switch to another project. The current view stays.
  * The graph page shows a repository of the old project. Thus the worktree view of the new project goes in its place.
  */
