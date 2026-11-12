@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PullRequest, Review, ReviewThread } from '@shared/github';
-import { commentPrompt, conflictPrompt, reviewPrompt, reviewThreads, threadLine, threadPrompt } from './agent-prompts';
+import { commentPrompt, conflictPrompt, lineNotePrompt, reviewPrompt, reviewThreads, threadLine, threadPrompt } from './agent-prompts';
 
 const pr = { number: 7, url: 'https://github.com/o/r/pull/7', baseRefName: 'main', headRefName: 'fix-login' } as PullRequest;
 
@@ -49,6 +49,24 @@ describe('threadPrompt', () => {
 
     it('omits the line when the thread has no line', () => {
         expect(threadPrompt(pr, thread({ line: null, originalLine: null }))).toContain('on src/a.ts in pull request #7');
+    });
+});
+
+describe('lineNotePrompt', () => {
+    it('contains the path, the lines, the pull request and the note', () => {
+        expect(lineNotePrompt(pr, { path: 'src/a.ts', line: 5, startLine: 3, side: 'RIGHT', body: ' Use a map here. \n' })).toBe(
+            'I left this note on src/a.ts lines 3–5 in pull request #7 (https://github.com/o/r/pull/7):\n\nUse a map here.\n\nMake the change that the note asks for.'
+        );
+    });
+
+    it('names one line', () => {
+        expect(lineNotePrompt(pr, { path: 'src/a.ts', line: 5, side: 'RIGHT', body: 'Fix.' })).toContain('on src/a.ts line 5 in');
+    });
+
+    it('marks a note on removed lines', () => {
+        expect(lineNotePrompt(pr, { path: 'src/a.ts', line: 5, side: 'LEFT', body: 'Keep this.' })).toContain(
+            'src/a.ts line 5 of the old version (the removed lines)'
+        );
     });
 });
 

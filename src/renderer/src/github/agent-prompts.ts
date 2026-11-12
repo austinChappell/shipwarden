@@ -1,4 +1,5 @@
-import type { PullRequest, Review, ReviewThread } from '@shared/github';
+import { lineLabel } from '@shared/ask-agent';
+import type { PendingComment, PullRequest, Review, ReviewThread } from '@shared/github';
 
 /** Returns the line of a thread in the current diff, or its line in an older commit. Null when it has no line. */
 export function threadLine(thread: ReviewThread): number | null {
@@ -19,6 +20,19 @@ function threadComments(thread: ReviewThread): string {
 /** Makes the agent prompt for a review thread. */
 export function threadPrompt(pr: PullRequest, thread: ReviewThread): string {
     return `A reviewer left this comment on ${threadPlace(thread)} in pull request #${pr.number} (${pr.url}):\n\n${threadComments(thread)}\n\nMake the change that the reviewer asks for.`;
+}
+
+/** The lines and the text of a pending comment, or of a note from the comment box. */
+export type LineNote = Pick<PendingComment, 'path' | 'line' | 'startLine' | 'side' | 'body'>;
+
+/**
+ * Makes the agent prompt for a note on lines of a pull request: a pending comment, or a note from the comment box.
+ * A note on the left side is about removed lines of the old version.
+ */
+export function lineNotePrompt(pr: PullRequest, note: LineNote): string {
+    const lines = lineLabel(note.startLine ?? note.line, note.line);
+    const place = note.side === 'LEFT' ? `${note.path} ${lines} of the old version (the removed lines)` : `${note.path} ${lines}`;
+    return `I left this note on ${place} in pull request #${pr.number} (${pr.url}):\n\n${note.body.trim()}\n\nMake the change that the note asks for.`;
 }
 
 /** Makes the agent prompt for the merge conflicts of a pull request. */

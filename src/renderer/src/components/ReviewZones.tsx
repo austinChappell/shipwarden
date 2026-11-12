@@ -100,18 +100,24 @@ export function ThreadZone({
     );
 }
 
-/** A pending comment. With `onAccept`, a comment from an agent review that waits for a decision shows an Accept button. */
+/**
+ * A pending comment. With `onAccept`, a comment from an agent review that waits for a decision shows an Accept button.
+ * With `onSendToAgent`, the comment can go to an agent before the review goes out. The comment stays pending.
+ */
 export function PendingZone({
     comment,
     onRemove,
     onEdit,
-    onAccept
+    onAccept,
+    onSendToAgent
 }: {
     comment: PendingComment;
     onRemove(): void;
     onEdit?(body: string): void;
     onAccept?(): void;
+    onSendToAgent?(): void;
 }) {
+    const [sent, setSent] = useState(false);
     const [editing, setEditing] = useState(false);
     const [text, setText] = useState(comment.body);
     const save = () => {
@@ -175,6 +181,19 @@ export function PendingZone({
                             Accept
                         </Button>
                     )}
+                    {onSendToAgent && !editing && (
+                        <Button
+                            variant="link"
+                            icon={sent ? <Check size={13} strokeWidth={2} /> : <Bot size={13} strokeWidth={1.6} />}
+                            title="Send the comment to the agent. The comment stays in your review."
+                            onClick={() => {
+                                onSendToAgent();
+                                setSent(true);
+                            }}
+                        >
+                            {sent ? 'Sent to agent' : 'Send to agent'}
+                        </Button>
+                    )}
                     <Button variant="link-danger" onClick={onRemove}>
                         Remove
                     </Button>
@@ -236,6 +255,7 @@ export function ComposerZone({
     onAsk,
     onSuggest,
     note,
+    onSendToAgent,
     onCancel,
     canComment = true,
     initialMode
@@ -248,13 +268,19 @@ export function ComposerZone({
     onSuggest?(): Promise<string | undefined>;
     onAsk?(question: string): void;
     note?: NoteOptions;
+    /**
+     * Sends the text to the agent of the view, with no list of agents. It adds the "Send to agent" mode when `note`
+     * is not set. The pull request diff uses it.
+     */
+    onSendToAgent?(text: string): void;
     onCancel(): void;
     canComment?: boolean;
     /** The mode when the box opens. */
     initialMode?: ComposerMode;
 }) {
+    const modes = composerModes(canComment, !!onAsk, !!note || !!onSendToAgent);
     const [text, setText] = useState('');
-    const [mode, setMode] = useState<ComposerMode>(initialMode ?? (canComment ? 'comment' : 'ask'));
+    const [mode, setMode] = useState<ComposerMode>(initialMode ?? modes[0] ?? 'ask');
     const textRef = useRef<HTMLTextAreaElement>(null);
     /** The text of the lines when the user started a suggested change. */
     const [originalCode, setOriginalCode] = useState<string>();
@@ -265,13 +291,14 @@ export function ComposerZone({
     // The selected agent can stop while the box is open. Then the first choice applies.
     const target = targets.find(option => option.key === targetKey) ?? targets[0];
     const lines = lineLabel(startLine, line);
-    const modes = composerModes(canComment, !!onAsk, !!note);
     const submit = () => {
         const value = text.trim();
         if (!value) return;
         if (mode === 'ask') onAsk?.(value);
         else if (mode === 'note') {
-            if (target) note?.onSend(value, target.target);
+            if (note) {
+                if (target) note.onSend(value, target.target);
+            } else onSendToAgent?.(value);
         } else onAdd(value, originalCode);
     };
     /** Puts a suggestion block with the text of the lines at the cursor. */
@@ -346,7 +373,7 @@ export function ComposerZone({
                             Suggest a change
                         </Button>
                     )}
-                    {mode === 'note' && (
+                    {mode === 'note' && note && (
                         // Monaco must not handle the keys of the select. The wrapper stops them.
                         <span className="composer-target-keys" onKeyDown={event => event.stopPropagation()}>
                             <Select
@@ -360,7 +387,7 @@ export function ComposerZone({
                         </span>
                     )}
                     <Button onClick={onCancel}>Cancel</Button>
-                    <Button variant="primary" disabled={!text.trim() || (mode === 'note' && !target)} onClick={submit}>
+                    <Button variant="primary" disabled={!text.trim() || (mode === 'note' && !!note && !target)} onClick={submit}>
                         {submitLabel}
                     </Button>
                 </div>
