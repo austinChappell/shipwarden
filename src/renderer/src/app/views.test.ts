@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isNavValid, navLocationOf, viewAfterProjectSwitch, viewToSave } from './views';
+import { isNavValid, navLocationOf, startView, viewAfterProjectSwitch, viewToSave } from './views';
 
 describe('viewToSave', () => {
     it('saves the view below the settings page', () => {
@@ -95,5 +95,17 @@ describe('viewAfterProjectSwitch', () => {
 
     it('shows the worktree view in place of the graph of the old project', () => {
         expect(viewAfterProjectSwitch('graph')).toBe('worktree');
+    });
+});
+
+describe('startView', () => {
+    it('shows the saved view', () => {
+        expect(startView('review', undefined)).toBe('review');
+        expect(startView('worktree', '/wt/a')).toBe('worktree');
+    });
+
+    it('shows the Dashboard without a saved view or without a worktree for the worktree view', () => {
+        expect(startView(undefined, '/wt/a')).toBe('dashboard');
+        expect(startView('worktree', undefined)).toBe('dashboard');
     });
 });

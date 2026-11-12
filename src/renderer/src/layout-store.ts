@@ -1,13 +1,16 @@
+import type { NavQuery, ViewRoute } from '@shared/nav-history';
 import { normalizeGroups, type SplitGroups } from '@shared/panes';
 
 /**
  * The workspace layout of one repository that ShipWarden keeps after a restart:
- * the selected worktree, the main view, the open files and the active tab of each worktree.
+ * the selected worktree, the main view and its page, the open files, and the active tab of each worktree.
  * Terminal tabs are not in this layout, because their processes stop when the app quits.
  */
 export interface SavedLayout {
     selectedPath?: string;
     mainView?: 'dashboard' | 'worktree' | 'tasks' | 'agents' | 'review' | 'pipelines' | 'notes' | 'automations' | 'plans' | 'terminal';
+    /** The page and the query of the main view, for example one pull request in the Review view. */
+    route?: ViewRoute;
     /** The open files of each worktree, as paths relative to the worktree. */
     openFiles: Record<string, string[]>;
     /** The active tab of each worktree. */
@@ -54,6 +57,10 @@ export function parseLayout(text: string | null): SavedLayout {
         raw.mainView === 'terminal'
     ) {
         layout.mainView = raw.mainView;
+    }
+    const route = parseRoute(raw.route);
+    if (route) {
+        layout.route = route;
     }
     if (raw.openFiles && typeof raw.openFiles === 'object') {
         for (const [root, files] of Object.entries(raw.openFiles as Record<string, unknown>)) {
@@ -107,10 +114,30 @@ export function pruneLayout(layout: SavedLayout, worktreePaths: readonly string[
     return {
         selectedPath: layout.selectedPath && worktrees.has(layout.selectedPath) ? layout.selectedPath : undefined,
         mainView: layout.mainView,
+        ...(layout.route ? { route: layout.route } : {}),
         openFiles,
         activeTabs,
         panes
     };
+}
+
+/** Converts a stored route to a route. Values with a wrong type are ignored. Returns undefined when no value stays. */
+function parseRoute(value: unknown): ViewRoute | undefined {
+    if (!value || typeof value !== 'object') {
+        return undefined;
+    }
+    const raw = value as Record<string, unknown>;
+    const route: { page?: string; query?: NavQuery } = {};
+    if (typeof raw.page === 'string') {
+        route.page = raw.page;
+    }
+    if (raw.query && typeof raw.query === 'object') {
+        const query = Object.fromEntries(Object.entries(raw.query as Record<string, unknown>).filter(([, item]) => typeof item === 'string'));
+        if (Object.keys(query).length > 0) {
+            route.query = query as NavQuery;
+        }
+    }
+    return route.page !== undefined || route.query ? route : undefined;
 }
 
 export function readLayout(repoPath: string): SavedLayout {

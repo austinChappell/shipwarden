@@ -117,7 +117,7 @@ export function App() {
     const [explorerOpen, toggleExplorer] = useStoredFlag(EXPLORER_STORAGE_KEY, true);
     const [sidebarCollapsed, toggleSidebar] = useStoredFlag(SIDEBAR_COLLAPSED_KEY, false);
     /** The center area shows the selected worktree or the task list of the repository. */
-    /** The app starts on the Dashboard. A project switch restores the saved view of the project. */
+    /** The app starts on the Dashboard until the saved view of the project loads. Then the saved view shows. */
     const [mainView, setMainView] = useState<MainView>('dashboard');
     /** The repository that the commit graph page shows. */
     const [graphRepo, setGraphRepo] = useState<string>();
@@ -205,6 +205,8 @@ export function App() {
         mainView,
         setMainView,
         viewBeforeSettings,
+        routes,
+        setRoute,
         repoLabel,
         setError,
         openFiles: tabs.openFiles,

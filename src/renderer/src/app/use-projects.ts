@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import type { BranchSummary, RepoRef } from '@shared/github';
+import type { ViewRoute } from '@shared/nav-history';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { SplitGroups } from '@shared/panes';
 import type { Worktree } from '@shared/worktrees';
 import { confirmDialog } from '../components/ConfirmDialog';
 import { pruneLayout, readLayout, writeLayout } from '../layout-store';
 import { keepOpenFileTabs, type TabKey } from './tabs';
-import { viewAfterProjectSwitch, viewToSave, type ContentView, type MainView } from './views';
+import { startView, viewAfterProjectSwitch, viewToSave, type ContentView, type MainView } from './views';
 import { errorText } from './worktree-edits';
 import { editorPositions } from '../editor/editor-positions';
 import { keyRoots, queryClient } from '../query-client';
@@ -21,6 +22,9 @@ interface Options {
     mainView: MainView;
     setMainView: Dispatch<SetStateAction<MainView>>;
     viewBeforeSettings: MutableRefObject<ContentView>;
+    /** The page and the query of each view. The project layout saves the route of the main view and restores it at the start. */
+    routes: Partial<Record<MainView, ViewRoute>>;
+    setRoute: (view: MainView, route: ViewRoute) => void;
     /** The tabs of each worktree. The project layout saves them and restores them. */
     openFiles: Record<string, string[]>;
     setOpenFiles: Dispatch<SetStateAction<Record<string, string[]>>>;
@@ -50,7 +54,7 @@ export function useProjects(options: Options) {
     const [worktreesByRepo, setWorktreesByRepo] = useState<Record<string, Worktree[]>>({});
     /** All worktrees of the active project. */
     const worktrees = useMemo(() => repos.flatMap(repo => worktreesByRepo[repo] ?? []), [repos, worktreesByRepo]);
-    /** True until the first project shows. The first restore keeps the start view (the Dashboard). */
+    /** True until the first project shows. The first restore shows the saved view and its page, as the user left them. */
     const firstRestore = useRef(true);
 
     // The ref holds the newest label function. The stable callback below then shows the newest repository name.
@@ -81,11 +85,15 @@ export function useProjects(options: Options) {
     const restoredKey = useRef<string>(undefined);
 
     const { setOpenFiles, setActiveTabs, setPanes } = options;
+    // The ref holds the newest route setter, so the stable restore callback does not change on each render.
+    const setRouteRef = useRef(options.setRoute);
+    setRouteRef.current = options.setRoute;
     /**
      * Opens the saved tabs of a project again. A file that does not exist now does not get a tab.
      * Terminal sessions that are still running keep their active tab.
      * `fallbackKey` is the key of an older layout (one repository) that a project without its own layout uses.
-     * The main view stays, except the graph page (see viewAfterProjectSwitch). With `keepView`, the main view does not change at all.
+     * At the start, the saved view and its page show (see startView). After a project switch, the main view stays,
+     * except the graph page (see viewAfterProjectSwitch). With `keepView`, the main view does not change at all.
      */
     const restoreLayout = useCallback(
         async (key: string, list: Worktree[], sessionIds: string[], fallbackKey?: string, keepView = false) => {
@@ -127,9 +135,13 @@ export function useProjects(options: Options) {
             setOpenFiles(map => ({ ...map, ...openFiles }));
             setActiveTabs(map => ({ ...map, ...activeTabs }));
             setPanes(map => ({ ...map, ...saved.panes }));
-            setSelectedPath(saved.selectedPath ?? list[0]?.path);
+            const path = saved.selectedPath ?? list[0]?.path;
+            setSelectedPath(path);
             if (firstRestore.current) {
                 firstRestore.current = false;
+                const view = startView(saved.mainView, path);
+                if (view === saved.mainView && saved.route) setRouteRef.current(view, saved.route);
+                setMainView(view);
             } else if (!keepView) {
                 setMainView(viewAfterProjectSwitch);
             }
@@ -152,15 +164,16 @@ export function useProjects(options: Options) {
         [refreshAll, restoreLayout]
     );
 
-    const { openFiles, activeTabs, panes } = options;
+    const { openFiles, activeTabs, panes, routes } = options;
     const layoutKey = activeProject ? `project:${activeProject.id}` : undefined;
     // Save the layout of the project after each change. The first save comes after the restore, so that it does not remove the saved layout.
     // biome-ignore lint/correctness/useExhaustiveDependencies: viewBeforeSettings is a ref. A change of its value must not save the layout.
     useEffect(() => {
         if (layoutKey && restoredKey.current === layoutKey) {
-            writeLayout(layoutKey, { selectedPath, mainView: viewToSave(mainView, viewBeforeSettings.current), openFiles, activeTabs, panes });
+            const view = viewToSave(mainView, viewBeforeSettings.current);
+            writeLayout(layoutKey, { selectedPath, mainView: view, route: routes[view], openFiles, activeTabs, panes });
         }
-    }, [layoutKey, selectedPath, mainView, openFiles, activeTabs, panes]);
+    }, [layoutKey, selectedPath, mainView, routes, openFiles, activeTabs, panes]);
 
     // An agent or a terminal can also add worktrees, so the lists load again when the window gets focus.
     const repoKey = repos.join('\0');
