@@ -40,7 +40,7 @@ type FixedSection = 'appearance' | 'notifications' | 'dashboard' | 'tasks' | 're
 type SectionId = FixedSection | `repo:${string}`;
 
 /** The fixed sections of the settings page, in the order of the section list. */
-const SECTIONS: { id: FixedSection; label: string; icon: LucideIcon }[] = [
+export const SETTINGS_SECTIONS: { id: FixedSection; label: string; icon: LucideIcon }[] = [
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -60,7 +60,7 @@ const SECTION_STORAGE_KEY = 'shipwarden.settingsSection';
 export function readSettingsSection(): string {
     try {
         const value = localStorage.getItem(SECTION_STORAGE_KEY);
-        return SECTIONS.some(item => item.id === value) ? (value as SectionId) : 'appearance';
+        return SETTINGS_SECTIONS.some(item => item.id === value) ? (value as SectionId) : 'appearance';
     } catch {
         return 'appearance';
     }
@@ -183,7 +183,7 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
     const current =
         repoSection && repos.includes(repoSection)
             ? { id: section, label: repoDisplayName(settings, repoSection) }
-            : (SECTIONS.find(item => item.id === section) ?? SECTIONS[0]);
+            : (SETTINGS_SECTIONS.find(item => item.id === section) ?? SETTINGS_SECTIONS[0]);
 
     return (
         <div className="settings-view">
@@ -197,7 +197,7 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
             </header>
             <div className="settings-body">
                 <nav className="settings-nav" aria-label="Settings sections">
-                    {SECTIONS.map(item => (
+                    {SETTINGS_SECTIONS.map(item => (
                         <button
                             key={item.id}
                             className={`settings-nav-item${item.id === current.id ? ' selected' : ''}`}

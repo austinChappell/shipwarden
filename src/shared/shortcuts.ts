@@ -5,6 +5,7 @@
  * The tab keys are as in Ghostty: ⌘1 to ⌘8 select a tab, and ⌘9 selects the last tab. ⇧⌘[ and ⇧⌘] select the previous
  * and the next tab. ⌃⇧Tab and ⌃Tab do the same.
  * ⌥⌘1 to ⌥⌘6 open a view: Dashboard, Agents, Tasks, Review, Pipelines and Notes. ⇧⌘0 moves the focus to the workspace.
+ * ⇧⌘P opens the command palette.
  * ⌘0 stays the key of the Actual Size menu item.
  */
 export type ShortcutAction =
@@ -24,6 +25,7 @@ export type ShortcutAction =
     | 'newWorktree'
     | 'focusExplorer'
     | 'focusWorkspace'
+    | 'commandPalette'
     | 'selectTab1'
     | 'selectTab2'
     | 'selectTab3'
@@ -86,7 +88,8 @@ function digitOf(input: { key: string; code?: string }): string | undefined {
  * that side), ⌘B (show or hide the sidebar), ⇧⌘B (move the focus to the sidebar), ⌘E (show or hide the right panel),
  * ⌘N (open the New worktree dialog), ⇧⌘E (move the focus to the file explorer).
  * Also ⌘1 to ⌘8 (select that tab), ⌘9 (select the last tab), ⇧⌘[ and ⌃⇧Tab (select the previous tab), ⇧⌘] and ⌃Tab
- * (select the next tab), ⌥⌘1 to ⌥⌘6 (open a view) and ⇧⌘0 (move the focus to the workspace).
+ * (select the next tab), ⌥⌘1 to ⌥⌘6 (open a view), ⇧⌘0 (move the focus to the workspace) and ⇧⌘P (open the command
+ * palette).
  * Other keys return undefined.
  */
 export function shortcutAction(input: {
@@ -118,6 +121,7 @@ export function shortcutAction(input: {
         if (input.code === 'BracketLeft' || key === '{') return 'previousTab';
         if (input.code === 'BracketRight' || key === '}') return 'nextTab';
         if (digit === '0') return 'focusWorkspace';
+        if (key === 'p') return 'commandPalette';
         return undefined;
     }
     if (digit) return TAB_KEYS[digit];
@@ -294,6 +298,7 @@ export const SHORTCUT_INFO: Record<ShortcutAction, ShortcutInfo> = {
     toggleRightPanel: { label: 'Show or hide the right panel', keys: ['⌘E'], group: 'Panels and focus' },
     focusExplorer: { label: 'Move the focus to the file explorer', keys: ['⇧⌘E'], group: 'Panels and focus' },
     focusWorkspace: { label: 'Move the focus to the workspace', keys: ['⇧⌘0'], group: 'Panels and focus' },
+    commandPalette: { label: 'Open the command palette', keys: ['⇧⌘P'], group: 'App' },
     back: { label: 'Back', keys: ['⌘['], group: 'History' },
     forward: { label: 'Forward', keys: ['⌘]'], group: 'History' }
 };

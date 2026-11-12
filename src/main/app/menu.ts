@@ -72,6 +72,7 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
                 { label: 'Focus File Explorer', accelerator: 'Shift+Command+E', click: sendShortcut('focusExplorer') },
                 // ⌘0 stays the key of Actual Size, so this item uses ⇧⌘0.
                 { label: 'Focus Workspace', accelerator: 'Shift+Command+0', click: sendShortcut('focusWorkspace') },
+                { label: 'Command Palette…', accelerator: 'Shift+Command+P', click: sendShortcut('commandPalette') },
                 { type: 'separator' },
                 { role: 'reload' },
                 { role: 'forceReload' },

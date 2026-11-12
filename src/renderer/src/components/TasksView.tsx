@@ -56,6 +56,8 @@ interface Props {
     route: ViewRoute;
     /** Changes the selected task. The change replaces the current history entry. */
     onRoute(route: ViewRoute): void;
+    /** True when the view opens for a new task, for example from the command palette. The New task dialog opens when the collection is ready. */
+    createOnOpen?: boolean;
 }
 
 /** The tasks of the project's task managers, one collection at a time, with a dialog for the details of the selected task. */
@@ -71,7 +73,8 @@ export function TasksView({
     repoLabel,
     openTask,
     route,
-    onRoute
+    onRoute,
+    createOnOpen
 }: Props) {
     const selectedId = route.query?.task;
     const [query, setQuery] = useState('');
@@ -98,6 +101,14 @@ export function TasksView({
     const label = labelFilter.filter;
     const list = useTaskList({ source, collection, filter: sourceState.filter, request, setSelectedId });
     const { tasks, loadTasks } = list;
+    /** True until the New task dialog of `createOnOpen` opens. */
+    const createPending = useRef(!!createOnOpen);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The dialog opens one time, when the collection is ready.
+    useEffect(() => {
+        if (!createPending.current || !collection || !source) return;
+        createPending.current = false;
+        void list.createTask();
+    }, [collection, source]);
     const listError = sourceState.collectionsError ?? list.listError;
     const detailState = useTaskDetail({ source, selectedId, setSelectedId, request, setTasks: list.setTasks, loadTasks });
 

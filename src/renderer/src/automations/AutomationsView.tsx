@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowUpRight, Check, ChevronDown, ChevronLeft, FolderOpen, MoreHorizontal, Pencil, Play, Plus, Upload, X, Zap } from 'lucide-react';
 import {
     AUTOMATION_TEMPLATES,
@@ -22,6 +22,7 @@ import {
     type AutomationRun,
     type AutomationSettings,
     type AutomationStatus,
+    type AutomationTemplate,
     type RunStatus
 } from '@shared/automations';
 import type { AppSettings } from '@shared/settings';
@@ -76,7 +77,15 @@ interface Props {
     repoLabel(repo: string): string;
     onOpenWorktree(path: string, sessionId?: string): void;
     onOpenNotes(): void;
+    /** A request of the command palette. The view opens the editor for it when the view opens. */
+    request?: AutomationRequest;
 }
+
+/**
+ * A request to open the editor: a new automation from a template ("blank" for the empty automation), or the
+ * automation with an ID.
+ */
+export type AutomationRequest = { kind: 'new'; templateId: string } | { kind: 'edit'; id: string };
 
 /** The state of the editor: the automation, the ID of its saved file, and whether it comes from an import. */
 interface Editing {
@@ -85,12 +94,46 @@ interface Editing {
     imported?: boolean;
 }
 
+/** Returns the template with an ID. Other IDs, for example "blank", give the empty automation. */
+function templateOf(id: string): AutomationTemplate {
+    return (
+        AUTOMATION_TEMPLATES.find(item => item.id === id) ?? {
+            id: 'blank',
+            name: 'New automation',
+            description: '',
+            definition: {
+                name: 'New automation',
+                trigger: { type: 'ci.failed' },
+                actions: [{ type: 'sendToAgent', prompt: '' }],
+                limits: { approval: 'ask', maxRunsPerTarget: 3, maxRunning: 2 }
+            }
+        }
+    );
+}
+
 /** The Automations view: the runs that wait for approval, the automations, the files with problems and the run history. */
-export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, onOpenWorktree, onOpenNotes }: Props) {
-    const { list } = useAutomationList();
+export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, onOpenWorktree, onOpenNotes, request }: Props) {
+    const { list, loaded } = useAutomationList();
     const { state } = useAutomationRuns();
     const usage = useUsage();
-    const [editing, setEditing] = useState<Editing>();
+    const [editing, setEditing] = useState<Editing | undefined>(() =>
+        request?.kind === 'new'
+            ? {
+                  automation: automationFromTemplate(
+                      templateOf(request.templateId),
+                      list.automations.map(item => item.id)
+                  )
+              }
+            : undefined
+    );
+    /** An edit request waits until the list loads. The view gets a new key for each request, so it runs one time. */
+    const [pendingEdit, setPendingEdit] = useState(request?.kind === 'edit' ? request.id : undefined);
+    useEffect(() => {
+        if (!pendingEdit || !loaded) return;
+        const automation = list.automations.find(item => item.id === pendingEdit);
+        if (automation) setEditing({ automation: structuredClone(automation), previousId: automation.id });
+        setPendingEdit(undefined);
+    }, [pendingEdit, loaded, list]);
     const [error, setError] = useState<string>();
     const [notice, setNotice] = useState<string>();
     const automationSettings = settings.automations;
@@ -144,20 +187,7 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
             anchor
         );
         if (!choice) return;
-        const template =
-            AUTOMATION_TEMPLATES.find(item => item.id === choice) ??
-            ({
-                id: 'blank',
-                name: 'New automation',
-                description: '',
-                definition: {
-                    name: 'New automation',
-                    trigger: { type: 'ci.failed' },
-                    actions: [{ type: 'sendToAgent', prompt: '' }],
-                    limits: { approval: 'ask', maxRunsPerTarget: 3, maxRunning: 2 }
-                }
-            } as const);
-        setEditing({ automation: automationFromTemplate(template, ids) });
+        setEditing({ automation: automationFromTemplate(templateOf(choice), ids) });
     };
 
     const importMenu = async (anchor: Element) => {

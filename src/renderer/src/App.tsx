@@ -7,7 +7,11 @@ import type { PullRequest, PullRequestFile } from '@shared/github';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } from './components/RightPanel';
 import { requestExplorerFocus } from './files/explorer-focus';
-import { dialogOpen } from './components/ConfirmDialog';
+import { dialogOpen, promptDialog } from './components/ConfirmDialog';
+import { AppCommandPalette } from './palette/AppCommandPalette';
+import type { PaletteActions } from './palette/palette-commands';
+import { newPlan } from '@shared/plans';
+import { noteNameError, uniqueNoteName } from '@shared/notes';
 import { NewWorktreeDialog } from './components/NewWorktreeDialog';
 import { LinkTaskDialog } from './components/LinkTaskDialog';
 import { GitGraphView } from './components/GitGraphView';
@@ -15,19 +19,19 @@ import { TasksView } from './components/TasksView';
 import { Sidebar } from './components/Sidebar';
 import { useBranchStatus } from './github/use-branch-status';
 import { ResizeHandle, usePanelWidth } from './components/ResizeHandle';
-import { readSettingsSection, SettingsView } from './components/SettingsView';
+import { readSettingsSection, SETTINGS_SECTIONS, SettingsView } from './components/SettingsView';
 import { AgentsView } from './components/AgentsView';
 import { NewTabMenu } from './components/NewTabMenu';
 import { ReviewView } from './components/ReviewView';
 import { reviewPage } from './app/review-page';
 import { DashboardView, type ReviewTabRequest } from './components/DashboardView';
 import { NotesView } from './components/NotesView';
-import { AutomationsView } from './automations/AutomationsView';
+import { AutomationsView, type AutomationRequest } from './automations/AutomationsView';
 import { useAutomationRuns } from './automations/automation-queries';
 import { automationEngine } from './automations/engine';
 import { useAutomationEngine } from './automations/use-automation-engine';
 import { PlansView } from './plans/PlansView';
-import { usePlans } from './plans/plan-queries';
+import { createPlan, usePlans } from './plans/plan-queries';
 import { planRunner } from './plans/plan-runner';
 import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
@@ -37,7 +41,7 @@ import { useReviewOverviewLoader, useReviewQueue } from './github/review-overvie
 import { reviewScopeKey, useReviewProviders } from './review-providers-store';
 import type { NotificationTarget } from '@shared/api';
 import type { NavLocation, ViewRoute } from '@shared/nav-history';
-import { pullRequestWebUrl, repoId, type RepoRef } from '@shared/github';
+import { parseRepoId, pullRequestWebUrl, repoId, type RepoRef } from '@shared/github';
 import { useAppearance } from './theme/appearance';
 import { StatusBar } from './components/StatusBar';
 import { ErrorBanner } from './components/ErrorBanner';
@@ -164,6 +168,19 @@ export function App() {
     const [linkTaskFor, setLinkTaskFor] = useState<Worktree>();
     /** True while the clone dialog of the empty worktree area shows. */
     const [cloneOpen, setCloneOpen] = useState(false);
+    /** True while the command palette (⇧⌘P) shows. */
+    const [paletteOpen, setPaletteOpen] = useState(false);
+    /** A request of the command palette for the Automations view: a new automation, or an automation to edit. */
+    const [automationRequest, setAutomationRequest] = useState<AutomationRequest>();
+    /** True when the Tasks view must open the New task dialog, after "Create a task" in the command palette. */
+    const [createTaskOnOpen, setCreateTaskOnOpen] = useState(false);
+    // A view reads its request when it opens. The request then clears, so a later open of the view does not repeat it.
+    useEffect(() => {
+        if (automationRequest) setAutomationRequest(undefined);
+    }, [automationRequest]);
+    useEffect(() => {
+        if (createTaskOnOpen) setCreateTaskOnOpen(false);
+    }, [createTaskOnOpen]);
     /** The name of a repository in the UI: its name from the repository settings, else its folder name. */
     const repoLabel = (repo: string) => repoDisplayName(appSettings, repo);
 
@@ -240,9 +257,13 @@ export function App() {
      * Shows a view on its entry page. The sidebar and the view shortcuts use it. An open pull request or task closes, also
      * when the view shows already.
      */
-    const enterView = (view: ContentView) => {
-        setRoute(view, {});
+    const enterView = (view: ContentView) => openViewAt(view, {});
+    /** Shows a view on a page, for example a plan or a note, as a new entry of the view. */
+    const openViewAt = (view: ContentView, route: ViewRoute) => {
+        setRoute(view, route);
         setTaskOpen(undefined);
+        setAutomationRequest(undefined);
+        setCreateTaskOnOpen(false);
         setViewEntry(value => value + 1);
         setMainView(view);
     };
@@ -431,13 +452,14 @@ export function App() {
         if (action.kind === 'view') enterView(action.view);
         else if (action.kind === 'settings') openSettings(action.section);
         else if (action.kind === 'shortcuts') setShortcutsOpen(true);
+        else if (action.kind === 'commandPalette') setPaletteOpen(true);
         else if (repos.length > 0) setNewWorktree({ repo: selectedRepo ?? repos[0] });
         else void project.addRepo();
     };
     const tips = useTips({
         onboarding: appSettings.onboarding,
         settingsLoaded,
-        blocked: mainView === 'welcome' || tourOpen || tourOffered || shortcutsOpen || !!newWorktree,
+        blocked: mainView === 'welcome' || tourOpen || tourOffered || shortcutsOpen || paletteOpen || !!newWorktree,
         saveOnboarding,
         runAction: runTipAction,
         onError: err => setError(errorText(err))
@@ -595,6 +617,10 @@ export function App() {
             navigate(action === 'back' ? -1 : 1);
             return;
         }
+        if (action === 'commandPalette') {
+            setPaletteOpen(true);
+            return;
+        }
         if (action === 'toggleSidebar') {
             toggleSidebar();
             return;
@@ -641,6 +667,58 @@ export function App() {
         await tabs.paneShortcut(action, selected);
     };
     useShortcuts(shortcut, focusWorkspace);
+
+    /** The actions of the command palette. */
+    const paletteActions: PaletteActions = {
+        newWorktree: repo => setNewWorktree({ repo }),
+        showWorktree,
+        removeWorktree: (repo, worktree) => worktreeActions.removeWorktree(repo, worktree),
+        enterView,
+        openPullRequest: (repo, number) => openPullRequest(parseRepoId(repo), number, 'overview'),
+        openLinkedTask: worktreeActions.openLinkedTask,
+        createTask: () => {
+            enterView('tasks');
+            setCreateTaskOnOpen(true);
+        },
+        createPlan: async () => {
+            if (!activeProject) return;
+            const plan = newPlan(activeProject.id, Date.now());
+            // createPlan puts the plan in the cache at once, so the page can show it.
+            const saving = createPlan(plan);
+            openViewAt('plans', { page: plan.id });
+            await saving;
+        },
+        openPlan: id => openViewAt('plans', { page: id }),
+        createNote: async () => {
+            const name = await promptDialog({
+                title: 'New note',
+                message: 'Type a file name. A name without an extension gets ".md".',
+                placeholder: 'scratch.md',
+                confirmLabel: 'Create'
+            });
+            if (!name) return;
+            const problem = noteNameError(name);
+            if (problem) throw new Error(problem);
+            const fileName = name.includes('.') ? name : `${name}.md`;
+            const existing = (await api.notes.list()).filter(note => !note.folder).map(note => note.fileName);
+            const note = await api.notes.create(uniqueNoteName(fileName, existing));
+            openViewAt('notes', { query: { note: note.name } });
+        },
+        openNote: name => openViewAt('notes', { query: { note: name } }),
+        newAutomation: templateId => {
+            enterView('automations');
+            setAutomationRequest({ kind: 'new', templateId });
+        },
+        editAutomation: id => {
+            enterView('automations');
+            setAutomationRequest({ kind: 'edit', id });
+        },
+        openSettings,
+        setAppearance: async change => setAppSettings(await api.settings.update({ appearance: { ...appSettings.appearance, ...change } })),
+        // The same check as ⇧⌘U. The page shows the result in a notice.
+        checkForUpdates: async () => api.app.runKey('checkForUpdates'),
+        help
+    };
 
     // The language servers need the worktree roots, and "go to definition" opens files through the app.
     useEffect(() => {
@@ -764,6 +842,7 @@ export function App() {
                                 openTask={taskOpen}
                                 route={routeOf('tasks')}
                                 onRoute={route => setRoute('tasks', route)}
+                                createOnOpen={createTaskOnOpen}
                                 repoLabel={repoLabel}
                                 onOpenWorktree={path => void worktreeActions.showTaskWorktree(path).catch(err => setError(errorText(err)))}
                             />
@@ -827,6 +906,7 @@ export function App() {
                                 repoLabel={repoLabel}
                                 onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
                                 onOpenNotes={() => enterView('notes')}
+                                request={automationRequest}
                             />
                         </main>
                     )}
@@ -1211,6 +1291,29 @@ export function App() {
                 <StatusBar />
                 {tourOpen && <Tour steps={TOUR_STEPS} onPrepare={prepareTourStep} onClose={endTour} />}
                 {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+                {paletteOpen && (
+                    <AppCommandPalette
+                        context={{
+                            repos,
+                            worktreesByRepo,
+                            worktreeNames: appSettings.worktreeNames,
+                            repoLabel,
+                            selectedRepo,
+                            selectedPath,
+                            links,
+                            tasksAvailable: repos.length > 0 && !!activeProject,
+                            hasProject: !!activeProject,
+                            plans: plans.filter(plan => plan.projectId === activeProject?.id),
+                            reviewAvailable: !!reviewKey,
+                            appearance: appSettings.appearance,
+                            mode,
+                            settingsSections: SETTINGS_SECTIONS,
+                            actions: paletteActions
+                        }}
+                        onClose={() => setPaletteOpen(false)}
+                        onError={setError}
+                    />
+                )}
                 <WorktreeProgressNotices repoLabel={repoLabel} openTarget={openNotificationTarget} />
                 {tips.notice && <TipNotice tip={tips.notice.tip} onRun={runTipAction} onClose={tips.notice.close} onTurnOff={tips.notice.turnOff} />}
                 {!tourOpen && tourOffered && (

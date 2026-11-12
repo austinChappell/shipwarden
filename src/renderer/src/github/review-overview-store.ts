@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { notifyManager, useQueries, useQuery, type Query } from '@tanstack/react-query';
 import { repoId, parseRepoId, type GitHubRepoInfo, type PullRequest, type RepoRef } from '@shared/github';
-import { reviewQueue, type QueueItem, type RepoPullRequests } from '@shared/review-queue';
+import { reviewQueue, type OpenPullRequest, type QueueItem, type RepoPullRequests } from '@shared/review-queue';
 import { applyMergedToDashboard, dashboardPullRequestsQuery, type PullRequestRef } from '../dashboard-store';
 import { keyRoots, queryClient } from '../query-client';
 import { optionalErrorText } from '../util';
@@ -269,6 +269,26 @@ export function useReviewQueue(): QueueItem[] {
         }
         return reviewQueue(loaded, isSeen);
     }, [repos, isSeen]);
+}
+
+/** A pull request of the review queue, with its data. */
+export interface QueuePullRequest {
+    /** "owner/name". */
+    repo: string;
+    pr: OpenPullRequest;
+}
+
+/** Returns the pull requests of the review queue with their data, for example their titles. The order is the order of the queue. */
+export function useReviewQueuePullRequests(): QueuePullRequest[] {
+    const repos = useRepoEntries(useScope()?.reviewKey);
+    const queue = useReviewQueue();
+    return useMemo(() => {
+        const byRepo = new Map(Object.values(repos).map(entry => [entry.id, entry.data] as const));
+        return queue.flatMap(item => {
+            const pr = byRepo.get(item.repo)?.pullRequests.find(candidate => candidate.number === item.number);
+            return pr ? [{ repo: item.repo, pr }] : [];
+        });
+    }, [repos, queue]);
 }
 
 /** Removes a pull request from the open pull requests of a repository. The open count goes down when the list had it. */
