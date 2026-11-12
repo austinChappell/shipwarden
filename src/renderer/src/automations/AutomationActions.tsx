@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import {
     ACTION_TYPES,
@@ -13,7 +14,8 @@ import {
     type AutomationAction,
     type HttpHeader,
     type HttpMethod,
-    type Trigger
+    type Trigger,
+    type VariableInfo
 } from '@shared/automations';
 import { unknownFilters } from '@shared/automation-templates';
 import { AGENT_MODES, type AgentMode } from '@shared/agent-modes';
@@ -64,20 +66,17 @@ export function ActionList({ actions, trigger, agents, secrets, onChange, requir
                     onRemove={() => onChange(actions.filter((_, i) => i !== index))}
                 />
             ))}
-            <div className="settings-row automation-add-action">
-                <Select<ActionType | ''>
-                    className="settings-input"
-                    aria-label="Add an action"
-                    value=""
-                    options={[
-                        { value: '', label: prefix ? 'Add an action here' : 'Add an action' },
-                        ...allowed.map(item => ({ value: item.type, label: item.label }))
-                    ]}
-                    onChange={type => {
-                        if (type) onChange([...actions, defaultAction(type)]);
-                    }}
-                />
-            </div>
+            <Select<ActionType | ''>
+                className="automation-add-action"
+                aria-label="Add an action"
+                value=""
+                options={allowed.map(item => ({ value: item.type, label: item.label }))}
+                onChange={type => {
+                    if (type) onChange([...actions, defaultAction(type)]);
+                }}
+            >
+                <Plus size={14} /> {prefix ? 'Add an action here' : 'Add an action'}
+            </Select>
         </>
     );
 }
@@ -119,87 +118,137 @@ function TemplateWarnings({ texts, trigger, secrets }: { texts: string[]; trigge
     );
 }
 
-function VariableHint({ trigger, secrets }: { trigger: Trigger; secrets?: string[] }) {
+/** The group of a variable, by the part before the first dot. */
+function variableGroup(name: string): string {
+    const head = name.split('.')[0];
+    return ['task', 'pr', 'comment', 'agent', 'http', 'secret'].includes(head) ? head : 'run';
+}
+
+const GROUP_LABELS: Record<string, string> = {
+    task: 'Task',
+    pr: 'Pull request',
+    comment: 'Comment',
+    agent: 'Agent',
+    run: 'Run',
+    http: 'HTTP',
+    secret: 'Secret'
+};
+
+/**
+ * The variables of the trigger as buttons, in groups. A click puts the variable into the last text field that had the
+ * focus, at the cursor.
+ */
+function VariableHint({ trigger, secrets, onInsert }: { trigger: Trigger; secrets?: string[]; onInsert?(variable: string): void }) {
+    const all: VariableInfo[] = [
+        ...triggerVariables(trigger),
+        ...HTTP_VARIABLES,
+        ...(secrets ?? []).map(name => ({ name: `secret.${name}`, description: 'A secret of this automation. Only HTTP requests can use it.' }))
+    ];
+    const groups = [...new Set(all.map(variable => variableGroup(variable.name)))];
     return (
-        <div className="automation-variables">
-            Variables:{' '}
-            {[...triggerVariables(trigger), ...HTTP_VARIABLES].map(variable => (
-                <code key={variable.name} title={variable.description}>{`{{${variable.name}}}`}</code>
+        <div className="automation-variable-box">
+            {groups.map(group => (
+                <div key={group} className="automation-variable-group">
+                    <span className="automation-variable-label">{GROUP_LABELS[group]}</span>
+                    <span className="automation-variable-chips">
+                        {all
+                            .filter(variable => variableGroup(variable.name) === group)
+                            .map(variable => (
+                                <button
+                                    key={variable.name}
+                                    type="button"
+                                    className="automation-variable"
+                                    title={`${variable.description}. Click to insert {{${variable.name}}}.`}
+                                    disabled={!onInsert}
+                                    onMouseDown={event => event.preventDefault()}
+                                    onClick={() => onInsert?.(`{{${variable.name}}}`)}
+                                >
+                                    {group === 'run' ? variable.name : variable.name.slice(group.length + 1)}
+                                </button>
+                            ))}
+                    </span>
+                </div>
             ))}
-            {secrets?.map(name => (
-                <code key={name} title="A secret of this automation. Only HTTP requests can use it.">{`{{secret.${name}}}`}</code>
-            ))}
-            <br />
-            Filters: <code title="A JSON string with quotes, for a JSON body">{'{{name|json}}'}</code>
-            <code title="The value encoded for a web address">{'{{name|url}}'}</code>
+            <div className="automation-variable-filters">
+                Filters: <code title="A JSON string with quotes, for a JSON body">|json</code> <code title="The value encoded for a web address">|url</code>
+            </div>
         </div>
     );
+}
+
+/** Puts `text` into the field at its cursor, and returns the new value. The cursor goes after the text. */
+function insertAt(field: HTMLTextAreaElement | HTMLInputElement | null, value: string, text: string): string {
+    if (!field) return value + text;
+    const start = field.selectionStart ?? value.length;
+    const end = field.selectionEnd ?? value.length;
+    requestAnimationFrame(() => {
+        field.focus();
+        field.setSelectionRange(start + text.length, start + text.length);
+    });
+    return value.slice(0, start) + text + value.slice(end);
 }
 
 /** The fields of one action. */
 function ActionFields({ label, first, last, removable, action, trigger, allowed, agents, secrets, onChange, onMove, onRemove }: ActionProps) {
     const info = ACTION_TYPES.find(item => item.type === action.type);
+    const promptRef = useRef<HTMLTextAreaElement>(null);
     return (
-        <div className={`settings-row automation-action${action.type === 'if' ? ' automation-action-if' : ''}`}>
-            <div className="settings-row-main">
-                <div className="settings-row-text">
-                    <div className="settings-row-label">
-                        {label}. {info?.label}
-                    </div>
-                    <div className="settings-row-description">{info?.description}</div>
-                </div>
-                <div className="settings-row-control automation-action-tools">
-                    <Select
-                        className="settings-input"
-                        aria-label="The type of the action"
-                        value={action.type}
-                        options={allowed.map(type => ({ value: type, label: ACTION_TYPES.find(item => item.type === type)?.label ?? type }))}
-                        onChange={type => onChange(defaultAction(type))}
-                    />
-                    <button type="button" className="icon-button" title="Move up" disabled={first} onClick={() => onMove(-1)}>
-                        <ArrowUp size={14} />
-                    </button>
-                    <button type="button" className="icon-button" title="Move down" disabled={last} onClick={() => onMove(1)}>
-                        <ArrowDown size={14} />
-                    </button>
+        <div className={`automation-action${action.type === 'if' ? ' automation-action-if' : ''}`}>
+            <div className="automation-action-head">
+                <span className="automation-action-number">{label}</span>
+                <Select
+                    className="settings-input automation-strong-select"
+                    aria-label="The type of the action"
+                    value={action.type}
+                    options={allowed.map(type => ({ value: type, label: ACTION_TYPES.find(item => item.type === type)?.label ?? type }))}
+                    onChange={type => onChange(defaultAction(type))}
+                />
+                <span className="automation-action-description">{info?.description}</span>
+                {action.type === 'moveTask' && (
+                    <>
+                        <span className="automation-joiner">to status</span>
+                        <input
+                            className="settings-input automation-status-input"
+                            aria-label="Status"
+                            placeholder="in progress"
+                            value={action.status}
+                            onChange={event => onChange({ ...action, status: event.target.value })}
+                        />
+                    </>
+                )}
+                <div className="automation-action-tools">
+                    {!first && (
+                        <button type="button" className="icon-button" title="Move up" onClick={() => onMove(-1)}>
+                            <ArrowUp size={15} />
+                        </button>
+                    )}
+                    {!last && (
+                        <button type="button" className="icon-button" title="Move down" onClick={() => onMove(1)}>
+                            <ArrowDown size={15} />
+                        </button>
+                    )}
                     <button type="button" className="icon-button" title="Remove the action" disabled={!removable} onClick={onRemove}>
-                        <Trash2 size={14} />
+                        <Trash2 size={15} />
                     </button>
                 </div>
             </div>
-            <div className="settings-row-body automation-action-body">
-                {'prompt' in action && (
-                    <>
-                        <textarea
-                            className="settings-input mono automation-prompt"
-                            value={action.prompt}
-                            spellCheck={false}
-                            placeholder="The prompt. Use variables such as {{pr.url}}."
-                            onChange={event => onChange({ ...action, prompt: event.target.value })}
-                        />
-                        <VariableHint trigger={trigger} />
-                        <TemplateWarnings texts={[action.prompt]} trigger={trigger} />
-                    </>
-                )}
+            <div className="automation-action-body">
                 {(action.type === 'sendToAgent' || action.type === 'startAgent') && (
-                    <div className="automation-inline">
+                    <div className="automation-field-grid">
                         {action.type === 'startAgent' && (
-                            <span className="automation-field">
-                                Agent{' '}
+                            <div className="flow-field">
+                                <span className="automation-field-label">Agent</span>
                                 <Select
                                     className="settings-input"
                                     aria-label="Agent"
                                     value={action.agentId ?? ''}
-                                    options={[
-                                        { value: '', label: 'The agent of the repository' },
-                                        ...agents.map(agent => ({ value: agent.id, label: agent.name }))
-                                    ]}
+                                    options={[{ value: '', label: "The repository's agent" }, ...agents.map(agent => ({ value: agent.id, label: agent.name }))]}
                                     onChange={agentId => onChange({ ...action, agentId: agentId || undefined })}
                                 />
-                            </span>
+                            </div>
                         )}
-                        <span className="automation-field" title={AGENT_MODES.find(item => item.mode === action.mode)?.description}>
-                            Mode{' '}
+                        <div className="flow-field" title={AGENT_MODES.find(item => item.mode === action.mode)?.description}>
+                            <span className="automation-field-label">Mode</span>
                             <Select<AgentMode | ''>
                                 className="settings-input"
                                 aria-label="Mode"
@@ -210,10 +259,10 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                                     onChange(mode ? { ...rest, mode } : rest);
                                 }}
                             />
-                        </span>
+                        </div>
                         {action.type === 'startAgent' && trigger.type !== 'task.new' && !(trigger.type === 'manual' && trigger.entity === 'task') && (
-                            <label>
-                                Branch{' '}
+                            <label className="flow-field">
+                                <span className="automation-field-label">Branch</span>
                                 <input
                                     className="settings-input mono"
                                     placeholder="automation/{{date}}-{{time}}"
@@ -223,6 +272,27 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                             </label>
                         )}
                     </div>
+                )}
+                {'prompt' in action && (
+                    <>
+                        <div className="automation-prompt-box">
+                            <div className="automation-prompt-head">Prompt</div>
+                            <textarea
+                                ref={promptRef}
+                                className="automation-prompt"
+                                aria-label="Prompt"
+                                value={action.prompt}
+                                spellCheck={false}
+                                placeholder="The prompt. Click a variable below to insert it."
+                                onChange={event => onChange({ ...action, prompt: event.target.value })}
+                            />
+                            <VariableHint
+                                trigger={trigger}
+                                onInsert={variable => onChange({ ...action, prompt: insertAt(promptRef.current, action.prompt, variable) })}
+                            />
+                        </div>
+                        <TemplateWarnings texts={[action.prompt]} trigger={trigger} />
+                    </>
                 )}
                 {action.type === 'sendToAgent' && action.mode && (
                     <div className="automation-variables">
@@ -238,12 +308,6 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                             onChange={event => onChange({ ...action, saveNote: event.target.checked || undefined })}
                         />
                         Save the answer as a note in the folder "Automations"
-                    </label>
-                )}
-                {action.type === 'moveTask' && (
-                    <label className="automation-inline">
-                        Status{' '}
-                        <input className="settings-input" value={action.status} onChange={event => onChange({ ...action, status: event.target.value })} />
                     </label>
                 )}
                 {action.type === 'removeWorktree' && (
@@ -355,6 +419,14 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
     };
     const setHeader = (index: number, patch: Partial<HttpHeader>) => setHeaders(headers.map((header, i) => (i === index ? { ...header, ...patch } : header)));
     const texts = [action.url, action.body ?? '', ...headers.map(header => header.value)];
+    /** The text field that had the focus last. A variable button inserts into it. */
+    const lastField = useRef<{ element: HTMLInputElement | HTMLTextAreaElement; insert(text: string): void }>(undefined);
+    const track =
+        (insert: (element: HTMLInputElement | HTMLTextAreaElement, text: string) => void) =>
+        (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement }) => {
+            const element = event.currentTarget;
+            lastField.current = { element, insert: text => insert(element, text) };
+        };
     return (
         <>
             <div className="automation-http-line">
@@ -375,6 +447,7 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
                     value={action.url}
                     spellCheck={false}
                     onChange={event => onChange({ ...action, url: event.target.value })}
+                    onFocus={track((element, text) => onChange({ ...action, url: insertAt(element, action.url, text) }))}
                 />
             </div>
             <div className="automation-http-headers">
@@ -396,6 +469,7 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
                             value={header.value}
                             spellCheck={false}
                             onChange={event => setHeader(index, { value: event.target.value })}
+                            onFocus={track((element, text) => setHeader(index, { value: insertAt(element, header.value, text) }))}
                         />
                         <button
                             type="button"
@@ -421,6 +495,7 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
                     spellCheck={false}
                     placeholder={'The body. For JSON, use {{name|json}}, for example {"text": {{pr.title|json}}}.'}
                     onChange={event => onChange({ ...action, body: event.target.value || undefined })}
+                    onFocus={track((element, text) => onChange({ ...action, body: insertAt(element, action.body ?? '', text) }))}
                 />
             )}
             <div className="automation-inline">
@@ -449,7 +524,11 @@ function HttpFields({ action, trigger, secrets, onChange }: HttpProps) {
                     seconds
                 </label>
             </div>
-            <VariableHint trigger={trigger} secrets={secrets} />
+            <VariableHint
+                trigger={trigger}
+                secrets={secrets}
+                onInsert={variable => (lastField.current ? lastField.current.insert(variable) : onChange({ ...action, url: action.url + variable }))}
+            />
             <TemplateWarnings texts={texts} trigger={trigger} secrets={secrets} />
         </>
     );

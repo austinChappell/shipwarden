@@ -1,4 +1,4 @@
-import { ArrowLeft, ClipboardList, Plus } from 'lucide-react';
+import { ChevronLeft, ClipboardList, Plus } from 'lucide-react';
 import { PLAN_STATUS_LABELS, newPlan, planCounts, type Plan } from '@shared/plans';
 import type { ViewRoute } from '@shared/nav-history';
 import type { Project } from '@shared/projects';
@@ -37,8 +37,8 @@ export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree }
         return (
             <div className="plans-view">
                 <header className="settings-header plans-header">
-                    <button type="button" className="button plans-back" onClick={() => onRoute({})}>
-                        <ArrowLeft size={14} /> Plans
+                    <button type="button" className="view-back" onClick={() => onRoute({})}>
+                        <ChevronLeft size={14} /> Plans
                     </button>
                 </header>
                 <div className="plans-scroll">
