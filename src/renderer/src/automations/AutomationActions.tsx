@@ -20,7 +20,7 @@ import {
 import { unknownFilters } from '@shared/automation-templates';
 import { AGENT_MODES, type AgentMode } from '@shared/agent-modes';
 import type { AgentDefinition } from '@shared/settings';
-import { Select } from '../components/Select';
+import { Select } from '../components/ui/Select';
 import { ConditionEditor } from './ConditionEditor';
 
 interface ListProps {

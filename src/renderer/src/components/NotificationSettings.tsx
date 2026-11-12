@@ -10,7 +10,7 @@ import {
 import type { AppSettings } from '@shared/settings';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow, Switch } from './settings-ui';
-import { Select } from './Select';
+import { Select } from './ui/Select';
 
 interface Props {
     settings: AppSettings;

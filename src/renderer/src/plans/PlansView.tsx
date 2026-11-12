@@ -3,6 +3,7 @@ import { PLAN_STATUS_LABELS, newPlan, planCounts, type Plan } from '@shared/plan
 import type { ViewRoute } from '@shared/nav-history';
 import type { Project } from '@shared/projects';
 import { EmptyState } from '../components/EmptyState';
+import { Button } from '../components/ui';
 import { timeAgo } from '../util';
 import { PlanPage } from './PlanPage';
 import { createPlan, useProjectPlans, usePlans } from './plan-queries';
@@ -62,9 +63,9 @@ export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree }
                 <h1>
                     <ClipboardList size={13} strokeWidth={1.8} /> Plans
                 </h1>
-                <button type="button" className="button primary-solid" onClick={() => void startPlan()}>
-                    <Plus size={14} /> New plan
-                </button>
+                <Button variant="solid" icon={<Plus size={14} />} onClick={() => void startPlan()}>
+                    New plan
+                </Button>
             </header>
             <div className="plans-scroll">
                 {loaded && plans.length === 0 ? (
@@ -72,9 +73,9 @@ export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree }
                         icon={ClipboardList}
                         title="Explore an idea"
                         actions={
-                            <button type="button" className="button primary-solid" onClick={() => void startPlan()}>
-                                <Plus size={14} /> New plan
-                            </button>
+                            <Button variant="solid" icon={<Plus size={14} />} onClick={() => void startPlan()}>
+                                New plan
+                            </Button>
                         }
                     >
                         Write an idea for {project.name}. An agent reads all repositories of the project and proposes a plan in steps. You edit the steps, link

@@ -523,7 +523,7 @@ export function PullRequestFilesStream({
                                         {file.path}
                                     </span>
                                 </button>
-                                <CopyButton text={file.path} title="Copy the file path" size={13} className="icon-button stream-file-copy" />
+                                <CopyButton text={file.path} title="Copy the file path" size={13} className="stream-file-copy" />
                                 {onOpenFile && file.status !== 'removed' && (
                                     <button
                                         className="icon-button stream-file-copy"

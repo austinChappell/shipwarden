@@ -26,6 +26,7 @@ import {
 } from '@shared/automations';
 import type { AppSettings } from '@shared/settings';
 import { confirmDialog } from '../components/ConfirmDialog';
+import { Button } from '../components/ui';
 import { showContextMenu } from '../components/ContextMenu';
 import { SettingsGroup, SettingsRow } from '../components/settings-ui';
 import { useUsage } from '../usage-query';
@@ -247,15 +248,15 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                     <Zap size={13} strokeWidth={1.8} /> Automations
                 </h1>
                 <div className="automations-head-actions">
-                    <button type="button" className="button" title="Show the folder of the automation files" onClick={() => api.reveal()}>
-                        <FolderOpen size={14} /> Folder
-                    </button>
-                    <button type="button" className="button" onClick={event => void importMenu(event.currentTarget)}>
-                        <Upload size={14} /> Import <ChevronDown size={12} />
-                    </button>
-                    <button type="button" className="button primary-solid" onClick={event => void newMenu(event.currentTarget)}>
-                        <Plus size={14} /> New <ChevronDown size={12} />
-                    </button>
+                    <Button icon={<FolderOpen size={14} />} title="Show the folder of the automation files" onClick={() => api.reveal()}>
+                        Folder
+                    </Button>
+                    <Button icon={<Upload size={14} />} iconEnd={<ChevronDown size={12} />} onClick={event => void importMenu(event.currentTarget)}>
+                        Import
+                    </Button>
+                    <Button variant="solid" icon={<Plus size={14} />} iconEnd={<ChevronDown size={12} />} onClick={event => void newMenu(event.currentTarget)}>
+                        New
+                    </Button>
                 </div>
             </header>
             <div className="automations-scroll">

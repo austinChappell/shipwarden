@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Popover } from './Popover';
+import { Button, IconButton, type ControlSize } from './Button';
+import { cx } from './cx';
+import { inputClass } from './Input';
 
 /** A day as "YYYY-MM-DD" in the local time zone. */
 export function dayKey(date: Date): string {
@@ -56,17 +59,28 @@ interface Props {
     disabled?: boolean;
     /** The new day "YYYY-MM-DD", or null when the user clears the date. */
     onChange(day: string | null): void;
-    /** The content of the button: the current date. */
-    children: ReactNode;
-    /** The class of the button. */
+    /**
+     * The content of the button, for an inline editor. Without children, the button is a field. It shows the date,
+     * or the placeholder when there is no date.
+     */
+    children?: ReactNode;
+    /** The text of the field when there is no date. */
+    placeholder?: string;
+    /** More classes for the button. With children, the default is "task-edit-button". */
     className?: string;
+    size?: ControlSize;
+}
+
+/** The text of a day in the field, for example "Mar 4, 2026". */
+function formatDay(value: string): string | undefined {
+    return parseDayKey(value)?.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 /**
  * A date picker in the style of the app. It replaces the native date input. The button opens a calendar.
  * The arrow keys move the day, Page Up and Page Down move the month, and Enter selects the day.
  */
-export function DatePicker({ value, label, disabled, onChange, children, className = 'task-edit-button' }: Props) {
+export function DatePicker({ value, label, disabled, onChange, children, placeholder = 'No date', className, size }: Props) {
     const [open, setOpen] = useState(false);
     const [focus, setFocus] = useState(() => parseDayKey(value) ?? new Date());
     const trigger = useRef<HTMLButtonElement>(null);
@@ -133,29 +147,46 @@ export function DatePicker({ value, label, disabled, onChange, children, classNa
             <button
                 ref={trigger}
                 type="button"
-                className={`${className}${open ? ' on' : ''}`}
+                className={
+                    children === undefined
+                        ? inputClass(size, { className: cx('select-button', 'date-button', open && 'on', className) })
+                        : cx(className ?? 'task-edit-button', open && 'on')
+                }
                 disabled={disabled}
                 title={`Change the ${label.toLowerCase()}`}
                 aria-haspopup="dialog"
                 aria-expanded={open}
                 onClick={() => (open ? hide(false) : show())}
             >
-                {children}
+                {children ?? (
+                    <>
+                        <CalendarDays size={13} strokeWidth={1.8} />
+                        <span className={cx('select-value', !value && 'placeholder')}>{formatDay(value) ?? placeholder}</span>
+                    </>
+                )}
             </button>
             {open && (
                 <Popover anchor={trigger} onClose={() => hide(false)} className="calendar">
                     {/* biome-ignore lint/a11y/noStaticElementInteractions: The keys of the days and the buttons come here, so one handler serves them all. */}
                     <div role="dialog" aria-label={label} onKeyDown={onKey}>
                         <div className="calendar-header">
-                            <button type="button" className="icon-button" title="Previous month" tabIndex={-1} onClick={() => setFocus(addMonths(focus, -1))}>
-                                <ChevronLeft size={14} strokeWidth={1.8} />
-                            </button>
+                            <IconButton
+                                size="sm"
+                                label="Previous month"
+                                icon={<ChevronLeft size={14} strokeWidth={1.8} />}
+                                tabIndex={-1}
+                                onClick={() => setFocus(addMonths(focus, -1))}
+                            />
                             <span className="calendar-month" aria-live="polite">
                                 {monthName}
                             </span>
-                            <button type="button" className="icon-button" title="Next month" tabIndex={-1} onClick={() => setFocus(addMonths(focus, 1))}>
-                                <ChevronRight size={14} strokeWidth={1.8} />
-                            </button>
+                            <IconButton
+                                size="sm"
+                                label="Next month"
+                                icon={<ChevronRight size={14} strokeWidth={1.8} />}
+                                tabIndex={-1}
+                                onClick={() => setFocus(addMonths(focus, 1))}
+                            />
                         </div>
                         <div className="calendar-grid" ref={grid} role="grid" aria-label={monthName}>
                             {weekdays.map((name, index) => (
@@ -196,13 +227,13 @@ export function DatePicker({ value, label, disabled, onChange, children, classNa
                             })}
                         </div>
                         <div className="calendar-footer">
-                            <button type="button" className="link-button" onClick={() => choose(today)}>
+                            <Button variant="link" onClick={() => choose(today)}>
                                 Today
-                            </button>
+                            </Button>
                             {value && (
-                                <button type="button" className="link-button" onClick={() => choose(null)}>
+                                <Button variant="link" onClick={() => choose(null)}>
                                     Clear
-                                </button>
+                                </Button>
                             )}
                         </div>
                     </div>

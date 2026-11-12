@@ -33,11 +33,11 @@ import {
 } from '@shared/automations';
 import type { AgentDefinition } from '@shared/settings';
 import type { TaskCollection } from '@shared/tasks';
-import { Combobox, sortedGroups } from '../components/Combobox';
+import { Combobox, sortedGroups } from '../components/ui/Combobox';
 import { collectionsQueryOptions, connectionsQueryOptions } from '../components/tasks/use-task-source';
 import { SettingsGroup, SettingsRow } from '../components/settings-ui';
 import { TRIGGER_EVENTS, automationSummary, labelWarning } from './automation-summary';
-import { Select } from '../components/Select';
+import { Select } from '../components/ui/Select';
 import { errorText } from '../util';
 import { LimitField } from './LimitField';
 import { ActionList } from './AutomationActions';

@@ -51,12 +51,5 @@ export function SettingsRow({ label, description, control, children }: RowProps)
     );
 }
 
-/** An on/off switch for a settings row. */
-export function Switch({ checked, title, disabled, onChange }: { checked: boolean; title: string; disabled?: boolean; onChange(value: boolean): void }) {
-    return (
-        <label className="switch" title={title}>
-            <input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />
-            <span />
-        </label>
-    );
-}
+/** The switch moved to the shared controls. This export keeps the old imports working. */
+export { Switch } from './ui/Choice';

@@ -7,6 +7,7 @@ import { useMissingServer } from '../lsp/missing-servers';
 import type { CheckoutState } from '../github/review-checkout-store';
 import { CopyButton } from './CopyButton';
 import { MissingServerBanner } from './MissingServerBanner';
+import { Button, IconButton } from './ui';
 
 /** A position in a file of the pull request. */
 export interface CodeLocation {
@@ -41,16 +42,12 @@ export function ReviewCodeView({ root, checkout, location, canGoBack, onBack, on
     return (
         <div className="review-code">
             <header className="review-code-header">
-                <button className="icon-button" title="Back" disabled={!canGoBack} onClick={onBack}>
-                    <ArrowLeft size={14} strokeWidth={1.6} />
-                </button>
+                <IconButton size="sm" icon={<ArrowLeft size={14} strokeWidth={1.6} />} label="Back" disabled={!canGoBack} onClick={onBack} />
                 <span className="review-code-path" title={location.path}>
                     {location.path}
                 </span>
-                <CopyButton text={location.path} title="Copy the file path" size={13} />
-                <button className="icon-button" title="Close the code" onClick={onClose}>
-                    <X size={14} strokeWidth={1.6} />
-                </button>
+                <CopyButton text={location.path} title="Copy the file path" className="icon-button sm" />
+                <IconButton size="sm" icon={<X size={14} strokeWidth={1.6} />} label="Close the code" onClick={onClose} />
             </header>
             {root ? <CodeEditor root={root} location={location} onCursor={onCursor} /> : <CheckoutMessage checkout={checkout} onRetry={onRetry} />}
         </div>
@@ -71,18 +68,16 @@ export function CheckoutMessage({ checkout, onRetry }: { checkout: CheckoutState
         return (
             <div className="panel-message review-code-message">
                 <span className="form-error">{checkout.error}</span>
-                <button className="button" onClick={onRetry}>
-                    Try again
-                </button>
+                <Button onClick={onRetry}>Try again</Button>
             </div>
         );
     }
     return (
         <div className="panel-message review-code-message">
             <span>Go to definition and the file explorer need a local copy of the pull request.</span>
-            <button className="button primary" onClick={onRetry}>
+            <Button variant="primary" onClick={onRetry}>
                 Get the files
-            </button>
+            </Button>
         </div>
     );
 }

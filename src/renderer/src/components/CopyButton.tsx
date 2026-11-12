@@ -1,5 +1,6 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Check, Copy } from 'lucide-react';
+import { IconButton, cx } from './ui';
 
 interface Props {
     /** The text to copy. */
@@ -7,11 +8,12 @@ interface Props {
     /** The tooltip, for example "Copy the path". */
     title: string;
     size?: number;
+    /** Extra classes. The "icon-button" class is not necessary. `IconButton` adds it. */
     className?: string;
 }
 
 /** An icon button that copies a text to the clipboard. The icon shows a check mark for a short time after the copy. */
-export function CopyButton({ text, title, size = 14, className = 'icon-button' }: Props) {
+export function CopyButton({ text, title, size = 14, className }: Props) {
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
@@ -30,8 +32,16 @@ export function CopyButton({ text, title, size = 14, className = 'icon-button' }
     };
 
     return (
-        <button className={`${className}${copied ? ' copied' : ''}`} title={copied ? 'Copied' : title} aria-label={title} onClick={copy}>
-            {copied ? <Check size={size} strokeWidth={1.8} /> : <Copy size={size} strokeWidth={1.6} />}
-        </button>
+        <IconButton
+            icon={copied ? <Check size={size} strokeWidth={1.8} /> : <Copy size={size} strokeWidth={1.6} />}
+            label={title}
+            title={copied ? 'Copied' : title}
+            size="sm"
+            className={cx(className
+                ?.split(' ')
+                .filter(name => name !== 'icon-button')
+                .join(' '), copied && 'copied')}
+            onClick={copy}
+        />
     );
 }

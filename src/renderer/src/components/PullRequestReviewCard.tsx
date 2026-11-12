@@ -2,7 +2,8 @@ import { useId, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Bot, Check, LoaderCircle, MessageSquare, X } from 'lucide-react';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, ReviewEvent } from '@shared/github';
 import { decisionEvents, firstUndecided, pendingText, REVIEW_EVENT_TEXT, reviewButtons, reviewEvents, undecidedText } from '../github/review-state';
-import { ButtonGroup } from './ButtonGroup';
+import { Button } from './ui/Button';
+import { ButtonGroup } from './ui/ButtonGroup';
 import { MentionTextarea } from './MentionTextarea';
 
 /** The tooltip of the buttons that start an agent review. */
@@ -68,20 +69,21 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
             onSubmit('COMMENT');
         }
     };
+    /** The overview page shows the review decisions as large buttons. */
+    const size = overview ? 'lg' : undefined;
     const eventButton = (event: ReviewEvent) =>
         event === 'COMMENT' ? (
-            <button key={event} className="button" disabled={!canComment} onClick={() => onSubmit(event)}>
+            <Button key={event} size={size} disabled={!canComment} onClick={() => onSubmit(event)}>
                 Comment
-            </button>
+            </Button>
         ) : event === 'APPROVE' ? (
-            <button key={event} className="button approve" disabled={!canDecide} onClick={() => onSubmit(event)}>
-                <Check size={14} strokeWidth={2} />
+            <Button key={event} variant="approve" size={size} icon={<Check size={14} strokeWidth={2} />} disabled={!canDecide} onClick={() => onSubmit(event)}>
                 Approve
-            </button>
+            </Button>
         ) : (
-            <button key={event} className="button" disabled={!canDecide} onClick={() => onSubmit(event)}>
+            <Button key={event} size={size} disabled={!canDecide} onClick={() => onSubmit(event)}>
                 {REVIEW_EVENT_TEXT[event].button}
-            </button>
+            </Button>
         );
     const decisions = decisionEvents(events, overview);
     const pendingPill = pending.length > 0 && (
@@ -148,7 +150,7 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
                 />
             </label>
             {undecidedNote}
-            <div className={`review-decisions count-${decisions.length}`}>{decisions.map(eventButton)}</div>
+            <div className="review-decisions">{decisions.map(eventButton)}</div>
             {decisions.length < events.length && (
                 <div className="review-card-foot">
                     <span className="header-spacer" />

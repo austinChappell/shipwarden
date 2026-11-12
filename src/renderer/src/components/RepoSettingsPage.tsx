@@ -5,7 +5,7 @@ import type { CopyIgnoredSettings, RepoWorktreeSettings } from '@shared/worktree
 import { CopyEditor, CopyPreview, FolderField } from './WorktreeSettings';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
-import { Select } from './Select';
+import { Select } from './ui/Select';
 import { radioGroupKeys } from './keyboard';
 
 interface Props {

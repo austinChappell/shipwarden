@@ -14,7 +14,7 @@ import { providerAdded, providerChanged, providerRemoved, providerTokenChanged, 
 import { optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { SettingsGroup } from './settings-ui';
-import { Select } from './Select';
+import { Select } from './ui/Select';
 
 const api = window.shipwarden.reviewProviders;
 

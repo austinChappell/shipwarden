@@ -5,7 +5,7 @@ import type { AppSettings, HiddenCommentMatch, HiddenCommentRule } from '@shared
 import { useDashboard } from '../dashboard-store';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
-import { Select } from './Select';
+import { Select } from './ui/Select';
 
 interface Props {
     settings: AppSettings;

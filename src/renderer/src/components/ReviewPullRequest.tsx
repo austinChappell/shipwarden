@@ -17,7 +17,8 @@ import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
 import { AGENT_REVIEW_TITLE } from './PullRequestReviewCard';
-import { SplitButton, type SplitMenuItem } from './ButtonGroup';
+import { IconButton } from './ui/Button';
+import { SplitButton, type SplitMenuItem } from './ui/ButtonGroup';
 import { pullRequestKeyAction } from '@shared/shortcuts';
 import { HelmLoader } from './HelmLoader';
 import { FileExplorer } from './FileExplorer';
@@ -493,10 +494,16 @@ export function ReviewPullRequest({
                             onClick={mainAction.onSelect}
                             items={menuItems}
                             menuTitle="More actions for this pull request"
+                            size="lg"
                         />
-                        <button className="icon-button" title="Refresh" disabled={loading} onClick={() => void onRefresh()}>
-                            <RefreshCw size={15} strokeWidth={1.6} className={loading ? 'spin' : ''} />
-                        </button>
+                        <IconButton
+                            variant="outline"
+                            size="lg"
+                            label="Refresh"
+                            icon={<RefreshCw size={16} strokeWidth={1.6} className={loading ? 'spin' : ''} />}
+                            disabled={loading}
+                            onClick={() => void onRefresh()}
+                        />
                     </div>
                 </div>
                 <div className="review-pr-meta">

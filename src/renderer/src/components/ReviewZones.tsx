@@ -15,7 +15,7 @@ import { applyThreadSuggestion } from '../github/suggestions';
 import { radioGroupKeys } from './keyboard';
 import { Reactions, type ReactionActions } from './Reactions';
 import { MentionTextarea } from './MentionTextarea';
-import { Select, type SelectOption } from './Select';
+import { Select, type SelectOption } from './ui/Select';
 
 export type { AgentQuestion, ComposerMode, QuestionAction };
 

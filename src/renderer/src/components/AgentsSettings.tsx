@@ -5,7 +5,7 @@ import { agentProgramOf } from '@shared/agent-programs';
 import { hookAgentOf } from '@shared/agents';
 import { cleanCommand, commandProgram, missingDefaultAgents, type AgentDefinition, type AppSettings, type CommandCheck } from '@shared/settings';
 import { errorText } from '../util';
-import { Select } from './Select';
+import { Button, IconButton, Input, Select } from './ui';
 import { SettingsGroup } from './settings-ui';
 
 const api = window.shipwarden;
@@ -100,7 +100,7 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                     <input type="radio" name="default-agent" checked={isDefault} onChange={onMakeDefault} />
                     {isDefault && <span className="agent-default-label">Default</span>}
                 </label>
-                <input
+                <Input
                     className="agent-name-input"
                     aria-label="Agent name"
                     value={name}
@@ -108,8 +108,9 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                     onBlur={commit}
                     onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                 />
-                <input
-                    className="agent-command-input mono"
+                <Input
+                    className="agent-command-input"
+                    mono
                     aria-label="Agent command"
                     value={command}
                     spellCheck={false}
@@ -119,7 +120,7 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                     onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                 />
                 <Select<AgentMode | ''>
-                    className="settings-input agent-mode-select"
+                    className="agent-mode-select"
                     aria-label="Agent mode"
                     title={
                         modes.length > 0
@@ -134,14 +135,13 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                     ]}
                     onChange={changeMode}
                 />
-                <button
-                    className="icon-button"
-                    title={canRemove ? 'Remove this agent' : 'ShipWarden needs at least one agent'}
+                <IconButton
+                    icon={<Trash2 size={14} strokeWidth={1.6} />}
+                    label={canRemove ? 'Remove this agent' : 'ShipWarden needs at least one agent'}
+                    tone="danger"
                     disabled={!canRemove}
                     onClick={onRemove}
-                >
-                    <Trash2 size={14} strokeWidth={1.6} />
-                </button>
+                />
             </div>
             <CommandCheckLine command={command} />
         </div>
@@ -209,15 +209,16 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                 }}
             >
                 <span className="agent-add-label">Add</span>
-                <input
+                <Input
                     className="agent-name-input"
                     placeholder="Name"
                     aria-label="New agent name"
                     value={newName}
                     onChange={event => setNewName(event.target.value)}
                 />
-                <input
-                    className="agent-command-input mono"
+                <Input
+                    className="agent-command-input"
+                    mono
                     placeholder="Command, for example aider"
                     aria-label="New agent command"
                     spellCheck={false}
@@ -225,25 +226,22 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                     value={newCommand}
                     onChange={event => setNewCommand(event.target.value)}
                 />
-                <button type="submit" className="button" disabled={!newCommand.trim()}>
-                    <Plus size={13} strokeWidth={1.8} />
+                <Button type="submit" icon={<Plus size={13} strokeWidth={1.8} />} disabled={!newCommand.trim()}>
                     Add
-                </button>
+                </Button>
             </form>
             {missingDefaultAgents(settings.agents).length > 0 && (
                 <div className="settings-row agent-add">
                     <span className="agent-add-label">Built-in</span>
                     {missingDefaultAgents(settings.agents).map(agent => (
-                        <button
+                        <Button
                             key={agent.id}
-                            type="button"
-                            className="button"
+                            icon={<Plus size={13} strokeWidth={1.8} />}
                             title={`Add ${agent.name} (${agent.command}) to the list`}
                             onClick={() => save({ agents: [...settings.agents, agent] })}
                         >
-                            <Plus size={13} strokeWidth={1.8} />
                             {agent.name}
-                        </button>
+                        </Button>
                     ))}
                 </div>
             )}

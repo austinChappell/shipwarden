@@ -23,7 +23,8 @@ import { itemKeys } from '../keyboard/list-nav';
 import { errorText, timeAgo } from '../util';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
-import { Select, type SelectOption } from './Select';
+import { Button } from './ui/Button';
+import { Select, type SelectOption } from './ui/Select';
 
 const api = window.shipwarden.notes;
 const SELECTED_KEY = 'shipwarden.note';
@@ -871,12 +872,12 @@ export function NotesView({ route, onRoute }: Props) {
                     <button className="icon-button" title={`Open the notes folder: ${folder}`} onClick={() => api.reveal()}>
                         <FolderOpen size={15} strokeWidth={1.6} />
                     </button>
-                    <button className="button notes-new" title="Make a folder at the top level" onClick={() => startFolder('')}>
-                        <FolderPlus size={14} strokeWidth={1.8} /> New folder
-                    </button>
-                    <button className="button primary notes-new" onClick={() => startNote('')}>
-                        <Plus size={14} strokeWidth={2} /> New note
-                    </button>
+                    <Button icon={<FolderPlus size={14} strokeWidth={1.8} />} title="Make a folder at the top level" onClick={() => startFolder('')}>
+                        New folder
+                    </Button>
+                    <Button variant="solid" icon={<Plus size={14} />} onClick={() => startNote('')}>
+                        New note
+                    </Button>
                 </div>
             </header>
 

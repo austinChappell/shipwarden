@@ -11,8 +11,8 @@ import {
     type TaskSource
 } from '@shared/tasks';
 import { openLink } from '../../links';
-import { Combobox, sortedGroups } from '../Combobox';
-import { Select } from '../Select';
+import { Combobox, sortedGroups } from '../ui/Combobox';
+import { Select } from '../ui/Select';
 import { AssigneeFilterPicker } from './AssigneeFilterPicker';
 import { LabelFilterPicker } from './LabelFilterPicker';
 import { collectionPlaceholder, collectionTitle, type ViewMode } from './task-view-logic';

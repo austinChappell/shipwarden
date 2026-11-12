@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, GitMerge } from 'lucide-react';
 import type { MergeMethod } from '@shared/github';
 import { MERGE_LABELS } from '../github/merge-state';
-import { ButtonGroup } from './ButtonGroup';
+import { Button, ButtonGroup, type ControlSize } from './ui';
 import { useMenuClose } from './use-menu';
 
 export { MERGE_LABELS };
@@ -24,6 +24,8 @@ interface Props {
     disabled: boolean;
     /** The text that tells why the button is disabled. */
     title?: string;
+    /** The height of the buttons. The default is "md". */
+    size?: ControlSize;
     onSelect(method: MergeMethod): void;
     onRun(): void;
 }
@@ -32,7 +34,7 @@ interface Props {
  * A split button as on GitHub. The main part runs the action with the selected method.
  * The arrow opens a menu that selects a different method. The menu does not run the action.
  */
-export function MergeButton({ methods, method, label, disabled, title, onSelect, onRun }: Props) {
+export function MergeButton({ methods, method, label, disabled, title, size, onSelect, onRun }: Props) {
     const [open, setOpen] = useState(false);
     const root = useRef<HTMLDivElement>(null);
 
@@ -52,25 +54,27 @@ export function MergeButton({ methods, method, label, disabled, title, onSelect,
 
     const choice = methods.length > 1;
     const main = (
-        <button className="button merge merge-split-main" disabled={disabled} title={title} onClick={onRun}>
-            <GitMerge size={14} strokeWidth={1.8} />
+        <Button variant="merge" size={size} className="merge-split-main" icon={<GitMerge size={14} strokeWidth={1.8} />} disabled={disabled} title={title} onClick={onRun}>
             {label ?? BUTTON_LABELS[method]}
-        </button>
+        </Button>
     );
     return (
         <div className="merge-split" ref={root}>
             {choice ? (
-                <ButtonGroup tone="merge">
+                <ButtonGroup tone="merge" size={size}>
                     {main}
-                    <button
-                        className={`button merge button-group-arrow${open ? ' on' : ''}`}
+                    <Button
+                        variant="merge"
+                        size={size}
+                        className="button-group-arrow"
+                        active={open}
                         title="Select the merge method"
+                        aria-label="Select the merge method"
                         aria-haspopup="menu"
                         aria-expanded={open}
+                        icon={<ChevronDown size={14} strokeWidth={1.8} />}
                         onClick={() => setOpen(value => !value)}
-                    >
-                        <ChevronDown size={14} strokeWidth={1.8} />
-                    </button>
+                    />
                 </ButtonGroup>
             ) : (
                 main

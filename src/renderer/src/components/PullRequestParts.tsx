@@ -61,7 +61,7 @@ export function BranchName({ name }: { name: string }) {
     return (
         <span className="branch-name">
             <code>{name}</code>
-            <CopyButton text={name} title="Copy the branch name" size={12} className="icon-button branch-copy" />
+            <CopyButton text={name} title="Copy the branch name" size={12} className="branch-copy" />
         </span>
     );
 }

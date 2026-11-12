@@ -3,6 +3,7 @@ import type { MergeMethod, PullRequest } from '@shared/github';
 import type { CheckCounts } from '../github/use-check-counts';
 import { autoMergeButtonText, canActOnMerge, MERGE_LABELS, mergeBlocker, mergeButtonState, mergeCardTitle } from '../github/merge-state';
 import { MergeButton } from './MergeButton';
+import { Button } from './ui/Button';
 import { mergeConditions } from './PullRequestSummary';
 
 const CONDITION_ICON = { size: 16, strokeWidth: 1.8 };
@@ -40,6 +41,8 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
     );
     const conditions = overview ? mergeConditions(pr, checks) : [];
     const button = method && mergeButtonState(pr, method, overview, busy);
+    /** The overview page shows the merge actions as large buttons. */
+    const size = overview ? 'lg' : undefined;
     const mergeActions = pr.autoMerge ? (
         <>
             <div className="panel-note">
@@ -48,9 +51,9 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
             </div>
             {pr.viewerCanDisableAutoMerge && (
                 <div className="merge-row">
-                    <button className="button" disabled={busy} onClick={() => onAutoMerge(false)}>
+                    <Button size={size} disabled={busy} onClick={() => onAutoMerge(false)}>
                         Disable auto-merge
-                    </button>
+                    </Button>
                 </div>
             )}
         </>
@@ -61,10 +64,15 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
                 {method && button && (
                     <div className="merge-row">
                         {pr.viewerCanMerge && pr.viewerCanEnableAutoMerge && (
-                            <button className="button auto-merge-button" disabled={busy} onClick={() => onAutoMerge(true)}>
-                                {!overview && <GitMerge size={14} strokeWidth={1.8} />}
+                            <Button
+                                size={size}
+                                className="auto-merge-button"
+                                icon={!overview && <GitMerge size={14} strokeWidth={1.8} />}
+                                disabled={busy}
+                                onClick={() => onAutoMerge(true)}
+                            >
                                 {autoMergeButtonText(pr, conditions, overview)}
-                            </button>
+                            </Button>
                         )}
                         <MergeButton
                             methods={pr.allowedMergeMethods}
@@ -72,6 +80,7 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
                             label={button.label}
                             disabled={button.disabled}
                             title={button.title}
+                            size={size}
                             onSelect={onSelectMethod}
                             onRun={button.merges ? onMerge : () => onAutoMerge(true)}
                         />
@@ -82,10 +91,9 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
     );
     const readyButton = pr.viewerCanUpdate && pr.isDraft && (
         <div className="merge-row">
-            <button className="button" disabled={busy} onClick={() => onDraft(false)}>
-                <GitPullRequest size={14} strokeWidth={1.8} />
+            <Button size={size} icon={<GitPullRequest size={14} strokeWidth={1.8} />} disabled={busy} onClick={() => onDraft(false)}>
                 Ready for review
-            </button>
+            </Button>
         </div>
     );
 

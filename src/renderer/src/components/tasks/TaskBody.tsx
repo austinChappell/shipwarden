@@ -1,13 +1,14 @@
 import { useState, type ReactNode } from 'react';
 import { Pencil } from 'lucide-react';
 import { Markdown } from '../Markdown';
+import { Button, Card, CardBody, CardHeader, IconButton, cx } from '../ui';
 import { InlineText } from './TaskEditors';
 import type { TaskEdit } from './use-task-detail';
 
 interface CardProps {
     title: ReactNode;
-    /** A number after the title, for example the number of comments. */
-    count?: ReactNode;
+    /** A number after the title, for example the number of comments. A text such as "2/5" shows in the same style. */
+    count?: number | string;
     /** Buttons at the right side of the header. */
     actions?: ReactNode;
     className?: string;
@@ -17,14 +18,15 @@ interface CardProps {
 /** A part of the task details in a card with a border and a header. */
 export function TaskCard({ title, count, actions, className, children }: CardProps) {
     return (
-        <section className={`task-card${className ? ` ${className}` : ''}`}>
-            <header className="task-card-header">
-                <span className="task-card-title">{title}</span>
-                {count !== undefined && <span className="task-card-count">{count}</span>}
-                {actions && <span className="task-card-actions">{actions}</span>}
-            </header>
-            <div className="task-card-body">{children}</div>
-        </section>
+        <Card as="section" className={cx('task-card', className)}>
+            <CardHeader
+                title={title}
+                count={typeof count === 'number' ? count : undefined}
+                meta={typeof count === 'string' ? <span className="card-count">{count}</span> : undefined}
+                actions={actions}
+            />
+            <CardBody>{children}</CardBody>
+        </Card>
     );
 }
 
@@ -72,9 +74,7 @@ export function DescriptionCard({ description, editable, busy, draft, setDraft, 
 
     const actions =
         editable && !draft ? (
-            <button type="button" className="icon-button" title="Edit the description" disabled={busy} onClick={start}>
-                <Pencil size={13} strokeWidth={1.6} />
-            </button>
+            <IconButton size="sm" icon={<Pencil size={13} strokeWidth={1.6} />} label="Edit the description" disabled={busy} onClick={start} />
         ) : undefined;
 
     return (
@@ -114,20 +114,20 @@ export function DescriptionCard({ description, editable, busy, draft, setDraft, 
                         />
                     )}
                     <div className="row-buttons">
-                        <button type="button" className="button" disabled={busy} onClick={() => setDraft(undefined)}>
+                        <Button disabled={busy} onClick={() => setDraft(undefined)}>
                             Cancel
-                        </button>
-                        <button type="button" className="button primary" disabled={busy} title="Save (⌘↩)" onClick={onSave}>
+                        </Button>
+                        <Button variant="primary" disabled={busy} title="Save (⌘↩)" onClick={onSave}>
                             Save
-                        </button>
+                        </Button>
                     </div>
                 </div>
             ) : text ? (
                 <Markdown className="task-markdown" text={description as string} />
             ) : editable ? (
-                <button type="button" className="link-button task-description-add" disabled={busy} onClick={start}>
+                <Button variant="link" disabled={busy} onClick={start}>
                     Add a description
-                </button>
+                </Button>
             ) : (
                 <div className="task-field-empty">No description.</div>
             )}

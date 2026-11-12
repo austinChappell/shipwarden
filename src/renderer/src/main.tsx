@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/700.css';
 import './styles.css';
+import './components/ui/ui.css';
 import { App } from './App';
 import { confirmDialog, DialogHost } from './components/ConfirmDialog';
 import { ContextMenuHost } from './components/ContextMenu';

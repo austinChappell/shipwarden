@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
+import { cx, inputClass } from '../ui';
 
 export interface FilterRow {
     /** The key of the item in the filter. */
@@ -87,7 +88,7 @@ export function FilterPicker({ className, title, summary, active, rows, searchPl
             <button
                 ref={trigger}
                 type="button"
-                className={`tasks-select combobox-button${open ? ' on' : ''}`}
+                className={inputClass('md', { className: cx('select-button', 'combobox-button', open && 'on') })}
                 title={title}
                 aria-haspopup="listbox"
                 aria-expanded={open}
@@ -96,7 +97,7 @@ export function FilterPicker({ className, title, summary, active, rows, searchPl
                     setOpen(!open);
                 }}
             >
-                <span className="combobox-value">{summary}</span>
+                <span className="select-value">{summary}</span>
                 <ChevronDown size={13} strokeWidth={1.8} />
             </button>
             {open && (

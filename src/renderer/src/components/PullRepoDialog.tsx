@@ -3,7 +3,7 @@ import { FolderInput, LoaderCircle, X } from 'lucide-react';
 import type { RepoRef } from '@shared/github';
 import type { Project, PullRepoTarget } from '@shared/projects';
 import { errorText } from '../util';
-import { Combobox, type ComboboxGroup } from './Combobox';
+import { Combobox, type ComboboxGroup } from './ui/Combobox';
 import { radioGroupKeys } from './keyboard';
 import { useModal } from './use-modal';
 

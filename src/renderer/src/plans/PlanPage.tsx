@@ -44,11 +44,11 @@ import {
 } from '@shared/plans';
 import type { Project } from '@shared/projects';
 import type { TaskLink } from '@shared/tasks';
-import { Combobox, sortedGroups } from '../components/Combobox';
+import { Combobox, sortedGroups } from '../components/ui/Combobox';
 import { confirmDialog } from '../components/ConfirmDialog';
 import { showContextMenu } from '../components/ContextMenu';
 import { Markdown } from '../components/Markdown';
-import { Select } from '../components/Select';
+import { Select } from '../components/ui/Select';
 import { collectionsQueryOptions, connectionsQueryOptions } from '../components/tasks/use-task-source';
 import { taskQueryKeys } from '../components/tasks/task-view-logic';
 import { loadCollectionTasks } from '../automations/engine';

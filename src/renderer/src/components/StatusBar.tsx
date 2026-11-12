@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CircleAlert, RefreshCw } from 'lucide-react';
 import { formatResetIn, highestWindow, PROVIDER_NAMES, type ProviderUsage, type UsageWindow } from '@shared/usage';
 import { useRefreshUsage, useUsage } from '../usage-query';
+import { IconButton } from './ui';
 
 /** The color class of a usage value: green, then amber from 70 %, then red from 90 %. */
 function level(percent: number): string {
@@ -95,9 +96,13 @@ export function StatusBar() {
                 <ProviderView key={item.provider} usage={item} now={now} />
             ))}
             <span className="status-bar-spacer" />
-            <button className="icon-button status-bar-refresh" title="Refresh usage" disabled={refreshing} onClick={refresh}>
-                <RefreshCw size={13} strokeWidth={1.75} className={refreshing ? 'spin' : undefined} />
-            </button>
+            <IconButton
+                size="sm"
+                icon={<RefreshCw size={13} strokeWidth={1.75} className={refreshing ? 'spin' : undefined} />}
+                label="Refresh usage"
+                disabled={refreshing}
+                onClick={refresh}
+            />
         </footer>
     );
 }

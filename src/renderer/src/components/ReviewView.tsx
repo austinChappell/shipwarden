@@ -10,7 +10,7 @@ import { queryClient } from '../query-client';
 import { errorText, optionalErrorText } from '../util';
 import { reviewKeys, reviewStore } from '../github/review-store';
 import { refreshRepo, useReviewOverview, useReviewQueue } from '../github/review-overview-store';
-import { sortedGroups } from './Combobox';
+import { sortedGroups } from './ui/Combobox';
 import { ReviewHome } from './ReviewHome';
 import { ReviewRepoPage } from './ReviewRepoPage';
 import { isReviewTab, ReviewPullRequest, type ReviewTab } from './ReviewPullRequest';

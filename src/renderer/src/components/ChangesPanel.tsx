@@ -21,6 +21,7 @@ import { gitChanged } from '../git/git-store';
 import { confirmDialog } from './ConfirmDialog';
 import { errorText } from '../util';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
+import { Button, Checkbox, IconButton, TextArea } from './ui';
 
 interface Props {
     worktree: string;
@@ -215,28 +216,27 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                 <span className="change-dir">{parentPath(change.path)}</span>
                 <span className="change-actions" onClick={event => event.stopPropagation()}>
                     {change.kind !== 'deleted' && (
-                        <button className="icon-button" title="Open the file" onClick={() => onOpenFile(change.path)}>
-                            <FileText size={13} strokeWidth={1.7} />
-                        </button>
+                        <IconButton size="sm" icon={<FileText size={13} strokeWidth={1.7} />} label="Open the file" onClick={() => onOpenFile(change.path)} />
                     )}
                     {side === 'unstaged' && (
-                        <button className="icon-button" title="Discard the changes" disabled={!!busy} onClick={() => void discard([change])}>
-                            <Undo2 size={13} strokeWidth={1.8} />
-                        </button>
+                        <IconButton
+                            size="sm"
+                            icon={<Undo2 size={13} strokeWidth={1.8} />}
+                            label="Discard the changes"
+                            disabled={!!busy}
+                            onClick={() => void discard([change])}
+                        />
                     )}
                     {inIndex ? (
-                        <button className="icon-button" title="Unstage" disabled={!!busy} onClick={() => void unstage([change.path])}>
-                            <Minus size={14} strokeWidth={2} />
-                        </button>
+                        <IconButton size="sm" icon={<Minus size={14} strokeWidth={2} />} label="Unstage" disabled={!!busy} onClick={() => void unstage([change.path])} />
                     ) : (
-                        <button
-                            className="icon-button"
-                            title={side === 'conflict' ? 'Mark as resolved (stage)' : 'Stage'}
+                        <IconButton
+                            size="sm"
+                            icon={side === 'conflict' ? <Check size={14} strokeWidth={2} /> : <Plus size={14} strokeWidth={2} />}
+                            label={side === 'conflict' ? 'Mark as resolved (stage)' : 'Stage'}
                             disabled={!!busy}
                             onClick={() => void stage([change.path])}
-                        >
-                            {side === 'conflict' ? <Check size={14} strokeWidth={2} /> : <Plus size={14} strokeWidth={2} />}
-                        </button>
+                        />
                     )}
                 </span>
             </div>
@@ -266,37 +266,43 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                 )}
                 <span className="header-spacer" />
                 {changes.upstream && changes.behind === 0 && (
-                    <button
-                        className="button changes-push"
+                    <Button
+                        size="sm"
                         disabled={!!busy}
                         title={`Pull from ${changes.upstream} with a fast-forward only${changes.behind ? `: ${changes.behind} new commits` : ''}`}
+                        icon={busy === 'pull' ? <LoaderCircle size={13} className="spin" /> : <Download size={13} strokeWidth={1.8} />}
                         onClick={() => void pull()}
                     >
-                        {busy === 'pull' ? <LoaderCircle size={13} className="spin" /> : <Download size={13} strokeWidth={1.8} />} Pull
-                    </button>
+                        Pull
+                    </Button>
                 )}
                 {canPush && (
-                    <button
-                        className="button changes-push"
+                    <Button
+                        size="sm"
                         disabled={!!busy}
                         title={changes.upstream ? `Push to ${changes.upstream}` : 'Push, and track origin'}
+                        icon={busy === 'push' ? <LoaderCircle size={13} className="spin" /> : <Upload size={13} strokeWidth={1.8} />}
                         onClick={() => void push()}
                     >
-                        {busy === 'push' ? <LoaderCircle size={13} className="spin" /> : <Upload size={13} strokeWidth={1.8} />} Push
-                    </button>
+                        Push
+                    </Button>
                 )}
                 {!clean && (
-                    <button className="button changes-push" title="Show the diffs of all changed files in one list" onClick={onOpenAllChanges}>
-                        <GitCompareArrows size={13} strokeWidth={1.8} /> View all
-                    </button>
+                    <Button
+                        size="sm"
+                        title="Show the diffs of all changed files in one list"
+                        icon={<GitCompareArrows size={13} strokeWidth={1.8} />}
+                        onClick={onOpenAllChanges}
+                    >
+                        View all
+                    </Button>
                 )}
-                <button
-                    className="icon-button"
-                    title={`Refresh, and check the remote for new commits${fetched?.at ? `. Last check: ${new Date(fetched.at).toLocaleTimeString()}` : ''}`}
+                <IconButton
+                    size="sm"
+                    icon={<RefreshCw size={14} strokeWidth={1.6} />}
+                    label={`Refresh, and check the remote for new commits${fetched?.at ? `. Last check: ${new Date(fetched.at).toLocaleTimeString()}` : ''}`}
                     onClick={onReload}
-                >
-                    <RefreshCw size={14} strokeWidth={1.6} />
-                </button>
+                />
             </div>
             {changes.behind > 0 && changes.upstream && (
                 <div className="changes-behind">
@@ -305,9 +311,15 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                         {changes.behind} new {changes.behind === 1 ? 'commit' : 'commits'} on {changes.upstream}
                     </span>
                     <span className="header-spacer" />
-                    <button className="button primary changes-push" disabled={!!busy} onClick={() => void pull()}>
-                        {busy === 'pull' ? <LoaderCircle size={13} className="spin" /> : <Download size={13} strokeWidth={1.8} />} Pull
-                    </button>
+                    <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={!!busy}
+                        icon={busy === 'pull' ? <LoaderCircle size={13} className="spin" /> : <Download size={13} strokeWidth={1.8} />}
+                        onClick={() => void pull()}
+                    >
+                        Pull
+                    </Button>
                 </div>
             )}
             {fetched?.error && (
@@ -317,8 +329,8 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
             )}
 
             <div className="changes-commit">
-                <textarea
-                    className="settings-input changes-message"
+                <TextArea
+                    className="changes-message"
                     value={message}
                     placeholder={amend ? 'The message of the amended commit' : 'Commit message (⌘↩ to commit)'}
                     spellCheck
@@ -331,20 +343,23 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                     }}
                 />
                 <div className="changes-commit-row">
-                    <label className="changes-amend" title="Replace the last commit with the staged changes and this message">
-                        <input type="checkbox" checked={amend} disabled={changes.unborn} onChange={event => void toggleAmend(event.target.checked)} />
-                        Amend
-                    </label>
+                    <Checkbox
+                        label="Amend"
+                        title="Replace the last commit with the staged changes and this message"
+                        checked={amend}
+                        disabled={changes.unborn}
+                        onChange={checked => void toggleAmend(checked)}
+                    />
                     <span className="header-spacer" />
-                    <button
-                        className="button primary"
+                    <Button
+                        variant="primary"
                         disabled={!canCommit}
                         onClick={() => void commit()}
                         title={staged.length === 0 && !amend ? 'Stage changes first' : message.trim() ? undefined : 'Type a commit message'}
+                        icon={busy === 'commit' ? <LoaderCircle size={13} className="spin" /> : <Check size={13} strokeWidth={2} />}
                     >
-                        {busy === 'commit' ? <LoaderCircle size={13} className="spin" /> : <Check size={13} strokeWidth={2} />}
                         {amend ? 'Amend commit' : staged.length ? `Commit ${staged.length} ${staged.length === 1 ? 'file' : 'files'}` : 'Commit'}
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -365,9 +380,9 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                         open={!closed.has('staged')}
                         onToggle={() => toggleGroup('staged')}
                         action={
-                            <button className="link-button" disabled={!!busy} onClick={() => void unstage(staged.map(change => change.path))}>
+                            <Button variant="link" disabled={!!busy} onClick={() => void unstage(staged.map(change => change.path))}>
                                 Unstage all
-                            </button>
+                            </Button>
                         }
                     >
                         {staged.map(change => row(change, 'staged'))}
@@ -381,12 +396,12 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                         onToggle={() => toggleGroup('unstaged')}
                         action={
                             <>
-                                <button className="link-button" disabled={!!busy} onClick={() => void discard(changes.unstaged)}>
+                                <Button variant="link" disabled={!!busy} onClick={() => void discard(changes.unstaged)}>
                                     Discard all
-                                </button>
-                                <button className="link-button" disabled={!!busy} onClick={() => void stage(changes.unstaged.map(change => change.path))}>
+                                </Button>
+                                <Button variant="link" disabled={!!busy} onClick={() => void stage(changes.unstaged.map(change => change.path))}>
                                     Stage all
-                                </button>
+                                </Button>
                             </>
                         }
                     >

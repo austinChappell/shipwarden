@@ -4,7 +4,7 @@ import { ChevronRight, LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import type { ConnectionChange, ConnectionInfo, PluginInfo } from '@shared/tasks';
 import { optionalErrorText } from '../util';
 import { SettingsGroup } from './settings-ui';
-import { Select } from './Select';
+import { Select } from './ui/Select';
 import { confirmDialog } from './ConfirmDialog';
 import { connectionAdded, connectionChanged, connectionRemoved, connectionSettingsSaved, taskManagerKeys } from './task-managers-cache';
 

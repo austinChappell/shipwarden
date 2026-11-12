@@ -1,7 +1,7 @@
 import { GitBranch, Link2, Play, Unlink } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { AutomationButtons } from '../../automations/AutomationButtons';
-import { Select } from '../Select';
+import { Select } from '../ui/Select';
 import { targetRepo as pickTargetRepo } from './task-view-logic';
 
 interface Props {

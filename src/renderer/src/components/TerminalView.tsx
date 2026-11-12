@@ -4,6 +4,7 @@ import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { terminalPool } from '../terminal/terminal-pool';
 import { errorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
+import { Button } from './ui';
 
 interface Props {
     session: TerminalSession;
@@ -40,9 +41,9 @@ function OutdatedHostNotice() {
             <span className="host-notice-text" title={error}>
                 {error ?? 'This tab runs on a terminal host from an older ShipWarden build. Some features do not work in it. New tabs use the current build.'}
             </span>
-            <button className="button" onClick={() => void stopOutdatedHosts().catch(reason => setError(errorText(reason)))}>
+            <Button size="sm" onClick={() => void stopOutdatedHosts().catch(reason => setError(errorText(reason)))}>
                 Stop old sessions…
-            </button>
+            </Button>
         </div>
     );
 }

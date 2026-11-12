@@ -204,24 +204,6 @@ button {
     text-transform: uppercase;
 }
 
-.icon-button {
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    border: 0;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--muted);
-    font-size: 16px;
-    line-height: 22px;
-    cursor: pointer;
-}
-
-.icon-button:hover {
-    background: var(--hover);
-    color: var(--text-strong);
-}
-
 .new-worktree {
     padding: 4px 8px 6px;
 }
@@ -682,38 +664,8 @@ button.worktree-ports[aria-expanded="true"] {
     -webkit-app-region: no-drag;
 }
 
-.icon-button {
-    display: inline-grid;
-    place-items: center;
-}
-
 .panel-toggle {
-    width: 28px;
-    height: 28px;
     margin-left: 2px;
-}
-
-.panel-toggle.on {
-    color: var(--text-strong);
-}
-
-.button {
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--raised);
-    cursor: pointer;
-}
-
-.button:hover {
-    border-color: var(--muted);
-    color: var(--text-strong);
-}
-
-.button.primary {
-    border-color: var(--accent);
-    background: transparent;
-    color: var(--accent);
 }
 
 .error-banner {
@@ -739,8 +691,6 @@ button.worktree-ports[aria-expanded="true"] {
 
 .error-close {
     flex: none;
-    padding: 1px;
-    color: inherit;
 }
 
 .terminal-area {
@@ -1402,94 +1352,6 @@ code {
         Menlo,
         monospace;
     color: var(--text);
-}
-
-.link-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    font-size: 12px;
-    cursor: pointer;
-}
-
-.link-button:hover:not(:disabled) {
-    color: var(--text-strong);
-}
-
-.link-button:disabled,
-.button:disabled,
-.icon-button:disabled {
-    opacity: 0.45;
-    cursor: default;
-}
-
-.button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.button.approve {
-    border-color: color-mix(in srgb, var(--ok) 50%, transparent);
-    color: var(--ok);
-}
-
-.button.merge {
-    border-color: color-mix(in srgb, var(--purple) 50%, transparent);
-    color: var(--purple);
-}
-
-/*
- * A button group (ButtonGroup.tsx): buttons that show as one control.
- * The group has the border and the corners. A line separates the buttons.
- */
-.button-group {
-    --group-line: var(--border);
-    --group-hover: var(--hover);
-    display: inline-flex;
-    align-items: stretch;
-    border: 1px solid var(--group-line);
-    border-radius: 6px;
-    background: var(--raised);
-}
-
-.button-group.merge {
-    --group-line: color-mix(in srgb, var(--purple) 50%, transparent);
-    --group-hover: color-mix(in srgb, var(--purple) 15%, var(--raised));
-}
-
-.button-group > .button {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-}
-
-.button-group > .button:first-child {
-    border-top-left-radius: inherit;
-    border-bottom-left-radius: inherit;
-}
-
-.button-group > .button:last-child {
-    border-top-right-radius: inherit;
-    border-bottom-right-radius: inherit;
-}
-
-.button-group > .button + .button {
-    border-left: 1px solid var(--group-line);
-}
-
-.button-group > .button:not(:disabled):hover,
-.button-group > .button.on {
-    background: var(--group-hover);
-}
-
-.button-group > .button-group-arrow {
-    padding-right: 7px;
-    padding-left: 7px;
 }
 
 /* The wrapper of a split button. The menu opens below it. */
@@ -2704,11 +2566,6 @@ button.task-linked {
     max-width: 200px;
 }
 
-/* A filter that hides tasks has the accent color, so the user sees that the list is not complete. */
-.filter-select.active > button {
-    border-color: var(--accent);
-}
-
 .collection-open {
     flex: none;
     display: flex;
@@ -2723,18 +2580,6 @@ button.task-linked {
 
 .tasks-header .icon-button.on {
     color: var(--accent);
-}
-
-.tasks-select {
-    min-width: 96px;
-    max-width: 240px;
-    flex-shrink: 1;
-    padding: 4px 6px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--raised);
-    color: var(--text);
-    font: inherit;
 }
 
 .tasks-search {
@@ -4189,12 +4034,6 @@ body.resizing * {
     flex: 1;
 }
 
-.status-bar-refresh {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 /* Appearance settings */
 
 .settings-subheading {
@@ -5103,61 +4942,6 @@ body.resizing * {
     border-top: 1px solid var(--border);
 }
 
-/* An on/off switch: a checkbox with a sliding knob. */
-.switch {
-    position: relative;
-    flex: none;
-    width: 30px;
-    height: 17px;
-}
-
-.switch input {
-    position: absolute;
-    inset: 0;
-    margin: 0;
-    opacity: 0;
-    cursor: pointer;
-}
-
-.switch span {
-    position: absolute;
-    inset: 0;
-    border-radius: 9px;
-    background: var(--hover);
-    border: 1px solid var(--border);
-    pointer-events: none;
-    transition: background 120ms ease;
-}
-
-.switch span::after {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 11px;
-    height: 11px;
-    border-radius: 50%;
-    background: var(--muted);
-    transition:
-        transform 120ms ease,
-        background 120ms ease;
-}
-
-.switch input:checked + span {
-    background: color-mix(in srgb, var(--accent) 35%, var(--hover));
-    border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
-}
-
-.switch input:checked + span::after {
-    transform: translateX(13px);
-    background: var(--accent);
-}
-
-.switch input:focus-visible + span {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-}
-
 .scope-picker {
     display: flex;
     flex-direction: column;
@@ -5205,11 +4989,6 @@ body.resizing * {
     display: flex;
     gap: 8px;
     margin: 10px 0 4px;
-}
-
-.button.danger {
-    color: var(--danger);
-    border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
 }
 
 /* Focus rings show for the keyboard only, not after a mouse click. */
@@ -5864,32 +5643,12 @@ button:focus-visible,
     font-size: 12px;
 }
 
-.agent-name-input,
-.agent-command-input,
-.settings-input {
-    min-width: 0;
-    padding: 6px 9px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    outline: none;
-    background: var(--bg);
-    color: var(--text-strong);
-    font: inherit;
-}
-
-.agent-name-input:focus,
-.agent-command-input:focus,
-.settings-input:focus {
-    border-color: var(--accent);
-}
-
 .agent-name-input {
     flex: 0 0 150px;
 }
 
 .agent-command-input {
     flex: 1;
-    font-size: 12px;
 }
 
 .agent-mode-select {
@@ -6244,49 +6003,6 @@ button:focus-visible,
     font-size: 13px;
 }
 
-/* Select: the select of the app. It replaces the native select. */
-.select-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    text-align: left;
-    cursor: pointer;
-}
-
-.select-button:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-}
-
-.select-button:focus-visible,
-.select-button.on {
-    border-color: var(--accent);
-    outline: none;
-}
-
-.select-button:disabled {
-    cursor: default;
-    opacity: 0.6;
-}
-
-.select-button > svg {
-    flex: none;
-    margin-left: auto;
-    color: var(--muted);
-}
-
-.select-value {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.select-value.placeholder {
-    color: var(--muted);
-}
-
 .select-list {
     overflow-y: auto;
     padding: 4px;
@@ -6413,38 +6129,6 @@ button:focus-visible,
     display: flex;
     min-width: 0;
     max-width: 280px;
-}
-
-.combobox-button {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    max-width: none;
-    text-align: left;
-    cursor: pointer;
-}
-
-.combobox-button:disabled {
-    cursor: default;
-    opacity: 0.7;
-}
-
-.combobox-button svg {
-    flex: none;
-    color: var(--muted);
-}
-
-.combobox-button.on {
-    border-color: var(--accent);
-}
-
-.combobox-value {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .combobox-group-prefix {
@@ -7389,13 +7073,6 @@ button:focus-visible,
     white-space: nowrap;
 }
 
-.link-button.mono {
-    font:
-        12px "JetBrains Mono",
-        Menlo,
-        monospace;
-}
-
 /* The merge button with its menu of merge methods, as on GitHub. */
 .merge-row {
     justify-content: flex-end;
@@ -7404,7 +7081,6 @@ button:focus-visible,
 .merge-split {
     position: relative;
     display: inline-flex;
-    border-radius: 6px;
 }
 
 /* The footer is at the bottom of the view, so the menu opens up. */
@@ -8512,12 +8188,6 @@ button:focus-visible,
     gap: 8px;
 }
 
-.notes-new {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
 .notes-body {
     flex: 1;
     min-height: 0;
@@ -9049,10 +8719,6 @@ body.resizing-column * {
     font-size: 11.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.pane-actions .icon-button {
-    padding: 3px;
 }
 
 /* Pipelines */
@@ -10191,15 +9857,6 @@ body.resizing-column * {
     font-variant-numeric: tabular-nums;
 }
 
-.changes-push {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 9px;
-    font-size: 12px;
-}
-
 .changes-commit {
     display: flex;
     flex: none;
@@ -10212,30 +9869,12 @@ body.resizing-column * {
 .changes-message {
     width: 100%;
     height: 80px;
-    font: inherit;
-    line-height: 1.45;
 }
 
 .changes-commit-row {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-.changes-commit-row .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    white-space: nowrap;
-}
-
-.changes-amend {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    color: var(--muted);
-    font-size: 12px;
-    cursor: pointer;
 }
 
 .changes-error {
@@ -10291,10 +9930,6 @@ body.resizing-column * {
     font-weight: 400;
     letter-spacing: 0;
     text-transform: none;
-}
-
-.changes-group-action .link-button {
-    font-size: 12px;
 }
 
 .change-row {
@@ -10375,10 +10010,6 @@ body.resizing-column * {
     display: flex;
 }
 
-.change-actions .icon-button {
-    padding: 2px;
-}
-
 /* All local changes of a worktree in one tab */
 .worktree-changes {
     display: flex;
@@ -10427,15 +10058,6 @@ body.resizing-column * {
 .change-side.unstaged {
     background: color-mix(in srgb, var(--accent) 16%, transparent);
     color: var(--accent);
-}
-
-.change-stage {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 9px;
-    font-size: 12px;
 }
 
 .change-diff-body {
@@ -10589,16 +10211,6 @@ body.resizing-column * {
 
 .titlebar-controls.right {
     right: 12px;
-}
-
-.sidebar-toggle,
-.titlebar-controls .panel-toggle {
-    color: var(--muted);
-}
-
-.sidebar-toggle:hover,
-.titlebar-controls .panel-toggle:hover {
-    color: var(--text-strong);
 }
 
 .app.sidebar-collapsed .workspace-header,
@@ -11013,10 +10625,6 @@ button.gg-ref:hover {
 
 .titlebar-controls .icon-button {
     -webkit-app-region: no-drag;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
 }
 
 .pp-title {
@@ -11641,36 +11249,9 @@ button.gg-ref:hover {
     gap: 8px;
 }
 
-.review-pr-actions .button-group {
-    border-radius: 8px;
-}
-
-/* The Refresh button at the right of the button group. It has the same height and border. */
-.review-pr-actions .icon-button {
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--raised);
-}
-
-.review-pr-actions .icon-button:not(:disabled):hover {
-    border-color: var(--muted);
-}
-
 /* The icon spins while the pull request loads. The button does not fade. */
 .review-pr-actions .icon-button:disabled {
     opacity: 1;
-}
-
-.review-pr-actions .button {
-    min-height: 34px;
-    padding: 0 12px;
-    font-size: 13px;
-}
-
-.review-pr-actions .button-group-arrow {
-    padding: 0 9px;
 }
 
 /* The strip below the title: review, checks, size and merge. */
@@ -11871,41 +11452,12 @@ button.pr-summary-cell:hover {
     font-size: 13.5px;
 }
 
+/* The review buttons have the width of their text. They are at the right of the card. */
 .review-decisions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-}
-
-.review-decisions.count-1 {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-.review-decisions.count-3 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.pr-overview .review-decisions .button,
-.pr-overview .merge-card .merge-row .button {
-    justify-content: center;
-    min-height: 40px;
-    padding: 6px 12px;
-    font-size: 14px;
-    font-weight: 600;
-}
-
-/* The parts of a button group get their corners from the group. */
-.pr-overview .review-decisions .button,
-.pr-overview .merge-card .merge-row > .button,
-.pr-overview .merge-card .merge-split,
-.pr-overview .merge-card .button-group,
-.pr-overview .merge-card .merge-split > .merge-split-main {
-    border-radius: 8px;
-}
-
-/* The group border adds 2px. The grouped button then has the same height as the other buttons. */
-.pr-overview .merge-card .button-group > .button {
-    min-height: 38px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .review-decisions .button.approve {
@@ -11972,20 +11524,6 @@ button.pr-summary-cell:hover {
     display: flex;
     flex-wrap: nowrap;
     gap: 10px;
-}
-
-.side-card.merge-card .auto-merge-button {
-    flex: 1;
-    min-width: 0;
-}
-
-.side-card.merge-card .merge-row:not(:has(.auto-merge-button)) .merge-split {
-    flex: 1;
-}
-
-.side-card.merge-card .merge-row:not(:has(.auto-merge-button)) .button-group,
-.side-card.merge-card .merge-row:not(:has(.auto-merge-button)) .merge-split-main {
-    flex: 1;
 }
 
 /* In the side column, the merge card is near the top. The menu of the merge methods opens down. */
@@ -12409,19 +11947,6 @@ button.pr-summary-cell:hover {
     flex: none;
 }
 
-.button.primary-solid {
-    border-color: var(--accent);
-    background: var(--accent);
-    color: var(--bg);
-    font-weight: 600;
-}
-
-.button.primary-solid:hover:not(:disabled) {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 85%, var(--text-strong));
-    color: var(--bg);
-}
-
 .button-count {
     min-width: 18px;
     padding: 0 5px;
@@ -12726,13 +12251,6 @@ button.pr-summary-cell:hover {
 .automations-head-actions {
     display: flex;
     gap: 6px;
-}
-
-.automations-head-actions .button,
-.automation-run-actions .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
 }
 
 .automations-scroll {
@@ -13518,13 +13036,6 @@ button.pr-summary-cell:hover {
     display: flex;
     align-items: center;
     gap: 6px;
-}
-
-.plans-header .button,
-.flow-page .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
 }
 
 /* The "‹ Plans" link in the title bar of an open plan. */
@@ -14707,12 +14218,6 @@ button.pr-summary-cell:hover {
     margin-top: 4px;
 }
 
-.empty-view-actions .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
 .empty-view-hint {
     font-size: 12px;
 }
@@ -14840,24 +14345,6 @@ button.pr-summary-cell:hover {
 /* The getting started checklist at the top of the Dashboard. */
 .checklist-card {
     margin-bottom: 18px;
-    padding: 12px 14px;
-    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
-    border-radius: 10px;
-    background: var(--panel);
-}
-
-.checklist-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--accent);
-}
-
-.checklist-header h2 {
-    margin: 0;
-    color: var(--text-strong);
-    font-size: 14px;
-    font-weight: 600;
 }
 
 .checklist-progress {
@@ -14869,7 +14356,7 @@ button.pr-summary-cell:hover {
     display: block;
     width: 100%;
     height: 4px;
-    margin: 10px 0 6px;
+    margin: 0 0 6px;
     overflow: hidden;
     border: none;
     border-radius: 2px;
@@ -14937,7 +14424,7 @@ button.pr-summary-cell:hover {
     font-size: 12px;
 }
 
-.checklist-step .button {
+.checklist-action {
     flex: none;
     white-space: nowrap;
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderGit2, LoaderCircle, X } from 'lucide-react';
 import { branchFromName, localNameOfRemote, type BranchList } from '@shared/worktrees';
 import { errorText } from '../util';
-import { Combobox, type ComboboxGroup } from './Combobox';
+import { Combobox, type ComboboxGroup } from './ui/Combobox';
 import { radioGroupKeys } from './keyboard';
 import { useModal } from './use-modal';
 

@@ -10,7 +10,7 @@ import {
     type ConditionRule
 } from '@shared/automation-templates';
 import type { VariableInfo } from '@shared/automations';
-import { Select } from '../components/Select';
+import { Select } from '../components/ui/Select';
 
 type Group = { all: Condition[] } | { any: Condition[] };
 

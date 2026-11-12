@@ -13,7 +13,7 @@ import { WORKTREE_SORT_LABELS, type WorktreeSort, type WorktreeSortKey } from '@
 import { errorText } from '../util';
 import { fetchAppInfo } from '../app/task-branch';
 import { SettingsGroup, SettingsRow } from './settings-ui';
-import { Select } from './Select';
+import { Select } from './ui/Select';
 import { radioGroupKeys } from './keyboard';
 
 /** Splits the text of the patterns field into patterns, one on each line. */

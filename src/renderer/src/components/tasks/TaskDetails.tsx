@@ -2,7 +2,7 @@ import { ExternalLink, LoaderCircle, Trash2 } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { timeAgo } from '../../util';
 import { openLink } from '../../links';
-import { Select } from '../Select';
+import { Button, IconButton, Select } from '../ui';
 import { editableParts, formatField } from './task-view-logic';
 import { FieldRow, StatusDot } from './TaskParts';
 import { TaskActions } from './TaskActions';
@@ -69,15 +69,20 @@ export function TaskDetails({
                     <div className="task-detail-top">
                         {detail.key && <span className="task-key">{detail.key}</span>}
                         {detail.url && (
-                            <button className="link-button" onClick={event => openLink(detail.url!, event)}>
-                                Open <ExternalLink size={12} strokeWidth={1.6} />
-                            </button>
+                            <Button variant="link" iconEnd={<ExternalLink size={12} strokeWidth={1.6} />} onClick={event => openLink(detail.url!, event)}>
+                                Open
+                            </Button>
                         )}
                         <span className="header-spacer" />
                         {source.capabilities.delete && (
-                            <button className="icon-button" title="Delete the task" disabled={busy} onClick={state.deleteTask}>
-                                <Trash2 size={14} strokeWidth={1.6} />
-                            </button>
+                            <IconButton
+                                size="sm"
+                                tone="danger"
+                                icon={<Trash2 size={14} strokeWidth={1.6} />}
+                                label="Delete the task"
+                                disabled={busy}
+                                onClick={state.deleteTask}
+                            />
                         )}
                     </div>
                     <TaskTitle key={detail.id} title={detail.title} editable={!!editable.title} busy={busy} onSave={state.saveTitle} />

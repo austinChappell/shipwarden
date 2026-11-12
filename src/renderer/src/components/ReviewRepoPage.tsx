@@ -20,8 +20,8 @@ import { optionalErrorText, timeAgo } from '../util';
 import { focusFirstItem, itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { seenStore, useIsSeen } from '../seen-store';
 import { overviewKeys, refreshRepo, useRepoEntry } from '../github/review-overview-store';
-import { Combobox, type ComboboxGroup } from './Combobox';
-import { Select } from './Select';
+import { Combobox, type ComboboxGroup } from './ui/Combobox';
+import { Select } from './ui/Select';
 import { ChecksLabel, Dotted, KeyLegend, focusedData, useInitialFocus, usePageKeys } from './ReviewParts';
 import { InlineTip } from './Tips';
 
