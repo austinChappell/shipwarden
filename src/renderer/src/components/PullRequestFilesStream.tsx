@@ -24,6 +24,7 @@ import { allFilesOpen, currentMatchIndex, isFileOpen, nextMatchIndex, seekDelta,
 import { nextPendingIndex, openCommentCount, pendingOrder } from '../github/review-state';
 import { readStyle, STYLE_KEY, useColorMode, useMetaKey, type DiffStyle } from './diff-style';
 import { FindBar, findLineElement, renderedLines } from './FindBar';
+import { useCopySelection, type FindRequest } from './selected-text';
 import { FileBody } from './PullRequestFileBody';
 
 export { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './diff-style';
@@ -40,8 +41,8 @@ interface Props {
     scrollTo?: { path: string; nonce: number; line?: number; side?: DiffSide };
     onRefresh(): Promise<void>;
     onError(message: string): void;
-    /** A request to open the search bar (⌘F). A new value opens it again and selects its text. */
-    findRequest?: number;
+    /** A request to open the search bar (⌘F). A new value opens it again and selects its text. Its text replaces the search text. */
+    findRequest?: FindRequest;
     /** The file list beside the stream. With it, the toolbar shows a button that hides and shows the list. */
     fileList?: { open: boolean; toggle(): void };
     /** ⌘-click on a name on the new side of a diff. The line and the column start at 1. */
@@ -221,7 +222,9 @@ export function PullRequestFilesStream({
     const isOpen = (file: PullRequestFile) => isFileOpen(open, file);
 
     useEffect(() => {
-        if (findRequest) setFindOpen(true);
+        if (!findRequest) return;
+        setFindOpen(true);
+        if (findRequest.text) setQuery(findRequest.text);
     }, [findRequest]);
 
     /** The number of the last reveal request. A new request stops the loop of the request before it. */
@@ -324,6 +327,7 @@ export function PullRequestFilesStream({
         reveal({ path: comment.path, line: comment.line, side: comment.side, note: { kind: 'pending', nth } });
     };
     const rootRef = useRef<HTMLDivElement>(null);
+    useCopySelection(rootRef);
     const movePendingRef = useRef(movePending);
     movePendingRef.current = movePending;
 
@@ -420,7 +424,7 @@ export function PullRequestFilesStream({
                     caseSensitive={caseSensitive}
                     count={matches.length}
                     index={currentMatchIndex(matchIndex, matches.length)}
-                    focusNonce={findRequest ?? 0}
+                    focusNonce={findRequest?.at ?? 0}
                     onQuery={setQuery}
                     onCaseSensitive={setCaseSensitive}
                     onMove={moveMatch}

@@ -31,6 +31,7 @@ import { documents } from '../editor/documents';
 import { moveTabFocus } from '../tablist';
 import { PullRepoDialog } from './PullRepoDialog';
 import { isFindShortcut, openLogFind } from './log-find';
+import { findRequest as makeFindRequest, type FindRequest } from './selected-text';
 
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
 
@@ -247,7 +248,7 @@ export function ReviewPullRequest({
     const [file, setFile] = useState<{ file: PullRequestFile; line?: number; side?: DiffSide; nonce: number }>();
     const [check, setCheck] = useState<CheckRun>();
     const [fileError, setFileError] = useState<string>();
-    const [findRequest, setFindRequest] = useState<number>();
+    const [findRequest, setFindRequest] = useState<FindRequest>();
     const review = useReviewState(repo, pr?.number);
     const checkCounts = useCheckCounts(repo, status?.sha);
     const sideWidth = usePanelWidth('shipwarden.width.reviewSide', 320, 220, 560);
@@ -323,14 +324,16 @@ export function ReviewPullRequest({
     };
 
     // ⌘F searches the changed files when no CI log owns ⌘F. The capture phase gets the key before a comment box can stop it.
+    // The selected text of the page goes into the search field.
     // The listener also runs ⌘O and ⇧⌘O of the header.
     // biome-ignore lint/correctness/useExhaustiveDependencies: The listener attaches one time. selectTab uses only state setters and a ref, so the first copy is correct.
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
             if (isFindShortcut(event) && !openLogFind(event)) {
                 event.preventDefault();
+                // Read the selection before the search field gets the focus.
+                setFindRequest(makeFindRequest());
                 selectTab('files');
-                setFindRequest(Date.now());
                 return;
             }
             // ⌘O opens the worktree of the head branch. ⇧⌘O opens the pull request on GitHub.
