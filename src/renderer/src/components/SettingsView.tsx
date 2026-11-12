@@ -193,7 +193,7 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
                     <span className="settings-crumb-separator">/</span>
                     {current.label}
                 </h1>
-                <IconButton icon={<X size={14} strokeWidth={1.75} />} label="Close settings" title="Close settings (Escape)" onClick={onClose} />
+                <IconButton size="lg" icon={<X size={16} strokeWidth={1.8} />} label="Close settings" title="Close settings (Escape)" onClick={onClose} />
             </header>
             <div className="settings-body">
                 <nav className="settings-nav" aria-label="Settings sections">

@@ -1,5 +1,6 @@
 import type { MergeMethod, RepoRef } from './github';
 import type { HiddenCommentRule } from './settings';
+import { formatAge } from './format';
 
 /** The Dashboard shows comments from this number of days. Older comments do not count as new. */
 export const DASHBOARD_WINDOW_DAYS = 7;
@@ -257,15 +258,9 @@ export function parsePullRequestTitle(title: string): ParsedTitle {
     return { text };
 }
 
-/** A short age for a column: "5m", "3h", "2d", "6w". */
+/** A short age for a column: "5m", "3h", "2d", "6w". It is `formatAge` of shared/format.ts. */
 export function shortAge(iso: string, now = Date.now()): string {
-    const minutes = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000));
-    if (minutes < 60) return `${Math.max(1, minutes)}m`;
-    const hours = Math.round(minutes / 60);
-    if (hours < 24) return `${hours}h`;
-    const days = Math.round(hours / 24);
-    if (days < 14) return `${days}d`;
-    return `${Math.round(days / 7)}w`;
+    return formatAge(iso, now);
 }
 
 /** A pull request of the user with no update in this number of days is stale. */

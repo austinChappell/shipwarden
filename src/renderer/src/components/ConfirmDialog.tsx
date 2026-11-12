@@ -162,7 +162,7 @@ export function DialogHost() {
                 </div>
                 <footer className="modal-footer">
                     {!current.notice && <Button onClick={() => answer(current, false)}>{current.cancelLabel ?? 'Cancel'}</Button>}
-                    <Button ref={confirmButton} variant={current.danger ? 'danger' : 'solid'} onClick={confirm}>
+                    <Button ref={confirmButton} variant={current.danger ? 'danger-solid' : 'primary'} onClick={confirm}>
                         {current.confirmLabel ?? 'OK'}
                     </Button>
                 </footer>

@@ -23,7 +23,9 @@ import { itemKeys } from '../keyboard/list-nav';
 import { errorText, timeAgo } from '../util';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
-import { Button, IconButton, Input, SearchInput, Select, type SelectOption } from './ui';
+import { pluralize } from '@shared/format';
+import { EmptyState } from './EmptyState';
+import { Button, Chip, Count, FilterField, IconButton, Input, labelIndex, PageHeader, Select, SkeletonRows, type SelectOption } from './ui';
 
 const api = window.shipwarden.notes;
 const SELECTED_KEY = 'shipwarden.note';
@@ -243,12 +245,12 @@ function TagEditor({ tags, allTags, onChange }: { tags: string[]; allTags: strin
     return (
         <div className="note-tags">
             {tags.map(tag => (
-                <span key={tag} className="note-tag">
+                <Chip key={tag} tone="label" labelIndex={labelIndex(tag)} className="note-tag">
                     #{tag}
-                    <button title={`Remove the tag ${tag}`} onClick={() => onChange(tags.filter(item => item !== tag))}>
+                    <button type="button" title={`Remove the tag ${tag}`} onClick={() => onChange(tags.filter(item => item !== tag))}>
                         <X size={11} strokeWidth={2} />
                     </button>
-                </span>
+                </Chip>
             ))}
             <TagPicker tags={tags} allTags={allTags} onAdd={tag => onChange(normalizeTags([...tags, tag]))} onRemoveLast={() => onChange(tags.slice(0, -1))} />
         </div>
@@ -803,7 +805,7 @@ export function NotesView({ route, onRoute }: Props) {
                         <ChevronRight size={13} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
                         <Folder size={14} strokeWidth={1.6} className="note-folder-icon" />
                         <span className="note-folder-name">{name}</span>
-                        <span className="note-folder-count">{subtree.length}</span>
+                        <Count className="note-folder-count" value={subtree.length} label={pluralize(subtree.length, 'note')} />
                         <span className="note-folder-actions" onClick={event => event.stopPropagation()}>
                             <IconButton size="sm" icon={<Plus size={13} strokeWidth={1.8} />} label={`New note in ${name}`} onClick={() => startNote(path)} />
                             <IconButton
@@ -860,23 +862,36 @@ export function NotesView({ route, onRoute }: Props) {
 
     return (
         <div className="notes-view">
-            <header className="tasks-header">
-                <div className="tasks-header-group where">
-                    <NotebookPen size={16} strokeWidth={1.7} />
-                    <h1 className="notes-heading">Notes</h1>
-                    <SearchInput className="tasks-search-field" value={query} placeholder="Search names, folders, and #tags" onChange={setQuery} />
-                </div>
-                <div className="tasks-header-group how">
-                    <span className="header-spacer" />
-                    <IconButton icon={<FolderOpen size={14} strokeWidth={1.6} />} label={`Open the notes folder: ${folder}`} onClick={() => api.reveal()} />
-                    <Button icon={<FolderPlus size={14} strokeWidth={1.8} />} title="Make a folder at the top level" onClick={() => startFolder('')}>
-                        New folder
-                    </Button>
-                    <Button variant="solid" icon={<Plus size={14} />} onClick={() => startNote('')}>
+            <PageHeader
+                icon={NotebookPen}
+                title="Notes"
+                meta={notes ? pluralize(notes.length, 'note') : undefined}
+                filter={<FilterField value={query} placeholder="Filter notes" label="Filter notes by name, folder, or #tag" onChange={setQuery} />}
+                actions={
+                    <>
+                        <IconButton
+                            size="lg"
+                            icon={<FolderOpen size={16} strokeWidth={1.6} />}
+                            label="Show in Finder"
+                            title={folder ? `Show in Finder: ${folder}` : undefined}
+                            onClick={() => api.reveal()}
+                        />
+                        <Button
+                            size="lg"
+                            icon={<FolderPlus size={14} strokeWidth={1.8} />}
+                            title="Make a folder at the top level"
+                            onClick={() => startFolder('')}
+                        >
+                            New folder
+                        </Button>
+                    </>
+                }
+                primary={
+                    <Button size="lg" variant="primary" icon={<Plus size={14} />} onClick={() => startNote('')}>
                         New note
                     </Button>
-                </div>
-            </header>
+                }
+            />
 
             <div className="notes-body" style={{ '--notes-list-width': `${listWidth.width}px` } as CSSProperties}>
                 <div
@@ -890,15 +905,22 @@ export function NotesView({ route, onRoute }: Props) {
                     {allTags.length > 0 && (
                         <div className="notes-tag-filter">
                             {allTags.map(([tag, count]) => (
-                                <button key={tag} className={`note-tag filter${tagFilter.includes(tag) ? ' on' : ''}`} onClick={() => toggleTag(tag)}>
-                                    #{tag} <span>{count}</span>
+                                <button
+                                    key={tag}
+                                    type="button"
+                                    className={`note-tag-filter${tagFilter.includes(tag) ? ' on' : ''}`}
+                                    aria-pressed={tagFilter.includes(tag)}
+                                    onClick={() => toggleTag(tag)}
+                                >
+                                    #{tag}
+                                    <Count value={count} label={pluralize(count, 'note')} />
                                 </button>
                             ))}
                         </div>
                     )}
                     {editing?.kind === 'folder' && editing.parent === '' && inputs('')}
                     {error && <div className="form-error task-list-error">{error}</div>}
-                    {!notes && !error && <div className="panel-message">Loading notes…</div>}
+                    {!notes && !error && <SkeletonRows count={5} dot={false} label="Loading notes" />}
                     {notes?.length === 0 && folders.length === 0 && !editing && (
                         <div className="panel-message notes-empty">
                             <p>No notes yet.</p>
@@ -943,7 +965,17 @@ export function NotesView({ route, onRoute }: Props) {
                         onTags={tags => void setTags(current, tags)}
                     />
                 ) : (
-                    <div className="note-pane panel-message">{notes?.length ? 'Select a note.' : 'Create a note with New note.'}</div>
+                    <div className="note-pane">
+                        {notes?.length ? (
+                            <EmptyState icon={NotebookPen} title="No note selected">
+                                Pick a note to edit it.
+                            </EmptyState>
+                        ) : (
+                            <EmptyState icon={NotebookPen} title="No notes yet">
+                                Make a note with New note.
+                            </EmptyState>
+                        )}
+                    </div>
                 )}
             </div>
         </div>

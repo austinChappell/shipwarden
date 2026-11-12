@@ -152,5 +152,16 @@ export function useTaskList({ source, collection, filter, request, setSelectedId
     /** The error of a failed action, else the error of the last load. */
     const listError = actionError ?? (source && collection ? optionalErrorText(listQuery.error) : undefined);
 
-    return { tasks, setTasks, loading: listQuery.isFetching, listError, statusOrder, moving, loadTasks, createTask, moveTask };
+    return {
+        tasks,
+        setTasks,
+        loading: listQuery.isFetching,
+        updatedAt: tasks ? listQuery.dataUpdatedAt || undefined : undefined,
+        listError,
+        statusOrder,
+        moving,
+        loadTasks,
+        createTask,
+        moveTask
+    };
 }

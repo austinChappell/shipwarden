@@ -68,6 +68,28 @@ describe('GitWorktreeService', () => {
         expect(git(worktree.path, 'log', '--format=%s').trim().split('\n')).toEqual(['init']);
     });
 
+    it('reports the fetch step only when the new branch has no start point', async () => {
+        const steps: string[] = [];
+        await service.create({ repoPath: repo, branch: 'no-base' }, undefined, step => steps.push(step));
+        expect(steps).toEqual(['fetch', 'checkout']);
+
+        steps.length = 0;
+        await service.create({ repoPath: repo, branch: 'with-base', baseRef: 'main' }, undefined, step => steps.push(step));
+        expect(steps).toEqual(['checkout']);
+    });
+
+    it('reports the progress of the copy of the ignored files', async () => {
+        await fs.writeFile(path.join(repo, '.gitignore'), '.env\nlocal.txt\n');
+        await fs.writeFile(path.join(repo, '.env'), 'A=1');
+        await fs.writeFile(path.join(repo, 'local.txt'), 'x');
+        const worktree = await service.create({ repoPath: repo, branch: 'copy-progress' });
+        const events: string[] = [];
+        await service.copyIgnored(repo, worktree.path, { enabled: true, mode: 'allExcept', patterns: [], exclude: [] }, (done, total) =>
+            events.push(`${done}/${total}`)
+        );
+        expect(events).toEqual(['0/2', '1/2', '2/2']);
+    });
+
     it('lists the main worktree', async () => {
         const worktrees = await service.list(repo);
         expect(worktrees).toHaveLength(1);

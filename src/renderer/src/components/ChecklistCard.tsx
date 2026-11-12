@@ -58,7 +58,7 @@ export function ChecklistCard({ checklist, actionOf, onClose }: Props) {
                                     {!stepDone && <span className="checklist-detail">{step.detail}</span>}
                                 </div>
                                 {action && (
-                                    <Button size="sm" className="checklist-action" onClick={action.run}>
+                                    <Button className="checklist-action" onClick={action.run}>
                                         {action.label}
                                     </Button>
                                 )}

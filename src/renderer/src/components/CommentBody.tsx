@@ -3,7 +3,7 @@ import { Check, FileDiff, LoaderCircle } from 'lucide-react';
 import { splitSuggestions } from '@shared/suggestion';
 import { errorText } from '../util';
 import { Markdown } from './Markdown';
-import { Button } from './ui';
+import { Button, Chip } from './ui';
 
 interface Props {
     body: string;
@@ -63,7 +63,7 @@ function SuggestionDiff({
         <div className="suggestion">
             <div className="suggestion-header">
                 <FileDiff size={12} strokeWidth={1.6} /> Suggested change
-                {outdated && <span className="tag">outdated</span>}
+                {outdated && <Chip>outdated</Chip>}
                 <span className="header-spacer" />
                 {onApply && (
                     <Button

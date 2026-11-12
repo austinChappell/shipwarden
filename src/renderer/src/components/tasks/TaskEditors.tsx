@@ -200,7 +200,7 @@ export function OptionPicker({ label, selected, multiple, load, onChange, disabl
                                 ) : row.color ? (
                                     <span className="option-swatch" style={{ background: row.color }} />
                                 ) : null}
-                                <span className={`combobox-label${row.none ? ' muted' : ''}`}>{row.create ? `Add "${row.name}"` : row.name}</span>
+                                <span className={`combobox-label${row.none ? ' muted' : ''}`}>{row.create ? `Add “${row.name}”` : row.name}</span>
                             </div>
                         ))}
                     </div>

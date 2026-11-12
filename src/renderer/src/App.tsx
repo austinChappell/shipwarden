@@ -55,6 +55,7 @@ import { TipNotice, useProvideTips } from './components/Tips';
 import { useTips, type OnboardingChange } from './app/use-tips';
 import type { TipAction } from '@shared/tips';
 import { WelcomeView } from './components/WelcomeView';
+import { WorktreeProgressNotices } from './components/WorktreeProgressNotices';
 import { leafOfTab, resizeSplit } from '@shared/panes';
 import type { ShortcutAction, ViewAction } from '@shared/shortcuts';
 import { lspBridge } from './lsp/bridge';
@@ -966,14 +967,14 @@ export function App() {
                             )}
                             <div className="header-spacer" />
                             {selectedPath && links[selectedPath] && (
-                                <button
+                                <Button
                                     className="task-chip"
                                     title={`Open the task: ${links[selectedPath].title}`}
+                                    icon={<ListTodo size={14} strokeWidth={1.7} />}
                                     onClick={() => openLinkedTask(selectedPath)}
                                 >
-                                    <ListTodo size={13} strokeWidth={1.7} />
                                     <span>{links[selectedPath].key ?? links[selectedPath].title}</span>
-                                </button>
+                                </Button>
                             )}
                             <div className="header-actions">
                                 {selected && selectedRepo && (
@@ -1031,13 +1032,15 @@ export function App() {
                                                 <>
                                                     <Button
                                                         variant="primary"
-                                                        icon={<FolderPlus size={13} strokeWidth={1.8} aria-hidden="true" />}
+                                                        size="lg"
+                                                        icon={<FolderPlus size={14} strokeWidth={1.8} aria-hidden="true" />}
                                                         onClick={project.addRepo}
                                                     >
                                                         Add a repository
                                                     </Button>
                                                     <Button
-                                                        icon={<FolderDown size={13} strokeWidth={1.8} aria-hidden="true" />}
+                                                        size="lg"
+                                                        icon={<FolderDown size={14} strokeWidth={1.8} aria-hidden="true" />}
                                                         onClick={() => setCloneOpen(true)}
                                                     >
                                                         Clone a repository
@@ -1055,8 +1058,9 @@ export function App() {
                                             actions={
                                                 <Button
                                                     variant="primary"
+                                                    size="lg"
                                                     data-tour="agent"
-                                                    icon={<Play size={13} strokeWidth={1.8} aria-hidden="true" />}
+                                                    icon={<Play size={14} strokeWidth={1.8} aria-hidden="true" />}
                                                     onClick={() => startTerminal(selected, 'agent')}
                                                 >
                                                     Start {agentForRepo(appSettings, selectedRepo).name}
@@ -1071,7 +1075,6 @@ export function App() {
                                             <span className="empty-view-path" title={selected.path}>
                                                 {selected.path}
                                             </span>
-                                            This worktree has no tabs. Start an agent to give it work.
                                         </EmptyState>
                                     )}
                                     {repos.length > 0 && !selected && (
@@ -1081,7 +1084,8 @@ export function App() {
                                             actions={
                                                 <Button
                                                     variant="primary"
-                                                    icon={<GitBranchPlus size={13} strokeWidth={1.8} aria-hidden="true" />}
+                                                    size="lg"
+                                                    icon={<GitBranchPlus size={14} strokeWidth={1.8} aria-hidden="true" />}
                                                     onClick={() => setNewWorktree({ repo: selectedRepo ?? repos[0] })}
                                                 >
                                                     Create a worktree
@@ -1206,6 +1210,7 @@ export function App() {
                 <StatusBar />
                 {tourOpen && <Tour steps={TOUR_STEPS} onPrepare={prepareTourStep} onClose={endTour} />}
                 {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+                <WorktreeProgressNotices repoLabel={repoLabel} openTarget={openNotificationTarget} />
                 {tips.notice && <TipNotice tip={tips.notice.tip} onRun={runTipAction} onClose={tips.notice.close} onTurnOff={tips.notice.turnOff} />}
                 {!tourOpen && tourOffered && (
                     <TourOffer onStart={startTour} onDecline={() => void saveOnboarding({ tourSeen: TOUR_VERSION }).catch(err => setError(errorText(err)))} />

@@ -56,20 +56,17 @@ export function RepoSettingsPage({ repo, settings, onSave }: Props) {
     return (
         <>
             <SettingsGroup title={repoDisplayName(settings, repo)} description={<span className="mono">{repo}</span>} card>
-                <SettingsRow
-                    label="Name"
-                    description="The name in the sidebar and the other views. Empty means the folder name."
-                    control={
-                        <Input
-                            className="settings-text-field"
-                            value={name}
-                            placeholder={folderName(repo)}
-                            onChange={event => setName(event.target.value)}
-                            onBlur={commitName}
-                            onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
-                        />
-                    }
-                />
+                <SettingsRow label="Name" description="The name in the sidebar and the other views. Empty means the folder name.">
+                    <Input
+                        className="settings-text-field"
+                        aria-label="Name"
+                        value={name}
+                        placeholder={folderName(repo)}
+                        onChange={event => setName(event.target.value)}
+                        onBlur={commitName}
+                        onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+                    />
+                </SettingsRow>
                 <SettingsRow
                     label="Default agent"
                     description="The agent that the Agent button and Start in worktree start in this repository. Add agents in Settings > Agents."

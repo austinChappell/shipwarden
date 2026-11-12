@@ -49,7 +49,7 @@ import type { ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges 
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
 import type { GraphLog, GraphScope } from './git-graph';
-import type { BranchList, CreatedWorktree, CreateWorktreeOptions, RemoveWorktreeResult, Worktree } from './worktrees';
+import type { BranchList, CreatedWorktree, CreateWorktreeOptions, CreateWorktreeProgress, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings } from './worktree-settings';
 import type { BrowserBounds, BrowserState } from './browser';
 import type { Automation, AutomationList, AutomationRun, AutomationRunState, HttpMethod, TokenCount } from './automations';
@@ -212,6 +212,8 @@ export interface ShipWardenApi {
         list(repoPath: string): Promise<Worktree[]>;
         /** Creates a worktree in the folder of the worktree settings and copies the matching git-ignored files into it. */
         create(options: CreateWorktreeOptions): Promise<CreatedWorktree>;
+        /** Calls the listener for each step of a creation that has a `progressId`. Returns the function that removes it. */
+        onProgress(listener: (progressId: string, progress: CreateWorktreeProgress) => void): () => void;
         /** The branches that a new worktree can start from, and the default start point (after a fetch of origin). */
         branches(repoPath: string): Promise<BranchList>;
         /** Runs the teardown script of the repository (unless `skipTeardown`), then removes the worktree. */
@@ -585,6 +587,7 @@ export const IpcChannels = {
     projectsPullRepo: 'projects:pullRepo',
     worktreesList: 'worktrees:list',
     worktreesCreate: 'worktrees:create',
+    worktreesProgress: 'worktrees:progress',
     worktreesBranches: 'worktrees:branches',
     worktreesRemove: 'worktrees:remove',
     worktreesPreviewCopy: 'worktrees:previewCopy',

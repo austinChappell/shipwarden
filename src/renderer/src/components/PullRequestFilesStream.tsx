@@ -5,7 +5,7 @@ import type { DiffSide, PullRequest, PullRequestFile, RepoTarget } from '@shared
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { CopyButton } from './CopyButton';
-import { Button, ButtonGroup, Checkbox, IconButton } from './ui';
+import { Button, ButtonGroup, Checkbox, Chip, Count, IconButton } from './ui';
 import { radioGroupKeys } from './keyboard';
 import { askPrompt, lineLabel, sliceLines } from '@shared/ask-agent';
 import { searchPatches, type PatchMatch } from '@shared/pr-search';
@@ -470,7 +470,7 @@ export function PullRequestFilesStream({
                             aria-expanded={answersOpen}
                             onClick={() => setAnswersOpen(value => !value)}
                         >
-                            Agent answers ({answered.length})
+                            Agent answers <Count value={answered.length} />
                         </Button>
                         {answersOpen && (
                             <div className="answers-menu-list" role="menu">
@@ -545,10 +545,9 @@ export function PullRequestFilesStream({
                                     />
                                 )}
                                 {count > 0 && (
-                                    <span className="comment-count">
-                                        <MessageSquare size={12} strokeWidth={1.6} />
+                                    <Chip icon={<MessageSquare size={12} strokeWidth={1.6} />} title={`${count} open comments`}>
                                         {count}
-                                    </span>
+                                    </Chip>
                                 )}
                                 <span className="additions">+{file.additions}</span>
                                 <span className="deletions">−{file.deletions}</span>

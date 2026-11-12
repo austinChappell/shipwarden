@@ -144,7 +144,12 @@ export function PullRepoDialog({ repo, projects, activeId, onClose, onPull }: Pr
                     <Button disabled={busy} onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button variant="solid" icon={busy && <LoaderCircle size={13} className="spin" />} disabled={busy || !ready} onClick={() => void submit()}>
+                    <Button
+                        variant="primary"
+                        icon={busy && <LoaderCircle size={13} className="spin" />}
+                        disabled={busy || !ready}
+                        onClick={() => void submit()}
+                    >
                         Pull repository
                     </Button>
                 </footer>

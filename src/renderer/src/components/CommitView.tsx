@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import { MultiFileDiff, PatchDiff, Virtualizer } from '@pierre/diffs/react';
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, LoaderCircle } from 'lucide-react';
+import { pluralize } from '@shared/format';
 import { hostLabel, type FileVersions, type PullRequest, type PullRequestCommit, type PullRequestFile, type RepoTarget } from '@shared/github';
 import { unifiedPatch } from '@shared/patch';
 import { reviewStore, useCommitFiles } from '../github/review-store';
@@ -107,9 +108,7 @@ export function CommitView({ target, pr, commit, onBack, onSelect }: Props) {
             <div className="review-stream">
                 <div className="files-stream">
                     <div className="files-stream-toolbar">
-                        <span className="files-stream-count">
-                            {files ? `${files.length} ${files.length === 1 ? 'file' : 'files'} changed` : 'Loading the files…'}
-                        </span>
+                        <span className="files-stream-count">{files ? `${pluralize(files.length, 'file')} changed` : 'Loading the files…'}</span>
                         {hasCounts && (
                             <span>
                                 <span className="additions">+{additions}</span> <span className="deletions">−{deletions}</span>

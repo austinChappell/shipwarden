@@ -1,3 +1,4 @@
+import { formatAgo } from '@shared/format';
 /** Returns the message of an error. IPC errors start with a prefix that the user does not need to see. */
 export function errorText(error: unknown): string {
     return (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -24,11 +25,7 @@ export function formatDuration(start: string | null, end: string | null): string
     return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-/** Formats an ISO date as a relative time, for example "3h ago". */
+/** Formats an ISO date as a relative time, for example "3h ago". It is `formatAgo` of shared/format.ts. */
 export function timeAgo(iso: string): string {
-    const seconds = Math.round((Date.now() - Date.parse(iso)) / 1000);
-    if (seconds < 60) return 'just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    return `${Math.floor(seconds / 86400)}d ago`;
+    return formatAgo(iso);
 }

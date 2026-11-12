@@ -26,12 +26,12 @@ import {
 } from '@shared/automations';
 import type { AppSettings } from '@shared/settings';
 import { confirmDialog } from '../components/ConfirmDialog';
-import { Button, ButtonGroup, IconButton, Switch } from '../components/ui';
+import { Age, Button, ButtonGroup, Chip, IconButton, PageHeader, Switch, type ChipTone } from '../components/ui';
 import { showContextMenu } from '../components/ContextMenu';
 import { SettingsGroup, SettingsRow } from '../components/settings-ui';
 import { radioGroupKeys } from '../components/keyboard';
 import { useUsage } from '../usage-query';
-import { errorText, timeAgo } from '../util';
+import { errorText } from '../util';
 import { AutomationEditor, STATUS_OPTIONS } from './AutomationEditor';
 import { LimitField } from './LimitField';
 import { patchRunState, removeAutomation, saveAutomation, useAutomationList, useAutomationRuns } from './automation-queries';
@@ -55,6 +55,17 @@ const RUN_STATUS_LABELS: Record<RunStatus, string> = {
     failed: 'Failed',
     skipped: 'Skipped',
     'dry-run': 'Dry run'
+};
+
+/** The tone of the chip of each run status. */
+const RUN_STATUS_TONES: Record<RunStatus, ChipTone> = {
+    pending: 'warning',
+    held: 'warning',
+    running: 'info',
+    done: 'success',
+    failed: 'danger',
+    skipped: 'neutral',
+    'dry-run': 'neutral'
 };
 
 interface Props {
@@ -88,8 +99,8 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
     if (editing) {
         return (
             <div className="automations-view">
-                <header className="settings-header">
-                    <Button variant="ghost" className="view-back" icon={<ChevronLeft size={14} />} onClick={() => setEditing(undefined)}>
+                <header className="form-page-back">
+                    <Button variant="ghost" size="lg" className="view-back" icon={<ChevronLeft size={16} />} onClick={() => setEditing(undefined)}>
                         Automations
                     </Button>
                 </header>
@@ -240,26 +251,47 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
         automationSettings.dailyTokens !== null && usedToday >= automationSettings.dailyTokens
             ? `All automations used ${formatTokens(usedToday)} tokens today. The limit is ${formatTokens(automationSettings.dailyTokens)}. They start again tomorrow.`
             : undefined;
+    const onCount = list.automations.filter(item => item.status === 'on').length;
+    const masterMeta = `${onCount} on${automationSettings.paused ? ' · paused' : ''}`;
     const nameOf = (run: AutomationRun) => list.automations.find(item => item.id === run.automationId)?.name ?? run.automationName;
 
     return (
         <div className="automations-view">
-            <header className="settings-header">
-                <h1>
-                    <Zap size={13} strokeWidth={1.8} /> Automations
-                </h1>
-                <div className="automations-head-actions">
-                    <Button icon={<FolderOpen size={14} />} title="Show the folder of the automation files" onClick={() => api.reveal()}>
-                        Folder
+            <PageHeader
+                icon={Zap}
+                title="Automations"
+                meta={masterMeta}
+                actions={
+                    <>
+                        <IconButton
+                            size="lg"
+                            label="Show in Finder"
+                            title="Show the folder of the automation files in Finder"
+                            icon={<FolderOpen size={16} />}
+                            onClick={() => api.reveal()}
+                        />
+                        <Button
+                            size="lg"
+                            icon={<Upload size={14} />}
+                            iconEnd={<ChevronDown size={14} />}
+                            onClick={event => void importMenu(event.currentTarget)}
+                        >
+                            Import
+                        </Button>
+                    </>
+                }
+                primary={
+                    <Button
+                        size="lg"
+                        variant="primary"
+                        icon={<Plus size={14} />}
+                        iconEnd={<ChevronDown size={14} />}
+                        onClick={event => void newMenu(event.currentTarget)}
+                    >
+                        New automation
                     </Button>
-                    <Button icon={<Upload size={14} />} iconEnd={<ChevronDown size={12} />} onClick={event => void importMenu(event.currentTarget)}>
-                        Import
-                    </Button>
-                    <Button variant="solid" icon={<Plus size={14} />} iconEnd={<ChevronDown size={12} />} onClick={event => void newMenu(event.currentTarget)}>
-                        New
-                    </Button>
-                </div>
-            </header>
+                }
+            />
             <div className="automations-scroll">
                 <div className="settings-page automations-page">
                     <p className="settings-group-description automations-intro">
@@ -331,16 +363,15 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                         <div className="settings-row-text">
                                             <div className="settings-row-label">{nameOf(run)}</div>
                                             <div className="settings-row-description">
-                                                {run.event.label} · {timeAgo(new Date(run.createdAt).toISOString())}
+                                                {run.event.label} · <Age date={new Date(run.createdAt).toISOString()} format="prose" />
                                             </div>
                                         </div>
                                         <div className="settings-row-control automation-run-actions">
-                                            <Button size="sm" icon={<X size={14} />} onClick={() => void act(() => automationEngine.skip(run.id))}>
+                                            <Button icon={<X size={14} />} onClick={() => void act(() => automationEngine.skip(run.id))}>
                                                 Skip
                                             </Button>
                                             <Button
-                                                size="sm"
-                                                variant="solid"
+                                                variant="accent"
                                                 icon={<Check size={14} />}
                                                 onClick={() => void act(() => automationEngine.approve(run.id))}
                                             >
@@ -355,7 +386,7 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
 
                     <SettingsGroup
                         title="Automations"
-                        description={list.automations.length === 0 ? 'No automations yet. Select "New" to start from a template.' : undefined}
+                        description={list.automations.length === 0 ? 'No automations yet. Select "New automation" to start from a template.' : undefined}
                         card={list.automations.length > 0}
                     >
                         {list.automations.map(automation => {
@@ -382,11 +413,10 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                             {problems.length > 0 && <div className="automation-warning">{problems.join(' ')}</div>}
                                         </div>
                                         <div className="settings-row-control automation-row-actions">
-                                            <ButtonGroup size="sm" role="radiogroup" label={`The status of "${automation.name}"`} onKeyDown={radioGroupKeys}>
+                                            <ButtonGroup role="radiogroup" label={`The status of "${automation.name}"`} onKeyDown={radioGroupKeys}>
                                                 {STATUS_OPTIONS.map(option => (
                                                     <Button
                                                         key={option.id}
-                                                        size="sm"
                                                         title={option.title}
                                                         role="radio"
                                                         aria-checked={automation.status === option.id}
@@ -397,20 +427,17 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                                 ))}
                                             </ButtonGroup>
                                             <IconButton
-                                                size="sm"
                                                 label={`Run "${automation.name}" now`}
                                                 title="Run now"
                                                 icon={<Play size={14} />}
                                                 onClick={event => void runNow(automation, event.currentTarget)}
                                             />
                                             <IconButton
-                                                size="sm"
                                                 label="Edit"
                                                 icon={<Pencil size={14} />}
                                                 onClick={() => setEditing({ automation: structuredClone(automation), previousId: automation.id })}
                                             />
                                             <IconButton
-                                                size="sm"
                                                 label="More"
                                                 icon={<MoreHorizontal size={14} />}
                                                 onClick={event => void moreMenu(automation, event.currentTarget)}
@@ -429,11 +456,7 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                     key={problem.file}
                                     label={<code>{problem.file}</code>}
                                     description={problem.error}
-                                    control={
-                                        <Button size="sm" onClick={() => api.reveal(problem.file.replace(/\.json$/, ''))}>
-                                            Show
-                                        </Button>
-                                    }
+                                    control={<Button onClick={() => api.reveal(problem.file.replace(/\.json$/, ''))}>Show</Button>}
                                 />
                             ))}
                         </SettingsGroup>
@@ -446,7 +469,6 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                         actions={
                             history.some(run => !isOpenRun(run)) ? (
                                 <Button
-                                    size="sm"
                                     onClick={() =>
                                         void act(async () => {
                                             await api.clearHistory();
@@ -464,10 +486,10 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                 <div className="settings-row-main">
                                     <div className="settings-row-text">
                                         <div className="settings-row-label">
-                                            <span className={`automation-status ${run.status}`}>{RUN_STATUS_LABELS[run.status]}</span> {nameOf(run)}
+                                            <Chip tone={RUN_STATUS_TONES[run.status]}>{RUN_STATUS_LABELS[run.status]}</Chip> {nameOf(run)}
                                         </div>
                                         <div className="settings-row-description">
-                                            {run.event.label} · {timeAgo(new Date(run.updatedAt).toISOString())}
+                                            {run.event.label} · <Age date={new Date(run.updatedAt).toISOString()} format="prose" />
                                             {run.tokens !== undefined ? ` · ${formatTokens(run.tokens)} tokens` : ''}
                                             {run.cacheReads ? (
                                                 <span title="Tokens that the agent read from the prompt cache. They cost much less than new input, and the limits do not count them.">
@@ -480,19 +502,10 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                         {run.detail && <div className="automation-detail">{run.detail}</div>}
                                     </div>
                                     <div className="settings-row-control automation-run-actions">
-                                        {run.status === 'held' && (
-                                            <Button size="sm" onClick={() => void act(() => automationEngine.skip(run.id))}>
-                                                Skip
-                                            </Button>
-                                        )}
-                                        {run.noteName && (
-                                            <Button size="sm" onClick={onOpenNotes}>
-                                                Notes
-                                            </Button>
-                                        )}
+                                        {run.status === 'held' && <Button onClick={() => void act(() => automationEngine.skip(run.id))}>Skip</Button>}
+                                        {run.noteName && <Button onClick={onOpenNotes}>Notes</Button>}
                                         {run.worktreePath && (
                                             <Button
-                                                size="sm"
                                                 title={run.worktreePath}
                                                 icon={<ArrowUpRight size={14} />}
                                                 onClick={() => onOpenWorktree(run.worktreePath as string, run.sessionId)}

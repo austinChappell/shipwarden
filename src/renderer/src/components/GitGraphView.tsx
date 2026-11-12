@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FolderGit2, GitGraph, LoaderCircle, RefreshCw } from 'lucide-react';
 import { layoutGraph, type GraphLog, type GraphRef, type GraphRow, type GraphScope } from '@shared/git-graph';
 import type { Worktree } from '@shared/worktrees';
+import { formatAgo, pluralize } from '@shared/format';
 import { onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
 import { moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
-import { Button, ButtonGroup, IconButton } from './ui';
+import { Button, ButtonGroup, IconButton, PageHeader, SkeletonRows } from './ui';
 
 /** The number of commits in each load. "Load more" adds this number. */
 const PAGE = 500;
@@ -41,12 +42,11 @@ function readScope(): GraphScope {
 const laneColor = (lane: number) => LANE_COLORS[lane % LANE_COLORS.length];
 const laneX = (lane: number) => LANE_WIDTH / 2 + lane * LANE_WIDTH + 2;
 
+const WEEK_MS = 7 * 24 * 3_600_000;
+
+/** Returns "7h ago" for a commit of the last 7 days. An older commit shows its date. */
 function formatDate(ms: number): string {
-    const seconds = Math.round((Date.now() - ms) / 1000);
-    if (seconds < 60) return 'just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`;
-    if (seconds < 86400 * 7) return `${Math.floor(seconds / 86400)} d ago`;
+    if (Date.now() - ms < WEEK_MS) return formatAgo(new Date(ms).toISOString());
     return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
@@ -182,35 +182,25 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
 
     return (
         <div className="git-graph-view">
-            <header className="tasks-header">
-                <div className="tasks-header-group where">
-                    <GitGraph size={15} strokeWidth={1.7} />
-                    <span className="gg-title">{repoName}</span>
-                    {log && (
-                        <span className="gg-count">
-                            {log.commits.length}
-                            {log.more ? '+' : ''} commits
-                        </span>
-                    )}
-                </div>
-                <span className="header-spacer" />
-                <div className="tasks-header-group">
-                    <ButtonGroup role="radiogroup" label="Commits to show" onKeyDown={radioGroupKeys}>
+            <PageHeader
+                icon={GitGraph}
+                title={repoName}
+                meta={log ? (log.more ? `${log.commits.length}+ commits` : pluralize(log.commits.length, 'commit')) : undefined}
+                scope={
+                    <ButtonGroup role="radiogroup" size="lg" label="Commits to show" onKeyDown={radioGroupKeys}>
                         {(['all', 'local'] as const).map(value => (
                             <Button key={value} role="radio" aria-checked={scope === value} onClick={() => changeScope(value)}>
                                 {value === 'all' ? 'All branches' : 'Local branches'}
                             </Button>
                         ))}
                     </ButtonGroup>
-                    <IconButton icon={<RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />} label="Refresh" onClick={reload} />
-                </div>
-            </header>
+                }
+                actions={
+                    <IconButton size="lg" icon={<RefreshCw size={16} strokeWidth={1.6} className={loading ? 'spin' : ''} />} label="Refresh" onClick={reload} />
+                }
+            />
             {error && <div className="form-error pp-error">{error}</div>}
-            {!log && !error && (
-                <div className="panel-note pp-note">
-                    <LoaderCircle size={12} className="spin" /> Reading the history…
-                </div>
-            )}
+            {!log && !error && <SkeletonRows count={8} label="Loading the history" />}
             {log?.commits.length === 0 && <div className="panel-note pp-note">The repository has no commits.</div>}
             <div className="gg-rows" onKeyDown={moveListFocus}>
                 {layout.rows.map(row => {

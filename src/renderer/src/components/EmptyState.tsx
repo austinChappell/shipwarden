@@ -14,11 +14,18 @@ interface Props {
     size?: 'view' | 'compact';
 }
 
-/** The content of an empty view: an icon, a title, one sentence and one action. All views use it, so they look the same. */
+/**
+ * The content of an empty view (docs/design, board 4): an icon in a disc, a title, one sentence, and one action.
+ * - A pane with nothing in it: give one primary button in `actions`.
+ * - Nothing selected: give no `actions`.
+ * All views use it, so they look the same. In a flex column, it fills the free space and centers its content.
+ */
 export function EmptyState({ icon: Icon, title, children, actions, hint, size = 'view' }: Props) {
     return (
         <div className={`empty-view${size === 'compact' ? ' compact' : ''}`}>
-            <Icon size={size === 'compact' ? 22 : 30} strokeWidth={1.3} aria-hidden="true" />
+            <span className="empty-view-icon">
+                <Icon size={size === 'compact' ? 16 : 18} strokeWidth={1.8} aria-hidden="true" />
+            </span>
             <h2>{title}</h2>
             <p>{children}</p>
             {actions && <div className="empty-view-actions">{actions}</div>}

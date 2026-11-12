@@ -88,7 +88,7 @@ export function FilterPicker({ className, title, summary, active, rows, searchPl
             <button
                 ref={trigger}
                 type="button"
-                className={inputClass('md', { className: cx('select-button', 'combobox-button', open && 'on') })}
+                className={inputClass('lg', { className: cx('select-button', 'combobox-button', open && 'on') })}
                 title={title}
                 aria-haspopup="listbox"
                 aria-expanded={open}

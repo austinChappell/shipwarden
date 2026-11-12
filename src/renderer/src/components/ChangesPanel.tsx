@@ -21,7 +21,8 @@ import { gitChanged } from '../git/git-store';
 import { confirmDialog } from './ConfirmDialog';
 import { errorText } from '../util';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
-import { Button, Checkbox, IconButton, TextArea } from './ui';
+import { pluralize } from '@shared/format';
+import { Button, Checkbox, Count, IconButton, SkeletonRows, TextArea } from './ui';
 
 interface Props {
     worktree: string;
@@ -91,7 +92,7 @@ function Group({
                 <button className="row-toggle" data-nav-item aria-expanded={open}>
                     <ChevronRight size={13} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
                     <span className="changes-group-title">{title}</span>
-                    <span className="changes-group-count">{files.length}</span>
+                    <Count className="changes-group-count" value={files.length} label={pluralize(files.length, 'file')} />
                 </button>
                 <span className="changes-group-action" onClick={event => event.stopPropagation()}>
                     {action}
@@ -181,15 +182,7 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
         });
 
     if (!changes) {
-        return (
-            <div className="panel-message">
-                {error ?? (
-                    <>
-                        <LoaderCircle size={14} className="spin" /> Reading the changes…
-                    </>
-                )}
-            </div>
-        );
+        return error ? <div className="panel-message">{error}</div> : <SkeletonRows count={5} dot={false} label="Loading the changes" />;
     }
 
     const staged = changes.staged;
@@ -273,7 +266,6 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                 <span className="header-spacer" />
                 {changes.upstream && changes.behind === 0 && (
                     <Button
-                        size="sm"
                         disabled={!!busy}
                         title={`Pull from ${changes.upstream} with a fast-forward only${changes.behind ? `: ${changes.behind} new commits` : ''}`}
                         icon={busy === 'pull' ? <LoaderCircle size={13} className="spin" /> : <Download size={13} strokeWidth={1.8} />}
@@ -284,7 +276,6 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                 )}
                 {canPush && (
                     <Button
-                        size="sm"
                         disabled={!!busy}
                         title={changes.upstream ? `Push to ${changes.upstream}` : 'Push, and track origin'}
                         icon={busy === 'push' ? <LoaderCircle size={13} className="spin" /> : <Upload size={13} strokeWidth={1.8} />}
@@ -295,7 +286,6 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                 )}
                 {!clean && (
                     <Button
-                        size="sm"
                         title="Show the diffs of all changed files in one list"
                         icon={<GitCompareArrows size={13} strokeWidth={1.8} />}
                         onClick={onOpenAllChanges}
@@ -304,7 +294,6 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                     </Button>
                 )}
                 <IconButton
-                    size="sm"
                     icon={<RefreshCw size={14} strokeWidth={1.6} />}
                     label={`Refresh, and check the remote for new commits${fetched?.at ? `. Last check: ${new Date(fetched.at).toLocaleTimeString()}` : ''}`}
                     onClick={onReload}
@@ -318,8 +307,6 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                     </span>
                     <span className="header-spacer" />
                     <Button
-                        variant="primary"
-                        size="sm"
                         disabled={!!busy}
                         icon={busy === 'pull' ? <LoaderCircle size={13} className="spin" /> : <Download size={13} strokeWidth={1.8} />}
                         onClick={() => void pull()}
@@ -402,7 +389,7 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                         onToggle={() => toggleGroup('unstaged')}
                         action={
                             <>
-                                <Button variant="link" disabled={!!busy} onClick={() => void discard(changes.unstaged)}>
+                                <Button variant="link-danger" disabled={!!busy} onClick={() => void discard(changes.unstaged)}>
                                     Discard all
                                 </Button>
                                 <Button variant="link" disabled={!!busy} onClick={() => void stage(changes.unstaged.map(change => change.path))}>

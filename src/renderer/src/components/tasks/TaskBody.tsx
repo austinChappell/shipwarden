@@ -22,7 +22,7 @@ export function TaskCard({ title, count, actions, className, children }: CardPro
             <CardHeader
                 title={title}
                 count={typeof count === 'number' ? count : undefined}
-                meta={typeof count === 'string' ? <span className="card-count">{count}</span> : undefined}
+                meta={typeof count === 'string' ? <span className="count">{count}</span> : undefined}
                 actions={actions}
             />
             <CardBody>{children}</CardBody>

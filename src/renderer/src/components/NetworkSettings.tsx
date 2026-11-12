@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { pluralize } from '@shared/format';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CircleX, LoaderCircle } from 'lucide-react';
 import type { AppSettings } from '@shared/settings';
@@ -101,7 +102,7 @@ export function NetworkSettings({ settings, onSave }: Props) {
                     {fileStatus?.error && <div className="form-error">{fileStatus.error}</div>}
                     {fileStatus?.count !== undefined && (
                         <div className="panel-note">
-                            <CircleCheck size={12} strokeWidth={2} className="ok-icon" /> {fileStatus.count} certificate{fileStatus.count === 1 ? '' : 's'} from{' '}
+                            <CircleCheck size={12} strokeWidth={2} className="ok-icon" /> {pluralize(fileStatus.count, 'certificate')} from{' '}
                             {fileStatus.source === 'shell' ? 'NODE_EXTRA_CA_CERTS' : 'the file'}.
                         </div>
                     )}

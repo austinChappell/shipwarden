@@ -46,7 +46,7 @@ function ProviderView({ usage, now }: { usage: ProviderUsage; now: number }) {
                     <span className={`usage-compact usage-value ${level(top.usedPercent)}`}>{top.usedPercent}%</span>
                     <span className="usage-detail">
                         <span className="usage-meter" aria-hidden>
-                            <span className={`usage-meter-fill ${level(top.usedPercent)}`} style={{ width: `${Math.max(top.usedPercent, 2)}%` }} />
+                            <span className={`usage-meter-fill ${usage.provider}`} style={{ width: `${Math.max(top.usedPercent, 2)}%` }} />
                         </span>
                         {usage.windows.map((window, index) => (
                             <span key={`${window.kind}:${window.label}`}>

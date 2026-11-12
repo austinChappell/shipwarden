@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
     Check,
     CheckCheck,
     ChevronRight,
-    CircleCheck,
     ExternalLink,
     EyeOff,
     Filter,
@@ -12,12 +11,10 @@ import {
     LayoutDashboard,
     MessageSquare,
     RefreshCw,
-    Search,
     Settings2
 } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import {
-    ageLevel,
     bucketMyPullRequests,
     DASHBOARD_STALE_DAYS,
     DASHBOARD_WINDOW_DAYS,
@@ -35,6 +32,7 @@ import {
     type ReviewRequestItem,
     type TaskCommentItem
 } from '@shared/dashboard';
+import { pluralize } from '@shared/format';
 import type { RepoRef } from '@shared/github';
 import { refreshDashboard, unseenReviewRequests, useDashboard } from '../dashboard-store';
 import { applyMerged } from '../github/review-overview-store';
@@ -44,11 +42,11 @@ import { openLink } from '../links';
 import type { ClickModifiers } from '@shared/browser';
 import { Markdown } from './Markdown';
 import { MERGE_LABELS } from './MergeButton';
-import { HelmLoader } from './HelmLoader';
 import { confirmDialog } from './ConfirmDialog';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
+import { radioGroupKeys } from './keyboard';
 import { InlineTip } from './Tips';
-import { Button, Card, CardHeader, IconButton, Input } from './ui';
+import { Age, Button, ButtonGroup, Card, CardHeader, Chip, Count, FilterField, IconButton, PageHeader, SkeletonRows } from './ui';
 
 export type ReviewTabRequest = 'overview' | 'checks' | 'files';
 
@@ -85,23 +83,18 @@ const REVIEW_SORT_KEY = 'shipwarden.dashboard.reviewSort';
 
 const REVIEW_SORT_LABELS: Record<ReviewSort, string> = { author: 'By author', oldest: 'Oldest first', repo: 'By repo' };
 
-/** True when the key goes to a field that takes text. Then "/" types a slash and does not move the focus to the filter. */
-function isTextTarget(target: EventTarget | null): boolean {
-    if (!(target instanceof HTMLElement)) return false;
-    return (
-        target.isContentEditable ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLInputElement && !['checkbox', 'radio', 'button'].includes(target.type))
-    );
+/** An empty group (docs/design, board 4): one line of text in a dashed box. */
+function Empty({ text }: { text: string }) {
+    return <div className="dash-empty">{text}</div>;
 }
 
-function Empty({ text }: { text: string }) {
+/** A group heading in a column: a caps eyebrow and a count badge. */
+function Heading({ title, count, label }: { title: string; count: number; label: string }) {
     return (
-        <div className="dash-empty">
-            <CircleCheck size={14} strokeWidth={1.8} />
-            {text}
-        </div>
+        <h2 className="dash-heading">
+            {title}
+            <Count value={count} label={label} />
+        </h2>
     );
 }
 
@@ -116,8 +109,9 @@ function StatCard({ tone, label, count, detail, onClick }: { tone: Tone; label: 
                 <span className={`dash-dot ${tone}`} />
                 {label}
             </span>
-            <span className="dash-stat-count">{count ?? '–'}</span>
-            <span className="dash-stat-detail">{detail}</span>
+            {/* While the count loads, skeleton bars show in place of the number and the detail (docs/design, board 4). */}
+            <span className="dash-stat-count">{count ?? <span className="skeleton-bar dash-stat-skeleton" aria-hidden="true" />}</span>
+            <span className="dash-stat-detail">{count === undefined ? <span className="skeleton-bar" style={{ width: 96 }} /> : detail}</span>
         </>
     );
     // A card with no section to show is plain text. It gets no button, no pointer and no hover.
@@ -152,8 +146,12 @@ function PrCard({
             <CardHeader
                 icon={<span className={`dash-dot ${tone}`} />}
                 title={title}
-                count={count}
-                meta={hint && <span className="dash-hint">{hint}</span>}
+                meta={
+                    <>
+                        <Count value={count} label={pluralize(count, 'pull request')} />
+                        {hint && <span className="dash-hint">{hint}</span>}
+                    </>
+                }
                 actions={actions}
             />
             <div className="dash-card-rows">{children}</div>
@@ -161,9 +159,9 @@ function PrCard({
     );
 }
 
-/** The ticket column. A fixed width, so the IDs line up. A title without a ticket shows "no ticket". */
-function Ticket({ ticket, empty = 'no ticket' }: { ticket?: string; empty?: string }) {
-    return <span className={`dash-ticket${ticket ? '' : ' none'}`}>{ticket ?? (empty && <span className="dash-no-ticket">{empty}</span>)}</span>;
+/** The ticket column. A fixed width, so the IDs line up. A title without a ticket shows a "No ticket" chip. */
+function Ticket({ ticket, empty = 'No ticket' }: { ticket?: string; empty?: string }) {
+    return <span className={`dash-ticket${ticket ? '' : ' none'}`}>{ticket ?? (empty && <Chip tone="warning">{empty}</Chip>)}</span>;
 }
 
 /** A title in two columns: the ticket ID and the text without "fix:" and the ID. */
@@ -180,20 +178,11 @@ function Title({ title, empty }: { title: string; empty?: string }) {
 }
 
 /** The repository and the number. The owner shows on hover. */
-function RepoPill({ repo, number }: { repo: RepoRef; number: number }) {
+function RepoChip({ repo, number }: { repo: RepoRef; number: number }) {
     return (
-        <span className="dash-repo" title={`${repo.owner}/${repo.name} #${number}`}>
+        <Chip mono title={`${repo.owner}/${repo.name} #${number}`}>
             {repo.name} #{number}
-        </span>
-    );
-}
-
-/** The age column. The color shows how old the item is. */
-function Age({ iso, title }: { iso: string; title: string }) {
-    return (
-        <span className={`dash-age ${ageLevel(iso)}`} title={title}>
-            {shortAge(iso)}
-        </span>
+        </Chip>
     );
 }
 
@@ -202,9 +191,11 @@ function PrRow({ pr, onOpen, badges, action }: { pr: MyPullRequestItem; onOpen()
     return (
         <div className="dash-row" role="button" tabIndex={0} data-nav-item onClick={onOpen} onKeyDown={itemKeys(onOpen)}>
             <Title title={pr.title} />
-            {badges && <span className="dash-badges">{badges}</span>}
-            <RepoPill repo={pr.repo} number={pr.number} />
-            <Age iso={pr.updatedAt} title={`Updated ${timeAgo(pr.updatedAt)}`} />
+            <span className="dash-chips">
+                {badges}
+                <RepoChip repo={pr.repo} number={pr.number} />
+            </span>
+            <Age className="dash-age" date={pr.updatedAt} />
             {action}
         </div>
     );
@@ -221,7 +212,7 @@ function activityText(item: ReviewRequestItem): string {
 
 /**
  * A row of a pull request that waits for a review of the user. A row is not a button, because it can have a button in it.
- * A row that shows because of new activity after the review of the user has a tag and a "Mark as seen" button.
+ * A row that shows because of new activity after the review of the user has a chip and a "Mark as seen" button.
  */
 function ReviewRow({ pr, indented, showAuthor, onOpen }: { pr: ReviewRequestItem; indented: boolean; showAuthor: boolean; onOpen(): void }) {
     const activity = pr.activity;
@@ -238,16 +229,15 @@ function ReviewRow({ pr, indented, showAuthor, onOpen }: { pr: ReviewRequestItem
                 {parsePullRequestTitle(pr.title).text}
             </span>
             {activity && (
-                <span className="dash-tag" title={activityText(pr)}>
-                    updated
-                </span>
+                <Chip tone="info" title={activityText(pr)}>
+                    Updated
+                </Chip>
             )}
             {showAuthor && <span className="dash-person">{pr.author ?? 'unknown'}</span>}
-            <RepoPill repo={pr.repo} number={pr.number} />
-            <Age iso={pr.createdAt} title={`Opened ${timeAgo(pr.createdAt)}`} />
+            <RepoChip repo={pr.repo} number={pr.number} />
+            <Age className="dash-age" date={pr.createdAt} />
             {activity && (
                 <IconButton
-                    size="sm"
                     className="dash-review-seen"
                     icon={<Check size={14} strokeWidth={2} />}
                     label={`Mark ${pr.repo.name} #${pr.number} as seen`}
@@ -262,14 +252,22 @@ function ReviewRow({ pr, indented, showAuthor, onOpen }: { pr: ReviewRequestItem
     );
 }
 
-/** The badges of the problems of a pull request: failed CI and merge conflicts. */
+/** The chips of the problems of a pull request: failed CI and merge conflicts. */
 function ProblemBadges({ pr }: { pr: MyPullRequestItem }) {
     return (
         <>
-            {pr.reasons.includes('ci-failing') && <span className="dash-badge ci-failing">CI failing</span>}
-            {pr.reasons.includes('conflicts') && <span className="dash-badge conflicts">Conflict</span>}
+            {pr.reasons.includes('ci-failing') && <Chip tone="danger">CI failing</Chip>}
+            {pr.reasons.includes('conflicts') && <Chip tone="warning">Conflict</Chip>}
         </>
     );
+}
+
+/** The chip of a comment: the review state or the file. */
+function CommentLabel({ label }: { label: string }) {
+    if (label === 'approved') return <Chip tone="success">Approved</Chip>;
+    if (label === 'requested changes') return <Chip tone="review">Changes requested</Chip>;
+    if (label === 'review') return <Chip>Review</Chip>;
+    return <Chip mono>{label}</Chip>;
 }
 
 /** A comment on the Dashboard. A click shows all of it and records it as seen. */
@@ -317,14 +315,11 @@ function CommentRow({
                 <ChevronRight size={13} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
                 {!seen && <span className="dash-unseen" title="New" />}
                 <strong className="dash-author">{author}</strong>
-                {label && <span className={`dash-tag ${label === 'approved' ? 'approved' : label === 'requested changes' ? 'changes' : ''}`}>{label}</span>}
+                {label && <CommentLabel label={label} />}
                 <span className="dash-preview">{open ? '' : preview}</span>
-                <span className="dash-age" title={new Date(createdAt).toLocaleString()}>
-                    {shortAge(createdAt)}
-                </span>
+                <Age className="dash-age" date={createdAt} />
                 <span className="dash-actions">
                     <IconButton
-                        size="sm"
                         icon={<Filter size={14} strokeWidth={1.7} />}
                         label="Hide comments like this one with a rule"
                         onClick={event => {
@@ -333,7 +328,6 @@ function CommentRow({
                         }}
                     />
                     <IconButton
-                        size="sm"
                         icon={<EyeOff size={14} strokeWidth={1.7} />}
                         label={`Hide all comments from ${author}, for example an automation account`}
                         onClick={event => {
@@ -346,7 +340,6 @@ function CommentRow({
                         }}
                     />
                     <IconButton
-                        size="sm"
                         icon={<ExternalLink size={14} strokeWidth={1.7} />}
                         label={openTitle}
                         onClick={event => {
@@ -357,7 +350,6 @@ function CommentRow({
                     />
                     {!seen && (
                         <IconButton
-                            size="sm"
                             icon={<Check size={14} strokeWidth={2} />}
                             label="Mark as seen"
                             onClick={event => {
@@ -400,7 +392,6 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
     const [query, setQuery] = useState('');
     const [reviewSort, setReviewSortState] = useState<ReviewSort>(readReviewSort);
     const [staleOpen, setStaleOpen] = useState(false);
-    const filterInput = useRef<HTMLInputElement>(null);
     // Comments that the user saw while the Dashboard was open stay in the list (dimmed) until the next load.
     const [shownAt] = useState(() => new Set<string>());
     const visible = (key: string) => {
@@ -410,18 +401,6 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
         }
         return shownAt.has(key);
     };
-
-    // "/" moves the focus to the filter, as on GitHub.
-    useEffect(() => {
-        const onKey = (event: KeyboardEvent) => {
-            if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || isTextTarget(event.target)) return;
-            event.preventDefault();
-            filterInput.current?.focus();
-            filterInput.current?.select();
-        };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, []);
 
     const setReviewSort = (sort: ReviewSort) => {
         setReviewSortState(sort);
@@ -544,57 +523,32 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
     const commentsLoaded = !!state.prComments;
     const noComments =
         commentsLoaded && !state.prCommentsError && shownPrComments.length === 0 && shownTaskComments.length === 0 && !state.tasks.some(source => source.error);
-    // Show the full-page loader only before the first refresh completes.
-    // The store keeps its items. Thus a later refresh or a new mount shows the items immediately.
-    const firstLoad = !state.updatedAt && !state.pullRequestsError && !state.prCommentsError;
 
     return (
         <div className="dashboard-view">
-            <header className="tasks-header dash-header">
-                <div className="tasks-header-group where">
-                    <LayoutDashboard size={16} strokeWidth={1.7} />
-                    <h1>Dashboard</h1>
-                    {state.updatedAt && <span className="dash-time">Updated {timeAgo(new Date(state.updatedAt).toISOString())}</span>}
-                </div>
-                <div className="tasks-header-group how">
-                    <span className="header-spacer" />
-                    <Input
-                        ref={filterInput}
-                        className="dash-filter"
-                        icon={<Search size={13} strokeWidth={1.8} />}
-                        suffix={query ? undefined : <kbd className="field-key">/</kbd>}
-                        value={query}
-                        placeholder="Filter by title, ticket, repo…"
-                        aria-label="Filter the Dashboard"
-                        spellCheck={false}
-                        onChange={event => setQuery(event.target.value)}
-                        onKeyDown={event => {
-                            if (event.key === 'Escape') {
-                                setQuery('');
-                                event.currentTarget.blur();
-                            }
-                        }}
-                    />
-                    {hiddenCount > 0 && (
-                        <Button title="Show the hidden authors and rules" onClick={onOpenSettings}>
-                            {hiddenCount} hiding rule{hiddenCount === 1 ? '' : 's'}
-                        </Button>
-                    )}
-                    <IconButton icon={<Settings2 size={14} strokeWidth={1.6} />} label="Dashboard settings" onClick={onOpenSettings} />
-                    <IconButton
-                        icon={<RefreshCw size={14} strokeWidth={1.6} className={state.loading ? 'spin' : ''} />}
-                        label="Refresh"
-                        onClick={() => void refreshDashboard()}
-                    />
-                </div>
-            </header>
-
-            {firstLoad && (
-                <div className="dash-first-load">
-                    <HelmLoader hint="The first load can take a few seconds." />
-                </div>
-            )}
-            <div className="dash-scroll" hidden={firstLoad} onKeyDown={moveListFocus}>
+            <PageHeader
+                icon={LayoutDashboard}
+                title="Dashboard"
+                meta={state.updatedAt ? `Updated ${timeAgo(new Date(state.updatedAt).toISOString())}` : undefined}
+                filter={<FilterField value={query} onChange={setQuery} placeholder="Filter pull requests" />}
+                actions={
+                    <>
+                        {hiddenCount > 0 && (
+                            <Button size="lg" title="Show the hidden authors and rules" onClick={onOpenSettings}>
+                                {pluralize(hiddenCount, 'hiding rule')}
+                            </Button>
+                        )}
+                        <IconButton size="lg" icon={<Settings2 size={16} strokeWidth={1.6} />} label="Dashboard settings" onClick={onOpenSettings} />
+                        <IconButton
+                            size="lg"
+                            icon={<RefreshCw size={16} strokeWidth={1.6} className={state.loading ? 'spin' : ''} />}
+                            label="Refresh"
+                            onClick={() => void refreshDashboard()}
+                        />
+                    </>
+                }
+            />
+            <div className="dash-scroll" onKeyDown={moveListFocus}>
                 <div className="dash-page">
                     {checklist}
                     {reviewKey !== null && <InlineTip id="dashboard" />}
@@ -615,7 +569,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                     </>
                                 }
                             >
-                                The Dashboard shows your pull requests, the review requests and new comments. It needs a code review account.
+                                The Dashboard shows your pull requests, the review requests, and new comments. It needs a code review account.
                             </EmptyState>
                         </div>
                     )}
@@ -624,7 +578,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                             tone="review"
                             label="Needs your review"
                             count={pullRequests && reviewRequests.length}
-                            detail={loaded ? reviewDetail : 'Loading…'}
+                            detail={reviewDetail}
                             onClick={jumpTo('dash-review', shownReviews.length)}
                         />
                         <StatCard
@@ -647,9 +601,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                             count={pullRequests && all.blocked.length}
                             detail={
                                 all.blocked.length
-                                    ? [ciCount && `${ciCount} CI failing`, conflictCount && `${conflictCount} conflict${conflictCount === 1 ? '' : 's'}`]
-                                          .filter(Boolean)
-                                          .join(' · ')
+                                    ? [ciCount && `${ciCount} CI failing`, conflictCount && pluralize(conflictCount, 'conflict')].filter(Boolean).join(' · ')
                                     : 'CI green, no conflicts'
                             }
                             onClick={jumpTo('dash-blocked', buckets.blocked.length)}
@@ -665,23 +617,19 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
 
                     <div className="dash-columns">
                         <div className="dash-column">
-                            <h2 className="dash-heading">Your pull requests · {query ? `${shownYourCount} of ${yourCount}` : yourCount}</h2>
+                            <Heading
+                                title="Your pull requests"
+                                count={query ? shownYourCount : yourCount}
+                                label={query ? `${shownYourCount} of ${pluralize(yourCount, 'pull request')}` : pluralize(yourCount, 'pull request')}
+                            />
                             {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
                             {!pullRequests && !state.pullRequestsError && (
                                 <Card>
-                                    <div className="dash-line">Loading…</div>
+                                    <SkeletonRows count={4} dot={false} label="Loading your pull requests" />
                                 </Card>
                             )}
-                            {loaded && yourCount === 0 && (
-                                <Card>
-                                    <Empty text="None of your pull requests needs an action." />
-                                </Card>
-                            )}
-                            {loaded && yourCount > 0 && shownYourCount === 0 && (
-                                <Card>
-                                    <Empty text="No pull requests match the filter." />
-                                </Card>
-                            )}
+                            {loaded && yourCount === 0 && <Empty text="None of your pull requests needs an action." />}
+                            {loaded && yourCount > 0 && shownYourCount === 0 && <Empty text="No pull requests match the filter." />}
 
                             {buckets.ready.length > 0 && (
                                 <PrCard
@@ -692,7 +640,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                     hint="Approved, CI green, no conflicts"
                                     actions={
                                         buckets.ready.length > 1 && (
-                                            <Button variant="merge" size="sm" disabled={merging} onClick={() => void merge(buckets.ready)}>
+                                            <Button variant="accent" disabled={merging} onClick={() => void merge(buckets.ready)}>
                                                 {buckets.ready.length === 2 ? 'Merge both' : `Merge all ${buckets.ready.length}`}
                                             </Button>
                                         )
@@ -706,8 +654,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                             onOpen={() => openMine(pr)}
                                             action={
                                                 <Button
-                                                    variant="merge"
-                                                    size="sm"
+                                                    variant="accent"
                                                     className="dash-row-action"
                                                     disabled={merging || !pr.headSha}
                                                     title={pr.mergeMethod ? MERGE_LABELS[pr.mergeMethod] : undefined}
@@ -739,13 +686,14 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                             onOpen={() => openMine(pr)}
                                             badges={
                                                 <>
-                                                    {!!pr.unresolvedThreads && <span className="dash-unresolved">{pr.unresolvedThreads} unresolved</span>}
+                                                    {!!pr.unresolvedThreads && (
+                                                        <Chip icon={<MessageSquare size={12} strokeWidth={2} />}>{pr.unresolvedThreads} unresolved</Chip>
+                                                    )}
                                                     <ProblemBadges pr={pr} />
                                                 </>
                                             }
                                             action={
                                                 <Button
-                                                    size="sm"
                                                     className="dash-row-action"
                                                     onClick={event => {
                                                         event.stopPropagation();
@@ -779,9 +727,11 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                     <div className="card-header">
                                         <button className="dash-stale-toggle" aria-expanded={staleOpen} onClick={() => setStaleOpen(open => !open)}>
                                             <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${staleOpen ? ' open' : ''}`} />
-                                            <h3 className="card-title">Stale · {DASHBOARD_STALE_DAYS}+ days</h3>
-                                            <span className="card-count">{buckets.stale.length}</span>
-                                            {oldestStale && <span className="dash-hint">Oldest {shortAge(oldestStale.updatedAt)}.</span>}
+                                            <h3 className="card-title">Stale</h3>
+                                            <Count value={buckets.stale.length} label={pluralize(buckets.stale.length, 'pull request')} />
+                                            <span className="dash-hint">
+                                                No update in {DASHBOARD_STALE_DAYS}+ days{oldestStale && `, oldest ${shortAge(oldestStale.updatedAt)}`}
+                                            </span>
                                         </button>
                                     </div>
                                     {staleOpen ? (
@@ -801,25 +751,34 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                         </div>
 
                         <div className="dash-column">
-                            <h2 className="dash-heading">
-                                Waiting on your review · {query ? `${shownReviews.length} of ${reviewRequests.length}` : reviewRequests.length}
-                            </h2>
+                            <Heading
+                                title="Waiting on your review"
+                                count={query ? shownReviews.length : reviewRequests.length}
+                                label={
+                                    query
+                                        ? `${shownReviews.length} of ${pluralize(reviewRequests.length, 'review request')}`
+                                        : pluralize(reviewRequests.length, 'review request')
+                                }
+                            />
                             <Card as="section" id="dash-review" className="dash-review-card">
-                                <div className="dash-chips" role="group" aria-label="Sort the review requests">
-                                    {(Object.keys(REVIEW_SORT_LABELS) as ReviewSort[]).map(sort => (
-                                        <button
-                                            key={sort}
-                                            className={`dash-chip${reviewSort === sort ? ' on' : ''}`}
-                                            aria-pressed={reviewSort === sort}
-                                            onClick={() => setReviewSort(sort)}
-                                        >
-                                            {REVIEW_SORT_LABELS[sort]}
-                                        </button>
-                                    ))}
+                                <div className="dash-review-sort">
+                                    <ButtonGroup role="radiogroup" label="Sort the review requests" onKeyDown={radioGroupKeys}>
+                                        {(Object.keys(REVIEW_SORT_LABELS) as ReviewSort[]).map(sort => (
+                                            <Button
+                                                key={sort}
+                                                role="radio"
+                                                aria-checked={reviewSort === sort}
+                                                tabIndex={reviewSort === sort ? 0 : -1}
+                                                onClick={() => setReviewSort(sort)}
+                                            >
+                                                {REVIEW_SORT_LABELS[sort]}
+                                            </Button>
+                                        ))}
+                                    </ButtonGroup>
                                 </div>
                                 <div className="dash-card-rows">
                                     {state.pullRequestsError && <div className="form-error">{state.pullRequestsError}</div>}
-                                    {!pullRequests && !state.pullRequestsError && <div className="panel-note">Loading…</div>}
+                                    {!pullRequests && !state.pullRequestsError && <SkeletonRows count={3} dot={false} label="Loading the review requests" />}
                                     {loaded && reviewRequests.length === 0 && <Empty text="No pull requests wait for your review." />}
                                     {loaded && reviewRequests.length > 0 && shownReviews.length === 0 && <Empty text="No review requests match the filter." />}
                                     {reviewGroups.map(group => (
@@ -828,7 +787,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                                 <div className="dash-review-group-head">
                                                     {reviewSort === 'author' && <span className="dash-avatar">{group.key.charAt(0).toUpperCase()}</span>}
                                                     <strong>{group.key}</strong>
-                                                    <span className="dash-card-count">{group.items.length}</span>
+                                                    <Count value={group.items.length} label={pluralize(group.items.length, 'pull request')} />
                                                 </div>
                                             )}
                                             {group.items.map(pr => (
@@ -847,18 +806,17 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
 
                             {!commentsLoaded && !state.prCommentsError && (
                                 <Card>
-                                    <div className="dash-line">Loading comments… The first load can take a few seconds.</div>
+                                    <SkeletonRows count={3} dot={false} label="Loading comments" />
                                 </Card>
                             )}
                             {noComments && (
-                                <Card>
-                                    <div className="dash-line">
-                                        <CircleCheck size={15} strokeWidth={1.8} className="dash-ok" />
-                                        {query
+                                <Empty
+                                    text={
+                                        query
                                             ? 'No new comments match the filter.'
-                                            : `No new ${state.tasks.length ? 'PR or task comments' : 'PR comments'} in the last ${DASHBOARD_WINDOW_DAYS} days.`}
-                                    </div>
-                                </Card>
+                                            : `No new ${state.tasks.length ? 'PR or task comments' : 'PR comments'} in the last ${DASHBOARD_WINDOW_DAYS} days.`
+                                    }
+                                />
                             )}
 
                             {(state.prCommentsError || shownPrComments.length > 0) && (
@@ -872,7 +830,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                                 onClick={() => onOpenPullRequest(items[0].repo, items[0].number, 'overview')}
                                             >
                                                 <Title title={items[0].prTitle} empty="" />
-                                                <RepoPill repo={items[0].repo} number={items[0].number} />
+                                                <RepoChip repo={items[0].repo} number={items[0].number} />
                                             </button>
                                             {items.map(item => (
                                                 <CommentRow
@@ -915,7 +873,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                                 >
                                                     <Ticket ticket={task.taskKey} empty="" />
                                                     <span className="dash-title">{task.taskTitle}</span>
-                                                    <span className="dash-repo">{items[0].source.name}</span>
+                                                    <Chip>{items[0].source.name}</Chip>
                                                 </button>
                                                 {items.map(({ source, comment }) => (
                                                     <CommentRow
@@ -954,10 +912,10 @@ function CommentSection({ title, count, onMarkAll, children }: { title: string; 
             <CardHeader
                 icon={<MessageSquare size={14} strokeWidth={1.7} />}
                 title={title}
-                count={count}
+                meta={<Count value={count} label={pluralize(count, 'new comment')} />}
                 actions={
                     count > 0 && (
-                        <Button variant="ghost" size="sm" icon={<CheckCheck size={14} strokeWidth={1.8} />} onClick={onMarkAll}>
+                        <Button variant="ghost" icon={<CheckCheck size={14} strokeWidth={1.8} />} onClick={onMarkAll}>
                             Mark all as seen
                         </Button>
                     )

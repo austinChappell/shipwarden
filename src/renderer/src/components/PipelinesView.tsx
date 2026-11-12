@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, LoaderCircle, Play, RefreshCw, RotateCw, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
+import { ExternalLink, ListTree, LoaderCircle, Play, RefreshCw, RotateCw, ScrollText, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import {
     hostLabel,
@@ -17,10 +17,11 @@ import {
 } from '@shared/github';
 import type { NavQuery, ViewRoute } from '@shared/nav-history';
 import { dispatchInputs, runIsActive, type WorkflowInput, type WorkflowRun } from '@shared/pipelines';
-import { formatDuration, optionalErrorText, timeAgo } from '../util';
+import { formatAgo } from '@shared/format';
+import { formatDuration, optionalErrorText } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { LogView } from './LogView';
-import { Button, Combobox, IconButton, Input, Select, Switch, sortedGroups } from './ui';
+import { Age, Button, Chip, type ChipTone, Combobox, IconButton, Input, PageHeader, Select, SkeletonRows, Switch, sortedGroups } from './ui';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
 import { useModal } from './use-modal';
@@ -67,6 +68,24 @@ function writeRepo(value: string): void {
 export function RunIcon({ run }: { run: WorkflowRun }) {
     const status = (run.status === 'completed' ? 'completed' : run.status === 'in_progress' ? 'in_progress' : 'queued') as CheckStatus;
     return <CheckIcon check={{ status, conclusion: run.conclusion as CheckConclusion }} />;
+}
+
+/** Returns the text and the chip tone of the state of a run. */
+function runState(run: WorkflowRun): { text: string; tone: ChipTone } {
+    if (run.status !== 'completed') return { text: run.status.replace('_', ' '), tone: run.status === 'in_progress' ? 'info' : 'neutral' };
+    switch (run.conclusion) {
+        case 'success':
+            return { text: 'success', tone: 'success' };
+        case 'failure':
+        case 'timed_out':
+        case 'startup_failure':
+        case 'error':
+            return { text: run.conclusion.replace('_', ' '), tone: 'danger' };
+        case 'action_required':
+            return { text: 'action required', tone: 'warning' };
+        default:
+            return { text: run.conclusion?.replace('_', ' ') ?? 'completed', tone: 'neutral' };
+    }
 }
 
 /** The value field of one workflow input: a switch, a choice, or text. */
@@ -307,10 +326,14 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
 
     return (
         <div className="pipelines-view">
-            <header className="tasks-header">
-                <div className="tasks-header-group where">
+            <PageHeader
+                icon={WorkflowIcon}
+                title="Pipelines"
+                meta={runsQuery.dataUpdatedAt ? `Updated ${formatAgo(new Date(runsQuery.dataUpdatedAt).toISOString())}` : undefined}
+                scope={
                     <Combobox
-                        className="review-repo-select"
+                        className="pipelines-repo-select"
+                        size="lg"
                         value={repo}
                         groups={groups}
                         placeholder={!repos ? 'Loading repositories…' : 'Select a repository'}
@@ -319,25 +342,30 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                         title="Repository"
                         onChange={selectRepo}
                     />
-                </div>
-                <div className="tasks-header-group how">
-                    <span className="header-spacer" />
-                    {repoRef && (
+                }
+                actions={
+                    <>
+                        {repoRef && (
+                            <IconButton
+                                size="lg"
+                                icon={<ExternalLink size={16} strokeWidth={1.6} />}
+                                label={
+                                    repoRef.host === 'azure'
+                                        ? 'Open the pipelines of the project on Azure DevOps'
+                                        : 'Open the Actions of the repository on GitHub'
+                                }
+                                onClick={event => openLink(pipelinesWebUrl(repoRef), event)}
+                            />
+                        )}
                         <IconButton
-                            icon={<ExternalLink size={14} strokeWidth={1.6} />}
-                            label={
-                                repoRef.host === 'azure' ? 'Open the pipelines of the project on Azure DevOps' : 'Open the Actions of the repository on GitHub'
-                            }
-                            onClick={event => openLink(pipelinesWebUrl(repoRef), event)}
+                            size="lg"
+                            icon={<RefreshCw size={16} strokeWidth={1.6} className={runsQuery.isFetching ? 'spin' : ''} />}
+                            label="Refresh"
+                            onClick={() => void runsQuery.refetch()}
                         />
-                    )}
-                    <IconButton
-                        icon={<RefreshCw size={14} strokeWidth={1.6} className={runsQuery.isFetching ? 'spin' : ''} />}
-                        label="Refresh"
-                        onClick={() => void runsQuery.refetch()}
-                    />
-                </div>
-            </header>
+                    </>
+                }
+            />
             {error && <div className="form-error task-list-error">{error}</div>}
 
             <div className="pipelines-body" style={style}>
@@ -352,9 +380,7 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                         <span className="pipeline-workflow-name">{repoRef?.host === 'azure' ? 'All pipelines' : 'All workflows'}</span>
                     </button>
                     {!workflows && !error && (
-                        <div className="panel-note">
-                            <LoaderCircle size={12} className="spin" /> Loading…
-                        </div>
+                        <SkeletonRows count={4} dot={false} label={repoRef?.host === 'azure' ? 'Loading pipelines' : 'Loading workflows'} />
                     )}
                     {workflows?.length === 0 && (
                         <div className="panel-note">
@@ -396,13 +422,13 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                         return selectedWorkflow?.dispatchable ? (
                             <div className="pipeline-runs-header">
                                 <span className="pipeline-runs-title">{selectedWorkflow.name}</span>
-                                <Button size="sm" variant="primary" icon={<Play size={13} strokeWidth={2} />} onClick={() => setDialog(selectedWorkflow)}>
+                                <Button variant="primary" icon={<Play size={13} strokeWidth={2} />} onClick={() => setDialog(selectedWorkflow)}>
                                     Run workflow
                                 </Button>
                             </div>
                         ) : null;
                     })()}
-                    {!runs && !error && <div className="panel-message">Loading runs…</div>}
+                    {!runs && !error && <SkeletonRows label="Loading runs" />}
                     {runs?.length === 0 && <div className="panel-message">No runs.</div>}
                     {runs?.map(item => (
                         <button
@@ -423,7 +449,7 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                             · <code>{item.branch}</code>
                                         </>
                                     )}{' '}
-                                    · {item.event} · {timeAgo(item.createdAt)}
+                                    · {item.event} · <Age date={item.createdAt} format="prose" />
                                     {item.status === 'completed' && item.startedAt && <> · {formatDuration(item.startedAt, item.updatedAt)}</>}
                                 </span>
                             </span>
@@ -433,22 +459,27 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                 <ResizeHandle panel={runsWidth} edge="right" label="Resize the run list" />
 
                 <div className="pipeline-detail">
-                    {!selectedRun && <div className="panel-message">Select a run to see its jobs and logs.</div>}
+                    {!selectedRun && (
+                        <EmptyState icon={ListTree} title="No run selected">
+                            Pick a run to see its jobs and logs.
+                        </EmptyState>
+                    )}
                     {selectedRun && repoRef && (
                         <>
                             <div className="pipeline-detail-header">
                                 <div className="pipeline-detail-title">
                                     <RunIcon run={selectedRun} />
                                     <span>{selectedRun.title}</span>
+                                    <Chip tone={runState(selectedRun).tone}>{runState(selectedRun).text}</Chip>
                                 </div>
                                 <div className="pipeline-detail-meta">
-                                    {selectedRun.workflowName} #{selectedRun.runNumber} ·{' '}
-                                    {selectedRun.status === 'completed' ? selectedRun.conclusion : selectedRun.status.replace('_', ' ')}
+                                    {selectedRun.workflowName} #{selectedRun.runNumber}
                                     {selectedRun.actor && <> · {selectedRun.actor}</>} · <code>{selectedRun.headSha.slice(0, 7)}</code>
                                 </div>
                                 <div className="row-buttons pipeline-actions">
                                     {runIsActive(selectedRun) && (
                                         <Button
+                                            variant="danger"
                                             icon={<Square size={12} strokeWidth={2} />}
                                             onClick={() =>
                                                 void act(`Cancel run #${selectedRun.runNumber} of ${selectedRun.workflowName}?`, () =>
@@ -490,11 +521,7 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                 {actionError && <div className="form-error">{actionError}</div>}
                             </div>
                             <div className="pipeline-jobs" onKeyDown={moveListFocus}>
-                                {!jobs && (
-                                    <div className="panel-note">
-                                        <LoaderCircle size={12} className="spin" /> Loading jobs…
-                                    </div>
-                                )}
+                                {!jobs && <SkeletonRows count={3} label="Loading jobs" />}
                                 {jobs?.length === 0 && <div className="panel-note">No jobs yet.</div>}
                                 {jobs?.map(item => (
                                     <button
@@ -514,7 +541,9 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                 {job ? (
                                     <LogView key={job.id} target={repoRef} check={job} />
                                 ) : (
-                                    <div className="panel-message">Select a job to read its log.</div>
+                                    <EmptyState icon={ScrollText} title="No job selected">
+                                        Pick a job to read its log.
+                                    </EmptyState>
                                 )}
                             </div>
                         </>

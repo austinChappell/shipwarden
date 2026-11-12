@@ -77,7 +77,7 @@ function NotesDialog({ state, onClose }: { state: UpdateState; onClose(): void }
                     <Button onClick={onClose}>Close</Button>
                     {state.canInstall && (
                         <Button
-                            variant="solid"
+                            variant="primary"
                             onClick={() => {
                                 onClose();
                                 void installUpdate(state).catch(() => undefined);

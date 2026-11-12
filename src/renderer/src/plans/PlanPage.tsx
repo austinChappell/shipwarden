@@ -28,6 +28,7 @@ import {
 import { AGENT_MODES, type AgentMode } from '@shared/agent-modes';
 import {
     MAX_TITLE_LENGTH,
+    NEW_PLAN_TITLE,
     PLAN_STATUS_LABELS,
     STEP_STATUS_LABELS,
     duplicatePlan,
@@ -37,14 +38,31 @@ import {
     stackedOnIndex,
     type Plan,
     type PlanProblem,
+    type PlanStatus,
     type PlanStep,
     type PlanTaskTarget,
     type PromptRepo,
+    type StepStatus,
     type StepTask
 } from '@shared/plans';
+import { formatAgo, pluralize } from '@shared/format';
 import type { Project } from '@shared/projects';
 import type { TaskLink } from '@shared/tasks';
-import { Button, Card, CardBody, CardHeader, Checkbox, Combobox, IconButton, Select, Switch, TextArea, sortedGroups } from '../components/ui';
+import {
+    Button,
+    Card,
+    CardBody,
+    CardHeader,
+    Checkbox,
+    Chip,
+    Combobox,
+    IconButton,
+    Select,
+    Switch,
+    TextArea,
+    sortedGroups,
+    type ChipTone
+} from '../components/ui';
 import { confirmDialog } from '../components/ConfirmDialog';
 import { showContextMenu } from '../components/ContextMenu';
 import { Markdown } from '../components/Markdown';
@@ -53,7 +71,7 @@ import { taskQueryKeys } from '../components/tasks/task-view-logic';
 import { loadCollectionTasks } from '../automations/engine';
 import { openLink } from '../links';
 import { keyRoots } from '../query-client';
-import { errorText, timeAgo } from '../util';
+import { errorText } from '../util';
 import { cancelExplore, explorePlan } from './plan-explore';
 import { cachedPlan, createPlan, removePlan, updatePlan, useExploreState } from './plan-queries';
 import { planRunner } from './plan-runner';
@@ -171,8 +189,34 @@ function listText(items: readonly string[]): string {
     return new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(items);
 }
 
-function plural(count: number, one: string, many: string): string {
-    return `${count} ${count === 1 ? one : many}`;
+/** The tone of the chip of each plan status. */
+export const PLAN_STATUS_TONES: Record<PlanStatus, ChipTone> = {
+    draft: 'neutral',
+    running: 'info',
+    paused: 'warning',
+    done: 'success'
+};
+
+/** The tone of the chip of each step status. */
+const STEP_STATUS_TONES: Record<StepStatus, ChipTone> = {
+    pending: 'neutral',
+    running: 'info',
+    attention: 'warning',
+    done: 'success',
+    skipped: 'neutral',
+    failed: 'danger'
+};
+
+/**
+ * Returns the plan after a change to the title of a step. A plan with the default title, or with the title of its first
+ * step, gets the new title of the first step. Thus a new plan has a name from its first step.
+ */
+function withStepTitle(plan: Plan, stepId: string, title: string): Plan {
+    const first = plan.steps[0];
+    if (first?.id !== stepId) return plan;
+    const named = plan.title === NEW_PLAN_TITLE || plan.title === first.title.trim().slice(0, MAX_TITLE_LENGTH);
+    if (!named) return plan;
+    return { ...plan, title: title.trim().slice(0, MAX_TITLE_LENGTH) || NEW_PLAN_TITLE };
 }
 
 /* ------------------------------------------------------------------------------------------------------------------ */
@@ -202,7 +246,10 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan }: Props) {
         setDraft(change);
     };
     const editStep = (id: string, patch: Partial<PlanStep>) =>
-        edit(current => ({ ...current, steps: current.steps.map(step => (step.id === id ? { ...step, ...patch } : step)) }));
+        edit(current => {
+            const named = patch.title === undefined ? current : withStepTitle(current, id, patch.title);
+            return { ...named, steps: current.steps.map(step => (step.id === id ? { ...step, ...patch } : step)) };
+        });
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: Each change of the draft starts the timer again.
     useEffect(() => {
@@ -300,7 +347,7 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan }: Props) {
                         onChange={event => edit(current => ({ ...current, title: event.target.value }))}
                     />
                 }
-                status={<span className="plan-status draft">{PLAN_STATUS_LABELS.draft}</span>}
+                status={<Chip tone={PLAN_STATUS_TONES.draft}>{PLAN_STATUS_LABELS.draft}</Chip>}
                 actions={
                     <IconButton
                         label="More"
@@ -354,7 +401,7 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan }: Props) {
                                     <div className="plan-idea-buttons">
                                         {hasSteps && <Button onClick={() => setEditingIdea(false)}>Done</Button>}
                                         <Button
-                                            variant="solid"
+                                            variant={hasSteps ? 'secondary' : 'primary'}
                                             icon={<Sparkles size={14} />}
                                             disabled={locked || project.repos.length === 0}
                                             onClick={() => void runExplore()}
@@ -480,15 +527,15 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan }: Props) {
                         <CardHeader
                             title="Run plan"
                             description={[
-                                plural(counts.steps, 'step', 'steps'),
-                                plural(counts.repos, 'repository', 'repositories'),
-                                plural(counts.pullRequests, 'pull request', 'pull requests')
+                                pluralize(counts.steps, 'step'),
+                                pluralize(counts.repos, 'repository', 'repositories'),
+                                pluralize(counts.pullRequests, 'pull request')
                             ].join(' · ')}
                         />
                         {problems.length > 0 && (
                             <CardBody>
                                 <div className="flow-problems">
-                                    <div className="flow-problems-title">{plural(problems.length, 'thing', 'things')} to fix before the run</div>
+                                    <div className="flow-problems-title">{pluralize(problems.length, 'thing')} to fix before the run</div>
                                     <ul>
                                         {problems.map(problem => (
                                             <li key={problem.message}>
@@ -514,7 +561,12 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan }: Props) {
                         <CardBody className="flow-card-body">
                             {error && <div className="form-error">{error}</div>}
                             <div className="flow-actions">
-                                <Button variant="solid" icon={<Play size={14} />} disabled={locked || problems.length > 0} onClick={() => void execute()}>
+                                <Button
+                                    variant={hasSteps ? 'primary' : 'secondary'}
+                                    icon={<Play size={14} />}
+                                    disabled={locked || problems.length > 0}
+                                    onClick={() => void execute()}
+                                >
                                     {starting ? 'Starting…' : 'Execute plan'}
                                 </Button>
                             </div>
@@ -691,11 +743,11 @@ function StepEditor({
                             aria-label={`Title of step ${index + 1}`}
                             onChange={event => onChange({ title: event.target.value })}
                         />
-                        {step.skip && <span className="plan-badge">Skipped</span>}
+                        {step.skip && <Chip>Skipped</Chip>}
                         {stackedOn >= 0 && (
-                            <span className="plan-badge stacked" title="This step starts from the branch of the earlier step.">
-                                <Layers size={12} /> Stacks on step {stackedOn + 1}
-                            </span>
+                            <Chip tone="info" icon={<Layers size={12} />} title="This step starts from the branch of the earlier step.">
+                                Stacks on step {stackedOn + 1}
+                            </Chip>
                         )}
                         <Select
                             className="plan-repo-select"
@@ -846,7 +898,7 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan }: Prop
                 stage="run"
                 finished={finished}
                 title={<h2 className="flow-title">{plan.title}</h2>}
-                status={<span className={`plan-status ${plan.status}`}>{PLAN_STATUS_LABELS[plan.status]}</span>}
+                status={<Chip tone={PLAN_STATUS_TONES[plan.status]}>{PLAN_STATUS_LABELS[plan.status]}</Chip>}
                 actions={
                     <IconButton
                         label="More"
@@ -899,9 +951,9 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan }: Prop
                         <CardHeader
                             title={finished ? 'Run finished' : 'Run'}
                             description={[
-                                `${done} of ${plural(ran, 'step', 'steps')} done`,
-                                plan.executedAt ? `started ${timeAgo(new Date(plan.executedAt).toISOString())}` : '',
-                                plan.finishedAt ? `finished ${timeAgo(new Date(plan.finishedAt).toISOString())}` : ''
+                                `${done} of ${pluralize(ran, 'step')} done`,
+                                plan.executedAt ? `started ${formatAgo(new Date(plan.executedAt).toISOString())}` : '',
+                                plan.finishedAt ? `finished ${formatAgo(new Date(plan.finishedAt).toISOString())}` : ''
                             ]
                                 .filter(Boolean)
                                 .join(' · ')}
@@ -920,7 +972,7 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan }: Prop
                                         </Button>
                                     )}
                                     {plan.status === 'paused' && (
-                                        <Button variant="solid" icon={<Play size={14} />} onClick={() => void act(() => planRunner.resume(plan.id))}>
+                                        <Button variant="primary" icon={<Play size={14} />} onClick={() => void act(() => planRunner.resume(plan.id))}>
                                             Resume
                                         </Button>
                                     )}
@@ -986,7 +1038,7 @@ function StepRun({
                     <div className="plan-step-head">
                         <div className="plan-step-heading">
                             <div className="plan-step-name">
-                                <span className={`step-status ${step.status}`}>{STEP_STATUS_LABELS[step.status]}</span> {step.title}
+                                <Chip tone={STEP_STATUS_TONES[step.status]}>{STEP_STATUS_LABELS[step.status]}</Chip> {step.title}
                             </div>
                             <div className="plan-step-meta">
                                 {step.repo ? repoLabel(step.repo) : 'No repository'}
@@ -1044,7 +1096,7 @@ function StepRun({
                     {!finished && (open || step.status === 'pending') && (
                         <div className="plan-step-actions">
                             {step.status === 'attention' && step.worktreePath && (
-                                <Button variant="solid" icon={<Check size={14} />} onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}>
+                                <Button variant="accent" icon={<Check size={14} />} onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}>
                                     Continue
                                 </Button>
                             )}
@@ -1064,7 +1116,7 @@ function StepRun({
                             )}
                             {step.status === 'failed' && (
                                 <Button
-                                    variant="solid"
+                                    variant="accent"
                                     icon={<RotateCcw size={14} />}
                                     onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}
                                 >

@@ -9,6 +9,7 @@ import type { UpdateState } from '@shared/updates';
 import type { ProviderUsage } from '@shared/usage';
 import type { BrowserState } from '@shared/browser';
 import type { HelpAction } from '@shared/onboarding';
+import type { CreateWorktreeProgress } from '@shared/worktrees';
 
 function subscribe<Args extends unknown[]>(channel: string, listener: (...args: Args) => void): () => void {
     const handler = (_event: IpcRendererEvent, ...args: unknown[]) => listener(...(args as Args));
@@ -86,6 +87,7 @@ const api: ShipWardenApi = {
     worktrees: {
         list: repoPath => ipcRenderer.invoke(IpcChannels.worktreesList, repoPath),
         create: options => ipcRenderer.invoke(IpcChannels.worktreesCreate, options),
+        onProgress: listener => subscribe<[string, CreateWorktreeProgress]>(IpcChannels.worktreesProgress, listener),
         branches: repoPath => ipcRenderer.invoke(IpcChannels.worktreesBranches, repoPath),
         remove: (repoPath, worktreePath, options) => ipcRenderer.invoke(IpcChannels.worktreesRemove, repoPath, worktreePath, options),
         previewCopy: (repoPath, copy) => ipcRenderer.invoke(IpcChannels.worktreesPreviewCopy, repoPath, copy),

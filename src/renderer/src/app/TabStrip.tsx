@@ -3,6 +3,7 @@ import { leaves, type PaneLayout } from '@shared/panes';
 import { moveTabFocus } from '../tablist';
 import { isStripItemActive, type StripItem, type TabKey } from './tabs';
 import type { TabInfo } from './tab-info';
+import { Count } from '../components/ui';
 
 interface Props {
     items: StripItem[];
@@ -85,7 +86,7 @@ export function TabStrip({ items, activeTab, info, onSelect, onMove, onCloseTab,
                     >
                         {group ? <Columns2 className="tab-icon" size={14} strokeWidth={1.5} /> : tab.icon}
                         <span className="tab-title">{tab.title}</span>
-                        {group && <span className="tab-count">{count}</span>}
+                        {group && <Count value={count} label={`${count} panes`} />}
                         <button
                             className="tab-close"
                             // Only the close button of the selected tab is in the Tab order.

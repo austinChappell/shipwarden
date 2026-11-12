@@ -3,6 +3,7 @@ import { LoaderCircle } from 'lucide-react';
 import { collapsedByDefault, type StatusGroup, type Task } from '@shared/tasks';
 import { itemKeys, moveListFocus } from '../../keyboard/list-nav';
 import { acceptsDrop, groupStatus, neighborColumn, taskLabel } from './task-view-logic';
+import { Count } from '../ui';
 import { StatusDot, TaskAssignees, TaskLabels, WorktreeButton } from './TaskParts';
 
 interface CardProps {
@@ -188,7 +189,7 @@ export function TaskBoardColumns({
                 >
                     <StatusDot status={groupStatus(column)} />
                     <span className="board-column-name">{column.name}</span>
-                    <span className="status-group-count">{column.tasks.length}</span>
+                    <Count value={column.tasks.length} />
                 </button>
                 {!closed && (
                     <div className="board-cards" onKeyDown={moveListFocus}>

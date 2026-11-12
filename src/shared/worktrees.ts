@@ -45,6 +45,25 @@ export interface CreateWorktreeOptions {
      * service creates it from this remote branch and sets it to track the remote branch. Then `baseRef` does not apply.
      */
     trackRef?: string;
+    /** An ID for the progress events of this creation (`worktrees.onProgress`). Without it, the main process sends no events. */
+    progressId?: string;
+}
+
+/**
+ * A step of a worktree creation, in the order of the steps. Not all steps occur each time.
+ * - "fetch": git fetches "origin", so the new branch starts from the newest default branch.
+ * - "checkout": git adds the worktree and checks out its files.
+ * - "copy": ShipWarden copies the git-ignored files from the main worktree.
+ * - "setup": ShipWarden starts the setup script in a "Setup" tab.
+ * - "agent": ShipWarden starts the agent.
+ */
+export type CreateWorktreeStep = 'fetch' | 'checkout' | 'copy' | 'setup' | 'agent';
+
+/** A progress event of a worktree creation. `done` and `total` count the copied items of the "copy" step. */
+export interface CreateWorktreeProgress {
+    step: CreateWorktreeStep;
+    done?: number;
+    total?: number;
 }
 
 /** The branches that a new worktree can start from. */

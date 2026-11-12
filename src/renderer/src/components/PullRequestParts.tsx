@@ -23,37 +23,35 @@ import { EditDescriptionButton } from './PullRequestDetails';
 import { openLink } from '../links';
 import { CopyButton } from './CopyButton';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
-import { Button, Card } from './ui';
+import { Button, Card, Chip, Count, SkeletonRows } from './ui';
 
-const ICON = { size: 15, strokeWidth: 1.6 };
+/** The icon of a chip. */
+const ICON = { size: 12, strokeWidth: 1.8 };
 
+/** The state of a pull request as a chip. A merged pull request uses purple, the same as on GitHub. Purple is only for pull request states. */
 export function StateBadge({ pr }: { pr: PullRequest }) {
     if (pr.state === 'MERGED')
         return (
-            <span className="pr-badge merged">
-                <GitMerge {...ICON} />
+            <Chip tone="review" icon={<GitMerge {...ICON} />}>
                 Merged
-            </span>
+            </Chip>
         );
     if (pr.state === 'CLOSED')
         return (
-            <span className="pr-badge closed">
-                <GitPullRequestClosed {...ICON} />
+            <Chip tone="danger" icon={<GitPullRequestClosed {...ICON} />}>
                 Closed
-            </span>
+            </Chip>
         );
     if (pr.isDraft)
         return (
-            <span className="pr-badge draft">
-                <GitPullRequestDraft {...ICON} />
+            <Chip tone="neutral" icon={<GitPullRequestDraft {...ICON} />}>
                 Draft
-            </span>
+            </Chip>
         );
     return (
-        <span className="pr-badge open">
-            <GitPullRequest {...ICON} />
+        <Chip tone="success" icon={<GitPullRequest {...ICON} />}>
             Open
-        </span>
+        </Chip>
     );
 }
 
@@ -67,14 +65,17 @@ export function BranchName({ name }: { name: string }) {
     );
 }
 
-/** A red badge next to the state badge when the pull request has merge conflicts. */
+/** A warning chip next to the state chip when the pull request has merge conflicts. */
 export function ConflictBadge({ pr }: { pr: PullRequest }) {
     if (!hasConflicts(pr)) return null;
     return (
-        <span className="pr-badge conflict" title={`The branch ${pr.headRefName} has conflicts with ${pr.baseRefName}. GitHub cannot merge it.`}>
-            <TriangleAlert {...ICON} />
+        <Chip
+            tone="warning"
+            icon={<TriangleAlert {...ICON} />}
+            title={`The branch ${pr.headRefName} has conflicts with ${pr.baseRefName}. GitHub cannot merge it.`}
+        >
             Merge conflicts
-        </span>
+        </Chip>
     );
 }
 
@@ -238,14 +239,14 @@ export function PullRequestFileList({ target, pr, files, selectedPath, onOpen, o
     return (
         <>
             <div className="section-title">
-                Files changed {files ? `(${files.length})` : ''}
+                <span className="section-title-group">Files changed {files && <Count value={files.length} />}</span>
                 {files && files.length > 0 && (
                     <span className="viewed-count">
                         {files.filter(item => item.viewed).length} of {files.length} viewed
                     </span>
                 )}
             </div>
-            {!files && <div className="panel-note">Loading files…</div>}
+            {!files && <SkeletonRows count={4} dot={false} label="Loading files" />}
             <div onKeyDown={moveListFocus}>
                 {files?.map(file => {
                     const Icon = fileIcon(baseName(file.path));
@@ -267,10 +268,9 @@ export function PullRequestFileList({ target, pr, files, selectedPath, onOpen, o
                             <span className="tree-name">{baseName(file.path)}</span>
                             <span className="tree-detail">{parentPath(file.path)}</span>
                             {count > 0 && (
-                                <span className="comment-count">
-                                    <MessageSquare size={12} strokeWidth={1.6} />
+                                <Chip icon={<MessageSquare size={12} strokeWidth={1.6} />} title={`${count} open comments`}>
                                     {count}
-                                </span>
+                                </Chip>
                             )}
                             <span className="additions">+{file.additions}</span>
                             <span className="deletions">−{file.deletions}</span>

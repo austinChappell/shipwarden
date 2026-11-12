@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { pluralize } from '@shared/format';
 import { X } from 'lucide-react';
 import { DASHBOARD_WINDOW_DAYS, matchesRule, ruleRegex } from '@shared/dashboard';
 import type { AppSettings, HiddenCommentMatch, HiddenCommentRule } from '@shared/settings';
@@ -141,7 +142,7 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                             <IconButton
                                 icon={<X size={14} strokeWidth={1.8} />}
                                 label="Remove the rule"
-                                size="sm"
+                                tone="danger"
                                 onClick={() => save({ dashboardHiddenRules: rules.filter(other => other.id !== rule.id) })}
                             />
                         }
@@ -171,7 +172,7 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                             onChange={event => setText(event.target.value)}
                             onKeyDown={event => event.key === 'Enter' && void addRule()}
                         />
-                        <Button variant="primary" className="rule-add" disabled={!draft} onClick={() => void addRule()}>
+                        <Button className="rule-add" disabled={!draft} onClick={() => void addRule()}>
                             Add rule
                         </Button>
                     </div>
@@ -181,7 +182,7 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                         <div className="panel-note rule-preview">
                             {matches.length === 0
                                 ? 'The rule hides no comment on the Dashboard now.'
-                                : `The rule hides ${matches.length} comment${matches.length === 1 ? '' : 's'} on the Dashboard now, for example:`}
+                                : `The rule hides ${pluralize(matches.length, 'comment')} on the Dashboard now, for example:`}
                             {matches.slice(0, 3).map((comment, index) => (
                                 <div key={index} className="rule-example">
                                     <strong>{comment.author ?? 'unknown'}</strong> {firstLine(comment.text)}
@@ -206,7 +207,7 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                             <IconButton
                                 icon={<X size={14} strokeWidth={1.8} />}
                                 label={`Show comments from ${item} again`}
-                                size="sm"
+                                tone="danger"
                                 onClick={() => save({ dashboardHiddenAuthors: hidden.filter(other => other !== item) })}
                             />
                         }

@@ -54,17 +54,17 @@ export function MergeButton({ methods, method, label, disabled, title, size, onS
 
     const choice = methods.length > 1;
     const main = (
-        <Button variant="merge" size={size} icon={<GitMerge size={14} strokeWidth={1.8} />} disabled={disabled} title={title} onClick={onRun}>
+        <Button variant="accent" size={size} icon={<GitMerge size={14} strokeWidth={1.8} />} disabled={disabled} title={title} onClick={onRun}>
             {label ?? BUTTON_LABELS[method]}
         </Button>
     );
     return (
         <div className="merge-split" ref={root}>
             {choice ? (
-                <ButtonGroup tone="merge" size={size}>
+                <ButtonGroup tone="accent" size={size}>
                     {main}
                     <Button
-                        variant="merge"
+                        variant="accent"
                         size={size}
                         className="button-group-arrow"
                         active={open}

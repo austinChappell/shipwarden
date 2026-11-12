@@ -5,7 +5,7 @@ import { openLink } from '../links';
 import { errorText } from '../util';
 import { useStopPortProcess } from '../worktree-ports-query';
 import { moveMenuFocus, useMenuClose } from './use-menu';
-import { IconButton } from './ui';
+import { Chip, IconButton } from './ui';
 
 interface Props {
     worktreePath: string;
@@ -99,8 +99,9 @@ export function WorktreePorts({ worktreePath, ports }: Props) {
                 aria-expanded={multi ? open : undefined}
                 onClick={onBadge}
             >
-                <Plug size={11} strokeWidth={1.9} />
-                {badgeText(ports)}
+                <Chip tone="info" mono icon={<Plug size={12} strokeWidth={2} aria-hidden="true" />}>
+                    {badgeText(ports)}
+                </Chip>
             </button>
             <button
                 className={`icon-button row-action worktree-port-stop${busy ? ' busy' : ''}${error ? ' failed' : ''}`}

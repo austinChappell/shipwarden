@@ -329,31 +329,23 @@ button {
     gap: 1px;
 }
 
+/* The port badge is an info chip in a button (finding 04). The button has no look of its own. */
 .worktree-ports {
     flex-shrink: 0;
     display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 0 5px;
-    border: 1px solid color-mix(in srgb, var(--info) 40%, transparent);
-    border-radius: 9px;
-    background: color-mix(in srgb, var(--info) 10%, transparent);
-    color: var(--info);
-    font:
-        11px "JetBrains Mono",
-        Menlo,
-        monospace;
-    line-height: 16px;
-}
-.worktree-ports.repo-ports {
-    padding: 0 3px;
-}
-button.worktree-ports {
+    padding: 0;
+    border: 0;
+    border-radius: var(--control-radius);
+    background: none;
     cursor: pointer;
 }
-button.worktree-ports:hover,
-button.worktree-ports[aria-expanded="true"] {
-    background: color-mix(in srgb, var(--info) 22%, transparent);
+.worktree-ports:hover .chip,
+.worktree-ports[aria-expanded="true"] .chip {
+    background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+/* A collapsed repository shows only the plug icon of its ports. */
+.chip.repo-ports {
+    padding: 0 4px;
 }
 
 .worktree-port-stop {
@@ -506,6 +498,8 @@ button.worktree-ports[aria-expanded="true"] {
     min-width: 360px;
     display: flex;
     flex-direction: column;
+    /* The page header and the pages change their layout from the width of this area, not of the window. */
+    container: page / inline-size;
 }
 
 /* ⇧⌘0 can move the focus to the main area of a view. The ring then shows inside the area. */
@@ -634,7 +628,7 @@ button.worktree-ports[aria-expanded="true"] {
 .header-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 2px;
     padding: 0 10px;
     -webkit-app-region: no-drag;
 }
@@ -1059,9 +1053,6 @@ button.worktree-ports[aria-expanded="true"] {
 
 .search-count {
     flex: none;
-    color: var(--muted);
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
 }
 
 /* A result: a file name, or a line with a match. The selected result is the one that Enter opens. */
@@ -1324,14 +1315,12 @@ code {
     gap: 6px;
 }
 
-.tag {
+/* A chip after the author of a comment, a thread location, or a suggestion header. */
+.comment-author .chip,
+.thread-location .chip,
+.suggestion-header .chip {
     margin-left: 6px;
-    padding: 0 5px;
-    border-radius: 4px;
-    background: var(--raised);
-    color: var(--muted);
-    font-size: 10px;
-    text-transform: uppercase;
+    font-weight: 500;
 }
 
 .additions {
@@ -1408,42 +1397,6 @@ code {
     color: var(--muted);
     font-size: 12px;
     line-height: 1.6;
-}
-
-.pr-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px 2px 6px;
-    border-radius: 10px;
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.pr-badge.open {
-    background: color-mix(in srgb, var(--ok) 15%, transparent);
-    color: var(--ok);
-}
-
-.pr-badge.draft {
-    background: var(--raised);
-    color: var(--muted);
-}
-
-.pr-badge.merged {
-    background: color-mix(in srgb, var(--purple) 15%, transparent);
-    color: var(--purple);
-}
-
-.pr-badge.closed {
-    background: color-mix(in srgb, var(--danger) 15%, transparent);
-    color: var(--danger);
-}
-
-.pr-badge.conflict {
-    background: color-mix(in srgb, var(--danger) 18%, transparent);
-    color: var(--danger);
-    font-weight: 600;
 }
 
 /* The banner at the top of a pull request with merge conflicts. */
@@ -1595,14 +1548,6 @@ code {
 .status-renamed,
 .status-copied {
     color: var(--info);
-}
-
-.comment-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    color: var(--accent);
-    font-size: 11px;
 }
 
 .zone-card {
@@ -1790,7 +1735,7 @@ code {
 .reaction-add:disabled,
 .reaction-option:disabled {
     cursor: default;
-    opacity: 0.6;
+    opacity: 0.4;
 }
 
 .reaction-emoji {
@@ -1936,25 +1881,7 @@ textarea.review-body {
     padding: 0;
 }
 
-.pr-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 8px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--raised);
-    color: var(--text);
-    font-size: 11.5px;
-}
-
-.pr-chip.label {
-    border-color: color-mix(in srgb, var(--label-color) 55%, transparent);
-    background: color-mix(in srgb, var(--label-color) 18%, transparent);
-    color: color-mix(in srgb, var(--label-color) 60%, var(--text-strong));
-}
-
-.pr-chip button {
+.pr-chip-remove {
     display: grid;
     place-items: center;
     margin-right: -4px;
@@ -1967,22 +1894,13 @@ textarea.review-body {
     cursor: pointer;
 }
 
-.pr-chip button:hover {
+.pr-chip-remove:hover {
     opacity: 1;
 }
 
 .pr-chip-state {
-    color: var(--muted);
-    font-size: 10px;
-    text-transform: uppercase;
-}
-
-.pr-chip-state.review-approved {
-    color: var(--ok);
-}
-
-.pr-chip-state.review-changes_requested {
-    color: var(--danger);
+    opacity: 0.8;
+    font-weight: 400;
 }
 
 .pr-picker-option {
@@ -2306,34 +2224,21 @@ textarea.review-body {
     text-decoration: underline;
 }
 
-/* The task of the selected worktree, in the workspace header. A click opens the task. */
+/* The task of the selected worktree, in the workspace header. A click opens the task.
+   It is a standard secondary button (28 px, radius 6). Only its width and its position are set here. */
 .task-chip {
-    display: flex;
     flex: 0 1 auto;
-    align-items: center;
-    gap: 5px;
+    align-self: center;
     min-width: 0;
     max-width: 220px;
-    margin-right: 6px;
-    padding: 3px 8px;
-    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-    color: var(--accent);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
+    margin-right: 4px;
     -webkit-app-region: no-drag;
 }
 
-.task-chip span {
+.task-chip > span {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.task-chip:hover {
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 /* Tasks view */
@@ -2343,6 +2248,56 @@ textarea.review-body {
     min-height: 0;
     display: flex;
     flex-direction: column;
+}
+
+/* The page headers of Tasks and Agents move the window, as the old headers did. The controls do not move it. */
+.tasks-page-header,
+.agents-header {
+    -webkit-app-region: drag;
+}
+
+.tasks-page-header > *:not(.page-header-space),
+.agents-header > *:not(.page-header-space),
+.tasks-page-header .page-header-scope > * {
+    -webkit-app-region: no-drag;
+}
+
+.tasks-page-header .page-header-scope {
+    flex: 0 1 auto;
+    -webkit-app-region: drag;
+}
+
+.tasks-page-header .collection-select {
+    max-width: 240px;
+}
+
+/*
+ * The Tasks header has many scope controls. On a narrower page, the meta line goes and the filter gets narrower first, so
+ * the header stays on one row. Only a narrow page puts the controls on more rows.
+ */
+@container page (max-width: 1180px) {
+    .tasks-page-header .page-header-meta {
+        display: none;
+    }
+
+    .tasks-page-header .filter-field {
+        width: 180px;
+    }
+}
+
+@container page (max-width: 1040px) {
+    .tasks-page-header {
+        flex-wrap: wrap;
+        height: auto;
+        min-height: var(--page-header-height);
+        padding-block: 10px;
+        row-gap: 8px;
+    }
+
+    .tasks-page-header .page-header-scope {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
 }
 
 .tasks-header {
@@ -2414,6 +2369,8 @@ textarea.review-body {
 
 .task-list {
     flex: 1;
+    display: flex;
+    flex-direction: column;
     min-width: 0;
     padding: 6px 0 16px;
     overflow-y: auto;
@@ -2499,12 +2456,6 @@ textarea.review-body {
 
 .task-label {
     flex-shrink: 0;
-    padding: 0 6px;
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    color: var(--muted);
-    font-size: 11px;
-    line-height: 16px;
 }
 
 .task-detail {
@@ -3043,11 +2994,6 @@ button.task-check.editable:hover:not(:disabled) {
     background: var(--hover);
 }
 
-.status-group-count {
-    color: var(--muted);
-    font-weight: 400;
-}
-
 .group-chevron {
     flex-shrink: 0;
     color: var(--muted);
@@ -3323,11 +3269,13 @@ body.resizing * {
 }
 
 .settings-header {
-    height: var(--titlebar-height);
+    box-sizing: border-box;
+    height: var(--page-header-height);
     display: flex;
+    flex: none;
     align-items: center;
     justify-content: space-between;
-    padding: 0 12px 0 24px;
+    padding: 0 12px 0 20px;
     border-bottom: 1px solid var(--border);
     -webkit-app-region: drag;
 }
@@ -3338,7 +3286,7 @@ body.resizing * {
 
 .settings-header h1 {
     margin: 0;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 600;
     color: var(--text-strong);
 }
@@ -3346,7 +3294,6 @@ body.resizing * {
 .settings-scroll {
     flex: 1;
     overflow-y: auto;
-    padding: 8px 24px 40px;
 }
 
 .mono {
@@ -3465,11 +3412,6 @@ body.resizing * {
     white-space: nowrap;
 }
 
-.project-menu-count {
-    color: var(--muted);
-    font-size: 11px;
-}
-
 .project-menu-separator {
     height: 1px;
     margin: 4px 2px;
@@ -3555,11 +3497,6 @@ body.resizing * {
     flex: none;
 }
 
-.repo-header-count {
-    color: var(--muted);
-    font-size: 11px;
-}
-
 .repo-action {
     display: none;
 }
@@ -3612,16 +3549,10 @@ body.resizing * {
     opacity: 0.6;
 }
 
+/* The provider names use one color. Only the meter carries the color of the provider. */
 .usage-name {
+    color: var(--text);
     font-weight: 600;
-}
-
-.usage-name.claude {
-    color: var(--claude);
-}
-
-.usage-name.codex {
-    color: var(--text-strong);
 }
 
 .usage-warning {
@@ -3663,15 +3594,11 @@ body.resizing * {
     display: block;
     height: 100%;
     border-radius: 3px;
-    background: var(--ok);
+    background: var(--text-strong);
 }
 
-.usage-meter-fill.medium {
-    background: var(--accent);
-}
-
-.usage-meter-fill.high {
-    background: var(--danger);
+.usage-meter-fill.claude {
+    background: var(--claude);
 }
 
 /* A narrow window shows one value for each agent. A wide window shows each limit with its reset time. */
@@ -3999,13 +3926,13 @@ body.resizing * {
 .board-column-header {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     padding: 10px 12px 8px;
     border: 0;
     background: transparent;
     color: var(--text-strong);
     font-weight: 600;
-    font-size: 12px;
+    font-size: 13px;
     text-align: left;
     cursor: pointer;
 }
@@ -4080,12 +4007,14 @@ body.resizing * {
 }
 
 .board-empty {
-    padding: 14px 6px;
-    border: 1px dashed var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 56px;
+    border: 1px dashed var(--control-border);
     border-radius: 8px;
     color: var(--muted);
-    font-size: 12px;
-    text-align: center;
+    font-size: 13px;
 }
 
 /* The details of a task: a dialog that fills most of the window. */
@@ -4702,9 +4631,11 @@ button:focus-visible,
     color: var(--accent);
 }
 
+/* A form page (Settings, Automations, Plans): an 880 px column at the gutter (docs/design, finding 11). */
 .settings-page {
-    max-width: 760px;
-    padding: 26px 32px 56px;
+    box-sizing: content-box;
+    max-width: var(--form-width);
+    padding: 24px var(--gutter) 56px;
 }
 
 .settings-group + .settings-group {
@@ -4722,17 +4653,18 @@ button:focus-visible,
 .settings-group-header h3 {
     margin: 0;
     color: var(--text-strong);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
 }
 
+/* The description of a card or form section (docs/design, finding 08): 13 px under a 15/600 title. */
 .settings-group-description {
-    max-width: 560px;
+    max-width: 640px;
     overflow-wrap: anywhere;
-    margin: 4px 0 0;
+    margin: 2px 0 0;
     color: var(--muted);
-    font-size: 12.5px;
-    line-height: 1.45;
+    font-size: 13px;
+    line-height: 1.5;
 }
 
 .settings-group-actions {
@@ -4905,12 +4837,6 @@ button:focus-visible,
     flex: 1;
 }
 
-.nav-row-count {
-    color: var(--muted);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-}
-
 /* Agents view */
 
 .agents-view {
@@ -4920,34 +4846,13 @@ button:focus-visible,
     min-height: 0;
 }
 
-.agents-header {
-    height: var(--titlebar-height);
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 24px;
-    border-bottom: 1px solid var(--border);
-    -webkit-app-region: drag;
-}
-
-.agents-header h1 {
-    margin: 0;
-    color: var(--text-strong);
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.agents-count {
-    color: var(--muted);
-    font-size: 12px;
-}
-
 .agents-scroll {
+    display: flex;
     flex: 1;
+    flex-direction: column;
     min-height: 0;
     overflow-y: auto;
-    padding: 20px 24px 40px;
+    padding: 20px var(--gutter) 40px;
 }
 
 .agents-group {
@@ -4968,15 +4873,6 @@ button:focus-visible,
     font-weight: 600;
 }
 
-.agents-current {
-    padding: 1px 7px;
-    border-radius: 9px;
-    background: var(--hover);
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 500;
-}
-
 .agents-list {
     margin: 0;
     padding: 0;
@@ -4989,31 +4885,15 @@ button:focus-visible,
 
 .agents-states {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     font-size: 12px;
 }
 
 .agents-state-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     color: var(--muted);
-}
-.agents-state-count.waiting {
-    color: var(--danger);
-}
-.agents-state-count.blocked-ci {
-    color: var(--purple);
-}
-.agents-state-count.working {
-    color: var(--accent);
-}
-.agents-state-count.done {
-    color: var(--ok);
-}
-
-.agents-usage {
-    margin-left: auto;
-    color: var(--muted);
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
@@ -5081,32 +4961,16 @@ button:focus-visible,
 }
 
 .agent-state-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-.agent-side .agent-state {
-    margin-right: 0;
-}
-
 .agent-since {
     color: var(--muted);
-}
-
-.agent-pr {
-    flex: none;
-    color: var(--muted);
-}
-
-.agent-pr.failed {
-    color: var(--danger);
-}
-.agent-pr.running {
-    color: var(--accent);
-}
-.agent-pr.passed {
-    color: var(--ok);
 }
 
 .agent-where-text {
@@ -5182,14 +5046,6 @@ button:focus-visible,
     cursor: pointer;
 }
 
-.agent-default-label {
-    padding: 1px 6px;
-    border-radius: 9px;
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-    color: var(--accent);
-    font-weight: 600;
-}
-
 .agent-add-label {
     flex: none;
     width: 86px;
@@ -5213,8 +5069,9 @@ button:focus-visible,
     margin: 6px 0 0 96px;
 }
 
+/* A text field fills the row (docs/design, finding 14). Only a short typed value, for example a port, has a fixed width. */
 .settings-text-field {
-    width: 240px;
+    width: 100%;
 }
 
 /* Settings: repository colors and the repository part of the section list */
@@ -5404,15 +5261,12 @@ button:focus-visible,
 }
 
 /* The filter field of the entry page of the Review view. */
-.review-repo-filter {
-    flex: 0 1 320px;
-}
 
 /* The row of the "Show all repositories" button, under the project repositories. */
 .review-show-all-row {
     display: flex;
-    justify-content: center;
-    padding: 14px 12px;
+    justify-content: flex-end;
+    padding: 14px var(--gutter);
 }
 
 /* The link from a pull request back to the list of the repository. */
@@ -5451,27 +5305,6 @@ button:focus-visible,
 
 .review-placeholder {
     flex: 1;
-}
-
-.review-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    margin: 90px auto 0;
-    max-width: 420px;
-    color: var(--muted);
-    text-align: center;
-}
-
-.review-empty h2 {
-    margin: 0;
-    color: var(--text-strong);
-    font-size: 16px;
-}
-
-.review-empty p {
-    margin: 0;
 }
 
 /* The "Viewed" state of a file, as on GitHub */
@@ -5908,15 +5741,6 @@ button:focus-visible,
     background: var(--info);
 }
 
-.pr-tab-count {
-    padding: 1px 7px;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--text) 12%, transparent);
-    color: var(--text);
-    font-size: 11.5px;
-    font-weight: 600;
-}
-
 .pr-tabs-spacer {
     flex: 1;
 }
@@ -5925,11 +5749,6 @@ button:focus-visible,
     align-self: center;
     flex: none;
     margin-left: 6px;
-}
-
-.pr-finish .pr-tab-count {
-    background: color-mix(in srgb, white 25%, transparent);
-    color: inherit;
 }
 
 .pr-tab-body {
@@ -6218,11 +6037,6 @@ button:focus-visible,
 
 .pr-timeline-bot {
     margin-left: 6px;
-    padding: 0 6px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: transparent;
-    text-transform: none;
 }
 
 .pr-timeline-time::before {
@@ -6312,10 +6126,16 @@ button:focus-visible,
     color: var(--text-strong);
 }
 
-.section-title-count {
-    font-weight: 500;
-    text-transform: none;
+/* A section title with a count badge or a chip after the text. */
+.section-title-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.section-title-group .chip {
     letter-spacing: 0;
+    text-transform: none;
 }
 
 /* The Overview tab shows the empty list of review threads as a box with a dashed border. */
@@ -6821,82 +6641,32 @@ button:focus-visible,
     color: var(--muted);
 }
 
-.nav-row-count.attention {
-    min-width: 18px;
-    padding: 0 6px;
-    border-radius: 9px;
-    background: var(--accent);
-    color: var(--bg, #000);
-    font-weight: 600;
-    text-align: center;
-}
-
-.tag.review-approved {
-    background: color-mix(in srgb, var(--ok) 18%, transparent);
-    color: var(--ok);
-}
-
-.tag.review-changes_requested {
-    background: color-mix(in srgb, var(--danger) 18%, transparent);
-    color: var(--danger);
-}
-
 /* Dashboard */
 
 .dashboard-view {
-    /* Amber for "needs your action", in every theme. The themes have no warning color. */
-    --dash-warning: #e5a54b;
     display: flex;
     flex-direction: column;
     height: 100%;
     min-height: 0;
 }
 
-:root[data-mode="light"] .dashboard-view {
-    --dash-warning: #a8670f;
-}
-
-.dash-header h1 {
-    margin: 0;
-    color: var(--text-strong);
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.dash-header .tasks-header-group.where {
-    align-items: center;
-    gap: 8px;
-}
-
-.dash-time {
-    color: var(--muted);
-    font-size: 12px;
-}
-
-.dash-filter {
-    flex-basis: 280px;
-}
-
 .dash-scroll {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 18px 20px 28px;
-    container-type: inline-size;
+    padding: 24px var(--gutter) 32px;
 }
 
 .dash-page {
     display: flex;
     flex-direction: column;
-    gap: 22px;
-    max-width: 1500px;
-    margin: 0 auto;
+    gap: 24px;
 }
 
-/* The counts at the top. */
+/* The counts at the top. The hue of each tile is the color of its pull request state. */
 .dash-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 12px;
 }
 
@@ -6906,9 +6676,9 @@ button:focus-visible,
     align-items: flex-start;
     gap: 4px;
     min-width: 0;
-    padding: 12px 14px;
+    padding: 14px 16px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--card-radius);
     background: var(--panel);
     color: var(--text);
     font: inherit;
@@ -6920,7 +6690,8 @@ button:focus-visible,
 }
 
 .dash-stat.clickable:hover {
-    border-color: var(--muted);
+    border-color: var(--control-border);
+    background: color-mix(in srgb, var(--hover) 50%, var(--panel));
 }
 
 .dash-flash {
@@ -6937,19 +6708,32 @@ button:focus-visible,
 .dash-stat-label {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     max-width: 100%;
     overflow: hidden;
-    font-size: 12.5px;
+    font-size: 13px;
+    font-weight: 500;
     white-space: nowrap;
 }
 
 .dash-stat-count {
     color: var(--text-strong);
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 700;
     line-height: 1.15;
     font-variant-numeric: tabular-nums;
+}
+
+.dash-stat-skeleton {
+    display: inline-block;
+    width: 28px;
+    height: 22px;
+    vertical-align: middle;
+}
+
+.dash-stat-detail .skeleton-bar {
+    display: inline-block;
+    vertical-align: middle;
 }
 
 .dash-stat.zero .dash-stat-count {
@@ -6965,17 +6749,17 @@ button:focus-visible,
     white-space: nowrap;
 }
 
-/* The color dot of each state. */
+/* The color dot of each pull request state. These five hues mean a pull request state and nothing else. */
 .dash-dot {
     flex: none;
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--muted);
+    background: var(--stale);
 }
 
 .dash-dot.review {
-    background: var(--info);
+    background: var(--accent);
 }
 .dash-dot.ready {
     background: var(--ok);
@@ -6995,7 +6779,7 @@ button:focus-visible,
     gap: 24px;
 }
 
-@container (max-width: 980px) {
+@container page (max-width: 980px) {
     .dash-columns {
         grid-template-columns: minmax(0, 1fr);
     }
@@ -7004,21 +6788,24 @@ button:focus-visible,
 .dash-column {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
     min-width: 0;
 }
 
+/* A group eyebrow: 11 px caps and a count badge. */
 .dash-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin: 0;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
 }
 
-.dash-card-rows > .form-error,
-.dash-card-rows > .panel-note {
+.dash-card-rows > .form-error {
     margin: 10px 12px;
 }
 
@@ -7026,27 +6813,22 @@ button:focus-visible,
     white-space: pre-line;
 }
 
-/* One line of text in a card, for example "Loading…" or "No new comments". */
-.dash-line {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 14px;
-    color: var(--muted);
-}
-
-.dash-ok,
-.dash-empty svg {
-    flex: none;
-    color: var(--ok);
-}
-
+/* An empty group (board 4): one line in a dashed box. */
 .dash-empty {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 14px 12px;
+    justify-content: center;
+    min-height: 56px;
+    padding: 0 16px;
+    border: 1px dashed var(--control-border);
+    border-radius: 8px;
     color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.dash-card-rows > .dash-empty {
+    margin: 12px;
 }
 
 .dash-footnote {
@@ -7055,28 +6837,33 @@ button:focus-visible,
     font-size: 12px;
 }
 
-.dash-card-count {
-    color: var(--muted);
-    font-size: 12.5px;
-    font-variant-numeric: tabular-nums;
+/* The heading of a group card (board 2): a dot, a 15 px title, a count, and a hint. */
+.dash-pr-card > .card-header {
+    min-height: 52px;
+    padding: 12px 12px 12px 20px;
+}
+
+.dash-pr-card .card-title {
+    font-size: 15px;
 }
 
 .dash-hint {
     min-width: 0;
     overflow: hidden;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 13px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+/* A list row (board 2): 44 px. The chips sit in a fixed order: discussion, CI or merge state, repository, age, action. */
 .dash-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 16px;
     width: 100%;
-    min-height: 38px;
-    padding: 0 12px;
+    min-height: 44px;
+    padding: 0 12px 0 20px;
     border: 0;
     background: transparent;
     color: var(--text);
@@ -7097,23 +6884,21 @@ button:focus-visible,
 
 /* The ticket column: one width, so the titles start at the same place on each row. */
 .dash-ticket {
+    display: flex;
     flex: none;
+    align-items: center;
     width: 96px;
     overflow: hidden;
     color: var(--muted);
     font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 11px;
+    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.dash-no-ticket {
-    padding: 0 5px;
-    border: 1px dashed color-mix(in srgb, var(--dash-warning) 60%, transparent);
-    border-radius: 4px;
-    color: var(--dash-warning);
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 11px;
+/* A row with no ticket shows a "No ticket" chip in the UI font. */
+.dash-ticket.none {
+    font-family: inherit;
 }
 
 .dash-title {
@@ -7125,36 +6910,34 @@ button:focus-visible,
     white-space: nowrap;
 }
 
-.dash-badges {
+/* The chips of a row: discussion, CI and merge state, then the repository. */
+.dash-chips {
     display: flex;
     flex: none;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
-.dash-badge {
-    padding: 0 6px;
-    border-radius: 4px;
-    font-size: 11.5px;
-    font-weight: 600;
-    line-height: 19px;
-    white-space: nowrap;
+/* A card of pull requests is a container. A narrow card puts the chips on a second line, so the title keeps its width. */
+.dash-pr-card {
+    container: dash-card / inline-size;
 }
 
-.dash-badge.ci-failing {
-    background: color-mix(in srgb, var(--danger) 16%, transparent);
-    color: var(--danger);
-}
+@container dash-card (max-width: 720px) {
+    .dash-pr-card .dash-row {
+        display: grid;
+        grid-template-columns: 96px minmax(0, 1fr) auto auto;
+        align-items: center;
+        column-gap: 12px;
+        row-gap: 6px;
+        padding-block: 8px;
+    }
 
-.dash-badge.conflicts {
-    background: color-mix(in srgb, var(--dash-warning) 16%, transparent);
-    color: var(--dash-warning);
-}
-
-.dash-unresolved {
-    color: var(--purple);
-    font-size: 12px;
-    white-space: nowrap;
+    .dash-pr-card .dash-row .dash-chips {
+        flex-wrap: wrap;
+        grid-row: 2;
+        grid-column: 2 / -1;
+    }
 }
 
 .dash-person {
@@ -7167,37 +6950,11 @@ button:focus-visible,
     white-space: nowrap;
 }
 
-/* The repository and number, in a pill. */
-.dash-repo {
-    flex: none;
-    max-width: 170px;
-    overflow: hidden;
-    padding: 1px 6px;
-    border-radius: 4px;
-    background: var(--raised);
-    color: var(--muted);
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 11px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* The age column: one width and right-aligned, so the ages line up. The color shows the urgency. */
+/* The age column: one width and right-aligned, so the ages line up. The Age component sets the color. */
 .dash-age {
     flex: none;
-    width: 30px;
-    color: var(--muted);
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
+    width: 32px;
     text-align: right;
-}
-
-.dash-age.aging {
-    color: var(--dash-warning);
-}
-
-.dash-age.old {
-    color: var(--danger);
 }
 
 .dash-row-action {
@@ -7241,40 +6998,17 @@ button:focus-visible,
 
 .dash-stale-preview {
     overflow: hidden;
-    padding: 0 14px 12px 36px;
+    padding: 0 16px 14px 42px;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-/* The review requests, in groups by author or repository. */
-.dash-chips {
+/* The review requests, in groups by author or repository. The sort is a segmented control. */
+.dash-review-sort {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 10px 12px;
-}
-
-.dash-chip {
-    padding: 3px 11px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: transparent;
-    color: var(--muted);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-}
-
-.dash-chip:hover {
-    color: var(--text-strong);
-}
-
-.dash-chip.on {
-    border-color: var(--muted);
-    background: var(--raised);
-    color: var(--text-strong);
+    padding: 12px;
 }
 
 .dash-review-group {
@@ -7289,7 +7023,7 @@ button:focus-visible,
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px 2px;
+    padding: 8px 12px 4px 20px;
     color: var(--text-strong);
     font-size: 13px;
 }
@@ -7309,12 +7043,8 @@ button:focus-visible,
     font-weight: 700;
 }
 
-.dash-review-row {
-    min-height: 32px;
-}
-
 .dash-review-row.indented {
-    padding-left: 40px;
+    padding-left: 48px;
 }
 
 .dash-review-seen {
@@ -7339,9 +7069,9 @@ button:focus-visible,
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 30px;
-    padding: 0 12px 0 28px;
-    font-size: 12.5px;
+    min-height: 36px;
+    padding: 0 12px 0 36px;
+    font-size: 13px;
     cursor: pointer;
 }
 
@@ -7351,7 +7081,7 @@ button:focus-visible,
 
 .dash-comment-head .group-chevron {
     position: absolute;
-    left: 10px;
+    left: 16px;
     color: var(--muted);
 }
 
@@ -7360,32 +7090,13 @@ button:focus-visible,
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--info);
+    background: var(--accent);
 }
 
 .dash-author {
     flex: none;
     color: var(--text);
     font-weight: 600;
-}
-
-.dash-tag {
-    flex: none;
-    padding: 0 6px;
-    border-radius: 4px;
-    background: var(--raised);
-    color: var(--muted);
-    font-size: 11px;
-}
-
-.dash-tag.approved {
-    background: color-mix(in srgb, var(--ok) 16%, transparent);
-    color: var(--ok);
-}
-
-.dash-tag.changes {
-    background: color-mix(in srgb, var(--danger) 16%, transparent);
-    color: var(--danger);
 }
 
 .dash-preview {
@@ -7415,7 +7126,7 @@ button:focus-visible,
 }
 
 .dash-comment-body {
-    padding: 0 12px 10px 28px;
+    padding: 0 12px 12px 36px;
     user-select: text;
 }
 
@@ -7525,18 +7236,6 @@ button:focus-visible,
     min-height: 0;
 }
 
-.notes-heading {
-    margin: 0 4px 0 0;
-    color: var(--text-strong);
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.notes-view .tasks-header-group.where {
-    align-items: center;
-    gap: 8px;
-}
-
 .notes-body {
     flex: 1;
     min-height: 0;
@@ -7557,7 +7256,7 @@ button:focus-visible,
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    padding: 4px 10px 8px;
+    padding: 4px 12px 8px;
     border-bottom: 1px solid var(--border);
     margin-bottom: 4px;
 }
@@ -7625,7 +7324,7 @@ button:focus-visible,
 }
 
 .note-row-tag {
-    color: var(--accent);
+    color: var(--text);
 }
 
 .note-pane {
@@ -7693,51 +7392,46 @@ button:focus-visible,
     margin-top: 6px;
 }
 
-.note-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 1px 4px 1px 7px;
-    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-    color: var(--accent);
-    font-size: 11.5px;
-}
-
 .note-tag button {
     display: grid;
     place-items: center;
+    margin-right: -4px;
     padding: 1px;
     border: 0;
-    border-radius: 50%;
+    border-radius: 4px;
     background: transparent;
     color: inherit;
     cursor: pointer;
 }
 
 .note-tag button:hover {
-    background: color-mix(in srgb, var(--accent) 25%, transparent);
+    background: var(--hover);
 }
 
-.note-tag.filter {
-    padding: 1px 7px;
-    font: inherit;
-    font-size: 11.5px;
-    cursor: pointer;
-    background: transparent;
-    border-color: var(--border);
+/* A tag filter of the note list: a 24 px toggle with the count badge. */
+.note-tag-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: var(--control-height-sm);
+    padding: 0 3px 0 8px;
+    border: 0;
+    border-radius: var(--control-radius);
+    background: var(--tone-neutral-bg);
     color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
 }
 
-.note-tag.filter span {
-    opacity: 0.7;
+.note-tag-filter:hover {
+    color: var(--text);
 }
 
-.note-tag.filter.on {
-    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-    color: var(--accent);
+.note-tag-filter.on {
+    background: var(--tone-info-bg);
+    color: var(--tone-info-text);
 }
 
 .tag-picker {
@@ -7748,13 +7442,16 @@ button:focus-visible,
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 1px 9px 1px 7px;
-    border: 1px dashed color-mix(in srgb, var(--text) 30%, transparent);
-    border-radius: 10px;
+    box-sizing: border-box;
+    height: 20px;
+    padding: 0 8px 0 6px;
+    border: 1px dashed var(--control-border);
+    border-radius: var(--control-radius);
     background: transparent;
     color: var(--muted);
     font: inherit;
-    font-size: 11.5px;
+    font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
 }
 
@@ -8025,18 +7722,6 @@ body.resizing-column * {
     height: calc(50% - 6px);
 }
 
-/* A tab with a split view: the number of its panes. */
-.tab-count {
-    min-width: 16px;
-    padding: 0 5px;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--text) 12%, transparent);
-    color: var(--muted);
-    font-size: 10.5px;
-    font-weight: 600;
-    text-align: center;
-}
-
 /* The buttons of a pane in a split. They show when the pointer is on the pane. */
 .pane-actions {
     position: absolute;
@@ -8075,6 +7760,10 @@ body.resizing-column * {
     flex-direction: column;
     height: 100%;
     min-height: 0;
+}
+
+.pipelines-repo-select {
+    max-width: 320px;
 }
 
 .pipelines-body {
@@ -8229,7 +7918,7 @@ body.resizing-column * {
     align-items: center;
     gap: 8px;
     color: var(--text-strong);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
 }
 
@@ -8269,11 +7958,13 @@ body.resizing-column * {
     background: var(--selected);
 }
 
-/* The log view fills its nearest positioned parent. */
+/* The log view fills its nearest positioned parent. The empty state fills the flex column. */
 .pipeline-log {
     position: relative;
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Dialogs */
@@ -8907,8 +8598,7 @@ body.resizing-column * {
 }
 
 .note-folder-count {
-    color: var(--muted);
-    font-size: 11px;
+    flex: none;
 }
 
 .note-folder-actions {
@@ -9397,6 +9087,100 @@ body.resizing-column * {
     gap: 5px;
 }
 
+/* The steps of the creation that runs now (NewWorktreeDialog.tsx). */
+.new-worktree-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--control-radius);
+    background: var(--panel);
+    list-style: none;
+    font-size: 12px;
+}
+
+.new-worktree-progress li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+}
+
+.new-worktree-progress li.running {
+    color: var(--text-strong);
+}
+
+.new-worktree-progress li.done svg {
+    color: var(--ok);
+}
+
+/* The notices of the worktree creations that continue without the dialog (WorktreeProgressNotices.tsx). */
+.worktree-progress-notices {
+    position: fixed;
+    right: 16px;
+    bottom: 36px;
+    z-index: 150;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(400px, calc(100vw - 32px));
+}
+
+.worktree-progress-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    background: var(--panel);
+    box-shadow: 0 12px 32px var(--shadow);
+    font-size: 12px;
+}
+
+.worktree-progress-icon {
+    flex: none;
+    color: var(--muted);
+}
+
+.worktree-progress-notice.ready .worktree-progress-icon {
+    color: var(--ok);
+}
+
+.worktree-progress-notice.failed .worktree-progress-icon {
+    color: var(--danger);
+}
+
+.worktree-progress-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.worktree-progress-text strong {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.worktree-progress-text span {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.worktree-progress-notice.failed .worktree-progress-text span {
+    white-space: normal;
+}
+
 .new-worktree-agent {
     margin-top: 14px;
 }
@@ -9475,8 +9259,10 @@ body.resizing-column * {
     right: 12px;
 }
 
+.app.sidebar-collapsed .page-header,
 .app.sidebar-collapsed .workspace-header,
 .app.sidebar-collapsed .tasks-header,
+.app.sidebar-collapsed .tasks-page-header,
 .app.sidebar-collapsed .agents-header {
     padding-left: var(--titlebar-inset);
 }
@@ -9502,16 +9288,6 @@ body.resizing-column * {
     min-height: 0;
     font-size: 13px;
     container-type: inline-size;
-}
-
-.gg-title {
-    color: var(--text-strong);
-    font-weight: 600;
-}
-
-.gg-count {
-    color: var(--muted);
-    font-size: 12px;
 }
 
 .gg-rows {
@@ -9589,17 +9365,22 @@ body.resizing-column * {
     }
 }
 
+/* A git ref is the only chip with an outline (docs/design, board 2). It has the chip size: 20 px, radius 6, and 12 px. */
 .gg-ref {
     flex: none;
+    box-sizing: border-box;
     max-width: 220px;
-    padding: 0 6px;
+    height: 20px;
+    padding: 0 7px;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--control-radius);
     background: var(--raised);
     color: var(--text);
-    font: inherit;
-    font-size: 11px;
-    line-height: 17px;
+    font:
+        500 12px "JetBrains Mono",
+        Menlo,
+        monospace;
+    line-height: 18px;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -9886,7 +9667,7 @@ button.gg-ref:hover {
 
 /* Settings › Mobile: the pairing QR code and the paired phones. */
 .port-input {
-    width: 90px;
+    width: 120px;
 }
 
 .fingerprint {
@@ -10060,14 +9841,6 @@ button.gg-ref:hover {
     color: var(--danger);
     white-space: pre-wrap;
     user-select: text;
-}
-
-.tag.agent-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-    color: var(--text-strong);
 }
 
 .zone-card.pending.needs-decision {
@@ -10380,17 +10153,13 @@ button.gg-ref:hover {
 }
 
 /* The icon spins while the pull request loads. The button does not fade. */
-.review-pr-actions .icon-button:disabled {
-    opacity: 1;
-}
-
 /* The strip below the title: review, checks, size and merge. */
 .pr-summary {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     margin-top: 18px;
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--card-radius);
     background: var(--raised);
     overflow: hidden;
 }
@@ -10467,7 +10236,8 @@ button.pr-summary-cell:hover {
 .tone-muted {
     color: var(--muted);
 }
-.tone-merged {
+.tone-merged,
+.pr-summary-value.tone-review {
     color: var(--purple);
 }
 
@@ -10489,26 +10259,19 @@ button.pr-summary-cell:hover {
     container-type: inline-size;
 }
 
-/* The count of the Checks tab shows the result of the checks. */
-.pr-tab-count {
+/* The count of the Checks tab. The icon after the count shows the result of the checks. */
+.pr-check-count {
     display: inline-flex;
     align-items: center;
     gap: 3px;
 }
 
-.pr-tab-count.success {
-    background: color-mix(in srgb, var(--ok) 18%, transparent);
+.pr-check-count.success {
     color: var(--ok);
 }
 
-.pr-tab-count.failure {
-    background: color-mix(in srgb, var(--danger) 18%, transparent);
+.pr-check-count.failure {
     color: var(--danger);
-}
-
-.pr-tab-count.pending {
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-    color: var(--accent);
 }
 
 .review-requested {
@@ -10726,16 +10489,6 @@ button.pr-summary-cell:hover {
     justify-content: center;
 }
 
-/* The Dashboard shows one centered loader until the first refresh completes. */
-.dash-first-load {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-    align-items: center;
-    justify-content: center;
-    padding-bottom: 48px;
-}
-
 /* The helm loader (HelmLoader). It uses the text styles of the sea loader. */
 .helm-loader-art {
     width: 112px;
@@ -10801,31 +10554,12 @@ button.pr-summary-cell:hover {
     overflow-y: auto;
 }
 
-.review-home-title {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 16px;
-    padding: 20px 20px 10px;
-}
-
-.review-home-title h2 {
-    margin: 0;
-    color: var(--text-strong);
-    font-size: 17px;
-    font-weight: 600;
-}
-
-.review-home-subtitle {
-    color: var(--muted);
-}
-
 .review-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 96px 96px 96px 72px 120px;
     align-items: center;
     gap: 12px;
-    padding: 10px 20px;
+    padding: 10px var(--gutter);
 }
 
 .review-grid-head,
@@ -10840,7 +10574,10 @@ button.pr-summary-cell:hover {
 }
 
 .review-section-title {
-    padding: 18px 20px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 18px var(--gutter) 8px;
 }
 
 .review-repo-row,
@@ -10895,7 +10632,7 @@ button.pr-summary-cell:hover {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 9px 20px;
+    padding: 9px var(--gutter);
 }
 
 .review-idle-name {
@@ -10910,48 +10647,8 @@ button.pr-summary-cell:hover {
     font-size: 12px;
 }
 
-.count-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 22px;
-    height: 20px;
-    padding: 0 7px;
-    border-radius: 10px;
-    font-size: 12px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-.count-pill.info {
-    background: color-mix(in srgb, var(--info) 20%, transparent);
-    color: var(--info);
-}
-
-.count-pill.accent {
-    background: color-mix(in srgb, var(--accent) 20%, transparent);
-    color: var(--accent);
-}
-
-.count-pill.plain {
-    background: var(--raised);
-    color: var(--text-strong);
-}
-
 .count-pill-none {
     color: var(--muted);
-}
-
-.review-age {
-    font-variant-numeric: tabular-nums;
-}
-
-.review-age.old {
-    color: var(--accent);
-}
-
-.review-age.stale {
-    color: var(--danger);
 }
 
 .checks-label {
@@ -10974,19 +10671,6 @@ button.pr-summary-cell:hover {
     color: var(--muted);
 }
 
-.review-queue-button {
-    flex: none;
-}
-
-.button-count {
-    min-width: 18px;
-    padding: 0 5px;
-    border-radius: 9px;
-    background: color-mix(in srgb, var(--bg) 25%, transparent);
-    font-size: 11px;
-    text-align: center;
-}
-
 /* The key hint in a search field, for example "/". */
 .field-key {
     padding: 0 5px;
@@ -11003,7 +10687,7 @@ button.pr-summary-cell:hover {
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 18px;
-    padding: 8px 20px;
+    padding: 8px var(--gutter);
     border-top: 1px solid var(--border);
     color: var(--muted);
     font-size: 12px;
@@ -11030,7 +10714,7 @@ button.pr-summary-cell:hover {
     display: flex;
     flex: none;
     gap: 4px;
-    padding: 0 12px;
+    padding: 0 calc(var(--gutter) - 10px);
     border-bottom: 1px solid var(--border);
 }
 
@@ -11074,10 +10758,6 @@ button.pr-summary-cell:hover {
     color: var(--info);
 }
 
-.review-pr-search {
-    flex: 0 1 380px;
-}
-
 .pr-row-since {
     display: flex;
     flex-wrap: wrap;
@@ -11090,7 +10770,7 @@ button.pr-summary-cell:hover {
     grid-template-columns: 16px minmax(0, 1fr) 110px 150px 56px 40px;
     align-items: start;
     gap: 12px;
-    padding: 12px 20px;
+    padding: 12px var(--gutter);
 }
 
 .pr-row-icon {
@@ -11138,16 +10818,6 @@ button.pr-summary-cell:hover {
     overflow-wrap: anywhere;
 }
 
-.ticket-chip {
-    flex: none;
-    padding: 0 5px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 11px;
-}
-
 .pr-row-meta {
     display: flex;
     flex-wrap: wrap;
@@ -11158,31 +10828,15 @@ button.pr-summary-cell:hover {
 }
 
 .pr-review-state.changes_requested {
-    color: var(--accent);
+    color: var(--purple);
 }
 .pr-review-state.approved {
     color: var(--ok);
 }
 
-.pr-action {
-    padding: 0 6px;
-    border-radius: 4px;
-    background: var(--raised);
-    color: var(--text);
-}
-
-.pr-action.changes-requested,
-.pr-action.ci-failing,
-.pr-action.conflicts {
-    color: var(--danger);
-}
-.pr-action.ready-to-merge {
-    color: var(--ok);
-}
-
 .pr-row-checks,
 .pr-row-comments,
-.pr-row .review-age {
+.pr-row-age {
     font-size: 12.5px;
     white-space: nowrap;
 }
@@ -11224,7 +10878,7 @@ button.pr-summary-cell:hover {
 
 .review-waiting-note {
     margin: 0;
-    padding: 16px 20px;
+    padding: 16px var(--gutter);
     color: var(--muted);
     font-size: 12.5px;
 }
@@ -11266,25 +10920,33 @@ button.pr-summary-cell:hover {
     min-height: 0;
 }
 
-.automations-view .settings-header h1 {
+/*
+ * The header of an open automation or plan: a back button, at the height of the page header (PageHeader.tsx).
+ * The header is also the title bar, so the window moves with it.
+ */
+.form-page-back {
     display: flex;
+    flex: none;
     align-items: center;
-    gap: 6px;
+    box-sizing: border-box;
+    height: var(--page-header-height);
+    padding: 0 12px 0 var(--gutter);
+    border-bottom: 1px solid var(--border);
+    -webkit-app-region: drag;
 }
 
-.automations-head-actions {
-    display: flex;
-    gap: 6px;
+.form-page-back button {
+    -webkit-app-region: no-drag;
+}
+
+.app.sidebar-collapsed .form-page-back {
+    padding-left: calc(var(--titlebar-inset) + 12px);
 }
 
 .automations-scroll {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-}
-
-.automations-page {
-    max-width: 860px;
 }
 
 .automations-intro {
@@ -11326,34 +10988,6 @@ button.pr-summary-cell:hover {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     user-select: text;
-}
-
-.automation-status {
-    display: inline-block;
-    margin-right: 6px;
-    padding: 1px 7px;
-    border-radius: 999px;
-    background: var(--raised);
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 500;
-}
-
-.automation-status.done {
-    color: var(--ok);
-}
-
-.automation-status.failed {
-    color: var(--danger);
-}
-
-.automation-status.running,
-.automation-status.held {
-    color: var(--info);
-}
-
-.automation-status.dry-run {
-    color: var(--purple);
 }
 
 /*
@@ -11962,12 +11596,6 @@ button.pr-summary-cell:hover {
     min-height: 0;
 }
 
-.plans-header h1 {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
 /* The "‹ Plans" button in the title bar of an open plan or automation. The icon aligns with the content below. */
 .view-back {
     margin-left: -12px;
@@ -11977,10 +11605,6 @@ button.pr-summary-cell:hover {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-}
-
-.plans-page {
-    max-width: 860px;
 }
 
 .plan-row {
@@ -11998,50 +11622,16 @@ button.pr-summary-cell:hover {
     background: var(--raised);
 }
 
-.plan-status,
-.step-status {
-    display: inline-block;
-    margin-right: 6px;
-    padding: 1px 7px;
-    border-radius: 999px;
-    background: var(--raised);
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 500;
-    white-space: nowrap;
-}
-
-.plan-status.running,
-.step-status.running {
-    color: var(--info);
-}
-
-.plan-status.paused,
-.step-status.attention {
-    color: var(--accent);
-}
-
-.plan-status.done,
-.step-status.done {
-    color: var(--ok);
-}
-
-.step-status.failed {
-    color: var(--danger);
-}
-
 /* One plan. The page has two columns: the idea and the steps at the left, the run panel at the right. */
 
 .flow-page {
-    /* Amber for a field that needs a change, in every theme. The themes have no warning color. */
-    --flow-warn: #e5a54b;
+    /* The color of a field that needs a change. */
+    --flow-warn: var(--warning);
     container-type: inline-size;
-    max-width: 1180px;
-    padding: 22px 32px 56px;
-}
-
-:root[data-mode="light"] .flow-page {
-    --flow-warn: #a8670f;
+    /* A form page: an 880 px column at the gutter (docs/design, finding 11). */
+    box-sizing: content-box;
+    max-width: var(--form-width);
+    padding: 24px var(--gutter) 56px;
 }
 
 .flow-header {
@@ -12054,12 +11644,6 @@ button.pr-summary-cell:hover {
     display: flex;
     align-items: center;
     gap: 10px;
-}
-
-.flow-title-row .plan-status {
-    margin-right: 0;
-    padding: 3px 10px;
-    font-size: 11.5px;
 }
 
 .flow-title,
@@ -12270,13 +11854,13 @@ button.pr-summary-cell:hover {
 .plan-section-head h3 {
     margin: 0;
     color: var(--text-strong);
-    font-size: 16px;
-    font-weight: 650;
+    font-size: 15px;
+    font-weight: 600;
 }
 
 .plan-section-note {
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .plan-steps {
@@ -12379,23 +11963,6 @@ button.pr-summary-cell:hover {
 .plan-step-title:focus {
     border-color: var(--accent);
     background: var(--bg);
-}
-
-.plan-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 9px;
-    border-radius: 999px;
-    background: var(--raised);
-    color: var(--muted);
-    font-size: 11.5px;
-    white-space: nowrap;
-}
-
-.plan-badge.stacked {
-    background: color-mix(in srgb, var(--ok) 13%, transparent);
-    color: var(--ok);
 }
 
 .select-button.plan-repo-select {
@@ -12999,30 +12566,47 @@ button.pr-summary-cell:hover {
 /* The empty state of a view (EmptyState): an icon, a title, one sentence and one action. */
 .empty-view {
     display: flex;
+    flex: 1;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
-    max-width: 440px;
-    margin: 90px auto 0;
-    padding: 0 16px;
+    justify-content: center;
+    align-self: stretch;
+    gap: 8px;
+    min-height: 0;
+    margin: 0 auto;
+    padding: 48px 24px;
     color: var(--muted);
+    font-size: 13px;
     text-align: center;
-}
-
-.empty-state > .empty-view {
-    margin-top: 0;
 }
 
 .empty-view.compact {
     gap: 6px;
-    margin: 24px auto;
+    padding: 24px 16px;
     font-size: 12.5px;
+}
+
+.empty-view-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin-bottom: 4px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--raised);
+    color: var(--text);
+}
+
+.empty-view.compact .empty-view-icon {
+    width: 32px;
+    height: 32px;
 }
 
 .empty-view h2 {
     margin: 0;
     color: var(--text-strong);
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
 }
 
@@ -13031,6 +12615,7 @@ button.pr-summary-cell:hover {
 }
 
 .empty-view p {
+    max-width: 340px;
     margin: 0;
     line-height: 1.5;
 }
@@ -13040,10 +12625,11 @@ button.pr-summary-cell:hover {
     flex-wrap: wrap;
     justify-content: center;
     gap: 8px;
-    margin-top: 4px;
+    margin-top: 8px;
 }
 
 .empty-view-hint {
+    margin-top: 4px;
     font-size: 12px;
 }
 
@@ -13076,9 +12662,8 @@ button.pr-summary-cell:hover {
 
 /* The card at the top of the Dashboard when no code review account is set up. */
 .dash-connect {
-    margin-bottom: 18px;
-    border: 1px dashed var(--border);
-    border-radius: 10px;
+    border: 1px dashed var(--control-border);
+    border-radius: var(--card-radius);
     background: var(--panel);
 }
 

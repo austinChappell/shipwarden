@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, Link, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, Link, ListChecks, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { pluralize } from '@shared/format';
 import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { Worktree } from '@shared/worktrees';
@@ -17,7 +18,8 @@ import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
 import { AGENT_REVIEW_TITLE } from './PullRequestReviewCard';
-import { Button, ButtonGroup, IconButton, SplitButton, type SplitMenuItem } from './ui';
+import { Button, ButtonGroup, Count, IconButton, SplitButton, type SplitMenuItem } from './ui';
+import { EmptyState } from './EmptyState';
 import { pullRequestKeyAction } from '@shared/shortcuts';
 import { HelmLoader } from './HelmLoader';
 import { FileExplorer } from './FileExplorer';
@@ -180,24 +182,21 @@ function Tab({ id, current, label, count, onSelect }: { id: ReviewTab; current: 
     );
 }
 
-/** The count of the Checks tab. Its color shows the result of the checks. */
+/** The count of the Checks tab: a neutral count badge. An icon after it shows a failed result or a passed result. */
 function CheckTabCount({ total, counts }: { total: number; counts: CheckCounts | undefined }) {
-    if (!counts || counts.total === 0) return <span className="pr-tab-count">{total}</span>;
+    if (!counts || counts.total === 0) return <Count value={total} />;
     if (counts.failed > 0)
         return (
-            <span className="pr-tab-count failure" title={`${counts.failed} failed`}>
-                {counts.total} <X size={11} strokeWidth={2.4} />
+            <span className="pr-check-count failure" title={`${counts.failed} failed`}>
+                <Count value={counts.total} />
+                <X size={12} strokeWidth={2.4} aria-hidden="true" />
             </span>
         );
-    if (counts.running > 0)
-        return (
-            <span className="pr-tab-count pending" title={`${counts.running} running`}>
-                {counts.total}
-            </span>
-        );
+    if (counts.running > 0) return <Count value={counts.total} label={`${counts.running} running`} />;
     return (
-        <span className="pr-tab-count success" title="All checks passed">
-            {counts.total} <Check size={11} strokeWidth={2.4} />
+        <span className="pr-check-count success" title="All checks passed">
+            <Count value={counts.total} />
+            <Check size={12} strokeWidth={2.4} aria-hidden="true" />
         </span>
     );
 }
@@ -507,7 +506,6 @@ export function ReviewPullRequest({
                             size="lg"
                         />
                         <IconButton
-                            variant="outline"
                             size="lg"
                             label="Refresh"
                             icon={<RefreshCw size={16} strokeWidth={1.6} className={loading ? 'spin' : ''} />}
@@ -521,8 +519,8 @@ export function ReviewPullRequest({
                     <ConflictBadge pr={pr} />
                     <span className="review-pr-summary">
                         <strong>{pr.author?.login ?? 'unknown'}</strong>{' '}
-                        {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} {pr.commitCount} commit
-                        {pr.commitCount === 1 ? '' : 's'} into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
+                        {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} {pluralize(pr.commitCount, 'commit')}{' '}
+                        into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
                         <span className="dot-separator">·</span>
                         opened {timeAgo(pr.createdAt)}
                         {syncedAt ? (
@@ -548,12 +546,9 @@ export function ReviewPullRequest({
                             <>
                                 <Bot size={13} strokeWidth={1.6} />
                                 <span>
-                                    {agentReview.agent} added {agentReview.comments} pending comment{agentReview.comments === 1 ? '' : 's'} and a summary to
-                                    your review
-                                    {agentReview.notes
-                                        ? ` (with ${agentReview.notes} note${agentReview.notes === 1 ? '' : 's'} that are not on a changed line)`
-                                        : ''}
-                                    . Accept or remove each comment, then submit the review as yourself.
+                                    {agentReview.agent} added {pluralize(agentReview.comments, 'pending comment')} and a summary to your review
+                                    {agentReview.notes ? ` (with ${pluralize(agentReview.notes, 'note')} that are not on a changed line)` : ''}. Accept or
+                                    remove each comment, then submit the review as yourself.
                                 </span>
                                 <Button variant="link" onClick={() => selectTab('files')}>
                                     Show comments
@@ -575,13 +570,13 @@ export function ReviewPullRequest({
 
             <nav className="pr-tabs" role="tablist">
                 <Tab id="overview" current={tab} onSelect={selectTab} label="Overview" />
-                <Tab id="commits" current={tab} onSelect={selectTab} label="Commits" count={<span className="pr-tab-count">{pr.commitCount}</span>} />
+                <Tab id="commits" current={tab} onSelect={selectTab} label="Commits" count={<Count value={pr.commitCount} />} />
                 <Tab id="checks" current={tab} onSelect={selectTab} label="Checks" count={<CheckTabCount total={pr.checkCount} counts={checkCounts} />} />
-                <Tab id="files" current={tab} onSelect={selectTab} label="Files changed" count={<span className="pr-tab-count">{pr.changedFiles}</span>} />
+                <Tab id="files" current={tab} onSelect={selectTab} label="Files changed" count={<Count value={pr.changedFiles} />} />
                 <span className="pr-tabs-spacer" />
                 {tab !== 'overview' && review.pending.length > 0 && pr.state === 'OPEN' && (
-                    <Button variant="primary" size="sm" className="pr-finish" onClick={() => selectTab('overview')}>
-                        Finish review <span className="pr-tab-count">{review.pending.length}</span>
+                    <Button variant="primary" className="pr-finish" onClick={() => selectTab('overview')}>
+                        Finish review <Count value={review.pending.length} tone="on-primary" />
                     </Button>
                 )}
             </nav>
@@ -642,7 +637,9 @@ export function ReviewPullRequest({
                             {check ? (
                                 <LogView key={check.id} target={repo} check={check} onSendToAgent={sendLogToAgent} />
                             ) : (
-                                <div className="panel-message">Select a check to read its log.</div>
+                                <EmptyState icon={ListChecks} title="No check selected">
+                                    Pick a check to read its log.
+                                </EmptyState>
                             )}
                         </div>
                     </>

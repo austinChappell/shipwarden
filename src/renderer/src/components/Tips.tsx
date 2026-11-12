@@ -53,16 +53,11 @@ export function InlineTip({ id, inset = false }: InlineTipProps) {
                 <strong id={titleId}>{tip.title}</strong>
                 <span>{tip.body}</span>
             </div>
-            {tip.action && (
-                <Button size="sm" onClick={() => tips.run(tip.action!)}>
-                    {tip.action.label}
-                </Button>
-            )}
+            {tip.action && <Button onClick={() => tips.run(tip.action!)}>{tip.action.label}</Button>}
             <IconButton
                 icon={<X size={14} strokeWidth={1.8} />}
                 label="Close the tip"
                 title="Close the tip. It does not show again."
-                size="sm"
                 onClick={() => tips.close(id)}
             />
         </aside>

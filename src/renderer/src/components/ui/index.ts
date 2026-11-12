@@ -7,6 +7,13 @@ export type { ButtonProps, ButtonVariant, ControlSize, IconButtonProps, IconButt
 export { ButtonGroup, SplitButton } from './ButtonGroup';
 export type { ButtonGroupTone, SplitMenuItem } from './ButtonGroup';
 export { Card, CardBody, CardFooter, CardHeader } from './Card';
+export { Chip, labelIndex, LABEL_COLORS } from './Chip';
+export type { ChipTone } from './Chip';
+export { Count } from './Count';
+export { FilterField } from './FilterField';
+export { PageHeader } from './PageHeader';
+export { SkeletonRows } from './Skeleton';
+export { Age } from './Age';
 export { Checkbox, Radio, Switch } from './Choice';
 export { Combobox, sortedGroups } from './Combobox';
 export type { ComboboxGroup, ComboboxItem } from './Combobox';

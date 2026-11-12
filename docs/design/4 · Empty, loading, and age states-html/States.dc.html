@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ShipWarden empty, loading and age states</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0F17}
+a{color:#7DB2F5}a:hover{color:#A9CBF8}
+.eb{margin:0;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#7A8599}
+.cap{margin:0;font-size:12px;color:#9AA4B5;line-height:1.5}
+.pane{height:360px;border:1px solid #222B3A;border-radius:10px;background:#0B0F17;overflow:hidden;display:flex;flex-direction:column}
+.ph{height:40px;flex:none;border-bottom:1px solid #222B3A;display:flex;align-items:center;padding:0 16px;font-size:12px;color:#7A8599}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:24px}
+.ico{width:40px;height:40px;border-radius:999px;background:#161D2B;border:1px solid #222B3A;display:flex;align-items:center;justify-content:center;color:#9AA4B5;margin-bottom:4px}
+.et{margin:0;font-size:15px;font-weight:600;color:#E6EAF2}
+.ed{margin:0;font-size:13px;color:#9AA4B5;max-width:340px;line-height:1.5}
+.btn{height:32px;padding:0 12px;border-radius:6px;font-family:inherit;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;border:0;background:#5B9DF0;color:#0A1324;cursor:pointer;margin-top:8px}
+.hint{margin:4px 0 0;font-size:12px;color:#7A8599}
+.sk{height:10px;border-radius:4px;background:#1A2130}
+.skr{display:flex;align-items:center;gap:16px;height:44px;padding:0 16px;border-bottom:1px solid #161D2B}
+.m{font-family:'JetBrains Mono',monospace}
+td,th{padding:0 16px;height:44px;text-align:left;border-bottom:1px solid #1A2130;font-size:13px}
+th{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#7A8599;height:36px}
+</style>
+</helmet>
+<div style="width: 1440px; min-height: 1320px; box-sizing: border-box; padding: 72px 80px; background: #0B0F17; color: #E6EAF2; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 40px">
+
+  <header style="display: flex; flex-direction: column; gap: 10px; max-width: 900px">
+    <p class="eb" style="color: #7DB2F5">Fix 06, 09</p>
+    <h1 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: -0.01em">Empty, loading, and age states</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #9AA4B5">Four kinds of “nothing here yet”, each with one look. Today they range from a centered illustration to grey text pinned in a corner.</p>
+  </header>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px">
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <p class="eb">1 · Pane is empty: Agents, worktree</p>
+      <div class="pane">
+        <div class="ph">Agents</div>
+        <div class="empty">
+          <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2M20 14h2M15 13v2M9 13v2"></path></svg></div>
+          <p class="et">No agents running</p>
+          <p class="ed">Agents from every project show here with their state.</p>
+          <button type="button" class="btn">Start agent</button>
+          <p class="hint">Or use “Start in worktree” on a task.</p>
+        </div>
+      </div>
+      <p class="cap">Icon in a 40px disc, 15/600 title, one line, primary button, optional hint. The button is a primary, not today's blue outline. The worktree view uses the same block with the path as the line.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <p class="eb">2 · Nothing selected: Notes, Pipelines</p>
+      <div class="pane">
+        <div class="ph">Run details</div>
+        <div class="empty">
+          <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="8" x="3" y="3" rx="2"></rect><path d="M7 11v4a2 2 0 0 0 2 2h4"></path><rect width="8" height="8" x="13" y="13" rx="2"></rect></svg></div>
+          <p class="et">No run selected</p>
+          <p class="ed">Pick a run to see its jobs and logs.</p>
+        </div>
+      </div>
+      <p class="cap">Same block, no button. Replaces “Select a note.” and “Select a run to see its jobs and logs.” sitting in the top-left corner.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <p class="eb">3 · Loading: Pipelines runs, Review, Tasks</p>
+      <div class="pane">
+        <div class="ph">Runs</div>
+        <div class="skr"><span style="width: 8px; height: 8px; border-radius: 999px; background: #1A2130"></span><span class="sk" style="width: 46%"></span><span style="flex: 1"></span><span class="sk" style="width: 72px"></span><span class="sk" style="width: 28px"></span></div>
+        <div class="skr"><span style="width: 8px; height: 8px; border-radius: 999px; background: #1A2130"></span><span class="sk" style="width: 38%"></span><span style="flex: 1"></span><span class="sk" style="width: 72px"></span><span class="sk" style="width: 28px"></span></div>
+        <div class="skr"><span style="width: 8px; height: 8px; border-radius: 999px; background: #1A2130"></span><span class="sk" style="width: 52%"></span><span style="flex: 1"></span><span class="sk" style="width: 72px"></span><span class="sk" style="width: 28px"></span></div>
+        <div class="skr"><span style="width: 8px; height: 8px; border-radius: 999px; background: #1A2130"></span><span class="sk" style="width: 34%"></span><span style="flex: 1"></span><span class="sk" style="width: 72px"></span><span class="sk" style="width: 28px"></span></div>
+        <div class="skr"><span style="width: 8px; height: 8px; border-radius: 999px; background: #1A2130"></span><span class="sk" style="width: 44%"></span><span style="flex: 1"></span><span class="sk" style="width: 72px"></span><span class="sk" style="width: 28px"></span></div>
+        <div class="skr" style="border-bottom: 0"><span style="width: 8px; height: 8px; border-radius: 999px; background: #1A2130"></span><span class="sk" style="width: 40%"></span><span style="flex: 1"></span><span class="sk" style="width: 72px"></span><span class="sk" style="width: 28px"></span></div>
+      </div>
+      <p class="cap">Skeleton rows in the shape and height of real rows (44px). Replaces “Loading runs...”. If a load passes 10 seconds, swap in an error empty state with a Retry button.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <p class="eb">4 · Empty group or column: Kanban, Dashboard groups</p>
+      <div class="pane" style="flex-direction: row; gap: 12px; padding: 16px; background: #0B0F17">
+        <div style="flex: 1; min-width: 0; background: #111723; border: 1px solid #222B3A; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600"><span style="width: 8px; height: 8px; border-radius: 999px; background: #8A6F5E"></span>planning<span style="flex: 1"></span><span style="height: 18px; min-width: 18px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: #1F2735; color: #B5BECC; font-size: 11px; display: inline-flex; align-items: center; justify-content: center">0</span></div>
+          <div style="height: 56px; border: 1px dashed #2E3A4D; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #7A8599">No tasks</div>
+        </div>
+        <div style="flex: 1; min-width: 0; background: #111723; border: 1px solid #222B3A; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600"><span style="width: 8px; height: 8px; border-radius: 999px; background: #E5A03A"></span>up next<span style="flex: 1"></span><span style="height: 18px; min-width: 18px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: #1F2735; color: #B5BECC; font-size: 11px; display: inline-flex; align-items: center; justify-content: center">1</span></div>
+          <div style="background: #161D2B; border: 1px solid #222B3A; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px">
+            <span class="m" style="font-size: 12px; color: #7A8599">ENG-11563</span>
+            <span style="font-size: 13px">Upgrade AWS SDK</span>
+            <span><span style="height: 20px; padding: 0 8px; box-sizing: border-box; border-radius: 6px; background: #3F5446; color: #C9D1DD; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center">api</span></span>
+          </div>
+        </div>
+      </div>
+      <p class="cap">Keep the dashed “No tasks” box; it's the right weight inside a list. Column counts use the neutral count badge, and labels switch to the label palette (shown on “api”).</p>
+    </div>
+  </div>
+
+  <section style="display: flex; flex-direction: column; gap: 12px">
+    <p class="eb">Ages and times · one format, one color rule</p>
+    <div style="border: 1px solid #222B3A; border-radius: 10px; overflow: hidden; background: #111723">
+      <table style="width: 100%; border-collapse: collapse">
+        <thead><tr><th>Age</th><th>In a column</th><th>In prose / meta</th><th>Tone</th><th>Where it shows today</th></tr></thead>
+        <tbody>
+          <tr><td>under 1 hour</td><td style="color: #7A8599">now · 12m</td><td style="color: #9AA4B5">12m ago</td><td><span style="font-size: 12px; color: #9AA4B5">muted</span></td><td style="color: #9AA4B5">Dashboard “Updated 1m ago”</td></tr>
+          <tr><td>under 1 day</td><td style="color: #7A8599">7h</td><td style="color: #9AA4B5">7h ago</td><td><span style="font-size: 12px; color: #9AA4B5">muted</span></td><td style="color: #9AA4B5">Repo graph shows “7 h ago” with a space</td></tr>
+          <tr><td>1–6 days</td><td style="color: #7A8599">2d</td><td style="color: #9AA4B5">2d ago</td><td><span style="font-size: 12px; color: #9AA4B5">muted</span></td><td style="color: #9AA4B5">Review “oldest waiting 1 day” spells it out</td></tr>
+          <tr><td>7–29 days</td><td style="color: #EDB765">12d · 4w</td><td style="color: #9AA4B5">4w ago</td><td><span style="height: 20px; padding: 0 8px; border-radius: 6px; background: rgba(229,160,58,.16); color: #EDB765; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center">warning</span></td><td style="color: #9AA4B5">Dashboard 4w is red today</td></tr>
+          <tr><td style="border-bottom: 0">30 days and up</td><td style="color: #F59A9A; border-bottom: 0">8w · 18w</td><td style="color: #9AA4B5; border-bottom: 0">8w ago</td><td style="border-bottom: 0"><span style="height: 20px; padding: 0 8px; border-radius: 6px; background: rgba(239,107,107,.16); color: #F59A9A; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center">danger</span></td><td style="color: #9AA4B5; border-bottom: 0">Matches the “Stale 30d+” tile; Review's Oldest column is all red today</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">Color only the age in columns; prose stays secondary text. One <span class="m">formatAge()</span> and one <span class="m">ageTone()</span> helper cover every screen.</p>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1320}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

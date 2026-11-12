@@ -1,8 +1,8 @@
-import { ExternalLink, LoaderCircle, Trash2 } from 'lucide-react';
+import { ExternalLink, Trash2 } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { timeAgo } from '../../util';
 import { openLink } from '../../links';
-import { Button, IconButton, Select } from '../ui';
+import { Button, IconButton, Select, SkeletonRows } from '../ui';
 import { editableParts, formatField } from './task-view-logic';
 import { FieldRow, StatusDot } from './TaskParts';
 import { TaskActions } from './TaskActions';
@@ -58,11 +58,7 @@ export function TaskDetails({
     const editable = detail ? editableParts(detail, source.capabilities) : {};
     return (
         <>
-            {selectedId && !detail && !detailError && (
-                <div className="panel-message">
-                    <LoaderCircle size={14} className="spin" /> Loading…
-                </div>
-            )}
+            {selectedId && !detail && !detailError && <SkeletonRows count={4} dot={false} label="Loading the task" />}
             {detailError && <div className="form-error task-detail-error">{detailError}</div>}
             {detail && (
                 <div className="task-detail-scroll">
