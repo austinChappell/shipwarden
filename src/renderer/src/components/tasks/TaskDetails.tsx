@@ -148,7 +148,13 @@ export function TaskDetails({
                                 onChange={(id, value) => state.updateTask({ customField: { id, value } })}
                                 loadOptions={state.loadOptions}
                             />
-                            <RelatedTasksSection details={detail.details} findTask={findTask} onOpenTask={onOpenTask} />
+                            <RelatedTasksSection
+                                details={detail.details}
+                                findTask={findTask}
+                                onOpenTask={onOpenTask}
+                                busy={busy}
+                                onAddSubtask={source.capabilities.create && source.capabilities.subtasks ? state.addSubtask : undefined}
+                            />
                             <ChecklistsSection
                                 checklists={detail.details?.checklists}
                                 busy={busy}

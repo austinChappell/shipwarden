@@ -292,7 +292,7 @@ runPlugin({
         log(`ClickUp plugin ready for ${teams.map(team => `"${team.name}"`).join(', ')}.`);
         return {
             // The assignee filter of ShipWarden selects the people in the loaded tasks, so the filters select only open or closed tasks.
-            capabilities: { edit: true },
+            capabilities: { edit: true, subtasks: true },
             filters: [
                 { id: 'open', label: 'Open tasks', default: true },
                 { id: 'closed', label: 'Closed tasks' },
@@ -341,6 +341,22 @@ runPlugin({
 
     async getTask({ id }) {
         return loadTask(id);
+    },
+
+    /**
+     * Makes a task in a ClickUp list. With `parent`, the task is a subtask. ClickUp needs a subtask in the list of
+     * its parent, so the plugin uses that list and not `collection`.
+     */
+    async createTask({ collection, title, description, status, parent }) {
+        const name = String(title ?? '').trim();
+        if (!name) throw new Error('A task must have a title.');
+        const listId = parent ? (await placeOf(parent)).listId : collection;
+        if (!listId) throw new Error('Select a ClickUp list.');
+        const body = { name, ...(description ? { markdown_content: description } : {}), ...(status ? { status } : {}), ...(parent ? { parent } : {}) };
+        const created = await clickup('POST', `/list/${listId}/task`, body);
+        rememberPlace(created);
+        // The response is the new task without its Markdown description. The plugin knows the description, so it sends no second request.
+        return { ...fullTask(created), description: description ?? '' };
     },
 
     /**

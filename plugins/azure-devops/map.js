@@ -148,6 +148,45 @@ export function visibleTypes(types, categories) {
     return (types ?? []).filter(type => !type.isDisabled && !hidden.has(type.name.toLowerCase())).map(type => type.name);
 }
 
+/**
+ * Returns the type of a new work item from the work item type categories of the project. A subtask gets the default
+ * type of "Microsoft.TaskCategory" (for example "Task"). Another work item gets the default type of
+ * "Microsoft.RequirementCategory" (for example "User Story", "Product Backlog Item" or "Issue").
+ * Without the category, the result is the first visible type.
+ */
+export function newItemType(categories, types, subtask) {
+    const reference = subtask ? 'Microsoft.TaskCategory' : 'Microsoft.RequirementCategory';
+    const category = (categories ?? []).find(item => item.referenceName === reference);
+    const name = category?.defaultWorkItemType?.name ?? category?.workItemTypes?.[0]?.name;
+    if (name) return name;
+    if (types?.length) return types[0];
+    throw new Error('The project has no work item type for a new work item.');
+}
+
+/** The relation types of the work item hierarchy. "Forward" points to a child. "Reverse" points to the parent. */
+export const CHILD_RELATION = 'System.LinkTypes.Hierarchy-Forward';
+export const PARENT_RELATION = 'System.LinkTypes.Hierarchy-Reverse';
+
+/** Returns the work item ID at the end of a relation URL, for example ".../_apis/wit/workItems/42". */
+function relationId(url) {
+    const match = /\/workItems\/(\d+)$/i.exec(String(url ?? ''));
+    return match ? Number(match[1]) : undefined;
+}
+
+/** Returns the parent ID and the child IDs of a work item from its relations. The work item must have "$expand=relations". */
+export function hierarchyIds(item) {
+    const relations = item.relations ?? [];
+    const parent = relations
+        .filter(relation => relation.rel === PARENT_RELATION)
+        .map(relation => relationId(relation.url))
+        .find(Boolean);
+    const children = relations
+        .filter(relation => relation.rel === CHILD_RELATION)
+        .map(relation => relationId(relation.url))
+        .filter(Boolean);
+    return { parent, children };
+}
+
 /** Puts a text in single quotes for WIQL. WIQL escapes a single quote with a second single quote. */
 export function wiqlString(value) {
     return `'${String(value).replace(/'/g, "''")}'`;

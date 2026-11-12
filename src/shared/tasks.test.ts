@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    addSubtask,
     applyStartStatus,
     assigneeOptions,
     ME,
@@ -356,5 +357,17 @@ describe('assigneeOptions', () => {
                 { id: '2', name: 'Zoe' }
             ])
         ).toEqual([{ id: '1', name: 'Ana Ruiz', avatarUrl: 'pic' }, { name: 'Bo Chen' }, { name: 'sam Lee' }, { id: '2', name: 'Zoe' }]);
+    });
+
+    it('adds a new subtask to the details of its parent one time', () => {
+        const status = { id: 'open', name: 'Open', category: 'todo' as const };
+        const subtask = { id: '2', key: 'T-2', title: 'Child', status, description: 'Text', labels: [] };
+        const once = addSubtask({ dueDate: '2026-12-01', subtasks: [{ id: '1' }] }, subtask);
+        expect(once).toEqual({
+            dueDate: '2026-12-01',
+            subtasks: [{ id: '1' }, { id: '2', key: 'T-2', title: 'Child', url: undefined, status, assignees: undefined }]
+        });
+        expect(addSubtask(once, subtask).subtasks).toHaveLength(2);
+        expect(addSubtask(undefined, subtask).subtasks?.map(item => item.id)).toEqual(['2']);
     });
 });

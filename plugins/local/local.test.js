@@ -175,6 +175,24 @@ describe('Local tasks handlers', () => {
         await expect(handlers.listTasks({ collection: '/elsewhere' })).rejects.toThrow('not in a ShipWarden project');
     });
 
+    it('makes subtasks, shows them in the details of the parent, and keeps them when the parent is deleted', async () => {
+        const handlers = await start();
+        expect((await handlers.initialize({ settings: {}, context: { repositories: [{ root: repo }] } })).capabilities).toMatchObject({ subtasks: true });
+        const parent = await handlers.createTask({ collection: repo, title: 'Parent' });
+        // The subtask goes into the file of the parent, also when the collection is different.
+        const child = await handlers.createTask({ collection: '/elsewhere', title: 'Child', parent: parent.id });
+        expect(child.details.parent).toMatchObject({ id: parent.id, key: 'T-1', title: 'Parent' });
+        expect((await handlers.getTask({ id: parent.id })).details.subtasks).toEqual([
+            { id: child.id, key: 'T-2', title: 'Child', status: expect.objectContaining({ id: 'to-do' }) }
+        ]);
+        // A change returns the task with its subtasks.
+        expect((await handlers.updateTask({ id: parent.id, title: 'Parent 2' })).details.subtasks).toHaveLength(1);
+        await expect(handlers.createTask({ collection: repo, title: 'Orphan', parent: `${repo}#99` })).rejects.toThrow('does not exist');
+
+        await handlers.deleteTask({ id: parent.id });
+        expect((await handlers.getTask({ id: child.id })).details.parent).toBeUndefined();
+    });
+
     it('creates, edits, moves, comments on and deletes a task', async () => {
         const handlers = await start();
         const created = await handlers.createTask({ collection: repo, title: '  Fix   login ', description: 'Steps' });

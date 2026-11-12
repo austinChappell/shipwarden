@@ -104,6 +104,19 @@ export interface TaskUpdate {
     checklistItem?: { id: string; done: boolean };
 }
 
+/**
+ * The params of tasks/create. `status` is a status ID. Without it, the plugin uses the first status of the workflow.
+ * `parent` is the ID of the parent task. Only a plugin with the capability "subtasks" gets it. The plugin puts the
+ * subtask in the place of the parent, for example its ClickUp list.
+ */
+export interface TaskCreate {
+    collection: string;
+    title: string;
+    description?: string;
+    status?: string;
+    parent?: string;
+}
+
 /** A reference to another task, for example a subtask or a dependency. The view shows the ID when the title is absent. */
 export interface TaskRef {
     id: string;
@@ -282,6 +295,17 @@ export interface ConnectionChange {
     startStatus?: string | null;
 }
 
+/** Returns a reference to a task, for the subtasks of its parent. */
+export function taskRef(task: Task): TaskRef {
+    return { id: task.id, key: task.key, title: task.title, url: task.url, status: task.status, assignees: task.assignees };
+}
+
+/** Adds a new subtask to the details of its parent. A subtask that the details have already does not show two times. */
+export function addSubtask(details: TaskDetails | undefined, subtask: Task): TaskDetails {
+    const subtasks = (details?.subtasks ?? []).filter(item => item.id !== subtask.id);
+    return { ...details, subtasks: [...subtasks, taskRef(subtask)] };
+}
+
 /** Returns the status of a task with the name of the start status, without case. Undefined when the task has no such status. */
 export function findStartStatus(statuses: readonly TaskStatus[], wanted: string | undefined): TaskStatus | undefined {
     const name = wanted?.trim().toLowerCase();
@@ -360,6 +384,8 @@ export interface TaskSource {
         edit?: boolean;
         /** "tasks/delete": the view shows a button that deletes a task. */
         delete?: boolean;
+        /** "tasks/create" accepts `parent`: the task details show a button that makes a subtask. */
+        subtasks?: boolean;
         statuses?: boolean;
         statusOrder?: boolean;
         comments?: boolean;

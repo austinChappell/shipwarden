@@ -12,6 +12,12 @@ export const ISSUE_FIELDS = `
     team { id key }
 `;
 
+/** The GraphQL fields of a related issue (the parent or a sub-issue) that `toRef` reads. */
+const REF_FIELDS = 'id identifier title url state { id name color type position } assignee { id name displayName avatarUrl }';
+
+/** The GraphQL fields of an issue for tasks/get: the fields of `ISSUE_FIELDS`, the description, the parent and the sub-issues. */
+export const FULL_ISSUE_FIELDS = `${ISSUE_FIELDS} description parent { ${REF_FIELDS} } children(first: 100) { nodes { ${REF_FIELDS} } }`;
+
 /** The GraphQL fields of a comment that `toComment` reads. */
 export const COMMENT_FIELDS = `
     id body createdAt
@@ -95,6 +101,28 @@ export function toLabel(label) {
     return { id: label.id, name: label.name, color: label.color || undefined };
 }
 
+/** Converts a related issue (the parent or a sub-issue) to a task reference. */
+export function toRef(issue) {
+    return {
+        id: issue.id,
+        key: issue.identifier,
+        title: issue.title,
+        url: issue.url,
+        ...(issue.state ? { status: toStatus(issue.state) } : {}),
+        assignees: issue.assignee ? [toPerson(issue.assignee)] : []
+    };
+}
+
+/** The details of an issue from `FULL_ISSUE_FIELDS`: the due date, the parent and the sub-issues. */
+export function toDetails(issue) {
+    const subtasks = (issue.children?.nodes ?? []).map(toRef);
+    return {
+        ...(issue.dueDate ? { dueDate: issue.dueDate } : {}),
+        ...(issue.parent ? { parent: toRef(issue.parent) } : {}),
+        ...(subtasks.length ? { subtasks } : {})
+    };
+}
+
 /**
  * Converts an issue to a task. `withDescription` also adds the description, the details and the editable parts.
  * Only tasks/get and tasks/update use it.
@@ -119,7 +147,7 @@ export function toTask(issue, { withDescription = false } = {}) {
             estimate: issue.estimate ?? null,
             dueDate: issue.dueDate ?? null
         },
-        ...(withDescription ? { details: { ...(issue.dueDate ? { dueDate: issue.dueDate } : {}) }, editable: EDITABLE } : {})
+        ...(withDescription ? { details: toDetails(issue), editable: EDITABLE } : {})
     };
 }
 

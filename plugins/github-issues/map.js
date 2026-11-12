@@ -74,6 +74,18 @@ export function toTask(issue, { withDescription = false, editable } = {}) {
     };
 }
 
+/** Converts an issue to a task reference, for the parent and the sub-issues. */
+export function toRef(issue) {
+    const task = toTask(issue);
+    return { id: task.id, key: task.key, title: task.title, url: task.url, status: task.status, assignees: task.assignees };
+}
+
+/** Returns "owner/name#number" from the API URL of an issue, for example "https://api.github.com/repos/o/r/issues/3". */
+export function issueIdFromUrl(url) {
+    const match = /\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/.exec(String(url ?? ''));
+    return match ? `${match[1]}#${match[2]}` : undefined;
+}
+
 /** Converts a GitHub user to a person or an option. The ID is the login, because the REST API assigns issues by login. */
 export function toPerson(user) {
     return { id: user.login, name: user.login, avatarUrl: user.avatar_url };

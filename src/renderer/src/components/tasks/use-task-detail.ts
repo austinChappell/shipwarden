@@ -1,16 +1,29 @@
 import { useEffect, useState, type SetStateAction } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CommentInput, OptionPart, Task, TaskComment, TaskOptions, TaskSource, TaskStatus, TaskUpdate } from '@shared/tasks';
+import {
+    addSubtask as withSubtask,
+    type CommentInput,
+    type OptionPart,
+    type Task,
+    type TaskComment,
+    type TaskCreate,
+    type TaskOptions,
+    type TaskSource,
+    type TaskStatus,
+    type TaskUpdate
+} from '@shared/tasks';
 import { taskSeenKey } from '@shared/dashboard';
 import { errorText, optionalErrorText } from '../../util';
 import { seenStore } from '../../seen-store';
-import { alertDialog, confirmDialog } from '../ConfirmDialog';
-import { addLabelOptions, listPatch, patchTask, removeTask, taskQueryKeys, type CachedDetail } from './task-view-logic';
+import { alertDialog, confirmDialog, promptDialog } from '../ConfirmDialog';
+import { addLabelOptions, listPatch, patchTask, prependTask, removeTask, taskQueryKeys, type CachedDetail } from './task-view-logic';
 import type { TaskRequest } from './use-task-source';
 
 interface Options {
     source: TaskSource | null | undefined;
     selectedId: string | undefined;
+    /** The selected collection. A new subtask goes into the collection of its parent, but the request needs a collection. */
+    collection: string | undefined;
     setSelectedId(id: string | undefined): void;
     request: TaskRequest;
     setTasks(update: SetStateAction<Task[] | undefined>): void;
@@ -28,7 +41,7 @@ const OPTIONS_STALE_MS = 5 * 60 * 1000;
 const NO_COMMENTS: TaskComment[] = [];
 
 /** The details of the selected task, its statuses and comments, and the actions on the task. */
-export function useTaskDetail({ source, selectedId, setSelectedId, request, setTasks, loadTasks }: Options) {
+export function useTaskDetail({ source, selectedId, collection, setSelectedId, request, setTasks, loadTasks }: Options) {
     const queryClient = useQueryClient();
     const detailKey = taskQueryKeys.detail(source?.connectionId, selectedId);
     const [commentText, setCommentText] = useState('');
@@ -157,6 +170,22 @@ export function useTaskDetail({ source, selectedId, setSelectedId, request, setT
         return undefined;
     };
 
+    /**
+     * Asks for a title and makes a subtask of the open task. The subtask goes into the details of the parent and into
+     * the task list, so no request loads them again. The parent stays open, so the user can add more subtasks.
+     */
+    const addSubtask = () =>
+        detail &&
+        act(async () => {
+            const title = (await promptDialog({ title: 'New subtask', placeholder: 'Title', confirmLabel: 'Create' }))?.trim();
+            if (!title) return;
+            const params: TaskCreate = { collection: collection ?? '', title, parent: detail.id };
+            const created = await request<Task>('tasks/create', params);
+            patchDetail(current => ({ ...current, task: { ...current.task, details: withSubtask(current.task.details, created) } }));
+            // The list shows the subtask only when the parent is in it. A parent from another collection can be open.
+            setTasks(list => (list?.some(task => task.id === detail.id) ? prependTask(list, created) : list));
+        });
+
     const deleteTask = () =>
         detail &&
         act(async () => {
@@ -192,6 +221,7 @@ export function useTaskDetail({ source, selectedId, setSelectedId, request, setT
         runAction,
         saveEdit,
         saveTitle,
+        addSubtask,
         deleteTask,
         showIfOpen
     };

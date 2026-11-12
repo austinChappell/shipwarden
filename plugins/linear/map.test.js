@@ -237,4 +237,19 @@ describe('Linear mapping', () => {
             { id: 'u2', name: 'zoe', avatarUrl: undefined }
         ]);
     });
+
+    it('maps the parent and the sub-issues to the details', () => {
+        const ref = (id, identifier) => ({
+            id,
+            identifier,
+            title: `Issue ${identifier}`,
+            url: `https://linear.app/x/${identifier}`,
+            state: state('Todo', 'unstarted', 1)
+        });
+        const details = linear.toDetails({ dueDate: '2026-12-01', parent: ref('p', 'ENG-1'), children: { nodes: [ref('c', 'ENG-3')] } });
+        expect(details.dueDate).toBe('2026-12-01');
+        expect(details.parent).toMatchObject({ id: 'p', key: 'ENG-1', title: 'Issue ENG-1', status: { category: 'todo' }, assignees: [] });
+        expect(details.subtasks.map(task => task.key)).toEqual(['ENG-3']);
+        expect(linear.toDetails({ children: { nodes: [] } })).toEqual({});
+    });
 });

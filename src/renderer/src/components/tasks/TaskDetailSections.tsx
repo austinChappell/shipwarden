@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, ChevronRight, ExternalLink, FileText, Pencil, Star } from 'lucide-react';
+import { Check, ChevronRight, ExternalLink, FileText, Pencil, Plus, Star } from 'lucide-react';
 import type {
     CustomFieldValue,
     EditableParts,
@@ -327,31 +327,41 @@ interface RelatedProps {
     details: TaskDetails | undefined;
     findTask(id: string): Task | undefined;
     onOpenTask(id: string): void;
+    busy?: boolean;
+    /** Makes a subtask. Without it, the Subtasks card shows only when the task has subtasks. */
+    onAddSubtask?(): void;
 }
 
-/** The parent task, the subtasks and the linked tasks. */
-export function RelatedTasksSection({ details, findTask, onOpenTask }: RelatedProps) {
-    if (!details) return null;
+/** The parent task, the subtasks and the linked tasks. With `onAddSubtask`, the Subtasks card always shows and has an add button. */
+export function RelatedTasksSection({ details, findTask, onOpenTask, busy = false, onAddSubtask }: RelatedProps) {
     const groups: { title: string; count?: string; tasks: TaskRef[] }[] = [];
-    if (details.parent) groups.push({ title: 'Parent task', tasks: [details.parent] });
-    if (details.subtasks?.length) {
-        const done = details.subtasks.filter(task => {
+    if (details?.parent) groups.push({ title: 'Parent task', tasks: [details.parent] });
+    const subtasks = details?.subtasks ?? [];
+    if (subtasks.length || onAddSubtask) {
+        const done = subtasks.filter(task => {
             const category = (task.status ?? findTask(task.id)?.status)?.category;
             return category === 'done' || category === 'canceled';
         }).length;
-        groups.push({ title: 'Subtasks', count: `${done}/${details.subtasks.length}`, tasks: details.subtasks });
+        groups.push({ title: 'Subtasks', count: subtasks.length ? `${done}/${subtasks.length}` : undefined, tasks: subtasks });
     }
     for (const relation of ['blocked_by', 'blocks', 'related'] as const) {
-        const tasks = (details.links ?? []).filter(link => link.relation === relation).map(link => link.task);
+        const tasks = (details?.links ?? []).filter(link => link.relation === relation).map(link => link.task);
         if (tasks.length) groups.push({ title: RELATION_TITLES[relation], tasks });
     }
+    const addButton = onAddSubtask && (
+        <IconButton size="sm" icon={<Plus size={14} strokeWidth={1.8} />} label="Add a subtask" disabled={busy} onClick={onAddSubtask} />
+    );
     return groups.map(group => (
-        <TaskCard key={group.title} title={group.title} count={group.count}>
-            <div className="task-refs">
-                {group.tasks.map(task => (
-                    <TaskRefRow key={task.id} task={task} known={findTask(task.id)} onOpenTask={onOpenTask} />
-                ))}
-            </div>
+        <TaskCard key={group.title} title={group.title} count={group.count} actions={group.title === 'Subtasks' ? addButton : undefined}>
+            {group.tasks.length > 0 ? (
+                <div className="task-refs">
+                    {group.tasks.map(task => (
+                        <TaskRefRow key={task.id} task={task} known={findTask(task.id)} onOpenTask={onOpenTask} />
+                    ))}
+                </div>
+            ) : (
+                <div className="task-field-empty">No subtasks.</div>
+            )}
         </TaskCard>
     ));
 }
