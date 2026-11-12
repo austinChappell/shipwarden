@@ -111,14 +111,37 @@ export const PRIORITIES = [
 /** The parts of a local task that tasks/update can change. */
 export const EDITABLE = { title: true, description: true, labels: true, priority: true, startDate: true, dueDate: true, timeEstimate: true };
 
-/** Converts a stored task to a protocol task. `withDescription`: the result of tasks/get, with the details. */
-export function toTask(stored, collection, statuses, { withDescription = false } = {}) {
+/**
+ * Returns the parent and the subtasks of a stored task as task references. `tasks` are all stored tasks of the file.
+ * A stored subtask has the number of its parent in `parent`.
+ */
+export function relatedTasks(stored, tasks, collection, statuses) {
+    const ref = task => ({
+        id: taskId(collection, task.number),
+        key: `${KEY_PREFIX}-${task.number}`,
+        title: task.title,
+        status: statusFor(statuses, task.status)
+    });
+    const parent = stored.parent ? tasks.find(task => task.number === stored.parent) : undefined;
+    const subtasks = tasks
+        .filter(task => task.parent === stored.number)
+        .sort((a, b) => a.number - b.number)
+        .map(ref);
+    return { ...(parent ? { parent: ref(parent) } : {}), ...(subtasks.length ? { subtasks } : {}) };
+}
+
+/**
+ * Converts a stored task to a protocol task. `withDescription`: the result of tasks/get, with the details.
+ * `tasks`: all stored tasks of the file. The details then have the parent and the subtasks.
+ */
+export function toTask(stored, collection, statuses, { withDescription = false, tasks } = {}) {
     const priority = PRIORITIES.find(item => item.id === String(stored.priority));
     // The field "createdAt" shows the time of creation, so the details do not have it.
     const details = {
         startDate: stored.startDate,
         dueDate: stored.dueDate,
-        timeEstimate: stored.timeEstimate
+        timeEstimate: stored.timeEstimate,
+        ...(tasks ? relatedTasks(stored, tasks, collection, statuses) : {})
     };
     return {
         id: taskId(collection, stored.number),

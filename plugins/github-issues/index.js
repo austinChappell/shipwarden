@@ -4,6 +4,7 @@ import { log, networkDetail, runPlugin } from '../sdk/index.js';
 import {
     editableParts,
     issueChange,
+    issueIdFromUrl,
     labelOption,
     loadPages,
     missingLabels,
@@ -13,6 +14,7 @@ import {
     toCollections,
     toComment,
     toPerson,
+    toRef,
     toTask
 } from './map.js';
 
@@ -121,9 +123,38 @@ function permissionsOrNone(repo) {
     });
 }
 
-/** Converts an issue to a task with the description and the editable parts. */
-function fullTask(issue, permissions) {
-    return toTask(issue, { withDescription: true, editable: editableParts(issue, permissions, login) });
+/** Returns the parent issue of an issue, or undefined. GitHub returns 404 when the issue has no parent. */
+async function parentOf(issue, path) {
+    // Newer API responses have "parent_issue_url". Then the plugin needs a request only when the issue has a parent.
+    if ('parent_issue_url' in issue) {
+        const id = issueIdFromUrl(issue.parent_issue_url);
+        return id ? github('GET', issuePath(id)) : undefined;
+    }
+    return github('GET', `${path}/parent`).catch(error => {
+        if (!/ 404 /.test(error.message)) log(`The plugin cannot read the parent of ${path}: ${error.message}`);
+        return undefined;
+    });
+}
+
+/** Returns the parent and the sub-issues of an issue for the task details. A failure gives no details and no error. */
+async function relationsOf(issue, path) {
+    const [parent, subIssues] = await Promise.all([
+        parentOf(issue, path).catch(() => undefined),
+        // "sub_issues_summary" gives the number of sub-issues, so an issue without them needs no request.
+        issue.sub_issues_summary?.total
+            ? github('GET', `${path}/sub_issues?per_page=100`).catch(error => {
+                  log(`The plugin cannot read the sub-issues of ${path}: ${error.message}`);
+                  return [];
+              })
+            : []
+    ]);
+    return { ...(parent ? { parent: toRef(parent) } : {}), ...(subIssues.length ? { subtasks: subIssues.map(toRef) } : {}) };
+}
+
+/** Converts an issue to a task with the description, the details and the editable parts. */
+async function fullTask(issue, permissions, path) {
+    const details = await relationsOf(issue, path);
+    return { ...toTask(issue, { withDescription: true, editable: editableParts(issue, permissions, login) }), details };
 }
 
 /**
@@ -159,7 +190,7 @@ runPlugin({
         return {
             // Without a GitHub repository in the projects, the user selects a repository. ShipWarden does not select
             // the first repository of the list, because it has nothing to do with the projects.
-            capabilities: { defaultCollectionOnly: true, edit: true },
+            capabilities: { defaultCollectionOnly: true, edit: true, subtasks: true },
             fields: [
                 { id: 'author', label: 'Author', type: 'text' },
                 { id: 'milestone', label: 'Milestone', type: 'text' },
@@ -221,7 +252,35 @@ runPlugin({
     async getTask({ id }) {
         const { repo } = parseTaskId(id, projectRepos[0]);
         const [issue, permissions] = await Promise.all([github('GET', issuePath(id)), permissionsOrNone(repo)]);
-        return fullTask(issue, permissions);
+        return fullTask(issue, permissions, issuePath(id));
+    },
+
+    /**
+     * Makes an issue in a repository. With `parent`, the issue goes into the repository of the parent and becomes
+     * its sub-issue. GitHub links a sub-issue by its database ID, not by its number.
+     */
+    async createTask({ collection, title, description, parent }) {
+        const name = String(title ?? '').trim();
+        if (!name) {
+            throw new Error('An issue must have a title.');
+        }
+        const repo = parent ? parseTaskId(parent, projectRepos[0]).repo : collection;
+        if (!repo) {
+            throw new Error('Select a GitHub repository.');
+        }
+        const [issue, permissions] = await Promise.all([
+            github('POST', `/repos/${repo}/issues`, { title: name, ...(description ? { body: description } : {}) }),
+            permissionsOrNone(repo)
+        ]);
+        if (parent) {
+            try {
+                await github('POST', `${issuePath(parent)}/sub_issues`, { sub_issue_id: issue.id });
+            } catch (error) {
+                throw new Error(`GitHub made the issue #${issue.number}, but it cannot make it a sub-issue. ${error.message}`);
+            }
+        }
+        // A new issue has no parent of its own before the link and no sub-issues, so it needs no details request.
+        return { ...toTask(issue, { withDescription: true, editable: editableParts(issue, permissions, login) }), details: {} };
     },
 
     /** Changes the state, the title, the body, the assignees or the labels. The assignees are logins. The labels are names. */
@@ -235,7 +294,7 @@ runPlugin({
             Object.keys(body).length > 0 ? github('PATCH', issuePath(params.id), body) : github('GET', issuePath(params.id)),
             permissionsOrNone(repo)
         ]);
-        return fullTask(issue, permissions);
+        return fullTask(issue, permissions, issuePath(params.id));
     },
 
     /**

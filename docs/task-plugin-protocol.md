@@ -95,6 +95,7 @@ Result:
     create?: boolean,          // tasks/create
     edit?: boolean,            // tasks/update also changes the title and the description
     delete?: boolean,          // tasks/delete
+    subtasks?: boolean,        // tasks/create accepts `parent`
     statuses?: boolean,        // tasks/statuses
     statusOrder?: boolean,     // tasks/statusOrder
     comments?: boolean,        // comments/list and comments/create
@@ -218,7 +219,7 @@ interface FilterDefinition {
 | `tasks/get` | `{ id: string }` | `Task` |
 | `tasks/update` | `TaskUpdate` (see "Edit the parts of a task") | `Task` |
 | `tasks/options` | `{ id: string, part: string }` | `{ options: Option[], create?: boolean }` |
-| `tasks/create` | `{ collection: string, title: string, description?: string, status?: string }` | `Task` |
+| `tasks/create` | `{ collection: string, title: string, description?: string, status?: string, parent?: string }` | `Task` |
 | `tasks/delete` | `{ id: string }` | `null` |
 | `tasks/statuses` | `{ id?: string }` (the statuses that apply to a task) | `Status[]` |
 | `tasks/statusOrder` | `{ collection: string }` | `{ statuses: Status[] }` |
@@ -245,6 +246,31 @@ The SDK sets `create` and `delete` from the handlers `createTask` and `deleteTas
 the `initialize` result, because `updateTask` can exist without title and description changes.
 
 These additions do not change the protocol version. A plugin without the capabilities works as before.
+
+### Subtasks
+
+A task can have a parent and subtasks. `tasks/get` sends them in `details.parent` and `details.subtasks`. The task
+details show them, and a click opens the task.
+
+- With the capabilities `create` and `subtasks`, the Subtasks card of the task details has an add button.
+  ShipWarden then sends `tasks/create` with `parent`, the ID of the open task. `collection` is the selected
+  collection, but the plugin puts the subtask in the place of the parent. For example, ClickUp needs a subtask in
+  the list of its parent.
+- The result is the new subtask. ShipWarden adds it to the details of the parent and to the loaded list, so it
+  sends no request to load them again.
+- `tasks/update` returns the complete task, also `details.parent` and `details.subtasks`. Else the subtasks go out
+  of the details after a change.
+- The SDK does not set `subtasks`. The plugin must set it in the `initialize` result.
+
+The built-in plugins:
+
+| Plugin | A new task | A subtask |
+|---|---|---|
+| Local | A task in the file of the repository | A task with the parent number in `parent` |
+| ClickUp | A task in the list | A subtask in the list of the parent |
+| Linear | An issue in the team | A sub-issue in the team of the parent |
+| GitHub Issues | An issue in the repository | A sub-issue in the repository of the parent |
+| Azure DevOps | A work item of the default requirement type, for example "User Story" | A child work item of the default task type, for example "Task", with the area and the iteration of the parent |
 
 ### Edit the parts of a task
 

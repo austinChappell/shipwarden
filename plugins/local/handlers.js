@@ -44,22 +44,26 @@ export function createHandlers({ home, author = async () => undefined }) {
         return task;
     };
 
-    /** Reads the task with an ID. */
+    /** Reads the task with an ID, and all tasks of its file. */
     const read = async id => {
         const { collection } = parseTaskId(id);
-        return { collection, task: find(await fileOf(collection).read(), id) };
+        const data = await fileOf(collection).read();
+        return { collection, task: find(data, id), tasks: data.tasks };
     };
+
+    /** Converts a stored task to a protocol task with the description and the details. */
+    const fullTask = (stored, collection, tasks) => toTask(stored, collection, statuses, { withDescription: true, tasks });
 
     /** Changes the task with an ID and returns it as a protocol task. */
     const change = async (id, apply) => {
         const { collection } = parseTaskId(id);
-        const task = await fileOf(collection).update(async data => {
+        const { stored, tasks } = await fileOf(collection).update(async data => {
             const stored = find(data, id);
             await apply(stored, data);
             stored.updatedAt = new Date().toISOString();
-            return stored;
+            return { stored, tasks: data.tasks };
         });
-        return toTask(task, collection, statuses, { withDescription: true });
+        return fullTask(stored, collection, tasks);
     };
 
     const handlers = {
@@ -73,7 +77,7 @@ export function createHandlers({ home, author = async () => undefined }) {
                 ])
             );
             return {
-                capabilities: { edit: true },
+                capabilities: { edit: true, subtasks: true },
                 fields: [
                     { id: 'createdAt', label: 'Created', type: 'date' },
                     { id: 'comments', label: 'Comments', type: 'number' }
@@ -110,32 +114,36 @@ export function createHandlers({ home, author = async () => undefined }) {
         },
 
         async getTask({ id }) {
-            const { collection, task } = await read(id);
-            return toTask(task, collection, statuses, { withDescription: true });
+            const { collection, task, tasks } = await read(id);
+            return fullTask(task, collection, tasks);
         },
 
-        async createTask({ collection, title, description, status }) {
+        /** Makes a task. With `parent`, the task is a subtask in the file of the parent. */
+        async createTask({ collection, title, description, status, parent }) {
             const name = cleanTitle(title);
             const statusId = status ?? statuses[0].id;
             if (!statuses.some(item => item.id === statusId)) {
                 throw new Error(`The status "${statusId}" does not exist. Use a status from the settings of the task manager.`);
             }
-            const task = await fileOf(collection).update(data => {
+            const target = parent ? parseTaskId(parent).collection : collection;
+            const { created, tasks } = await fileOf(target).update(data => {
+                const parentNumber = parent ? find(data, parent).number : undefined;
                 const now = new Date().toISOString();
                 const created = {
                     number: data.nextNumber,
                     title: name,
                     description: typeof description === 'string' ? description : '',
                     status: statusId,
+                    ...(parentNumber ? { parent: parentNumber } : {}),
                     createdAt: now,
                     updatedAt: now,
                     comments: []
                 };
                 data.nextNumber += 1;
                 data.tasks.push(created);
-                return created;
+                return { created, tasks: data.tasks };
             });
-            return toTask(task, collection, statuses, { withDescription: true });
+            return fullTask(created, target, tasks);
         },
 
         async updateTask({ id, status, title, description, labels, priority, startDate, dueDate, timeEstimate }) {
@@ -188,6 +196,10 @@ export function createHandlers({ home, author = async () => undefined }) {
             await fileOf(collection).update(data => {
                 find(data, id);
                 data.tasks = data.tasks.filter(task => task.number !== number);
+                // The subtasks of a deleted task stay. They have no parent now.
+                for (const task of data.tasks) {
+                    if (task.parent === number) delete task.parent;
+                }
             });
             return null;
         },

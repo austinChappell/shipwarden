@@ -110,7 +110,7 @@ export function TasksView({
         void list.createTask();
     }, [collection, source]);
     const listError = sourceState.collectionsError ?? list.listError;
-    const detailState = useTaskDetail({ source, selectedId, setSelectedId, request, setTasks: list.setTasks, loadTasks });
+    const detailState = useTaskDetail({ source, selectedId, collection, setSelectedId, request, setTasks: list.setTasks, loadTasks });
 
     /**
      * An open request: select its task manager, then the task when the plugin of that task manager is ready.

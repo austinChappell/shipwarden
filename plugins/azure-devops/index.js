@@ -7,11 +7,14 @@ import {
     closedStateNames,
     editableParts,
     FIELDS,
+    hierarchyIds,
     LIST_FIELDS,
     listQuery,
     memberOptions,
     mergeStates,
     newComments,
+    newItemType,
+    PARENT_RELATION,
     parseOrganization,
     PRIORITIES,
     projectOfRemote,
@@ -192,6 +195,7 @@ async function metadata(projectKey) {
     );
     const meta = {
         types: names,
+        categories: categories.value ?? [],
         states: new Map(names.map((name, index) => [name.toLowerCase(), typeStates[index]])),
         statuses: mergeStates(typeStates),
         closedStates: closedStateNames(typeStates)
@@ -264,7 +268,39 @@ async function workItemTask(item, full) {
         full ? fieldsOfItem(item) : undefined
     ]);
     const task = toTask(item, { baseUrl, states, withDescription: full });
-    return full ? { ...task, details: toDetails(item), editable: editableParts(item, typeFields) } : task;
+    if (!full) {
+        return task;
+    }
+    return { ...task, details: { ...toDetails(item), ...(await relatedOf(item)) }, editable: editableParts(item, typeFields) };
+}
+
+/**
+ * Returns the parent and the child work items of a work item as task references. The work item must have
+ * "$expand=relations". One batch request reads the related work items. A failure gives no references and no error.
+ */
+async function relatedOf(item) {
+    const { parent, children } = hierarchyIds(item);
+    const ids = [...(parent ? [parent] : []), ...children];
+    if (ids.length === 0) {
+        return {};
+    }
+    try {
+        const refs = new Map();
+        for (const related of await workItems(ids)) {
+            const task = await workItemTask(related, false);
+            refs.set(Number(task.id), { id: task.id, key: task.key, title: task.title, url: task.url, status: task.status, assignees: task.assignees });
+        }
+        const subtasks = children.map(id => refs.get(id)).filter(Boolean);
+        return { ...(parent && refs.has(parent) ? { parent: refs.get(parent) } : {}), ...(subtasks.length ? { subtasks } : {}) };
+    } catch (error) {
+        log(`The plugin cannot read the related work items of ${item.id}: ${error.message}`);
+        return {};
+    }
+}
+
+/** Reads one work item with its relations. */
+function readWorkItem(number) {
+    return azure('GET', `/_apis/wit/workitems/${number}?$expand=relations&api-version=${API_VERSION}`);
 }
 
 /** Returns the field reference names of the type of a work item, from its ID. */
@@ -339,7 +375,9 @@ async function projectOf(id) {
 
 /** Sends JSON Patch operations to a work item and returns the changed work item. */
 async function patchOperations(id, operations) {
-    return azure('PATCH', `/_apis/wit/workitems/${id}?api-version=${API_VERSION}`, operations, { contentType: 'application/json-patch+json' });
+    return azure('PATCH', `/_apis/wit/workitems/${id}?$expand=relations&api-version=${API_VERSION}`, operations, {
+        contentType: 'application/json-patch+json'
+    });
 }
 
 /** Changes fields of a work item. `changes` maps a field reference name to its new value. */
@@ -397,7 +435,7 @@ connection = runPlugin({
         };
         log(`Azure DevOps plugin ready for ${baseUrl} as ${me.name ?? 'an unknown user'}.`);
         return {
-            capabilities: { edit: true },
+            capabilities: { edit: true, subtasks: true },
             fields: [
                 { id: 'type', label: 'Type', type: 'text' },
                 { id: 'area', label: 'Area', type: 'text' },
@@ -449,7 +487,58 @@ connection = runPlugin({
     },
 
     async getTask({ id }) {
-        return workItemTask(await azure('GET', `/_apis/wit/workitems/${workItemId(id)}?api-version=${API_VERSION}`), true);
+        return workItemTask(await readWorkItem(workItemId(id)), true);
+    },
+
+    /**
+     * Makes a work item in a project. The type is the default requirement type of the project, for example
+     * "User Story". With `parent`, the work item is a child of the parent, with the default task type (for example
+     * "Task") and the area and the iteration of the parent, as in the Azure Boards web app.
+     */
+    async createTask({ collection, title, description, status, parent }) {
+        const parentItem = parent
+            ? await azure(
+                  'GET',
+                  `/_apis/wit/workitems/${workItemId(parent)}?fields=System.TeamProject,System.AreaPath,System.IterationPath&api-version=${API_VERSION}`
+              )
+            : undefined;
+        const projectKey = parentItem?.fields?.['System.TeamProject'] ?? collection;
+        if (!projectKey) {
+            throw new Error('Select an Azure DevOps project.');
+        }
+        const meta = await metadata(projectKey);
+        const type = newItemType(meta.categories, meta.types, !!parent);
+        const typeFields = await fieldsOfType(projectKey, type).catch(() => new Set(Object.values(FIELDS)));
+        const placement = [];
+        if (parentItem) {
+            for (const field of ['System.AreaPath', 'System.IterationPath']) {
+                if (parentItem.fields?.[field]) placement.push({ op: 'add', path: `/fields/${field}`, value: parentItem.fields[field] });
+            }
+            placement.push({ op: 'add', path: '/relations/-', value: { rel: PARENT_RELATION, url: `${baseUrl}/_apis/wit/workItems/${parentItem.id}` } });
+        } else if (areaPath) {
+            // The area path setting limits the task list. A new work item goes into it, so the list shows it.
+            const known = projectsCache?.projects.find(item => item.id === projectKey || item.name.toLowerCase() === String(projectKey).toLowerCase());
+            if (known && areaPath.split('\\')[0].toLowerCase() === known.name.toLowerCase()) {
+                placement.push({ op: 'add', path: '/fields/System.AreaPath', value: areaPath });
+            }
+        }
+        const operations = htmlDescription => [
+            ...workItemPatch({ title, description: description || undefined, status }, typeFields, { htmlDescription }),
+            ...placement
+        ];
+        const path = `/${project(projectKey)}/_apis/wit/workitems/$${encodeURIComponent(type)}?$expand=relations&api-version=${API_VERSION}`;
+        const send = htmlDescription => azure('POST', path, operations(htmlDescription), { contentType: 'application/json-patch+json' });
+        let item;
+        try {
+            item = await send(false);
+        } catch (error) {
+            if (!description) {
+                throw error;
+            }
+            log(`Azure DevOps did not accept the description as Markdown. The plugin sends it as HTML. ${error.message}`);
+            item = await send(true);
+        }
+        return workItemTask(item, true);
     },
 
     /**
@@ -462,7 +551,7 @@ connection = runPlugin({
         const typeFields = await fieldsOfId(number);
         const operations = workItemPatch(params, typeFields);
         if (operations.length === 0) {
-            return workItemTask(await azure('GET', `/_apis/wit/workitems/${number}?api-version=${API_VERSION}`), true);
+            return workItemTask(await readWorkItem(number), true);
         }
         let item;
         try {

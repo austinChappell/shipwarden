@@ -125,4 +125,24 @@ describe('Azure DevOps edits', () => {
             { id: '4', name: 'Low' }
         ]);
     });
+
+    it('finds the parent and the children in the relations of a work item', () => {
+        const link = (rel, id) => ({ rel, url: `https://dev.azure.com/o/_apis/wit/workItems/${id}` });
+        const item = {
+            relations: [link(azure.PARENT_RELATION, 7), link(azure.CHILD_RELATION, 9), link('System.LinkTypes.Related', 3), link(azure.CHILD_RELATION, 8)]
+        };
+        expect(azure.hierarchyIds(item)).toEqual({ parent: 7, children: [9, 8] });
+        expect(azure.hierarchyIds({})).toEqual({ parent: undefined, children: [] });
+    });
+
+    it('selects the type of a new work item from the categories of the project', () => {
+        const categories = [
+            { referenceName: 'Microsoft.RequirementCategory', defaultWorkItemType: { name: 'User Story' } },
+            { referenceName: 'Microsoft.TaskCategory', defaultWorkItemType: { name: 'Task' } }
+        ];
+        expect(azure.newItemType(categories, ['Bug'], false)).toBe('User Story');
+        expect(azure.newItemType(categories, ['Bug'], true)).toBe('Task');
+        expect(azure.newItemType([], ['Issue', 'Task'], true)).toBe('Issue');
+        expect(() => azure.newItemType([], [], false)).toThrow('no work item type');
+    });
 });

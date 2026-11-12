@@ -7,6 +7,7 @@ import {
     COMMENT_FIELDS,
     errorCode,
     errorText,
+    FULL_ISSUE_FIELDS,
     ISSUE_FIELDS,
     issueFilter,
     issueInput,
@@ -174,7 +175,7 @@ function fullTask(issue) {
 }
 
 async function loadIssue(id) {
-    const data = await linear(`query Issue($id: String!) { issue(id: $id) { ${ISSUE_FIELDS} description } }`, { id });
+    const data = await linear(`query Issue($id: String!) { issue(id: $id) { ${FULL_ISSUE_FIELDS} } }`, { id });
     return fullTask(data.issue);
 }
 
@@ -221,7 +222,7 @@ function membersOfTeam(teamId) {
 async function changeIssue(id, input) {
     const data = await linear(
         `mutation Update($id: String!, $input: IssueUpdateInput!) {
-            issueUpdate(id: $id, input: $input) { success issue { ${ISSUE_FIELDS} description } }
+            issueUpdate(id: $id, input: $input) { success issue { ${FULL_ISSUE_FIELDS} } }
         }`,
         { id, input }
     );
@@ -248,7 +249,7 @@ runPlugin({
         }
         log(`Linear plugin ready for "${viewer.organization.name}" as ${viewer.displayName || viewer.name}.`);
         return {
-            capabilities: { edit: true },
+            capabilities: { edit: true, subtasks: true },
             fields: [
                 { id: 'branchName', label: 'Branch', type: 'text' },
                 { id: 'project', label: 'Project', type: 'text' },
@@ -316,6 +317,35 @@ runPlugin({
 
     async getTask({ id }) {
         return loadIssue(id);
+    },
+
+    /**
+     * Makes an issue in a team. With `parent`, the issue is a sub-issue in the team of the parent.
+     * `status` is the ID of a workflow state. Without it, Linear uses the default state of the team.
+     */
+    async createTask({ collection, title, description, status, parent }) {
+        const name = String(title ?? '').trim();
+        if (!name) {
+            throw new Error('An issue must have a title.');
+        }
+        const teamId = parent ? await teamOf(parent) : collection;
+        if (!teamId) {
+            throw new Error('Select a Linear team.');
+        }
+        const input = {
+            teamId,
+            title: name,
+            ...(description ? { description } : {}),
+            ...(status ? { stateId: status } : {}),
+            ...(parent ? { parentId: parent } : {})
+        };
+        const data = await linear(`mutation Create($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { ${FULL_ISSUE_FIELDS} } } }`, {
+            input
+        });
+        if (!data.issueCreate.success || !data.issueCreate.issue) {
+            throw new Error('Linear did not make the issue.');
+        }
+        return fullTask(data.issueCreate.issue);
     },
 
     /** Changes the status, the title, the description, the assignee, the labels, the priority or the due date. */

@@ -49,4 +49,10 @@ describe('GitHub Issues edits', () => {
         expect(github.labelOption({ name: 'bug', color: 'd73a4a' })).toEqual({ id: 'bug', name: 'bug', color: '#d73a4a' });
         expect(github.missingLabels(['Bug', 'new', 'new'], [{ name: 'bug' }])).toEqual(['new']);
     });
+
+    it('reads the task ID from the API URL of an issue and makes a reference', () => {
+        expect(github.issueIdFromUrl('https://api.github.com/repos/o/r/issues/12')).toBe('o/r#12');
+        expect(github.issueIdFromUrl(null)).toBeUndefined();
+        expect(github.toRef(issue)).toMatchObject({ id: 'o/r#7', key: '#7', title: 'Fix login', status: { id: 'open' } });
+    });
 });
