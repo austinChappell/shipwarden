@@ -7,12 +7,79 @@ const API = 'https://api.github.com';
 /** The statuses that GitHub gives when a request fails for a short time. */
 const RETRY_STATUSES = [502, 503, 504];
 
+/** The number of requests that run at the same time. Other requests wait. Bursts trigger the secondary rate limit of GitHub. */
+const MAX_REQUESTS = 6;
+
+/** The number of GraphQL requests that run at the same time. GitHub counts the server time of GraphQL queries for the secondary rate limit. */
+const MAX_GRAPHQL_REQUESTS = 2;
+
+/** The first pause after a secondary rate limit without a time. GitHub tells clients to wait at least one minute. */
+const FIRST_PAUSE_MS = 60_000;
+
+/** The longest pause after a secondary rate limit. Each limit in a row doubles the pause, up to this value. */
+const MAX_PAUSE_MS = 15 * 60_000;
+
+/** The number of GET responses that the client keeps for conditional requests. */
+const MAX_CACHED_RESPONSES = 500;
+
+/** The largest response body (characters) that the client keeps. Larger bodies, for example job logs, are not kept. */
+const MAX_CACHED_BODY = 1_000_000;
+
+/** The total size (characters) of all kept response bodies. */
+const MAX_CACHED_TOTAL = 30_000_000;
+
+/** The response headers that a kept response gives again. The client reads only these headers. */
+const KEPT_HEADERS = ['content-type', 'link'];
+
+/** A kept GET response. The client sends its ETag in If-None-Match. A 304 response gives this body again. */
+interface CachedResponse {
+    etag: string;
+    body: string;
+    headers: [string, string][];
+}
+
 export class GitHubError extends Error {
     constructor(
         message: string,
         readonly status: number
     ) {
         super(message);
+    }
+}
+
+/** GitHub stopped the requests because of a rate limit. The client sends no requests before `retryAt`. */
+export class GitHubRateLimitError extends GitHubError {
+    constructor(readonly retryAt: number) {
+        const time = new Date(retryAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        super(`GitHub stopped the requests from ShipWarden because of its rate limit. ShipWarden sends requests again at ${time}.`, 429);
+    }
+}
+
+/** Runs at most `size` tasks at the same time. The other tasks wait in order. */
+class Slots {
+    private active = 0;
+
+    private readonly waiting: (() => void)[] = [];
+
+    constructor(private readonly size: number) {}
+
+    async run<T>(task: () => Promise<T>): Promise<T> {
+        if (this.active < this.size) {
+            this.active++;
+        } else {
+            // The task that ends gives its place to this task. The count does not change.
+            await new Promise<void>(resolve => this.waiting.push(resolve));
+        }
+        try {
+            return await task();
+        } finally {
+            const next = this.waiting.shift();
+            if (next) {
+                next();
+            } else {
+                this.active--;
+            }
+        }
     }
 }
 
@@ -32,6 +99,22 @@ export interface GitHubClientOptions {
  */
 export class GitHubClient {
     private token: Promise<{ value: string; source: ReviewTokenSource }> | undefined;
+
+    private readonly slots = new Slots(MAX_REQUESTS);
+
+    private readonly graphqlSlots = new Slots(MAX_GRAPHQL_REQUESTS);
+
+    /** The time (ms) before which the client sends no requests, after a rate limit. */
+    private pausedUntil = 0;
+
+    /** The last pause after a secondary rate limit without a time. Zero after a successful request. */
+    private pauseMs = 0;
+
+    /** The last response of each GET request with an ETag, by Accept header and URL. The Map order is the order of use. */
+    private readonly etags = new Map<string, CachedResponse>();
+
+    /** The total size of the kept response bodies. */
+    private etagChars = 0;
 
     constructor(private readonly options: GitHubClientOptions) {}
 
@@ -90,10 +173,11 @@ export class GitHubClient {
      * The query is a read or an idempotent change, so the client tries it again 2 times.
      */
     async graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
-        let result: { data?: T; errors?: { message: string }[] };
+        let result: { data?: T; errors?: { message: string; type?: string }[] };
+        let response: Response;
         for (let attempt = 0; ; attempt++) {
             try {
-                const response = await this.fetch('POST', `${API}/graphql`, { query, variables });
+                response = await this.fetch('POST', `${API}/graphql`, { query, variables });
                 result = (await response.json()) as typeof result;
                 break;
             } catch (error) {
@@ -104,6 +188,10 @@ export class GitHubClient {
                 }
                 await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
             }
+        }
+        // GitHub can give a rate limit of GraphQL as an error in a 200 response.
+        if (result.errors?.some(error => error.type === 'RATE_LIMITED')) {
+            throw new GitHubRateLimitError(this.pause(response, true)!);
         }
         if (result.errors?.length) {
             throw new GitHubError(`GitHub returned an error: ${result.errors.map(error => error.message).join(' ')}`, 200);
@@ -131,23 +219,61 @@ export class GitHubClient {
 
     private async fetchOnce(method: string, url: string, body?: unknown, accept = 'application/vnd.github+json'): Promise<Response> {
         const token = (await this.getToken()).value;
-        let response: Response;
-        try {
-            response = await fetch(url, {
-                method,
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: accept,
-                    'X-GitHub-Api-Version': '2022-11-28',
-                    'User-Agent': 'ShipWarden',
-                    ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
-                },
-                body: body === undefined ? undefined : JSON.stringify(body)
-            });
-        } catch (error) {
-            throw new GitHubError(`ShipWarden cannot connect to GitHub: ${networkErrorDetail(error)}`, 0);
+        const graphql = url === `${API}/graphql`;
+        const cacheKey = method === 'GET' && !graphql ? `${accept} ${url}` : undefined;
+        const cached = cacheKey === undefined ? undefined : this.etags.get(cacheKey);
+        const send = async () => {
+            // A request that waited for a place can find a pause that started during the wait.
+            if (Date.now() < this.pausedUntil) {
+                throw new GitHubRateLimitError(this.pausedUntil);
+            }
+            try {
+                return await fetch(url, {
+                    method,
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: accept,
+                        'X-GitHub-Api-Version': '2022-11-28',
+                        'User-Agent': 'ShipWarden',
+                        ...(cached ? { 'If-None-Match': cached.etag } : {}),
+                        ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+                    },
+                    body: body === undefined ? undefined : JSON.stringify(body)
+                });
+            } catch (error) {
+                throw new GitHubError(`ShipWarden cannot connect to GitHub: ${networkErrorDetail(error)}`, 0);
+            }
+        };
+        // A GraphQL request gets its GraphQL place first. Thus a waiting GraphQL request does not block a REST request.
+        const response = await (graphql ? this.graphqlSlots.run(() => this.slots.run(send)) : this.slots.run(send));
+        if (response.status === 304 && cacheKey !== undefined && cached) {
+            // The data did not change. A 304 does not count for the primary rate limit of GitHub.
+            this.pauseMs = 0;
+            this.etags.delete(cacheKey);
+            this.etags.set(cacheKey, cached);
+            return new Response(cached.body, { status: 200, headers: cached.headers });
         }
-        if (!response.ok) {
+        if (response.ok) {
+            this.pauseMs = 0;
+            const etag = response.headers.get('etag');
+            if (cacheKey !== undefined && etag && response.status === 200) {
+                const text = await response.text();
+                const headers = KEPT_HEADERS.flatMap(name => {
+                    const value = response.headers.get(name);
+                    return value === null ? [] : [[name, value] as [string, string]];
+                });
+                this.forget(cacheKey);
+                if (text.length <= MAX_CACHED_BODY) {
+                    this.etags.set(cacheKey, { etag, body: text, headers });
+                    this.etagChars += text.length;
+                    // Remove the entries that the client used the longest time ago.
+                    while (this.etags.size > MAX_CACHED_RESPONSES || this.etagChars > MAX_CACHED_TOTAL) {
+                        this.forget(this.etags.keys().next().value!);
+                    }
+                }
+                return new Response(text, { status: 200, headers });
+            }
+        } else {
             let detail = '';
             try {
                 const error = (await response.json()) as { message?: string; errors?: { message?: string }[] };
@@ -158,9 +284,52 @@ export class GitHubClient {
             if (response.status === 401) {
                 this.token = undefined;
             }
+            if (response.status === 403 || response.status === 429) {
+                const retryAt = this.pause(response, /rate limit/i.test(detail));
+                if (retryAt !== undefined) {
+                    throw new GitHubRateLimitError(retryAt);
+                }
+            }
             throw new GitHubError(`GitHub returned ${response.status} for ${method} ${url.replace(API, '')}. ${detail}`.trim(), response.status);
         }
         return response;
+    }
+
+    /** Removes a kept response. */
+    private forget(key: string): void {
+        const entry = this.etags.get(key);
+        if (entry) {
+            this.etagChars -= entry.body.length;
+            this.etags.delete(key);
+        }
+    }
+
+    /**
+     * Starts a pause after a rate limit and returns its end (ms). Returns undefined when the response is not a rate limit.
+     * The order follows the GitHub documentation: the retry-after header, then the reset time of a used limit,
+     * then a pause of one minute or more. `limited` is true when the response text tells of a rate limit.
+     */
+    private pause(response: Response, limited: boolean): number | undefined {
+        const now = Date.now();
+        const retryAfter = Number(response.headers.get('retry-after') ?? NaN);
+        const reset = Number(response.headers.get('x-ratelimit-reset') ?? NaN);
+        let end: number | undefined;
+        if (Number.isFinite(retryAfter) && retryAfter > 0) {
+            end = now + retryAfter * 1000;
+        } else if (response.headers.get('x-ratelimit-remaining') === '0' && Number.isFinite(reset)) {
+            end = reset * 1000 + 1000;
+        } else if (limited) {
+            // Many requests can fail at the same time. Only the first failure of a pause makes the next pause longer.
+            if (now >= this.pausedUntil) {
+                this.pauseMs = this.pauseMs ? Math.min(this.pauseMs * 2, MAX_PAUSE_MS) : FIRST_PAUSE_MS;
+            }
+            end = now + this.pauseMs;
+        }
+        if (end !== undefined) {
+            this.pausedUntil = Math.max(this.pausedUntil, end);
+            return this.pausedUntil;
+        }
+        return undefined;
     }
 
     /** Returns the GitHub token, or undefined when there is none. Public repositories work without it. */
@@ -182,6 +351,8 @@ export class GitHubClient {
     /** Forgets the token, for example after the user saves a new token. */
     reset(): void {
         this.token = undefined;
+        this.etags.clear();
+        this.etagChars = 0;
     }
 
     private getToken(): Promise<{ value: string; source: ReviewTokenSource }> {
