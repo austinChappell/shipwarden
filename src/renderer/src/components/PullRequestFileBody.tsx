@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MultiFileDiff, PatchDiff, type DiffLineAnnotation, type FileDiffOptions } from '@pierre/diffs/react';
 import { ExternalLink, LoaderCircle } from 'lucide-react';
 import type { DiffSide, FileVersions, PendingComment, PullRequest, PullRequestFile, RepoTarget } from '@shared/github';
@@ -63,6 +63,11 @@ export const FileBody = memo(function FileBody({
     const mentions = useMemo(() => mentionSourceOf(target, pr), [target, pr]);
     const [versions, setVersions] = useState<FileVersions | 'error'>();
     const canComment = pr.state === 'OPEN';
+    // The parent makes a new onComposer and onAsk at each render. A change of the diff options renders the diff again,
+    // and that removes the text selection of the user. So the options read the newest function from a ref.
+    const composerRef = useRef(onComposer);
+    composerRef.current = onComposer;
+    const canAsk = !!onAsk;
 
     useEffect(() => {
         if (patch) return;
@@ -90,8 +95,8 @@ export const FileBody = memo(function FileBody({
             overflow: 'wrap',
             lineDiffType: 'word',
             // A closed pull request takes no comments, but the agent can still answer questions about it.
-            enableGutterUtility: canComment || !!onAsk,
-            onGutterUtilityClick: range => onComposer(composerFromRange(range)),
+            enableGutterUtility: canComment || canAsk,
+            onGutterUtilityClick: range => composerRef.current(composerFromRange(range)),
             // Only the new side is in the local copy of the pull request. A removed line has no definition there.
             ...(onGoToDefinition
                 ? ({
@@ -112,7 +117,7 @@ export const FileBody = memo(function FileBody({
                 };
             }
         }),
-        [diffStyle, mode, canComment, onAsk, onComposer, onGoToDefinition, target, file, pr.baseRefOid, pr.headRefOid]
+        [diffStyle, mode, canComment, canAsk, onGoToDefinition, target, file, pr.baseRefOid, pr.headRefOid]
     );
 
     const renderAnnotation = (annotation: DiffLineAnnotation<Note>): ReactNode => (
