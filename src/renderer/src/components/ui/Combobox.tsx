@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
+import { Popover } from './Popover';
 import type { ControlSize } from './Button';
 import { cx } from './cx';
 import { inputClass } from './Input';
@@ -53,7 +54,6 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
-    const root = useRef<HTMLDivElement>(null);
     const list = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
     const id = useId();
@@ -104,19 +104,6 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
     }, [groups, query]);
     const flat = useMemo(() => shown.flatMap(group => group.items), [shown]);
 
-    useEffect(() => {
-        if (!open) {
-            return;
-        }
-        const onDown = (event: MouseEvent) => {
-            if (!root.current?.contains(event.target as Node)) {
-                setOpen(false);
-            }
-        };
-        window.addEventListener('mousedown', onDown);
-        return () => window.removeEventListener('mousedown', onDown);
-    }, [open]);
-
     // Keep the active item visible when the keys move it.
     // biome-ignore lint/correctness/useExhaustiveDependencies: The effect must run when the active item changes or the list opens. It finds the item in the page.
     useEffect(() => {
@@ -130,10 +117,10 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
         setOpen(true);
     };
 
-    /** Closes the popover. The focus goes back to the button. */
-    const hide = () => {
+    /** Closes the popover. By default, the focus goes back to the button. */
+    const hide = (focus = true) => {
         setOpen(false);
-        trigger.current?.focus();
+        if (focus) trigger.current?.focus();
     };
 
     const choose = (item: ComboboxItem) => {
@@ -164,8 +151,8 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
             event.preventDefault();
             event.stopPropagation();
             hide();
-        } else if (event.key === 'Tab' && event.shiftKey) {
-            // Shift+Tab moves the focus to the button and closes the popover. After Tab, `onBlur` closes the popover.
+        } else if (event.key === 'Tab') {
+            // The popover is in a layer at the end of the page. Tab closes the popover and moves the focus to the button.
             event.preventDefault();
             hide();
         }
@@ -173,14 +160,7 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
 
     let index = -1;
     return (
-        <div
-            className={cx('combobox', className)}
-            ref={root}
-            onBlur={event => {
-                // A click on an option gives no new focus. Only a focus outside the combobox closes the popover.
-                if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
-            }}
-        >
+        <div className={cx('combobox', className)}>
             <button
                 ref={trigger}
                 type="button"
@@ -189,7 +169,7 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
                 title={title}
                 aria-haspopup="listbox"
                 aria-expanded={open}
-                onClick={() => (open ? setOpen(false) : show())}
+                onClick={() => (open ? hide(false) : show())}
             >
                 <span className={cx('select-value', !(multiple ? multipleText : selected) && 'placeholder')}>
                     {multiple ? (
@@ -206,7 +186,8 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
                 <ChevronDown size={13} strokeWidth={1.8} />
             </button>
             {open && (
-                <div className="combobox-popover">
+                // The popover is in a layer above the page. A dialog or a scroll area does not cut it.
+                <Popover anchor={trigger} onClose={() => hide(false)} className="combobox-layer">
                     <label className="combobox-search">
                         <Search size={13} strokeWidth={1.6} />
                         <input
@@ -241,6 +222,7 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
                                             aria-selected={isSelected(item)}
                                             className={`combobox-option${position === active ? ' active' : ''}`}
                                             onMouseMove={() => setActive(position)}
+                                            onMouseDown={event => event.preventDefault()}
                                             onClick={() => choose(item)}
                                         >
                                             <span className="combobox-label">{item.label}</span>
@@ -251,7 +233,7 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
                             </div>
                         ))}
                     </div>
-                </div>
+                </Popover>
             )}
         </div>
     );

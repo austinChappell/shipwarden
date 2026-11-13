@@ -5965,6 +5965,18 @@ button:focus-visible,
     box-shadow: 0 10px 30px var(--shadow);
 }
 
+/* The popover of the Combobox component. It is in a layer above the page, so a dialog does not cut it. */
+.combobox-layer {
+    width: 300px;
+}
+
+/* The popover sets its height from the space in the window. The list also has a fixed limit. */
+.combobox-layer .combobox-list {
+    flex: 1;
+    min-height: 0;
+    max-height: min(380px, 70vh);
+}
+
 .combobox-search {
     display: flex;
     align-items: center;
