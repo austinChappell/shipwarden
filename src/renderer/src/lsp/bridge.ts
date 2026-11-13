@@ -17,7 +17,7 @@ import type {
     TextEdit,
     WorkspaceEdit
 } from 'vscode-languageserver-protocol';
-import { lspLanguageId, rootForPath, sortChangesForLsp, type LspServerInfo, type LspServerMessage } from '@shared/lsp';
+import { lspLanguageId, rootForPath, SERVER_CRASHED, sortChangesForLsp, type LspServerCrash, type LspServerInfo, type LspServerMessage } from '@shared/lsp';
 import { documents } from '../editor/documents';
 import { monaco } from '../editor/monaco';
 import { APPLY_CODE_ACTION_COMMAND, diagnosticsForMarkers, isCommand, needsResolve, toMonacoCodeAction } from './code-actions';
@@ -34,6 +34,7 @@ import {
     type ShipWardenCompletionItem
 } from './convert';
 import { missingServers } from './missing-servers';
+import { serverCrashes } from './server-crashes';
 import { applyTextEdits, collectFileEdits, toMonacoEdits } from './workspace-edit';
 
 /** The Monaco languages that get LSP providers. */
@@ -195,6 +196,12 @@ export class LspBridge {
         monaco.editor.getModels().forEach(model => this.track(model));
     }
 
+    /** Removes the crash of the server in the worktree. Then the open files start the server again. */
+    retry(root: string, serverId: string): void {
+        serverCrashes.clear(root, serverId);
+        monaco.editor.getModels().forEach(model => this.track(model));
+    }
+
     /** Asks the main process if the worktree needs a server that is not installed. */
     private async checkMissing(root: string, languageId: string): Promise<void> {
         const key = `${root}\0${languageId}`;
@@ -231,7 +238,8 @@ export class LspBridge {
         const path = model.uri.path;
         const root = rootForPath(this.allRoots(), path);
         const languageId = lspLanguageId(path);
-        if (!root || !languageId) {
+        // A server that crashed does not start again until the user clicks "Try again". This stops a crash loop.
+        if (!root || !languageId || serverCrashes.has(root, languageId)) {
             return;
         }
         let server: LspServerInfo | undefined;
@@ -354,6 +362,8 @@ export class LspBridge {
             }
         } else if (message.method === 'workspace/diagnostic/refresh') {
             this.documentsOf(message.key).forEach(document => this.scheduleDiagnostics(document));
+        } else if (message.method === SERVER_CRASHED) {
+            serverCrashes.set(message.params as LspServerCrash);
         } else if (message.method === 'shipwarden/serverExited') {
             // The server stopped. Forget its documents, so that the next model change can start a new server.
             for (const document of this.documentsOf(message.key)) {

@@ -3,7 +3,7 @@ import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter, type MessageConnection } from 'vscode-jsonrpc/node';
 import type { ClientCapabilities, InitializeResult } from 'vscode-languageserver-protocol';
-import type { LspMissingServer, LspServerInfo, LspServerMessage } from '@shared/lsp';
+import { exitReason, lastLines, SERVER_CRASHED, type LspMissingServer, type LspServerCrash, type LspServerInfo, type LspServerMessage } from '@shared/lsp';
 import type { ServerInstaller } from './server-install';
 import { serverForLanguage } from './servers';
 
@@ -15,6 +15,12 @@ interface RunningServer {
 
 /** The notifications that the UI handles. Other notifications only go to the log. */
 const FORWARDED_NOTIFICATIONS = new Set(['textDocument/publishDiagnostics']);
+
+/** The crash banner shows this number of stderr lines. */
+const CRASH_OUTPUT_LINES = 40;
+
+/** After a failed "initialize" request, ShipWarden waits this time for the exit code of the server. */
+const EXIT_WAIT_MS = 1000;
 
 /** The UI must answer a "workspace/applyEdit" request in this time. If not, the server gets "not applied". */
 const APPLY_EDIT_TIMEOUT_MS = 30_000;
@@ -177,13 +183,41 @@ export class LspManager {
 
     private async start(key: string, serverId: string, root: string, languageId: string): Promise<RunningServer | undefined> {
         await this.ready;
-        const command = await serverForLanguage(languageId)!.resolve(root);
+        const definition = serverForLanguage(languageId)!;
+        const command = await definition.resolve(root);
         if (!command) {
             return undefined;
         }
         const child = spawn(command.command, command.args, { cwd: root, env: { ...process.env, ...command.env }, stdio: ['pipe', 'pipe', 'pipe'] });
-        child.stderr?.on('data', data => console.warn(`[lsp ${serverId}] ${String(data).trimEnd()}`));
+        // Keep the last lines of stderr. The crash banner shows them.
+        let output = '';
+        child.stderr?.on('data', data => {
+            const text = String(data);
+            console.warn(`[lsp ${serverId}] ${text.trimEnd()}`);
+            output = lastLines(output + text, CRASH_OUTPUT_LINES);
+        });
         const connection = createMessageConnection(new StreamMessageReader(child.stdout!), new StreamMessageWriter(child.stdin!));
+        const reportCrash = (reason: string): void => {
+            const crash: LspServerCrash = {
+                serverId,
+                name: definition.name,
+                root,
+                languages: [...definition.languages],
+                command: [command.command, ...command.args].join(' '),
+                reason,
+                output
+            };
+            console.warn(`[lsp ${serverId}] The server stopped: ${reason}.`);
+            this.send({ key, method: SERVER_CRASHED, params: crash });
+        };
+        // Resolves with the reason when the process stops, or when it cannot start (for example, the command does not exist).
+        const stopped = new Promise<string>(resolve => {
+            child.on('close', (code, signal) => resolve(exitReason(code, signal)));
+            child.on('error', error => {
+                resolve(`it did not start: ${error.message}`);
+                connection.dispose();
+            });
+        });
 
         const rootUri = pathToFileURL(root).href;
         const folders = [{ uri: rootUri, name: path.basename(root) }];
@@ -202,9 +236,13 @@ export class LspManager {
             process: child,
             connection
         };
-        child.on('exit', code => {
+        // "close" comes after "exit", when stderr is complete. Then the crash has all the output.
+        child.on('close', (code, signal) => {
+            // `stop` removes the server from the map first. So a server that is still in the map stopped without a request.
             if (this.servers.get(key) === server) {
                 this.servers.delete(key);
+                // Send the crash first. Then the UI does not start the server again when it gets "serverExited".
+                reportCrash(exitReason(code, signal));
                 this.send({ key, method: 'shipwarden/serverExited', params: { code } });
             }
             connection.dispose();
@@ -224,7 +262,10 @@ export class LspManager {
             server.info.capabilities = result.capabilities;
         } catch (error) {
             console.warn(`[lsp ${serverId}] The server did not start: ${error instanceof Error ? error.message : String(error)}`);
+            // Wait a short time for the exit. Then the reason has the exit code and the output has the last stderr lines.
+            const reason = await Promise.race([stopped, new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), EXIT_WAIT_MS))]);
             child.kill();
+            reportCrash(reason ?? 'it did not answer the "initialize" request');
             return undefined;
         }
         this.servers.set(key, server);

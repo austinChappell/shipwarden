@@ -4,9 +4,11 @@ import { documents } from '../editor/documents';
 import { monaco } from '../editor/monaco';
 import { lspBridge } from '../lsp/bridge';
 import { useMissingServer } from '../lsp/missing-servers';
+import { useServerCrash } from '../lsp/server-crashes';
 import type { CheckoutState } from '../github/review-checkout-store';
 import { CopyButton } from './CopyButton';
 import { MissingServerBanner } from './MissingServerBanner';
+import { ServerCrashBanner } from './ServerCrashBanner';
 import { Button, IconButton } from './ui';
 
 /** A position in a file of the pull request. */
@@ -87,6 +89,7 @@ function CodeEditor({ root, location, onCursor }: { root: string; location: Code
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | undefined>(undefined);
     const [failure, setFailure] = useState<string>();
     const missing = useMissingServer(root, location.path);
+    const crash = useServerCrash(root, location.path);
     const onCursorRef = useRef(onCursor);
     onCursorRef.current = onCursor;
 
@@ -168,6 +171,7 @@ function CodeEditor({ root, location, onCursor }: { root: string; location: Code
         <div className="review-code-body">
             {failure && <div className="editor-failure">{failure}</div>}
             {missing && <MissingServerBanner {...missing} features="go to definition and hover" />}
+            {crash && <ServerCrashBanner crash={crash} />}
             <div className="editor-monaco" ref={containerRef} />
         </div>
     );
