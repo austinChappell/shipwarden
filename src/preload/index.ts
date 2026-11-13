@@ -94,7 +94,7 @@ const api: ShipWardenApi = {
         previewCopy: (repoPath, copy) => ipcRenderer.invoke(IpcChannels.worktreesPreviewCopy, repoPath, copy),
         defaultFolder: () => ipcRenderer.invoke(IpcChannels.worktreesDefaultFolder),
         deleteBranch: (repoPath, branch, force, mergedHead) => ipcRenderer.invoke(IpcChannels.worktreesDeleteBranch, repoPath, branch, force, mergedHead),
-        chooseFolder: () => ipcRenderer.invoke(IpcChannels.worktreesChooseFolder)
+        chooseFolder: title => ipcRenderer.invoke(IpcChannels.worktreesChooseFolder, title)
     },
     files: {
         listDirectory: (root, directory) => ipcRenderer.invoke(IpcChannels.filesListDirectory, root, directory),

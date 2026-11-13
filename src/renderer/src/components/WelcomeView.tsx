@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type AnimationEvent, type CSSProperties, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type AnimationEvent, type CSSProperties, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
     AlertTriangle,
@@ -18,7 +18,7 @@ import {
     XCircle
 } from 'lucide-react';
 import type { RepoRef } from '@shared/github';
-import { repoDisplayName, type AppSettings } from '@shared/settings';
+import { normalizeCodeFolder, repoDisplayName, type AppSettings } from '@shared/settings';
 import type { Mode } from '@shared/themes';
 import {
     notificationsCheckResult,
@@ -33,10 +33,12 @@ import { markCheckPending, patchSetupCheck, takePendingChecks, useSetupChecks } 
 import { errorText } from '../util';
 import { AppearanceSettings } from './AppearanceSettings';
 import { CloneRepoDialog } from './CloneRepoDialog';
+import { CODE_FOLDER_DIALOG_TITLE, CodeFolderContext } from './code-folder';
 import { CopyButton } from './CopyButton';
 import { SettingsRow } from './settings-ui';
 import { TaskManagersSettings } from './TaskManagersSettings';
 import { Button } from './ui';
+import { FolderField } from './WorktreeSettings';
 
 interface Props {
     settings: AppSettings;
@@ -50,7 +52,7 @@ interface Props {
     /** Opens a section of the settings page. The close button of the settings page comes back to this page. */
     onOpenSettings(section: string): void;
     onAddRepo(): void;
-    /** Clones a GitHub repository into the active project. Resolves false when the user cancels the folder dialog. */
+    /** Clones a GitHub repository into the active project. Resolves true when the repository is in the project. */
     onCloneRepo(repo: RepoRef): Promise<boolean>;
     /** Closes the page for all time and opens the New worktree dialog. */
     onStart(): void;
@@ -123,6 +125,7 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
     const queryClient = useQueryClient();
     const { checks, error, loading, checking, recheck, recheckAll } = useSetupChecks();
     const [cloneOpen, setCloneOpen] = useState(false);
+    const { suggestion } = useContext(CodeFolderContext);
     const [saveError, setSaveError] = useState<string>();
     const [index, setIndex] = useState(lastStep);
     const [direction, setDirection] = useState<Direction>('forward');
@@ -287,6 +290,28 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                                 ))}
                             </ul>
                         )}
+                        <div className="welcome-panel">
+                            <SettingsRow
+                                label="Code folder"
+                                description={
+                                    <>
+                                        The folder for your code. A clone goes to{' '}
+                                        <code>{settings.codeFolder ?? suggestion ?? '~/code'}/&lt;repository&gt;</code>.
+                                    </>
+                                }
+                            >
+                                <FolderField
+                                    value={settings.codeFolder}
+                                    placeholder={suggestion ?? '~/code'}
+                                    dialogTitle={CODE_FOLDER_DIALOG_TITLE}
+                                    onSave={folder => {
+                                        const codeFolder = normalizeCodeFolder(folder);
+                                        if (codeFolder) void save({ codeFolder });
+                                        else setSaveError('Type the full path of the code folder, for example "~/code".');
+                                    }}
+                                />
+                            </SettingsRow>
+                        </div>
                         <div className="welcome-choices">
                             <button className="welcome-choice" onClick={onAddRepo}>
                                 <FolderPlus size={22} strokeWidth={1.5} aria-hidden="true" />

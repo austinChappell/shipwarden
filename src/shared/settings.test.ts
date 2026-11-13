@@ -6,10 +6,43 @@ import {
     DEFAULT_AGENTS,
     DEFAULT_SETTINGS,
     missingDefaultAgents,
+    normalizeCodeFolder,
     normalizeScripts,
     normalizeSettings,
-    repoDisplayName
+    repoDisplayName,
+    suggestCodeFolder
 } from './settings';
+
+describe('normalizeCodeFolder', () => {
+    it('keeps absolute paths and paths in the home folder', () => {
+        expect(normalizeCodeFolder(' /Users/me/code/ ')).toBe('/Users/me/code');
+        expect(normalizeCodeFolder('~/code')).toBe('~/code');
+        expect(normalizeCodeFolder('~')).toBe('~');
+    });
+
+    it('drops relative paths and other values', () => {
+        expect(normalizeCodeFolder('code')).toBeUndefined();
+        expect(normalizeCodeFolder('~me/code')).toBeUndefined();
+        expect(normalizeCodeFolder('')).toBeUndefined();
+        expect(normalizeCodeFolder(3)).toBeUndefined();
+        expect(normalizeSettings({ codeFolder: 'code' }).codeFolder).toBeUndefined();
+        expect(normalizeSettings({ codeFolder: '~/code' }).codeFolder).toBe('~/code');
+    });
+});
+
+describe('suggestCodeFolder', () => {
+    it('returns the folder with the most repositories', () => {
+        expect(suggestCodeFolder(['/Users/me/code/a', '/Users/me/work/b', '/Users/me/code/c'])).toBe('/Users/me/code');
+    });
+
+    it('ignores the worktree folders of ShipWarden', () => {
+        expect(suggestCodeFolder(['/Users/me/.shipwarden/worktrees/a/main', '/Users/me/src/b'])).toBe('/Users/me/src');
+    });
+
+    it('returns undefined without repositories', () => {
+        expect(suggestCodeFolder([])).toBeUndefined();
+    });
+});
 
 describe('normalizeSettings', () => {
     it('shows agent tabs as a chat by default', () => {

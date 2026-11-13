@@ -237,7 +237,8 @@ export interface ShipWardenApi {
         /** The default folder of new worktrees, ~/.shipwarden/worktrees. */
         defaultFolder(): Promise<string>;
         /** Opens a folder dialog. Returns the folder, or undefined when the user cancels. */
-        chooseFolder(): Promise<string | undefined>;
+        /** Shows a folder dialog. `title` is the title of the dialog. The default is the title for the worktree folder. */
+        chooseFolder(title?: string): Promise<string | undefined>;
     };
     files: {
         /** Lists one folder of a worktree. `directory` is relative to the root. An empty string is the root. */

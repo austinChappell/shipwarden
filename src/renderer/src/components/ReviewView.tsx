@@ -10,7 +10,8 @@ import { queryClient } from '../query-client';
 import { errorText, optionalErrorText } from '../util';
 import { pullRequestQuery, reviewStore } from '../github/review-store';
 import { refreshRepo, useReviewOverview, useReviewQueue } from '../github/review-overview-store';
-import { Button, IconButton, PageHeader, sortedGroups } from './ui';
+import { repoGroups } from '../github/repo-choices';
+import { Button, IconButton, PageHeader } from './ui';
 import { ReviewHome } from './ReviewHome';
 import { ReviewRepoPage } from './ReviewRepoPage';
 import { isReviewTab, ReviewPullRequest, type ReviewTab } from './ReviewPullRequest';
@@ -117,15 +118,7 @@ export function ReviewView({
         repoRef && pr ? { repo: repoRef, branch: pr.headRefName, sha: pr.headRefOid, pullRequest: pr, host: repoRef.host } : undefined;
 
     /** The repositories by owner, for the groups of the picker. */
-    const groups = useMemo(
-        () =>
-            sortedGroups(
-                overview.catalog ?? [],
-                item => item.owner,
-                item => ({ value: repoId(item), label: item.name })
-            ),
-        [overview.catalog]
-    );
+    const groups = useMemo(() => repoGroups(overview.catalog ?? []), [overview.catalog]);
 
     const startQueue = () => {
         if (queueItems.length === 0) return;

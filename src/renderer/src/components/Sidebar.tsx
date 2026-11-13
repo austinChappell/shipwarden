@@ -9,6 +9,7 @@ import {
     Clock,
     EyeOff,
     FolderMinus,
+    FolderDown,
     FolderPlus,
     GitGraph,
     GripVertical,
@@ -150,6 +151,8 @@ interface Props {
     repoLabel(repo: string): string;
     repoColor(repo: string): RepoColor | undefined;
     onAddRepo(): void;
+    /** Opens the dialog that clones a GitHub repository into the active project. */
+    onCloneRepo(): void;
     onRemoveRepo(repo: string): void;
     onSwitchProject(id: string): void;
     onCreateProject(name: string): Promise<void>;
@@ -886,6 +889,12 @@ export function Sidebar(outerProps: Props) {
             {/* Only the repositories change with the project, so the project switcher is their header. */}
             <div className="project-header">
                 <ProjectSwitcher {...props} />
+                <IconButton
+                    size="sm"
+                    icon={<FolderDown size={14} strokeWidth={1.6} />}
+                    label="Clone a repository into this project"
+                    onClick={props.onCloneRepo}
+                />
                 <IconButton size="sm" icon={<FolderPlus size={14} strokeWidth={1.6} />} label="Add a repository to this project" onClick={props.onAddRepo} />
             </div>
 
@@ -929,6 +938,7 @@ export function Sidebar(outerProps: Props) {
                 {props.projects && props.repos.length === 0 && (
                     <li className="repo-empty">
                         <Button onClick={props.onAddRepo}>Add a repository</Button>
+                        <Button onClick={props.onCloneRepo}>Clone a repository</Button>
                     </li>
                 )}
             </ul>

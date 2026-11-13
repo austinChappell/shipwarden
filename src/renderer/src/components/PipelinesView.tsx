@@ -21,12 +21,13 @@ import { formatAgo } from '@shared/format';
 import { formatDuration, optionalErrorText } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { LogView } from './LogView';
-import { Age, Button, Chip, type ChipTone, Combobox, IconButton, Input, PageHeader, Select, SkeletonRows, Switch, sortedGroups } from './ui';
+import { Age, Button, Chip, type ChipTone, Combobox, IconButton, Input, PageHeader, Select, SkeletonRows, Switch } from './ui';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
 import { useModal } from './use-modal';
 import { openLink } from '../links';
 import { moveListFocus } from '../keyboard/list-nav';
+import { repoGroups } from '../github/repo-choices';
 import { branchesQuery, ciActions, repositoriesQuery, runJobsQuery, sortWorkflows, useCiAction, workflowRunsQuery, workflowsQuery } from '../github/ci-queries';
 
 const REPO_KEY = 'shipwarden.pipelinesRepo';
@@ -316,11 +317,7 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
         );
     }
 
-    const groups = sortedGroups(
-        repos ?? [],
-        item => item.owner,
-        item => ({ value: repoId(item), label: item.name })
-    );
+    const groups = repoGroups(repos ?? []);
     const workflowName = (id: number) => workflows?.find(item => item.id === id)?.name;
     const style = { '--pipeline-workflows-width': `${workflowWidth.width}px`, '--pipeline-runs-width': `${runsWidth.width}px` } as CSSProperties;
 

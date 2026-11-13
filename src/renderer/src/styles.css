@@ -3907,6 +3907,9 @@ body.resizing * {
 }
 
 .repo-empty {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
     padding: 8px 16px;
 }
 
