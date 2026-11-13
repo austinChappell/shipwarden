@@ -12,6 +12,7 @@ import { normalizeHiddenWorktrees, type HiddenWorktree } from './worktrees';
 import { DEFAULT_REMOTE_SETTINGS, normalizeRemoteSettings, type RemoteSettings } from './remote';
 import { normalizeOnboarding, type OnboardingSettings } from './onboarding';
 import { isAgentMode, type AgentMode } from './agent-modes';
+import { DEFAULT_DRAFT_SETTINGS, normalizeDraftSettings, normalizeRepoDraftSettings, type DraftSettings, type RepoDraftSettings } from './drafts';
 
 /**
  * An agent that the Agent button can start, for example Claude Code. The command runs in an interactive login shell,
@@ -50,6 +51,8 @@ export interface RepoSettings {
     worktrees?: RepoWorktreeSettings;
     /** Saved scripts of the repository. The ▷ menu of the workspace header runs them in a new terminal tab. */
     scripts?: RepoScript[];
+    /** The draft settings of this repository: commit messages and pull request descriptions. A missing value uses the global setting. */
+    drafts?: RepoDraftSettings;
 }
 
 /** A saved script of a repository, for example "npm test". */
@@ -115,6 +118,8 @@ export interface AppSettings {
     remote: RemoteSettings;
     /** The settings of all automations: pause, and the usage limit. The automations are files in ~/.shipwarden/automations. */
     automations: AutomationSettings;
+    /** The agent drafts of commit messages and pull request descriptions: the instructions and the Conventional Commits switch. */
+    drafts: DraftSettings;
     /**
      * The state of the welcome page, the tour and the checklist. It is missing before the first start of this version.
      * The main process then sets it one time from the repositories of the user (see `initialOnboarding`).
@@ -195,7 +200,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     worktrees: DEFAULT_WORKTREE_SETTINGS,
     notifications: DEFAULT_NOTIFICATION_SETTINGS,
     remote: DEFAULT_REMOTE_SETTINGS,
-    automations: DEFAULT_AUTOMATION_SETTINGS
+    automations: DEFAULT_AUTOMATION_SETTINGS,
+    drafts: DEFAULT_DRAFT_SETTINGS
 };
 
 /** The maximum length of an agent command. A longer value is not a command that a person types. */
@@ -256,6 +262,8 @@ function normalizeRepos(value: unknown, agents: AgentDefinition[]): Record<strin
         if (worktrees) settings.worktrees = worktrees;
         const scripts = normalizeScripts(entry.scripts);
         if (scripts.length > 0) settings.scripts = scripts;
+        const drafts = normalizeRepoDraftSettings(entry.drafts);
+        if (drafts) settings.drafts = drafts;
         if (Object.keys(settings).length > 0) repos[repo] = settings;
     }
     return repos;
@@ -277,6 +285,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         notifications: normalizeNotificationSettings(raw.notifications),
         remote: normalizeRemoteSettings(raw.remote),
         automations: normalizeAutomationSettings(raw.automations),
+        drafts: normalizeDraftSettings(raw.drafts),
         ...(normalizeOnboarding(raw.onboarding) ? { onboarding: normalizeOnboarding(raw.onboarding) } : {}),
         ...(normalizeWorktreeNames(raw.worktreeNames) ? { worktreeNames: normalizeWorktreeNames(raw.worktreeNames) } : {}),
         ...(normalizeHiddenWorktrees(raw.hiddenWorktrees) ? { hiddenWorktrees: normalizeHiddenWorktrees(raw.hiddenWorktrees) } : {}),

@@ -9,6 +9,7 @@ import { openLink } from '../links';
 import { MentionTextarea } from './MentionTextarea';
 import { MentionContext, mentionSourceOfRepo } from './mention-context';
 import { Button, Checkbox, IconButton, Input } from './ui';
+import { DraftButton } from './DraftButton';
 
 const ICON = { size: 14, strokeWidth: 1.6 };
 
@@ -33,6 +34,7 @@ export function CreatePullRequest({
     const [title, setTitle] = useState(status.branch);
     const [body, setBody] = useState('');
     const [draft, setDraft] = useState(false);
+    const [draftError, setDraftError] = useState<string>();
     const mutation = useMutation({ mutationFn: ({ root, ...request }: { root: string } & NewPullRequest) => createPullRequest(root, request) });
     const busy = mutation.isPending;
     const error = optionalErrorText(mutation.error);
@@ -71,8 +73,12 @@ export function CreatePullRequest({
                     <MentionContext value={mentionSourceOfRepo(target, { ...status.repo, host: status.host })}>
                         <MentionTextarea className="input textarea" rows={5} value={body} placeholder="Description" onValueChange={setBody} disabled={busy} />
                     </MentionContext>
-                    <Checkbox label="Draft" checked={draft} onChange={setDraft} disabled={busy} />
-                    {error && <div className="form-error">{error}</div>}
+                    <div className="pr-create-row">
+                        <Checkbox label="Draft" checked={draft} onChange={setDraft} disabled={busy} />
+                        <span className="header-spacer" />
+                        <DraftButton worktree={target} kind="pullRequest" current={body} disabled={busy} onDraft={setBody} onError={setDraftError} />
+                    </div>
+                    {(error ?? draftError) && <div className="form-error">{error ?? draftError}</div>}
                     <div className="row-buttons">
                         <Button variant="primary" icon={<GitPullRequest {...ICON} />} disabled={busy || !title.trim()} onClick={create}>
                             Create pull request

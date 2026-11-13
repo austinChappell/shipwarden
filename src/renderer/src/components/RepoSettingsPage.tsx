@@ -7,6 +7,7 @@ import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { Button, ButtonGroup, Input, Select, TextArea } from './ui';
 import { radioGroupKeys } from './keyboard';
+import { RepoDraftGroup } from './DraftSettings';
 
 interface Props {
     repo: string;
@@ -112,6 +113,7 @@ export function RepoSettingsPage({ repo, settings, onSave }: Props) {
                 {error && <SettingsRow label={<span className="form-error">{error}</span>} />}
             </SettingsGroup>
             <RepoWorktreeGroup repo={repo} settings={settings} current={current.worktrees} onChange={worktrees => update({ worktrees })} />
+            <RepoDraftGroup settings={settings} current={current.drafts} onChange={drafts => update({ drafts })} />
         </>
     );
 }

@@ -270,7 +270,13 @@ export function PullRequestPanel({
         <section className="pr-section">
             <div className="section-title">Edit the title and the description</div>
             {actionError && <div className="form-error pr-section-error">{actionError}</div>}
-            <DescriptionEditor pr={pr} busy={busy} onSave={saveDescription} onCancel={() => setEditing(false)} />
+            <DescriptionEditor
+                pr={pr}
+                worktree={!overview && typeof target === 'string' ? target : undefined}
+                busy={busy}
+                onSave={saveDescription}
+                onCancel={() => setEditing(false)}
+            />
         </section>
     ) : (
         (pr.body.trim() || overview || pr.viewerCanUpdate) && <PullRequestDescription pr={pr} overview={overview} onEdit={() => setEditing(true)} />

@@ -55,6 +55,7 @@ const api: ShipWardenApi = {
     },
     ask: {
         run: request => ipcRenderer.invoke(IpcChannels.askRun, request),
+        draft: request => ipcRenderer.invoke(IpcChannels.askDraft, request),
         cancel: id => ipcRenderer.invoke(IpcChannels.askCancel, id),
         answers: (repo, number) => ipcRenderer.invoke(IpcChannels.askAnswers, repo, number),
         saveAnswer: answer => ipcRenderer.invoke(IpcChannels.askSaveAnswer, answer),
