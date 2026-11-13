@@ -396,6 +396,8 @@ export interface TaskSource {
         assignees?: boolean;
         /** "tasks/options": the options of the assignees, the labels, the priority and the custom fields. */
         options?: boolean;
+        /** "chat/channels" and "chat/post": the automation action "Post to a chat channel" can use the connection. */
+        chat?: boolean;
         /**
          * Without a saved choice, ShipWarden selects only the collection with `default: true`. Without one, the user
          * selects a collection. The GitHub plugin uses it, so a project without a GitHub repository does not show the
@@ -406,6 +408,15 @@ export interface TaskSource {
     fields: FieldDefinition[];
     actions: ActionDefinition[];
     filters: FilterDefinition[];
+}
+
+/** A chat channel of a task manager ("chat/channels"). The automation action "Post to a chat channel" posts to it. */
+export interface ChatChannel {
+    /** The ID of the plugin. ShipWarden sends it back in "chat/post". */
+    id: string;
+    name: string;
+    /** The group of the channel in the picker, for example the workspace. */
+    path?: string;
 }
 
 /** The task that a worktree works on. */

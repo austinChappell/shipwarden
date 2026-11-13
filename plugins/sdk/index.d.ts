@@ -172,6 +172,14 @@ export interface TaskDetails {
  * A collection of tasks with one status workflow: a ClickUp list, a GitHub repository, a Linear team or a Jira project.
  * The task view shows one collection at a time.
  */
+/** A chat channel. The ID is opaque to ShipWarden. "chat/post" gets it back. */
+export interface ChatChannel {
+    id: string;
+    name: string;
+    /** The group of the channel in the picker, for example the workspace. */
+    path?: string;
+}
+
 export interface Collection {
     id: string;
     name: string;
@@ -229,6 +237,8 @@ export interface Capabilities {
     assignees?: boolean;
     /** The plugin returns the options of a part of a task ("tasks/options"). The SDK sets it from `listOptions`. */
     options?: boolean;
+    /** The plugin lists chat channels and posts messages ("chat/channels", "chat/post"). The SDK sets it from `listChannels` and `postMessage`. */
+    chat?: boolean;
     /**
      * Without a saved choice, ShipWarden selects only the collection with `default: true`. Without one, the user selects
      * a collection. The plugin sets this capability itself. Use it when the first collection can have nothing to do with
@@ -316,6 +326,10 @@ export interface Handlers {
         references?: { id: string; text: string; url?: string }[];
     }): Promise<Comment>;
     runAction?(params: { taskId: string; actionId: string }): Promise<{ message?: string }>;
+    /** Returns the chat channels that the user can post to. The automation action "Post to a chat channel" lists them. */
+    listChannels?(params: Record<string, never>): Promise<{ channels: ChatChannel[] }>;
+    /** Posts `text` to the channel. The text is Markdown. */
+    postMessage?(params: { channel: string; text: string }): Promise<{ id?: string }>;
     /**
      * Returns the comments from other people on the user's tasks that are newer than `since` (an ISO time).
      * A comment before the user's own last comment on the same task does not count, because the user saw it.

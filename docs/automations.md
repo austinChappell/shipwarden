@@ -74,7 +74,7 @@ A manual automation has the trigger `manual`. Its `entity` sets where its button
 | Entity | The button shows in | Variables |
 |---|---|---|
 | `worktree` | The header of each worktree (the ⚡ menu). | `branch`, `repo`, `worktree`, `pr.*` when the branch has an open pull request, `task.*` of the task of the worktree |
-| `pullRequest` | The pull request panel of each worktree, under the title. | `pr.number`, `pr.title`, `pr.url`, `pr.draft`, `pr.author`, `pr.base`, `pr.state`, `pr.body`, the worktree variables, `task.*` |
+| `pullRequest` | The pull request panel of each worktree, under the title. | `pr.number`, `pr.title`, `pr.url`, `pr.repo`, `pr.draft`, `pr.author`, `pr.base`, `pr.state`, `pr.body`, the worktree variables, `task.*` |
 | `task` | The details of each task, next to the task actions. | `task.key`, `task.title`, `task.url`, `task.description`, `task.status`, `task.labels`, `task.assignees`, `task.priority`, `repo` |
 | `none` | Nowhere. Use the play button in the Automations view. | `repo`, `date`, `time` |
 
@@ -188,6 +188,7 @@ A file of an older version has `collectionId` and `collectionName`. ShipWarden r
 | `moveTask` | Moves the task to the status with the name `status`. | all except `schedule` |
 | `removeWorktree` | Removes the worktree. Git refuses a worktree with uncommitted changes. With `deleteBranch`, a merged local branch goes away too. | `pr.merged` |
 | `notify` | Shows a macOS notification with `title` and `body`. | all |
+| `postMessage` | Posts `message` to a chat channel, for example a ClickUp channel. See [Chat channels](#chat-channels). | all |
 | `http` | Sends an HTTP request. See [HTTP requests](#http-requests). | all |
 | `if` | Runs the `then` actions when `condition` agrees, else the `else` actions. The lists can contain all actions, also `if`. | all |
 | `stop` | Stops the run. The next actions do not run. `reason` goes into the run history. With `fail`, the run fails. | all |
@@ -197,7 +198,51 @@ For a manual automation, the entity sets the actions:
 - `sendToAgent` and `removeWorktree`: `worktree` and `pullRequest`.
 - `startAgent`: `task` and `none`.
 - `moveTask`: `worktree`, `pullRequest` and `task`.
-- `runHeadless`, `notify`, `http`, `if` and `stop`: all entities.
+- `runHeadless`, `notify`, `postMessage`, `http`, `if` and `stop`: all entities.
+
+### Chat channels
+
+`postMessage` posts a message to a chat channel of a task manager. Today only ClickUp has chat channels. The action uses
+the API token of the ClickUp connection in Settings › Task managers.
+
+| Field | Value |
+|---|---|
+| `channel` | `{ "id", "name" }`. Select the channel in the editor. The ID contains the ClickUp workspace. |
+| `message` | The text, in Markdown. It can contain all variables of the trigger, for example `{{pr.url}}` or `{{task.title}}`. |
+| `connectionId` | The task manager. It is local to your Mac, so an export does not contain it. Without it, ShipWarden uses the only task manager with chat channels. |
+
+To post to a different channel for each repository, put the actions in "If" actions. `{{pr.repo}}` is the repository
+of the pull request, for example `acme/api`. `{{repo}}` is the name of the repository folder.
+
+```json
+{
+  "name": "Announce merges",
+  "trigger": { "type": "pr.merged" },
+  "actions": [
+    {
+      "type": "if",
+      "condition": { "var": "pr.repo", "op": "equals", "value": "acme/api" },
+      "then": [
+        {
+          "type": "postMessage",
+          "channel": { "id": "9012345:4-90123-8", "name": "api-releases" },
+          "message": "Merged **{{pr.title}}** ({{pr.url}}) in {{pr.repo}}.\nTask: {{task.key}} {{task.title}}"
+        }
+      ],
+      "else": [
+        {
+          "type": "postMessage",
+          "channel": { "id": "9012345:4-90123-2", "name": "engineering" },
+          "message": "Merged **{{pr.title}}** ({{pr.url}}) in {{pr.repo}}."
+        }
+      ]
+    }
+  ],
+  "limits": { "approval": "auto", "maxRunsPerTarget": 3, "maxRunning": 2 }
+}
+```
+
+For more than two channels, put an "If" action in the `else` list. To post to two channels, add two actions.
 
 ### HTTP requests
 

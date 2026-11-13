@@ -542,3 +542,51 @@ describe('ClickUp comment mentions', () => {
         expect(clickup.commentParts('Plain text', [], [])).toEqual([{ text: 'Plain text' }]);
     });
 });
+
+describe('ClickUp chat channels', () => {
+    it('puts the workspace into the channel ID and skips channels without a name', () => {
+        const channels = clickup.toChannels(
+            '9',
+            [
+                { id: 'abc', name: ' releases ', type: 'CHANNEL' },
+                { id: 'dm', name: 'Sam', type: 'DM' },
+                { id: 'x', name: null }
+            ],
+            'Acme'
+        );
+        expect(channels).toEqual([{ id: '9:abc', name: 'releases', path: 'Acme' }]);
+        expect(clickup.parseChannelId('9:abc')).toEqual({ teamId: '9', channelId: 'abc' });
+    });
+
+    it('refuses a channel ID without a workspace', () => {
+        expect(() => clickup.parseChannelId('abc')).toThrow('Select the channel again');
+    });
+
+    it('sets the chat capability from the handlers', async () => {
+        const written = [];
+        let onData;
+        runPlugin(
+            {
+                initialize: async () => ({}),
+                listCollections: async () => [],
+                listTasks: async () => ({ tasks: [] }),
+                getTask: async () => ({}),
+                listChannels: async () => ({ channels: [] }),
+                postMessage: async () => ({})
+            },
+            {
+                input: {
+                    on(event, handler) {
+                        if (event === 'data') onData = handler;
+                    }
+                },
+                output: { write: text => written.push(text) },
+                exit() {}
+            }
+        );
+        onData(Buffer.from(encodeMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })));
+        await new Promise(resolve => setTimeout(resolve, 0));
+        const reply = createMessageParser()(Buffer.from(written.join('')))[0];
+        expect(reply.result.capabilities.chat).toBe(true);
+    });
+});

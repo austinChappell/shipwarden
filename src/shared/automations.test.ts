@@ -26,6 +26,7 @@ import {
     unknownVariables,
     usageAboveLimit,
     planUsageReached,
+    prRepo,
     countedTokens,
     formatTokens,
     tokenLimitReached,
@@ -455,5 +456,43 @@ describe('settings and descriptions', () => {
         expect(describeTrigger({ type: 'schedule', days: [1, 2, 3, 4, 5], time: '08:00' })).toBe('weekdays at 08:00');
         expect(describeTrigger({ type: 'schedule', days: [0, 6], time: '09:30' })).toBe('Sun, Sat at 09:30');
         expect(describeTrigger({ type: 'task.new', labels: ['agent'], assignedToMe: true })).toBe('Task matches: label agent, assigned to me');
+    });
+});
+
+describe('post to a chat channel', () => {
+    const post = { type: 'postMessage', connectionId: 'clickup-1', channel: { id: '9:abc', name: 'releases' }, message: 'Merged {{pr.url}}' };
+
+    it('needs a channel and a message', () => {
+        expect(() => normalizeDefinition({ ...automation(), actions: [{ ...post, channel: {} }] })).toThrow('needs a channel');
+        expect(() => normalizeDefinition({ ...automation(), actions: [{ ...post, message: ' ' }] })).toThrow('needs a message');
+        expect(normalizeDefinition({ ...automation(), actions: [post] }).actions).toEqual([post]);
+    });
+
+    it('removes the connection from an export, also in an "If" action', () => {
+        // biome-ignore lint/suspicious/noThenProperty: "then" is a list of actions, not a function.
+        const actions = [post, { type: 'if', condition: { var: 'pr.repo', op: 'equals', value: 'acme/api' }, then: [post], else: [post] }];
+        const text = exportAutomation({ ...automation(), actions } as Automation);
+        expect(text).not.toContain('clickup-1');
+        expect(JSON.parse(text).actions[0]).toEqual({ type: 'postMessage', channel: post.channel, message: post.message });
+    });
+
+    it('gives "pr.repo" from the address of the pull request', () => {
+        expect(prRepo('https://github.com/acme/api/pull/12')).toBe('acme/api');
+        expect(prRepo('https://dev.azure.com/org/My%20Project/_git/web/pullrequest/7')).toBe('org/My Project/web');
+        expect(prRepo('https://example.com/nothing')).toBeUndefined();
+        const values = eventVariables({
+            trigger: 'pr.merged',
+            key: 'k',
+            target: 't',
+            label: 'l',
+            at: 0,
+            pr: { number: 12, url: 'https://github.com/acme/api/pull/12' }
+        });
+        expect(values['pr.repo']).toBe('acme/api');
+    });
+
+    it('knows "pr.repo" for pull request triggers', () => {
+        expect(unknownVariables('{{pr.repo}}', { type: 'pr.merged' })).toEqual([]);
+        expect(unknownVariables('{{pr.repo}}', { type: 'manual', entity: 'pullRequest' })).toEqual([]);
     });
 });

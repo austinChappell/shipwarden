@@ -103,6 +103,7 @@ Result:
     scopes?: boolean,          // scopes/list
     activity?: boolean,        // activity/list
     options?: boolean,         // tasks/options
+    chat?: boolean,            // chat/channels and chat/post
     defaultCollectionOnly?: boolean // Without a saved choice, select only the collection with `default: true`
   },
   fields?: FieldDefinition[],  // Extra fields that the task view shows.
@@ -228,6 +229,8 @@ interface FilterDefinition {
 | `tasks/action` | `{ taskId: string, actionId: string }` | `{ message?: string }` |
 | `activity/list` | `{ since: string }` (an ISO time) | `{ comments: ActivityComment[] }`: new comments from other people on the user's tasks |
 | `people/list` | `{ collection: string }` | `{ people: Person[], me?: string }`: the people that can be assignees |
+| `chat/channels` | `{}` | `{ channels: ChatChannel[] }`: the chat channels that the user can post to |
+| `chat/post` | `{ channel: string, text: string }` | `{ id?: string }`: the ID of the new message |
 | `shutdown` | none | `null` |
 
 ### Create, edit and delete
@@ -360,6 +363,21 @@ interface ActivityComment {
   author?: string; body: string; createdAt: string;
 }
 ```
+
+### Chat channels
+
+`chat/channels` and `chat/post` are optional (capability `chat`). The automation action "Post to a chat channel" uses
+them. The SDK sets the capability from the handlers `listChannels` and `postMessage`.
+
+```ts
+interface ChatChannel {
+  id: string;     // Opaque to ShipWarden. "chat/post" gets it back. Put all that the post needs in it, for example the workspace.
+  name: string;
+  path?: string;  // The group in the picker, for example the workspace.
+}
+```
+
+The `text` of `chat/post` is Markdown. The variables are already in the text.
 
 ### Collections
 

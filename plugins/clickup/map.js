@@ -466,3 +466,28 @@ export function rateLimitWait(headers, now = Date.now()) {
     }
     return DEFAULT_RATE_LIMIT_WAIT_MS;
 }
+
+/**
+ * Converts ClickUp chat channels to ShipWarden channels. The ID contains the workspace, because the post request needs
+ * it: "teamId:channelId". `prefix` is the workspace name when there are several workspaces. Only the items of the type
+ * "CHANNEL" with a name show. Direct messages and group messages do not show.
+ */
+export function toChannels(teamId, channels, prefix) {
+    return channels
+        .filter(channel => (channel.type === undefined || channel.type === 'CHANNEL') && typeof channel.name === 'string' && channel.name.trim())
+        .map(channel => ({
+            id: `${teamId}:${channel.id}`,
+            name: channel.name.trim(),
+            ...(prefix ? { path: prefix } : {})
+        }));
+}
+
+/** Splits a channel ID of `toChannels` into the workspace and the ClickUp channel. */
+export function parseChannelId(id) {
+    const text = String(id ?? '');
+    const colon = text.indexOf(':');
+    if (colon <= 0 || colon === text.length - 1) {
+        throw new Error(`The channel "${text}" is not a ClickUp channel. Select the channel again.`);
+    }
+    return { teamId: text.slice(0, colon), channelId: text.slice(colon + 1) };
+}

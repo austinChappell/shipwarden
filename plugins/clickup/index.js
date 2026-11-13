@@ -1,4 +1,4 @@
-// A ShipWarden task plugin for ClickUp. Each ClickUp list is a collection.
+// A ShipWarden task plugin for ClickUp. Each ClickUp list is a collection. Automations can post to its chat channels.
 import { log, networkDetail, runPlugin } from '../sdk/index.js';
 import {
     busiestList,
@@ -9,10 +9,12 @@ import {
     listChange,
     listStatusOrder,
     matchesQuery,
+    parseChannelId,
     parseChecklistItemId,
     plainComment,
     PRIORITIES,
     rateLimitWait,
+    toChannels,
     toCollections,
     toComment,
     toDetails,
@@ -23,6 +25,8 @@ import {
 } from './map.js';
 
 const API = 'https://api.clickup.com/api/v2';
+/** The chat API is only in version 3. A path that starts with "https://" goes to this address. */
+const API_V3 = 'https://api.clickup.com/api/v3';
 
 let token;
 let userId;
@@ -59,6 +63,32 @@ const MAX_INITIALIZE_WAIT_MS = 20_000;
 const SPACE_CONCURRENCY = 3;
 /** The Dashboard reads the comments of this number of recently changed tasks, at most, in each workspace. */
 const ACTIVITY_TASKS = 40;
+
+/** The chat channels, with the time of the load. */
+let channelsCache;
+/** The most pages of channels that the plugin reads in each workspace. */
+const MAX_CHANNEL_PAGES = 10;
+
+/** Loads the chat channels of the workspaces in the scope. `toChannels` removes the direct messages. */
+async function loadChannels() {
+    const perTeam = await Promise.all(
+        teams.map(async team => {
+            const channels = [];
+            let cursor;
+            for (let page = 0; page < MAX_CHANNEL_PAGES; page++) {
+                const query = `limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+                const result = await clickup('GET', `${API_V3}/workspaces/${team.id}/chat/channels?${query}`);
+                channels.push(...(result.data ?? []));
+                cursor = result.next_cursor;
+                if (!cursor) break;
+            }
+            return toChannels(team.id, channels, teams.length > 1 ? team.name : undefined);
+        })
+    );
+    const channels = perTeam.flat().sort((a, b) => a.name.localeCompare(b.name));
+    channelsCache = { channels, at: Date.now() };
+    return channels;
+}
 
 /** Returns the members of a ClickUp list. The plugin keeps them for 10 minutes. */
 async function membersOfList(listId) {
@@ -207,7 +237,7 @@ async function clickup(method, path, body, maxWaitMs = MAX_RATE_LIMIT_WAIT_MS) {
     let response;
     for (let attempt = 0; ; attempt++) {
         try {
-            response = await fetch(`${API}${path}`, {
+            response = await fetch(path.startsWith('https://') ? path : `${API}${path}`, {
                 method,
                 headers: {
                     Authorization: token,
@@ -233,7 +263,7 @@ async function clickup(method, path, body, maxWaitMs = MAX_RATE_LIMIT_WAIT_MS) {
         let detail = '';
         try {
             const error = await response.json();
-            detail = error.err ?? error.error ?? '';
+            detail = error.err ?? error.error ?? error.message ?? '';
         } catch {
             // The error has no JSON body.
         }
@@ -505,6 +535,27 @@ runPlugin({
                 }));
         });
         return { comments: perTask.flat() };
+    },
+
+    /** The chat channels of the workspaces in the scope. The plugin keeps them for 10 minutes. */
+    async listChannels() {
+        if (channelsCache && Date.now() - channelsCache.at < LIST_CACHE_MS) {
+            return { channels: channelsCache.channels };
+        }
+        return { channels: await loadChannels() };
+    },
+
+    /** Posts a message to a chat channel. ClickUp reads the text as Markdown. */
+    async postMessage({ channel, text }) {
+        const body = String(text ?? '').trim();
+        if (!body) throw new Error('The message is empty.');
+        const { teamId, channelId } = parseChannelId(channel);
+        const created = await clickup('POST', `${API_V3}/workspaces/${teamId}/chat/channels/${channelId}/messages`, {
+            type: 'message',
+            content: body,
+            content_format: 'text/md'
+        });
+        return { id: created?.id === undefined ? undefined : String(created.id) };
     },
 
     /**

@@ -49,6 +49,14 @@ function actionPhrase(action: AutomationAction): ReactNode {
             return 'remove the worktree';
         case 'notify':
             return 'show a notification';
+        case 'postMessage':
+            return action.channel.name ? (
+                <>
+                    post to <b>#{action.channel.name}</b>
+                </>
+            ) : (
+                'post to a chat channel'
+            );
         case 'http':
             return `send a ${action.method} request`;
         case 'if':

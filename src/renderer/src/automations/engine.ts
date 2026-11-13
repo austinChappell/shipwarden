@@ -64,6 +64,7 @@ import { keyRoots, queryClient } from '../query-client';
 import { agentStateStore } from '../terminal/agent-state-store';
 import { outputActivity } from '../terminal/output-activity';
 import { addRunToCache, automationRunsQuery, cachedRunState, patchRunState, replaceRunInCache } from './automation-queries';
+import { chatConnectionOf } from './chat-queries';
 
 const api = window.shipwarden;
 
@@ -88,7 +89,7 @@ export const MERGED_SWEEP_MS = 15 * 60_000;
 const OPEN_RUN_STATES: ReadonlySet<RunStatus> = new Set(['pending', 'held', 'running']);
 
 /** The actions that do not use the worktree of the event. The setting "Remove merged worktrees" does not wait for them. */
-const WORKTREE_FREE_ACTIONS: ReadonlySet<AutomationAction['type']> = new Set(['moveTask', 'notify']);
+const WORKTREE_FREE_ACTIONS: ReadonlySet<AutomationAction['type']> = new Set(['moveTask', 'notify', 'postMessage']);
 
 /** A worktree of any project, with its repository folder. */
 export interface EnginePlace extends WorktreePlace {
@@ -958,6 +959,13 @@ export class AutomationEngine {
                 this.notify(renderTemplate(action.title, values), action.body ? renderTemplate(action.body, values) : event.label, target, true);
                 return 'Showed a notification.';
             }
+            case 'postMessage': {
+                const connectionId = await chatConnectionOf(action.connectionId);
+                const text = renderTemplate(action.message, values).trim();
+                if (!text) throw new Error('The message is empty after ShipWarden put in the variables.');
+                await api.tasks.request(connectionId, 'chat/post', { channel: action.channel.id, text });
+                return `Posted a message to ${channelLabel(action.channel)}.`;
+            }
             case 'http':
                 return this.sendHttp(automation, action, values);
             case 'if':
@@ -1113,6 +1121,11 @@ function agentBusy(session: TerminalSession): boolean {
     return last !== undefined && Date.now() - last < QUIET_MS;
 }
 
+/** The name of a chat channel for the run history, for example "#releases". */
+function channelLabel(channel: { id: string; name?: string }): string {
+    return channel.name ? `#${channel.name}` : `the channel ${channel.id}`;
+}
+
 /** A short text of the actions, for a dry run. */
 export function describeActions(actions: readonly AutomationAction[]): string {
     return actions
@@ -1124,6 +1137,7 @@ export function describeActions(actions: readonly AutomationAction[]): string {
                     : `if ${describeCondition(action.condition)}: ${then}`;
             }
             if (action.type === 'http') return `send ${action.method} ${action.url}`;
+            if (action.type === 'postMessage') return `post to ${channelLabel(action.channel)}`;
             return ACTION_TYPES.find(item => item.type === action.type)?.label.toLowerCase() ?? action.type;
         })
         .join(', then ');
