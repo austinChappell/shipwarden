@@ -300,6 +300,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onSendToAg
                     onResolve={() => setThreadResolved(target, pr, thread, !thread.isResolved)}
                     reactions={reactionActions(target, pr)}
                     onSendToAgent={onSendToAgentRef.current && (() => onSendToAgentRef.current?.(threadPrompt(pr, thread)))}
+                    chat={{ target, pr, file, subject: { kind: 'thread', thread } }}
                 />
             );
         }
@@ -313,6 +314,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onSendToAg
                         onRemove={() => reviewStore.removePending(target, pr.number, comment)}
                         onEdit={body => reviewStore.updatePending(target, pr.number, comment, body)}
                         onSendToAgent={onSendToAgentRef.current && (() => onSendToAgentRef.current?.(lineNotePrompt(pr, comment)))}
+                        chat={{ target, pr, file, subject: { kind: 'pending', comment } }}
                     />
                 );
             }
@@ -361,7 +363,7 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onSendToAg
             zonesRef.current = [];
             removeReviewZones(handles);
         };
-    }, [ready, pr, review.pending, composer, file.path, target]);
+    }, [ready, pr, review.pending, composer, file, target]);
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: A new revealNonce shows the same line again after the user scrolls away.
     useEffect(() => {

@@ -134,6 +134,19 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   change, the index and the working file for an unstaged change.
 - The main process runs git only in a worktree of a project, and checks that each path stays in the worktree.
 
+### Chat about a review comment
+
+- A review thread and a pending comment in a pull request diff have a "Chat" button. It opens a chat with the agent
+  under the comment. The agent does not change files. "Send to agent" is still the way to give the agent work.
+- Each message calls `ask.run` (the same runner as "Ask agent"). In the Review view, the agent runs in the local
+  clone or in an empty folder. In a worktree, it runs in the worktree. Print mode keeps no memory, so
+  `commentChatPrompt` (`shared/comment-chat.ts`) puts the comment, its lines, the diff of the file, and all earlier
+  messages into each prompt.
+- `comment-chat-store.ts` keeps the chats in memory for the app session. A chat stays when the diff makes its zone
+  again. A thread chat uses the thread ID. A pending comment has no ID, so its chat uses its file and lines.
+- "Use as reply" puts an answer into the reply box of a thread. "Use as comment" opens the edit box of a pending
+  comment with the answer. The user saves the text.
+
 ### Agent drafts (commit messages and pull request descriptions)
 
 - A ✨ button sits next to the commit message box, the description of the pull request form, and the description
