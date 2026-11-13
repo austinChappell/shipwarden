@@ -1127,6 +1127,25 @@ details.chat-tool[open] > .chat-tool-summary {
     color: var(--text);
 }
 
+/* The command and the stderr lines of a language server that stopped. */
+.editor-server-output {
+    flex: none;
+    max-height: 200px;
+    margin: 0;
+    padding: 8px 12px;
+    overflow: auto;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    user-select: text;
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
+}
+
 /* File explorer */
 
 .explorer {

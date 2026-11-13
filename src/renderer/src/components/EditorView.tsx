@@ -17,7 +17,9 @@ import {
     type ZoneHandle
 } from './DiffView';
 import { useMissingServer } from '../lsp/missing-servers';
+import { useServerCrash } from '../lsp/server-crashes';
 import { MissingServerBanner } from './MissingServerBanner';
+import { ServerCrashBanner } from './ServerCrashBanner';
 
 interface Props {
     root: string;
@@ -57,6 +59,7 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
     const [ready, setReady] = useState(false);
     const [failure, setFailure] = useState<string>();
     const missing = useMissingServer(root, path);
+    const crash = useServerCrash(root, path);
     const [asking, setAsking] = useState<AskRange>();
     const questions = useCodeQuestions(root, path);
     /** Changes after each edit of the text, so that the cards follow their lines. */
@@ -344,6 +347,7 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
         <div className="editor">
             {failure && <div className="editor-failure">{failure}</div>}
             {missing && <MissingServerBanner {...missing} features="go to definition, hover and errors" />}
+            {crash && <ServerCrashBanner crash={crash} />}
             <div className="editor-monaco" ref={containerRef} />
         </div>
     );

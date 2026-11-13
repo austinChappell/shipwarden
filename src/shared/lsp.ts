@@ -42,6 +42,46 @@ export interface LspInstallState {
     error?: string;
 }
 
+/**
+ * A language server that stopped, but ShipWarden did not stop it.
+ * The UI shows a banner in the files of the server. ShipWarden does not start the server again until the user clicks "Try again".
+ */
+export interface LspServerCrash {
+    serverId: string;
+    /** The name that the UI shows, for example "Sorbet or ruby-lsp". */
+    name: string;
+    root: string;
+    /** The languages of the server. The banner shows in the files of these languages. */
+    languages: string[];
+    /** The command line that started the server. */
+    command: string;
+    /** Why the server stopped, for example "exit code 1". */
+    reason: string;
+    /** The last lines that the server wrote to stderr. Empty when the server wrote nothing. */
+    output: string;
+}
+
+/** The method of the message that tells the UI about an `LspServerCrash`. */
+export const SERVER_CRASHED = 'shipwarden/serverCrashed';
+
+/** Returns the last `maxLines` lines of the text, with at most `maxChars` characters. */
+export function lastLines(text: string, maxLines: number, maxChars = 8000): string {
+    const lines = text.replace(/\r\n/g, '\n').split('\n');
+    while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+        lines.pop();
+    }
+    const tail = lines.slice(-maxLines).join('\n');
+    return tail.length > maxChars ? `…${tail.slice(tail.length - maxChars)}` : tail;
+}
+
+/** Returns why a process stopped, for example "exit code 1" or "signal SIGKILL". */
+export function exitReason(code: number | null, signal: string | null): string {
+    if (code !== null) {
+        return `exit code ${code}`;
+    }
+    return signal ? `signal ${signal}` : 'no exit code';
+}
+
 /** A notification or request from a language server that the UI must handle. */
 export interface LspServerMessage {
     key: string;

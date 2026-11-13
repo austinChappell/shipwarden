@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lspLanguageId, rootForPath, sortChangesForLsp } from './lsp';
+import { exitReason, lastLines, lspLanguageId, rootForPath, sortChangesForLsp } from './lsp';
 
 describe('lspLanguageId', () => {
     it.each([
@@ -43,5 +43,27 @@ describe('sortChangesForLsp', () => {
     it('puts the change with the largest offset first', () => {
         const changes = [{ rangeOffset: 5 }, { rangeOffset: 40 }, { rangeOffset: 12 }];
         expect(sortChangesForLsp(changes).map(change => change.rangeOffset)).toEqual([40, 12, 5]);
+    });
+});
+
+describe('lastLines', () => {
+    it('keeps the last lines and removes empty lines at the end', () => {
+        expect(lastLines('a\nb\nc\nd\n\n', 2)).toBe('c\nd');
+    });
+
+    it('keeps the end of a long text', () => {
+        expect(lastLines('abcdefghij', 10, 4)).toBe('…ghij');
+    });
+
+    it('changes CRLF to LF', () => {
+        expect(lastLines('a\r\nb\r\n', 5)).toBe('a\nb');
+    });
+});
+
+describe('exitReason', () => {
+    it('gives the exit code, or the signal when no exit code exists', () => {
+        expect(exitReason(1, null)).toBe('exit code 1');
+        expect(exitReason(null, 'SIGKILL')).toBe('signal SIGKILL');
+        expect(exitReason(null, null)).toBe('no exit code');
     });
 });
