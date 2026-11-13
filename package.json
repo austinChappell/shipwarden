@@ -22,7 +22,11 @@
     "check:ios-contract": "sh scripts/check-ios-contract.sh",
     "postinstall": "node scripts/postinstall.mjs",
     "dist": "electron-vite build && electron-builder --mac",
-    "dist:dir": "electron-vite build && electron-builder --mac --dir"
+    "dist:dir": "electron-vite build && electron-builder --mac --dir",
+    "release": "bash scripts/release-local.sh",
+    "release:minor": "bash scripts/release-local.sh minor",
+    "release:major": "bash scripts/release-local.sh major",
+    "release:dry": "bash scripts/release-local.sh --dry-run"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",

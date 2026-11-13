@@ -2,6 +2,35 @@
 
 ## Make a release
 
+### On your Mac (no GitHub Actions minutes)
+
+```sh
+npm run release            # patch
+npm run release:minor
+npm run release:major
+npm run release:dry        # build only: no tag and no release
+```
+
+`scripts/release-local.sh` does the same steps as the workflow below. It builds `origin/main` in a temporary
+worktree, so your checkout does not change. Before it starts, it checks these items:
+
+- The Mac has Apple silicon, Node 24 or higher, and a signed-in GitHub CLI (`gh auth login`).
+- The keychain has the Developer ID Application certificate that `build.mac.identity` names. Without it, the script
+  stops. The release does not use an ad-hoc signature.
+
+To notarize, store the App Store Connect API key in the keychain one time:
+
+```sh
+xcrun notarytool store-credentials shipwarden-notary \
+  --key ~/path/AuthKey_XXXX.p8 --key-id XXXX --issuer xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+Then set `APPLE_KEYCHAIN_PROFILE=shipwarden-notary` (for example, in your shell profile). The script also accepts
+`APPLE_API_KEY`, `APPLE_API_KEY_ID`, and `APPLE_API_ISSUER` (see Notarization). Without these values, the script
+shows a warning and the build is not notarized.
+
+### On GitHub
+
 Run the **Release** workflow in GitHub › Actions, or run this command:
 
 ```sh
