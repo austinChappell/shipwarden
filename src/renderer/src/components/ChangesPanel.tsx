@@ -23,6 +23,7 @@ import { errorText } from '../util';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { pluralize } from '@shared/format';
 import { Button, Checkbox, Count, IconButton, SkeletonRows, TextArea } from './ui';
+import { DraftButton } from './DraftButton';
 
 interface Props {
     worktree: string;
@@ -344,6 +345,15 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                         onChange={checked => void toggleAmend(checked)}
                     />
                     <span className="header-spacer" />
+                    <DraftButton
+                        worktree={worktree}
+                        kind="commit"
+                        amend={amend}
+                        current={message}
+                        disabled={(staged.length === 0 && !amend) || !!busy}
+                        onDraft={setMessage}
+                        onError={setActionError}
+                    />
                     <Button
                         variant="primary"
                         disabled={!canCommit}

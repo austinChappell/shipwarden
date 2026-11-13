@@ -1542,6 +1542,12 @@ details.chat-tool[open] > .chat-tool-summary {
     gap: 8px;
 }
 
+.pr-create-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .panel-note {
     padding: 4px 0;
     color: var(--muted);

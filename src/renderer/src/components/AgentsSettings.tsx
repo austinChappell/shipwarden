@@ -8,6 +8,7 @@ import { errorText } from '../util';
 import { Button, Chip, IconButton, Input, Select, Switch } from './ui';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { AGENT_CHAT_ENABLED } from '../terminal/agent-view-store';
+import { DraftSettingsGroup } from './DraftSettings';
 
 const api = window.shipwarden;
 
@@ -262,6 +263,7 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                     />
                 </SettingsGroup>
             )}
+            <DraftSettingsGroup settings={settings} onSave={save} />
         </>
     );
 }

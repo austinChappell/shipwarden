@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
 import { GRAPH_LOG_FORMAT, parseGraphLog, type GraphLog, type GraphScope } from '@shared/git-graph';
+import { PULL_REQUEST_TEMPLATE_PATHS, type CommitDraftInput, type PullRequestDraftInput } from '@shared/drafts';
 import { changePathError, parseStatus, type ChangeContents, type ChangeSide, type CommitResult, type FetchResult, type GitChanges } from '@shared/git';
 
 /** Files larger than this do not show in a diff. */
@@ -57,6 +58,59 @@ function checkPaths(paths: string[]): string[] {
         if (error) throw new Error(error);
     }
     return list;
+}
+
+/** The number of recent commit subjects that a commit message draft gets, for the style of the repository. */
+const RECENT_SUBJECTS = 15;
+/** The most commits of a branch that a pull request draft gets. */
+const MAX_DRAFT_COMMITS = 100;
+/** The longest pull request template that a draft gets. */
+const MAX_TEMPLATE = 20_000;
+
+/** Finds an entry in a folder. The match ignores case. Returns the real name, or undefined. */
+async function findEntry(folder: string, name: string): Promise<string | undefined> {
+    try {
+        const entries = await fs.readdir(folder);
+        return entries.find(entry => entry === name) ?? entries.find(entry => entry.toLowerCase() === name.toLowerCase());
+    } catch {
+        return undefined;
+    }
+}
+
+/** Finds a path from the root. Each part of the path ignores case. Returns the real path from the root, or undefined. */
+async function findPath(root: string, relative: string): Promise<string | undefined> {
+    let found = '';
+    for (const part of relative.split('/').filter(Boolean)) {
+        const entry = await findEntry(path.join(root, found), part);
+        if (!entry) return undefined;
+        found = found ? `${found}/${entry}` : entry;
+    }
+    return found || undefined;
+}
+
+/**
+ * Finds the pull request template of a worktree in the places of `PULL_REQUEST_TEMPLATE_PATHS`.
+ * For a folder of templates, the first Markdown file by name applies. Returns undefined when there is no template.
+ */
+export async function findPullRequestTemplate(worktree: string): Promise<{ path: string; text: string } | undefined> {
+    for (const candidate of PULL_REQUEST_TEMPLATE_PATHS) {
+        const found = await findPath(worktree, candidate);
+        if (!found) continue;
+        let file = found;
+        if (candidate.endsWith('/')) {
+            const entries = await fs.readdir(path.join(worktree, found)).catch(() => [] as string[]);
+            const first = entries.filter(entry => entry.toLowerCase().endsWith('.md')).sort()[0];
+            if (!first) continue;
+            file = `${found}/${first}`;
+        }
+        try {
+            const text = (await fs.readFile(path.join(worktree, file), 'utf8')).slice(0, MAX_TEMPLATE).trim();
+            if (text) return { path: file, text };
+        } catch {
+            // The entry is a folder or cannot be read. Try the next place.
+        }
+    }
+    return undefined;
 }
 
 const isBinary = (text: string) => text.slice(0, 8000).includes('\0');
@@ -159,7 +213,6 @@ export class GitChangesService {
         return { hash, summary: summary ?? '' };
     }
 
-    /** The message of the last commit, for "Amend". */
     /**
      * Returns the newest commits for the graph, children before parents. Scope "all" shows the local branches, the
      * remote branches, the tags and HEAD. Scope "local" does not show the remote branches. A repository without
@@ -183,6 +236,7 @@ export class GitChangesService {
         return { commits: commits.slice(0, count), more: commits.length > count };
     }
 
+    /** The message of the last commit, for "Amend". */
     async lastMessage(worktree: string): Promise<string> {
         return ((await run(worktree, ['log', '-1', '--format=%B'], { allowFailure: true })) ?? '').trimEnd();
     }
@@ -241,6 +295,64 @@ export class GitChangesService {
             }
             throw error;
         }
+    }
+
+    /**
+     * Returns the git data of a commit message draft: the staged diff and the recent commit subjects.
+     * With `amend`, the diff goes from the parent of HEAD to the index, so it includes the changes of the last commit.
+     * Throws when there is nothing to commit.
+     */
+    async commitDraftInput(worktree: string, amend: boolean): Promise<Omit<CommitDraftInput, 'settings'>> {
+        const hasHead = (await run(worktree, ['rev-parse', '--verify', '-q', 'HEAD'], { allowFailure: true })) !== undefined;
+        const hasParent = hasHead && (await run(worktree, ['rev-parse', '--verify', '-q', 'HEAD^'], { allowFailure: true })) !== undefined;
+        // An amend of the first commit compares with the empty tree.
+        const emptyTree = ((await run(worktree, ['hash-object', '-t', 'tree', '/dev/null'])) ?? '').trim();
+        const from = amend && hasHead ? [hasParent ? 'HEAD^' : emptyTree] : [];
+        const diff = (await run(worktree, ['diff', '--cached', '--no-color', '--no-ext-diff', ...from])) ?? '';
+        if (!diff.trim()) throw new Error(amend ? 'The amended commit has no changes.' : 'Stage changes first. The draft describes the staged changes.');
+        const stat = (await run(worktree, ['diff', '--cached', '--stat', '--no-color', ...from])) ?? '';
+        const subjects = hasHead ? ((await run(worktree, ['log', `--max-count=${RECENT_SUBJECTS}`, '--format=%s'], { allowFailure: true })) ?? '') : '';
+        const branch = (await run(worktree, ['symbolic-ref', '--short', '-q', 'HEAD'], { allowFailure: true }))?.trim();
+        return {
+            ...(branch ? { branch } : {}),
+            stat,
+            diff,
+            recentSubjects: subjects.split('\n').filter(Boolean),
+            ...(amend && hasHead ? { amendedMessage: await this.lastMessage(worktree) } : {})
+        };
+    }
+
+    /**
+     * Returns the git data of a pull request description draft: the commits and the diff of the branch since it left
+     * the default branch of "origin", and the pull request template of the repository.
+     */
+    async pullRequestDraftInput(worktree: string): Promise<Omit<PullRequestDraftInput, 'settings'>> {
+        const branch = (await run(worktree, ['symbolic-ref', '--short', '-q', 'HEAD'], { allowFailure: true }))?.trim();
+        if (!branch) throw new Error('The worktree has no branch (a detached HEAD).');
+        const base = await this.defaultRemoteBranch(worktree);
+        if (!base) throw new Error('ShipWarden cannot find the default branch of "origin". Fetch the remote and try again.');
+        const range = `${base}...HEAD`;
+        const diff = (await run(worktree, ['diff', '--no-color', '--no-ext-diff', range])) ?? '';
+        if (!diff.trim()) throw new Error(`The branch has no changes from ${base}. Commit changes first.`);
+        const stat = (await run(worktree, ['diff', '--stat', '--no-color', range])) ?? '';
+        const log = (await run(worktree, ['log', '--reverse', `--max-count=${MAX_DRAFT_COMMITS}`, '--format=%B%x00', `${base}..HEAD`])) ?? '';
+        const commits = log
+            .split('\0')
+            .map(message => message.trim())
+            .filter(Boolean);
+        const template = await findPullRequestTemplate(worktree);
+        return { branch, base, commits, stat, diff, ...(template ? { template } : {}) };
+    }
+
+    /** Returns the default branch of "origin", for example "origin/main", or undefined when it is not known. */
+    private async defaultRemoteBranch(worktree: string): Promise<string | undefined> {
+        const head = (await run(worktree, ['symbolic-ref', '--short', '-q', 'refs/remotes/origin/HEAD'], { allowFailure: true }))?.trim();
+        for (const candidate of [head, 'origin/main', 'origin/master']) {
+            if (candidate && (await run(worktree, ['rev-parse', '--verify', '-q', `${candidate}^{commit}`], { allowFailure: true })) !== undefined) {
+                return candidate;
+            }
+        }
+        return undefined;
     }
 
     /** Pushes the branch. A branch without an upstream gets "origin" as its upstream. */

@@ -7,6 +7,7 @@ import { keyRoots } from '../query-client';
 import { errorText, optionalErrorText } from '../util';
 import { applyMetaChanges, metaChangeKey, type MetaChange } from './pr-meta-changes';
 import { MentionTextarea } from './MentionTextarea';
+import { DraftButton } from './DraftButton';
 import { Button, Card, Chip as UiChip, type ChipTone, IconButton, Input, labelIndex } from './ui';
 
 /**
@@ -506,17 +507,21 @@ export function PullRequestMeta({
 /** The form that changes the title and the description of a pull request. */
 export function DescriptionEditor({
     pr,
+    worktree,
     busy,
     onSave,
     onCancel
 }: {
     pr: PullRequest;
+    /** The worktree of the branch. With it, the form has a ✨ button that asks the agent for a description. */
+    worktree?: string;
     busy: boolean;
     onSave(title: string, body: string): void;
     onCancel(): void;
 }) {
     const [title, setTitle] = useState(pr.title);
     const [body, setBody] = useState(pr.body);
+    const [draftError, setDraftError] = useState<string>();
     const changed = title.trim() !== pr.title || body !== pr.body;
     const save = () => {
         if (title.trim() && changed) onSave(title.trim(), body);
@@ -537,7 +542,9 @@ export function DescriptionEditor({
                 placeholder="Description (Markdown)"
                 onValueChange={setBody}
             />
+            {draftError && <div className="form-error">{draftError}</div>}
             <div className="row-buttons">
+                {worktree && <DraftButton worktree={worktree} kind="pullRequest" current={body} disabled={busy} onDraft={setBody} onError={setDraftError} />}
                 <Button onClick={onCancel}>Cancel</Button>
                 <Button variant="primary" disabled={busy || !title.trim() || !changed} onClick={save}>
                     Save

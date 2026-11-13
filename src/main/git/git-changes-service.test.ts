@@ -1,9 +1,9 @@
 import { execFileSync } from 'child_process';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { basename, join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { GitChangesService } from './git-changes-service';
+import { findPullRequestTemplate, GitChangesService } from './git-changes-service';
 
 describe('GitChangesService', () => {
     let repo: string;
@@ -157,5 +157,71 @@ describe('GitChangesService', () => {
             rmSync(remote, { recursive: true, force: true });
             rmSync(other, { recursive: true, force: true });
         }
+    });
+
+    it('collects the staged diff and the recent subjects for a commit message draft', async () => {
+        await expect(git.commitDraftInput(repo, false)).rejects.toThrow('Stage changes first');
+        writeFileSync(join(repo, 'a.txt'), 'one\n');
+        sh('add', 'a.txt');
+        // Before the first commit, there are no subjects.
+        expect(await git.commitDraftInput(repo, false)).toMatchObject({ branch: 'main', recentSubjects: [] });
+        sh('commit', '-q', '-m', 'feat: first');
+        writeFileSync(join(repo, 'a.txt'), 'two\n');
+        writeFileSync(join(repo, 'b.txt'), 'not staged\n');
+        sh('add', 'a.txt');
+        const input = await git.commitDraftInput(repo, false);
+        expect(input.diff).toContain('+two');
+        expect(input.diff).not.toContain('not staged');
+        expect(input.stat).toContain('a.txt');
+        expect(input.recentSubjects).toEqual(['feat: first']);
+        expect(input.amendedMessage).toBeUndefined();
+    });
+
+    it('includes the changes of the last commit in an amend draft', async () => {
+        writeFileSync(join(repo, 'a.txt'), 'one\n');
+        sh('add', 'a.txt');
+        sh('commit', '-q', '-m', 'first');
+        // The amend of the first commit compares with the empty tree.
+        const first = await git.commitDraftInput(repo, true);
+        expect(first.diff).toContain('+one');
+        expect(first.amendedMessage).toBe('first');
+        writeFileSync(join(repo, 'b.txt'), 'two\n');
+        sh('add', 'b.txt');
+        sh('commit', '-q', '-m', 'second');
+        const amend = await git.commitDraftInput(repo, true);
+        expect(amend.diff).toContain('b.txt');
+        expect(amend.diff).not.toContain('a.txt');
+    });
+
+    it('collects the commits, the diff and the template of the branch for a pull request draft', async () => {
+        writeFileSync(join(repo, 'a.txt'), 'one\n');
+        mkdirSync(join(repo, '.github'));
+        writeFileSync(join(repo, '.github', 'PULL_REQUEST_TEMPLATE.md'), '## Summary\n');
+        sh('add', '.');
+        sh('commit', '-q', '-m', 'base');
+        await expect(git.pullRequestDraftInput(repo)).rejects.toThrow('default branch');
+        sh('update-ref', 'refs/remotes/origin/main', 'HEAD');
+        sh('checkout', '-q', '-b', 'feature');
+        await expect(git.pullRequestDraftInput(repo)).rejects.toThrow('no changes');
+        writeFileSync(join(repo, 'a.txt'), 'two\n');
+        sh('commit', '-q', '-am', 'Change a\n\nThe body.');
+        const input = await git.pullRequestDraftInput(repo);
+        expect(input).toMatchObject({
+            branch: 'feature',
+            base: 'origin/main',
+            commits: ['Change a\n\nThe body.'],
+            template: { path: '.github/PULL_REQUEST_TEMPLATE.md', text: '## Summary' }
+        });
+        expect(input.diff).toContain('+two');
+    });
+
+    it('finds a pull request template in a folder of templates, and ignores case', async () => {
+        expect(await findPullRequestTemplate(repo)).toBeUndefined();
+        mkdirSync(join(repo, 'docs', 'PULL_REQUEST_TEMPLATE'), { recursive: true });
+        writeFileSync(join(repo, 'docs', 'PULL_REQUEST_TEMPLATE', 'b.md'), 'B');
+        writeFileSync(join(repo, 'docs', 'PULL_REQUEST_TEMPLATE', 'a.md'), 'A');
+        expect(await findPullRequestTemplate(repo)).toEqual({ path: 'docs/PULL_REQUEST_TEMPLATE/a.md', text: 'A' });
+        writeFileSync(join(repo, 'pull_request_template.md'), 'Root');
+        expect(await findPullRequestTemplate(repo)).toEqual({ path: 'pull_request_template.md', text: 'Root' });
     });
 });

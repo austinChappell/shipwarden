@@ -39,6 +39,7 @@ import type { AgentUpdate } from './agents';
 import type { TranscriptChunk } from './agent-chat';
 import type { AgentProgram } from './agent-programs';
 import type { AskAgentRequest, AskAgentResult, SavedAnswer, SavedCodeAnswer } from './ask-agent';
+import type { DraftRequest, DraftResult } from './drafts';
 import type { ReviewCheckout, ReviewCheckoutStatus } from './review-checkout';
 import type { AppSettings, CommandCheck } from './settings';
 import type { HelpAction } from './onboarding';
@@ -157,6 +158,11 @@ export interface ShipWardenApi {
          * empty folder. For a worktree file, the agent runs in the worktree.
          */
         run(request: AskAgentRequest): Promise<AskAgentResult>;
+        /**
+         * Asks the agent of the repository of a worktree for a draft of a commit message or a pull request description.
+         * The agent runs in print mode in the worktree. `cancel` with the same ID stops it.
+         */
+        draft(request: DraftRequest): Promise<DraftResult>;
         /** Stops a question that runs. */
         cancel(id: string): Promise<void>;
         /** Returns the saved questions and answers of a pull request, oldest first. */
@@ -831,6 +837,7 @@ export const IpcChannels = {
     browserFocusAddress: 'browser:focusAddress',
     usageGet: 'usage:get',
     askRun: 'ask:run',
+    askDraft: 'ask:draft',
     askCancel: 'ask:cancel',
     askAnswers: 'ask:answers',
     askSaveAnswer: 'ask:saveAnswer',

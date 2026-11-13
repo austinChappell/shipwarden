@@ -134,6 +134,22 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   change, the index and the working file for an unstaged change.
 - The main process runs git only in a worktree of a project, and checks that each path stays in the worktree.
 
+### Agent drafts (commit messages and pull request descriptions)
+
+- A ✨ button sits next to the commit message box, the description of the pull request form, and the description
+  editor of the PR tab. A click calls `ask.draft`. The agent of the repository runs in print mode in the worktree
+  (the same runner as "Ask agent"). A second click stops it.
+- The main process collects the git data (`GitChangesService.commitDraftInput` and `pullRequestDraftInput`), and
+  `shared/drafts.ts` writes the prompt. A commit message gets the staged diff and the last 15 commit subjects. An
+  amend gets the diff from the parent of HEAD. A pull request gets the commits and the diff since the default branch
+  of "origin" (`origin/HEAD`, else `origin/main` or `origin/master`).
+- A pull request draft uses the template of the repository when it has one. `PULL_REQUEST_TEMPLATE_PATHS` lists the
+  places of GitHub and Azure DevOps. The match ignores case. In a folder of templates, the first Markdown file applies.
+- Settings › Agents has the global settings: Conventional Commits (on by default) and extra instructions for each
+  kind. A repository adds its own instructions after the global ones, and it can change the Conventional Commits
+  switch (`resolveDraftSettings`).
+- The draft replaces the text in the box. When the box has text, the button asks first.
+
 ### Worktree processes and ports
 
 - `ProcessService` (main) reads `ps` (PID, parent, CPU, memory, time, command), `lsof -iTCP -sTCP:LISTEN` (ports)
