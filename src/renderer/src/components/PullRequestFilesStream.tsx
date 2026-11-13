@@ -54,6 +54,9 @@ interface Props {
 }
 
 /** Returns true when a key goes to a field that takes text. */
+/** For each zone that flashes, the function that removes the listeners of its flash. */
+const flashCleanups = new WeakMap<HTMLElement, () => void>();
+
 function isTextField(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
     return (
@@ -251,9 +254,25 @@ export function PullRequestFilesStream({
         const finish = (element: HTMLElement, flash: boolean) => {
             element.scrollIntoView({ block: 'center' });
             if (!flash) return;
+            // Remove the listeners of an earlier flash first. Else the cancel event of that flash removes this flash.
+            flashCleanups.get(element)?.();
             element.classList.remove('note-flash');
             void element.offsetWidth;
             element.classList.add('note-flash');
+            // Remove the class after the flash. The diff hides and shows the zone when the user scrolls. A CSS animation
+            // starts again each time its element shows. If the class stays, the zone flashes again.
+            const detach = () => {
+                element.removeEventListener('animationend', clear);
+                element.removeEventListener('animationcancel', clear);
+                flashCleanups.delete(element);
+            };
+            const clear = () => {
+                element.classList.remove('note-flash');
+                detach();
+            };
+            element.addEventListener('animationend', clear);
+            element.addEventListener('animationcancel', clear);
+            flashCleanups.set(element, detach);
         };
         const step = () => {
             if (run !== revealRun.current) return;
