@@ -18,7 +18,9 @@ const HANDLERS = {
     'tasks/action': 'runAction',
     'activity/list': 'listActivity',
     'people/list': 'listPeople',
-    'tasks/options': 'listOptions'
+    'tasks/options': 'listOptions',
+    'chat/channels': 'listChannels',
+    'chat/post': 'postMessage'
 };
 
 /** A JSON-RPC error code for a method that the plugin does not have. */
@@ -113,6 +115,7 @@ export function runPlugin(handlers, { input = process.stdin, output = process.st
                         activity: !!handlers.listActivity,
                         assignees: !!handlers.listPeople,
                         options: !!handlers.listOptions,
+                        chat: !!(handlers.listChannels && handlers.postMessage),
                         ...(result?.capabilities ?? {})
                     }
                 };

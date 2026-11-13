@@ -67,7 +67,7 @@ export type Trigger =
     /** A time of day on the selected days of the week. `days` has 0 (Sunday) to 6 (Saturday). `time` is "HH:MM". */
     | { type: 'schedule'; days: number[]; time: string };
 
-export type ActionType = 'sendToAgent' | 'startAgent' | 'runHeadless' | 'moveTask' | 'removeWorktree' | 'notify' | 'http' | 'if' | 'stop';
+export type ActionType = 'sendToAgent' | 'startAgent' | 'runHeadless' | 'moveTask' | 'removeWorktree' | 'notify' | 'postMessage' | 'http' | 'if' | 'stop';
 
 export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 export type HttpMethod = (typeof HTTP_METHODS)[number];
@@ -118,7 +118,19 @@ export type AutomationAction =
     /** Removes the worktree. Git refuses a worktree with changes. With `deleteBranch`, also deletes a merged local branch. */
     | { type: 'removeWorktree'; deleteBranch?: boolean }
     /** Shows a macOS notification. */
-    | { type: 'notify'; title: string; body?: string };
+    | { type: 'notify'; title: string; body?: string }
+    /**
+     * Posts the message to a chat channel of a task manager, for example a ClickUp channel. The message can contain
+     * variables. `connectionId` is local to this Mac, so an export does not contain it. Without it, ShipWarden uses the
+     * only connection that has the channel.
+     */
+    | { type: 'postMessage'; connectionId?: string; channel: ChatChannelRef; message: string };
+
+/** A chat channel of a task manager. The ID comes from the plugin. The name is for the UI and the run history. */
+export interface ChatChannelRef {
+    id: string;
+    name?: string;
+}
 
 export type Approval = 'auto' | 'ask';
 
@@ -245,6 +257,7 @@ export const ACTION_TYPES: { type: ActionType; label: string; description: strin
     { type: 'moveTask', label: 'Move the task', description: 'Moves the task to a status.' },
     { type: 'removeWorktree', label: 'Remove the worktree', description: 'Removes the worktree. Git refuses a worktree with changes.' },
     { type: 'notify', label: 'Show a notification', description: 'Shows a macOS notification.' },
+    { type: 'postMessage', label: 'Post to a chat channel', description: 'Posts a message to a chat channel of a task manager, for example ClickUp.' },
     {
         type: 'http',
         label: 'Send an HTTP request',
@@ -268,6 +281,7 @@ export const ACTION_TRIGGERS: Record<ActionType, readonly TriggerType[]> = {
     moveTask: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new'],
     removeWorktree: ['pr.merged'],
     notify: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
+    postMessage: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
     http: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
     if: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
     stop: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule']
@@ -281,6 +295,7 @@ const MANUAL_ACTIONS: Record<ActionType, readonly ManualEntity[]> = {
     moveTask: ['worktree', 'pullRequest', 'task'],
     removeWorktree: ['worktree', 'pullRequest'],
     notify: ['worktree', 'pullRequest', 'task', 'none'],
+    postMessage: ['worktree', 'pullRequest', 'task', 'none'],
     http: ['worktree', 'pullRequest', 'task', 'none'],
     if: ['worktree', 'pullRequest', 'task', 'none'],
     stop: ['worktree', 'pullRequest', 'task', 'none']
@@ -322,6 +337,8 @@ export function automationTexts(automation: Pick<AutomationDefinition, 'actions'
                 return [action.prompt, action.branch ?? ''];
             case 'notify':
                 return [action.title, action.body ?? ''];
+            case 'postMessage':
+                return [action.message];
             case 'http':
                 return [action.url, action.body ?? '', ...(action.headers ?? []).map(header => header.value)];
             case 'if':
@@ -445,6 +462,7 @@ function prVariables(note = ''): VariableInfo[] {
         { name: 'pr.number', description: `The number of the pull request${note}` },
         { name: 'pr.title', description: `The title of the pull request${note}` },
         { name: 'pr.url', description: `The web address of the pull request${note}` },
+        { name: 'pr.repo', description: `The repository of the pull request, for example acme/api${note}` },
         { name: 'pr.draft', description: `"true" for a draft pull request${note}` }
     ];
 }
@@ -675,6 +693,21 @@ function normalizeAction(value: unknown, index: number, prefix = '', depth = 0):
             const body = text(raw.body, 1000);
             return { type: 'notify', title, ...(body ? { body } : {}) };
         }
+        case 'postMessage': {
+            const channel = record(raw.channel);
+            const channelId = text(channel.id, 200)?.trim();
+            if (!channelId) throw new AutomationError(`${place} needs a channel.`);
+            const channelName = text(channel.name, 200)?.trim();
+            const message = text(raw.message)?.trim();
+            if (!message) throw new AutomationError(`${place} needs a message.`);
+            const connectionId = text(raw.connectionId, 200)?.trim();
+            return {
+                type: 'postMessage',
+                ...(connectionId ? { connectionId } : {}),
+                channel: { id: channelId, ...(channelName ? { name: channelName } : {}) },
+                message
+            };
+        }
         case 'http': {
             const method = HTTP_METHODS.find(item => item === String(raw.method ?? 'GET').toUpperCase());
             if (!method) throw new AutomationError(`${place} has the method "${String(raw.method)}". Use one of: ${HTTP_METHODS.join(', ')}.`);
@@ -871,8 +904,24 @@ export function bindingProblems(automation: Automation, knownRepos: readonly str
 
 /** Returns the JSON text of the portable part of an automation. It has no paths and no IDs of this Mac. */
 export function exportAutomation(automation: AutomationDefinition): string {
-    const definition = normalizeDefinition(automation);
+    const normalized = normalizeDefinition(automation);
+    const definition = { ...normalized, actions: withoutConnections(normalized.actions) };
     return `${JSON.stringify({ kind: AUTOMATION_KIND, ...definition }, null, 2)}\n`;
+}
+
+/** Removes the connections of the "Post to a chat channel" actions. A connection ID is local to this Mac. */
+function withoutConnections(actions: readonly AutomationAction[]): AutomationAction[] {
+    return actions.map(action => {
+        if (action.type === 'postMessage') {
+            const { connectionId: _connection, ...rest } = action;
+            return rest;
+        }
+        if (action.type === 'if') {
+            // biome-ignore lint/suspicious/noThenProperty: "then" is a list of actions, not a function, so the object is not a promise.
+            return { ...action, then: withoutConnections(action.then), ...(action.else ? { else: withoutConnections(action.else) } : {}) };
+        }
+        return action;
+    });
 }
 
 /**
@@ -1048,6 +1097,8 @@ export function defaultAction(type: ActionType): AutomationAction {
             return { type };
         case 'notify':
             return { type, title: '' };
+        case 'postMessage':
+            return { type, channel: { id: '' }, message: '' };
         case 'http':
             return { type, method: 'POST', url: 'https://', body: '{\n  "text": {{pr.title|json}}\n}' };
         case 'if':
@@ -1241,6 +1292,17 @@ function folderName(path: string | undefined): string | undefined {
     return path?.split('/').filter(Boolean).pop();
 }
 
+/**
+ * Returns the repository of a pull request from its web address: "owner/name" for GitHub, and
+ * "organization/project/name" for Azure Repos. Undefined for an address of another form.
+ */
+export function prRepo(url: string): string | undefined {
+    const azure = /^https?:\/\/[^/]+\/([^/]+)\/([^/]+)\/_git\/([^/]+)\/pullrequest\//i.exec(url);
+    if (azure) return azure.slice(1).map(decodeURIComponent).join('/');
+    const github = /^https?:\/\/[^/]+\/([^/]+)\/([^/]+)\/pull\/\d+/i.exec(url);
+    return github ? `${github[1]}/${github[2]}` : undefined;
+}
+
 /** Returns the values of the prompt variables of an event. `extra` adds values that need a request, for example the checks. */
 export function eventVariables(event: AutomationEvent, extra: Record<string, string | undefined> = {}): Record<string, string | undefined> {
     const { date, time } = localDateTime(new Date(event.at));
@@ -1253,6 +1315,7 @@ export function eventVariables(event: AutomationEvent, extra: Record<string, str
         'pr.number': event.pr ? String(event.pr.number) : undefined,
         'pr.title': event.pr?.title,
         'pr.url': event.pr?.url,
+        'pr.repo': event.pr ? prRepo(event.pr.url) : undefined,
         'pr.draft': event.pr?.isDraft === undefined ? undefined : String(event.pr.isDraft),
         'pr.author': event.pr?.author,
         'pr.base': event.pr?.base,

@@ -1,4 +1,5 @@
 import { useId, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import {
     ACTION_TYPES,
@@ -20,7 +21,10 @@ import {
 import { unknownFilters } from '@shared/automation-templates';
 import { AGENT_MODES, type AgentMode } from '@shared/agent-modes';
 import type { AgentDefinition } from '@shared/settings';
-import { Button, Card, CardBody, Checkbox, IconButton, Input, Select, TextArea } from '../components/ui';
+import type { ChatChannel } from '@shared/tasks';
+import { Button, Card, CardBody, Checkbox, Combobox, IconButton, Input, Select, TextArea, sortedGroups } from '../components/ui';
+import { errorText } from '../util';
+import { chatChannelsQueryOptions, chatConnectionsQueryOptions } from './chat-queries';
 import { ConditionEditor } from './ConditionEditor';
 
 interface ListProps {
@@ -325,6 +329,7 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                         <TemplateWarnings texts={[action.title, action.body ?? '']} trigger={trigger} />
                     </>
                 )}
+                {action.type === 'postMessage' && <PostMessageFields action={action} trigger={trigger} onChange={onChange} />}
                 {action.type === 'http' && <HttpFields action={action} trigger={trigger} secrets={secrets} onChange={onChange} />}
                 {action.type === 'if' && (
                     <>
@@ -383,6 +388,104 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                 )}
             </CardBody>
         </Card>
+    );
+}
+
+interface PostMessageProps {
+    action: Extract<AutomationAction, { type: 'postMessage' }>;
+    trigger: Trigger;
+    onChange(action: AutomationAction): void;
+}
+
+/**
+ * The fields of a "Post to a chat channel" action: the task manager, the channel and the message. The task manager
+ * select shows only when more than one task manager has chat channels.
+ */
+function PostMessageFields({ action, trigger, onChange }: PostMessageProps) {
+    const messageRef = useRef<HTMLTextAreaElement>(null);
+    const connections = useQuery(chatConnectionsQueryOptions());
+    const list = connections.data ?? [];
+    const connectionId = action.connectionId ?? (list.length === 1 ? list[0].id : undefined);
+    const channels = useQuery({ ...chatChannelsQueryOptions(connectionId), enabled: !!connectionId });
+    const loaded = channels.data ?? [];
+    // A selected channel that the task manager does not show now stays in the list, so the button shows its name.
+    const choices: ChatChannel[] =
+        action.channel.id && !loaded.some(item => item.id === action.channel.id)
+            ? [...loaded, { id: action.channel.id, name: action.channel.name ?? action.channel.id }]
+            : loaded;
+    const showConnections = list.length > 1 || (!!action.connectionId && !list.some(item => item.id === action.connectionId));
+    return (
+        <>
+            <div className="automation-field-grid">
+                {showConnections && (
+                    <div className="flow-field">
+                        <span className="automation-field-label">Task manager</span>
+                        <Select
+                            aria-label="Task manager"
+                            value={action.connectionId ?? ''}
+                            options={[
+                                { value: '', label: 'Select a task manager' },
+                                ...list.map(connection => ({ value: connection.id, label: connection.name })),
+                                ...(action.connectionId && !list.some(item => item.id === action.connectionId)
+                                    ? [{ value: action.connectionId, label: `${action.connectionId} (not available)` }]
+                                    : [])
+                            ]}
+                            onChange={id => {
+                                const { connectionId: _connection, ...rest } = action;
+                                onChange({ ...rest, ...(id ? { connectionId: id } : {}), channel: { id: '' } });
+                            }}
+                        />
+                    </div>
+                )}
+                <div className="flow-field">
+                    <span className="automation-field-label">Channel</span>
+                    <Combobox
+                        value={action.channel.id || undefined}
+                        groups={sortedGroups(
+                            choices,
+                            channel => channel.path ?? '',
+                            channel => ({ value: channel.id, label: `#${channel.name}` })
+                        )}
+                        placeholder={
+                            connections.isPending || channels.isFetching
+                                ? 'Loading…'
+                                : connectionId
+                                  ? 'Select a channel'
+                                  : list.length === 0
+                                    ? 'No task manager has channels'
+                                    : 'Select a task manager first'
+                        }
+                        searchPlaceholder="Search channels"
+                        disabled={!connectionId}
+                        onChange={id => {
+                            const channel = loaded.find(item => item.id === id);
+                            onChange({ ...action, ...(connectionId ? { connectionId } : {}), channel: { id, ...(channel ? { name: channel.name } : {}) } });
+                        }}
+                    />
+                </div>
+            </div>
+            {channels.error && <div className="form-error">{errorText(channels.error)}</div>}
+            {connections.isSuccess && list.length === 0 && (
+                <div className="automation-warning">No task manager has chat channels. Add a ClickUp connection in Settings › Task managers.</div>
+            )}
+            <div className="automation-prompt-box">
+                <div className="automation-prompt-head">Message</div>
+                <textarea
+                    ref={messageRef}
+                    className="automation-prompt"
+                    aria-label="Message"
+                    value={action.message}
+                    spellCheck={false}
+                    placeholder="The message, in Markdown. Click a variable below to insert it."
+                    onChange={event => onChange({ ...action, message: event.target.value })}
+                />
+                <VariableHint
+                    trigger={trigger}
+                    onInsert={variable => onChange({ ...action, message: insertAt(messageRef.current, action.message, variable) })}
+                />
+            </div>
+            <TemplateWarnings texts={[action.message]} trigger={trigger} />
+        </>
     );
 }
 

@@ -3,7 +3,7 @@
   "name": "ClickUp",
   "version": "0.1.0",
   "protocolVersion": 3,
-  "description": "ClickUp tasks. Each ClickUp list is a collection. Restrict the connection to some workspaces in the settings.",
+  "description": "ClickUp tasks and chat channels. Each ClickUp list is a collection. Restrict the connection to some workspaces in the settings.",
   "command": "node",
   "args": ["index.js"],
   "settings": [
