@@ -16,6 +16,8 @@ import { radioGroupKeys } from './keyboard';
 import { Reactions, type ReactionActions } from './Reactions';
 import { MentionTextarea } from './MentionTextarea';
 import { Button, ButtonGroup, Card, CardBody, Chip, Select, type SelectOption } from './ui';
+import type { CommentChatContext } from '../github/comment-chat-store';
+import { ChatToggle, CommentChat } from './CommentChat';
 
 export type { AgentQuestion, ComposerMode, QuestionAction };
 
@@ -25,7 +27,8 @@ export function ThreadZone({
     onResolve,
     onSendToAgent,
     worktree,
-    reactions
+    reactions,
+    chat
 }: {
     thread: ReviewThread;
     onReply(body: string): Promise<void>;
@@ -35,6 +38,8 @@ export function ThreadZone({
     worktree?: string;
     /** Without it, the comments show no reactions. */
     reactions?: ReactionActions;
+    /** The data of a chat with the agent about the thread. Without it, the "Chat" button does not show. */
+    chat?: CommentChatContext;
 }) {
     const original = threadSuggestionTarget(thread)?.original;
     const [replying, setReplying] = useState(false);
@@ -89,12 +94,23 @@ export function ThreadZone({
                     <Button variant="link" disabled={busy} onClick={() => act(onResolve)}>
                         {thread.isResolved ? 'Unresolve' : 'Resolve'}
                     </Button>
+                    {chat && <ChatToggle context={chat} />}
                     {onSendToAgent && (
                         <Button variant="link" icon={<Bot size={13} strokeWidth={1.6} />} onClick={onSendToAgent}>
                             Send to agent
                         </Button>
                     )}
                 </div>
+                {chat && (
+                    <CommentChat
+                        context={chat}
+                        useLabel="Use as reply"
+                        onUse={answer => {
+                            setText(answer);
+                            setReplying(true);
+                        }}
+                    />
+                )}
             </CardBody>
         </Card>
     );
@@ -109,13 +125,16 @@ export function PendingZone({
     onRemove,
     onEdit,
     onAccept,
-    onSendToAgent
+    onSendToAgent,
+    chat
 }: {
     comment: PendingComment;
     onRemove(): void;
     onEdit?(body: string): void;
     onAccept?(): void;
     onSendToAgent?(): void;
+    /** The data of a chat with the agent about the comment. Without it, the "Chat" button does not show. */
+    chat?: CommentChatContext;
 }) {
     const [sent, setSent] = useState(false);
     const [editing, setEditing] = useState(false);
@@ -181,6 +200,7 @@ export function PendingZone({
                             Accept
                         </Button>
                     )}
+                    {chat && !editing && <ChatToggle context={chat} />}
                     {onSendToAgent && !editing && (
                         <Button
                             variant="link"
@@ -198,6 +218,19 @@ export function PendingZone({
                         Remove
                     </Button>
                 </div>
+                {chat && (
+                    <CommentChat
+                        context={chat}
+                        useLabel={onEdit ? 'Use as comment' : undefined}
+                        onUse={
+                            onEdit &&
+                            (answer => {
+                                setText(answer);
+                                setEditing(true);
+                            })
+                        }
+                    />
+                )}
             </CardBody>
         </Card>
     );

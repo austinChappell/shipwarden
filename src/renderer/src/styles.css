@@ -14406,3 +14406,38 @@ body.resizing-rows * {
     cursor: row-resize !important;
     user-select: none !important;
 }
+
+/* A chat with the agent about a review comment, under the comment. */
+.comment-chat {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.comment-chat-message + .comment-chat-message {
+    margin-top: 8px;
+}
+
+.comment-chat-message .comment-author {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.comment-chat-message.agent {
+    padding-left: 8px;
+    border-left: 2px solid var(--info);
+}
+
+.comment-chat-text {
+    white-space: pre-wrap;
+}
+
+.comment-chat .agent-question-wait {
+    margin-bottom: 8px;
+}
+
+.comment-chat-box {
+    width: 100%;
+    margin-top: 8px;
+}

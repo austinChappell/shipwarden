@@ -142,6 +142,7 @@ export const FileBody = memo(function FileBody({
                         onReply={body => replyToThread(target, pr, thread, body)}
                         onResolve={() => setThreadResolved(target, pr, thread, !thread.isResolved)}
                         reactions={reactionActions(target, pr)}
+                        chat={{ target, pr, file, subject: { kind: 'thread', thread } }}
                     />
                 </div>
             );
@@ -155,6 +156,7 @@ export const FileBody = memo(function FileBody({
                         onEdit={canComment ? body => reviewStore.updatePending(target, pr.number, note.comment, body) : undefined}
                         onAccept={() => reviewStore.acceptPending(target, pr.number, note.comment)}
                         onSendToAgent={onSendToAgent && (() => onSendToAgent(lineNotePrompt(pr, note.comment)))}
+                        chat={{ target, pr, file, subject: { kind: 'pending', comment: note.comment } }}
                     />
                 </div>
             );
