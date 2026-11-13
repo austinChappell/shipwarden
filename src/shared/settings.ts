@@ -12,6 +12,7 @@ import { normalizeHiddenWorktrees, type HiddenWorktree } from './worktrees';
 import { DEFAULT_REMOTE_SETTINGS, normalizeRemoteSettings, type RemoteSettings } from './remote';
 import { normalizeOnboarding, type OnboardingSettings } from './onboarding';
 import { isAgentMode, type AgentMode } from './agent-modes';
+import { DEFAULT_REVIEW_STRICTNESS, isReviewStrictness, type ReviewStrictness } from './review-strictness';
 import { DEFAULT_DRAFT_SETTINGS, normalizeDraftSettings, normalizeRepoDraftSettings, type DraftSettings, type RepoDraftSettings } from './drafts';
 
 /**
@@ -53,6 +54,8 @@ export interface RepoSettings {
     scripts?: RepoScript[];
     /** The draft settings of this repository: commit messages and pull request descriptions. A missing value uses the global setting. */
     drafts?: RepoDraftSettings;
+    /** The default strictness of an agent review of a pull request of this repository. A missing value uses the global setting. */
+    reviewStrictness?: ReviewStrictness;
 }
 
 /** A saved script of a repository, for example "npm test". */
@@ -125,6 +128,8 @@ export interface AppSettings {
     automations: AutomationSettings;
     /** The agent drafts of commit messages and pull request descriptions: the instructions and the Conventional Commits switch. */
     drafts: DraftSettings;
+    /** The default strictness of an agent review of a pull request. A repository can have its own value. */
+    reviewStrictness: ReviewStrictness;
     /**
      * The state of the welcome page, the tour and the checklist. It is missing before the first start of this version.
      * The main process then sets it one time from the repositories of the user (see `initialOnboarding`).
@@ -232,7 +237,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     notifications: DEFAULT_NOTIFICATION_SETTINGS,
     remote: DEFAULT_REMOTE_SETTINGS,
     automations: DEFAULT_AUTOMATION_SETTINGS,
-    drafts: DEFAULT_DRAFT_SETTINGS
+    drafts: DEFAULT_DRAFT_SETTINGS,
+    reviewStrictness: DEFAULT_REVIEW_STRICTNESS
 };
 
 /** The maximum length of an agent command. A longer value is not a command that a person types. */
@@ -295,6 +301,7 @@ function normalizeRepos(value: unknown, agents: AgentDefinition[]): Record<strin
         if (scripts.length > 0) settings.scripts = scripts;
         const drafts = normalizeRepoDraftSettings(entry.drafts);
         if (drafts) settings.drafts = drafts;
+        if (isReviewStrictness(entry.reviewStrictness)) settings.reviewStrictness = entry.reviewStrictness;
         if (Object.keys(settings).length > 0) repos[repo] = settings;
     }
     return repos;
@@ -318,6 +325,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         remote: normalizeRemoteSettings(raw.remote),
         automations: normalizeAutomationSettings(raw.automations),
         drafts: normalizeDraftSettings(raw.drafts),
+        reviewStrictness: isReviewStrictness(raw.reviewStrictness) ? raw.reviewStrictness : DEFAULT_REVIEW_STRICTNESS,
         ...(normalizeOnboarding(raw.onboarding) ? { onboarding: normalizeOnboarding(raw.onboarding) } : {}),
         ...(normalizeWorktreeNames(raw.worktreeNames) ? { worktreeNames: normalizeWorktreeNames(raw.worktreeNames) } : {}),
         ...(normalizeHiddenWorktrees(raw.hiddenWorktrees) ? { hiddenWorktrees: normalizeHiddenWorktrees(raw.hiddenWorktrees) } : {}),
@@ -350,6 +358,11 @@ export function agentForRepo(settings: AppSettings, repo: string | undefined): A
         settings.agents[0] ??
         DEFAULT_AGENTS[0]
     );
+}
+
+/** Returns the default strictness of an agent review in a repository: its own value, else the global value. */
+export function reviewStrictnessForRepo(settings: AppSettings, repo: string | undefined | null): ReviewStrictness {
+    return (repo ? settings.repos[repo]?.reviewStrictness : undefined) ?? settings.reviewStrictness;
 }
 
 /** Returns the name of a repository: its own name from the settings, else its folder name. */

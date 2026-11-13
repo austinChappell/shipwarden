@@ -17,12 +17,16 @@ import {
 } from '@shared/pr-groups';
 import { errorText } from '../util';
 import { pullRequestQuery } from '../github/review-store';
+import { useDefaultReviewStrictness } from '../github/review-strictness';
 import { cancelGroupReview, dismissGroupError, removeGroup, runGroupReview, updateGroup, useGroup, useGroupRun } from '../github/pr-group-store';
 import { confirmDialog } from './ConfirmDialog';
 import { EmptyState } from './EmptyState';
 import { Markdown } from './Markdown';
 import { StateBadge } from './PullRequestParts';
-import { Button, Card, CardBody, CardHeader, Chip, Field, IconButton, Input, PageHeader, TextArea } from './ui';
+import { Button, Card, CardBody, CardHeader, Chip, Field, IconButton, Input, PageHeader, SplitButton, TextArea } from './ui';
+import { STRICTNESS_MENU_TITLE, strictnessMenuItems, strictnessTitle } from './review-strictness-menu';
+
+const GROUP_REVIEW_TITLE = 'The agent reads all pull requests of the group together. It does not change files and posts nothing.';
 
 interface Props {
     groupId: string;
@@ -39,6 +43,7 @@ export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest }: Props) {
     const group = useGroup(groupId);
     const run = useGroupRun(groupId);
     const running = run.status === 'running';
+    const defaultStrictness = useDefaultReviewStrictness(group?.pullRequests.map(item => item.repo) ?? []);
 
     if (!group) {
         return (
@@ -54,6 +59,8 @@ export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest }: Props) {
             </div>
         );
     }
+
+    const reviewDisabled = running || group.pullRequests.length === 0;
 
     const remove = async () => {
         const ok = await confirmDialog({
@@ -76,16 +83,17 @@ export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest }: Props) {
                 meta={[groupSize(group), group.lastReview && `reviewed ${formatAgo(new Date(group.lastReview.at).toISOString())}`].filter(Boolean).join(' · ')}
                 actions={<IconButton size="lg" icon={<Trash2 size={16} strokeWidth={1.6} />} label="Delete the group" onClick={() => void remove()} />}
                 primary={
-                    <Button
-                        variant="primary"
+                    <SplitButton
+                        tone="primary"
                         size="lg"
                         icon={<Bot size={14} strokeWidth={1.6} />}
-                        disabled={running || group.pullRequests.length === 0}
-                        title="The agent reads all pull requests of the group together. It does not change files and posts nothing."
+                        label="Review with agent"
+                        disabled={reviewDisabled}
+                        title={strictnessTitle(GROUP_REVIEW_TITLE, defaultStrictness)}
                         onClick={() => void runGroupReview(group.id)}
-                    >
-                        Review with agent
-                    </Button>
+                        menuTitle={STRICTNESS_MENU_TITLE}
+                        items={strictnessMenuItems(defaultStrictness, level => void runGroupReview(group.id, level), reviewDisabled)}
+                    />
                 }
             />
 

@@ -1,8 +1,10 @@
 import { useId, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Bot, Check, LoaderCircle, MessageSquare, X } from 'lucide-react';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, ReviewEvent } from '@shared/github';
+import type { ReviewStrictness } from '@shared/review-strictness';
 import { decisionEvents, firstUndecided, pendingText, REVIEW_EVENT_TEXT, reviewButtons, reviewEvents, undecidedText } from '../github/review-state';
-import { Button, ButtonGroup, Card, CardBody, CardFooter, CardHeader } from './ui';
+import { Button, ButtonGroup, Card, CardBody, CardFooter, CardHeader, SplitButton } from './ui';
+import { STRICTNESS_MENU_TITLE, strictnessMenuItems, strictnessTitle } from './review-strictness-menu';
 import { MentionTextarea } from './MentionTextarea';
 
 /** The tooltip of the buttons that start an agent review. */
@@ -27,7 +29,10 @@ interface Props {
 /** The state of the agent review of a pull request, and the functions that start and stop it. */
 export interface AgentReviewControl {
     running: boolean;
-    run(): void;
+    /** The strictness of a run without a selected level. Undefined while it loads. */
+    defaultStrictness?: ReviewStrictness;
+    /** Starts a review. Without `strictness`, the review uses the default of the repository. */
+    run(strictness?: ReviewStrictness): void;
     cancel(): void;
 }
 
@@ -51,9 +56,15 @@ function AgentReviewButton({ control }: { control: AgentReviewControl }) {
         );
     }
     return (
-        <Button size="sm" icon={<Bot size={14} strokeWidth={1.6} />} title={AGENT_REVIEW_TITLE} onClick={control.run}>
-            Run agent review
-        </Button>
+        <SplitButton
+            size="sm"
+            icon={<Bot size={14} strokeWidth={1.6} />}
+            label="Run agent review"
+            title={strictnessTitle(AGENT_REVIEW_TITLE, control.defaultStrictness)}
+            onClick={() => control.run()}
+            menuTitle={STRICTNESS_MENU_TITLE}
+            items={strictnessMenuItems(control.defaultStrictness, level => control.run(level))}
+        />
     );
 }
 

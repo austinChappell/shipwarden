@@ -1,5 +1,6 @@
 import type { DiffSide, PendingComment, RepoRef } from './github';
 import { hunkLines } from './pr-search';
+import { DEFAULT_REVIEW_STRICTNESS, strictnessInstructions, type ReviewStrictness } from './review-strictness';
 
 /** The most diff text that a review prompt contains, for all files together. */
 export const MAX_REVIEW_PATCH = 200_000;
@@ -8,6 +9,8 @@ export interface ReviewPromptInput {
     pr: { number: number; title: string; body?: string; url: string; baseRefName: string; headRefName: string; baseRefOid: string; headRefOid: string };
     repo: RepoRef;
     files: { path: string; previousPath?: string; status: string; patch?: string }[];
+    /** How many comments the agent writes. Without it, "balanced". */
+    strictness?: ReviewStrictness;
 }
 
 /** The lines of a file diff that can have a review comment: the lines in its "@@" hunks, by side. */
@@ -77,8 +80,8 @@ export function reviewPrompt(input: ReviewPromptInput): string {
     }
     parts.push(
         [
-            'Find bugs, security problems, missing tests and code that is hard to maintain. Read more of the code if it helps you. Do not change files. Do not post comments on GitHub.',
-            'Write only the review comments that are important. Do not write a comment that only praises the code.',
+            ...strictnessInstructions(input.strictness ?? DEFAULT_REVIEW_STRICTNESS),
+            'Read more of the code if it helps you. Do not change files. Do not post comments on GitHub.',
             'Your answer must be one JSON object and nothing else, with this shape:',
             '{"summary": "<the review summary, in Markdown>", "comments": [{"path": "<file path>", "line": <line number>, "side": "RIGHT", "body": "<the comment, in Markdown>"}]}',
             '"side" is "RIGHT" for a line of the new version (an added line or a context line) and "LEFT" for a removed line.',

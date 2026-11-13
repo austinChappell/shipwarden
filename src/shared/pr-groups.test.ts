@@ -135,6 +135,12 @@ describe('groupReviewPrompt', () => {
         expect(prompt).toContain('"pullRequests"');
     });
 
+    it('has the instructions of the strictness level and the group scope', () => {
+        const prompt = groupReviewPrompt({ name: 'Auth', note: '', pullRequests: [input(api, 1)], strictness: 'strict' });
+        expect(prompt).toContain('also for small problems');
+        expect(prompt).toContain('Look most at the problems between the pull requests');
+    });
+
     it('gives each pull request a part of the diff limit', () => {
         const big = `@@ -1 +1 @@\n+${'x'.repeat(150_000)}`;
         const prompt = groupReviewPrompt({ name: 'Big', note: '', pullRequests: [input(api, 1, big), input(web, 2)] });

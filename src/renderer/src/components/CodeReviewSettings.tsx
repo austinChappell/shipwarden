@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import {
@@ -52,9 +52,10 @@ function providerMeta(provider: ReviewProviderInfo): string {
 
 /**
  * The code review settings: the providers (for example two GitHub accounts and Azure DevOps), each with an on/off
- * switch, its token and its organizations. The layout is the same as the task managers.
+ * switch, its token and its organizations. The layout is the same as the task managers. `children` are more settings
+ * groups after the providers. They are siblings of the providers group, so the space between the groups applies.
  */
-export function CodeReviewSettings() {
+export function CodeReviewSettings({ children }: { children?: ReactNode }) {
     const queryClient = useQueryClient();
     const providers = useReviewProviders();
     const [openId, setOpenId] = useState<string>();
@@ -114,6 +115,8 @@ export function CodeReviewSettings() {
                     {providers?.length === 0 && <p className="panel-note">No providers yet. Add GitHub or Azure DevOps above.</p>}
                 </div>
             </SettingsGroup>
+
+            {children}
 
             {error && <div className="form-error">{error}</div>}
         </div>
