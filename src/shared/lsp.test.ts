@@ -10,6 +10,10 @@ describe('lspLanguageId', () => {
         ['/r/src/main.rs', 'rust'],
         ['/r/app.py', 'python'],
         ['/r/main.go', 'go'],
+        ['/r/app/models/user.rb', 'ruby'],
+        ['/r/sorbet/rbi/gems/rack.rbi', 'ruby'],
+        ['/r/lib/tasks/db.rake', 'ruby'],
+        ['/r/Gemfile', 'ruby'],
         ['/r/README.md', undefined],
         ['/r/.gitignore', undefined],
         ['/r/Makefile', undefined]

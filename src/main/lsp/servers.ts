@@ -23,6 +23,11 @@ export interface ServerDefinition {
     resolve(root: string): Promise<ServerCommand | undefined>;
     /** True when ShipWarden can install the server into its own folder. False when ShipWarden includes the server. */
     installable: boolean;
+    /**
+     * For a server that ShipWarden cannot install: the text that tells the user how to install the server.
+     * Without it, the UI shows nothing when the server is missing.
+     */
+    installHint?: string;
 }
 
 async function isExecutable(file: string): Promise<boolean> {
@@ -273,6 +278,46 @@ function managedOrPath(serverId: string, fromPathResolver: () => Promise<ServerC
     return async () => (await resolveManaged(serverId)) ?? (await fromPathResolver());
 }
 
+/** Returns true when the worktree uses Sorbet. Sorbet reads its options from `sorbet/config`. */
+async function usesSorbet(root: string): Promise<boolean> {
+    return isFile(path.join(root, 'sorbet', 'config'));
+}
+
+/**
+ * Returns the command that starts the Sorbet language server, or undefined.
+ * 1. The `bin/srb` binstub of the worktree.
+ * 2. `bundle exec srb`, when the worktree has a Gemfile. Then the Sorbet version of Gemfile.lock runs.
+ * 3. `srb` in the PATH.
+ * Sorbet uses Watchman to find changes in the files. Without Watchman, Sorbet stops at the start.
+ * So the command has `--disable-watchman` when Watchman is not in the PATH.
+ */
+export async function resolveSorbet(root: string): Promise<ServerCommand | undefined> {
+    const lspArgs = ['typecheck', '--lsp', ...((await which('watchman')) ? [] : ['--disable-watchman'])];
+    const binstub = path.join(root, 'bin', 'srb');
+    if (await isExecutable(binstub)) {
+        return { command: binstub, args: lspArgs };
+    }
+    const bundle = (await isFile(path.join(root, 'Gemfile'))) ? await which('bundle') : undefined;
+    if (bundle) {
+        return { command: bundle, args: ['exec', 'srb', ...lspArgs] };
+    }
+    const srb = await which('srb');
+    return srb ? { command: srb, args: lspArgs } : undefined;
+}
+
+/**
+ * Finds the Ruby language server for the worktree.
+ * A worktree with `sorbet/config` gets Sorbet. Other worktrees get ruby-lsp from the PATH.
+ * rbenv, asdf and chruby put their shims in the PATH of the login shell. The app reads that PATH at the start.
+ */
+async function resolveRuby(root: string): Promise<ServerCommand | undefined> {
+    if (await usesSorbet(root)) {
+        return resolveSorbet(root);
+    }
+    const rubyLsp = await which('ruby-lsp');
+    return rubyLsp ? { command: rubyLsp, args: [] } : undefined;
+}
+
 export const SERVER_DEFINITIONS: readonly ServerDefinition[] = [
     {
         id: 'typescript',
@@ -310,6 +355,15 @@ export const SERVER_DEFINITIONS: readonly ServerDefinition[] = [
         // "go install" writes to ~/go/bin. That folder is not always in the PATH of the app.
         resolve: managedOrPath('gopls', fromPath({ command: 'gopls', args: [] }, { command: '~/go/bin/gopls', args: [] })),
         installable: true
+    },
+    {
+        id: 'ruby',
+        name: 'Sorbet or ruby-lsp',
+        languages: ['ruby'],
+        resolve: resolveRuby,
+        installable: false,
+        installHint:
+            'For a Sorbet project, add the "sorbet" gem to the Gemfile and run "bundle install". For other Ruby projects, run "gem install ruby-lsp". Then restart ShipWarden.'
     }
 ];
 

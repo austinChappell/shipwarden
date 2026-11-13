@@ -120,12 +120,15 @@ export class LspManager {
      */
     async missing(root: string, languageId: string): Promise<LspMissingServer | undefined> {
         const definition = serverForLanguage(languageId);
-        if (!definition || !definition.installable) {
+        if (!definition || (!definition.installable && !definition.installHint)) {
             return undefined;
         }
         await this.ready;
         if (await definition.resolve(root)) {
             return undefined;
+        }
+        if (!definition.installable) {
+            return { serverId: definition.id, name: definition.name, unavailable: definition.installHint };
         }
         return { serverId: definition.id, name: definition.name, ...(await this.installer.plan(definition.id)) };
     }
