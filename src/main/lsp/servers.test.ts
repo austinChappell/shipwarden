@@ -128,9 +128,75 @@ describe('managed servers', () => {
         }
     });
 
-    it('lets ShipWarden install each server that it does not include', () => {
+    it('lets ShipWarden install each server that it does not include, or tells the user how to install it', () => {
         for (const server of SERVER_DEFINITIONS) {
-            expect(server.installable, server.id).toBe(server.id !== 'typescript');
+            expect(server.installable, server.id).toBe(server.id !== 'typescript' && server.id !== 'ruby');
         }
+        expect(SERVER_DEFINITIONS.find(server => server.id === 'ruby')?.installHint).toBeTruthy();
+    });
+});
+
+describe('Ruby', () => {
+    let oldPath: string | undefined;
+    let bin: string;
+    const ruby = () => SERVER_DEFINITIONS.find(server => server.id === 'ruby')!;
+
+    beforeEach(async () => {
+        oldPath = process.env.PATH;
+        bin = path.join(temp, 'path-bin');
+        await fs.mkdir(bin);
+        process.env.PATH = bin;
+    });
+
+    afterEach(() => {
+        process.env.PATH = oldPath;
+    });
+
+    async function addCommand(name: string): Promise<string> {
+        const file = path.join(bin, name);
+        await fs.writeFile(file, '', { mode: 0o755 });
+        return file;
+    }
+
+    async function addSorbetConfig(): Promise<void> {
+        await fs.mkdir(path.join(temp, 'sorbet'));
+        await fs.writeFile(path.join(temp, 'sorbet', 'config'), '.\n');
+    }
+
+    it('uses ruby-lsp when the worktree has no Sorbet config', async () => {
+        const rubyLsp = await addCommand('ruby-lsp');
+        await addCommand('srb');
+        expect(await ruby().resolve(temp)).toEqual({ command: rubyLsp, args: [] });
+    });
+
+    it('uses "bundle exec srb" in a Sorbet worktree with a Gemfile', async () => {
+        await addSorbetConfig();
+        await fs.writeFile(path.join(temp, 'Gemfile'), '');
+        const bundle = await addCommand('bundle');
+        await addCommand('ruby-lsp');
+        expect(await ruby().resolve(temp)).toEqual({ command: bundle, args: ['exec', 'srb', 'typecheck', '--lsp', '--disable-watchman'] });
+    });
+
+    it('uses the bin/srb binstub first', async () => {
+        await addSorbetConfig();
+        await fs.writeFile(path.join(temp, 'Gemfile'), '');
+        await addCommand('bundle');
+        await fs.mkdir(path.join(temp, 'bin'));
+        const binstub = path.join(temp, 'bin', 'srb');
+        await fs.writeFile(binstub, '', { mode: 0o755 });
+        expect((await ruby().resolve(temp))?.command).toBe(binstub);
+    });
+
+    it('keeps Watchman when it is in the PATH', async () => {
+        await addSorbetConfig();
+        const srb = await addCommand('srb');
+        await addCommand('watchman');
+        expect(await ruby().resolve(temp)).toEqual({ command: srb, args: ['typecheck', '--lsp'] });
+    });
+
+    it('returns undefined when no Ruby server is available', async () => {
+        expect(await ruby().resolve(temp)).toBeUndefined();
+        await addSorbetConfig();
+        expect(await ruby().resolve(temp)).toBeUndefined();
     });
 });

@@ -37,7 +37,7 @@ import { missingServers } from './missing-servers';
 import { applyTextEdits, collectFileEdits, toMonacoEdits } from './workspace-edit';
 
 /** The Monaco languages that get LSP providers. */
-const MONACO_LANGUAGES = ['typescript', 'javascript', 'rust', 'python', 'go'];
+const MONACO_LANGUAGES = ['typescript', 'javascript', 'rust', 'python', 'go', 'ruby'];
 const MARKER_OWNER = 'lsp';
 const CHANGE_DEBOUNCE_MS = 100;
 const DIAGNOSTICS_DEBOUNCE_MS = 300;

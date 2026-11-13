@@ -9,6 +9,7 @@ import type { PullRequest, PullRequestFile } from '@shared/github';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } from './components/RightPanel';
 import { requestExplorerFocus } from './files/explorer-focus';
+import { copyFilePath } from './files/file-path-copy';
 import { dialogOpen, promptDialog } from './components/ConfirmDialog';
 import { AppCommandPalette } from './palette/AppCommandPalette';
 import type { PaletteActions } from './palette/palette-commands';
@@ -688,6 +689,14 @@ export function App() {
             requestExplorerFocus();
             return;
         }
+        if (action === 'copyFilePath' || action === 'revealFileInFinder') {
+            // The file of the active tab. Other tabs and views have no file, so the keys do nothing there.
+            const file = mainView === 'worktree' || terminalView ? tabs.activeFile : undefined;
+            if (!workspacePath || !file) return;
+            const done = action === 'copyFilePath' ? copyFilePath(workspacePath, file, file) : api.files.reveal(workspacePath, file);
+            await done.catch(err => setError(errorText(err)));
+            return;
+        }
         if (action === 'newWorktree') {
             // The repository on the screen: the commit graph, else the selected worktree, else the first repository.
             const repo = (mainView === 'graph' ? graphRepo : undefined) ?? selectedRepo ?? repos[0];
@@ -797,6 +806,7 @@ export function App() {
             refreshGitHub: github.refresh,
             closeFromView: tabs.closeFromView,
             openFile: path => openFile(path),
+            revealInExplorer: mainView === 'worktree' ? () => void shortcut('focusExplorer') : undefined,
             sendToAgent,
             setError
         });

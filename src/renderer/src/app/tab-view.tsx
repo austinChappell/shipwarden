@@ -37,6 +37,8 @@ export interface TabViewContext {
     refreshGitHub: () => Promise<void>;
     closeFromView: (tab: TabKey) => void;
     openFile: (path: string) => void;
+    /** Shows the active file in the file explorer of the right panel. Undefined when the view has no file explorer. */
+    revealInExplorer?: () => void;
     sendToAgent: (prompt: string, worktree?: Worktree, target?: NoteTarget) => Promise<void>;
     setError: (error: string | undefined) => void;
 }
@@ -102,6 +104,7 @@ export function renderTabView(tab: TabKey, focused: boolean, context: TabViewCon
                 focusNonce={focusRequest && focusRequest.root === selectedPath && focusRequest.path === path ? focusRequest.nonce : undefined}
                 onError={context.setError}
                 onOpenFile={file => openFile(file)}
+                onRevealInExplorer={context.revealInExplorer}
                 agents={context.agents}
                 defaultAgentId={context.defaultAgentId}
                 onSendNote={(prompt, target) => void sendToAgent(prompt, context.selected, target)}

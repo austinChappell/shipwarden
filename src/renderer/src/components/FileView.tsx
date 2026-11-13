@@ -3,16 +3,33 @@ import { MAX_TEXT_FILE_SIZE, type FileInfo } from '@shared/file-types';
 import { parentPath } from '@shared/files';
 import { useFolderVersion } from '../files/use-file-changes';
 import { EditorView } from './EditorView';
+import { FilePathBar } from './FilePathBar';
 import { MarkdownFileView } from './MarkdownFileView';
 import { ImageView, MediaPlayerView, PdfView, UnsupportedFileView } from './MediaView';
 
-type Props = ComponentProps<typeof MarkdownFileView>;
+type Props = ComponentProps<typeof MarkdownFileView> & {
+    /** Shows the file in the file explorer of the right panel. */
+    onRevealInExplorer?(): void;
+};
 
 /**
  * Shows a file in the view for its kind: the editor for text, the editor and a preview for Markdown, a viewer for
  * images, PDF, audio and video, and a panel for binary files. The main process tells the kind (`files.info`).
  */
-export function FileView(props: Props) {
+export function FileView({ onRevealInExplorer, ...props }: Props) {
+    const { root, path, onError } = props;
+    return (
+        <div className="file-view">
+            <FilePathBar root={root} path={path} onError={onError} onRevealInExplorer={onRevealInExplorer} />
+            <div className="file-view-body">
+                <FileBody {...props} />
+            </div>
+        </div>
+    );
+}
+
+/** The view for the kind of the file, under the path bar. */
+function FileBody(props: ComponentProps<typeof MarkdownFileView>) {
     const { root, path, onError } = props;
     const [info, setInfo] = useState<FileInfo>();
     const [failure, setFailure] = useState<string>();

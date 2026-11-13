@@ -63,7 +63,19 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
     rs: 'rust',
     py: 'python',
     pyi: 'python',
-    go: 'go'
+    go: 'go',
+    rb: 'ruby',
+    rbi: 'ruby',
+    rake: 'ruby',
+    gemspec: 'ruby',
+    ru: 'ruby'
+};
+
+/** The files without an extension that a language server supports, by file name. */
+const LANGUAGE_BY_FILE_NAME: Record<string, string> = {
+    Gemfile: 'ruby',
+    Rakefile: 'ruby',
+    Guardfile: 'ruby'
 };
 
 /** Returns the LSP language ID for a file path, or undefined when no language server supports the file. */
@@ -71,7 +83,7 @@ export function lspLanguageId(path: string): string | undefined {
     const name = path.slice(path.lastIndexOf('/') + 1);
     const dot = name.lastIndexOf('.');
     if (dot <= 0) {
-        return undefined;
+        return LANGUAGE_BY_FILE_NAME[name];
     }
     // Declaration files such as "index.d.ts" are TypeScript.
     return LANGUAGE_BY_EXTENSION[name.slice(dot + 1).toLowerCase()];

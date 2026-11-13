@@ -34,6 +34,10 @@ for (const defaults of [monaco.typescript.typescriptDefaults, monaco.typescript.
     defaults.setDiagnosticsOptions({ noSemanticValidation: true, noSyntaxValidation: false });
 }
 
+// Monaco knows ".rb", ".gemspec" and "Gemfile" only. A second registration adds more Ruby files to the language.
+// Sorbet keeps its type signatures in ".rbi" files.
+monaco.languages.register({ id: 'ruby', extensions: ['.rbi', '.rake', '.ru'], filenames: ['Rakefile', 'Guardfile'] });
+
 /** Syntax colors for each mode. Dark follows Ayu Dark. Light uses dark, saturated colors that are readable on a light background. */
 const SYNTAX: Record<Mode, Record<string, string>> = {
     dark: {
