@@ -81,9 +81,9 @@ export function registerWorktreeIpc({ worktrees, settings, reviewCheckouts, proc
     ipcMain.handle(IpcChannels.worktreesDeleteBranch, (_event, repoPath: string, branch: string, force?: boolean, mergedHead?: string) =>
         worktrees.deleteBranch(String(repoPath), String(branch), force === true, typeof mergedHead === 'string' && mergedHead ? mergedHead : undefined)
     );
-    ipcMain.handle(IpcChannels.worktreesChooseFolder, async () => {
+    ipcMain.handle(IpcChannels.worktreesChooseFolder, async (_event, title?: unknown) => {
         const result = await showOpenDialog(window.get(), {
-            title: 'Choose a Folder for Worktrees',
+            title: typeof title === 'string' && title ? title : 'Choose a Folder for Worktrees',
             buttonLabel: 'Choose',
             properties: ['openDirectory', 'createDirectory']
         });

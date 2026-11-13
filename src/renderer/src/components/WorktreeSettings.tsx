@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { FolderOpen } from 'lucide-react';
-import { repoDisplayName, type AppSettings } from '@shared/settings';
+import { normalizeCodeFolder, repoDisplayName, type AppSettings } from '@shared/settings';
 import {
     DEFAULT_COPY_EXCLUDE,
     DEFAULT_COPY_PATTERNS,
@@ -12,6 +12,7 @@ import { BRANCH_VARIABLES, exampleValues, renderBranchTemplate, unknownVariables
 import { WORKTREE_SORT_LABELS, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
 import { errorText } from '../util';
 import { fetchAppInfo } from '../app/task-branch';
+import { CODE_FOLDER_DIALOG_TITLE, CodeFolderContext } from './code-folder';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { Button, ButtonGroup, Input, Select, Switch, TextArea } from './ui';
 import { radioGroupKeys } from './keyboard';
@@ -24,8 +25,18 @@ function parsePatterns(text: string): string[] {
         .filter(Boolean);
 }
 
-/** A folder field with a "Choose…" button. It saves when the field loses focus. */
-export function FolderField({ value, placeholder, onSave }: { value: string | undefined; placeholder: string; onSave(value: string | undefined): void }) {
+/** A folder field with a "Choose…" button. It saves when the field loses focus. `dialogTitle` is the title of the folder dialog. */
+export function FolderField({
+    value,
+    placeholder,
+    dialogTitle,
+    onSave
+}: {
+    value: string | undefined;
+    placeholder: string;
+    dialogTitle?: string;
+    onSave(value: string | undefined): void;
+}) {
     const [text, setText] = useState(value ?? '');
     useEffect(() => setText(value ?? ''), [value]);
     const commit = (next: string) => {
@@ -47,7 +58,7 @@ export function FolderField({ value, placeholder, onSave }: { value: string | un
                 icon={<FolderOpen size={14} strokeWidth={1.6} />}
                 title="Choose a folder"
                 onClick={async () => {
-                    const folder = await window.shipwarden.worktrees.chooseFolder();
+                    const folder = await window.shipwarden.worktrees.chooseFolder(dialogTitle);
                     if (folder) {
                         setText(folder);
                         commit(folder);
@@ -292,11 +303,46 @@ export function WorktreeSettings({ settings, repos, onSave }: Props) {
             setError(errorText(err));
         }
     };
+    const { suggestion } = useContext(CodeFolderContext);
+    const [folderError, setFolderError] = useState<string>();
+    /** Saves the code folder. A clone needs it, so an empty field does not remove it. */
+    const saveCodeFolder = async (text: string | undefined) => {
+        const codeFolder = normalizeCodeFolder(text);
+        if (!codeFolder) {
+            setFolderError('Type the full path of the code folder, for example "~/code". A clone needs this folder.');
+            return;
+        }
+        setFolderError(undefined);
+        try {
+            await onSave({ codeFolder });
+        } catch (err) {
+            setFolderError(errorText(err));
+        }
+    };
     const saveCopy = (change: Partial<CopyIgnoredSettings>) => save({ copyIgnored: { ...value.copyIgnored, ...change } });
     // The preview needs a repository. With more than one, the user chooses it below the list.
 
     return (
         <>
+            <SettingsGroup title="Clones" description="ShipWarden clones a GitHub repository into your code folder and adds it to a project." card>
+                <SettingsRow
+                    label="Code folder"
+                    description={
+                        <>
+                            A clone goes to <code>{settings.codeFolder ?? suggestion ?? '~/code'}/&lt;repository&gt;</code>. ShipWarden needs this folder to
+                            clone a repository.
+                        </>
+                    }
+                >
+                    <FolderField
+                        value={settings.codeFolder}
+                        placeholder={suggestion ?? '~/code'}
+                        dialogTitle={CODE_FOLDER_DIALOG_TITLE}
+                        onSave={folder => void saveCodeFolder(folder)}
+                    />
+                    {folderError && <div className="form-error">{folderError}</div>}
+                </SettingsRow>
+            </SettingsGroup>
             <SettingsGroup
                 title="Worktrees"
                 description="These settings apply to all repositories. A repository can have its own values in its settings, with a setup and a teardown script."

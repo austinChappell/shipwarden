@@ -1,12 +1,11 @@
 import { ipcMain } from 'electron';
-import * as os from 'os';
-import * as path from 'path';
+import { promises as fs } from 'fs';
 import { IpcChannels } from '@shared/api';
 import { cleanProjectName, type PullRepoResult, type PullRepoTarget } from '@shared/projects';
 import { checkRepoRef } from '@shared/review-checkout';
 import type { Services } from '../services';
 import { mainWorktreeRoot } from '../project-store';
-import { cloneRepo } from '../repo-clone';
+import { cloneRepo, expandHome } from '../repo-clone';
 import { showOpenDialog } from './dialogs';
 
 /** Returns a valid pull target. Throws an error when the value is not a valid target. */
@@ -27,8 +26,9 @@ export function registerProjectIpc({
     projectWorktrees,
     reviewProviders,
     plans,
+    settings,
     window
-}: Pick<Services, 'projects' | 'projectWorktrees' | 'reviewProviders' | 'plans' | 'window'>): void {
+}: Pick<Services, 'projects' | 'projectWorktrees' | 'reviewProviders' | 'plans' | 'settings' | 'window'>): void {
     ipcMain.handle(IpcChannels.projectsGet, () => projects.get());
     ipcMain.handle(IpcChannels.projectsCreate, (_event, name: string) => projects.create(String(name)));
     ipcMain.handle(IpcChannels.projectsRename, (_event, id: string, name: string) => projects.rename(id, String(name)));
@@ -43,7 +43,13 @@ export function registerProjectIpc({
     ipcMain.handle(IpcChannels.projectsMove, (_event, id: string, toIndex: number) => projects.move(id, Number(toIndex)));
     ipcMain.handle(IpcChannels.projectsMoveRepo, (_event, id: string, repo: string, toIndex: number) => projects.moveRepo(id, repo, Number(toIndex)));
     ipcMain.handle(IpcChannels.projectsChooseRepo, async (_event, id: string) => {
-        const result = await showOpenDialog(window.get(), { title: 'Add Repository', buttonLabel: 'Add', properties: ['openDirectory'] });
+        const { codeFolder } = await settings.get();
+        const result = await showOpenDialog(window.get(), {
+            title: 'Add Repository',
+            buttonLabel: 'Add',
+            properties: ['openDirectory'],
+            ...(codeFolder ? { defaultPath: expandHome(codeFolder) } : {})
+        });
         if (result.canceled || result.filePaths.length === 0) {
             return projects.get();
         }
@@ -61,19 +67,13 @@ export function registerProjectIpc({
         // A clone in another project is sufficient. ShipWarden clones only when no project has the repository.
         let root = await projectWorktrees.localClone(repo);
         if (!root) {
-            // The dialog starts in the folder of the first project repository, for example ~/code.
-            const firstRepo = before.projects.flatMap(project => project.repos)[0];
-            const result = await showOpenDialog(window.get(), {
-                title: `Clone ${repo.owner}/${repo.name}`,
-                message: `Choose the folder for the clone. ShipWarden clones the repository into a new folder "${repo.name}" in it.`,
-                buttonLabel: 'Clone Here',
-                defaultPath: firstRepo ? path.dirname(firstRepo) : os.homedir(),
-                properties: ['openDirectory', 'createDirectory']
-            });
-            if (result.canceled || result.filePaths.length === 0) {
-                return null;
+            const { codeFolder } = await settings.get();
+            if (!codeFolder) {
+                throw new Error('Set the code folder first. A clone goes into it.');
             }
-            root = await cloneRepo(result.filePaths[0], repo, { repoFor: folder => reviewProviders.repoFor(folder) });
+            const parent = expandHome(codeFolder);
+            await fs.mkdir(parent, { recursive: true });
+            root = await cloneRepo(parent, repo, { repoFor: folder => reviewProviders.repoFor(folder) });
         }
 
         // The new project comes only after the clone. A failed clone must not leave an empty project.

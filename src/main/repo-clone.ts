@@ -1,5 +1,6 @@
 import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { cloneUrl, type RepoRef } from '@shared/github';
 import { isSafeRepoName } from '@shared/review-checkout';
@@ -13,6 +14,12 @@ export interface CloneRepoOptions {
     repoFor(root: string): Promise<RepoRef | null>;
     /** Returns the URL to clone. The default is the HTTPS URL on the host. Tests use a local folder. */
     cloneUrl?(repo: RepoRef): string;
+}
+
+/** Returns the absolute path of a folder. A leading "~" is the home folder. */
+export function expandHome(folder: string, home = os.homedir()): string {
+    if (folder === '~') return home;
+    return folder.startsWith('~/') ? path.join(home, folder.slice(2)) : folder;
 }
 
 /**

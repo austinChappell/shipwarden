@@ -93,6 +93,11 @@ export interface AppSettings {
     /** The settings of each repository, by the root of its main worktree. */
     repos: Record<string, RepoSettings>;
     /**
+     * The folder for the code of the user, for example "~/code". A clone goes to <codeFolder>/<repository name>.
+     * A leading "~" is the home folder. A clone needs this value. Without it, the clone dialog asks for it first.
+     */
+    codeFolder?: string;
+    /**
      * The GitHub owners of older versions. "all" means all owners. At the first start, `ReviewProviders` makes a GitHub
      * provider from it, with a list as the scope. Newer versions keep the scope in the provider.
      */
@@ -149,6 +154,32 @@ function normalizeNetwork(raw: unknown): NetworkSettings {
     const value = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
     const file = typeof value.caCertsFile === 'string' ? value.caCertsFile.trim() : '';
     return { ...(file ? { caCertsFile: file } : {}), useSystemCertificates: value.useSystemCertificates === true };
+}
+
+/** Returns a folder path that starts with "/" or "~", without a "/" at the end. Returns undefined for other values. */
+export function normalizeCodeFolder(raw: unknown): string | undefined {
+    const value = typeof raw === 'string' ? raw.trim() : '';
+    if (value === '~' || value === '/') return value;
+    if (!value.startsWith('/') && !value.startsWith('~/')) return undefined;
+    return value.replace(/\/+$/, '');
+}
+
+/**
+ * Returns the folder that has the most repositories as direct children, for example "/Users/me/code".
+ * A repository in a worktree folder of ShipWarden does not count. Returns undefined when there are no repositories.
+ */
+export function suggestCodeFolder(repos: readonly string[]): string | undefined {
+    const counts = new Map<string, number>();
+    for (const repo of repos) {
+        const parent = repo.replace(/\/+$/, '').replace(/\/[^/]*$/, '');
+        if (!parent || parent.includes('/.shipwarden/')) continue;
+        counts.set(parent, (counts.get(parent) ?? 0) + 1);
+    }
+    let best: string | undefined;
+    for (const [parent, count] of counts) {
+        if (!best || count > (counts.get(best) ?? 0)) best = parent;
+    }
+    return best;
 }
 
 export type HiddenCommentMatch = 'startsWith' | 'contains' | 'regex';
@@ -280,6 +311,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         agentChat: raw.agentChat !== false,
         repos: normalizeRepos(raw.repos, agents),
         network: normalizeNetwork(raw.network),
+        ...(normalizeCodeFolder(raw.codeFolder) ? { codeFolder: normalizeCodeFolder(raw.codeFolder) } : {}),
         // Older versions kept the sort in "worktreeSort".
         worktrees: normalizeWorktreeSettings(raw.worktrees, raw.worktreeSort),
         notifications: normalizeNotificationSettings(raw.notifications),

@@ -216,7 +216,8 @@ export function useProjects(options: Options) {
 
     /**
      * Adds a GitHub repository to a project, with a clone when no project has one. That project becomes active, and
-     * the main view stays the same. Resolves false when the user cancels the folder dialog. Throws the error of a failed pull.
+     * the main view stays the same. The clone goes into the code folder. Resolves false when the main process adds no
+     * repository. Throws the error of a failed pull.
      */
     const pullRepo = async (repo: RepoRef, target: PullRepoTarget): Promise<boolean> => {
         const result = await api.projects.pullRepo(repo, target);

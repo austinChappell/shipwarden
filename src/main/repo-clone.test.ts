@@ -4,7 +4,15 @@ import { existsSync, promises as fs, writeFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { RepoRef } from '@shared/github';
-import { cloneRepo } from './repo-clone';
+import { cloneRepo, expandHome } from './repo-clone';
+
+describe('expandHome', () => {
+    it('replaces a leading "~" with the home folder', () => {
+        expect(expandHome('~', '/Users/me')).toBe('/Users/me');
+        expect(expandHome('~/code', '/Users/me')).toBe('/Users/me/code');
+        expect(expandHome('/srv/code', '/Users/me')).toBe('/srv/code');
+    });
+});
 
 describe('cloneRepo', () => {
     let tmp: string;

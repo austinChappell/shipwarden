@@ -49,7 +49,7 @@ import { useAppearance } from './theme/appearance';
 import { StatusBar } from './components/StatusBar';
 import { ErrorBanner } from './components/ErrorBanner';
 import { Button, IconButton } from './components/ui';
-import { agentForRepo, DEFAULT_SETTINGS, repoDisplayName, type AppSettings } from '@shared/settings';
+import { agentForRepo, DEFAULT_SETTINGS, repoDisplayName, suggestCodeFolder, type AppSettings } from '@shared/settings';
 import { changeOnboarding, type HelpAction } from '@shared/onboarding';
 import { shouldOpenWelcome } from '@shared/welcome';
 import { shouldOfferTour, TOUR_STEPS, TOUR_VERSION, type TourStep } from '@shared/tour';
@@ -70,6 +70,7 @@ import { agentStateStore } from './terminal/agent-state-store';
 import { sessionListStore } from './terminal/session-list-store';
 import type { ChangeSide, FileChange } from '@shared/git';
 import { SidebarContext, SidebarToggle } from './components/SidebarToggle';
+import { CodeFolderContext, type CodeFolderState } from './components/code-folder';
 import { requestSidebarFocus } from './sidebar-focus';
 import { useBrowserStates } from './browser/browser-store';
 import { openLink } from './links';
@@ -811,629 +812,642 @@ export function App() {
     // before the welcome page opens. A current user sees the cover only until the settings load.
     const startCover = !startupDone && (!settingsLoaded || shouldOpenWelcome(appSettings.onboarding));
 
+    /** The code folder for the clone dialogs. Each clone goes into it. */
+    const codeFolder: CodeFolderState = {
+        folder: appSettings.codeFolder,
+        suggestion: suggestCodeFolder(project.allRepos),
+        save: async folder => setAppSettings(await api.settings.update({ codeFolder: folder }))
+    };
+
     return (
         <SidebarContext.Provider value={{ collapsed: sidebarCollapsed, toggle: toggleSidebar }}>
-            <div className="app-shell">
-                {startCover && <div className="welcome-cover" aria-hidden="true" />}
-                <div
-                    className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${mainView === 'worktree' && selectedPath ? ' has-right-toggle' : ''}${rightPanelShown ? ' right-panel-shown' : ''}`}
-                    style={{ '--sidebar-width': `${sidebarWidth.width}px`, '--explorer-width': `${explorerWidth.width}px` } as CSSProperties}
-                >
-                    {!sidebarCollapsed && (
-                        <Sidebar
-                            projects={projects}
-                            repos={repos}
-                            worktreesByRepo={worktreesByRepo}
-                            sessions={sessions}
-                            selectedPath={selectedPath}
-                            links={links}
-                            summaries={project.summaries}
-                            tasksActive={mainView === 'tasks'}
-                            settingsActive={mainView === 'settings'}
-                            onOpenSettings={() => openSettings()}
-                            onOpenRepoSettings={repo => openSettings(`repo:${repo}`)}
-                            graphRepo={mainView === 'graph' ? graphRepo : undefined}
-                            onOpenGraph={repo => {
-                                setGraphRepo(repo);
-                                setMainView('graph');
-                            }}
-                            repoLabel={repoLabel}
-                            repoColor={repo => appSettings.repos[repo]?.color}
-                            onOpenTasks={() => enterView('tasks')}
-                            agentsActive={mainView === 'agents'}
-                            onOpenAgents={() => enterView('agents')}
-                            reviewActive={mainView === 'review'}
-                            reviewCount={reviewCount}
-                            onOpenReview={() => enterView('review')}
-                            pipelinesActive={mainView === 'pipelines'}
-                            onOpenPipelines={() => enterView('pipelines')}
-                            notesActive={mainView === 'notes'}
-                            onOpenNotes={() => enterView('notes')}
-                            automationsActive={mainView === 'automations'}
-                            automationsCount={automationsCount}
-                            onOpenAutomations={() => enterView('automations')}
-                            plansActive={mainView === 'plans'}
-                            plansCount={plansCount}
-                            onOpenPlans={() => enterView('plans')}
-                            terminalActive={terminalView}
-                            onOpenTerminal={() => enterView('terminal')}
-                            dashboardActive={mainView === 'dashboard'}
-                            dashboardCount={dashboardCount}
-                            onOpenDashboard={() => enterView('dashboard')}
-                            onAddRepo={project.addRepo}
-                            onRemoveRepo={project.removeRepo}
-                            onSwitchProject={project.switchProject}
-                            onCreateProject={(name: string) => project.changeProjects(api.projects.create(name))}
-                            onRenameProject={(id: string, name: string) => project.changeProjects(api.projects.rename(id, name))}
-                            onDeleteProject={(id: string) => project.changeProjects(api.projects.delete(id))}
-                            onSelect={worktree => showWorktree(worktree.path)}
-                            onCreate={worktreeActions.createWorktree}
-                            worktreeNames={appSettings.worktreeNames}
-                            onWorktreeMenu={worktreeActions.worktreeMenu}
-                            onOpenTask={openLinkedTask}
-                            worktreeSort={appSettings.worktrees.sort}
-                            hiddenWorktrees={appSettings.hiddenWorktrees}
-                            onMoveProject={project.moveProject}
-                            onMoveRepo={project.moveRepo}
-                        />
-                    )}
-                    {!sidebarCollapsed && (
-                        <ResizeHandle
-                            panel={sidebarWidth}
-                            edge="right"
-                            label="Resize the worktree list"
-                            maxAvailable={() => window.innerWidth - renderedWidth('.explorer') - MIN_WORKSPACE_WIDTH}
-                        />
-                    )}
-                    {mainView === 'tasks' && activeProject && (
-                        <main className="workspace">
-                            <TasksView
-                                key={`${activeProject.id}:${viewEntry}`}
-                                projectId={activeProject.id}
+            <CodeFolderContext.Provider value={codeFolder}>
+                <div className="app-shell">
+                    {startCover && <div className="welcome-cover" aria-hidden="true" />}
+                    <div
+                        className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${mainView === 'worktree' && selectedPath ? ' has-right-toggle' : ''}${rightPanelShown ? ' right-panel-shown' : ''}`}
+                        style={{ '--sidebar-width': `${sidebarWidth.width}px`, '--explorer-width': `${explorerWidth.width}px` } as CSSProperties}
+                    >
+                        {!sidebarCollapsed && (
+                            <Sidebar
+                                projects={projects}
                                 repos={repos}
-                                links={links}
-                                onStartTask={worktreeActions.startTask}
-                                onLinkWorktree={worktreeActions.chooseWorktreeForTask}
-                                onUnlinkWorktree={worktreeActions.unlinkTask}
-                                onOpenSettings={() => openSettings('tasks')}
-                                openTask={taskOpen}
-                                route={routeOf('tasks')}
-                                onRoute={route => setRoute('tasks', route)}
-                                createOnOpen={createTaskOnOpen}
-                                repoLabel={repoLabel}
-                                onOpenWorktree={path => void worktreeActions.showTaskWorktree(path).catch(err => setError(errorText(err)))}
-                            />
-                        </main>
-                    )}
-                    {mainView === 'review' && (
-                        <main className="workspace">
-                            <ReviewView
-                                key={viewEntry}
-                                reviewKey={reviewKey}
-                                onOpenSettings={() => openSettings('review')}
-                                route={routeOf('review')}
-                                onRoute={route => setRoute('review', route)}
-                                onNewWorktree={(repo, pr) => void worktreeActions.openPullRequestWorktree(repo, pr)}
-                                onSendToAgent={(repo, pr, prompt) => void worktreeActions.openPullRequestWorktree(repo, pr, prompt, showAgentDrawer)}
-                                onSendLogToAgent={(repo, pr, check) =>
-                                    void agents.sendLogToAgent(check, repo, prompt =>
-                                        worktreeActions.openPullRequestWorktree(repo, pr, prompt, showAgentDrawer)
-                                    )
-                                }
-                                onSendChecksToAgent={(repo, pr, checks) =>
-                                    void agents.sendChecksToAgent(checks, repo, prompt =>
-                                        worktreeActions.openPullRequestWorktree(repo, pr, prompt, showAgentDrawer)
-                                    )
-                                }
-                                projects={projects}
-                                onPullRepo={project.pullRepo}
-                            />
-                            {drawerSession && agentDrawer && (terminalSettings ?? settings) && (
-                                <AgentDrawer
-                                    session={drawerSession}
-                                    worktreeName={
-                                        drawerWorktree
-                                            ? worktreeLabel(drawerWorktree, appSettings.worktreeNames)
-                                            : (drawerSession.worktreePath?.split('/').pop() ?? '')
-                                    }
-                                    branch={drawerWorktree?.branch}
-                                    settings={(terminalSettings ?? settings) as TerminalSettings}
-                                    terminalKey={`${drawerSession.id}:${terminalColorsKey}`}
-                                    collapsed={agentDrawer.collapsed}
-                                    onToggle={() => setAgentDrawer({ ...agentDrawer, collapsed: !agentDrawer.collapsed })}
-                                    onClose={() => setAgentDrawer(undefined)}
-                                    onOpenWorktree={() => {
-                                        const path = drawerSession.worktreePath;
-                                        if (!path) return;
-                                        void worktreeActions
-                                            .showTaskWorktree(path)
-                                            .then(() => activate(path, `t:${drawerSession.id}`))
-                                            .catch(err => setError(errorText(err)));
-                                    }}
-                                />
-                            )}
-                        </main>
-                    )}
-                    {mainView === 'pipelines' && (
-                        <main className="workspace">
-                            <PipelinesView
-                                key={viewEntry}
-                                reviewKey={reviewKey}
-                                onOpenSettings={() => openSettings('review')}
-                                route={routeOf('pipelines')}
-                                onRoute={route => setRoute('pipelines', route)}
-                            />
-                        </main>
-                    )}
-                    {mainView === 'graph' && graphRepo && (
-                        <main className="workspace">
-                            <GitGraphView
-                                repo={worktreesByRepo[graphRepo]?.find(worktree => worktree.isMain)?.path ?? graphRepo}
-                                repoName={repoLabel(graphRepo)}
-                                worktrees={worktreesByRepo[graphRepo] ?? []}
-                                onNewWorktree={start => setNewWorktree({ repo: graphRepo, start })}
-                                onOpenWorktree={worktree => showWorktree(worktree.path)}
-                            />
-                        </main>
-                    )}
-                    {mainView === 'notes' && (
-                        <main className="workspace">
-                            <NotesView key={viewEntry} route={routeOf('notes')} onRoute={route => setRoute('notes', route)} />
-                        </main>
-                    )}
-                    {mainView === 'automations' && (
-                        <main className="workspace">
-                            <AutomationsView
-                                key={viewEntry}
-                                settings={appSettings}
-                                onSaveSettings={async change => setAppSettings(await api.settings.update(change))}
-                                repos={project.allRepos}
-                                repoLabel={repoLabel}
-                                onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
-                                onOpenNotes={() => enterView('notes')}
-                                request={automationRequest}
-                            />
-                        </main>
-                    )}
-                    {mainView === 'plans' && activeProject && (
-                        <main className="workspace">
-                            <PlansView
-                                key={`${activeProject.id}:${viewEntry}`}
-                                project={activeProject}
-                                repoLabel={repoLabel}
-                                route={routeOf('plans')}
-                                onRoute={route => setRoute('plans', route)}
-                                onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
-                                onOpenGroup={openPrGroup}
-                            />
-                        </main>
-                    )}
-                    {mainView === 'dashboard' && (
-                        <main className="workspace">
-                            <DashboardView
-                                reviewKey={reviewKey}
-                                onOpenReviewSettings={() => openSettings('review')}
-                                checklist={
-                                    checklistShows ? (
-                                        <ChecklistCard
-                                            checklist={appSettings.onboarding?.checklist}
-                                            actionOf={checklistAction}
-                                            onClose={() => void saveOnboarding({ checklistClosed: true }).catch(err => setError(errorText(err)))}
-                                        />
-                                    ) : undefined
-                                }
-                                key={viewEntry}
-                                onOpenPullRequest={openPullRequest}
-                                filter={commentFilter}
-                                onCreateRule={(author, text) => {
-                                    setRulePrefill({ author, text, nonce: Date.now() });
-                                    openSettings('dashboard');
-                                }}
-                                onHideAuthor={author => {
-                                    const list = appSettings.dashboardHiddenAuthors ?? [];
-                                    void api.settings.update({ dashboardHiddenAuthors: [...list, author] }).then(setAppSettings);
-                                }}
-                                onOpenSettings={() => openSettings('dashboard')}
-                            />
-                        </main>
-                    )}
-                    {mainView === 'agents' && (
-                        <main className="workspace">
-                            <AgentsView
-                                key={viewEntry}
+                                worktreesByRepo={worktreesByRepo}
                                 sessions={sessions}
-                                projects={projects}
+                                selectedPath={selectedPath}
                                 links={links}
+                                summaries={project.summaries}
+                                tasksActive={mainView === 'tasks'}
+                                settingsActive={mainView === 'settings'}
+                                onOpenSettings={() => openSettings()}
+                                onOpenRepoSettings={repo => openSettings(`repo:${repo}`)}
+                                graphRepo={mainView === 'graph' ? graphRepo : undefined}
+                                onOpenGraph={repo => {
+                                    setGraphRepo(repo);
+                                    setMainView('graph');
+                                }}
                                 repoLabel={repoLabel}
                                 repoColor={repo => appSettings.repos[repo]?.color}
-                                onOpen={openAgent}
-                                onStartAgent={() => {
-                                    const action = startAgentAction(selectedPath, repos.length);
-                                    if (action === 'worktree') setMainView('worktree');
-                                    else if (action === 'newWorktree') setNewWorktree({ repo: selectedRepo ?? repos[0] });
-                                    else {
-                                        setMainView('worktree');
-                                        void project.addRepo();
-                                    }
-                                }}
+                                onOpenTasks={() => enterView('tasks')}
+                                agentsActive={mainView === 'agents'}
+                                onOpenAgents={() => enterView('agents')}
+                                reviewActive={mainView === 'review'}
+                                reviewCount={reviewCount}
+                                onOpenReview={() => enterView('review')}
+                                pipelinesActive={mainView === 'pipelines'}
+                                onOpenPipelines={() => enterView('pipelines')}
+                                notesActive={mainView === 'notes'}
+                                onOpenNotes={() => enterView('notes')}
+                                automationsActive={mainView === 'automations'}
+                                automationsCount={automationsCount}
+                                onOpenAutomations={() => enterView('automations')}
+                                plansActive={mainView === 'plans'}
+                                plansCount={plansCount}
+                                onOpenPlans={() => enterView('plans')}
+                                terminalActive={terminalView}
+                                onOpenTerminal={() => enterView('terminal')}
+                                dashboardActive={mainView === 'dashboard'}
+                                dashboardCount={dashboardCount}
+                                onOpenDashboard={() => enterView('dashboard')}
+                                onAddRepo={project.addRepo}
+                                onCloneRepo={() => setCloneOpen(true)}
+                                onRemoveRepo={project.removeRepo}
+                                onSwitchProject={project.switchProject}
+                                onCreateProject={(name: string) => project.changeProjects(api.projects.create(name))}
+                                onRenameProject={(id: string, name: string) => project.changeProjects(api.projects.rename(id, name))}
+                                onDeleteProject={(id: string) => project.changeProjects(api.projects.delete(id))}
+                                onSelect={worktree => showWorktree(worktree.path)}
+                                onCreate={worktreeActions.createWorktree}
+                                worktreeNames={appSettings.worktreeNames}
+                                onWorktreeMenu={worktreeActions.worktreeMenu}
+                                onOpenTask={openLinkedTask}
+                                worktreeSort={appSettings.worktrees.sort}
+                                hiddenWorktrees={appSettings.hiddenWorktrees}
+                                onMoveProject={project.moveProject}
+                                onMoveRepo={project.moveRepo}
                             />
-                        </main>
-                    )}
-                    {mainView === 'welcome' && (
-                        <main className="workspace">
-                            <WelcomeView
-                                settings={appSettings}
-                                mode={mode}
-                                repos={repos}
-                                projectName={activeProject?.name}
-                                onSave={async change => setAppSettings(await api.settings.update(change))}
-                                onOpenSettings={section => openSettings(section)}
-                                onAddRepo={() => void project.addRepo()}
-                                onCloneRepo={repo => (activeProject ? project.pullRepo(repo, { projectId: activeProject.id }) : Promise.resolve(false))}
-                                onStart={() => {
-                                    void saveOnboarding({ welcome: 'done' }).catch(err => setError(errorText(err)));
-                                    const repo = repos[0];
-                                    setMainView(worktrees.length > 0 ? 'worktree' : 'dashboard');
-                                    if (repo) setNewWorktree({ repo });
-                                }}
-                                onLater={() => {
-                                    void saveOnboarding({ welcome: 'done' }).catch(err => setError(errorText(err)));
-                                    setMainView(worktrees.length > 0 ? 'worktree' : 'dashboard');
-                                }}
-                                onSkip={() => {
-                                    void saveOnboarding({ welcome: 'skipped' }).catch(err => setError(errorText(err)));
-                                    setMainView('dashboard');
-                                }}
-                            />
-                        </main>
-                    )}
-                    {mainView === 'settings' && (
-                        <main className="workspace">
-                            <SettingsView
-                                settings={appSettings}
-                                mode={mode}
-                                terminal={settings}
-                                repos={repos}
-                                section={routeOf('settings').page ?? readSettingsSection()}
-                                onSelectSection={section => setRoute('settings', { page: section })}
-                                rulePrefill={rulePrefill}
-                                onSave={async change => setAppSettings(await api.settings.update(change))}
-                                onClose={closeSettings}
-                            />
-                        </main>
-                    )}
-                    <main className="workspace" style={mainView !== 'worktree' && !terminalView ? { display: 'none' } : undefined}>
-                        <header className="workspace-header" data-tour="tabs">
-                            <TabStrip
-                                items={tabs.stripItems}
-                                activeTab={activeTab}
-                                info={key => tabInfo(key, tabContext)}
-                                onSelect={key => workspacePath && activate(workspacePath, key)}
-                                onMove={tabs.moveStripItem}
-                                onCloseTab={tabs.closeTabView}
-                                onCloseGroup={tabs.closeGroup}
-                                onDragStart={tabs.setDraggingTab}
-                                onDragEnd={() => {
-                                    tabs.setDraggingTab(undefined);
-                                    tabs.setDropTarget(undefined);
-                                }}
-                            />
-                            {/* The "+" sits right after the last tab. It is outside the tab strip, which scrolls and would cut off the menu. */}
-                            {workspaceWorktree && (
-                                <div className="tab-strip-actions" data-tour="agent">
-                                    <NewTabMenu
-                                        agents={appSettings.agents}
-                                        defaultAgentId={agentForRepo(appSettings, terminalView ? undefined : selectedRepo).id}
-                                        onStart={target =>
-                                            target === 'browser'
-                                                ? void openBrowser(BLANK_PAGE, workspaceWorktree.path)
-                                                : startTerminal(workspaceWorktree, target)
-                                        }
-                                    />
-                                </div>
-                            )}
-                            <div className="header-spacer" />
-                            {/* The Terminal view has no repository, so it has no task, no automations and no scripts. */}
-                            {!terminalView && selectedPath && links[selectedPath] && (
-                                <Button
-                                    className="task-chip"
-                                    title={`Open the task: ${links[selectedPath].title}`}
-                                    icon={<ListTodo size={14} strokeWidth={1.7} />}
-                                    onClick={() => openLinkedTask(selectedPath)}
-                                >
-                                    <span>{links[selectedPath].key ?? links[selectedPath].title}</span>
-                                </Button>
-                            )}
-                            <div className="header-actions">
-                                {!terminalView && selected && selectedRepo && (
-                                    <AutomationButtons
-                                        variant="menu"
-                                        target={{ entity: 'worktree', repoPath: selectedRepo, worktree: selected, link: links[selected.path] }}
-                                        onError={setError}
-                                    />
-                                )}
-                                {!terminalView && selected && selectedRepo && (
-                                    <ScriptsMenu
-                                        repoName={repoLabel(selectedRepo)}
-                                        scripts={appSettings.repos[selectedRepo]?.scripts ?? []}
-                                        onRun={script => void agents.runScript(selectedRepo, selected, script)}
-                                        onSave={scripts => worktreeActions.saveScripts(selectedRepo, scripts)}
-                                    />
-                                )}
-                            </div>
-                        </header>
-
-                        {error && (
-                            <ErrorBanner title="Click to close" onClose={() => setError(undefined)}>
-                                {error}
-                            </ErrorBanner>
                         )}
-
-                        <section className={`terminal-area${tabs.draggingTab ? ' dragging-tab' : ''}`}>
-                            {layout ? (
-                                <PaneTree
-                                    layout={layout}
-                                    node={layout.root}
-                                    renderTab={renderTab}
-                                    tabTitle={key => tabInfo(key, tabContext).title}
-                                    draggingTab={tabs.draggingTab}
-                                    dropTarget={tabs.dropTarget}
-                                    setDropTarget={tabs.setDropTarget}
-                                    onFocusPane={tabs.focusPane}
-                                    onResize={(splitId, ratio) => activeTab && tabs.commitGroup(activeTab, resizeSplit(layout, splitId, ratio))}
-                                    onMoveToTab={tabs.movePaneToTab}
-                                    onClosePane={tabs.closePaneView}
-                                    onDrop={(dragged, leafId, side) => {
-                                        tabs.dropTab(dragged, leafId, side);
+                        {!sidebarCollapsed && (
+                            <ResizeHandle
+                                panel={sidebarWidth}
+                                edge="right"
+                                label="Resize the worktree list"
+                                maxAvailable={() => window.innerWidth - renderedWidth('.explorer') - MIN_WORKSPACE_WIDTH}
+                            />
+                        )}
+                        {mainView === 'tasks' && activeProject && (
+                            <main className="workspace">
+                                <TasksView
+                                    key={`${activeProject.id}:${viewEntry}`}
+                                    projectId={activeProject.id}
+                                    repos={repos}
+                                    links={links}
+                                    onStartTask={worktreeActions.startTask}
+                                    onLinkWorktree={worktreeActions.chooseWorktreeForTask}
+                                    onUnlinkWorktree={worktreeActions.unlinkTask}
+                                    onOpenSettings={() => openSettings('tasks')}
+                                    openTask={taskOpen}
+                                    route={routeOf('tasks')}
+                                    onRoute={route => setRoute('tasks', route)}
+                                    createOnOpen={createTaskOnOpen}
+                                    repoLabel={repoLabel}
+                                    onOpenWorktree={path => void worktreeActions.showTaskWorktree(path).catch(err => setError(errorText(err)))}
+                                />
+                            </main>
+                        )}
+                        {mainView === 'review' && (
+                            <main className="workspace">
+                                <ReviewView
+                                    key={viewEntry}
+                                    reviewKey={reviewKey}
+                                    onOpenSettings={() => openSettings('review')}
+                                    route={routeOf('review')}
+                                    onRoute={route => setRoute('review', route)}
+                                    onNewWorktree={(repo, pr) => void worktreeActions.openPullRequestWorktree(repo, pr)}
+                                    onSendToAgent={(repo, pr, prompt) => void worktreeActions.openPullRequestWorktree(repo, pr, prompt, showAgentDrawer)}
+                                    onSendLogToAgent={(repo, pr, check) =>
+                                        void agents.sendLogToAgent(check, repo, prompt =>
+                                            worktreeActions.openPullRequestWorktree(repo, pr, prompt, showAgentDrawer)
+                                        )
+                                    }
+                                    onSendChecksToAgent={(repo, pr, checks) =>
+                                        void agents.sendChecksToAgent(checks, repo, prompt =>
+                                            worktreeActions.openPullRequestWorktree(repo, pr, prompt, showAgentDrawer)
+                                        )
+                                    }
+                                    projects={projects}
+                                    onPullRepo={project.pullRepo}
+                                />
+                                {drawerSession && agentDrawer && (terminalSettings ?? settings) && (
+                                    <AgentDrawer
+                                        session={drawerSession}
+                                        worktreeName={
+                                            drawerWorktree
+                                                ? worktreeLabel(drawerWorktree, appSettings.worktreeNames)
+                                                : (drawerSession.worktreePath?.split('/').pop() ?? '')
+                                        }
+                                        branch={drawerWorktree?.branch}
+                                        settings={(terminalSettings ?? settings) as TerminalSettings}
+                                        terminalKey={`${drawerSession.id}:${terminalColorsKey}`}
+                                        collapsed={agentDrawer.collapsed}
+                                        onToggle={() => setAgentDrawer({ ...agentDrawer, collapsed: !agentDrawer.collapsed })}
+                                        onClose={() => setAgentDrawer(undefined)}
+                                        onOpenWorktree={() => {
+                                            const path = drawerSession.worktreePath;
+                                            if (!path) return;
+                                            void worktreeActions
+                                                .showTaskWorktree(path)
+                                                .then(() => activate(path, `t:${drawerSession.id}`))
+                                                .catch(err => setError(errorText(err)));
+                                        }}
+                                    />
+                                )}
+                            </main>
+                        )}
+                        {mainView === 'pipelines' && (
+                            <main className="workspace">
+                                <PipelinesView
+                                    key={viewEntry}
+                                    reviewKey={reviewKey}
+                                    onOpenSettings={() => openSettings('review')}
+                                    route={routeOf('pipelines')}
+                                    onRoute={route => setRoute('pipelines', route)}
+                                />
+                            </main>
+                        )}
+                        {mainView === 'graph' && graphRepo && (
+                            <main className="workspace">
+                                <GitGraphView
+                                    repo={worktreesByRepo[graphRepo]?.find(worktree => worktree.isMain)?.path ?? graphRepo}
+                                    repoName={repoLabel(graphRepo)}
+                                    worktrees={worktreesByRepo[graphRepo] ?? []}
+                                    onNewWorktree={start => setNewWorktree({ repo: graphRepo, start })}
+                                    onOpenWorktree={worktree => showWorktree(worktree.path)}
+                                />
+                            </main>
+                        )}
+                        {mainView === 'notes' && (
+                            <main className="workspace">
+                                <NotesView key={viewEntry} route={routeOf('notes')} onRoute={route => setRoute('notes', route)} />
+                            </main>
+                        )}
+                        {mainView === 'automations' && (
+                            <main className="workspace">
+                                <AutomationsView
+                                    key={viewEntry}
+                                    settings={appSettings}
+                                    onSaveSettings={async change => setAppSettings(await api.settings.update(change))}
+                                    repos={project.allRepos}
+                                    repoLabel={repoLabel}
+                                    onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
+                                    onOpenNotes={() => enterView('notes')}
+                                    request={automationRequest}
+                                />
+                            </main>
+                        )}
+                        {mainView === 'plans' && activeProject && (
+                            <main className="workspace">
+                                <PlansView
+                                    key={`${activeProject.id}:${viewEntry}`}
+                                    project={activeProject}
+                                    repoLabel={repoLabel}
+                                    route={routeOf('plans')}
+                                    onRoute={route => setRoute('plans', route)}
+                                    onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
+                                    onOpenGroup={openPrGroup}
+                                />
+                            </main>
+                        )}
+                        {mainView === 'dashboard' && (
+                            <main className="workspace">
+                                <DashboardView
+                                    reviewKey={reviewKey}
+                                    onOpenReviewSettings={() => openSettings('review')}
+                                    checklist={
+                                        checklistShows ? (
+                                            <ChecklistCard
+                                                checklist={appSettings.onboarding?.checklist}
+                                                actionOf={checklistAction}
+                                                onClose={() => void saveOnboarding({ checklistClosed: true }).catch(err => setError(errorText(err)))}
+                                            />
+                                        ) : undefined
+                                    }
+                                    key={viewEntry}
+                                    onOpenPullRequest={openPullRequest}
+                                    filter={commentFilter}
+                                    onCreateRule={(author, text) => {
+                                        setRulePrefill({ author, text, nonce: Date.now() });
+                                        openSettings('dashboard');
+                                    }}
+                                    onHideAuthor={author => {
+                                        const list = appSettings.dashboardHiddenAuthors ?? [];
+                                        void api.settings.update({ dashboardHiddenAuthors: [...list, author] }).then(setAppSettings);
+                                    }}
+                                    onOpenSettings={() => openSettings('dashboard')}
+                                />
+                            </main>
+                        )}
+                        {mainView === 'agents' && (
+                            <main className="workspace">
+                                <AgentsView
+                                    key={viewEntry}
+                                    sessions={sessions}
+                                    projects={projects}
+                                    links={links}
+                                    repoLabel={repoLabel}
+                                    repoColor={repo => appSettings.repos[repo]?.color}
+                                    onOpen={openAgent}
+                                    onStartAgent={() => {
+                                        const action = startAgentAction(selectedPath, repos.length);
+                                        if (action === 'worktree') setMainView('worktree');
+                                        else if (action === 'newWorktree') setNewWorktree({ repo: selectedRepo ?? repos[0] });
+                                        else {
+                                            setMainView('worktree');
+                                            void project.addRepo();
+                                        }
+                                    }}
+                                />
+                            </main>
+                        )}
+                        {mainView === 'welcome' && (
+                            <main className="workspace">
+                                <WelcomeView
+                                    settings={appSettings}
+                                    mode={mode}
+                                    repos={repos}
+                                    projectName={activeProject?.name}
+                                    onSave={async change => setAppSettings(await api.settings.update(change))}
+                                    onOpenSettings={section => openSettings(section)}
+                                    onAddRepo={() => void project.addRepo()}
+                                    onCloneRepo={repo => (activeProject ? project.pullRepo(repo, { projectId: activeProject.id }) : Promise.resolve(false))}
+                                    onStart={() => {
+                                        void saveOnboarding({ welcome: 'done' }).catch(err => setError(errorText(err)));
+                                        const repo = repos[0];
+                                        setMainView(worktrees.length > 0 ? 'worktree' : 'dashboard');
+                                        if (repo) setNewWorktree({ repo });
+                                    }}
+                                    onLater={() => {
+                                        void saveOnboarding({ welcome: 'done' }).catch(err => setError(errorText(err)));
+                                        setMainView(worktrees.length > 0 ? 'worktree' : 'dashboard');
+                                    }}
+                                    onSkip={() => {
+                                        void saveOnboarding({ welcome: 'skipped' }).catch(err => setError(errorText(err)));
+                                        setMainView('dashboard');
+                                    }}
+                                />
+                            </main>
+                        )}
+                        {mainView === 'settings' && (
+                            <main className="workspace">
+                                <SettingsView
+                                    settings={appSettings}
+                                    mode={mode}
+                                    terminal={settings}
+                                    repos={repos}
+                                    section={routeOf('settings').page ?? readSettingsSection()}
+                                    onSelectSection={section => setRoute('settings', { page: section })}
+                                    rulePrefill={rulePrefill}
+                                    onSave={async change => setAppSettings(await api.settings.update(change))}
+                                    onClose={closeSettings}
+                                />
+                            </main>
+                        )}
+                        <main className="workspace" style={mainView !== 'worktree' && !terminalView ? { display: 'none' } : undefined}>
+                            <header className="workspace-header" data-tour="tabs">
+                                <TabStrip
+                                    items={tabs.stripItems}
+                                    activeTab={activeTab}
+                                    info={key => tabInfo(key, tabContext)}
+                                    onSelect={key => workspacePath && activate(workspacePath, key)}
+                                    onMove={tabs.moveStripItem}
+                                    onCloseTab={tabs.closeTabView}
+                                    onCloseGroup={tabs.closeGroup}
+                                    onDragStart={tabs.setDraggingTab}
+                                    onDragEnd={() => {
                                         tabs.setDraggingTab(undefined);
                                         tabs.setDropTarget(undefined);
                                     }}
                                 />
-                            ) : terminalView ? (
-                                <div className="empty-state">
-                                    <EmptyState
-                                        icon={SquareTerminal}
-                                        title="No tabs are open"
-                                        actions={
-                                            <Button
-                                                variant="primary"
-                                                size="lg"
-                                                icon={<SquareTerminal size={14} strokeWidth={1.8} aria-hidden="true" />}
-                                                disabled={!homeWorktree}
-                                                onClick={() => homeWorktree && void startTerminal(homeWorktree, 'shell')}
-                                            >
-                                                Open a shell
-                                            </Button>
-                                        }
-                                        hint={
-                                            <>
-                                                Press <kbd>⌘T</kbd> for a shell tab.
-                                            </>
-                                        }
+                                {/* The "+" sits right after the last tab. It is outside the tab strip, which scrolls and would cut off the menu. */}
+                                {workspaceWorktree && (
+                                    <div className="tab-strip-actions" data-tour="agent">
+                                        <NewTabMenu
+                                            agents={appSettings.agents}
+                                            defaultAgentId={agentForRepo(appSettings, terminalView ? undefined : selectedRepo).id}
+                                            onStart={target =>
+                                                target === 'browser'
+                                                    ? void openBrowser(BLANK_PAGE, workspaceWorktree.path)
+                                                    : startTerminal(workspaceWorktree, target)
+                                            }
+                                        />
+                                    </div>
+                                )}
+                                <div className="header-spacer" />
+                                {/* The Terminal view has no repository, so it has no task, no automations and no scripts. */}
+                                {!terminalView && selectedPath && links[selectedPath] && (
+                                    <Button
+                                        className="task-chip"
+                                        title={`Open the task: ${links[selectedPath].title}`}
+                                        icon={<ListTodo size={14} strokeWidth={1.7} />}
+                                        onClick={() => openLinkedTask(selectedPath)}
                                     >
-                                        Shells and agents on this page start in your home folder.
-                                    </EmptyState>
+                                        <span>{links[selectedPath].key ?? links[selectedPath].title}</span>
+                                    </Button>
+                                )}
+                                <div className="header-actions">
+                                    {!terminalView && selected && selectedRepo && (
+                                        <AutomationButtons
+                                            variant="menu"
+                                            target={{ entity: 'worktree', repoPath: selectedRepo, worktree: selected, link: links[selected.path] }}
+                                            onError={setError}
+                                        />
+                                    )}
+                                    {!terminalView && selected && selectedRepo && (
+                                        <ScriptsMenu
+                                            repoName={repoLabel(selectedRepo)}
+                                            scripts={appSettings.repos[selectedRepo]?.scripts ?? []}
+                                            onRun={script => void agents.runScript(selectedRepo, selected, script)}
+                                            onSave={scripts => worktreeActions.saveScripts(selectedRepo, scripts)}
+                                        />
+                                    )}
                                 </div>
-                            ) : (
-                                <div className="empty-state">
-                                    {!activeProject && <div className="empty-title">Loading…</div>}
-                                    {activeProject && repos.length === 0 && (
+                            </header>
+
+                            {error && (
+                                <ErrorBanner title="Click to close" onClose={() => setError(undefined)}>
+                                    {error}
+                                </ErrorBanner>
+                            )}
+
+                            <section className={`terminal-area${tabs.draggingTab ? ' dragging-tab' : ''}`}>
+                                {layout ? (
+                                    <PaneTree
+                                        layout={layout}
+                                        node={layout.root}
+                                        renderTab={renderTab}
+                                        tabTitle={key => tabInfo(key, tabContext).title}
+                                        draggingTab={tabs.draggingTab}
+                                        dropTarget={tabs.dropTarget}
+                                        setDropTarget={tabs.setDropTarget}
+                                        onFocusPane={tabs.focusPane}
+                                        onResize={(splitId, ratio) => activeTab && tabs.commitGroup(activeTab, resizeSplit(layout, splitId, ratio))}
+                                        onMoveToTab={tabs.movePaneToTab}
+                                        onClosePane={tabs.closePaneView}
+                                        onDrop={(dragged, leafId, side) => {
+                                            tabs.dropTab(dragged, leafId, side);
+                                            tabs.setDraggingTab(undefined);
+                                            tabs.setDropTarget(undefined);
+                                        }}
+                                    />
+                                ) : terminalView ? (
+                                    <div className="empty-state">
                                         <EmptyState
-                                            icon={FolderGit2}
-                                            title={`${activeProject.name} has no repositories`}
+                                            icon={SquareTerminal}
+                                            title="No tabs are open"
                                             actions={
+                                                <Button
+                                                    variant="primary"
+                                                    size="lg"
+                                                    icon={<SquareTerminal size={14} strokeWidth={1.8} aria-hidden="true" />}
+                                                    disabled={!homeWorktree}
+                                                    onClick={() => homeWorktree && void startTerminal(homeWorktree, 'shell')}
+                                                >
+                                                    Open a shell
+                                                </Button>
+                                            }
+                                            hint={
                                                 <>
+                                                    Press <kbd>⌘T</kbd> for a shell tab.
+                                                </>
+                                            }
+                                        >
+                                            Shells and agents on this page start in your home folder.
+                                        </EmptyState>
+                                    </div>
+                                ) : (
+                                    <div className="empty-state">
+                                        {!activeProject && <div className="empty-title">Loading…</div>}
+                                        {activeProject && repos.length === 0 && (
+                                            <EmptyState
+                                                icon={FolderGit2}
+                                                title={`${activeProject.name} has no repositories`}
+                                                actions={
+                                                    <>
+                                                        <Button
+                                                            variant="primary"
+                                                            size="lg"
+                                                            icon={<FolderPlus size={14} strokeWidth={1.8} aria-hidden="true" />}
+                                                            onClick={project.addRepo}
+                                                        >
+                                                            Add a repository
+                                                        </Button>
+                                                        <Button
+                                                            size="lg"
+                                                            icon={<FolderDown size={14} strokeWidth={1.8} aria-hidden="true" />}
+                                                            onClick={() => setCloneOpen(true)}
+                                                        >
+                                                            Clone a repository
+                                                        </Button>
+                                                    </>
+                                                }
+                                            >
+                                                Add a git repository from your Mac, or clone one from GitHub. Then create worktrees and start agents in them.
+                                            </EmptyState>
+                                        )}
+                                        {repos.length > 0 && selected && (
+                                            <EmptyState
+                                                icon={SquareTerminal}
+                                                title={selected.branch ?? selected.path}
+                                                actions={
                                                     <Button
                                                         variant="primary"
                                                         size="lg"
-                                                        icon={<FolderPlus size={14} strokeWidth={1.8} aria-hidden="true" />}
-                                                        onClick={project.addRepo}
+                                                        data-tour="agent"
+                                                        icon={<Play size={14} strokeWidth={1.8} aria-hidden="true" />}
+                                                        onClick={() => startTerminal(selected, 'agent')}
                                                     >
-                                                        Add a repository
+                                                        Start {agentForRepo(appSettings, selectedRepo).name}
                                                     </Button>
+                                                }
+                                                hint={
+                                                    <>
+                                                        Press <kbd>⌘T</kbd> for a shell tab. Press <kbd>⌘N</kbd> for a new worktree.
+                                                    </>
+                                                }
+                                            >
+                                                <span className="empty-view-path" title={selected.path}>
+                                                    {selected.path}
+                                                </span>
+                                            </EmptyState>
+                                        )}
+                                        {repos.length > 0 && !selected && (
+                                            <EmptyState
+                                                icon={GitBranchPlus}
+                                                title="No worktree is selected"
+                                                actions={
                                                     <Button
+                                                        variant="primary"
                                                         size="lg"
-                                                        icon={<FolderDown size={14} strokeWidth={1.8} aria-hidden="true" />}
-                                                        onClick={() => setCloneOpen(true)}
+                                                        icon={<GitBranchPlus size={14} strokeWidth={1.8} aria-hidden="true" />}
+                                                        onClick={() => setNewWorktree({ repo: selectedRepo ?? repos[0] })}
                                                     >
-                                                        Clone a repository
+                                                        Create a worktree
                                                     </Button>
-                                                </>
-                                            }
-                                        >
-                                            Add a git repository from your Mac, or clone one from GitHub. Then create worktrees and start agents in them.
-                                        </EmptyState>
-                                    )}
-                                    {repos.length > 0 && selected && (
-                                        <EmptyState
-                                            icon={SquareTerminal}
-                                            title={selected.branch ?? selected.path}
-                                            actions={
-                                                <Button
-                                                    variant="primary"
-                                                    size="lg"
-                                                    data-tour="agent"
-                                                    icon={<Play size={14} strokeWidth={1.8} aria-hidden="true" />}
-                                                    onClick={() => startTerminal(selected, 'agent')}
-                                                >
-                                                    Start {agentForRepo(appSettings, selectedRepo).name}
-                                                </Button>
-                                            }
-                                            hint={
-                                                <>
-                                                    Press <kbd>⌘T</kbd> for a shell tab. Press <kbd>⌘N</kbd> for a new worktree.
-                                                </>
-                                            }
-                                        >
-                                            <span className="empty-view-path" title={selected.path}>
-                                                {selected.path}
-                                            </span>
-                                        </EmptyState>
-                                    )}
-                                    {repos.length > 0 && !selected && (
-                                        <EmptyState
-                                            icon={GitBranchPlus}
-                                            title="No worktree is selected"
-                                            actions={
-                                                <Button
-                                                    variant="primary"
-                                                    size="lg"
-                                                    icon={<GitBranchPlus size={14} strokeWidth={1.8} aria-hidden="true" />}
-                                                    onClick={() => setNewWorktree({ repo: selectedRepo ?? repos[0] })}
-                                                >
-                                                    Create a worktree
-                                                </Button>
-                                            }
-                                            hint={
-                                                <>
-                                                    Press <kbd>⌘N</kbd> for a new worktree.
-                                                </>
-                                            }
-                                        >
-                                            Select a worktree in the sidebar, or create a worktree for a new branch.
-                                        </EmptyState>
-                                    )}
-                                </div>
-                            )}
-                        </section>
-                    </main>
-                    {rightPanelShown && selectedPath && (
-                        <ResizeHandle
-                            panel={explorerWidth}
-                            edge="left"
-                            label="Resize the side panel"
-                            maxAvailable={() => window.innerWidth - renderedWidth('.sidebar') - MIN_WORKSPACE_WIDTH}
-                        />
-                    )}
-                    {rightPanelShown && selectedPath && (
-                        <RightPanel
-                            root={selectedPath}
-                            tab={panelTab}
-                            onSelectTab={selectPanelTab}
-                            activeFile={tabs.activeFile}
-                            github={github}
-                            onOpenFile={(path, line) => openFile(path, line)}
-                            onFileMoved={(from, to) => tabs.filesMoved(selectedPath, from, to)}
-                            onFilesDeleted={paths => tabs.filesDeleted(selectedPath, paths)}
-                            onOpenDiff={openDiff}
-                            renderPrAutomations={
-                                selected && selectedRepo
-                                    ? pr => (
-                                          <AutomationButtons
-                                              target={{ entity: 'pullRequest', repoPath: selectedRepo, worktree: selected, pr, link: links[selected.path] }}
-                                          />
-                                      )
-                                    : undefined
-                            }
-                            onSendToAgent={sendToAgent}
-                            onSendLogToAgent={check => void agents.sendLogToAgent(check)}
-                            onSendChecksToAgent={agents.sendChecksToAgent}
-                            onShowTerminal={id => activate(selectedPath, `t:${id}`)}
-                            onOpenChange={openChange}
-                            onOpenAllChanges={openAllChanges}
-                            // The Review view needs a provider that is on, so the button needs one.
-                            onOpenInReview={reviewKey ? (repo, pr) => openPullRequest(repo, pr.number, 'overview') : undefined}
-                        />
-                    )}
-                    {cloneOpen && activeProject && (
-                        <CloneRepoDialog
-                            projectName={activeProject.name}
-                            onClose={() => setCloneOpen(false)}
-                            onClone={repo => project.pullRepo(repo, { projectId: activeProject.id })}
-                        />
-                    )}
-                    {linkTaskFor && (
-                        <LinkTaskDialog
-                            key={linkTaskFor.path}
-                            worktreeName={worktreeLabel(linkTaskFor, appSettings.worktreeNames)}
-                            current={links[linkTaskFor.path]}
-                            otherWorktreeOf={(connectionId, task) => {
-                                const path = worktreeForTask(links, connectionId, task);
-                                if (!path || path === linkTaskFor.path) return undefined;
-                                const other = worktrees.find(item => item.path === path);
-                                // A worktree of another project is not in the list. Its folder name shows then.
-                                return other ? worktreeLabel(other, appSettings.worktreeNames) : path.split('/').pop();
-                            }}
-                            onClose={() => setLinkTaskFor(undefined)}
-                            onLink={(task, connectionId, pluginId) => worktreeActions.linkTask(linkTaskFor.path, task, connectionId, pluginId)}
-                            onUnlink={() => worktreeActions.unlinkTask(linkTaskFor.path)}
-                        />
-                    )}
-                    {newWorktree && (
-                        <NewWorktreeDialog
-                            // A new key for each repository and start point, so that the dialog starts with empty fields.
-                            key={`${newWorktree.repo}\n${JSON.stringify(newWorktree.start ?? null)}\n${newWorktree.task?.task.id ?? ''}`}
-                            repoName={repoLabel(newWorktree.repo)}
-                            repoPath={newWorktree.repo}
-                            {...(newWorktree.task
-                                ? {
-                                      title: `Start ${newWorktree.task.task.key ?? newWorktree.task.task.title} in ${repoLabel(newWorktree.repo)}`,
-                                      suggestBranch: () => worktreeActions.suggestTaskBranch(newWorktree.task!.task, newWorktree.repo)
-                                  }
-                                : {})}
-                            {...(!newWorktree.start
-                                ? {}
-                                : 'remote' in newWorktree.start
-                                  ? { initialRemote: newWorktree.start.remote }
-                                  : { initialBase: { ref: newWorktree.start.commit, label: newWorktree.start.label } })}
-                            onClose={() => setNewWorktree(undefined)}
-                            onCreate={async request => {
-                                await worktreeActions.createWorktree(newWorktree.repo, request, newWorktree.prompt, newWorktree.task);
-                                setNewWorktree(undefined);
-                            }}
-                        />
-                    )}
-                </div>
-                {/* The two panel buttons have fixed places in the title bar, so they never move when they are clicked: the
+                                                }
+                                                hint={
+                                                    <>
+                                                        Press <kbd>⌘N</kbd> for a new worktree.
+                                                    </>
+                                                }
+                                            >
+                                                Select a worktree in the sidebar, or create a worktree for a new branch.
+                                            </EmptyState>
+                                        )}
+                                    </div>
+                                )}
+                            </section>
+                        </main>
+                        {rightPanelShown && selectedPath && (
+                            <ResizeHandle
+                                panel={explorerWidth}
+                                edge="left"
+                                label="Resize the side panel"
+                                maxAvailable={() => window.innerWidth - renderedWidth('.sidebar') - MIN_WORKSPACE_WIDTH}
+                            />
+                        )}
+                        {rightPanelShown && selectedPath && (
+                            <RightPanel
+                                root={selectedPath}
+                                tab={panelTab}
+                                onSelectTab={selectPanelTab}
+                                activeFile={tabs.activeFile}
+                                github={github}
+                                onOpenFile={(path, line) => openFile(path, line)}
+                                onFileMoved={(from, to) => tabs.filesMoved(selectedPath, from, to)}
+                                onFilesDeleted={paths => tabs.filesDeleted(selectedPath, paths)}
+                                onOpenDiff={openDiff}
+                                renderPrAutomations={
+                                    selected && selectedRepo
+                                        ? pr => (
+                                              <AutomationButtons
+                                                  target={{ entity: 'pullRequest', repoPath: selectedRepo, worktree: selected, pr, link: links[selected.path] }}
+                                              />
+                                          )
+                                        : undefined
+                                }
+                                onSendToAgent={sendToAgent}
+                                onSendLogToAgent={check => void agents.sendLogToAgent(check)}
+                                onSendChecksToAgent={agents.sendChecksToAgent}
+                                onShowTerminal={id => activate(selectedPath, `t:${id}`)}
+                                onOpenChange={openChange}
+                                onOpenAllChanges={openAllChanges}
+                                // The Review view needs a provider that is on, so the button needs one.
+                                onOpenInReview={reviewKey ? (repo, pr) => openPullRequest(repo, pr.number, 'overview') : undefined}
+                            />
+                        )}
+                        {cloneOpen && activeProject && (
+                            <CloneRepoDialog
+                                projectName={activeProject.name}
+                                onClose={() => setCloneOpen(false)}
+                                onClone={repo => project.pullRepo(repo, { projectId: activeProject.id })}
+                            />
+                        )}
+                        {linkTaskFor && (
+                            <LinkTaskDialog
+                                key={linkTaskFor.path}
+                                worktreeName={worktreeLabel(linkTaskFor, appSettings.worktreeNames)}
+                                current={links[linkTaskFor.path]}
+                                otherWorktreeOf={(connectionId, task) => {
+                                    const path = worktreeForTask(links, connectionId, task);
+                                    if (!path || path === linkTaskFor.path) return undefined;
+                                    const other = worktrees.find(item => item.path === path);
+                                    // A worktree of another project is not in the list. Its folder name shows then.
+                                    return other ? worktreeLabel(other, appSettings.worktreeNames) : path.split('/').pop();
+                                }}
+                                onClose={() => setLinkTaskFor(undefined)}
+                                onLink={(task, connectionId, pluginId) => worktreeActions.linkTask(linkTaskFor.path, task, connectionId, pluginId)}
+                                onUnlink={() => worktreeActions.unlinkTask(linkTaskFor.path)}
+                            />
+                        )}
+                        {newWorktree && (
+                            <NewWorktreeDialog
+                                // A new key for each repository and start point, so that the dialog starts with empty fields.
+                                key={`${newWorktree.repo}\n${JSON.stringify(newWorktree.start ?? null)}\n${newWorktree.task?.task.id ?? ''}`}
+                                repoName={repoLabel(newWorktree.repo)}
+                                repoPath={newWorktree.repo}
+                                {...(newWorktree.task
+                                    ? {
+                                          title: `Start ${newWorktree.task.task.key ?? newWorktree.task.task.title} in ${repoLabel(newWorktree.repo)}`,
+                                          suggestBranch: () => worktreeActions.suggestTaskBranch(newWorktree.task!.task, newWorktree.repo)
+                                      }
+                                    : {})}
+                                {...(!newWorktree.start
+                                    ? {}
+                                    : 'remote' in newWorktree.start
+                                      ? { initialRemote: newWorktree.start.remote }
+                                      : { initialBase: { ref: newWorktree.start.commit, label: newWorktree.start.label } })}
+                                onClose={() => setNewWorktree(undefined)}
+                                onCreate={async request => {
+                                    await worktreeActions.createWorktree(newWorktree.repo, request, newWorktree.prompt, newWorktree.task);
+                                    setNewWorktree(undefined);
+                                }}
+                            />
+                        )}
+                    </div>
+                    {/* The two panel buttons have fixed places in the title bar, so they never move when they are clicked: the
                 left one after the macOS window buttons, the right one in the top-right corner. They come after the
                 top bars in the page: Electron applies the window drag areas in page order, so a later "no-drag" area
                 is needed over the drag area of a top bar, or the click moves the window. */}
-                <div className="titlebar-controls left">
-                    <SidebarToggle />
-                </div>
-                {mainView === 'worktree' && selectedPath && (
-                    <div className="titlebar-controls right">
-                        <IconButton
-                            className="panel-toggle"
-                            icon={<PanelRight size={16} strokeWidth={1.5} />}
-                            label={explorerOpen ? 'Hide the right panel (⌘E)' : 'Show the right panel (⌘E)'}
-                            aria-pressed={explorerOpen}
-                            onClick={toggleExplorer}
-                        />
+                    <div className="titlebar-controls left">
+                        <SidebarToggle />
                     </div>
-                )}
-                <StatusBar />
-                {tourOpen && <Tour steps={TOUR_STEPS} onPrepare={prepareTourStep} onClose={endTour} />}
-                {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
-                {paletteOpen && (
-                    <AppCommandPalette
-                        context={{
-                            repos,
-                            worktreesByRepo,
-                            worktreeNames: appSettings.worktreeNames,
-                            repoLabel,
-                            selectedRepo,
-                            selectedPath,
-                            links,
-                            tasksAvailable: repos.length > 0 && !!activeProject,
-                            hasProject: !!activeProject,
-                            plans: plans.filter(plan => plan.projectId === activeProject?.id),
-                            reviewAvailable: !!reviewKey,
-                            appearance: appSettings.appearance,
-                            mode,
-                            settingsSections: SETTINGS_SECTIONS,
-                            actions: paletteActions
-                        }}
-                        onClose={() => setPaletteOpen(false)}
-                        onError={setError}
-                    />
-                )}
-                <WorktreeProgressNotices repoLabel={repoLabel} openTarget={openNotificationTarget} />
-                {tips.notice && <TipNotice tip={tips.notice.tip} onRun={runTipAction} onClose={tips.notice.close} onTurnOff={tips.notice.turnOff} />}
-                {!tourOpen && tourOffered && (
-                    <TourOffer onStart={startTour} onDecline={() => void saveOnboarding({ tourSeen: TOUR_VERSION }).catch(err => setError(errorText(err)))} />
-                )}
-            </div>
+                    {mainView === 'worktree' && selectedPath && (
+                        <div className="titlebar-controls right">
+                            <IconButton
+                                className="panel-toggle"
+                                icon={<PanelRight size={16} strokeWidth={1.5} />}
+                                label={explorerOpen ? 'Hide the right panel (⌘E)' : 'Show the right panel (⌘E)'}
+                                aria-pressed={explorerOpen}
+                                onClick={toggleExplorer}
+                            />
+                        </div>
+                    )}
+                    <StatusBar />
+                    {tourOpen && <Tour steps={TOUR_STEPS} onPrepare={prepareTourStep} onClose={endTour} />}
+                    {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+                    {paletteOpen && (
+                        <AppCommandPalette
+                            context={{
+                                repos,
+                                worktreesByRepo,
+                                worktreeNames: appSettings.worktreeNames,
+                                repoLabel,
+                                selectedRepo,
+                                selectedPath,
+                                links,
+                                tasksAvailable: repos.length > 0 && !!activeProject,
+                                hasProject: !!activeProject,
+                                plans: plans.filter(plan => plan.projectId === activeProject?.id),
+                                reviewAvailable: !!reviewKey,
+                                appearance: appSettings.appearance,
+                                mode,
+                                settingsSections: SETTINGS_SECTIONS,
+                                actions: paletteActions
+                            }}
+                            onClose={() => setPaletteOpen(false)}
+                            onError={setError}
+                        />
+                    )}
+                    <WorktreeProgressNotices repoLabel={repoLabel} openTarget={openNotificationTarget} />
+                    {tips.notice && <TipNotice tip={tips.notice.tip} onRun={runTipAction} onClose={tips.notice.close} onTurnOff={tips.notice.turnOff} />}
+                    {!tourOpen && tourOffered && (
+                        <TourOffer
+                            onStart={startTour}
+                            onDecline={() => void saveOnboarding({ tourSeen: TOUR_VERSION }).catch(err => setError(errorText(err)))}
+                        />
+                    )}
+                </div>
+            </CodeFolderContext.Provider>
         </SidebarContext.Provider>
     );
 }
