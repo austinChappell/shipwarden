@@ -63,6 +63,12 @@ describe('reviewPrompt', () => {
         expect(prompt).toContain('"comments"');
         expect(prompt).toContain('Body');
     });
+
+    it('has the instructions of the strictness level', () => {
+        const repo = { owner: 'o', name: 'r' };
+        expect(reviewPrompt({ pr, repo, files: FILES })).toContain('Write only the review comments that are important.');
+        expect(reviewPrompt({ pr, repo, files: FILES, strictness: 'relaxed' })).toContain('Find only bugs and security problems');
+    });
 });
 
 describe('undecidedCount', () => {

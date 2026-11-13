@@ -22,6 +22,7 @@ import { errorText } from '../util';
 import type { Mode } from '@shared/themes';
 import { AgentsSettings } from './AgentsSettings';
 import { CodeReviewSettings } from './CodeReviewSettings';
+import { ReviewStrictnessGroup } from './ReviewStrictnessSettings';
 import { DashboardSettings } from './DashboardSettings';
 import { NetworkSettings } from './NetworkSettings';
 import { MobileSettings } from './MobileSettings';
@@ -255,7 +256,11 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
                             </SettingsGroup>
                         )}
                         {current.id === 'tasks' && <TaskManagersSettings />}
-                        {current.id === 'review' && <CodeReviewSettings />}
+                        {current.id === 'review' && (
+                            <CodeReviewSettings>
+                                <ReviewStrictnessGroup settings={settings} onSave={onSave} />
+                            </CodeReviewSettings>
+                        )}
                         {current.id === 'worktrees' && <WorktreeSettings settings={settings} repos={repos} onSave={onSave} />}
                         {current.id === 'notifications' && <NotificationSettings settings={settings} onSave={onSave} />}
                         {current.id === 'network' && <NetworkSettings settings={settings} onSave={onSave} />}

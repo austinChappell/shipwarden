@@ -5039,8 +5039,10 @@ button:focus-visible,
     margin-top: 32px;
 }
 
+/* The controls go below the title when they do not fit next to it, so the description keeps a readable width. */
 .settings-group-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-end;
     justify-content: space-between;
     gap: 16px;
@@ -5064,8 +5066,13 @@ button:focus-visible,
     line-height: 1.5;
 }
 
+.settings-group-header > div:first-child {
+    flex: 1 1 260px;
+}
+
 .settings-group-actions {
     flex: none;
+    margin-left: auto;
 }
 
 /* A row in a settings card. The card draws the lines between the rows. */
@@ -13486,14 +13493,9 @@ button.pr-summary-cell:hover {
     }
 }
 
-/* The welcome page is narrower than the settings page. A group header puts its controls below the title when they do not fit. */
+/* The welcome page is narrower than the settings page. The controls of a group header align with the top of the title. */
 .welcome-optional .settings-group-header {
-    flex-wrap: wrap;
     align-items: flex-start;
-}
-
-.welcome-optional .settings-group-header > div:first-child {
-    flex: 1 1 260px;
 }
 
 /*

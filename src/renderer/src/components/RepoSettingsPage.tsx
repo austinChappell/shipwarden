@@ -8,6 +8,7 @@ import { SettingsGroup, SettingsRow } from './settings-ui';
 import { Button, ButtonGroup, Input, Select, TextArea } from './ui';
 import { radioGroupKeys } from './keyboard';
 import { RepoDraftGroup } from './DraftSettings';
+import { RepoReviewStrictnessGroup } from './ReviewStrictnessSettings';
 
 interface Props {
     repo: string;
@@ -114,6 +115,11 @@ export function RepoSettingsPage({ repo, settings, onSave }: Props) {
             </SettingsGroup>
             <RepoWorktreeGroup repo={repo} settings={settings} current={current.worktrees} onChange={worktrees => update({ worktrees })} />
             <RepoDraftGroup settings={settings} current={current.drafts} onChange={drafts => update({ drafts })} />
+            <RepoReviewStrictnessGroup
+                settings={settings}
+                current={current.reviewStrictness}
+                onChange={reviewStrictness => void update({ reviewStrictness })}
+            />
         </>
     );
 }

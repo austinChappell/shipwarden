@@ -11,7 +11,9 @@ import {
     type RepoTarget
 } from '@shared/github';
 import { parseAgentReview, reviewBody, reviewPrompt, type ParsedReview } from '@shared/agent-review';
+import type { ReviewStrictness } from '@shared/review-strictness';
 import { keyRoots, queryClient } from '../query-client';
+import { defaultReviewStrictness } from './review-strictness';
 import { errorText } from '../util';
 
 /** The state of an agent review of a pull request. */
@@ -105,14 +107,16 @@ class ReviewStore {
      * Asks the agent of the repository to review the pull request. The agent posts nothing.
      * Its line comments become pending comments of the user, and its summary goes into the review text.
      * The user must accept or remove each line comment before the review can go out.
+     * Without `strictness`, the review uses the default of the repository.
      */
-    async runAgentReview(repo: RepoRef, pr: PullRequest): Promise<void> {
+    async runAgentReview(repo: RepoRef, pr: PullRequest, strictness?: ReviewStrictness): Promise<void> {
         if (this.get(repo, pr.number).agentReview?.status === 'running') return;
         const id = crypto.randomUUID();
         this.update(repo, pr.number, state => ({ ...state, agentReview: { status: 'running', id } }));
         try {
-            const files = await this.loadFiles(repo, pr.number);
-            const result = await window.shipwarden.ask.run({ id, repo, headRefOid: pr.headRefOid, prompt: reviewPrompt({ pr, repo, files }) });
+            const [files, level] = await Promise.all([this.loadFiles(repo, pr.number), strictness ?? defaultReviewStrictness([repo])]);
+            const prompt = reviewPrompt({ pr, repo, files, strictness: level });
+            const result = await window.shipwarden.ask.run({ id, repo, headRefOid: pr.headRefOid, prompt });
             // The user can cancel the run, or start a new run, while this run works.
             if (!this.isRun(repo, pr.number, id)) return;
             this.applyAgentReview(repo, pr.number, parseAgentReview(result.answer, files), result.agent);

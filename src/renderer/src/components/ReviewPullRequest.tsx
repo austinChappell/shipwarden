@@ -4,9 +4,11 @@ import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, Layers, L
 import { pluralize } from '@shared/format';
 import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
+import type { ReviewStrictness } from '@shared/review-strictness';
 import type { Worktree } from '@shared/worktrees';
 import { keyRoots } from '../query-client';
 import { reviewStore, useReviewState } from '../github/review-store';
+import { useDefaultReviewStrictness } from '../github/review-strictness';
 import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
 import { CommitView } from './CommitView';
@@ -18,6 +20,7 @@ import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
 import { AGENT_REVIEW_TITLE } from './PullRequestReviewCard';
+import { strictnessTitle } from './review-strictness-menu';
 import { Button, ButtonGroup, Count, IconButton, SplitButton, type SplitMenuItem } from './ui';
 import { EmptyState } from './EmptyState';
 import { pullRequestKeyAction } from '@shared/shortcuts';
@@ -391,6 +394,7 @@ export function ReviewPullRequest({
 
     const files = review.files;
     const agentReview = review.agentReview;
+    const defaultStrictness = useDefaultReviewStrictness([repo]);
 
     const back = (
         <Button
@@ -430,7 +434,7 @@ export function ReviewPullRequest({
     const codeMax = () => (document.querySelector<HTMLElement>('.pr-tab-body')?.offsetWidth ?? Infinity) - (fileListOpen ? sideWidth.width : 0) - 320;
 
     const openOnHost = () => openLink(pr.url);
-    const runAgentReview = () => void reviewStore.runAgentReview(repo, pr);
+    const runAgentReview = (strictness?: ReviewStrictness) => void reviewStore.runAgentReview(repo, pr, strictness);
     /** Opens the worktree of the head branch, or makes one. A branch in a fork cannot get a worktree. */
     const worktreeAction: HeaderAction | undefined = onNewWorktree && {
         label: branchWorktree ? 'Open worktree' : 'New worktree',
@@ -487,9 +491,9 @@ export function ReviewPullRequest({
                   {
                       label: agentReview?.status === 'running' ? 'Agent review in progress' : 'Run agent review',
                       icon: <Bot size={14} strokeWidth={1.6} />,
-                      title: AGENT_REVIEW_TITLE,
+                      title: strictnessTitle(AGENT_REVIEW_TITLE, defaultStrictness),
                       disabled: agentReview?.status === 'running',
-                      onSelect: runAgentReview
+                      onSelect: () => runAgentReview()
                   }
               ]
             : [])
@@ -617,6 +621,7 @@ export function ReviewPullRequest({
                             onSendChecksToAgent={inProject && onSendChecksToAgent ? checks => onSendChecksToAgent(pr, checks) : undefined}
                             agentReview={{
                                 running: agentReview?.status === 'running',
+                                defaultStrictness,
                                 run: runAgentReview,
                                 cancel: () => reviewStore.cancelAgentReview(repo, pr.number)
                             }}

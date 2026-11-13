@@ -2,9 +2,11 @@ import { useMemo, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ReviewPromptInput } from '@shared/agent-review';
 import { groupReviewPrompt, parseGroupReview, prKey, type GroupReviewCounts, type PrGroup } from '@shared/pr-groups';
+import type { ReviewStrictness } from '@shared/review-strictness';
 import { keyRoots, queryClient } from '../query-client';
 import { errorText } from '../util';
 import { pullRequestQuery, reviewStore } from './review-store';
+import { defaultReviewStrictness } from './review-strictness';
 
 const api = window.shipwarden.prGroups;
 
@@ -126,8 +128,9 @@ export function useGroupRun(groupId: string | undefined): GroupRunState {
  * Asks the agent to review all pull requests of the group in one run. The agent posts nothing.
  * The line comments for each pull request become pending comments of the user on that pull request, and the summary
  * of each pull request goes into its review text. The summary of the group goes into `lastReview` of the group.
+ * Without `strictness`, the review uses the default of the repositories.
  */
-export async function runGroupReview(groupId: string): Promise<void> {
+export async function runGroupReview(groupId: string, strictness?: ReviewStrictness): Promise<void> {
     const group = cachedGroup(groupId);
     if (!group || runOf(groupId).status === 'running') return;
     if (group.pullRequests.length === 0) {
@@ -150,7 +153,9 @@ export async function runGroupReview(groupId: string): Promise<void> {
         if (!isRun(groupId, id)) return;
         setRun(groupId, { status: 'running', id, stage: 'agent' });
         const inputs: ReviewPromptInput[] = loaded.map(({ item, pr, files }) => ({ pr, repo: item.repo, files }));
-        const prompt = groupReviewPrompt({ name: group.name, note: group.note, pullRequests: inputs });
+        const level = strictness ?? (await defaultReviewStrictness(group.pullRequests.map(item => item.repo)));
+        if (!isRun(groupId, id)) return;
+        const prompt = groupReviewPrompt({ name: group.name, note: group.note, pullRequests: inputs, strictness: level });
         const result = await api.review({
             id,
             prompt,
