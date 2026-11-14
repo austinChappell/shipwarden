@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PullRequest } from '@shared/github';
 import { pluralize as plural } from '@shared/format';
+import { approvalBlocksMerge, shownReviewDecision } from '../github/merge-state';
 import type { CheckCounts } from '../github/use-check-counts';
 import type { ReviewTab } from './ReviewPullRequest';
 
@@ -29,9 +30,10 @@ export function mergeConditions(pr: PullRequest, checks: CheckCounts | undefined
     else if (pr.mergeable === 'UNKNOWN') list.push({ state: 'wait', text: `Checking for conflicts with ${base}` });
     else list.push({ state: 'ok', text: `No conflicts with ${base}` });
     if (pr.mergeStateStatus === 'BEHIND') list.push({ state: 'wait', text: `The branch is behind ${base}` });
-    if (pr.reviewDecision === 'APPROVED') list.push({ state: 'ok', text: 'Approved' });
-    else if (pr.reviewDecision === 'CHANGES_REQUESTED') list.push({ state: 'fail', text: 'Changes requested' });
-    else if (pr.reviewDecision === 'REVIEW_REQUIRED') list.push({ state: 'wait', text: 'Approving review required' });
+    const decision = shownReviewDecision(pr);
+    if (decision === 'APPROVED') list.push({ state: 'ok', text: 'Approved' });
+    else if (decision === 'CHANGES_REQUESTED') list.push({ state: 'fail', text: 'Changes requested' });
+    else if (decision === 'REVIEW_REQUIRED') list.push({ state: 'wait', text: 'Approving review required' });
     return list;
 }
 
@@ -44,7 +46,7 @@ function mergeState(pr: PullRequest, checks: CheckCounts | undefined): { text: s
     if (pr.mergeable === 'CONFLICTING') return { text: 'Merge conflicts', tone: 'fail' };
     if (checks && checks.failed > 0) return { text: 'Blocked by checks', tone: 'fail' };
     if (pr.reviewDecision === 'CHANGES_REQUESTED') return { text: 'Blocked by changes requested', tone: 'fail' };
-    if (pr.reviewDecision === 'REVIEW_REQUIRED') return { text: 'Blocked by a required approval', tone: 'wait' };
+    if (approvalBlocksMerge(pr)) return { text: 'Blocked by a required approval', tone: 'wait' };
     if (checks && checks.running > 0) return { text: 'Waiting for checks', tone: 'wait' };
     if (pr.mergeStateStatus === 'BEHIND') return { text: `Behind ${pr.baseRefName}`, tone: 'wait' };
     if (pr.mergeStateStatus === 'BLOCKED') return { text: 'Blocked by branch rules', tone: 'wait' };
@@ -54,7 +56,7 @@ function mergeState(pr: PullRequest, checks: CheckCounts | undefined): { text: s
 
 function reviewState(pr: PullRequest): { text: string; tone: Tone } {
     if (pr.state === 'OPEN' && pr.viewerIsRequested) return { text: 'Waiting on you', tone: 'mine' };
-    switch (pr.reviewDecision) {
+    switch (shownReviewDecision(pr)) {
         case 'APPROVED':
             return { text: 'Approved', tone: 'ok' };
         case 'CHANGES_REQUESTED':

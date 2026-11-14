@@ -1,4 +1,4 @@
-import { hostLabel, type MergeMethod, type PullRequest, type PullRequestChange } from '@shared/github';
+import { hostLabel, type MergeMethod, type PullRequest, type PullRequestChange, type ReviewDecision } from '@shared/github';
 import type { MergeCondition } from '../components/PullRequestSummary';
 
 export const MERGE_LABELS: Record<MergeMethod, string> = { merge: 'Create a merge commit', squash: 'Squash and merge', rebase: 'Rebase and merge' };
@@ -11,8 +11,39 @@ export function hasConflicts(pr: PullRequest): boolean {
     return pr.state === 'OPEN' && pr.mergeable === 'CONFLICTING';
 }
 
+/** The merge states in which the host lets the user merge now. */
+const MERGE_ALLOWED = new Set(['CLEAN', 'UNSTABLE', 'HAS_HOOKS']);
+
+/**
+ * True when a required approval stops the merge for the user.
+ * The host can send REVIEW_REQUIRED together with a CLEAN merge state. This occurs when the user is exempt from the branch rules.
+ * Then the missing approval does not stop the merge.
+ */
+export function approvalBlocksMerge(pr: PullRequest): boolean {
+    return pr.reviewDecision === 'REVIEW_REQUIRED' && !MERGE_ALLOWED.has(pr.mergeStateStatus);
+}
+
+/** True when the latest review of one or more reviewers is an approval. */
+export function hasApproval(pr: PullRequest): boolean {
+    const latest = new Map<string, string>();
+    for (const review of pr.reviews) {
+        if (!review.author || review.state === 'COMMENTED' || review.state === 'PENDING') continue;
+        latest.set(review.author.login, review.state);
+    }
+    return [...latest.values()].includes('APPROVED');
+}
+
+/**
+ * Returns the review decision that the user sees.
+ * When the host needs more approvals but the user can merge, an approval shows as APPROVED, and no approval shows as null.
+ */
+export function shownReviewDecision(pr: PullRequest): ReviewDecision {
+    if (pr.reviewDecision !== 'REVIEW_REQUIRED' || approvalBlocksMerge(pr)) return pr.reviewDecision;
+    return hasApproval(pr) ? 'APPROVED' : null;
+}
+
 export function reviewText(pr: PullRequest): string {
-    switch (pr.reviewDecision) {
+    switch (shownReviewDecision(pr)) {
         case 'APPROVED':
             return 'Approved';
         case 'CHANGES_REQUESTED':
@@ -65,7 +96,7 @@ export function mergeCardTitle(conditions: MergeCondition[]): string {
  */
 export function autoMergeButtonText(pr: PullRequest, conditions: MergeCondition[], overview: boolean): string {
     const onlyReviewBlocks = conditions.every(item => item.state === 'ok' || item.text === 'Approving review required');
-    return overview && onlyReviewBlocks && pr.reviewDecision === 'REVIEW_REQUIRED' ? 'Auto-merge on approval' : 'Enable auto-merge';
+    return overview && onlyReviewBlocks && approvalBlocksMerge(pr) ? 'Auto-merge on approval' : 'Enable auto-merge';
 }
 
 /** The properties of the main merge button. */
