@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PullRequest } from '@shared/github';
 import {
+    approvalBlocksMerge,
     autoMergeButtonText,
     autoMergeConfirm,
     canActOnMerge,
@@ -14,6 +15,7 @@ import {
     mergeConfirmTitle,
     reviewText,
     selectMergeMethod,
+    shownReviewDecision,
     stateConfirm
 } from './merge-state';
 
@@ -34,6 +36,7 @@ function pr(parts: Partial<PullRequest> = {}): PullRequest {
         viewerCanMerge: true,
         viewerCanEnableAutoMerge: false,
         viewerCanUpdate: false,
+        reviews: [],
         ...parts
     } as PullRequest;
 }
@@ -52,8 +55,38 @@ describe('reviewText', () => {
     it('returns the text of each review decision', () => {
         expect(reviewText(pr({ reviewDecision: 'APPROVED' }))).toBe('Approved');
         expect(reviewText(pr({ reviewDecision: 'CHANGES_REQUESTED' }))).toBe('Changes requested');
-        expect(reviewText(pr({ reviewDecision: 'REVIEW_REQUIRED' }))).toBe('Review required');
+        expect(reviewText(pr({ reviewDecision: 'REVIEW_REQUIRED', mergeStateStatus: 'BLOCKED' }))).toBe('Review required');
         expect(reviewText(pr())).toBe('No review decision');
+    });
+});
+
+const review = (login: string, state: string) => ({ id: login + state, author: { login }, state, body: '', submittedAt: 'now', url: '' });
+
+describe('approvalBlocksMerge', () => {
+    it('is true when the host needs an approval and blocks the merge', () => {
+        expect(approvalBlocksMerge(pr({ reviewDecision: 'REVIEW_REQUIRED', mergeStateStatus: 'BLOCKED' }))).toBe(true);
+    });
+
+    it('is false when the user is exempt from the branch rules and the merge is clean', () => {
+        expect(approvalBlocksMerge(pr({ reviewDecision: 'REVIEW_REQUIRED', mergeStateStatus: 'CLEAN' }))).toBe(false);
+    });
+});
+
+describe('shownReviewDecision', () => {
+    it('shows an approval when the user can merge without more approvals', () => {
+        const approved = pr({ reviewDecision: 'REVIEW_REQUIRED', reviews: [review('ana', 'COMMENTED'), review('ana', 'APPROVED')] } as Partial<PullRequest>);
+        expect(shownReviewDecision(approved)).toBe('APPROVED');
+        expect(reviewText(approved)).toBe('Approved');
+    });
+
+    it('shows no decision when the user can merge and no reviewer approved', () => {
+        const dismissed = pr({ reviewDecision: 'REVIEW_REQUIRED', reviews: [review('ana', 'APPROVED'), review('ana', 'DISMISSED')] } as Partial<PullRequest>);
+        expect(shownReviewDecision(dismissed)).toBeNull();
+    });
+
+    it('keeps the decision of the host when the approval blocks the merge', () => {
+        const blocked = pr({ reviewDecision: 'REVIEW_REQUIRED', mergeStateStatus: 'BLOCKED', reviews: [review('ana', 'APPROVED')] } as Partial<PullRequest>);
+        expect(shownReviewDecision(blocked)).toBe('REVIEW_REQUIRED');
     });
 });
 
@@ -141,16 +174,16 @@ describe('autoMergeButtonText', () => {
     ];
 
     it('tells that the merge waits for an approval when only the review blocks it', () => {
-        expect(autoMergeButtonText(pr({ reviewDecision: 'REVIEW_REQUIRED' }), waitForReview, true)).toBe('Auto-merge on approval');
+        expect(autoMergeButtonText(pr({ reviewDecision: 'REVIEW_REQUIRED', mergeStateStatus: 'BLOCKED' }), waitForReview, true)).toBe('Auto-merge on approval');
     });
 
     it('uses the default text outside the Overview tab', () => {
-        expect(autoMergeButtonText(pr({ reviewDecision: 'REVIEW_REQUIRED' }), waitForReview, false)).toBe('Enable auto-merge');
+        expect(autoMergeButtonText(pr({ reviewDecision: 'REVIEW_REQUIRED', mergeStateStatus: 'BLOCKED' }), waitForReview, false)).toBe('Enable auto-merge');
     });
 
     it('uses the default text when a different condition blocks the merge', () => {
         const conditions = [...waitForReview, { state: 'fail' as const, text: '1 of 2 checks failed' }];
-        expect(autoMergeButtonText(pr({ reviewDecision: 'REVIEW_REQUIRED' }), conditions, true)).toBe('Enable auto-merge');
+        expect(autoMergeButtonText(pr({ reviewDecision: 'REVIEW_REQUIRED', mergeStateStatus: 'BLOCKED' }), conditions, true)).toBe('Enable auto-merge');
     });
 });
 
