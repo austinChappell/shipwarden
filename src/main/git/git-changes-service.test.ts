@@ -215,6 +215,48 @@ describe('GitChangesService', () => {
         expect(input.diff).toContain('+two');
     });
 
+    it('reads the changed files of the linked worktrees since the merge base, with the status', async () => {
+        writeFileSync(join(repo, 'a.txt'), 'one\n');
+        writeFileSync(join(repo, 'b.txt'), 'one\n');
+        sh('add', '.');
+        sh('commit', '-q', '-m', 'base');
+        const first = `${repo}-first`;
+        const second = `${repo}-second`;
+        try {
+            sh('worktree', 'add', '-q', '-b', 'first', first);
+            sh('worktree', 'add', '-q', '-b', 'second', second);
+            const inside = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString();
+            writeFileSync(join(first, 'a.txt'), 'first\n');
+            inside(first, 'commit', '-q', '-am', 'first');
+            writeFileSync(join(second, 'b.txt'), 'second\n');
+            writeFileSync(join(second, 'new.txt'), 'new\n');
+            // A new commit on the default branch does not count for the worktrees.
+            writeFileSync(join(repo, 'b.txt'), 'main\n');
+            sh('commit', '-q', '-am', 'main');
+            const head = (cwd: string) => inside(cwd, 'rev-parse', 'HEAD').trim();
+            const worktree = (path: string, branch: string, isMain = false) => ({
+                path,
+                branch,
+                head: head(path),
+                isMain,
+                isBare: false,
+                locked: false,
+                prunable: false
+            });
+            const list = [worktree(repo, 'main', true), worktree(first, 'first'), worktree(second, 'second')];
+
+            expect(await git.worktreeFiles(repo, list)).toEqual([
+                { path: first, branch: 'first', files: ['a.txt'] },
+                { path: second, branch: 'second', files: ['b.txt', 'new.txt'] }
+            ]);
+            // One linked worktree cannot overlap, so git does not run.
+            expect(await git.worktreeFiles(repo, list.slice(0, 2))).toEqual([]);
+        } finally {
+            rmSync(first, { recursive: true, force: true });
+            rmSync(second, { recursive: true, force: true });
+        }
+    });
+
     it('finds a pull request template in a folder of templates, and ignores case', async () => {
         expect(await findPullRequestTemplate(repo)).toBeUndefined();
         mkdirSync(join(repo, 'docs', 'PULL_REQUEST_TEMPLATE'), { recursive: true });

@@ -40,6 +40,7 @@ import {
     mergeCandidates,
     mergedEvent,
     mergedPullRequestOf,
+    overlapEvents,
     pullRequestResolver,
     taskEvent,
     taskKey,
@@ -61,6 +62,7 @@ import type { DashboardNews } from '../dashboard-store';
 import { ciKeys } from '../github/ci-queries';
 import { branchStatusKey } from '../github/use-branch-status';
 import { keyRoots, queryClient } from '../query-client';
+import type { OverlapsByRepo } from '../git/overlap-query';
 import { agentStateStore } from '../terminal/agent-state-store';
 import { outputActivity } from '../terminal/output-activity';
 import { addRunToCache, automationRunsQuery, cachedRunState, patchRunState, replaceRunInCache } from './automation-queries';
@@ -362,6 +364,19 @@ export class AutomationEngine {
         const now = Date.now();
         if (wantComments) commentEvents(news.prComments, resolve, now).forEach(event => this.dispatch(event));
         if (wantConflicts) conflictEvents(news.myPullRequests, resolve, now).forEach(event => this.dispatch(event));
+    }
+
+    /**
+     * New overlaps of worktree changes, by repository. Each overlap of a worktree starts "worktree.overlap" runs. The
+     * key of an event contains the shared files, so the same overlap starts no second run.
+     */
+    onOverlaps(overlaps: OverlapsByRepo): void {
+        const context = this.ready;
+        if (!context || this.active('worktree.overlap').length === 0) return;
+        const now = Date.now();
+        for (const [repo, byPath] of Object.entries(overlaps)) {
+            for (const event of overlapEvents(repo, byPath, context.places, now)) this.dispatch(event);
+        }
     }
 
     /** A new agent state. "done" can start an "agent.done" run. A ready agent can take a held run. */

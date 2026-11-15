@@ -52,6 +52,12 @@ The Agents view (⌥⌘2) shows all running agents in one list. Each row shows t
 with the CI state. Click a row to open the agent's terminal. The header shows the plan usage of
 Claude and Codex. ShipWarden has no usage data for each agent.
 
+When two worktrees of a repository change the same file, ShipWarden shows a warning before GitHub reports a merge
+conflict. The Agents view and the Changes tab show a chip such as "Also changed in feat-login". Hover over the chip, or
+click it in the Changes tab, to see the files. ShipWarden compares the commits since the default branch, the staged
+files, the unstaged files, and the new files. It uses local git only. The `worktree.overlap` automation trigger can
+send a note to the agents.
+
 The Tasks view shows the tasks of a task tracker. Task trackers are plugins. ShipWarden
 includes five: GitHub Issues, Linear, ClickUp, Azure Boards and Local tasks. Anyone can write a
 plugin with the [ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch

@@ -27,6 +27,9 @@ import type { Worktree } from '@shared/worktrees';
 import { moveListFocus } from '../keyboard/list-nav';
 import { InlineTip } from './Tips';
 import { Button, Chip, Count, PageHeader, type ChipTone } from './ui';
+import { OverlapChip } from './OverlapChip';
+import { useOverlaps } from '../git/overlap-query';
+import { overlapChipText } from '@shared/worktree-overlap';
 
 const api = window.shipwarden;
 
@@ -146,6 +149,9 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
         combine: combineSummaries
     });
 
+    // The files that two or more worktrees of a repository change. Local git only, in the cycle of the summaries.
+    const overlaps = useOverlaps(agentRepos);
+
     // The time since the last output counts in seconds.
     useEffect(() => {
         const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -253,6 +259,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                     const activity = activityText(row, now);
                                     const where = place ? `${repoLabel(place.repo)} · ${branch}` : (session.cwd.split('/').pop() ?? session.cwd);
                                     const prText = pr ? `PR #${pr.number}${ciText(ci) ? ` · ${ciText(ci)}` : ''}` : undefined;
+                                    const overlap = place ? overlaps[place.repo]?.[place.worktree.path] : undefined;
                                     const message =
                                         session.agentMessage ??
                                         (session.agentState ? '' : `${session.title} has no status hooks. The state comes from its terminal output.`);
@@ -261,7 +268,9 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                             <button
                                                 className={`agent-row ${state}`}
                                                 data-nav-item
-                                                aria-label={[name, label, activity, prText, where].filter(Boolean).join('. ')}
+                                                aria-label={[name, label, activity, prText, overlap && overlapChipText(overlap), where]
+                                                    .filter(Boolean)
+                                                    .join('. ')}
                                                 onClick={() => onOpen(session, group.id)}
                                             >
                                                 <span className={`status-dot ${DOT_CLASS[state]}`} aria-hidden />
@@ -280,6 +289,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                                     </span>
                                                     <span className="agent-where">
                                                         {prText && <Chip tone={ciTone(ci)}>{prText}</Chip>}
+                                                        {overlap && <OverlapChip overlap={overlap} />}
                                                         {place && repoColor(place.repo) && <RepoIcon color={repoColor(place.repo)} size={12} />}
                                                         <span className="agent-where-text">{where}</span>
                                                     </span>

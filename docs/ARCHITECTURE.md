@@ -133,6 +133,12 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - A click on a file opens a diff tab (`ChangeDiffView`, with `@pierre/diffs`): HEAD and the index for a staged
   change, the index and the working file for an unstaged change.
 - The main process runs git only in a worktree of a project, and checks that each path stays in the worktree.
+- **Overlap.** `git.worktreeFiles(repo)` returns the changed files of each linked worktree: `git diff --name-only
+  --no-renames <base>...<HEAD>` and `git status`. The base is the default branch of "origin", else a local `main` or
+  `master`. The committed files stay in a cache by base commit and HEAD, so only `git status` runs again in each
+  cycle. With fewer than two linked worktrees, git does not run. `overlap-query.ts` keeps the files in TanStack Query
+  (`keyRoots.worktreeFiles`). It loads them each minute while a view shows them, and again after `gitChanged`. The
+  Agents view and the Changes tab show a warning chip (`OverlapChip`).
 
 ### Chat about a review comment
 
@@ -522,6 +528,9 @@ The user guide and the file format are in [automations.md](automations.md).
   - `pr.comment` and `pr.conflict`: the news of each Dashboard refresh (`onDashboardNews`), the same news as the
     notifications. The "origin" remote of each folder comes from the cache (`repoOf`).
   - `agent.done`: the agent hooks.
+  - `worktree.overlap`: `git.worktreeFiles` of each watched repository (local git only), in the one-minute cycle of the
+    summaries and after `gitChanged`. `findOverlaps` (`src/shared/worktree-overlap.ts`) finds the shared files, and
+    `overlapEvents` makes one event for each worktree. The key has a hash of the peers and the files.
   - `task.new`: `tasks/list` of the bound collection every 5 minutes, with the query key of the Tasks view, so the
     view shows the same list. The first list of a new or re-enabled rule only records its tasks (`seed`).
   - `schedule`: a timer every 30 seconds. A time before the start of the app or before the rule was turned on does not run.

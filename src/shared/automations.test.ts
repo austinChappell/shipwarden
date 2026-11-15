@@ -93,6 +93,13 @@ describe('normalizeDefinition', () => {
         expect(() => normalizeDefinition({ ...automation(), actions: [] })).toThrow(/one or more actions/);
     });
 
+    it('keeps an overlap trigger with an agent action, and rejects an action that needs a pull request or a task', () => {
+        const base = { name: 'Overlap', trigger: { type: 'worktree.overlap' }, limits: { approval: 'ask' } };
+        expect(normalizeDefinition({ ...base, actions: [{ type: 'sendToAgent', prompt: '{{overlap.files}}' }] }).trigger).toEqual({ type: 'worktree.overlap' });
+        expect(() => normalizeDefinition({ ...base, actions: [{ type: 'removeWorktree' }] })).toThrow(AutomationError);
+        expect(() => normalizeDefinition({ ...base, actions: [{ type: 'startAgent', prompt: 'x' }] })).toThrow(AutomationError);
+    });
+
     it('rejects an action that cannot follow the trigger', () => {
         expect(() => normalizeDefinition({ ...automation(), actions: [{ type: 'removeWorktree' }] })).toThrow(AutomationError);
         expect(() => normalizeDefinition({ ...automation(), actions: [{ type: 'removeWorktree' }] })).toThrow(/cannot follow the trigger "CI failed"/);
@@ -210,6 +217,13 @@ describe('automationMatches', () => {
         expect(automationMatches(rule, event({ trigger: 'agent.done', hasPullRequest: false }))).toBe(true);
     });
 
+    it('applies the binding and the branch pattern to an overlap of worktrees', () => {
+        const rule = automation({ trigger: { type: 'worktree.overlap' }, binding: { repos: ['/repo'] }, conditions: { branchPattern: 'feature/*' } });
+        expect(automationMatches(rule, event({ trigger: 'worktree.overlap' }))).toBe(true);
+        expect(automationMatches(rule, event({ trigger: 'worktree.overlap', repoPath: '/other' }))).toBe(false);
+        expect(automationMatches(rule, event({ trigger: 'worktree.overlap', branch: 'fix/x' }))).toBe(false);
+    });
+
     it('needs the task connection of the binding', () => {
         const rule = automation({ trigger: { type: 'task.new' }, actions: [{ type: 'notify', title: 'x' }], binding: { connectionId: 'c1' } });
         expect(automationMatches(rule, event({ trigger: 'task.new', connectionId: 'c1' }))).toBe(true);
@@ -243,6 +257,12 @@ describe('templates of prompts', () => {
 
     it('finds variables that the trigger does not give', () => {
         expect(unknownVariables('{{pr.url}} {{task.title}} {{task.title}}', { type: 'ci.failed' })).toEqual(['task.title']);
+    });
+
+    it('gives the values of an overlap of worktrees', () => {
+        const values = eventVariables(event({ trigger: 'worktree.overlap', overlap: { files: ['a.ts', 'b.ts'], worktrees: ['fix', 'docs'] } }));
+        expect(values).toMatchObject({ 'overlap.files': 'a.ts\nb.ts', 'overlap.worktrees': 'fix, docs', branch: 'feature/login' });
+        expect(unknownVariables('{{overlap.files}} {{overlap.worktrees}} {{branch}} {{pr.url}}', { type: 'worktree.overlap' })).toEqual(['pr.url']);
     });
 
     it('gives the values of an event', () => {

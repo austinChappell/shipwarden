@@ -60,12 +60,44 @@ An export has `kind` and no `status` or `binding`.
 | `pr.conflict` | The pull request of a worktree branch has merge conflicts. | |
 | `pr.merged` | The pull request of a worktree branch is merged. | |
 | `agent.done` | An agent ends its turn. | `withoutPullRequest` |
+| `worktree.overlap` ("Worktrees change the same files") | A worktree changes a file that a different worktree of the same repository also changes. See [Overlapping worktrees](#overlapping-worktrees). | |
 | `task.new` ("Task matches") | A task of a bound collection agrees with the filters for the first time: a new task, or a change such as a new label, a new assignee or a new status. Other changes do not count. A done or canceled task never counts. Each task runs one time only. | `labels`, `assignedToMe`, `status` |
 | `schedule` | A time of day (`"HH:MM"`, local time) on the selected days (`0` is Sunday). | `days`, `time` |
 | `manual` | You click the button of the automation. It never runs by itself. | `entity`, `button` |
 
-The pull request triggers and `agent.done` act only on worktrees with a branch, not on the main worktree.
+The pull request triggers, `agent.done` and `worktree.overlap` act only on linked worktrees, not on the main worktree.
 `conditions.branchPattern` limits them to branches that match a pattern. `*` matches any text.
+
+### Overlapping worktrees
+
+`worktree.overlap` warns before a merge conflict occurs. `pr.conflict` occurs only after GitHub finds a conflict.
+
+- ShipWarden reads the changed files of each linked worktree: the files of the commits since the merge base with the
+  default branch of "origin" (else a local `main` or `master`), the staged files, the unstaged files, and the new
+  files. It uses local git only. It sends no GitHub requests.
+- The files load each minute, in the same cycle as the pull request summaries, and after a stage, a commit or a
+  fetch. The files of the commits stay in a cache until the branch or the default branch gets a new commit.
+- Each worktree with an overlap gets one event. When `feat-a` and `feat-b` change `src/app.ts`, the agent of each
+  worktree can get a note.
+- The same overlap runs one time only. A new shared file or a new worktree with shared files is a new overlap, and
+  it runs again. `maxRunsPerTarget` counts the runs of each worktree.
+- The files load only while a `worktree.overlap` automation is not "Off". `binding.repos` limits the repositories.
+- The variables are `{{overlap.files}}` (the shared files, one on each line, at most 50) and `{{overlap.worktrees}}`
+  (the branches of the other worktrees), with `branch`, `repo`, `worktree`, `date` and `time`.
+
+```json
+{
+  "name": "Warn about shared files",
+  "trigger": { "type": "worktree.overlap" },
+  "actions": [
+    {
+      "type": "sendToAgent",
+      "prompt": "A note, not a new task: other worktrees ({{overlap.worktrees}}) also change these files of {{branch}}:\n\n{{overlap.files}}\n\nKeep your changes in these files small, and do not move or rename them. Continue your work."
+    }
+  ],
+  "limits": { "approval": "ask", "maxRunsPerTarget": 3, "maxRunning": 2 }
+}
+```
 
 ## Manual automations
 
@@ -182,7 +214,7 @@ A file of an older version has `collectionId` and `collectionName`. ShipWarden r
 
 | Type | Does | Triggers |
 |---|---|---|
-| `sendToAgent` | Sends `prompt` to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs. `mode` sets the permission mode. | `ci.failed`, `pr.comment`, `pr.conflict`, `agent.done` |
+| `sendToAgent` | Sends `prompt` to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs. `mode` sets the permission mode. | `ci.failed`, `pr.comment`, `pr.conflict`, `agent.done`, `worktree.overlap` |
 | `startAgent` | Makes a worktree and gives `prompt` to a new agent. A task gives the branch name: the template of Settings › Worktrees › Branch names for tasks, else the task key and the title. A schedule uses `branch`. `agentId` selects the agent. `mode` sets the permission mode. | `task.new`, `schedule` |
 | `runHeadless` | Runs the agent in print mode. The agent does not change files. With `saveNote`, the answer goes into a note in the folder "Automations". | all |
 | `moveTask` | Moves the task to the status with the name `status`. | all except `schedule` |
@@ -311,8 +343,8 @@ trigger. A variable that the trigger does not give becomes empty text.
 
 The play button of an automation starts one run at once. You select the target first:
 
-- A pull request or agent trigger, and a manual `worktree` or `pullRequest` automation: a worktree of the repositories
-  of the automation. The branch must match `branchPattern`. The run gets the pull request of the branch, if there is
+- A pull request, agent or overlap trigger, and a manual `worktree` or `pullRequest` automation: a worktree of the
+  repositories of the automation. The overlap variables stay empty. The branch must match `branchPattern`. The run gets the pull request of the branch, if there is
   one. A `pullRequest` automation needs one. The comment and the last agent message stay empty.
 - `task.new`: an open task of the collections of the automation.
 - A manual `task` automation: use the button in the details of a task.

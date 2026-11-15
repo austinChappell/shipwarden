@@ -11,6 +11,7 @@ import {
     mergeCandidates,
     mergedEvent,
     mergedPullRequestOf,
+    overlapEvents,
     pullRequestResolver,
     taskEvent,
     worktreeOnBranch,
@@ -19,6 +20,7 @@ import {
 import { branchName, manualTarget } from './automations';
 import type { MyPullRequestItem, PullRequestCommentItem } from './dashboard';
 import type { BranchSummary } from './github';
+import { findOverlaps } from './worktree-overlap';
 
 const places: WorktreePlace[] = [
     { repo: '/repo', worktree: { path: '/repo', branch: 'main', isMain: true } },
@@ -236,5 +238,61 @@ describe('branchName', () => {
         expect(branchName('automation/daily summary-2026-11-10-0800')).toBe('automation/daily-summary-2026-11-10-0800');
         expect(branchName(' ../a:b..c// ')).toBe('a-b.c');
         expect(branchName('???')).toBe('automation');
+    });
+});
+
+describe('overlapEvents', () => {
+    const overlapPlaces: WorktreePlace[] = [
+        ...places,
+        { repo: '/repo', worktree: { path: '/wt/fix', branch: 'fix', isMain: false } },
+        { repo: '/repo', worktree: { path: '/wt/docs', branch: 'docs', isMain: false } }
+    ];
+    const files = [
+        { path: '/wt/feature', branch: 'feature', files: ['src/a.ts', 'src/b.ts'] },
+        { path: '/wt/fix', branch: 'fix', files: ['src/a.ts'] },
+        { path: '/wt/docs', branch: 'docs', files: ['README.md'] }
+    ];
+
+    it('makes one event for each worktree with an overlap', () => {
+        const events = overlapEvents('/repo', findOverlaps(files), overlapPlaces, 5);
+        expect(events.map(event => event.worktreePath).sort()).toEqual(['/wt/feature', '/wt/fix']);
+        expect(events.find(event => event.worktreePath === '/wt/feature')).toMatchObject({
+            trigger: 'worktree.overlap',
+            target: 'wt:/wt/feature',
+            label: 'feature: 1 file also in fix',
+            at: 5,
+            repoPath: '/repo',
+            branch: 'feature',
+            overlap: { files: ['src/a.ts'], worktrees: ['fix'] }
+        });
+    });
+
+    it('keeps the key for the same overlap and changes it for a new shared file', () => {
+        const key = (list: typeof files) =>
+            overlapEvents('/repo', findOverlaps(list), overlapPlaces, 5).find(event => event.worktreePath === '/wt/feature')?.key;
+        const first = key(files);
+        expect(first).toMatch(/^overlap:\/repo:\/wt\/feature@/);
+        expect(key([...files].reverse())).toBe(first);
+        expect(key([files[0], { ...files[1], files: ['src/a.ts', 'src/b.ts'] }, files[2]])).not.toBe(first);
+    });
+
+    it('skips a worktree that is not in the places, and the main worktree', () => {
+        const list = [
+            { path: '/repo', branch: 'main', files: ['src/a.ts'] },
+            { path: '/wt/gone', branch: 'gone', files: ['src/a.ts'] }
+        ];
+        expect(overlapEvents('/repo', findOverlaps(list), overlapPlaces, 5)).toEqual([]);
+    });
+
+    it('keeps at most 50 files and tells how many more there are', () => {
+        const many = Array.from({ length: 60 }, (_, index) => `f${String(index).padStart(2, '0')}`);
+        const list = [
+            { path: '/wt/feature', branch: 'feature', files: many },
+            { path: '/wt/fix', branch: 'fix', files: many }
+        ];
+        const [event] = overlapEvents('/repo', findOverlaps(list), overlapPlaces, 5);
+        expect(event.overlap?.files).toHaveLength(51);
+        expect(event.overlap?.files.at(-1)).toBe('(and 10 more)');
+        expect(event.label).toBe('feature: 60 files also in fix');
     });
 });

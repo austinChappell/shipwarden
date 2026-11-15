@@ -18,6 +18,8 @@ const TAB_STORAGE_KEY = 'shipwarden.rightPanelTab';
 
 interface Props {
     root: string;
+    /** The repository of the worktree (its main worktree). The Changes tab uses it for the overlap with other worktrees. */
+    repo?: string;
     /** The tab that shows. The app keeps it in the query of the history entry. */
     tab: PanelTab;
     /** Shows a different tab. */
@@ -156,6 +158,7 @@ export function RightPanel(props: Props) {
                 <ChangesPanel
                     key={props.root}
                     worktree={props.root}
+                    repo={props.repo}
                     changes={git.changes}
                     error={git.error}
                     fetched={git.fetched}
