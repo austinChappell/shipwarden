@@ -578,7 +578,7 @@ export class AutomationEngine {
             return;
         }
         if (automation.limits.approval === 'ask') {
-            const claimed = await this.claim(run('pending', 'Waits for your approval.'));
+            const claimed = await this.claim(run('pending', 'Waiting for your approval.'));
             if (claimed) {
                 this.notify(`${automation.name} waits for your approval`, event.label, { view: 'automations' });
             }
@@ -661,7 +661,7 @@ export class AutomationEngine {
         const actions = flattenActions(automation.actions);
         if (actions.some(action => action.type === 'sendToAgent')) {
             const session = this.agentOf(context, run.event);
-            if (session && agentBusy(session)) return 'Waits until the agent finishes its turn.';
+            if (session && agentBusy(session)) return 'Waiting for the agent to finish its turn.';
         }
         if (actions.some(action => action.type === 'startAgent')) {
             const working = cachedRunState().runs.filter(item => {
@@ -965,7 +965,7 @@ export class AutomationEngine {
             case 'removeWorktree': {
                 if (!place || !event.repoPath) throw new Error('The worktree does not exist anymore.');
                 const busy = context.sessions.find(item => item.worktreePath === place.worktree.path && item.isAgent && !item.exited && agentBusy(item));
-                if (busy) throw new Error('An agent works in the worktree. ShipWarden did not remove it.');
+                if (busy) throw new Error('An agent is working in the worktree. ShipWarden did not remove it.');
                 return context.actions.removeWorktreeQuietly(event.repoPath, place.worktree, action.deleteBranch === true);
             }
             case 'notify': {

@@ -148,7 +148,7 @@ export class PlanRunner {
             repoPath: step.repo,
             ...(plan.agentMode ? { mode: plan.agentMode } : {})
         });
-        await this.patchStep(planId, stepId, { status: 'running', sessionId: session.id, turnFrom, detail: 'The agent works on the step.' });
+        await this.patchStep(planId, stepId, { status: 'running', sessionId: session.id, turnFrom, detail: 'The agent is working on the step.' });
     }
 
     /** Marks a step as done without a check, and starts the next step. The step gets no pull request. */
@@ -241,7 +241,7 @@ export class PlanRunner {
             branch,
             ...(baseBranch ? { baseBranch } : {}),
             startedAt: Date.now(),
-            detail: 'ShipWarden makes the worktree.'
+            detail: 'ShipWarden is making the worktree.'
         });
         let worktree: CreatedWorktree;
         try {
@@ -266,7 +266,7 @@ export class PlanRunner {
                 repoPath: repo,
                 ...(plan.agentMode ? { mode: plan.agentMode } : {})
             });
-            await this.patchStep(plan.id, step.id, { sessionId: session.id, turnFrom, detail: 'The agent works on the step.' });
+            await this.patchStep(plan.id, step.id, { sessionId: session.id, turnFrom, detail: 'The agent is working on the step.' });
         } catch (error) {
             // The worktree exists. The user can help the agent and send the prompt again.
             await this.attention(plan, step, `The prompt did not get to the agent: ${errorText(error)}`, worktree.path);
@@ -321,7 +321,7 @@ export class PlanRunner {
             return;
         }
         try {
-            await this.patchStep(planId, stepId, { detail: 'ShipWarden pushes the branch and opens the pull request.' });
+            await this.patchStep(planId, stepId, { detail: 'ShipWarden is pushing the branch and opening the pull request.' });
             await api.git.push(worktree.path);
             const pr = await this.openPullRequest(plan, index, worktree.path);
             await this.patchStep(planId, stepId, { status: 'done', pr, finishedAt: Date.now(), detail: `Opened pull request #${pr.number}.${notes}` });

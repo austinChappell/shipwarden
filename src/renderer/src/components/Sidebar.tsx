@@ -653,7 +653,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                 {collapsed && (repoState || runningInRepo) && (
                     <span
                         className={`status-dot ${repoState ?? 'running'}`}
-                        title={repoState ? `An agent in this repository: ${AGENT_STATE_LABELS[repoState]}` : 'An agent runs in this repository'}
+                        title={repoState ? `An agent in this repository: ${AGENT_STATE_LABELS[repoState]}` : 'An agent is running in this repository'}
                     />
                 )}
                 {repoPorts.length > 0 && (

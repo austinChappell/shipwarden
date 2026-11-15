@@ -49,9 +49,9 @@ const HISTORY_SIZE = 60;
 export const DEFAULT_DAILY_TOKENS = 5_000_000;
 
 const RUN_STATUS_LABELS: Record<RunStatus, string> = {
-    pending: 'Waits for approval',
-    held: 'Waits',
-    running: 'Runs',
+    pending: 'Waiting for approval',
+    held: 'Waiting',
+    running: 'Running',
     done: 'Done',
     failed: 'Failed',
     skipped: 'Skipped',

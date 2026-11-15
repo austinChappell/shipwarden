@@ -345,7 +345,7 @@ export function ChatView({ session, focused = true }: Props) {
                 <div className="chat-waiting" role="alert">
                     <CircleAlert size={14} strokeWidth={1.8} className="chat-waiting-icon" />
                     <span className="chat-waiting-text">
-                        {startQuestion ? 'Claude Code asks a question before it starts.' : (session.agentMessage ?? 'The agent needs your input.')}
+                        {startQuestion ? 'Claude Code is asking a question before it starts.' : (session.agentMessage ?? 'The agent needs your input.')}
                     </span>
                     <Button
                         size="sm"

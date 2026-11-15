@@ -205,7 +205,7 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
         }
         if (
             !(await waitForNoDialog(session.id, () =>
-                setError('The agent asks a question. Answer it in the agent tab. ShipWarden sends the prompt after that.')
+                setError('The agent is asking a question. Answer it in the agent tab. ShipWarden sends the prompt after that.')
             ))
         ) {
             setError('ShipWarden did not send the prompt, because the agent still shows a question. Answer it and try again.');
@@ -276,8 +276,8 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
         if (!(await waitForNoDialog(id, () => undefined))) {
             throw new Error(
                 fresh
-                    ? 'The new agent shows a question, for example about folder trust. Answer it in the agent tab, then approve the run again.'
-                    : 'The agent shows a question. Answer it in the agent tab, then approve the run again.'
+                    ? 'The new agent is asking a question, for example about folder trust. Answer it in the agent tab, then approve the run again.'
+                    : 'The agent is asking a question. Answer it in the agent tab, then approve the run again.'
             );
         }
         if (target.mode && !fresh) {
