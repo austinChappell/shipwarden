@@ -4,7 +4,7 @@ import type { Services } from '../services';
 import { fetchMaxAge, logLimit, optionalString, stringsOf } from './args';
 
 /** Registers the IPC handlers of the local git changes. Each handler accepts only a worktree of a project. */
-export function registerGitIpc({ gitChanges, projectWorktrees }: Pick<Services, 'gitChanges' | 'projectWorktrees'>): void {
+export function registerGitIpc({ gitChanges, projectWorktrees, worktrees }: Pick<Services, 'gitChanges' | 'projectWorktrees' | 'worktrees'>): void {
     const known = (worktree: unknown) => projectWorktrees.check(worktree);
     ipcMain.handle(IpcChannels.gitChanges, async (_event, worktree: string) => gitChanges.status(await known(worktree)));
     ipcMain.handle(IpcChannels.gitStage, async (_event, worktree: string, paths: unknown) => gitChanges.stage(await known(worktree), stringsOf(paths)));
@@ -21,6 +21,10 @@ export function registerGitIpc({ gitChanges, projectWorktrees }: Pick<Services, 
     ipcMain.handle(IpcChannels.gitLog, async (_event, worktree: string, scope: unknown, limit: unknown) =>
         gitChanges.log(await known(worktree), scope === 'local' ? 'local' : 'all', logLimit(limit))
     );
+    ipcMain.handle(IpcChannels.gitWorktreeFiles, async (_event, repo: string) => {
+        const root = await known(repo);
+        return gitChanges.worktreeFiles(root, await worktrees.list(root));
+    });
     ipcMain.handle(IpcChannels.gitPull, async (_event, worktree: string) => gitChanges.pull(await known(worktree)));
     ipcMain.handle(IpcChannels.gitPush, async (_event, worktree: string) => gitChanges.push(await known(worktree)));
 }

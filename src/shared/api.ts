@@ -48,6 +48,7 @@ import type { ProjectsState, PullRepoResult, PullRepoTarget } from './projects';
 import type { ProviderUsage } from './usage';
 import type { UpdateState } from './updates';
 import type { ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
+import type { WorktreeFiles } from './worktree-overlap';
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
 import type { GraphLog, GraphScope } from './git-graph';
@@ -132,6 +133,11 @@ export interface ShipWardenApi {
         fetch(worktree: string, force?: boolean): Promise<FetchResult>;
         /** The newest commits for the graph, children before parents, at most `limit`. */
         log(worktree: string, scope: GraphScope, limit: number): Promise<GraphLog>;
+        /**
+         * The changed files of each linked worktree of a repository, for the overlap warning: the commits since the
+         * merge base with the default branch, and the git status. Local git only. `repo` is the main worktree.
+         */
+        worktreeFiles(repo: string): Promise<WorktreeFiles[]>;
     };
     updates: {
         /** The state of the updater: the running version, and a newer release when there is one. */
@@ -860,6 +866,7 @@ export const IpcChannels = {
     gitPull: 'git:pull',
     gitFetch: 'git:fetch',
     gitLog: 'git:log',
+    gitWorktreeFiles: 'git:worktreeFiles',
     updatesCheck: 'updates:check',
     updatesInstall: 'updates:install',
     updatesChanged: 'updates:changed',

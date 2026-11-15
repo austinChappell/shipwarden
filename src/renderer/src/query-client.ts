@@ -80,6 +80,8 @@ export const keyRoots = {
     agentTokens: ['agentTokens'],
     /** The worktrees of each repository folder. Local data: no request goes to a service. */
     worktrees: ['worktrees'],
+    /** The changed files of the worktrees of each repository, for the overlap warning. Local data: no request goes to a service. */
+    worktreeFiles: ['worktreeFiles'],
     /** The automation files and the run history. Local data: no request goes to a service. */
     automations: ['automations'],
     /** The app version, the data folder and the login name. Local data: no request goes to a service. */

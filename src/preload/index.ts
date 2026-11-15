@@ -39,7 +39,8 @@ const api: ShipWardenApi = {
         discard: (worktree, paths) => ipcRenderer.invoke(IpcChannels.gitDiscard, worktree, paths),
         pull: worktree => ipcRenderer.invoke(IpcChannels.gitPull, worktree),
         fetch: (worktree, force) => ipcRenderer.invoke(IpcChannels.gitFetch, worktree, force),
-        log: (worktree, scope, limit) => ipcRenderer.invoke(IpcChannels.gitLog, worktree, scope, limit)
+        log: (worktree, scope, limit) => ipcRenderer.invoke(IpcChannels.gitLog, worktree, scope, limit),
+        worktreeFiles: repo => ipcRenderer.invoke(IpcChannels.gitWorktreeFiles, repo)
     },
     updates: {
         state: () => ipcRenderer.invoke(IpcChannels.updatesState),

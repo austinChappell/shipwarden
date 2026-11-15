@@ -31,7 +31,7 @@ export const AUTOMATION_FORMAT_VERSION = 1;
 /** The value of the "kind" field. It marks a JSON text as a ShipWarden automation. */
 export const AUTOMATION_KIND = 'shipwarden.automation';
 
-export type TriggerType = 'ci.failed' | 'pr.comment' | 'pr.conflict' | 'pr.merged' | 'agent.done' | 'task.new' | 'schedule' | 'manual';
+export type TriggerType = 'ci.failed' | 'pr.comment' | 'pr.conflict' | 'pr.merged' | 'agent.done' | 'worktree.overlap' | 'task.new' | 'schedule' | 'manual';
 
 /**
  * The thing that a manual automation acts on. Its button shows in the view of that thing:
@@ -62,6 +62,8 @@ export type Trigger =
     | { type: 'pr.merged' }
     /** An agent ended its turn. With `withoutPullRequest`, only when the branch has no open pull request. */
     | { type: 'agent.done'; withoutPullRequest?: boolean }
+    /** A worktree changes a file that a different worktree of the same repository also changes. */
+    | { type: 'worktree.overlap' }
     /** A task of the bound collection agrees with the filters for the first time. */
     | { type: 'task.new'; labels?: string[]; assignedToMe?: boolean; status?: string }
     /** A time of day on the selected days of the week. `days` has 0 (Sunday) to 6 (Saturday). `time` is "HH:MM". */
@@ -237,6 +239,11 @@ export const TRIGGER_TYPES: { type: TriggerType; label: string; description: str
     { type: 'pr.merged', label: 'Pull request merged', description: 'The pull request of a worktree branch was merged.' },
     { type: 'agent.done', label: 'Agent finished', description: 'An agent ended its turn.' },
     {
+        type: 'worktree.overlap',
+        label: 'Worktrees change the same files',
+        description: 'A worktree changes a file that a different worktree of the repository also changes. A merge conflict can come later.'
+    },
+    {
         type: 'task.new',
         label: 'Task matches',
         description:
@@ -268,23 +275,23 @@ export const ACTION_TYPES: { type: ActionType; label: string; description: strin
 ];
 
 /** The triggers of events about a worktree branch. */
-const WORKTREE_TRIGGERS: readonly TriggerType[] = ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done'];
+const WORKTREE_TRIGGERS: readonly TriggerType[] = ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap'];
 
 /**
  * The triggers that each action can follow. An action needs the data of its trigger, for example a worktree.
  * A manual trigger uses `MANUAL_ACTIONS` instead, by its entity.
  */
 export const ACTION_TRIGGERS: Record<ActionType, readonly TriggerType[]> = {
-    sendToAgent: ['ci.failed', 'pr.comment', 'pr.conflict', 'agent.done'],
+    sendToAgent: ['ci.failed', 'pr.comment', 'pr.conflict', 'agent.done', 'worktree.overlap'],
     startAgent: ['task.new', 'schedule'],
-    runHeadless: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
-    moveTask: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new'],
+    runHeadless: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule'],
+    moveTask: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new'],
     removeWorktree: ['pr.merged'],
-    notify: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
-    postMessage: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
-    http: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
-    if: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule'],
-    stop: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'task.new', 'schedule']
+    notify: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule'],
+    postMessage: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule'],
+    http: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule'],
+    if: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule'],
+    stop: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule']
 };
 
 /** The entities of a manual trigger that each action can act on. */
@@ -443,6 +450,11 @@ export const TRIGGER_VARIABLES: Record<Exclude<TriggerType, 'manual'>, VariableI
     'pr.conflict': [...prVariables(), ...worktreeVariables()],
     'pr.merged': [...prVariables(), ...worktreeVariables()],
     'agent.done': [{ name: 'agent.message', description: 'The last message of the agent' }, ...worktreeVariables()],
+    'worktree.overlap': [
+        { name: 'overlap.files', description: 'The files that a different worktree also changes, one on each line' },
+        { name: 'overlap.worktrees', description: 'The branches of the other worktrees that change these files' },
+        ...worktreeVariables()
+    ],
     'task.new': [
         ...taskVariables(),
         { name: 'branch', description: 'The branch of the new worktree' },
@@ -592,6 +604,7 @@ function normalizeTrigger(value: unknown): Trigger {
         case 'ci.failed':
         case 'pr.conflict':
         case 'pr.merged':
+        case 'worktree.overlap':
             return { type: raw.type };
         case 'pr.comment': {
             const ignoreAuthors = names(raw.ignoreAuthors);
@@ -1023,6 +1036,22 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
         }
     },
     {
+        id: 'warn-overlap',
+        name: 'Warn about shared files',
+        description: 'When two worktrees change the same files, tell the agent of each worktree before a merge conflict occurs.',
+        definition: {
+            name: 'Warn about shared files',
+            trigger: { type: 'worktree.overlap' },
+            actions: [
+                {
+                    type: 'sendToAgent',
+                    prompt: 'A note, not a new task: other worktrees ({{overlap.worktrees}}) also change these files of {{branch}}:\n\n{{overlap.files}}\n\nKeep your changes in these files small, and do not move or rename them. Continue your work.'
+                }
+            ],
+            limits: { approval: 'ask', maxRunsPerTarget: 3, maxRunning: 2 }
+        }
+    },
+    {
         id: 'clean-up-merged',
         name: 'Clean up after merge',
         description: 'When the pull request of a worktree is merged, move its task to "done" and remove the worktree.',
@@ -1170,6 +1199,8 @@ export interface AutomationEvent {
     agentMessage?: string;
     /** The time of a "schedule" event, "HH:MM". */
     time?: string;
+    /** The overlap of a "worktree.overlap" event: the shared files and the names of the other worktrees. */
+    overlap?: { files: string[]; worktrees: string[] };
     /**
      * True for a run that the user started with "Run now". The run ignores the trigger, the status "off", the
      * approval, the pause and the limits. It still waits for a busy agent.
@@ -1330,6 +1361,8 @@ export function eventVariables(event: AutomationEvent, extra: Record<string, str
         'task.url': event.task?.url ?? event.taskLink?.url,
         ...(event.task ? taskValues(event.task) : {}),
         'agent.message': event.agentMessage,
+        'overlap.files': event.overlap?.files.join('\n'),
+        'overlap.worktrees': event.overlap?.worktrees.join(', '),
         ...extra
     };
 }
