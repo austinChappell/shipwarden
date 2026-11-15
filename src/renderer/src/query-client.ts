@@ -76,6 +76,8 @@ export const keyRoots = {
     network: ['network'],
     /** The listening ports of each worktree, for the sidebar. */
     worktreePorts: ['worktreePorts'],
+    /** The tokens of each agent session, from the Claude Code transcripts. Local data: no request goes to a service. */
+    agentTokens: ['agentTokens'],
     /** The worktrees of each repository folder. Local data: no request goes to a service. */
     worktrees: ['worktrees'],
     /** The automation files and the run history. Local data: no request goes to a service. */
