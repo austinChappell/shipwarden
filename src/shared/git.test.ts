@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { changeCount, changePathError, parseStatus } from './git';
+import { changeCount, changePathError, diffTotals, parseNumstat, parseStatus } from './git';
+
+describe('parseNumstat', () => {
+    it('reads changed, binary, and renamed files', () => {
+        const output = ['3\t1\tsrc/a.ts', '-\t-\timg/logo.png', '2\t0\t', 'old/b.ts', 'new/b.ts', '0\t4\tsrc/with\ttab.ts', ''].join('\0');
+        expect(parseNumstat(output)).toEqual([
+            { path: 'src/a.ts', added: 3, removed: 1, binary: false },
+            { path: 'img/logo.png', added: 0, removed: 0, binary: true },
+            { path: 'new/b.ts', oldPath: 'old/b.ts', added: 2, removed: 0, binary: false },
+            { path: 'src/with\ttab.ts', added: 0, removed: 4, binary: false }
+        ]);
+    });
+
+    it('returns no files for empty output', () => {
+        expect(parseNumstat('')).toEqual([]);
+    });
+
+    it('adds the totals', () => {
+        expect(diffTotals(parseNumstat(['3\t1\ta', '5\t2\tb', ''].join('\0')))).toEqual({ files: 2, added: 8, removed: 3 });
+    });
+});
 
 const z = (...fields: string[]) => `${fields.join('\0')}\0`;
 

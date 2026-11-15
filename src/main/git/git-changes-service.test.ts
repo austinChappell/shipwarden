@@ -215,6 +215,34 @@ describe('GitChangesService', () => {
         expect(input.diff).toContain('+two');
     });
 
+    it('counts the changes of the branch since the base, with commits, working changes, and new files', async () => {
+        writeFileSync(join(repo, 'a.txt'), 'one\ntwo\n');
+        writeFileSync(join(repo, 'old.txt'), 'same\nlines\nhere\n');
+        sh('add', '.');
+        sh('commit', '-q', '-m', 'base');
+        // Without "origin", the diff starts at HEAD.
+        writeFileSync(join(repo, 'a.txt'), 'one\n');
+        expect(await git.branchDiff(repo)).toEqual({ files: [{ path: 'a.txt', added: 0, removed: 1, binary: false }] });
+
+        sh('update-ref', 'refs/remotes/origin/main', 'HEAD');
+        sh('checkout', '-q', '-b', 'feature');
+        sh('commit', '-q', '-am', 'Change a');
+        sh('mv', 'old.txt', 'new.txt');
+        sh('commit', '-q', '-m', 'Rename');
+        writeFileSync(join(repo, 'c.txt'), 'x\ny\nz');
+        const base = sh('rev-parse', 'origin/main').trim();
+        const diff = await git.branchDiff(repo);
+        expect(diff.base).toBe(base);
+        expect(diff.files).toEqual([
+            { path: 'a.txt', added: 0, removed: 1, binary: false },
+            { path: 'new.txt', oldPath: 'old.txt', added: 0, removed: 0, binary: false },
+            { path: 'c.txt', added: 3, removed: 0, binary: false, untracked: true }
+        ]);
+        expect(await git.branchContents(repo, 'a.txt', base)).toEqual({ original: 'one\ntwo\n', modified: 'one\n', binary: false });
+        expect(await git.branchContents(repo, 'new.txt', base, 'old.txt')).toMatchObject({ original: 'same\nlines\nhere\n' });
+        await expect(git.branchContents(repo, 'a.txt', 'HEAD; rm')).rejects.toThrow('commit hash');
+    });
+
     it('finds a pull request template in a folder of templates, and ignores case', async () => {
         expect(await findPullRequestTemplate(repo)).toBeUndefined();
         mkdirSync(join(repo, 'docs', 'PULL_REQUEST_TEMPLATE'), { recursive: true });

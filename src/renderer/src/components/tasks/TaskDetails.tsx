@@ -11,6 +11,7 @@ import { EditableMetaRows } from './TaskMetaEditors';
 import { DescriptionCard, TaskTitle } from './TaskBody';
 import { TaskComments } from './TaskComments';
 import type { useTaskDetail } from './use-task-detail';
+import { CompareRuns, type CompareProps } from '../compare/CompareRuns';
 
 interface Props {
     source: TaskSource;
@@ -34,6 +35,8 @@ interface Props {
     tasks: readonly Task[];
     /** Opens another task in the details, for example a subtask. */
     onOpenTask(id: string): void;
+    /** The agent comparisons. Without it, the details do not show them. */
+    compare?: CompareProps;
 }
 
 /** The details of the selected task. The board and the list show them in a large dialog. */
@@ -52,7 +55,8 @@ export function TaskDetails({
     onUnlinkWorktree,
     findTask,
     tasks,
-    onOpenTask
+    onOpenTask,
+    compare
 }: Props) {
     const { detail, statuses, busy, detailError, editing, setEditing } = state;
     const editable = detail ? editableParts(detail, source.capabilities) : {};
@@ -98,6 +102,7 @@ export function TaskDetails({
                         onUnlinkWorktree={onUnlinkWorktree}
                         act={state.act}
                         runAction={state.runAction}
+                        compare={compare}
                     />
 
                     <div className="task-detail-body">
@@ -130,6 +135,7 @@ export function TaskDetails({
                         </div>
 
                         <div className="task-detail-main">
+                            {compare && <CompareRuns compare={compare} connectionId={source.connectionId} taskId={detail.id} />}
                             <DescriptionCard
                                 description={detail.description}
                                 editable={!!editable.description}

@@ -118,3 +118,63 @@ export function changePathError(path: string): string | undefined {
 export function changeCount(changes: GitChanges): number {
     return new Set([...changes.staged, ...changes.unstaged, ...changes.conflicted].map(change => change.path)).size;
 }
+
+/** One file of the changes of a branch since its base: the commits and the working files. */
+export interface BranchFileStat {
+    /** The path from the worktree root, with "/". */
+    path: string;
+    /** The path before a rename. */
+    oldPath?: string;
+    /** The added lines. 0 for a binary file. */
+    added: number;
+    /** The removed lines. 0 for a binary file. */
+    removed: number;
+    binary: boolean;
+    /** True for a new file that git does not track yet. */
+    untracked?: boolean;
+}
+
+/** The changes of a branch since its base commit, for the compare list of agent runs. */
+export interface BranchDiff {
+    /**
+     * The base commit: the merge base with the default branch of "origin". Undefined when ShipWarden cannot find it.
+     * Then the diff starts at HEAD.
+     */
+    base?: string;
+    files: BranchFileStat[];
+}
+
+/**
+ * Reads the output of `git diff --numstat -z`. A line is "added<TAB>removed<TAB>path<NUL>". A rename has an empty path
+ * and then the old path and the new path, each with a NUL at the end. A binary file has "-" for the counts.
+ */
+export function parseNumstat(output: string): BranchFileStat[] {
+    const parts = output.split('\0');
+    const files: BranchFileStat[] = [];
+    for (let index = 0; index < parts.length; index++) {
+        const match = /^(-|\d+)\t(-|\d+)\t(.*)$/s.exec(parts[index]);
+        if (!match) continue;
+        const binary = match[1] === '-' || match[2] === '-';
+        const counts = { added: binary ? 0 : Number(match[1]), removed: binary ? 0 : Number(match[2]), binary };
+        if (match[3]) {
+            files.push({ path: match[3], ...counts });
+            continue;
+        }
+        const oldPath = parts[index + 1];
+        const path = parts[index + 2];
+        index += 2;
+        if (path) files.push({ path, ...(oldPath && oldPath !== path ? { oldPath } : {}), ...counts });
+    }
+    return files;
+}
+
+/** Returns the totals of a branch diff: the number of files, the added lines, and the removed lines. */
+export function diffTotals(files: readonly BranchFileStat[]): { files: number; added: number; removed: number } {
+    let added = 0;
+    let removed = 0;
+    for (const file of files) {
+        added += file.added;
+        removed += file.removed;
+    }
+    return { files: files.length, added, removed };
+}

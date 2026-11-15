@@ -85,7 +85,13 @@ export const keyRoots = {
     /** The plans of the projects. Local data: no request goes to a service. */
     plans: ['plans'],
     /** The PR groups of the Review view. Local data: no request goes to a service. */
-    prGroups: ['prGroups']
+    prGroups: ['prGroups'],
+    /** The agent comparisons of the tasks. Local data: no request goes to a service. */
+    compare: ['compare'],
+    /** The changes of a worktree branch since its base, and the file versions. Local data: git runs on this Mac. */
+    branchDiff: ['branchDiff'],
+    /** The PATH check of each agent command. Local data: no request goes to a service. */
+    agentCheck: ['agentCheck']
 } as const;
 
 /** The roots that a change to a pull request, a branch or a CI run can make stale. */

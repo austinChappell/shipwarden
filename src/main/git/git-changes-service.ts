@@ -4,10 +4,23 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 import { GRAPH_LOG_FORMAT, parseGraphLog, type GraphLog, type GraphScope } from '@shared/git-graph';
 import { PULL_REQUEST_TEMPLATE_PATHS, type CommitDraftInput, type PullRequestDraftInput } from '@shared/drafts';
-import { changePathError, parseStatus, type ChangeContents, type ChangeSide, type CommitResult, type FetchResult, type GitChanges } from '@shared/git';
+import {
+    changePathError,
+    parseNumstat,
+    parseStatus,
+    type BranchDiff,
+    type BranchFileStat,
+    type ChangeContents,
+    type ChangeSide,
+    type CommitResult,
+    type FetchResult,
+    type GitChanges
+} from '@shared/git';
 
 /** Files larger than this do not show in a diff. */
 const MAX_DIFF_BYTES = 2 * 1024 * 1024;
+/** The branch diff reads at most this number of untracked files to count their lines. */
+const MAX_UNTRACKED_COUNTS = 1000;
 
 /** Git must never wait for a password on a terminal that does not exist. */
 const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
@@ -189,6 +202,55 @@ export class GitChangesService {
         }
         if (isBinary(original) || isBinary(modified)) return { original: '', modified: '', binary: true };
         return { original, modified, binary: false };
+    }
+
+    /**
+     * Returns the changes of the branch since its base: the commits, the staged and unstaged changes, and the
+     * untracked files. The base is the merge base with the default branch of "origin". Without it, the base is HEAD.
+     */
+    async branchDiff(worktree: string): Promise<BranchDiff> {
+        const base = await this.branchBase(worktree);
+        const from = base ?? ((await run(worktree, ['rev-parse', '--verify', '-q', 'HEAD'], { allowFailure: true })) ? 'HEAD' : undefined);
+        const tracked = from ? parseNumstat((await run(worktree, ['diff', '--numstat', '-z', '-M', '--no-color', '--no-ext-diff', from, '--'])) ?? '') : [];
+        const untrackedOutput = (await run(worktree, ['ls-files', '--others', '--exclude-standard', '-z'])) ?? '';
+        const untracked: BranchFileStat[] = [];
+        for (const file of untrackedOutput.split('\0').filter(Boolean).slice(0, MAX_UNTRACKED_COUNTS)) {
+            untracked.push({ path: file, ...(await this.countLines(worktree, file)), removed: 0, untracked: true });
+        }
+        return { ...(base ? { base } : {}), files: [...tracked, ...untracked] };
+    }
+
+    /**
+     * The two versions of a file for the branch diff: the version of the base commit and the working file.
+     * `base` is the value of `branchDiff`. Without it, the first version comes from HEAD.
+     */
+    async branchContents(worktree: string, filePath: string, base: string | undefined, oldPath?: string): Promise<ChangeContents> {
+        const [file] = checkPaths([filePath]);
+        const before = oldPath ? checkPaths([oldPath])[0] : file;
+        if (base !== undefined && !/^[0-9a-f]{7,64}$/i.test(base)) throw new Error('The base must be a commit hash.');
+        const original = (await run(worktree, ['show', `${base ?? 'HEAD'}:${before}`], { allowFailure: true })) ?? '';
+        const modified = await this.readWorking(worktree, file);
+        if (isBinary(original) || isBinary(modified)) return { original: '', modified: '', binary: true };
+        return { original, modified, binary: false };
+    }
+
+    /** The merge base of HEAD and the default branch of "origin", or undefined when it is not known. */
+    private async branchBase(worktree: string): Promise<string | undefined> {
+        const remote = await this.defaultRemoteBranch(worktree);
+        if (!remote) return undefined;
+        return (await run(worktree, ['merge-base', 'HEAD', remote], { allowFailure: true }))?.trim() || undefined;
+    }
+
+    /** Counts the lines of a new file. A binary file or a file larger than the diff limit counts as binary. */
+    private async countLines(worktree: string, file: string): Promise<{ added: number; binary: boolean }> {
+        try {
+            const text = await this.readWorking(worktree, file);
+            if (isBinary(text)) return { added: 0, binary: true };
+            if (!text) return { added: 0, binary: false };
+            return { added: text.split('\n').length - (text.endsWith('\n') ? 1 : 0), binary: false };
+        } catch {
+            return { added: 0, binary: true };
+        }
     }
 
     private async readWorking(worktree: string, file: string): Promise<string> {

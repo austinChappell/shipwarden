@@ -14539,3 +14539,99 @@ body.resizing-rows * {
     width: 100%;
     margin-top: 8px;
 }
+
+/* Agent comparisons: the dialog that starts them, and the compare list in the task details. */
+.compare-dialog {
+    width: min(480px, calc(100vw - 32px));
+}
+
+.compare-agent-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 12px 0;
+}
+
+.compare-runs {
+    display: flex;
+    flex-direction: column;
+}
+
+.compare-run + .compare-run {
+    border-top: 1px solid var(--border);
+}
+
+.compare-run-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 6px 0;
+}
+
+.compare-run-agent {
+    color: var(--text-strong);
+    font-weight: 500;
+}
+
+.compare-run-stat,
+.compare-lines {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.compare-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 8px;
+}
+
+.compare-diff {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    overflow: hidden;
+}
+
+.compare-diff-file + .compare-diff-file {
+    border-top: 1px solid var(--border);
+}
+
+.compare-diff-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 32px;
+    padding: 0 12px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.compare-diff-row:hover {
+    background: var(--hover);
+}
+
+.compare-diff-row svg {
+    flex: none;
+    color: var(--muted);
+    transition: transform 0.12s;
+}
+
+.compare-diff-row svg.open {
+    transform: rotate(90deg);
+}
+
+.compare-diff-body {
+    max-height: 480px;
+}
