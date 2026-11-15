@@ -53,7 +53,8 @@ The first pull request of the plan makes a PR group with the title of the plan. 
 into the same group. "PR group" under the merge order opens the group. To make no group, turn off "Put the pull
 requests in a PR group" in the settings of the plan. When you delete the group, this setting goes off. See [PR groups](pr-groups.md).
 
-A step that ends its turn without a new commit waits for you. Answer the agent in its tab. When the agent ends its next
+A step that ends its turn without a new commit stops and shows "Stopped". The step shows "Needs you" only while its
+agent waits for your answer or your permission. Answer the agent in its tab. When the agent ends its next
 turn, ShipWarden checks the step again. You can also select:
 
 - "Continue": check the worktree for a new commit now.
@@ -63,7 +64,7 @@ turn, ShipWarden checks the step again. You can also select:
 
 "Pause" stops the plan after the current step. "Resume" continues it.
 
-A notification tells you when a step needs you and when the plan is done. Settings › Notifications › Automations turns
+A notification tells you when a step stops or fails and when the plan is done. Settings › Notifications › Automations turns
 these notifications on and off.
 
 ## History
