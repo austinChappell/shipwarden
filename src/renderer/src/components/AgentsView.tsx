@@ -291,6 +291,15 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                     const prText = pr ? `PR #${pr.number}${ciText(ci) ? ` · ${ciText(ci)}` : ''}` : undefined;
                                     const tokens = row.tokens && row.tokens.total.tokens > 0 ? row.tokens.total : undefined;
                                     const shared = session.worktreePath ? worktreeTokens[session.worktreePath]?.total : undefined;
+                                    // A narrow list hides the activity and the tokens. The chip tooltip gives them.
+                                    const chipTitle =
+                                        [
+                                            activity,
+                                            tokens && tokensTitle(tokens),
+                                            shared && shared.tokens > 0 && `All agents in this worktree: ${tokensText(shared)}.`
+                                        ]
+                                            .filter(Boolean)
+                                            .join('\n') || undefined;
                                     const message =
                                         session.agentMessage ??
                                         (session.agentState ? '' : `${session.title} has no status hooks. The state comes from its terminal output.`);
@@ -314,19 +323,21 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                                 <span className="agent-side">
                                                     <span className="agent-state-line">
                                                         {tokens && (
-                                                            <span className="agent-since" title={tokensTitle(tokens)}>
+                                                            <span className="agent-since agent-tokens" title={tokensTitle(tokens)}>
                                                                 {tokensText(tokens)}
                                                             </span>
                                                         )}
-                                                        {activity && <span className="agent-since">{activity}</span>}
-                                                        <Chip tone={STATE_TONE[state]}>{label}</Chip>
+                                                        {activity && <span className="agent-since agent-output">{activity}</span>}
+                                                        <Chip tone={STATE_TONE[state]} title={chipTitle}>
+                                                            {label}
+                                                        </Chip>
                                                     </span>
                                                     <span className="agent-where">
                                                         {prText && <Chip tone={ciTone(ci)}>{prText}</Chip>}
                                                         {place && repoColor(place.repo) && <RepoIcon color={repoColor(place.repo)} size={12} />}
                                                         <span className="agent-where-text">{where}</span>
                                                         {shared && shared.tokens > 0 && (
-                                                            <span title={`All agents in this worktree. ${tokensTitle(shared)}`}>
+                                                            <span className="agent-tokens" title={`All agents in this worktree. ${tokensTitle(shared)}`}>
                                                                 {tokensText(shared)} in worktree
                                                             </span>
                                                         )}
