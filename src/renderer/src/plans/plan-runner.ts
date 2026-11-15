@@ -435,10 +435,10 @@ export class PlanRunner {
         }));
     }
 
-    /** The step needs the user. The plan does not continue until the user acts. */
+    /** The step stopped. The plan does not continue until the user acts. */
     private async attention(plan: Plan, step: PlanStep, detail: string, worktreePath?: string): Promise<void> {
         await this.patchStep(plan.id, step.id, { status: 'attention', detail });
-        this.notify(`"${step.title}" needs you`, detail, worktreePath ?? step.worktreePath, step.sessionId);
+        this.notify(`"${step.title}" stopped`, detail, worktreePath ?? step.worktreePath, step.sessionId);
     }
 
     private async fail(plan: Plan, step: PlanStep, detail: string): Promise<void> {

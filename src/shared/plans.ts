@@ -1,6 +1,6 @@
 import { isAgentMode, type AgentMode } from './agent-modes';
 import type { AgentProgram } from './agent-programs';
-import { shellQuote } from './agents';
+import { shellQuote, type AgentState } from './agents';
 import { fence } from './ask-agent';
 import type { TaskLink } from './tasks';
 
@@ -129,11 +129,20 @@ const MAX_STEPS = 50;
 export const STEP_STATUS_LABELS: Record<StepStatus, string> = {
     pending: 'Not started',
     running: 'Agent is working',
-    attention: 'Needs you',
+    attention: 'Stopped',
     done: 'Done',
     skipped: 'Skipped',
     failed: 'Failed'
 };
+
+/**
+ * Returns the status label of a step. The label is "Needs you" only when the agent of the step waits for an answer or
+ * a permission. A step that stopped for another reason shows its usual label.
+ */
+export function stepStatusLabel(status: StepStatus, agentState?: AgentState): string {
+    if (agentState === 'waiting' && (status === 'running' || status === 'attention')) return 'Needs you';
+    return STEP_STATUS_LABELS[status];
+}
 
 export const PLAN_STATUS_LABELS: Record<PlanStatus, string> = {
     draft: 'Draft',

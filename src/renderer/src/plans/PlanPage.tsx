@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
     ArrowDown,
@@ -31,12 +31,12 @@ import {
     MAX_TITLE_LENGTH,
     NEW_PLAN_TITLE,
     PLAN_STATUS_LABELS,
-    STEP_STATUS_LABELS,
     duplicatePlan,
     newStep,
     planCounts,
     planProblems,
     stackedOnIndex,
+    stepStatusLabel,
     type Plan,
     type PlanProblem,
     type PlanStatus,
@@ -71,6 +71,7 @@ import { collectionsQueryOptions, connectionsQueryOptions } from '../components/
 import { taskQueryKeys } from '../components/tasks/task-view-logic';
 import { loadCollectionTasks } from '../automations/engine';
 import { openLink } from '../links';
+import { agentStateStore } from '../terminal/agent-state-store';
 import { keyRoots } from '../query-client';
 import { errorText } from '../util';
 import { cancelExplore, explorePlan } from './plan-explore';
@@ -276,6 +277,15 @@ const STEP_STATUS_TONES: Record<StepStatus, ChipTone> = {
     skipped: 'neutral',
     failed: 'danger'
 };
+
+/** Returns the status label and tone of a step. The live state of the step agent decides if the step needs the user. */
+function useStepStatus(step: PlanStep): { label: string; tone: ChipTone } {
+    const sessionId = step.sessionId;
+    const agentState = useSyncExternalStore(agentStateStore.subscribe, () => (sessionId ? agentStateStore.getSnapshot().get(sessionId)?.state : undefined));
+    // A running step whose agent asks a question gets the tone of a step that stopped.
+    const tone = step.status === 'running' && agentState === 'waiting' ? STEP_STATUS_TONES.attention : STEP_STATUS_TONES[step.status];
+    return { label: stepStatusLabel(step.status, agentState), tone };
+}
 
 /**
  * Returns the plan after a change to the title of a step. A plan with the default title, or with the title of its first
@@ -1065,7 +1075,7 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan, onOpen
                                                 <div className="plan-merge-title">{step.title}</div>
                                                 <div className="flow-field-note">
                                                     {step.repo ? repoLabel(step.repo) : ''}
-                                                    {step.pr ? ` · into ${step.pr.base}` : ` · ${STEP_STATUS_LABELS[step.status].toLowerCase()}`}
+                                                    {step.pr ? ` · into ${step.pr.base}` : <StepStatusNote step={step} />}
                                                 </div>
                                             </div>
                                             {step.pr && (
@@ -1106,6 +1116,11 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan, onOpen
     );
 }
 
+/** The status of a step in the merge order, for example " · needs you". */
+function StepStatusNote({ step }: { step: PlanStep }) {
+    return <> · {useStepStatus(step).label.toLowerCase()}</>;
+}
+
 function StepRun({
     plan,
     step,
@@ -1124,6 +1139,7 @@ function StepRun({
     act(work: () => Promise<unknown>): Promise<void>;
 }) {
     const link = step.task.kind === 'existing' ? step.task.link : undefined;
+    const status = useStepStatus(step);
     const open = step.status === 'running' || step.status === 'attention' || step.status === 'failed';
     return (
         <div className={`plan-step-row run ${step.status}`}>
@@ -1133,7 +1149,7 @@ function StepRun({
                     <div className="plan-step-head">
                         <div className="plan-step-heading">
                             <div className="plan-step-name">
-                                <Chip tone={STEP_STATUS_TONES[step.status]}>{STEP_STATUS_LABELS[step.status]}</Chip> {step.title}
+                                <Chip tone={status.tone}>{status.label}</Chip> {step.title}
                             </div>
                             <div className="plan-step-meta">
                                 {step.repo ? repoLabel(step.repo) : 'No repository'}

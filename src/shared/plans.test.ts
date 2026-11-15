@@ -19,6 +19,7 @@ import {
     stackedOnIndex,
     stepBranch,
     stepPrompt,
+    stepStatusLabel,
     worktreeBaseOf,
     type Plan,
     type PlanStep
@@ -331,5 +332,16 @@ describe('duplicatePlan', () => {
     it('keeps the "no PR group" setting', () => {
         expect(duplicatePlan(plan([], { noPrGroup: true }), 10).noPrGroup).toBe(true);
         expect(duplicatePlan(plan([]), 10)).not.toHaveProperty('noPrGroup');
+    });
+});
+
+describe('stepStatusLabel', () => {
+    it('says "Needs you" only while the agent waits for the user', () => {
+        expect(stepStatusLabel('running', 'waiting')).toBe('Needs you');
+        expect(stepStatusLabel('attention', 'waiting')).toBe('Needs you');
+        expect(stepStatusLabel('running', 'working')).toBe('Agent is working');
+        expect(stepStatusLabel('attention', 'done')).toBe('Stopped');
+        expect(stepStatusLabel('attention')).toBe('Stopped');
+        expect(stepStatusLabel('done', 'waiting')).toBe('Done');
     });
 });
