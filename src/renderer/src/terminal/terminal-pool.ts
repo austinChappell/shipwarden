@@ -347,9 +347,14 @@ export class TerminalPool {
             }
         };
         host.addEventListener('paste', onPaste, { capture: true });
+        // True while the terminal shows the replay. See the replay below.
+        let replaying = false;
         entry.bindings.push(
             { dispose: () => host.removeEventListener('paste', onPaste, { capture: true }) },
             terminal.onData(data => {
+                if (replaying) {
+                    return;
+                }
                 // Input from the user goes to the bottom, as in other terminals. Output keeps the scroll position.
                 terminal.scrollToBottom();
                 this.api.write(session.id, data);
@@ -363,7 +368,15 @@ export class TerminalPool {
         if (creation.cancelled) {
             return undefined;
         }
-        this.write(entry, replay.data);
+        // The replay can contain queries from old output, for example the cursor position query (ESC [6n).
+        // The terminal answers each query through onData. The program that sent the query does not wait for the
+        // answer now, so the shell gets the answer as typed text, for example ";1R". Do not send these answers.
+        replaying = true;
+        try {
+            this.write(entry, replay.data);
+        } finally {
+            replaying = false;
+        }
         entry.shownSeq = replay.seq;
         for (const [data, seq] of entry.pending) {
             if (seq > entry.shownSeq) {
