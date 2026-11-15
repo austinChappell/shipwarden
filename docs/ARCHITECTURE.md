@@ -134,6 +134,12 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - A click on a file opens a diff tab (`ChangeDiffView`, with `@pierre/diffs`): HEAD and the index for a staged
   change, the index and the working file for an unstaged change.
 - The main process runs git only in a worktree of a project, and checks that each path stays in the worktree.
+- **Overlap.** `git.worktreeFiles(repo)` returns the changed files of each linked worktree: `git diff --name-only
+  --no-renames <base>...<HEAD>` and `git status`. The base is the default branch of "origin", else a local `main` or
+  `master`. The committed files stay in a cache by base commit and HEAD, so only `git status` runs again in each
+  cycle. With fewer than two linked worktrees, git does not run. `overlap-query.ts` keeps the files in TanStack Query
+  (`keyRoots.worktreeFiles`). It loads them each minute while a view shows them, and again after `gitChanged`. The
+  Agents view and the Changes tab show a warning chip (`OverlapChip`).
 
 ### Chat about a review comment
 
@@ -252,7 +258,14 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   loads, so after a reload of the window the time is not known until the next output. The row then shows the time of
   the last state change. A redraw of a TUI agent (for example a spinner) also counts as output.
 - The header shows the number of agents in each state and the plan usage of Claude and Codex from the status bar.
-  ShipWarden has no token or cost data for each agent, so the rows show no usage.
+- Tokens: a row of a Claude Code agent shows the tokens of its session. `useAgentTokens` sends the `agentTranscript` of
+  each agent to `automations.countTokens` (the `TokenCounter` of the automations), one time from the start of the
+  session and one time from midnight. The count includes the subagents. Input, output, and cache writes count. Cache
+  reads do not count (`countedTokens`). The tooltip gives the cache reads. The query reads again at each agent state
+  change and each 15 seconds. The counter reads only the new end of a file. When two or more agents use the same
+  worktree, the place line also shows the total of the worktree. The header meta shows the tokens of the running
+  agents since midnight. Codex, Gemini, and OpenCode write no transcript that ShipWarden reads, so their rows show no
+  tokens. A new transcript (for example after `/clear`) starts a new count. ShipWarden shows no cost.
 - The project switcher is the header of the repository list, because only the repositories change with the project.
 - The worktree list also shows the open PR of each branch and its combined CI state. One GraphQL request for all
   open PRs runs every 60 seconds and when the window gets focus.
@@ -523,6 +536,9 @@ The user guide and the file format are in [automations.md](automations.md).
   - `pr.comment` and `pr.conflict`: the news of each Dashboard refresh (`onDashboardNews`), the same news as the
     notifications. The "origin" remote of each folder comes from the cache (`repoOf`).
   - `agent.done`: the agent hooks.
+  - `worktree.overlap`: `git.worktreeFiles` of each watched repository (local git only), in the one-minute cycle of the
+    summaries and after `gitChanged`. `findOverlaps` (`src/shared/worktree-overlap.ts`) finds the shared files, and
+    `overlapEvents` makes one event for each worktree. The key has a hash of the peers and the files.
   - `task.new`: `tasks/list` of the bound collection every 5 minutes, with the query key of the Tasks view, so the
     view shows the same list. The first list of a new or re-enabled rule only records its tasks (`seed`).
   - `schedule`: a timer every 30 seconds. A time before the start of the app or before the rule was turned on does not run.

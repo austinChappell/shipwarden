@@ -24,9 +24,13 @@ import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { pluralize } from '@shared/format';
 import { Button, Checkbox, Count, IconButton, SkeletonRows, TextArea } from './ui';
 import { DraftButton } from './DraftButton';
+import { OverlapNote } from './OverlapChip';
+import { useWorktreeOverlap } from '../git/overlap-query';
 
 interface Props {
     worktree: string;
+    /** The repository of the worktree (its main worktree). The panel shows the files that other worktrees also change. */
+    repo?: string;
     changes: GitChanges | undefined;
     error: string | undefined;
     /** The last background fetch of the upstream remote. */
@@ -108,7 +112,8 @@ function Group({
  * The Changes tab of the right panel: the git changes of the worktree. The user stages and unstages files, opens
  * the diff of a file, writes a commit message and commits, and pushes the branch.
  */
-export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOpenChange, onOpenAllChanges, onOpenFile }: Props) {
+export function ChangesPanel({ worktree, repo, changes, error, fetched, onReload, onOpenChange, onOpenAllChanges, onOpenFile }: Props) {
+    const overlap = useWorktreeOverlap(repo, worktree);
     const [message, setMessage] = useState('');
     const [amend, setAmend] = useState(false);
     const [busy, setBusy] = useState<string>();
@@ -321,6 +326,7 @@ export function ChangesPanel({ worktree, changes, error, fetched, onReload, onOp
                     ShipWarden cannot check {changes.upstream ?? 'the remote'} for new commits. Pull and push can still work in a terminal.
                 </div>
             )}
+            {overlap && <OverlapNote overlap={overlap} />}
 
             <div className="changes-commit">
                 <TextArea

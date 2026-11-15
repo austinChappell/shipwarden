@@ -49,6 +49,16 @@ describe('TokenCounter', () => {
         expect((await counter.count(file, 0)).tokens).toBe(12);
     });
 
+    it('gives the same sum for two counts at the same time, also with an incomplete line', async () => {
+        const next = line('c', '2026-11-10T10:02:00Z', { output_tokens: 11 });
+        await writeFile(file, line('a', '2026-11-10T10:00:00Z', { input_tokens: 4, output_tokens: 6 }) + next.slice(0, 15));
+        expect((await Promise.all([counter.count(file, 0), counter.count(file, 0)])).map(item => item.tokens)).toEqual([10, 10]);
+        await appendFile(file, next.slice(15));
+        expect((await Promise.all([counter.count(file, 0), counter.count(file, Date.parse('2026-11-10T10:01:00Z'))])).map(item => item.tokens)).toEqual([
+            21, 11
+        ]);
+    });
+
     it('adds the transcripts of the subagents', async () => {
         await writeFile(file, line('a', '2026-11-10T10:00:00Z', { output_tokens: 5 }));
         const subagents = path.join(root, 'project', 'session', 'subagents');

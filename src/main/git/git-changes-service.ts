@@ -16,6 +16,8 @@ import {
     type FetchResult,
     type GitChanges
 } from '@shared/git';
+import { worktreeFileList, type WorktreeFiles } from '@shared/worktree-overlap';
+import type { Worktree } from '@shared/worktrees';
 
 /** Files larger than this do not show in a diff. */
 const MAX_DIFF_BYTES = 2 * 1024 * 1024;
@@ -128,6 +130,9 @@ export async function findPullRequestTemplate(worktree: string): Promise<{ path:
 
 const isBinary = (text: string) => text.slice(0, 8000).includes('\0');
 
+/** The most entries of the cache of committed files. The cache starts again when it is full. */
+const MAX_COMMITTED_CACHE = 500;
+
 /**
  * The local changes of a worktree: the git status, staging, the two versions of a changed file, commit and push.
  * Each method runs git in the worktree folder.
@@ -135,6 +140,12 @@ const isBinary = (text: string) => text.slice(0, 8000).includes('\0');
 export class GitChangesService {
     /** The last fetch of each repository, by its common git folder. The worktrees of a repository share it. */
     private readonly fetches = new Map<string, FetchResult & { running?: Promise<FetchResult> }>();
+
+    /**
+     * The files of the commits of a branch since the merge base with the default branch, by "<base commit>...<HEAD>".
+     * The files of a pair of commits do not change, so git runs again only after a new commit or a new base.
+     */
+    private readonly committedFiles = new Map<string, string[]>();
 
     /** `trash` moves a file or a folder to the Trash. The tests replace it. */
     constructor(private readonly trash: (file: string) => Promise<void>) {}
@@ -404,6 +415,63 @@ export class GitChangesService {
             .filter(Boolean);
         const template = await findPullRequestTemplate(worktree);
         return { branch, base, commits, stat, diff, ...(template ? { template } : {}) };
+    }
+
+    /**
+     * Returns the changed files of each linked worktree of a repository, for the overlap warning. The main worktree,
+     * a bare worktree and a prunable worktree do not count. The files are the files of the commits since the merge base
+     * with the default branch, and the files of the git status. When fewer than two worktrees count, no overlap is
+     * possible, and git does not run. A worktree that git cannot read is not in the result.
+     */
+    async worktreeFiles(repo: string, worktrees: readonly Worktree[]): Promise<WorktreeFiles[]> {
+        const candidates = worktrees.filter(worktree => !worktree.isMain && !worktree.isBare && !worktree.prunable && worktree.head);
+        if (candidates.length < 2) return [];
+        const base = await this.baseBranch(repo);
+        const baseSha = base ? (await run(repo, ['rev-parse', '--verify', '-q', `${base}^{commit}`], { allowFailure: true }))?.trim() : undefined;
+        const results = await Promise.all(
+            candidates.map(async (worktree): Promise<WorktreeFiles | undefined> => {
+                try {
+                    const committed = baseSha ? await this.committed(repo, baseSha, worktree.head) : [];
+                    const status = await this.status(worktree.path);
+                    return {
+                        path: worktree.path,
+                        ...(worktree.branch ? { branch: worktree.branch } : {}),
+                        files: worktreeFileList(committed, status)
+                    };
+                } catch {
+                    return undefined;
+                }
+            })
+        );
+        return results.filter((item): item is WorktreeFiles => !!item);
+    }
+
+    /** Returns the files of the commits from the merge base of the two commits to `head`. The cache keeps the result. */
+    private async committed(repo: string, baseSha: string, head: string): Promise<string[]> {
+        const key = `${baseSha}...${head}`;
+        const cached = this.committedFiles.get(key);
+        if (cached) return cached;
+        // --no-renames gives the old path and the new path of a rename. A change to either path can conflict.
+        const output = await run(repo, ['diff', '--name-only', '--no-renames', '-z', key], { allowFailure: true });
+        const files = (output ?? '').split('\0').filter(Boolean);
+        if (this.committedFiles.size >= MAX_COMMITTED_CACHE) this.committedFiles.clear();
+        if (output !== undefined) this.committedFiles.set(key, files);
+        return files;
+    }
+
+    /**
+     * Returns the default branch for the overlap: the default branch of "origin", else a local "main" or "master".
+     * Returns undefined when none exists.
+     */
+    private async baseBranch(repo: string): Promise<string | undefined> {
+        const remote = await this.defaultRemoteBranch(repo);
+        if (remote) return remote;
+        for (const candidate of ['main', 'master']) {
+            if ((await run(repo, ['rev-parse', '--verify', '-q', `refs/heads/${candidate}^{commit}`], { allowFailure: true })) !== undefined) {
+                return candidate;
+            }
+        }
+        return undefined;
     }
 
     /** Returns the default branch of "origin", for example "origin/main", or undefined when it is not known. */

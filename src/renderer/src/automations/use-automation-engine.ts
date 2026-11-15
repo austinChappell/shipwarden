@@ -9,6 +9,7 @@ import type { Worktree } from '@shared/worktrees';
 import { onDashboardNews } from '../dashboard-store';
 import { branchSummariesQuery, summariesByRepo } from '../github/use-branch-status';
 import { keyRoots } from '../query-client';
+import { useOverlaps } from '../git/overlap-query';
 import { useUsage } from '../usage-query';
 import { useAutomationList, useAutomationRuns } from './automation-queries';
 import { automationEngine, type EngineActions, type EnginePlace } from './engine';
@@ -45,7 +46,9 @@ export function useAutomationEngine(options: Options): void {
     const active = useMemo(() => automations.filter(automation => automation.status !== 'off'), [automations]);
     const removeMerged = options.appSettings.worktrees.removeMerged;
     // The setting "Remove merged worktrees" watches the pull requests of the worktrees, as a "pr.merged" automation does.
-    const watchesWorktrees = removeMerged || active.some(automation => isWorktreeTrigger(automation.trigger.type));
+    // A "worktree.overlap" automation uses local git only, so it loads no pull requests.
+    const watchesPullRequests = (automation: Automation) => isWorktreeTrigger(automation.trigger.type) && automation.trigger.type !== 'worktree.overlap';
+    const watchesWorktrees = removeMerged || active.some(watchesPullRequests);
 
     // The worktrees of all projects. An agent or a pull request of another project can start a run too.
     const repoKey = options.allRepos.join('\0');
@@ -69,7 +72,7 @@ export function useAutomationEngine(options: Options): void {
     const sessionRepos = options.sessions
         .filter(session => session.isAgent && !session.exited)
         .map(session => places.find(place => place.worktree.path === session.worktreePath)?.repo);
-    const boundRepos = active.flatMap(automation => (isWorktreeTrigger(automation.trigger.type) ? (automation.binding.repos ?? []) : []));
+    const boundRepos = active.flatMap(automation => (watchesPullRequests(automation) ? (automation.binding.repos ?? []) : []));
     const extraKey = watchesWorktrees
         ? [...new Set([...sessionRepos, ...boundRepos].filter((repo): repo is string => !!repo && !options.activeRepos.includes(repo)))].sort().join('\0')
         : '';
@@ -97,6 +100,18 @@ export function useAutomationEngine(options: Options): void {
     useEffect(() => {
         if (ready) automationEngine.onSummaries(summaries);
     }, [ready, summaries]);
+
+    // The changed files of the worktrees, for the "worktree.overlap" automations: the bound repositories, or all
+    // repositories when an automation has no binding. They load only while such an automation is active.
+    const overlapRules = active.filter(automation => automation.trigger.type === 'worktree.overlap');
+    const overlapKey = overlapRules.some(automation => !automation.binding.repos?.length)
+        ? repoKey
+        : [...new Set(overlapRules.flatMap(automation => automation.binding.repos ?? []))].sort().join('\0');
+    const overlapRepos = useMemo(() => (overlapKey ? overlapKey.split('\0') : []), [overlapKey]);
+    const overlaps = useOverlaps(overlapRepos, overlapRepos.length > 0);
+    useEffect(() => {
+        if (ready) automationEngine.onOverlaps(overlaps);
+    }, [ready, overlaps]);
 
     useEffect(() => onDashboardNews(news => void automationEngine.onDashboardNews(news)), []);
 

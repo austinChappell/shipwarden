@@ -8,6 +8,7 @@ export const TRIGGER_EVENTS: Record<TriggerType, string> = {
     'pr.conflict': 'a pull request has merge conflicts',
     'pr.merged': 'someone merges a pull request',
     'agent.done': 'an agent finishes its turn',
+    'worktree.overlap': 'two worktrees change the same files',
     'task.new': 'a task matches these filters for the first time',
     schedule: 'the time comes on a selected day',
     manual: 'you click the button'

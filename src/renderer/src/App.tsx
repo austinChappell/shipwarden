@@ -1336,6 +1336,7 @@ export function App() {
                         {rightPanelShown && selectedPath && (
                             <RightPanel
                                 root={selectedPath}
+                                repo={selectedRepo}
                                 tab={panelTab}
                                 onSelectTab={selectPanelTab}
                                 activeFile={tabs.activeFile}

@@ -1,9 +1,11 @@
 import { localDateTime, type AutomationEvent, type TriggerType } from './automations';
 import type { MyPullRequestItem, PullRequestCommentItem } from './dashboard';
 import { repoId, type BranchSummary, type MergedPullRequest, type RepoRef } from './github';
+import { pluralize } from './format';
 import { ciChanges } from './notifications';
 import type { Task, TaskLink } from './tasks';
 import type { Worktree } from './worktrees';
+import { overlapHash, worktreeName, type WorktreeOverlap } from './worktree-overlap';
 
 /**
  * The functions that make automation events from the data that ShipWarden loads already: the branch summaries (one
@@ -221,6 +223,38 @@ export function agentDoneEvent(
         ...(summary ? { pr: prOf(summary) } : {}),
         ...(update.message ? { agentMessage: update.message } : {})
     };
+}
+
+/** The most files that a "worktree.overlap" event keeps. The run history keeps the event. */
+const MAX_OVERLAP_FILES = 50;
+
+/**
+ * The "worktree.overlap" events of a repository: one event for each worktree that changes a file that a different
+ * worktree also changes. The key contains a hash of the peers and the shared files. Thus the same overlap fires one
+ * time only, and a new file or a new peer fires again. The main worktree does not count.
+ */
+export function overlapEvents(repo: string, overlaps: Record<string, WorktreeOverlap>, places: readonly WorktreePlace[], at: number): AutomationEvent[] {
+    return Object.values(overlaps).flatMap(overlap => {
+        const place = places.find(item => item.repo === repo && item.worktree.path === overlap.path);
+        if (!place || place.worktree.isMain) return [];
+        const name = worktreeName(overlap);
+        const worktrees = overlap.peers.map(worktreeName);
+        const files = overlap.files.slice(0, MAX_OVERLAP_FILES);
+        if (overlap.files.length > files.length) files.push(`(and ${overlap.files.length - files.length} more)`);
+        return [
+            {
+                trigger: 'worktree.overlap' as const,
+                key: `overlap:${repo}:${overlap.path}@${overlapHash(overlap)}`,
+                target: `wt:${overlap.path}`,
+                label: `${name}: ${pluralize(overlap.files.length, 'file')} also in ${worktrees.join(', ')}`,
+                at,
+                repoPath: repo,
+                worktreePath: overlap.path,
+                branch: place.worktree.branch,
+                overlap: { files, worktrees }
+            }
+        ];
+    });
 }
 
 /* ------------------------------------------------------------------------------------------------------------------ */

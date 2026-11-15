@@ -5304,6 +5304,7 @@ button:focus-visible,
     border-radius: 10px;
     background: var(--panel);
     overflow: hidden;
+    container: agents-list / inline-size;
 }
 
 .agents-states {
@@ -5387,13 +5388,34 @@ button:focus-visible,
     display: flex;
     align-items: center;
     gap: 8px;
+    max-width: 100%;
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
 .agent-since {
+    min-width: 0;
     color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.agent-state-line > .chip {
+    flex: none;
+}
+
+/* A narrow list shows less on the right side. The name stays readable. The aria label keeps all facts. */
+@container agents-list (max-width: 640px) {
+    .agent-tokens {
+        display: none;
+    }
+}
+
+@container agents-list (max-width: 460px) {
+    .agent-output {
+        display: none;
+    }
 }
 
 .agent-where-text {
@@ -9565,6 +9587,62 @@ body.resizing-column * {
     margin: 8px 10px 0;
     color: var(--muted);
     font-size: 11px;
+}
+
+/* The overlap with other worktrees: a warning chip. A click on the chip shows the shared files. */
+.changes-overlap {
+    flex: none;
+    margin: 8px 10px 0;
+    font-size: 12px;
+}
+
+.changes-overlap > summary {
+    display: flex;
+    max-width: 100%;
+    cursor: pointer;
+    list-style: none;
+}
+
+.changes-overlap > summary::-webkit-details-marker {
+    display: none;
+}
+
+.changes-overlap > summary .chip {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.changes-overlap-hint {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.changes-overlap-peer {
+    margin-top: 6px;
+}
+
+.changes-overlap-name {
+    color: var(--text-strong);
+    font-family: "JetBrains Mono", Menlo, monospace;
+}
+
+.changes-overlap-peer ul {
+    max-height: 160px;
+    margin: 2px 0 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.changes-overlap-peer li {
+    overflow: hidden;
+    color: var(--text);
+    font-family: "JetBrains Mono", Menlo, monospace;
+    font-size: 11px;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .panel-badge.pull {
