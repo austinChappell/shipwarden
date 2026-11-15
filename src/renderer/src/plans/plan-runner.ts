@@ -23,6 +23,7 @@ import { prependTask, taskQueryKeys } from '../components/tasks/task-view-logic'
 import { keyRoots, queryClient } from '../query-client';
 import { agentStateStore } from '../terminal/agent-state-store';
 import { errorText } from '../util';
+import { syncPlanGroup } from './plan-group';
 import { cachedPlan, cachedPlans, plansQuery, updatePlan } from './plan-queries';
 
 const api = window.shipwarden;
@@ -326,6 +327,12 @@ export class PlanRunner {
             await this.patchStep(planId, stepId, { status: 'done', pr, finishedAt: Date.now(), detail: `Opened pull request #${pr.number}.${notes}` });
         } catch (error) {
             await this.fail(plan, step, `The pull request was not opened: ${errorText(error)} Correct the problem, then select "Try again".`);
+            return;
+        }
+        // The PR group of the plan gets the new pull request. A problem with the group does not stop the plan.
+        const latest = cachedPlan(planId);
+        if (latest && !latest.noPrGroup) {
+            await syncPlanGroup(latest).catch(error => console.warn(`[plans] The PR group of "${latest.title}" did not change: ${errorText(error)}`));
         }
     }
 

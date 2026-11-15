@@ -34,7 +34,7 @@ import { useAutomationRuns } from './automations/automation-queries';
 import { automationEngine } from './automations/engine';
 import { useAutomationEngine } from './automations/use-automation-engine';
 import { PlansView } from './plans/PlansView';
-import { createPlan, usePlans } from './plans/plan-queries';
+import { cachedPlan, createPlan, usePlans } from './plans/plan-queries';
 import { planRunner } from './plans/plan-runner';
 import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
@@ -349,6 +349,13 @@ export function App() {
     const openPrGroup = (id: string) => {
         setRoute('review', { page: groupPage(id) });
         setMainView('review');
+    };
+
+    /** Opens a plan from another view. When the plan is in another project, the sidebar switches to that project first. */
+    const openPlanFromLink = async (id: string) => {
+        const projectId = cachedPlan(id)?.projectId;
+        if (projectId && projectId !== projects?.activeId) await project.switchProject(projectId, true);
+        openViewAt('plans', { page: id });
     };
 
     /** A click on a notification: show the worktree (and the agent tab), or the Dashboard. */
@@ -955,6 +962,7 @@ export function App() {
                                     }
                                     projects={projects}
                                     onPullRepo={project.pullRepo}
+                                    onOpenPlan={id => void openPlanFromLink(id)}
                                 />
                                 {drawerSession && agentDrawer && (terminalSettings ?? settings) && (
                                     <AgentDrawer

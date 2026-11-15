@@ -87,6 +87,8 @@ export interface Plan {
     agentMode?: AgentMode;
     /** True: the pull requests are drafts. */
     draftPullRequests: boolean;
+    /** True: the pull requests of the plan do not go into a PR group. Undefined: they go into the group of the plan. */
+    noPrGroup?: boolean;
     /** The name of the agent that wrote the last proposal. */
     agent?: string;
     createdAt: number;
@@ -184,6 +186,7 @@ export function duplicatePlan(plan: Plan, now: number): Plan {
         ...(plan.taskTarget ? { taskTarget: plan.taskTarget } : {}),
         ...(plan.agentMode ? { agentMode: plan.agentMode } : {}),
         draftPullRequests: plan.draftPullRequests,
+        ...(plan.noPrGroup ? { noPrGroup: true } : {}),
         steps: plan.steps.map(step => ({
             id: newPlanId(),
             title: step.title,
@@ -317,6 +320,7 @@ export function normalizePlan(value: unknown): Plan | undefined {
         plan.taskTarget = { connectionId, collectionId, ...(nonEmpty(target.collectionName, 500) ? { collectionName: target.collectionName as string } : {}) };
     }
     if (isAgentMode(raw.agentMode)) plan.agentMode = raw.agentMode;
+    if (raw.noPrGroup === true) plan.noPrGroup = true;
     const agent = nonEmpty(raw.agent, 200);
     if (agent) plan.agent = agent;
     for (const key of ['executedAt', 'finishedAt'] as const) {

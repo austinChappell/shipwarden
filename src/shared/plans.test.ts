@@ -47,6 +47,12 @@ describe('normalizePlan', () => {
         expect(normalizePlan(null)).toBeUndefined();
     });
 
+    it('keeps "no PR group" only when it is true', () => {
+        expect(normalizePlan({ id: 'a', projectId: 'p', noPrGroup: true })?.noPrGroup).toBe(true);
+        expect(normalizePlan({ id: 'a', projectId: 'p', noPrGroup: 'yes' })).not.toHaveProperty('noPrGroup');
+        expect(normalizePlan({ id: 'a', projectId: 'p' })).not.toHaveProperty('noPrGroup');
+    });
+
     it('keeps the valid fields and drops the others', () => {
         const value = {
             id: 'a',
@@ -320,5 +326,10 @@ describe('duplicatePlan', () => {
         expect(copy.steps[0].pr).toBeUndefined();
         expect(copy.steps[0].branch).toBeUndefined();
         expect(copy.steps[1].skip).toBe(true);
+    });
+
+    it('keeps the "no PR group" setting', () => {
+        expect(duplicatePlan(plan([], { noPrGroup: true }), 10).noPrGroup).toBe(true);
+        expect(duplicatePlan(plan([]), 10)).not.toHaveProperty('noPrGroup');
     });
 });

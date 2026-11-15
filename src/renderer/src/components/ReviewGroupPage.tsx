@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDown, ArrowLeft, ArrowUp, Bot, Layers, LoaderCircle, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Bot, ClipboardList, Layers, LoaderCircle, Trash2, X } from 'lucide-react';
 import { repoLabel, type RepoRef } from '@shared/github';
 import { formatAgo, pluralize } from '@shared/format';
 import {
@@ -16,6 +16,7 @@ import {
     type PrGroup
 } from '@shared/pr-groups';
 import { errorText } from '../util';
+import { updatePlan, usePlans } from '../plans/plan-queries';
 import { pullRequestQuery } from '../github/review-store';
 import { useDefaultReviewStrictness } from '../github/review-strictness';
 import { cancelGroupReview, dismissGroupError, removeGroup, runGroupReview, updateGroup, useGroup, useGroupRun } from '../github/pr-group-store';
@@ -32,6 +33,8 @@ interface Props {
     groupId: string;
     onBack(): void;
     onOpenPullRequest(repo: RepoRef, number: number): void;
+    /** Opens the plan that made the group. */
+    onOpenPlan?(planId: string): void;
 }
 
 /**
@@ -39,7 +42,7 @@ interface Props {
  * requests from any repository. "Review with agent" reads all pull requests in one run. The comments of the agent go to
  * the review of each pull request, and the page shows the summary of the group.
  */
-export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest }: Props) {
+export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest, onOpenPlan }: Props) {
     const group = useGroup(groupId);
     const run = useGroupRun(groupId);
     const running = run.status === 'running';
@@ -65,12 +68,17 @@ export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest }: Props) {
     const remove = async () => {
         const ok = await confirmDialog({
             title: `Delete "${group.name}"?`,
-            message: 'The group goes away. The pull requests and your pending comments stay.',
+            message: group.planId
+                ? 'The group goes away. The pull requests and your pending comments stay. New pull requests of the plan do not go into a new group.'
+                : 'The group goes away. The pull requests and your pending comments stay.',
             confirmLabel: 'Delete',
             danger: true
         });
         if (!ok) return;
         await removeGroup(group.id);
+        // Without this, the next pull request of the plan makes the group again.
+        const { planId } = group;
+        if (planId) await updatePlan(planId, plan => ({ ...plan, noPrGroup: true }));
         onBack();
     };
 
@@ -125,7 +133,7 @@ export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest }: Props) {
                             {group.lastReview && <LastReview group={group} />}
                         </div>
                         <aside className="flow-side">
-                            <GroupDetails group={group} />
+                            <GroupDetails group={group} onOpenPlan={onOpenPlan} />
                         </aside>
                     </div>
                 </div>
@@ -135,7 +143,9 @@ export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest }: Props) {
 }
 
 /** The name and the note of the group. A change saves when the field loses the focus. */
-function GroupDetails({ group }: { group: PrGroup }) {
+function GroupDetails({ group, onOpenPlan }: { group: PrGroup; onOpenPlan?(planId: string): void }) {
+    const { plans } = usePlans();
+    const plan = group.planId ? plans.find(item => item.id === group.planId) : undefined;
     const [name, setName] = useState(group.name);
     const [note, setNote] = useState(group.note);
     // A save from another place (for example a new title after a review) must not reset the text that the user types.
@@ -158,6 +168,15 @@ function GroupDetails({ group }: { group: PrGroup }) {
         <Card as="section">
             <CardHeader title="Details" />
             <CardBody className="review-group-fields">
+                {plan && onOpenPlan && (
+                    <Field label="Plan" hint="ShipWarden made this group from the plan. New pull requests of the plan come into the group.">
+                        <div>
+                            <Button size="sm" icon={<ClipboardList size={14} />} onClick={() => onOpenPlan(plan.id)}>
+                                {plan.title}
+                            </Button>
+                        </div>
+                    </Field>
+                )}
                 <Field label="Name" htmlFor="group-name">
                     <Input id="group-name" value={name} maxLength={MAX_GROUP_NAME} onChange={event => setName(event.target.value)} onBlur={saveName} />
                 </Field>
