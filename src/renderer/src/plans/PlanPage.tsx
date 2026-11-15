@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
     ArrowDown,
@@ -6,6 +6,7 @@ import {
     ArrowUp,
     ArrowUpRight,
     Check,
+    ChevronRight,
     CircleAlert,
     CircleCheck,
     EyeOff,
@@ -170,6 +171,60 @@ async function planMenu(plan: Plan, anchor: Element, props: Pick<Props, 'onClose
 /* ------------------------------------------------------------------------------------------------------------------ */
 /* Header                                                                                                              */
 /* ------------------------------------------------------------------------------------------------------------------ */
+
+/**
+ * The idea of a plan, as read-only text. The label and the buttons are in the head row. The text uses the full width.
+ * A long idea shows only its start. The label and the "Show more" button open the full text.
+ */
+function IdeaText({ text, actions }: { text: string; actions: ReactNode }) {
+    const [open, setOpen] = useState(false);
+    const [overflows, setOverflows] = useState(false);
+    const box = useRef<HTMLDivElement>(null);
+    const idea = text.trim();
+
+    // Measure the closed text. The toggle shows only when the text is longer than the closed height.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new idea text has a new height. Thus the effect measures it again.
+    useLayoutEffect(() => {
+        const element = box.current;
+        if (!element || open) return;
+        const measure = () => setOverflows(element.scrollHeight > element.clientHeight + 1);
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, [idea, open]);
+
+    const toggleable = open || overflows;
+    return (
+        <>
+            <div className="plan-idea-top">
+                {toggleable ? (
+                    <button
+                        type="button"
+                        className="flow-label plan-idea-toggle"
+                        aria-expanded={open}
+                        title={open ? 'Show less' : 'Show the full idea'}
+                        onClick={() => setOpen(value => !value)}
+                    >
+                        <ChevronRight size={13} strokeWidth={1.8} className={`section-chevron${open ? ' open' : ''}`} />
+                        Idea
+                    </button>
+                ) : (
+                    <div className="flow-label">Idea</div>
+                )}
+                <div className="plan-idea-actions">{actions}</div>
+            </div>
+            <div ref={box} className={`plan-idea-body${idea ? '' : ' empty'}${open ? ' open' : ''}${!open && overflows ? ' clipped' : ''}`}>
+                {idea || 'No idea. You wrote the steps yourself.'}
+            </div>
+            {toggleable && (
+                <Button variant="link" className="plan-idea-more" onClick={() => setOpen(value => !value)}>
+                    {open ? 'Show less' : 'Show more'}
+                </Button>
+            )}
+        </>
+    );
+}
 
 /** The three stages of a plan, from the idea to the run. */
 type Stage = 'explore' | 'review' | 'run';
@@ -403,17 +458,14 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan, onOpenGrou
                         <CardBody>
                             {explore.running ? (
                                 <>
-                                    <div className="plan-idea-top">
-                                        <div className="plan-idea-text">
-                                            <div className="flow-label">Idea</div>
-                                            <div className="plan-idea-body">{draft.idea}</div>
-                                        </div>
-                                        <div className="plan-idea-actions">
+                                    <IdeaText
+                                        text={draft.idea}
+                                        actions={
                                             <Button icon={<X size={14} />} onClick={() => void cancelExplore(plan.id)}>
                                                 Cancel
                                             </Button>
-                                        </div>
-                                    </div>
+                                        }
+                                    />
                                     <div className="plan-idea-note">
                                         <Loader2 size={14} className="spin" aria-hidden="true" /> The agent reads {repoNames}. This can take a few minutes. You
                                         can leave this page.
@@ -452,26 +504,23 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan, onOpenGrou
                                 </>
                             ) : (
                                 <>
-                                    <div className="plan-idea-top">
-                                        <div className="plan-idea-text">
-                                            <div className="flow-label">Idea</div>
-                                            <div className={`plan-idea-body${draft.idea.trim() ? '' : ' empty'}`}>
-                                                {draft.idea.trim() || 'No idea. You wrote the steps yourself.'}
-                                            </div>
-                                        </div>
-                                        <div className="plan-idea-actions">
-                                            <Button disabled={locked} onClick={() => setEditingIdea(true)}>
-                                                Edit idea
-                                            </Button>
-                                            <Button
-                                                icon={<RefreshCw size={13} />}
-                                                disabled={locked || project.repos.length === 0}
-                                                onClick={() => void runExplore()}
-                                            >
-                                                Explore again
-                                            </Button>
-                                        </div>
-                                    </div>
+                                    <IdeaText
+                                        text={draft.idea}
+                                        actions={
+                                            <>
+                                                <Button disabled={locked} onClick={() => setEditingIdea(true)}>
+                                                    Edit idea
+                                                </Button>
+                                                <Button
+                                                    icon={<RefreshCw size={13} />}
+                                                    disabled={locked || project.repos.length === 0}
+                                                    onClick={() => void runExplore()}
+                                                >
+                                                    Explore again
+                                                </Button>
+                                            </>
+                                        }
+                                    />
                                     {draft.summary && <Markdown className="plan-summary plan-idea-summary" text={draft.summary} />}
                                     {draft.agent && (
                                         <div className="plan-idea-note">
