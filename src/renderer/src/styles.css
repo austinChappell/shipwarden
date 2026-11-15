@@ -1755,7 +1755,7 @@ code {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 10px 0 2px;
+    margin: 10px 14px 2px;
     padding: 10px 12px;
     border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
     border-radius: 8px;
