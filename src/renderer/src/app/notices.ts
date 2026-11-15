@@ -24,7 +24,7 @@ export function agentNotice(
     return {
         event: state === 'waiting' ? 'agentWaiting' : 'agentDone',
         title: state === 'waiting' ? `${name} needs your input` : `${name} is done`,
-        body: message ? message.slice(0, 180) : state === 'waiting' ? 'The agent waits for you.' : 'The agent finished its turn.',
+        body: message ? message.slice(0, 180) : state === 'waiting' ? 'The agent is waiting for you.' : 'The agent finished its turn.',
         target: session.worktreePath ? { view: 'worktree', worktreePath: session.worktreePath, sessionId: session.id } : undefined
     };
 }

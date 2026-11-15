@@ -128,7 +128,7 @@ const MAX_STEPS = 50;
 
 export const STEP_STATUS_LABELS: Record<StepStatus, string> = {
     pending: 'Not started',
-    running: 'Agent works',
+    running: 'Agent is working',
     attention: 'Needs you',
     done: 'Done',
     skipped: 'Skipped',

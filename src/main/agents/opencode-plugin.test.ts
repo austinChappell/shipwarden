@@ -86,7 +86,7 @@ describe('opencode plugin', () => {
         const [, , , permission, replied, question] = sent;
         expect(agentStateFromHook(permission.event, permission.payload)).toEqual({
             state: 'waiting',
-            message: 'opencode asks for permission: bash (npm test)'
+            message: 'opencode is asking for permission: bash (npm test)'
         });
         expect(agentStateFromHook(replied.event, replied.payload)).toEqual({ state: 'working', message: 'Running npm test' });
         expect(agentStateFromHook(question.event, question.payload)).toEqual({ state: 'waiting', message: 'Which branch?' });

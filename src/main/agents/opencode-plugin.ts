@@ -93,14 +93,14 @@ export const ShipWardenAgentState = async () => {
                 case 'permission.asked': {
                     const patterns = Array.isArray(properties.patterns) ? properties.patterns.join(', ') : '';
                     const message = properties.permission
-                        ? 'opencode asks for permission: ' + properties.permission + (patterns ? ' (' + patterns + ')' : '')
-                        : 'opencode asks for permission.';
+                        ? 'opencode is asking for permission: ' + properties.permission + (patterns ? ' (' + patterns + ')' : '')
+                        : 'opencode is asking for permission.';
                     send('Notification', { notification_type: 'permission_prompt', message: message.slice(0, MAX_TEXT) });
                     break;
                 }
                 case 'question.asked': {
                     const first = Array.isArray(properties.questions) ? properties.questions[0] : undefined;
-                    const message = first && typeof first.question === 'string' ? first.question : 'opencode asks a question.';
+                    const message = first && typeof first.question === 'string' ? first.question : 'opencode is asking a question.';
                     send('Notification', { notification_type: 'question', message: message.slice(0, MAX_TEXT) });
                     break;
                 }

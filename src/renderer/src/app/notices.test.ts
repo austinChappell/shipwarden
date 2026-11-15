@@ -19,7 +19,7 @@ describe('agentNotice', () => {
     it('selects the event and the default text for each state', () => {
         const waiting = agentNotice(session, {}, 'waiting');
         expect(waiting.event).toBe('agentWaiting');
-        expect(waiting.body).toBe('The agent waits for you.');
+        expect(waiting.body).toBe('The agent is waiting for you.');
         const done = agentNotice(session, {}, 'done');
         expect(done.event).toBe('agentDone');
         expect(done.body).toBe('The agent finished its turn.');

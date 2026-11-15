@@ -4,7 +4,7 @@ import type { BranchSummary } from './github';
 export type NotificationEvent = 'agentWaiting' | 'agentDone' | 'ciFinished' | 'dashboard' | 'automation';
 
 export const NOTIFICATION_EVENTS: { id: NotificationEvent; label: string; description: string }[] = [
-    { id: 'agentWaiting', label: 'Agent needs input', description: 'An agent waits for your answer or for a permission.' },
+    { id: 'agentWaiting', label: 'Agent needs input', description: 'An agent is waiting for your answer or for a permission.' },
     { id: 'agentDone', label: 'Agent finished', description: 'An agent ended its turn.' },
     { id: 'ciFinished', label: 'CI finished', description: 'The checks of a pull request passed or failed. The menu selects which pull requests.' },
     { id: 'dashboard', label: 'New Dashboard items', description: 'New review requests, pull requests that need you, and new comments.' },
