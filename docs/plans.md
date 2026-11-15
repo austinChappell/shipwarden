@@ -32,6 +32,7 @@ The settings of the plan:
 - The task manager and the collection for new tasks. You also pick existing tasks from this collection.
 - The agent mode of the step agents. A mode without questions, for example `auto`, lets the plan run without you.
 - Draft pull requests.
+- A PR group for the pull requests. It is on by default.
 
 ## Execute the plan
 
@@ -47,6 +48,10 @@ The settings of the plan:
 
 A pull request of a step in another repository shows as its web address in the body. The body lists the merge order of
 all pull requests of the plan. The plan page shows the merge order too.
+
+The first pull request of the plan makes a PR group with the title of the plan. Each new pull request of the plan goes
+into the same group. "PR group" under the merge order opens the group. To make no group, turn off "Put the pull
+requests in a PR group" in the settings of the plan. When you delete the group, this setting goes off. See [PR groups](pr-groups.md).
 
 A step that ends its turn without a new commit waits for you. Answer the agent in its tab. When the agent ends its next
 turn, ShipWarden checks the step again. You can also select:
@@ -66,8 +71,8 @@ these notifications on and off.
 A plan that ran stays in the list. Its page shows the steps, the branches, the tasks, the pull requests, and the merge
 order. "Duplicate as a new draft" makes a new draft with the same steps and tasks.
 
-"Review the pull requests together" in the "More" menu puts the pull requests of the plan in a PR group. An agent then
-reviews all of them in one run. See [PR groups](pr-groups.md).
+"Review the pull requests together" in the "More" menu opens the PR group of the plan. A plan that has no group yet
+gets one at this time. An agent then reviews all pull requests in one run. See [PR groups](pr-groups.md).
 
 The plans are in `plans.json` in the app data folder. Deleting a project deletes its plans. Deleting a plan does not
 remove its worktrees, branches, pull requests, or tasks.

@@ -10,11 +10,16 @@ You can make a group in three places:
 
 - The Review view: select "New group" in the "PR groups" section.
 - A pull request in the Review view: open the menu of the main button and select "Add to a PR group…".
-- A plan that ran: open the "More" menu and select "Review the pull requests together". The group gets all pull
-  requests of the plan, and the merge order as its note. A second time, the same group gets the new pull requests.
+- A plan makes its group when it opens its first pull request. The group gets the title of the plan, and the merge
+  order as its note. Each new pull request of the plan goes into the same group. ShipWarden updates the merge order in
+  the note, but only when you did not change the note. "Review the pull requests together" in the "More" menu of the
+  plan also opens the group, and turns the group on again for the next pull requests. Turn off "Put the pull requests
+  in a PR group" in the settings of the plan to make no group. When you delete the group of a plan, new pull requests
+  of the plan do not make a new group.
 
 On the page of the group:
 
+- A group from a plan shows the plan under "Details". Select it to open the plan.
 - Paste the link of a pull request, or write `owner/name#12`, and select "Add".
 - Write a note for the agent, for example the merge order, or how the pull requests depend on each other.
 - The agent gets the pull requests in the order of the list. It runs in the copy of the first pull request. Use the

@@ -41,6 +41,8 @@ interface Props {
     projects?: ProjectsState;
     /** Adds the repository to a project, with a clone when necessary. Resolves false when the user cancels. */
     onPullRepo?(repo: RepoRef, target: PullRepoTarget): Promise<boolean>;
+    /** Opens a plan in the Plans view. */
+    onOpenPlan?(planId: string): void;
 }
 
 /** A review queue that the user started: a fixed list of pull requests, and the position in it. */
@@ -66,7 +68,8 @@ export function ReviewView({
     onSendLogToAgent,
     onSendChecksToAgent,
     projects,
-    onPullRepo
+    onPullRepo,
+    onOpenPlan
 }: Props) {
     const overview = useReviewOverview();
     const queueItems = useReviewQueue();
@@ -192,7 +195,13 @@ export function ReviewView({
     if (groupId) {
         return (
             <div className="review-view">
-                <ReviewGroupPage key={groupId} groupId={groupId} onBack={backToHome} onOpenPullRequest={(target, number) => openPr(repoId(target), number)} />
+                <ReviewGroupPage
+                    key={groupId}
+                    groupId={groupId}
+                    onBack={backToHome}
+                    onOpenPullRequest={(target, number) => openPr(repoId(target), number)}
+                    onOpenPlan={onOpenPlan}
+                />
             </div>
         );
     }

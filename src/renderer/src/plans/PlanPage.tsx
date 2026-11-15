@@ -76,8 +76,7 @@ import { errorText } from '../util';
 import { cancelExplore, explorePlan } from './plan-explore';
 import { cachedPlan, createPlan, removePlan, updatePlan, useExploreState } from './plan-queries';
 import { planRunner } from './plan-runner';
-import { newGroup, parsePullRequestLink, prKey, withPullRequest, type GroupPullRequest, type PrGroup } from '@shared/pr-groups';
-import { createGroup, loadGroups, updateGroup } from '../github/pr-group-store';
+import { planPullRequests, syncPlanGroup, usePlanGroup } from './plan-group';
 
 const api = window.shipwarden;
 
@@ -101,32 +100,6 @@ export function PlanPage(props: Props) {
     return props.plan.status === 'draft' ? <PlanEditor {...props} /> : <PlanRun {...props} />;
 }
 
-/** The pull requests of the steps, in the order of the steps. */
-function planPullRequests(plan: Plan): GroupPullRequest[] {
-    return plan.steps.flatMap(step => {
-        const parsed = step.pr ? parsePullRequestLink(step.pr.url) : undefined;
-        return parsed ? [{ ...parsed, title: step.title }] : [];
-    });
-}
-
-/**
- * Returns the PR group of the plan with all pull requests of the plan. The group of an earlier call gets the new pull
- * requests. Without a group, a new group gets the title of the plan, and the merge order as its note.
- */
-async function planGroup(plan: Plan, pullRequests: GroupPullRequest[]): Promise<PrGroup> {
-    const existing = (await loadGroups()).find(group => group.planId === plan.id);
-    if (existing) {
-        const updated = await updateGroup(existing.id, current => pullRequests.reduce((group, pr) => withPullRequest(group, pr), current));
-        return updated ?? existing;
-    }
-    const group: PrGroup = {
-        ...newGroup(Date.now(), plan.title, pullRequests),
-        planId: plan.id,
-        note: `The pull requests come from the plan "${plan.title}". Merge them in this order: ${pullRequests.map(pr => prKey(pr)).join(', ')}.`
-    };
-    return createGroup(group);
-}
-
 /** The "More" menu of a plan: review the pull requests together, duplicate, and delete. */
 async function planMenu(plan: Plan, anchor: Element, props: Pick<Props, 'onClosed' | 'onOpenPlan' | 'onOpenGroup'>): Promise<void> {
     const { onClosed, onOpenPlan, onOpenGroup } = props;
@@ -141,7 +114,9 @@ async function planMenu(plan: Plan, anchor: Element, props: Pick<Props, 'onClose
     );
     if (choice === 'group') {
         try {
-            onOpenGroup((await planGroup(plan, pullRequests)).id);
+            // The user asks for the group, so the next pull requests of the plan go into it too.
+            if (plan.noPrGroup) await updatePlan(plan.id, current => ({ ...current, noPrGroup: undefined }));
+            onOpenGroup((await syncPlanGroup(plan, pullRequests)).id);
         } catch (error) {
             await alertDialog('ShipWarden could not make the PR group.', errorText(error));
         }
@@ -760,6 +735,15 @@ function PlanSettings({
                     onChange={value => onChange({ draftPullRequests: value })}
                 />
             </div>
+            <div className="flow-toggle-row">
+                <span className="flow-field-label">Put the pull requests in a PR group</span>
+                <Switch
+                    title="Put the pull requests of the plan in a PR group with the title of the plan"
+                    checked={!draft.noPrGroup}
+                    disabled={disabled}
+                    onChange={value => onChange({ noPrGroup: value ? undefined : true })}
+                />
+            </div>
         </CardBody>
     );
 }
@@ -978,6 +962,7 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan, onOpen
         }
     };
     const withPullRequests = plan.steps.filter(step => step.pullRequest && step.status !== 'skipped');
+    const group = usePlanGroup(plan.id);
     const finished = plan.status === 'done';
     const done = plan.steps.filter(step => step.status === 'done').length;
     const ran = plan.steps.filter(step => step.status !== 'skipped').length;
@@ -1091,6 +1076,18 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan, onOpen
                                         </li>
                                     ))}
                                 </ol>
+                                {group && (
+                                    <div className="flow-actions">
+                                        <Button
+                                            size="sm"
+                                            icon={<Layers size={14} />}
+                                            title={`Open the PR group "${group.name}". An agent can review all pull requests of the plan together.`}
+                                            onClick={() => onOpenGroup(group.id)}
+                                        >
+                                            PR group
+                                        </Button>
+                                    </div>
+                                )}
                             </CardBody>
                         )}
                     </Card>
