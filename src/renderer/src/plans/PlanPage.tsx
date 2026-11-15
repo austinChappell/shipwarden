@@ -1073,6 +1073,15 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan, onOpen
                                                     #{step.pr.number}
                                                 </Button>
                                             )}
+                                            {step.worktreePath && (
+                                                <Button
+                                                    size="sm"
+                                                    icon={<ArrowUpRight size={14} />}
+                                                    title={`Open the worktree: ${step.worktreePath}`}
+                                                    aria-label="Open the worktree"
+                                                    onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}
+                                                />
+                                            )}
                                         </li>
                                     ))}
                                 </ol>
