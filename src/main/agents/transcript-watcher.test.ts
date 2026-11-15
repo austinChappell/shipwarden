@@ -13,6 +13,19 @@ async function until(check: () => boolean, timeout = 3000): Promise<void> {
     }
 }
 
+/**
+ * Writes to the file until the check is true, or fails after the timeout. On macOS, `fs.watch` starts its stream a
+ * short time after the call. A write in that time gives no event. A busy CI machine makes that time longer.
+ */
+async function writeUntil(write: () => Promise<void>, check: () => boolean, timeout = 3000): Promise<void> {
+    const end = Date.now() + timeout;
+    while (!check()) {
+        if (Date.now() > end) throw new Error('Timed out');
+        await write();
+        await until(check, 200).catch(() => undefined);
+    }
+}
+
 describe('TranscriptWatcher', () => {
     let root: string;
     let watcher: TranscriptWatcher;
@@ -36,8 +49,10 @@ describe('TranscriptWatcher', () => {
     it('reports a change of the file, also when the file is made after the start', async () => {
         const file = path.join(root, 'session.jsonl');
         watcher.start(file);
-        await writeFile(file, '{"a":1}\n');
-        await until(() => changes.length > 0);
+        await writeUntil(
+            () => appendFile(file, '{"a":1}\n'),
+            () => changes.length > 0
+        );
         expect(changes.every(item => item === file)).toBe(true);
         changes.length = 0;
         await appendFile(file, '{"b":2}\n');
@@ -75,8 +90,10 @@ describe('TranscriptWatcher', () => {
         watcher.start(file);
         watcher.start(file);
         watcher.stop(file);
-        await writeFile(file, '{}\n');
-        await until(() => changes.length > 0);
+        await writeUntil(
+            () => appendFile(file, '{}\n'),
+            () => changes.length > 0
+        );
         watcher.stop(file);
         changes.length = 0;
         await appendFile(file, '{}\n');

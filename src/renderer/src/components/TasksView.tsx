@@ -27,6 +27,7 @@ import { TaskStatusGroups } from './tasks/TaskList';
 import { TaskBoardColumns } from './tasks/TaskBoard';
 import { TaskDetails } from './tasks/TaskDetails';
 import { TaskDialog } from './tasks/TaskDialog';
+import type { CompareProps } from './compare/CompareRuns';
 import { InlineTip } from './Tips';
 import { Button, SkeletonRows } from './ui';
 
@@ -58,6 +59,8 @@ interface Props {
     onRoute(route: ViewRoute): void;
     /** True when the view opens for a new task, for example from the command palette. The New task dialog opens when the collection is ready. */
     createOnOpen?: boolean;
+    /** The agent comparisons: "Compare agents" and the compare list of a task. */
+    compare?: CompareProps;
 }
 
 /** The tasks of the project's task managers, one collection at a time, with a dialog for the details of the selected task. */
@@ -74,7 +77,8 @@ export function TasksView({
     openTask,
     route,
     onRoute,
-    createOnOpen
+    createOnOpen,
+    compare
 }: Props) {
     const selectedId = route.query?.task;
     const [query, setQuery] = useState('');
@@ -208,6 +212,7 @@ export function TasksView({
             findTask={id => tasks?.find(task => task.id === id)}
             tasks={tasks ?? NO_TASKS}
             onOpenTask={setSelectedId}
+            compare={compare}
         />
     );
 

@@ -79,7 +79,7 @@ const DOT_CLASS: Record<OverviewState, string> = {
 };
 
 /** The chip tone of each state. The tones follow the status colors of docs/design (board 2). */
-const STATE_TONE: Record<OverviewState, ChipTone> = {
+export const STATE_TONE: Record<OverviewState, ChipTone> = {
     waiting: 'warning',
     'blocked-ci': 'danger',
     working: 'pending',
@@ -89,7 +89,7 @@ const STATE_TONE: Record<OverviewState, ChipTone> = {
 };
 
 /** The chip tone of the CI state of a pull request. */
-function ciTone(ci: CiState | undefined): ChipTone {
+export function ciTone(ci: CiState | undefined): ChipTone {
     if (ci === 'failed') return 'danger';
     if (ci === 'running') return 'pending';
     if (ci === 'passed') return 'success';

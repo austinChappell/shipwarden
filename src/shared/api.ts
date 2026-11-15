@@ -47,7 +47,8 @@ import type { SetupCheckId, SetupCheckResult } from './setup-checks';
 import type { ProjectsState, PullRepoResult, PullRepoTarget } from './projects';
 import type { ProviderUsage } from './usage';
 import type { UpdateState } from './updates';
-import type { ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
+import type { BranchDiff, ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
+import type { CompareGroup } from './agent-compare';
 import type { WorktreeFiles } from './worktree-overlap';
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
@@ -133,6 +134,10 @@ export interface ShipWardenApi {
         fetch(worktree: string, force?: boolean): Promise<FetchResult>;
         /** The newest commits for the graph, children before parents, at most `limit`. */
         log(worktree: string, scope: GraphScope, limit: number): Promise<GraphLog>;
+        /** The changes of the branch since the merge base with the default branch of "origin", with the working files. */
+        branchDiff(worktree: string): Promise<BranchDiff>;
+        /** The version of a file at `base` (from `branchDiff`, else HEAD) and the working file. */
+        branchContents(worktree: string, path: string, base: string | undefined, oldPath?: string): Promise<ChangeContents>;
         /**
          * The changed files of each linked worktree of a repository, for the overlap warning: the commits since the
          * merge base with the default branch, and the git status. Local git only. `repo` is the main worktree.
@@ -390,6 +395,13 @@ export interface ShipWardenApi {
         review(request: GroupReviewRequest): Promise<GroupReviewAnswer>;
         /** Stops a group review that runs. */
         cancelReview(id: string): Promise<void>;
+    };
+    compare: {
+        /** The agent comparisons (one task, several agents), the newest change first. */
+        list(): Promise<CompareGroup[]>;
+        /** Writes a comparison and returns the saved copy. */
+        save(group: CompareGroup): Promise<CompareGroup>;
+        remove(id: string): Promise<void>;
     };
     automations: {
         /** The automations in ~/.shipwarden/automations, and the files that ShipWarden could not read. */
@@ -727,6 +739,9 @@ export const IpcChannels = {
     prGroupsRemove: 'prGroups:remove',
     prGroupsReview: 'prGroups:review',
     prGroupsCancelReview: 'prGroups:cancelReview',
+    compareList: 'compare:list',
+    compareSave: 'compare:save',
+    compareRemove: 'compare:remove',
     automationsList: 'automations:list',
     automationsSave: 'automations:save',
     automationsRemove: 'automations:remove',
@@ -866,6 +881,8 @@ export const IpcChannels = {
     gitPull: 'git:pull',
     gitFetch: 'git:fetch',
     gitLog: 'git:log',
+    gitBranchDiff: 'git:branchDiff',
+    gitBranchContents: 'git:branchContents',
     gitWorktreeFiles: 'git:worktreeFiles',
     updatesCheck: 'updates:check',
     updatesInstall: 'updates:install',

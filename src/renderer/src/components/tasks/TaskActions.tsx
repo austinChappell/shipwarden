@@ -1,8 +1,11 @@
-import { GitBranch, Link2, Play, Unlink } from 'lucide-react';
+import { useState } from 'react';
+import { GitBranch, GitCompareArrows, Link2, Play, Unlink } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { AutomationButtons } from '../../automations/AutomationButtons';
 import { Button, Select } from '../ui';
 import { targetRepo as pickTargetRepo } from './task-view-logic';
+import { CompareAgentsDialog } from '../compare/CompareAgentsDialog';
+import type { CompareProps } from '../compare/CompareRuns';
 
 interface Props {
     task: Task;
@@ -25,6 +28,8 @@ interface Props {
     /** Runs an action and shows its error in the details. */
     act(action: () => Promise<void>): void;
     runAction(actionId: string, confirmText?: string): void;
+    /** The agent comparisons. Without it, "Compare agents" does not show. */
+    compare?: CompareProps;
 }
 
 /**
@@ -45,8 +50,10 @@ export function TaskActions({
     onLinkWorktree,
     onUnlinkWorktree,
     act,
-    runAction
+    runAction,
+    compare
 }: Props) {
+    const [comparing, setComparing] = useState(false);
     /** The repository for "Start in worktree": the last one in this project, else the first. */
     const targetRepo = pickTargetRepo(repos, startRepo);
     return (
@@ -78,6 +85,16 @@ export function TaskActions({
                     >
                         Start in worktree
                     </Button>
+                    {compare && (
+                        <Button
+                            icon={<GitCompareArrows size={14} strokeWidth={1.8} />}
+                            disabled={busy || !targetRepo || !source}
+                            title="Give the task to 2 to 4 agents, each in its own worktree, and keep the best result"
+                            onClick={() => setComparing(true)}
+                        >
+                            Compare agents
+                        </Button>
+                    )}
                     {repos.length > 1 && (
                         <Select
                             value={targetRepo}
@@ -104,6 +121,14 @@ export function TaskActions({
                     {action.label}
                 </Button>
             ))}
+            {comparing && compare && targetRepo && (
+                <CompareAgentsDialog
+                    agents={compare.agents}
+                    repoName={repoLabel(targetRepo)}
+                    onClose={() => setComparing(false)}
+                    onStart={agentIds => compare.start(task, source.connectionId, source.pluginId, targetRepo, agentIds)}
+                />
+            )}
             <AutomationButtons
                 target={{ entity: 'task', task, connectionId: source.connectionId, pluginId: source.pluginId }}
                 onError={message =>

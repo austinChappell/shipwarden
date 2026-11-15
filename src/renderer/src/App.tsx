@@ -920,6 +920,14 @@ export function App() {
                                     route={routeOf('tasks')}
                                     onRoute={route => setRoute('tasks', route)}
                                     createOnOpen={createTaskOnOpen}
+                                    compare={{
+                                        agents: appSettings.agents,
+                                        sessions,
+                                        worktreesByRepo,
+                                        start: worktreeActions.startCompare,
+                                        keep: worktreeActions.keepCompareRun,
+                                        onOpenWorktree: path => void worktreeActions.showTaskWorktree(path).catch(err => setError(errorText(err)))
+                                    }}
                                     repoLabel={repoLabel}
                                     onOpenWorktree={path => void worktreeActions.showTaskWorktree(path).catch(err => setError(errorText(err)))}
                                 />

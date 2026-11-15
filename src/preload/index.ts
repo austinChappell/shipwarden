@@ -40,6 +40,8 @@ const api: ShipWardenApi = {
         pull: worktree => ipcRenderer.invoke(IpcChannels.gitPull, worktree),
         fetch: (worktree, force) => ipcRenderer.invoke(IpcChannels.gitFetch, worktree, force),
         log: (worktree, scope, limit) => ipcRenderer.invoke(IpcChannels.gitLog, worktree, scope, limit),
+        branchDiff: worktree => ipcRenderer.invoke(IpcChannels.gitBranchDiff, worktree),
+        branchContents: (worktree, path, base, oldPath) => ipcRenderer.invoke(IpcChannels.gitBranchContents, worktree, path, base, oldPath),
         worktreeFiles: repo => ipcRenderer.invoke(IpcChannels.gitWorktreeFiles, repo)
     },
     updates: {
@@ -182,6 +184,11 @@ const api: ShipWardenApi = {
         remove: id => ipcRenderer.invoke(IpcChannels.prGroupsRemove, id),
         review: request => ipcRenderer.invoke(IpcChannels.prGroupsReview, request),
         cancelReview: id => ipcRenderer.invoke(IpcChannels.prGroupsCancelReview, id)
+    },
+    compare: {
+        list: () => ipcRenderer.invoke(IpcChannels.compareList),
+        save: group => ipcRenderer.invoke(IpcChannels.compareSave, group),
+        remove: id => ipcRenderer.invoke(IpcChannels.compareRemove, id)
     },
     automations: {
         list: () => ipcRenderer.invoke(IpcChannels.automationsList),

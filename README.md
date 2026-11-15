@@ -65,6 +65,24 @@ includes five: GitHub Issues, Linear, ClickUp, Azure Boards and Local tasks. Any
 plugin with the [ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch
 for a task and gives the task to a new agent.
 
+### Compare agents
+
+"Compare agents" gives one task to 2 to 4 agents at the same time. Then you keep the best result.
+
+1. Open a task and click **Compare agents**. Select the agents. The list shows only the agents of Settings › Agents
+   that are in the PATH of your login shell.
+2. ShipWarden makes one worktree and one branch for each agent. The branch is the name from the branch template with
+   the agent at the end, for example `ENG-12-fix-login-codex`. Each agent gets the task, the same as with
+   "Start in worktree".
+3. The task details show the compare list. Each row shows the agent, its state, the changed files, the added and
+   removed lines since the branch left the default branch, and the CI state when the branch has a pull request.
+   **Diff** shows the changes of each file.
+4. Click **Keep this one** on the best run. ShipWarden asks before it removes the worktrees of the other agents. Git
+   keeps their branches. A worktree with uncommitted changes stays.
+
+ShipWarden does not open pull requests for the runs. Open a pull request from the kept worktree as usual. The
+comparisons are in `agent-compare.json` in the app data folder.
+
 The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
 send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label, or
 remove the worktree after its pull request merges. Each automation is a JSON file in `~/.shipwarden/automations` that

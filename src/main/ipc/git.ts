@@ -21,6 +21,10 @@ export function registerGitIpc({ gitChanges, projectWorktrees, worktrees }: Pick
     ipcMain.handle(IpcChannels.gitLog, async (_event, worktree: string, scope: unknown, limit: unknown) =>
         gitChanges.log(await known(worktree), scope === 'local' ? 'local' : 'all', logLimit(limit))
     );
+    ipcMain.handle(IpcChannels.gitBranchDiff, async (_event, worktree: string) => gitChanges.branchDiff(await known(worktree)));
+    ipcMain.handle(IpcChannels.gitBranchContents, async (_event, worktree: string, path: string, base?: string, oldPath?: string) =>
+        gitChanges.branchContents(await known(worktree), String(path), optionalString(base), optionalString(oldPath))
+    );
     ipcMain.handle(IpcChannels.gitWorktreeFiles, async (_event, repo: string) => {
         const root = await known(repo);
         return gitChanges.worktreeFiles(root, await worktrees.list(root));

@@ -37,6 +37,17 @@ import { patchCachedTask } from '../components/tasks/use-task-list';
 import { linkWorktreeToTask, saveTaskLink, taskLinkOf } from './task-links';
 import { taskBranchName } from './task-branch';
 import { CreationInBackground, worktreeProgress } from './worktree-progress';
+import {
+    agentCountError,
+    compareBranches,
+    newCompareGroup,
+    removeRunsDialog,
+    runsToRemove,
+    withKeptRun,
+    type CompareGroup,
+    type CompareRun
+} from '@shared/agent-compare';
+import { saveCompareGroup } from '../compare/compare-cache';
 
 const api = window.shipwarden;
 
@@ -201,13 +212,81 @@ export function useWorktreeActions(options: Options) {
         mode?: AgentMode
     ): Promise<{ worktree: CreatedWorktree; session: TerminalSession }> => {
         const { branch } = await suggestTaskBranch(task, repoPath);
+        const worktree = await createTaskWorktree(task, connectionId, pluginId, repoPath, branch);
+        void moveTaskToStartStatus(task, connectionId);
+        const session = await options.promptAgent(worktree, prompt(branch), { agentId, repoPath, mode });
+        return { worktree, session };
+    };
+
+    /** Makes a worktree on a new branch for a task, runs the setup of the repository, and links the worktree to the task. */
+    const createTaskWorktree = async (task: Task, connectionId: string, pluginId: string, repoPath: string, branch: string): Promise<CreatedWorktree> => {
         const worktree = await api.worktrees.create({ repoPath, branch });
         await options.prepareWorktree(repoPath, worktree);
         await saveTaskLink(queryClient, worktree.path, taskLinkOf(task, connectionId, pluginId));
         await refreshWorktrees(repoPath);
-        void moveTaskToStartStatus(task, connectionId);
-        const session = await options.promptAgent(worktree, prompt(branch), { agentId, repoPath, mode });
-        return { worktree, session };
+        return worktree;
+    };
+
+    /**
+     * Starts work on a task with several agents. Each agent gets its own worktree on the task branch with the agent at
+     * the end. The worktrees use the same steps as `startTaskQuietly`. The comparison goes into the compare store.
+     * The view does not change. When a worktree fails, the worktrees before it stay in the comparison, and the
+     * function throws the error.
+     */
+    const startCompare = async (task: Task, connectionId: string, pluginId: string, repoPath: string, agentIds: string[]) => {
+        const agents = agentIds.map(id => appSettings.agents.find(agent => agent.id === id)).filter((agent): agent is AgentDefinition => !!agent);
+        const countError = agentCountError(agents.length);
+        if (countError) throw new Error(countError);
+        const { branch: base } = await suggestTaskBranch(task, repoPath);
+        const branches = compareBranches(base, agents);
+        const runs: CompareRun[] = [];
+        let failure: unknown;
+        for (const [index, agent] of agents.entries()) {
+            try {
+                const worktree = await createTaskWorktree(task, connectionId, pluginId, repoPath, branches[index]);
+                runs.push({ agentId: agent.id, agentName: agent.name, branch: branches[index], worktreePath: worktree.path });
+            } catch (err) {
+                failure = err;
+                break;
+            }
+        }
+        if (runs.length > 0) {
+            const compareTask = { connectionId, pluginId, taskId: task.id, ...(task.key ? { key: task.key } : {}), title: task.title };
+            await saveCompareGroup(newCompareGroup(repoPath, compareTask, runs, Date.now()));
+            void moveTaskToStartStatus(task, connectionId);
+            // The agents start at the same time. An agent can show a question, for example about folder trust. The
+            // user answers it in the agent tab.
+            for (const run of runs) {
+                void options
+                    .promptAgent({ path: run.worktreePath }, taskPrompt(task, run.branch), { agentId: run.agentId, repoPath })
+                    .catch(err => setError(`${run.agentName}: ${errorText(err)}`));
+            }
+        }
+        if (failure) throw failure;
+    };
+
+    /**
+     * Keeps one run of a comparison. Then ShipWarden asks to remove the worktrees of the other runs. The branches stay.
+     * A worktree that git refuses to remove (for example with uncommitted changes) stays, and an error shows.
+     */
+    const keepCompareRun = async (group: CompareGroup, worktreePath: string) => {
+        const kept = await saveCompareGroup(withKeptRun(group, worktreePath, Date.now()));
+        const worktrees = options.worktreesByRepo[kept.repoPath] ?? (await refreshWorktrees(kept.repoPath));
+        const others = runsToRemove(kept, new Set(worktrees.map(worktree => worktree.path)));
+        if (!others.length) return;
+        const hasTeardown = !!appSettings.repos[kept.repoPath]?.worktrees?.teardownScript;
+        if (!(await confirmDialog({ ...removeRunsDialog(others, hasTeardown), danger: true }))) return;
+        const failed: string[] = [];
+        for (const run of others) {
+            const worktree = worktrees.find(item => item.path === run.worktreePath);
+            try {
+                if (!worktree) throw new Error('The worktree is not in the list.');
+                await removeWorktreeQuietly(kept.repoPath, worktree, false);
+            } catch (err) {
+                failed.push(`${run.agentName}: ${errorText(err)}`);
+            }
+        }
+        if (failed.length) setError(`Some worktrees stay. ${failed.join(' ')}`);
     };
 
     /**
@@ -564,6 +643,8 @@ export function useWorktreeActions(options: Options) {
         startTask,
         suggestTaskBranch,
         startTaskQuietly,
+        startCompare,
+        keepCompareRun,
         startInNewWorktree,
         moveTaskToStatus,
         createWorktree,
