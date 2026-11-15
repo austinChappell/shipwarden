@@ -5304,6 +5304,7 @@ button:focus-visible,
     border-radius: 10px;
     background: var(--panel);
     overflow: hidden;
+    container: agents-list / inline-size;
 }
 
 .agents-states {
@@ -5387,13 +5388,34 @@ button:focus-visible,
     display: flex;
     align-items: center;
     gap: 8px;
+    max-width: 100%;
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
 .agent-since {
+    min-width: 0;
     color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.agent-state-line > .chip {
+    flex: none;
+}
+
+/* A narrow list shows less on the right side. The name stays readable. The aria label keeps all facts. */
+@container agents-list (max-width: 640px) {
+    .agent-tokens {
+        display: none;
+    }
+}
+
+@container agents-list (max-width: 460px) {
+    .agent-output {
+        display: none;
+    }
 }
 
 .agent-where-text {

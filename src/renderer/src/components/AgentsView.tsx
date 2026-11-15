@@ -20,6 +20,8 @@ import type { RepoColor } from '@shared/settings';
 import { branchSummariesQuery, summariesByRepo } from '../github/use-branch-status';
 import { RepoIcon } from './RepoIcon';
 import { useAgentSessions } from '../terminal/agent-state-store';
+import { useAgentTokens } from '../terminal/agent-tokens-query';
+import { sumAgentTokens, tokensText, tokensTitle, type AgentTokens } from '@shared/agent-tokens';
 import { outputActivity } from '../terminal/output-activity';
 import type { TaskLink } from '@shared/tasks';
 import { runsAgent, type TerminalSession } from '@shared/terminal';
@@ -62,6 +64,8 @@ interface Row {
     state: OverviewState;
     lastOutputAt: number | undefined;
     activityAt: number | undefined;
+    /** The tokens of the agent session. Undefined when the agent writes no Claude Code transcript. */
+    tokens: AgentTokens | undefined;
 }
 
 /** The CSS class of the status dot of each state. The classes come from the worktree list. */
@@ -112,6 +116,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
     const [now, setNow] = useState(Date.now());
 
     const agents = useMemo(() => sessions.filter(runsAgent), [sessions]);
+    const tokensByTranscript = useAgentTokens(agents);
     const allRepos = useMemo(() => [...new Set((projects?.projects ?? []).flatMap(project => project.repos))], [projects]);
 
     // The worktrees of all repositories of all projects tell which project and branch each agent belongs to.
@@ -173,11 +178,34 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                     ci,
                     state: overviewState({ agentState: session.agentState, ci, lastOutputAt, now }),
                     lastOutputAt,
-                    activityAt: lastActivityAt(lastOutputAt, session.agentStateAt)
+                    activityAt: lastActivityAt(lastOutputAt, session.agentStateAt),
+                    tokens: session.agentTranscript ? tokensByTranscript[session.agentTranscript] : undefined
                 };
             }),
-        [agents, places, summaries, now]
+        [agents, places, summaries, now, tokensByTranscript]
     );
+
+    /** The tokens of all agents in each worktree, by worktree path. Only a worktree with two or more agents has an entry. */
+    const worktreeTokens = useMemo(() => {
+        const byPath = new Map<string, TerminalSession[]>();
+        for (const session of agents) {
+            if (session.worktreePath) byPath.set(session.worktreePath, [...(byPath.get(session.worktreePath) ?? []), session]);
+        }
+        const result: Record<string, AgentTokens> = {};
+        for (const [worktreePath, list] of byPath) {
+            if (list.length > 1)
+                result[worktreePath] = sumAgentTokens(
+                    list.map(session => session.agentTranscript),
+                    tokensByTranscript
+                );
+        }
+        return result;
+    }, [agents, tokensByTranscript]);
+
+    const today = sumAgentTokens(
+        agents.map(session => session.agentTranscript),
+        tokensByTranscript
+    ).today;
 
     /** The groups: one for each project with agents, the active project first, then agents that are in no project. */
     const groups = useMemo(() => {
@@ -205,7 +233,15 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                 className="agents-header"
                 icon={Bot}
                 title="Agents"
-                meta={`${agents.length} running`}
+                meta={
+                    today.tokens > 0 ? (
+                        <span title={`The tokens of the running agents since midnight. ${tokensTitle(today)} Only Claude Code reports tokens.`}>
+                            {agents.length} running · {tokensText(today)} today
+                        </span>
+                    ) : (
+                        `${agents.length} running`
+                    )
+                }
                 scope={
                     counts.length > 0 && (
                         <span className="agents-states">
@@ -260,6 +296,17 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                     const where = place ? `${repoLabel(place.repo)} · ${branch}` : (session.cwd.split('/').pop() ?? session.cwd);
                                     const prText = pr ? `PR #${pr.number}${ciText(ci) ? ` · ${ciText(ci)}` : ''}` : undefined;
                                     const overlap = place ? overlaps[place.repo]?.[place.worktree.path] : undefined;
+                                    const tokens = row.tokens && row.tokens.total.tokens > 0 ? row.tokens.total : undefined;
+                                    const shared = session.worktreePath ? worktreeTokens[session.worktreePath]?.total : undefined;
+                                    // A narrow list hides the activity and the tokens. The chip tooltip gives them.
+                                    const chipTitle =
+                                        [
+                                            activity,
+                                            tokens && tokensTitle(tokens),
+                                            shared && shared.tokens > 0 && `All agents in this worktree: ${tokensText(shared)}.`
+                                        ]
+                                            .filter(Boolean)
+                                            .join('\n') || undefined;
                                     const message =
                                         session.agentMessage ??
                                         (session.agentState ? '' : `${session.title} has no status hooks. The state comes from its terminal output.`);
@@ -268,7 +315,15 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                             <button
                                                 className={`agent-row ${state}`}
                                                 data-nav-item
-                                                aria-label={[name, label, activity, prText, overlap && overlapChipText(overlap), where]
+                                                aria-label={[
+                                                    name,
+                                                    label,
+                                                    activity,
+                                                    tokens && tokensText(tokens),
+                                                    prText,
+                                                    overlap && overlapChipText(overlap),
+                                                    where
+                                                ]
                                                     .filter(Boolean)
                                                     .join('. ')}
                                                 onClick={() => onOpen(session, group.id)}
@@ -284,14 +339,26 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                                 </span>
                                                 <span className="agent-side">
                                                     <span className="agent-state-line">
-                                                        {activity && <span className="agent-since">{activity}</span>}
-                                                        <Chip tone={STATE_TONE[state]}>{label}</Chip>
+                                                        {tokens && (
+                                                            <span className="agent-since agent-tokens" title={tokensTitle(tokens)}>
+                                                                {tokensText(tokens)}
+                                                            </span>
+                                                        )}
+                                                        {activity && <span className="agent-since agent-output">{activity}</span>}
+                                                        <Chip tone={STATE_TONE[state]} title={chipTitle}>
+                                                            {label}
+                                                        </Chip>
                                                     </span>
                                                     <span className="agent-where">
                                                         {prText && <Chip tone={ciTone(ci)}>{prText}</Chip>}
                                                         {overlap && <OverlapChip overlap={overlap} />}
                                                         {place && repoColor(place.repo) && <RepoIcon color={repoColor(place.repo)} size={12} />}
                                                         <span className="agent-where-text">{where}</span>
+                                                        {shared && shared.tokens > 0 && (
+                                                            <span className="agent-tokens" title={`All agents in this worktree. ${tokensTitle(shared)}`}>
+                                                                {tokensText(shared)} in worktree
+                                                            </span>
+                                                        )}
                                                     </span>
                                                 </span>
                                                 <ChevronRight size={14} strokeWidth={1.8} className="agent-chevron" aria-hidden />

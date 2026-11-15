@@ -257,7 +257,14 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   loads, so after a reload of the window the time is not known until the next output. The row then shows the time of
   the last state change. A redraw of a TUI agent (for example a spinner) also counts as output.
 - The header shows the number of agents in each state and the plan usage of Claude and Codex from the status bar.
-  ShipWarden has no token or cost data for each agent, so the rows show no usage.
+- Tokens: a row of a Claude Code agent shows the tokens of its session. `useAgentTokens` sends the `agentTranscript` of
+  each agent to `automations.countTokens` (the `TokenCounter` of the automations), one time from the start of the
+  session and one time from midnight. The count includes the subagents. Input, output, and cache writes count. Cache
+  reads do not count (`countedTokens`). The tooltip gives the cache reads. The query reads again at each agent state
+  change and each 15 seconds. The counter reads only the new end of a file. When two or more agents use the same
+  worktree, the place line also shows the total of the worktree. The header meta shows the tokens of the running
+  agents since midnight. Codex, Gemini, and OpenCode write no transcript that ShipWarden reads, so their rows show no
+  tokens. A new transcript (for example after `/clear`) starts a new count. ShipWarden shows no cost.
 - The project switcher is the header of the repository list, because only the repositories change with the project.
 - The worktree list also shows the open PR of each branch and its combined CI state. One GraphQL request for all
   open PRs runs every 60 seconds and when the window gets focus.

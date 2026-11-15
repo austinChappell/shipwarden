@@ -44,6 +44,8 @@ export function addResponses(responses: Map<string, Response>, lines: readonly s
  */
 export class TokenCounter {
     private readonly files = new Map<string, FileState>();
+    /** The last read of each file. A new read of a file starts after the last read, so two reads do not mix the same bytes. */
+    private readonly reads = new Map<string, Promise<FileState>>();
 
     constructor(private readonly allowedRoots: readonly string[] = claudeDataRoots()) {}
 
@@ -69,7 +71,14 @@ export class TokenCounter {
         return total;
     }
 
-    private async read(file: string): Promise<FileState> {
+    private read(file: string): Promise<FileState> {
+        const last = this.reads.get(file) ?? Promise.resolve(undefined);
+        const next = last.catch(() => undefined).then(() => this.readNew(file));
+        this.reads.set(file, next);
+        return next;
+    }
+
+    private async readNew(file: string): Promise<FileState> {
         let state = this.files.get(file);
         const size = await fs.stat(file).then(
             stat => stat.size,
