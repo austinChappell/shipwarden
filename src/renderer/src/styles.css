@@ -12991,10 +12991,40 @@ button.pr-summary-cell:hover {
     list-style: none;
 }
 
+/* Row 1 holds the number, the status chip, and the buttons. Row 2 gives the text the full width. */
 .plan-merge-list li {
-    display: flex;
+    display: grid;
+    grid-template-areas:
+        "number chip tools"
+        ". text text";
+    grid-template-columns: 20px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 10px;
+    gap: 6px 10px;
+}
+
+.plan-merge-list li + li {
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+
+.plan-merge-number {
+    grid-area: number;
+}
+
+.plan-merge-chip {
+    grid-area: chip;
+    justify-self: start;
+}
+
+.plan-merge-tools {
+    display: flex;
+    grid-area: tools;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.plan-merge-text .flow-field-note {
+    overflow-wrap: anywhere;
 }
 
 .plan-merge-number {
@@ -13011,16 +13041,18 @@ button.pr-summary-cell:hover {
 }
 
 .plan-merge-text {
-    flex: 1;
+    grid-area: text;
     min-width: 0;
 }
 
+/* The title wraps to 2 lines at most. */
 .plan-merge-title {
+    display: -webkit-box;
     overflow: hidden;
     color: var(--text-strong);
     font-size: 12.5px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 /* Text for screen readers only. */
