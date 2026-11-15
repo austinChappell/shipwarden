@@ -1071,27 +1071,30 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan, onOpen
                                     {withPullRequests.map(step => (
                                         <li key={step.id}>
                                             <span className="plan-merge-number">{plan.steps.indexOf(step) + 1}</span>
+                                            <StepStatusChip step={step} />
                                             <div className="plan-merge-text">
                                                 <div className="plan-merge-title">{step.title}</div>
                                                 <div className="flow-field-note">
                                                     {step.repo ? repoLabel(step.repo) : ''}
-                                                    {step.pr ? ` · into ${step.pr.base}` : <StepStatusNote step={step} />}
+                                                    {step.pr && ` · into ${step.pr.base}`}
                                                 </div>
                                             </div>
-                                            {step.pr && (
-                                                <Button size="sm" icon={<GitPullRequest size={14} />} onClick={() => openLink(step.pr?.url ?? '')}>
-                                                    #{step.pr.number}
-                                                </Button>
-                                            )}
-                                            {step.worktreePath && (
-                                                <Button
-                                                    size="sm"
-                                                    icon={<ArrowUpRight size={14} />}
-                                                    title={`Open the worktree: ${step.worktreePath}`}
-                                                    aria-label="Open the worktree"
-                                                    onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}
-                                                />
-                                            )}
+                                            <div className="plan-merge-tools">
+                                                {step.pr && (
+                                                    <Button size="sm" icon={<GitPullRequest size={14} />} onClick={() => openLink(step.pr?.url ?? '')}>
+                                                        #{step.pr.number}
+                                                    </Button>
+                                                )}
+                                                {step.worktreePath && (
+                                                    <Button
+                                                        size="sm"
+                                                        icon={<ArrowUpRight size={14} />}
+                                                        title={`Open the worktree: ${step.worktreePath}`}
+                                                        aria-label="Open the worktree"
+                                                        onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}
+                                                    />
+                                                )}
+                                            </div>
                                         </li>
                                     ))}
                                 </ol>
@@ -1116,9 +1119,14 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan, onOpen
     );
 }
 
-/** The status of a step in the merge order, for example " · needs you". */
-function StepStatusNote({ step }: { step: PlanStep }) {
-    return <> · {useStepStatus(step).label.toLowerCase()}</>;
+/** The status chip of a step in the merge order, for example "Needs you". */
+function StepStatusChip({ step }: { step: PlanStep }) {
+    const status = useStepStatus(step);
+    return (
+        <Chip className="plan-merge-chip" tone={status.tone}>
+            {status.label}
+        </Chip>
+    );
 }
 
 function StepRun({
