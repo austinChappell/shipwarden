@@ -1,9 +1,10 @@
 import type { MenuItemConstructorOptions } from 'electron';
 import type { HelpAction } from '@shared/onboarding';
 import type { ShortcutAction } from '@shared/shortcuts';
+import { PROJECT_URL } from '@shared/star-prompt';
 
 /** The GitHub page of ShipWarden. Its README explains the app. */
-export const PROJECT_URL = 'https://github.com/austinChappell/shipwarden';
+export { PROJECT_URL };
 
 /** The actions of the menu items. */
 export interface MenuActions {

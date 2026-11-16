@@ -1,5 +1,6 @@
 import { join } from 'path';
 import { mkdirSync } from 'fs';
+import { stat } from 'fs/promises';
 import { app, BrowserWindow, Menu, protocol, shell } from 'electron';
 import * as os from 'os';
 import { IpcChannels } from '@shared/api';
@@ -176,12 +177,30 @@ function browserKey(id: string, input: Electron.Input): boolean {
     }
 }
 
+/**
+ * Returns the oldest creation time of the data files, or now when no file exists. A current user gets the time of the
+ * first start of the app. A new user gets now.
+ */
+async function firstUseTime(userData: string): Promise<number> {
+    const times = await Promise.all(
+        ['settings.json', 'projects.json'].map(name =>
+            stat(join(userData, name)).then(
+                info => info.birthtimeMs,
+                () => undefined
+            )
+        )
+    );
+    const known = times.filter((time): time is number => time !== undefined && time > 0);
+    return known.length > 0 ? Math.min(...known) : Date.now();
+}
+
 app.whenReady().then(async () => {
     await services.projects.load();
     // The page reads the onboarding state at its start, so set the first state before the window opens.
     await ensureOnboarding({
         settings,
-        hasRepos: async () => (await services.projects.get()).projects.some(project => project.repos.length > 0)
+        hasRepos: async () => (await services.projects.get()).projects.some(project => project.repos.length > 0),
+        firstUseTime: () => firstUseTime(app.getPath('userData'))
     }).catch(error => console.error('[onboarding] The first onboarding state was not saved:', error));
     mainWindow.applyAppearance((await settings.get()).appearance);
     Menu.setApplicationMenu(

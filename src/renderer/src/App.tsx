@@ -60,8 +60,9 @@ import { runsAgent } from '@shared/terminal';
 import { ChecklistCard } from './components/ChecklistCard';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { Tour, TourOffer } from './components/Tour';
-import { TipNotice, useProvideTips } from './components/Tips';
+import { StarNotice, TipNotice, useProvideTips } from './components/Tips';
 import { useTips, type OnboardingChange } from './app/use-tips';
+import { useStarPrompt } from './app/use-star-prompt';
 import type { TipAction } from '@shared/tips';
 import { WelcomeView } from './components/WelcomeView';
 import { WorktreeProgressNotices } from './components/WorktreeProgressNotices';
@@ -510,14 +511,26 @@ export function App() {
         else if (repos.length > 0) setNewWorktree({ repo: selectedRepo ?? repos[0] });
         else void project.addRepo();
     };
+    const noticesBlocked = mainView === 'welcome' || tourOpen || tourOffered || shortcutsOpen || paletteOpen || !!newWorktree;
+    // The GitHub star notice shows one time, 5 days after the first use. It and the tip notice never show together.
+    const tipShowing = useRef(false);
+    const starNotice = useStarPrompt({
+        onboarding: appSettings.onboarding,
+        settingsLoaded,
+        blocked: noticesBlocked,
+        busy: () => tipShowing.current,
+        saveOnboarding,
+        onError: err => setError(errorText(err))
+    });
     const tips = useTips({
         onboarding: appSettings.onboarding,
         settingsLoaded,
-        blocked: mainView === 'welcome' || tourOpen || tourOffered || shortcutsOpen || paletteOpen || !!newWorktree,
+        blocked: noticesBlocked || !!starNotice,
         saveOnboarding,
         runAction: runTipAction,
         onError: err => setError(errorText(err))
     });
+    tipShowing.current = !!tips.notice;
     useProvideTips(tips.inline);
     const helpRef = useRef(help);
     helpRef.current = help;
@@ -1474,6 +1487,7 @@ export function App() {
                         />
                     )}
                     <WorktreeProgressNotices repoLabel={repoLabel} openTarget={openNotificationTarget} />
+                    {starNotice && <StarNotice onStar={starNotice.star} onClose={starNotice.close} />}
                     {tips.notice && <TipNotice tip={tips.notice.tip} onRun={runTipAction} onClose={tips.notice.close} onTurnOff={tips.notice.turnOff} />}
                     {!tourOpen && tourOffered && (
                         <TourOffer
