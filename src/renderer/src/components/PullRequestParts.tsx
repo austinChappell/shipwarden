@@ -80,7 +80,7 @@ export function ConflictBadge({ pr }: { pr: PullRequest }) {
 }
 
 /**
- * The commits of a pull request, the newest first. With `onOpen`, a click on a commit shows its diff in ShipWarden,
+ * The commits of a pull request, the oldest first. With `onOpen`, a click on a commit shows its diff in ShipWarden,
  * and the commit view has the link to the host. Without `onOpen`, the SHA is a link to the commit on the host.
  */
 export function PullRequestCommitList({ pr, onOpen }: { pr: PullRequest; onOpen?(commit: PullRequestCommit): void }) {
@@ -88,11 +88,11 @@ export function PullRequestCommitList({ pr, onOpen }: { pr: PullRequest; onOpen?
         <>
             {pr.commitCount > pr.commits.length && (
                 <div className="panel-note">
-                    The list shows the newest {pr.commits.length} of {pr.commitCount} commits, the newest first.
+                    The list shows the newest {pr.commits.length} of {pr.commitCount} commits, the oldest first.
                 </div>
             )}
             <div className="pr-commit-list">
-                {[...pr.commits].reverse().map(commit => {
+                {pr.commits.map(commit => {
                     const content = (
                         <>
                             <GitCommitHorizontal size={15} strokeWidth={1.6} className="pr-commit-icon" />
