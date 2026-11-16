@@ -569,9 +569,9 @@ The user guide and the file format are in [automations.md](automations.md).
 - A script runs in a new terminal tab of the selected worktree, titled with its name, in the login shell, with the
   variables of the setup script (`setupCommand`). After the script, the tab keeps a shell, so the output stays.
 
-### Notes
+### Scratch Pad
 
-- The sidebar item "Notes" (below "Review") opens notes that all projects share, like the scratch files of JetBrains IDEs.
+- The sidebar item "Scratch Pad" (below "Review") opens notes that all projects share, like the scratch files of JetBrains IDEs.
 - A note is a file with any extension in `~/.shipwarden/notes`, or in a folder there. Folders are optional, and they
   can be in other folders (up to 10 levels). The user and agents can open the files directly.
 - The ID of a note is its path in the notes folder: "todo.md" or "work/2026/plan.md". `NotesService` (main) refuses a

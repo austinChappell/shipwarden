@@ -386,7 +386,7 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
         }
     };
     const remove = async () => {
-        if (!(await confirmDialog({ title: `Move the note "${note.fileName}" to the Trash?`, confirmLabel: 'Move to Trash', danger: true }))) return;
+        if (!(await confirmDialog({ title: `Move the file "${note.fileName}" to the Trash?`, confirmLabel: 'Move to Trash', danger: true }))) return;
         clearTimeout(saveTimer.current);
         dirty.current = false;
         try {
@@ -411,7 +411,7 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
                     {renaming ? (
                         <NameInput initial={note.fileName} onSubmit={rename} onCancel={() => setRenaming(false)} />
                     ) : (
-                        <button className="note-title" title="Rename the note" onClick={() => setRenaming(true)}>
+                        <button className="note-title" title="Rename the file" onClick={() => setRenaming(true)}>
                             {note.fileName}
                         </button>
                     )}
@@ -481,7 +481,7 @@ const depthOf = (folder: string) => (folder ? folder.split('/').length : 0);
 type Editing = { kind: 'note'; folder: string; name: string } | { kind: 'folder'; parent: string } | { kind: 'renameFolder'; folder: string };
 
 /**
- * The Notes view: local files with any extension that are available in all projects, like the scratch files of
+ * The Scratch Pad view: local files with any extension that are available in all projects, like the scratch files of
  * JetBrains IDEs. Each note has a name (the file name) and tags. A note can be at the top level or in a folder, and
  * folders can be in folders. The files are in ~/.shipwarden/notes, and each folder is a folder there.
  */
@@ -599,7 +599,7 @@ export function NotesView({ route, onRoute }: Props) {
     const deleteFolder = async (path: string) => {
         const count = (notes ?? []).filter(note => isInFolder(note.folder, path)).length;
         const inner = folders.filter(item => item.startsWith(`${path}/`)).length;
-        const parts = [count ? `${count} ${count === 1 ? 'note' : 'notes'}` : '', inner ? `${inner} ${inner === 1 ? 'folder' : 'folders'}` : ''].filter(
+        const parts = [count ? `${count} ${count === 1 ? 'file' : 'files'}` : '', inner ? `${inner} ${inner === 1 ? 'folder' : 'folders'}` : ''].filter(
             Boolean
         );
         const ok = await confirmDialog({
@@ -805,9 +805,9 @@ export function NotesView({ route, onRoute }: Props) {
                         <ChevronRight size={13} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
                         <Folder size={14} strokeWidth={1.6} className="note-folder-icon" />
                         <span className="note-folder-name">{name}</span>
-                        <Count className="note-folder-count" value={subtree.length} label={pluralize(subtree.length, 'note')} />
+                        <Count className="note-folder-count" value={subtree.length} label={pluralize(subtree.length, 'file')} />
                         <span className="note-folder-actions" onClick={event => event.stopPropagation()}>
-                            <IconButton size="sm" icon={<Plus size={13} strokeWidth={1.8} />} label={`New note in ${name}`} onClick={() => startNote(path)} />
+                            <IconButton size="sm" icon={<Plus size={13} strokeWidth={1.8} />} label={`New file in ${name}`} onClick={() => startNote(path)} />
                             <IconButton
                                 size="sm"
                                 icon={<FolderPlus size={13} strokeWidth={1.8} />}
@@ -848,7 +848,7 @@ export function NotesView({ route, onRoute }: Props) {
                         {direct.map(noteRow)}
                         {empty && !filtering && (
                             <div className="note-folder-empty" style={indent(depth + 1)}>
-                                Empty. Drag a note or a folder here, or use the + buttons.
+                                Empty. Drag a file or a folder here, or use the + buttons.
                             </div>
                         )}
                     </>
@@ -864,9 +864,9 @@ export function NotesView({ route, onRoute }: Props) {
         <div className="notes-view">
             <PageHeader
                 icon={NotebookPen}
-                title="Notes"
-                meta={notes ? pluralize(notes.length, 'note') : undefined}
-                filter={<FilterField value={query} placeholder="Filter notes" label="Filter notes by name, folder, or #tag" onChange={setQuery} />}
+                title="Scratch Pad"
+                meta={notes ? pluralize(notes.length, 'file') : undefined}
+                filter={<FilterField value={query} placeholder="Filter files" label="Filter files by name, folder, or #tag" onChange={setQuery} />}
                 actions={
                     <>
                         <IconButton
@@ -888,7 +888,7 @@ export function NotesView({ route, onRoute }: Props) {
                 }
                 primary={
                     <Button size="lg" variant="primary" icon={<Plus size={14} />} onClick={() => startNote('')}>
-                        New note
+                        New file
                     </Button>
                 }
             />
@@ -913,24 +913,24 @@ export function NotesView({ route, onRoute }: Props) {
                                     onClick={() => toggleTag(tag)}
                                 >
                                     #{tag}
-                                    <Count value={count} label={pluralize(count, 'note')} />
+                                    <Count value={count} label={pluralize(count, 'file')} />
                                 </button>
                             ))}
                         </div>
                     )}
                     {editing?.kind === 'folder' && editing.parent === '' && inputs('')}
                     {error && <div className="form-error task-list-error">{error}</div>}
-                    {!notes && !error && <SkeletonRows count={5} dot={false} label="Loading notes" />}
+                    {!notes && !error && <SkeletonRows count={5} dot={false} label="Loading files" />}
                     {notes?.length === 0 && folders.length === 0 && !editing && (
                         <div className="panel-message notes-empty">
-                            <p>No notes yet.</p>
+                            <p>No files yet.</p>
                             <p>
-                                A note is a file with any extension, for example <code>queries.sql</code> or <code>todo.md</code>. The files are in{' '}
+                                A file can have any extension, for example <code>queries.sql</code> or <code>todo.md</code>. The files are in{' '}
                                 <code>{folder || '~/.shipwarden/notes'}</code>. Folders are optional, and they can be in other folders.
                             </p>
                         </div>
                     )}
-                    {notes && notes.length > 0 && filtering && shown.length === 0 && <div className="panel-message">No note matches.</div>}
+                    {notes && notes.length > 0 && filtering && shown.length === 0 && <div className="panel-message">No file matches.</div>}
 
                     {shownRootFolders.map(folderNode)}
 
@@ -943,7 +943,7 @@ export function NotesView({ route, onRoute }: Props) {
                 <ResizeHandle
                     panel={listWidth}
                     edge="right"
-                    label="Resize the note list"
+                    label="Resize the file list"
                     maxAvailable={() => (document.querySelector<HTMLElement>('.notes-body')?.offsetWidth ?? Infinity) - 320}
                 />
                 {current ? (
@@ -967,12 +967,12 @@ export function NotesView({ route, onRoute }: Props) {
                 ) : (
                     <div className="note-pane">
                         {notes?.length ? (
-                            <EmptyState icon={NotebookPen} title="No note selected">
-                                Pick a note to edit it.
+                            <EmptyState icon={NotebookPen} title="No file selected">
+                                Pick a file to edit it.
                             </EmptyState>
                         ) : (
-                            <EmptyState icon={NotebookPen} title="No notes yet">
-                                Make a note with New note.
+                            <EmptyState icon={NotebookPen} title="No files yet">
+                                Make a file with New file.
                             </EmptyState>
                         )}
                     </div>

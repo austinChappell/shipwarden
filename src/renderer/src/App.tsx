@@ -777,7 +777,7 @@ export function App() {
         openPlan: id => openViewAt('plans', { page: id }),
         createNote: async () => {
             const name = await promptDialog({
-                title: 'New note',
+                title: 'New file',
                 message: 'Type a file name. A name without an extension gets ".md".',
                 placeholder: 'scratch.md',
                 confirmLabel: 'Create'

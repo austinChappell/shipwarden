@@ -21,7 +21,7 @@ describe('scoreItem', () => {
     it('matches the detail, the group, and the keywords', () => {
         expect(scoreItem(item('main', { detail: 'shipwarden' }), 'shipwarden')).toBeDefined();
         expect(scoreItem(item('Remove a worktree', { keywords: ['delete'] }), 'delete')).toBeDefined();
-        expect(scoreItem(item('main', { group: 'Notes' }), 'notes')).toBeDefined();
+        expect(scoreItem(item('main', { group: 'Scratch Pad' }), 'scratch')).toBeDefined();
     });
 
     it('scores a match in the label above a match in the keywords', () => {
@@ -39,7 +39,7 @@ describe('scoreItem', () => {
 
 describe('paletteSections', () => {
     const items = [
-        item('Open Notes', { group: 'Notes' }),
+        item('Open Notes', { group: 'Scratch Pad' }),
         item('Create a worktree'),
         item('feature/login', { searchOnly: true }),
         item('Open Settings', { group: 'Settings' })
@@ -47,7 +47,7 @@ describe('paletteSections', () => {
 
     it('shows the commands in their groups, in the order of the groups, when the search is empty', () => {
         const sections = paletteSections(items, '');
-        expect(sections.map(section => section.group)).toEqual(['Worktrees', 'Notes', 'Settings']);
+        expect(sections.map(section => section.group)).toEqual(['Worktrees', 'Scratch Pad', 'Settings']);
         expect(sections[0].items.map(entry => entry.label)).toEqual(['Create a worktree']);
     });
 

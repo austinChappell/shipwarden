@@ -867,7 +867,7 @@ export function Sidebar(outerProps: Props) {
             </button>
             <button data-sidebar-item className={`nav-row${props.notesActive ? ' selected' : ''}`} onClick={props.onOpenNotes}>
                 <NotebookPen size={15} strokeWidth={1.6} />
-                <span className="nav-row-label">Notes</span>
+                <span className="nav-row-label">Scratch Pad</span>
             </button>
             <button data-sidebar-item className={`nav-row${props.automationsActive ? ' selected' : ''}`} onClick={props.onOpenAutomations}>
                 <Zap size={15} strokeWidth={1.6} />
