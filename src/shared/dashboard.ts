@@ -104,7 +104,6 @@ export interface PullRequestActionState {
     isDraft: boolean;
     reviewDecision: string | null;
     mergeable: string;
-    mergeStateStatus: string;
     checks: string | null;
 }
 
