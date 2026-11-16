@@ -5,7 +5,13 @@ import {
     commitsAfter,
     diffSize,
     lastActivityOf,
+    matchesAuthors,
+    matchesFilters,
+    NO_PULL_REQUEST_FILTERS,
+    matchesPeople,
     matchesSearch,
+    reviewStatusOf,
+    uniqueLogins,
     reviewActivitySeenKey,
     reviewGroup,
     reviewQueue,
@@ -37,6 +43,9 @@ function pr(change: Partial<OpenPullRequest> = {}): OpenPullRequest {
         reviewDecision: null,
         checks: { state: null, failing: 0, pending: 0, total: 0 },
         actions: [],
+        assignees: [],
+        reviewers: [],
+        reviewStatus: 'waiting',
         ...change
     };
 }
@@ -219,5 +228,67 @@ describe('reviewQueue', () => {
             ['o/b', { viewer: 'me', openCount: 1, pullRequests: [pr({ number: 7, reviewRequested: true, createdAt: '2026-11-01T00:00:00Z' })] }]
         ]);
         expect(reviewQueue(repos).map(item => `${item.repo}#${item.number}`)).toEqual(['o/b#7', 'o/a#1']);
+    });
+});
+
+describe('matchesAuthors', () => {
+    it('matches all PRs when no author is selected', () => {
+        expect(matchesAuthors({ author: 'ann' }, [])).toBe(true);
+        expect(matchesAuthors({ author: null }, [])).toBe(true);
+    });
+
+    it('matches only the selected authors and ignores case', () => {
+        expect(matchesAuthors({ author: 'Ann' }, ['ann', 'bob'])).toBe(true);
+        expect(matchesAuthors({ author: 'carl' }, ['ann', 'bob'])).toBe(false);
+        expect(matchesAuthors({ author: null }, ['ann'])).toBe(false);
+    });
+});
+
+describe('matchesPeople', () => {
+    it('matches when one of the people is selected', () => {
+        expect(matchesPeople(['ann', 'Bob'], ['bob', 'carl'])).toBe(true);
+        expect(matchesPeople(['ann'], ['bob', 'carl'])).toBe(false);
+        expect(matchesPeople([], ['bob'])).toBe(false);
+        expect(matchesPeople([], [])).toBe(true);
+    });
+});
+
+describe('uniqueLogins', () => {
+    it('gives each login one time, in alphabetical order', () => {
+        expect(uniqueLogins([['bob', 'Ann'], ['ann', ''], ['bob']])).toEqual(['Ann', 'bob']);
+    });
+});
+
+describe('reviewStatusOf', () => {
+    it('uses the decision of GitHub first', () => {
+        expect(reviewStatusOf('APPROVED', ['CHANGES_REQUESTED'])).toBe('approved');
+        expect(reviewStatusOf('CHANGES_REQUESTED')).toBe('changes-requested');
+        expect(reviewStatusOf('REVIEW_REQUIRED', ['APPROVED'])).toBe('waiting');
+    });
+
+    it('uses the latest reviews when GitHub gives no decision', () => {
+        expect(reviewStatusOf(null, ['APPROVED', 'CHANGES_REQUESTED'])).toBe('changes-requested');
+        expect(reviewStatusOf(null, ['COMMENTED', 'APPROVED'])).toBe('approved');
+        expect(reviewStatusOf(null, ['COMMENTED'])).toBe('waiting');
+        expect(reviewStatusOf(null)).toBe('waiting');
+    });
+});
+
+describe('matchesFilters', () => {
+    const item = { author: 'ann', assignees: ['bob'], reviewers: ['carl', 'acme/core'], reviewStatus: 'approved' as const };
+
+    it('matches all PRs without filters', () => {
+        expect(matchesFilters(item, NO_PULL_REQUEST_FILTERS)).toBe(true);
+    });
+
+    it('matches one of the values in a filter', () => {
+        expect(matchesFilters(item, { ...NO_PULL_REQUEST_FILTERS, reviewers: ['dana', 'acme/core'] })).toBe(true);
+        expect(matchesFilters(item, { ...NO_PULL_REQUEST_FILTERS, statuses: ['waiting', 'approved'] })).toBe(true);
+    });
+
+    it('must match all the filters', () => {
+        expect(matchesFilters(item, { ...NO_PULL_REQUEST_FILTERS, authors: ['ann'], assignees: ['bob'] })).toBe(true);
+        expect(matchesFilters(item, { ...NO_PULL_REQUEST_FILTERS, authors: ['ann'], assignees: ['dana'] })).toBe(false);
+        expect(matchesFilters(item, { ...NO_PULL_REQUEST_FILTERS, authors: ['ann'], statuses: ['waiting'] })).toBe(false);
     });
 });

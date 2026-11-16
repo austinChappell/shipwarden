@@ -105,6 +105,9 @@ function makeOpen(overrides: Partial<OpenPullRequest> = {}): OpenPullRequest {
         reviewDecision: 'REVIEW_REQUIRED',
         checks: { state: null, failing: 0, pending: 0, total: 0 },
         actions: [],
+        assignees: [],
+        reviewers: [],
+        reviewStatus: 'waiting',
         ...overrides
     };
 }

@@ -36,7 +36,7 @@ import type {
     ReviewThread
 } from '@shared/github';
 import type { WorkflowRun } from '@shared/pipelines';
-import type { CheckSummary, OpenPullRequest } from '@shared/review-queue';
+import { reviewStatusOf, uniqueLogins, type CheckSummary, type OpenPullRequest, type ReviewStatus } from '@shared/review-queue';
 
 // The raw shapes of the Azure DevOps REST API 7.1. Only the fields that ShipWarden reads are here.
 // See https://learn.microsoft.com/rest/api/azure/devops/?view=azure-devops-rest-7.1
@@ -652,7 +652,8 @@ export function openPullRequestOf(repo: AzureRepoRef, pr: AzPullRequest, builds:
         reviewDecision,
         checks,
         viewerReview: vote !== 0 ? { state: vote > 0 ? 'APPROVED' : 'CHANGES_REQUESTED', submittedAt: pr.creationDate, commitOid: null } : undefined,
-        actions: viewerDidAuthor ? myPullRequestReasons({ isDraft: pr.isDraft ?? false, reviewDecision, ...mergeStateOf(pr), checks: checks.state }) : []
+        actions: viewerDidAuthor ? myPullRequestReasons({ isDraft: pr.isDraft ?? false, reviewDecision, ...mergeStateOf(pr), checks: checks.state }) : [],
+        ...pullRequestPeopleOf(pr)
     };
 }
 
@@ -671,7 +672,18 @@ export function pullRequestSummaryOf(repo: AzureRepoRef, pr: AzPullRequest, buil
         comments: 0,
         additions: 0,
         deletions: 0,
-        viewerDidAuthor: !!viewerId && pr.createdBy.id === viewerId
+        viewerDidAuthor: !!viewerId && pr.createdBy.id === viewerId,
+        ...pullRequestPeopleOf(pr)
+    };
+}
+
+/** Returns the reviewers and the review status of a pull request. Azure DevOps has no assignees, so the list is empty. */
+function pullRequestPeopleOf(pr: AzPullRequest): { assignees: string[]; reviewers: string[]; reviewStatus: ReviewStatus } {
+    const reviewers = pr.reviewers ?? [];
+    return {
+        assignees: [],
+        reviewers: uniqueLogins([reviewers.filter(reviewer => reviewer.id !== pr.createdBy.id).map(reviewer => loginOf(reviewer))]),
+        reviewStatus: reviewStatusOf(reviewDecisionFromVotes(reviewers))
     };
 }
 

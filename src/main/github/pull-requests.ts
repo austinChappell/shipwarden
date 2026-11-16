@@ -25,6 +25,7 @@ import {
     mapMergedBranches,
     mapPullRequest,
     mapPullRequestSummaries,
+    PEOPLE_FIELDS,
     PULL_REQUEST_QUERY,
     type GraphQlBranchSummaries,
     type GraphQlMergedBranches,
@@ -222,6 +223,7 @@ export async function fetchPullRequests(client: GitHubClient, repo: RepoRef, fil
       ... on PullRequest {
         number title isDraft state updatedAt reviewDecision additions deletions viewerDidAuthor
         author { login }
+        ${PEOPLE_FIELDS}
         comments { totalCount }
         commits(last: 1) @include(if: $checks) { nodes { commit { statusCheckRollup { state } } } }
       }

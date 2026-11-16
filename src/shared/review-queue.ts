@@ -60,6 +60,11 @@ export interface OpenPullRequest {
     sinceReview?: SinceReview;
     /** The reasons that the author must act. Only set for pull requests of the viewer. */
     actions: MyPullRequestReason[];
+    /** The logins of the assignees. */
+    assignees: string[];
+    /** The logins of the requested reviewers and of the people who reviewed. A requested team is "org/team". */
+    reviewers: string[];
+    reviewStatus: ReviewStatus;
 }
 
 /** The open pull requests of one repository. */
@@ -277,6 +282,79 @@ export function matchesSearch(pr: Pick<OpenPullRequest, 'number' | 'title' | 'au
         if (number && String(pr.number) === number[1]) return true;
         return text.includes(word);
     });
+}
+
+/**
+ * The review status of a PR for the filter of the Review view.
+ * - `approved`: the PR has the approvals that it needs.
+ * - `changes-requested`: a reviewer asks for changes.
+ * - `waiting`: the PR has no decision yet.
+ */
+export type ReviewStatus = 'approved' | 'changes-requested' | 'waiting';
+
+export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
+    approved: 'Approved',
+    'changes-requested': 'Changes requested',
+    waiting: 'Waiting for review'
+};
+
+/**
+ * Returns the review status from the review decision of GitHub. A repository without required reviews has no decision.
+ * Then the latest review states of the reviewers give the status. A request for changes is stronger than an approval.
+ */
+export function reviewStatusOf(decision: string | null, latestStates: readonly string[] = []): ReviewStatus {
+    if (decision === 'APPROVED') return 'approved';
+    if (decision === 'CHANGES_REQUESTED') return 'changes-requested';
+    if (decision === 'REVIEW_REQUIRED') return 'waiting';
+    if (latestStates.includes('CHANGES_REQUESTED')) return 'changes-requested';
+    if (latestStates.includes('APPROVED')) return 'approved';
+    return 'waiting';
+}
+
+/** True when one of the `people` of the PR is in `selected`. An empty selection matches all PRs. The match ignores case. */
+export function matchesPeople(people: readonly string[], selected: readonly string[]): boolean {
+    if (selected.length === 0) return true;
+    const wanted = new Set(selected.map(item => item.toLowerCase()));
+    return people.some(person => wanted.has(person.toLowerCase()));
+}
+
+/** The different logins in the lists, in alphabetical order. The match ignores case. The first spelling stays. */
+export function uniqueLogins(lists: readonly (readonly string[])[]): string[] {
+    const logins = new Map<string, string>();
+    for (const login of lists.flat()) {
+        if (login && !logins.has(login.toLowerCase())) logins.set(login.toLowerCase(), login);
+    }
+    return [...logins.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
+/** True when the author of the PR is in `authors`. An empty list matches all PRs. The match ignores case. */
+export function matchesAuthors(pr: { author: string | null }, authors: readonly string[]): boolean {
+    return matchesPeople(pr.author ? [pr.author] : [], authors);
+}
+
+/** The filters of the PR list. Each filter matches one of its selected values. A PR must match all the filters. An empty filter matches all PRs. */
+export interface PullRequestFilters {
+    authors: string[];
+    assignees: string[];
+    reviewers: string[];
+    statuses: ReviewStatus[];
+}
+
+export const NO_PULL_REQUEST_FILTERS: PullRequestFilters = { authors: [], assignees: [], reviewers: [], statuses: [] };
+
+/** True when one of the filters has a selected value. */
+export function hasPullRequestFilters(filters: PullRequestFilters): boolean {
+    return Object.values(filters).some(values => values.length > 0);
+}
+
+/** True when the PR matches all the filters. */
+export function matchesFilters(pr: Pick<OpenPullRequest, 'author' | 'assignees' | 'reviewers' | 'reviewStatus'>, filters: PullRequestFilters): boolean {
+    return (
+        matchesAuthors(pr, filters.authors) &&
+        matchesPeople(pr.assignees, filters.assignees) &&
+        matchesPeople(pr.reviewers, filters.reviewers) &&
+        (filters.statuses.length === 0 || filters.statuses.includes(pr.reviewStatus))
+    );
 }
 
 /** The size class of a diff: a small, a medium and a large change. */
