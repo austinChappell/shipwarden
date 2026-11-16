@@ -69,4 +69,13 @@ describe('linkReferences', () => {
         const html = linkReferences(renderMarkdown('`@octocat` [#12](https://example.com) a@b.com\n\n```\n#3\n```'), repo);
         expect(html).not.toContain('mention-link');
     });
+
+    it('links commits to GitHub, and marks the commits of the pull request', () => {
+        const commit = { oid: '7195c5df5a0b', abbreviatedOid: '7195c5d', messageHeadline: 'x', committedDate: '', url: '', author: null };
+        const html = linkReferences(renderMarkdown('Done in 7195c5df5 and abc1234'), repo, [commit]);
+        expect(html).toContain(
+            '<a class="commit-link" href="https://github.com/acme/app/commit/7195c5df5" data-commit="7195c5df5a0b" title="Show the changes of this commit. ⌘-click opens it on GitHub.">7195c5df5</a>'
+        );
+        expect(html).toContain('<a class="commit-link" href="https://github.com/acme/app/commit/abc1234">abc1234</a>');
+    });
 });

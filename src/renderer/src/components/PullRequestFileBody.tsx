@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MultiFileDiff, PatchDiff, type DiffLineAnnotation, type FileDiffOptions } from '@pierre/diffs/react';
 import { ExternalLink, LoaderCircle } from 'lucide-react';
-import type { DiffSide, FileVersions, PendingComment, PullRequest, PullRequestFile, RepoTarget } from '@shared/github';
+import type { DiffSide, FileVersions, PendingComment, PullRequest, PullRequestCommit, PullRequestFile, RepoTarget } from '@shared/github';
 import { unifiedPatch } from '@shared/patch';
 import { sliceLines } from '@shared/ask-agent';
 import { lineNotePrompt, threadPrompt } from '../github/agent-prompts';
@@ -39,6 +39,8 @@ interface FileBodyProps {
      * and the comment box has no "Send to agent" mode.
      */
     onSendToAgent?(prompt: string): void;
+    /** Shows the diff of one commit. Without it, a commit SHA in a comment is a link to GitHub. */
+    onOpenCommit?(commit: PullRequestCommit): void;
 }
 
 /**
@@ -60,10 +62,11 @@ export const FileBody = memo(function FileBody({
     onAsk,
     onQuestion,
     onGoToDefinition,
-    onSendToAgent
+    onSendToAgent,
+    onOpenCommit
 }: FileBodyProps) {
     const patch = useMemo(() => unifiedPatch(file), [file]);
-    const mentions = useMemo(() => mentionSourceOf(target, pr), [target, pr]);
+    const mentions = useMemo(() => mentionSourceOf(target, pr, onOpenCommit), [target, pr, onOpenCommit]);
     const [versions, setVersions] = useState<FileVersions | 'error'>();
     const canComment = pr.state === 'OPEN';
     // The parent makes a new onComposer and onAsk at each render. A change of the diff options renders the diff again,

@@ -117,24 +117,52 @@ export function repoUrlOf(pullRequestUrl: string): string | undefined {
     return match?.[1];
 }
 
-/** A part of a text: plain text, a user ("@login") or an issue or pull request ("#123"). */
-export type ReferencePart = { kind: 'text'; text: string } | { kind: 'user'; text: string; login: string } | { kind: 'issue'; text: string; number: number };
+/** A part of a text: plain text, a user ("@login"), an issue or pull request ("#123"), or a commit ("7195c5df5"). */
+export type ReferencePart =
+    | { kind: 'text'; text: string }
+    | { kind: 'user'; text: string; login: string }
+    | { kind: 'issue'; text: string; number: number }
+    | { kind: 'commit'; text: string; sha: string };
 
 /**
- * "@login" or "#123", after the start of the text or a character that is not a word character, "/", "@", "." or "#".
- * The reference must not continue with a word character or "-". An email address such as "a@b.com" does not match.
+ * A reference, after the start of the text or a character that is not a word character, "/", "@", "." or "#".
+ * The reference must not continue with a word character or "-". The groups are:
+ * 1. "@login". An email address such as "a@b.com" does not match.
+ * 2. "#123".
+ * 3. A commit SHA: 7 to 40 hexadecimal characters, as on GitHub.
  */
-const REFERENCE_PATTERN = /(?<![\w/@.#-])(?:@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))|#(\d{1,9}))(?![\w-])/g;
+const REFERENCE_PATTERN = /(?<![\w/@.#-])(?:@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))|#(\d{1,9})|([0-9a-fA-F]{7,40}))(?![\w-])/g;
 
-/** Splits a text into plain text, users and issues. Returns one text part when the text has no reference. */
+/**
+ * True when a hexadecimal word is probably a commit SHA. The word must contain a digit and a letter,
+ * so numbers such as "1234567" and words such as "defaced" do not match.
+ * The case must not change in the word, so a word such as "Ab12cd3" does not match.
+ */
+function isCommitSha(word: string): boolean {
+    return /\d/.test(word) && /[a-f]/i.test(word) && (word === word.toLowerCase() || word === word.toUpperCase());
+}
+
+/**
+ * Returns the commit whose full SHA starts with `sha` (case is not important).
+ * Returns undefined when no commit matches, or when more than one commit matches.
+ */
+export function findCommit<T extends { oid: string }>(commits: readonly T[], sha: string): T | undefined {
+    const prefix = sha.toLowerCase();
+    const matches = commits.filter(commit => commit.oid.toLowerCase().startsWith(prefix));
+    return matches.length === 1 ? matches[0] : undefined;
+}
+
+/** Splits a text into plain text, users, issues, and commits. Returns one text part when the text has no reference. */
 export function splitReferences(text: string): ReferencePart[] {
     const parts: ReferencePart[] = [];
     let last = 0;
     for (const match of text.matchAll(REFERENCE_PATTERN)) {
+        if (match[3] && !isCommitSha(match[3])) continue;
         const index = match.index ?? 0;
         if (index > last) parts.push({ kind: 'text', text: text.slice(last, index) });
         if (match[1]) parts.push({ kind: 'user', text: match[0], login: match[1] });
-        else parts.push({ kind: 'issue', text: match[0], number: Number(match[2]) });
+        else if (match[2]) parts.push({ kind: 'issue', text: match[0], number: Number(match[2]) });
+        else parts.push({ kind: 'commit', text: match[0], sha: match[3].toLowerCase() });
         last = index + match[0].length;
     }
     if (last < text.length) parts.push({ kind: 'text', text: text.slice(last) });

@@ -2,7 +2,8 @@ import { useContext, useMemo, type MouseEvent } from 'react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { azureImageUrl } from '@shared/azure-image-url';
-import { splitReferences } from '@shared/mentions';
+import type { PullRequestCommit } from '@shared/github';
+import { findCommit, splitReferences } from '@shared/mentions';
 import { MentionContext } from './mention-context';
 import { openLink } from '../links';
 
@@ -96,11 +97,13 @@ export function withAzureImages(html: string): string {
 }
 
 /**
- * Changes each "@login" to a link to the GitHub user, and each "#123" to a link to the issue or the pull request in the repository.
+ * Changes each "@login" to a link to the GitHub user, each "#123" to a link to the issue or the pull request in the repository,
+ * and each commit SHA such as "7195c5df5" to a link to the commit in the repository.
+ * When a SHA matches exactly one of `commits`, the link gets the full SHA in "data-commit", so a click can show the commit in ShipWarden.
  * The text in links and in code does not change. The function changes the HTML after DOMPurify and adds only links with safe addresses.
  */
-export function linkReferences(html: string, repoUrl: string): string {
-    if (!/[@#]/.test(html)) return html;
+export function linkReferences(html: string, repoUrl: string, commits: readonly PullRequestCommit[] = []): string {
+    if (!/[@#]|[0-9a-f]{7}/i.test(html)) return html;
     const template = document.createElement('template');
     // The content of a template is inert. The images do not load and no code runs here.
     template.innerHTML = html;
@@ -119,9 +122,19 @@ export function linkReferences(html: string, repoUrl: string): string {
                 continue;
             }
             const link = document.createElement('a');
-            link.className = 'mention-link';
-            link.href = part.kind === 'user' ? `https://github.com/${part.login}` : `${repoUrl}/issues/${part.number}`;
+            link.className = part.kind === 'commit' ? 'commit-link' : 'mention-link';
+            link.href =
+                part.kind === 'user'
+                    ? `https://github.com/${part.login}`
+                    : part.kind === 'issue'
+                      ? `${repoUrl}/issues/${part.number}`
+                      : `${repoUrl}/commit/${part.sha}`;
             link.textContent = part.text;
+            const commit = part.kind === 'commit' ? findCommit(commits, part.sha) : undefined;
+            if (commit) {
+                link.dataset.commit = commit.oid;
+                link.title = 'Show the changes of this commit. ⌘-click opens it on GitHub.';
+            }
             fragment.append(link);
         }
         node.replaceWith(fragment);
@@ -134,15 +147,20 @@ export function sanitizeHtml(html: string): string {
     return DOMPurify.sanitize(html, { FORBID_TAGS: ['style', 'form', 'input', 'button', 'iframe'], FORBID_ATTR: ['style'] });
 }
 
-/** Shows Markdown from a task tracker or GitHub. Links open in the default browser, and with ⇧⌘-click in the in-app browser. */
+/**
+ * Shows Markdown from a task tracker or GitHub. Links open in the default browser, and with ⇧⌘-click in the in-app browser.
+ * In the Review view, a click on the SHA of a commit of the pull request shows the commit in ShipWarden.
+ */
 export function Markdown({ text, className, html: rendered }: Props) {
-    // In a GitHub pull request, "@login" and "#123" in the text become links. HTML that GitHub rendered has its own links.
-    const repoUrl = useContext(MentionContext)?.repoUrl;
+    // In a GitHub pull request, "@login", "#123", and commit SHAs in the text become links. HTML that GitHub rendered has its own links.
+    const source = useContext(MentionContext);
+    const repoUrl = source?.repoUrl;
+    const commits = source?.commits;
     const html = useMemo(() => {
         if (rendered !== undefined) return withAzureImages(sanitizeHtml(rendered));
         const html = renderMarkdown(text);
-        return withAzureImages(repoUrl ? linkReferences(html, repoUrl) : html);
-    }, [text, rendered, repoUrl]);
+        return withAzureImages(repoUrl ? linkReferences(html, repoUrl, commits?.list) : html);
+    }, [text, rendered, repoUrl, commits?.list]);
 
     const onClick = (event: MouseEvent<HTMLDivElement>) => {
         const link = (event.target as HTMLElement).closest('a');
@@ -150,6 +168,12 @@ export function Markdown({ text, className, html: rendered }: Props) {
             return;
         }
         event.preventDefault();
+        // A plain click shows a commit of the pull request in ShipWarden. ⌘-click and ⇧⌘-click open GitHub.
+        const commit = link.dataset.commit ? commits?.list.find(item => item.oid === link.dataset.commit) : undefined;
+        if (commits && commit && !event.metaKey && !event.ctrlKey) {
+            commits.open(commit);
+            return;
+        }
         const href = link.getAttribute('href') ?? '';
         if (/^https?:\/\//.test(href)) {
             openLink(href, event);

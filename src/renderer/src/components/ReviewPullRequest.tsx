@@ -729,6 +729,7 @@ export function ReviewPullRequest({
                                     fileList={{ open: fileListOpen, toggle: toggleFileList }}
                                     onRefresh={onRefresh}
                                     onSendToAgent={sendToAgent}
+                                    onOpenCommit={openCommit}
                                     onError={setFileError}
                                     onGoToDefinition={(path, line, column) => {
                                         openCode({ path, line, column, action: 'definition' });
