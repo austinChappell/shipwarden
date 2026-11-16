@@ -24,6 +24,7 @@ import { strictnessTitle } from './review-strictness-menu';
 import { Button, ButtonGroup, Count, IconButton, SplitButton, type SplitMenuItem } from './ui';
 import { EmptyState } from './EmptyState';
 import { pullRequestKeyAction } from '@shared/shortcuts';
+import { copyPageLink, usePageLink } from '../app/page-link';
 import { HelmLoader } from './HelmLoader';
 import { FileExplorer } from './FileExplorer';
 import { ErrorBanner } from './ErrorBanner';
@@ -395,6 +396,8 @@ export function ReviewPullRequest({
     const files = review.files;
     const agentReview = review.agentReview;
     const defaultStrictness = useDefaultReviewStrictness([repo]);
+    // ⇧⌘C copies the link of the pull request.
+    usePageLink(pr?.url, 'PR');
 
     const back = (
         <Button
@@ -473,7 +476,8 @@ export function ReviewPullRequest({
         {
             label: 'Copy PR link',
             icon: <Link size={14} strokeWidth={1.6} />,
-            onSelect: () => void navigator.clipboard.writeText(pr.url).catch(() => undefined)
+            shortcut: '⇧⌘C',
+            onSelect: () => void copyPageLink({ url: pr.url, kind: 'PR' }).catch(() => undefined)
         },
         ...(onOpenGroup
             ? [

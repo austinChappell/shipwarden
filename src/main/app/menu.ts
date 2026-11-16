@@ -58,7 +58,7 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
                 { label: 'Select Split Above', accelerator: 'Alt+Command+Up', click: sendShortcut('focusUp') },
                 { label: 'Select Split Below', accelerator: 'Alt+Command+Down', click: sendShortcut('focusDown') },
                 { type: 'separator' },
-                { label: 'Copy Relative Path of File', accelerator: 'Shift+Command+C', click: sendShortcut('copyFilePath') },
+                { label: 'Copy File Path or Link', accelerator: 'Shift+Command+C', click: sendShortcut('copyFilePath') },
                 { label: 'Reveal File in Finder', accelerator: 'Alt+Command+R', click: sendShortcut('revealFileInFinder') },
                 { type: 'separator' },
                 { label: 'Close Pane', accelerator: 'Command+W', click: sendShortcut('close') },

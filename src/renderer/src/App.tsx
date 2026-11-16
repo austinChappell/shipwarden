@@ -10,6 +10,7 @@ import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } from './components/RightPanel';
 import { requestExplorerFocus } from './files/explorer-focus';
 import { copyFilePath } from './files/file-path-copy';
+import { copyPageLink, currentPageLink } from './app/page-link';
 import { dialogOpen, promptDialog } from './components/ConfirmDialog';
 import { AppCommandPalette } from './palette/AppCommandPalette';
 import type { PaletteActions } from './palette/palette-commands';
@@ -667,6 +668,13 @@ export function App() {
      * ⌥⌘1 to ⌥⌘6: open a view. ⇧⌘0: move the focus to the workspace.
      */
     const shortcut = async (action: ShortcutAction) => {
+        // ⇧⌘C on a page with a link, for example a pull request or a task, copies the link. A task shows in a
+        // dialog, so this step comes before the dialog check.
+        const pageLink = action === 'copyFilePath' ? currentPageLink() : undefined;
+        if (pageLink) {
+            await copyPageLink(pageLink).catch(err => setError(errorText(err)));
+            return;
+        }
         if (dialogOpen()) return;
         if (action === 'back' || action === 'forward') {
             navigate(action === 'back' ? -1 : 1);

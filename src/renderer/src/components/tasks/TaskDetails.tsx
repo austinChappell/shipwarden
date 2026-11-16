@@ -2,6 +2,7 @@ import { ExternalLink, Trash2 } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { timeAgo } from '../../util';
 import { openLink } from '../../links';
+import { usePageLink } from '../../app/page-link';
 import { Button, IconButton, Select, SkeletonRows } from '../ui';
 import { editableParts, formatField } from './task-view-logic';
 import { FieldRow, StatusDot } from './TaskParts';
@@ -60,6 +61,8 @@ export function TaskDetails({
 }: Props) {
     const { detail, statuses, busy, detailError, editing, setEditing } = state;
     const editable = detail ? editableParts(detail, source.capabilities) : {};
+    // ⇧⌘C copies the link of the task.
+    usePageLink(detail?.url, 'task');
     return (
         <>
             {selectedId && !detail && !detailError && <SkeletonRows count={4} dot={false} label="Loading the task" />}

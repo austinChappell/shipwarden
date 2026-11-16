@@ -9,6 +9,7 @@ import { App } from './App';
 import { confirmDialog, DialogHost } from './components/ConfirmDialog';
 import { ContextMenuHost } from './components/ContextMenu';
 import { UpdateNotice } from './components/UpdateNotice';
+import { ToastHost } from './components/Toast';
 import { applyLastPalette } from './theme/appearance';
 import { outputActivity } from './terminal/output-activity';
 import { appKeyAction } from '@shared/shortcuts';
@@ -68,6 +69,7 @@ createRoot(document.getElementById('root')!).render(
         <QueryClientProvider client={queryClient}>
             <App />
             <UpdateNotice />
+            <ToastHost />
             <DialogHost />
             <ContextMenuHost />
         </QueryClientProvider>
