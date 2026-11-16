@@ -298,7 +298,7 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                 )}
                 {action.type === 'runHeadless' && (
                     <Checkbox
-                        label={'Save the answer as a note in the folder "Automations"'}
+                        label={'Save the answer as a file in the Scratch Pad folder "Automations"'}
                         checked={!!action.saveNote}
                         onChange={checked => onChange({ ...action, saveNote: checked || undefined })}
                     />

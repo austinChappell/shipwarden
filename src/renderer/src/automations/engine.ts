@@ -958,7 +958,7 @@ export class AutomationEngine {
                 const name = `Automations/${noteFileName(automation.name)} ${date} ${time.replace(':', '')}.md`;
                 const note = await api.notes.create(name, `# ${automation.name}\n\n_${date} ${time} · ${result.agent}_\n\n${result.answer}\n`);
                 await this.update(run.id, { noteName: note.name });
-                return `Saved the answer of ${result.agent} in the note "${note.name}".`;
+                return `Saved the answer of ${result.agent} in the file "${note.name}".`;
             }
             case 'moveTask':
                 return this.moveTask(context, event, action.status);

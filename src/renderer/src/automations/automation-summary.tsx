@@ -37,7 +37,7 @@ function actionPhrase(action: AutomationAction): ReactNode {
         case 'startAgent':
             return 'start an agent in a new worktree';
         case 'runHeadless':
-            return action.saveNote ? 'ask an agent and save the answer as a note' : 'ask an agent';
+            return action.saveNote ? 'ask an agent and save the answer in the Scratch Pad' : 'ask an agent';
         case 'moveTask':
             return action.status ? (
                 <>

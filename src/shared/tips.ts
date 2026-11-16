@@ -88,7 +88,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'commandPalette',
         title: 'Do it from the command palette',
-        body: 'Press ⇧⌘P and type. Create, open, or remove a worktree, open a pull request, a plan, or a note, change the theme, and more.',
+        body: 'Press ⇧⌘P and type. Create, open, or remove a worktree, open a pull request, a plan, or a Scratch Pad file, change the theme, and more.',
         action: { kind: 'commandPalette', label: 'Open the command palette' }
     },
     {

@@ -189,7 +189,7 @@ function noteItems(notes: readonly NoteInfo[], context: PaletteContext, searchOn
     return notes.map(note => ({
         id: `note:${note.name}`,
         label: note.fileName,
-        group: 'Notes',
+        group: 'Scratch Pad',
         detail: note.folder || undefined,
         keywords: note.tags,
         icon: FileText,
@@ -393,31 +393,32 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
         );
     }
 
-    // Notes.
+    // Scratch Pad.
     items.push(
         {
             id: 'view-notes',
-            label: 'Open Notes',
-            group: 'Notes',
+            label: 'Open Scratch Pad',
+            group: 'Scratch Pad',
+            keywords: ['notes'],
             icon: FileText,
             keys: SHORTCUT_INFO.viewNotes.keys[0],
             run: () => actions.enterView('notes')
         },
         {
             id: 'new-note',
-            label: 'Create a note',
-            group: 'Notes',
+            label: 'Create a file',
+            group: 'Scratch Pad',
             keywords: ['new', 'scratch'],
             icon: Plus,
             run: () => actions.createNote()
         },
         {
             id: 'open-note',
-            label: 'Open a note',
-            group: 'Notes',
+            label: 'Open a file',
+            group: 'Scratch Pad',
             keywords: ['existing', 'find'],
             icon: FileText,
-            page: () => page('open-note', 'Open a note', 'Find a note', 'You have no notes.', noteItems(context.notes ?? [], context, false))
+            page: () => page('open-note', 'Open a file', 'Find a file', 'You have no files.', noteItems(context.notes ?? [], context, false))
         },
         ...noteItems(context.notes ?? [], context, true)
     );

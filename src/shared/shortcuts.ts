@@ -296,7 +296,7 @@ export const SHORTCUT_INFO: Record<ShortcutAction, ShortcutInfo> = {
     viewTasks: { label: 'Tasks', keys: ['⌥⌘3'], group: 'Views' },
     viewReview: { label: 'Review', keys: ['⌥⌘4'], group: 'Views' },
     viewPipelines: { label: 'Pipelines', keys: ['⌥⌘5'], group: 'Views' },
-    viewNotes: { label: 'Notes', keys: ['⌥⌘6'], group: 'Views' },
+    viewNotes: { label: 'Scratch Pad', keys: ['⌥⌘6'], group: 'Views' },
     viewAutomations: { label: 'Automations', keys: ['⌥⌘7'], group: 'Views' },
     toggleSidebar: { label: 'Show or hide the sidebar', keys: ['⌘B'], group: 'Panels and focus' },
     focusSidebar: { label: 'Move the focus to the sidebar', keys: ['⇧⌘B'], group: 'Panels and focus' },

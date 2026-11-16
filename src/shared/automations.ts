@@ -1084,7 +1084,7 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
     {
         id: 'daily-summary',
         name: 'Daily summary',
-        description: 'Each weekday morning, ask an agent to summarize the changes of the last day, and save the answer as a note.',
+        description: 'Each weekday morning, ask an agent to summarize the changes of the last day, and save the answer in the Scratch Pad.',
         definition: {
             name: 'Daily summary',
             trigger: { type: 'schedule', days: [1, 2, 3, 4, 5], time: '08:00' },

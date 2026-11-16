@@ -97,7 +97,7 @@ export class NotesService {
             await fs.mkdir(folder);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === 'EEXIST')
-                throw new Error(`A folder or note with the name "${normalizeFolderPath(name)}" exists already.`);
+                throw new Error(`A folder or file with the name "${normalizeFolderPath(name)}" exists already.`);
             throw error;
         }
         return normalizeFolderPath(name);
@@ -120,7 +120,7 @@ export class NotesService {
             () => false
         );
         if (exists && source.toLowerCase() !== target.toLowerCase()) {
-            throw new Error(`A folder or note with the name "${target}" exists already.`);
+            throw new Error(`A folder or file with the name "${target}" exists already.`);
         }
         await fs.rename(from, to);
         await this.index.update(value => ({
@@ -145,11 +145,11 @@ export class NotesService {
         const file = this.file(name);
         const stat = await fs.stat(file);
         if (stat.size > MAX_NOTE_BYTES) {
-            throw new Error(`The note is ${Math.round(stat.size / 1024 / 1024)} MB. ShipWarden opens notes up to ${MAX_NOTE_BYTES / 1024 / 1024} MB.`);
+            throw new Error(`The file is ${Math.round(stat.size / 1024 / 1024)} MB. ShipWarden opens files up to ${MAX_NOTE_BYTES / 1024 / 1024} MB.`);
         }
         const content = await fs.readFile(file, 'utf8');
         if (content.slice(0, 8000).includes('\0')) {
-            throw new Error('The note is a binary file. Open it in another app.');
+            throw new Error('This is a binary file. Open it in another app.');
         }
         return content;
     }
@@ -164,7 +164,7 @@ export class NotesService {
         try {
             await fs.writeFile(this.file(name), content, { encoding: 'utf8', flag: 'wx' });
         } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(`A note with the name "${this.key(name)}" exists already.`);
+            if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(`A file with the name "${this.key(name)}" exists already.`);
             throw error;
         }
         return this.info(this.key(name));
@@ -182,7 +182,7 @@ export class NotesService {
                 () => false
             );
             if (exists && this.key(name).toLowerCase() !== target.toLowerCase()) {
-                throw new Error(`A note with the name "${target}" exists already.`);
+                throw new Error(`A file with the name "${target}" exists already.`);
             }
             await fs.mkdir(path.dirname(to), { recursive: true });
             await fs.rename(from, to);
@@ -239,7 +239,7 @@ export class NotesService {
 
     private async info(name: string): Promise<NoteInfo> {
         const note = (await this.list()).find(item => item.name === name);
-        if (!note) throw new Error(`The note "${name}" does not exist.`);
+        if (!note) throw new Error(`The file "${name}" does not exist.`);
         return note;
     }
 

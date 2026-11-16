@@ -533,7 +533,7 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                     </div>
                                     <div className="settings-row-control automation-run-actions">
                                         {run.status === 'held' && <Button onClick={() => void act(() => automationEngine.skip(run.id))}>Skip</Button>}
-                                        {run.noteName && <Button onClick={onOpenNotes}>Notes</Button>}
+                                        {run.noteName && <Button onClick={onOpenNotes}>Scratch Pad</Button>}
                                         {run.worktreePath && (
                                             <Button
                                                 title={run.worktreePath}

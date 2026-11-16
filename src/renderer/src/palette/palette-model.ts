@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 
 /** The groups of the command palette, in the order of the list. */
-export const PALETTE_GROUPS = ['Worktrees', 'Review', 'Tasks', 'Plans', 'Notes', 'Automations', 'Views', 'Settings', 'Help'] as const;
+export const PALETTE_GROUPS = ['Worktrees', 'Review', 'Tasks', 'Plans', 'Scratch Pad', 'Automations', 'Views', 'Settings', 'Help'] as const;
 
 export type PaletteGroup = (typeof PALETTE_GROUPS)[number];
 
