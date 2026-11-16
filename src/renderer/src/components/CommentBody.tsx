@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Check, FileDiff, LoaderCircle } from 'lucide-react';
+import { splitCategory } from '@shared/comment-category';
 import { splitSuggestions } from '@shared/suggestion';
 import { errorText } from '../util';
+import { CommentCategoryChip } from './CommentCategory';
 import { Markdown } from './Markdown';
 import { Button, Chip } from './ui';
 
@@ -15,14 +17,25 @@ interface Props {
     onApply?(lines: string[]): Promise<string>;
 }
 
-/** Shows a review comment. Each suggestion block shows as a diff of the old and the new lines, as on GitHub. */
+/**
+ * Shows a review comment. A category prefix shows as a colored chip.
+ * Each suggestion block shows as a diff of the old and the new lines, as on GitHub.
+ */
 export function CommentBody({ body, original, outdated, onApply }: Props) {
-    const parts = useMemo(() => splitSuggestions(body), [body]);
+    const { category, text } = useMemo(() => splitCategory(body), [body]);
+    const parts = useMemo(() => splitSuggestions(text), [text]);
+    const chip = category && <CommentCategoryChip category={category} />;
     if (!parts.some(part => part.kind === 'suggestion')) {
-        return <Markdown className="comment-body" text={body} />;
+        return (
+            <div className="comment-body">
+                {chip}
+                <Markdown text={text} />
+            </div>
+        );
     }
     return (
         <div className="comment-body">
+            {chip}
             {parts.map((part, index) =>
                 part.kind === 'text' ? (
                     part.text.trim() && <Markdown key={index} text={part.text} />

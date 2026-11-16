@@ -34,6 +34,20 @@ describe('parseAgentReview', () => {
         expect(reviewBody(review)).toBe('Looks fine.\n\nOther notes:\n\n- `src/x.ts` line 40: Far away.');
     });
 
+    it('puts the category of a comment in front of its text', () => {
+        const answer = JSON.stringify({
+            summary: 'S',
+            comments: [
+                { path: 'src/x.ts', line: 2, side: 'RIGHT', category: 'must-fix', body: 'Rename c.' },
+                { path: 'src/x.ts', line: 40, side: 'RIGHT', category: 'nit', body: 'Far away.' },
+                { path: 'src/x.ts', line: 2, side: 'LEFT', category: 'unknown', body: 'Why remove b?' }
+            ]
+        });
+        const review = parseAgentReview(answer, FILES);
+        expect(review.comments.map(comment => comment.body)).toEqual(['**Must fix:** Rename c.', 'Why remove b?']);
+        expect(review.unplaced).toEqual(['- `src/x.ts` line 40: **Nit:** Far away.']);
+    });
+
     it('reads JSON in a code fence with text around it', () => {
         const answer = 'Here is the review:\n```json\n{"summary": "S", "comments": []}\n```\nDone.';
         expect(parseAgentReview(answer, FILES).summary).toBe('S');

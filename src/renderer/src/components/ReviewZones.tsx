@@ -4,12 +4,14 @@ import { lineLabel } from '@shared/ask-agent';
 import { noteTargetOptions, type NoteTarget, type NoteTargetOption } from '@shared/code-note';
 import type { AgentDefinition } from '@shared/settings';
 import type { PendingComment, ReviewThread } from '@shared/github';
+import { splitCategory, withCategory, type CommentCategory } from '@shared/comment-category';
 import { answerOutdated, type AgentQuestion, type QuestionAction } from '../github/agent-questions';
 import { composerModes, composerPlaceholder, composerSubmitLabel, type ComposerMode } from '../github/diff-notes';
 import { useWorktreeSessions } from '../terminal/session-list-store';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
 import { CommentBody } from './CommentBody';
+import { CommentCategorySelect } from './CommentCategory';
 import { suggestionBlock, threadSuggestionTarget } from '@shared/suggestion';
 import { applyThreadSuggestion } from '../github/suggestions';
 import { radioGroupKeys } from './keyboard';
@@ -139,9 +141,17 @@ export function PendingZone({
     const [sent, setSent] = useState(false);
     const [editing, setEditing] = useState(false);
     const [text, setText] = useState(comment.body);
+    const [category, setCategory] = useState<CommentCategory>();
+    const startEdit = (body: string) => {
+        // A text without a prefix, for example an answer of the chat, keeps the category of the comment.
+        const split = splitCategory(body);
+        setCategory(split.category ?? splitCategory(comment.body).category);
+        setText(split.text);
+        setEditing(true);
+    };
     const save = () => {
         if (!text.trim()) return;
-        onEdit?.(text.trim());
+        onEdit?.(withCategory(text, category));
         setEditing(false);
     };
     return (
@@ -175,6 +185,7 @@ export function PendingZone({
                 <div className="thread-actions">
                     {editing ? (
                         <>
+                            <CommentCategorySelect value={category} onChange={setCategory} />
                             <Button variant="link" onClick={() => setEditing(false)}>
                                 Cancel
                             </Button>
@@ -184,13 +195,7 @@ export function PendingZone({
                         </>
                     ) : (
                         onEdit && (
-                            <Button
-                                variant="link"
-                                onClick={() => {
-                                    setText(comment.body);
-                                    setEditing(true);
-                                }}
-                            >
+                            <Button variant="link" onClick={() => startEdit(comment.body)}>
                                 Edit
                             </Button>
                         )
@@ -218,19 +223,7 @@ export function PendingZone({
                         Remove
                     </Button>
                 </div>
-                {chat && (
-                    <CommentChat
-                        context={chat}
-                        useLabel={onEdit ? 'Use as comment' : undefined}
-                        onUse={
-                            onEdit &&
-                            (answer => {
-                                setText(answer);
-                                setEditing(true);
-                            })
-                        }
-                    />
-                )}
+                {chat && <CommentChat context={chat} useLabel={onEdit ? 'Use as comment' : undefined} onUse={onEdit && (answer => startEdit(answer))} />}
             </CardBody>
         </Card>
     );
@@ -313,6 +306,7 @@ export function ComposerZone({
 }) {
     const modes = composerModes(canComment, !!onAsk, !!note || !!onSendToAgent);
     const [text, setText] = useState('');
+    const [category, setCategory] = useState<CommentCategory>();
     const [mode, setMode] = useState<ComposerMode>(initialMode ?? modes[0] ?? 'ask');
     const textRef = useRef<HTMLTextAreaElement>(null);
     /** The text of the lines when the user started a suggested change. */
@@ -332,7 +326,7 @@ export function ComposerZone({
             if (note) {
                 if (target) note.onSend(value, target.target);
             } else onSendToAgent?.(value);
-        } else onAdd(value, originalCode);
+        } else onAdd(withCategory(value, category), originalCode);
     };
     /** Puts a suggestion block with the text of the lines at the cursor. */
     const suggest = async () => {
@@ -396,15 +390,15 @@ export function ComposerZone({
                 />
                 {suggestError && <div className="form-error">{suggestError}</div>}
                 <div className="row-buttons">
-                    {mode === 'comment' && onSuggest && (
-                        <Button
-                            className="composer-suggest"
-                            icon={<FileDiff size={14} strokeWidth={1.6} />}
-                            title={`Add a suggested change for ${lines}`}
-                            onClick={suggest}
-                        >
-                            Suggest a change
-                        </Button>
+                    {mode === 'comment' && (
+                        <div className="composer-tools">
+                            <CommentCategorySelect value={category} onChange={setCategory} />
+                            {onSuggest && (
+                                <Button icon={<FileDiff size={14} strokeWidth={1.6} />} title={`Add a suggested change for ${lines}`} onClick={suggest}>
+                                    Suggest a change
+                                </Button>
+                            )}
+                        </div>
                     )}
                     {mode === 'note' && note && (
                         // Monaco must not handle the keys of the select. The wrapper stops them.

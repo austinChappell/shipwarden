@@ -1,4 +1,5 @@
 import type { DiffSide, PendingComment, RepoRef } from './github';
+import { categoryInstructions, isCommentCategory, withCategory } from './comment-category';
 import { hunkLines } from './pr-search';
 import { DEFAULT_REVIEW_STRICTNESS, strictnessInstructions, type ReviewStrictness } from './review-strictness';
 
@@ -126,9 +127,11 @@ export function reviewPrompt(input: ReviewPromptInput): string {
             ...strictnessInstructions(input.strictness ?? DEFAULT_REVIEW_STRICTNESS),
             'Read more of the code if it helps you. Do not change files. Do not post comments on GitHub.',
             'Your answer must be one JSON object and nothing else, with this shape:',
-            '{"summary": "<the review summary, in Markdown>", "comments": [{"path": "<file path>", "line": <line number>, "side": "RIGHT", "body": "<the comment, in Markdown>"}]}',
+            '{"summary": "<the review summary, in Markdown>", "comments": [{"path": "<file path>", "line": <line number>, "side": "RIGHT", "category": "<category>", "body": "<the comment, in Markdown>"}]}',
             '"side" is "RIGHT" for a line of the new version (an added line or a context line) and "LEFT" for a removed line.',
-            '"line" is the line number in that version of the file. It must be a line in a "@@" hunk of the diff above.'
+            '"line" is the line number in that version of the file. It must be a line in a "@@" hunk of the diff above.',
+            categoryInstructions(),
+            'Do not put the category in "body". ShipWarden adds it.'
         ].join('\n')
     );
     return parts.join('\n\n');
@@ -171,7 +174,7 @@ export function parseAgentReview(answer: string, files: { path: string; patch?: 
 
 /**
  * Reads one review object of an agent: `{ summary, comments }`. A comment on a line that is not in the diff of its
- * file goes to `unplaced`.
+ * file goes to `unplaced`. A comment with a known `category` gets the category prefix in its text.
  */
 export function readReview(data: object, files: { path: string; patch?: string }[]): ParsedReview {
     const raw = data as { summary?: unknown; comments?: unknown };
@@ -181,9 +184,9 @@ export function readReview(data: object, files: { path: string; patch?: string }
     const unplaced: string[] = [];
     for (const item of Array.isArray(raw.comments) ? raw.comments : []) {
         if (!item || typeof item !== 'object') continue;
-        const { path, line, side, body } = item as Record<string, unknown>;
+        const { path, line, side, body, category } = item as Record<string, unknown>;
         if (typeof body !== 'string' || !body.trim()) continue;
-        const text = body.trim();
+        const text = withCategory(body, isCommentCategory(category) ? category : undefined);
         const where = typeof path === 'string' ? `\`${path}\`${typeof line === 'number' ? ` line ${line}` : ''}` : 'General';
         const wanted: DiffSide = side === 'LEFT' ? 'LEFT' : 'RIGHT';
         const fileLines = typeof path === 'string' ? lines.get(path) : undefined;
