@@ -14165,6 +14165,38 @@ button.pr-summary-cell:hover {
     order: 1;
 }
 
+/* The toast (ToastHost). It uses the frame of the update notice, above the other notices. It closes by itself. */
+.corner-notices > .update-notice.toast {
+    order: -1;
+    width: auto;
+    max-width: min(460px, calc(100vw - 32px));
+    border-color: var(--border);
+    animation: toast-in 120ms ease-out;
+}
+
+.toast .update-notice-icon {
+    color: var(--ok);
+}
+
+.toast-detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .corner-notices > .update-notice.toast {
+        animation: none;
+    }
+}
+
 /* The tip notice (TipNotice). It uses the frame of the update notice, above the update notice. */
 .corner-notices > .update-notice.tip-notice {
     order: 0;
