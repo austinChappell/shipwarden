@@ -1,3 +1,4 @@
+import { categoryInstructions } from './comment-category';
 import { extractJson, fileDiffs, MAX_REVIEW_PATCH, readReview, type ParsedReview, type ReviewPromptInput } from './agent-review';
 import { parseAzureRemote } from './azure-devops';
 import { DEFAULT_REVIEW_STRICTNESS, strictnessInstructions, type ReviewStrictness } from './review-strictness';
@@ -313,9 +314,11 @@ export function groupReviewPrompt(input: GroupPromptInput): string {
             'Read more of the code if it helps you. Do not change files. Do not post comments.',
             'Put a comment on the pull request where the change must happen. If both sides must change, write a comment on each side.',
             'Your answer must be one JSON object and nothing else, with this shape:',
-            '{"summary": "<the review of the group as a whole, in Markdown>", "pullRequests": [{"pr": "<the key after \'Pull request N:\'>", "summary": "<the review of this pull request, in Markdown>", "comments": [{"path": "<file path>", "line": <line number>, "side": "RIGHT", "body": "<the comment, in Markdown>"}]}]}',
+            '{"summary": "<the review of the group as a whole, in Markdown>", "pullRequests": [{"pr": "<the key after \'Pull request N:\'>", "summary": "<the review of this pull request, in Markdown>", "comments": [{"path": "<file path>", "line": <line number>, "side": "RIGHT", "category": "<category>", "body": "<the comment, in Markdown>"}]}]}',
             '"side" is "RIGHT" for a line of the new version (an added line or a context line) and "LEFT" for a removed line.',
-            '"line" is the line number in that version of the file. It must be a line in a "@@" hunk of the diff of that pull request.'
+            '"line" is the line number in that version of the file. It must be a line in a "@@" hunk of the diff of that pull request.',
+            categoryInstructions(),
+            'Do not put the category in "body". ShipWarden adds it.'
         ].join('\n')
     );
     return parts.join('\n\n');
