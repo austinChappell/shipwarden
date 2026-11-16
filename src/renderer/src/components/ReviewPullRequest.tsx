@@ -7,7 +7,7 @@ import type { ProjectsState, PullRepoTarget } from '@shared/projects';
 import type { ReviewStrictness } from '@shared/review-strictness';
 import type { Worktree } from '@shared/worktrees';
 import { keyRoots } from '../query-client';
-import { reviewStore, useReviewState } from '../github/review-store';
+import { hasAgentReview, reviewStore, useReviewState } from '../github/review-store';
 import { useDefaultReviewStrictness } from '../github/review-strictness';
 import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
@@ -19,7 +19,7 @@ import { PullRequestSummary } from './PullRequestSummary';
 import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
-import { AGENT_REVIEW_TITLE } from './PullRequestReviewCard';
+import { AGENT_REVIEW_TITLE, CLEAR_AGENT_REVIEW_TITLE } from './PullRequestReviewCard';
 import { strictnessTitle } from './review-strictness-menu';
 import { Button, ButtonGroup, Count, IconButton, SplitButton, type SplitMenuItem } from './ui';
 import { EmptyState } from './EmptyState';
@@ -438,6 +438,7 @@ export function ReviewPullRequest({
 
     const openOnHost = () => openLink(pr.url);
     const runAgentReview = (strictness?: ReviewStrictness) => void reviewStore.runAgentReview(repo, pr, strictness);
+    const clearAgentReview = agentReview?.status !== 'running' && hasAgentReview(review) ? () => reviewStore.clearAgentReview(repo, pr.number) : undefined;
     /** Opens the worktree of the head branch, or makes one. A branch in a fork cannot get a worktree. */
     const worktreeAction: HeaderAction | undefined = onNewWorktree && {
         label: branchWorktree ? 'Open worktree' : 'New worktree',
@@ -582,6 +583,11 @@ export function ReviewPullRequest({
                                 <Button variant="link" onClick={() => selectTab('overview')}>
                                     Show summary
                                 </Button>
+                                {clearAgentReview && (
+                                    <Button variant="link-danger" title={CLEAR_AGENT_REVIEW_TITLE} onClick={clearAgentReview}>
+                                        Clear
+                                    </Button>
+                                )}
                             </>
                         )}
                         {agentReview.status === 'error' && <span className="agent-review-error">The agent review failed: {agentReview.error}</span>}
@@ -627,7 +633,8 @@ export function ReviewPullRequest({
                                 running: agentReview?.status === 'running',
                                 defaultStrictness,
                                 run: runAgentReview,
-                                cancel: () => reviewStore.cancelAgentReview(repo, pr.number)
+                                cancel: () => reviewStore.cancelAgentReview(repo, pr.number),
+                                clear: clearAgentReview
                             }}
                         />
                     </div>

@@ -501,6 +501,10 @@ export interface PendingComment {
      * The user must accept or remove each such comment before the review can go out.
      */
     needsDecision?: boolean;
+    /** True when an agent review wrote the comment. "Clear agent review" and a new agent review remove it. */
+    fromReview?: boolean;
+    /** The text of the line when the agent review wrote the comment. A change of this line removes the comment. */
+    lineText?: string;
 }
 
 /** Returns the number of pending comments that the user must accept or remove before the review can go out. */

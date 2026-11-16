@@ -10,7 +10,7 @@ import {
     type RepoRef,
     type RepoTarget
 } from '@shared/github';
-import { parseAgentReview, reviewBody, reviewPrompt, type ParsedReview } from '@shared/agent-review';
+import { agentCommentApplies, parseAgentReview, reviewBody, reviewPrompt, withoutAgentTexts, type ParsedReview } from '@shared/agent-review';
 import type { ReviewStrictness } from '@shared/review-strictness';
 import { keyRoots, queryClient } from '../query-client';
 import { defaultReviewStrictness } from './review-strictness';
@@ -29,6 +29,8 @@ interface ReviewState {
     /** The review text just after the last agent review added its summary. Submit compares it with `body`. */
     agentBody?: string;
     agentReview?: AgentReviewState;
+    /** The texts that agent reviews added to `body`. "Clear agent review" removes them. */
+    agentTexts?: string[];
 }
 
 const EMPTY: ReviewState = { pending: [], body: '' };
@@ -60,6 +62,23 @@ function key(target: RepoTarget, number: number): string {
     return `${targetKey(target)}#${number}`;
 }
 
+/** Returns true when the review state has comments or text from an agent review. */
+export function hasAgentReview(state: Pick<ReviewState, 'pending' | 'agentTexts'>): boolean {
+    return state.pending.some(comment => comment.fromReview) || !!state.agentTexts?.length;
+}
+
+/** Removes the comments and the texts of all agent reviews from a review state. The comments of the user stay. */
+export function withoutAgentReview(state: ReviewState): ReviewState {
+    if (!hasAgentReview(state)) return state;
+    return {
+        ...state,
+        pending: state.pending.filter(comment => !comment.fromReview),
+        body: withoutAgentTexts(state.body, state.agentTexts ?? []),
+        agentBody: undefined,
+        agentTexts: undefined
+    };
+}
+
 /**
  * Keeps the review state of each pull request that the user has open: the comments that wait for the next review,
  * the review text and the agent review. The query cache keeps the changed files and the loaded file versions.
@@ -67,6 +86,17 @@ function key(target: RepoTarget, number: number): string {
 class ReviewStore {
     private readonly states = new Map<string, ReviewState>();
     private readonly listeners = new Set<() => void>();
+
+    constructor() {
+        // New changed files (for example after a push) remove the agent review comments that do not apply now.
+        queryClient.getQueryCache().subscribe(event => {
+            if (event.type !== 'updated' || event.action.type !== 'success') return;
+            const [first, second, target, number] = event.query.queryKey;
+            const [root, kind] = keyRoots.pullRequestFiles;
+            if (first !== root || second !== kind || typeof target !== 'string' || typeof number !== 'number') return;
+            this.dropVoidComments(`${target}#${number}`, event.action.data as PullRequestFile[]);
+        });
+    }
 
     get(target: RepoTarget, number: number): ReviewState {
         return this.states.get(key(target, number)) ?? EMPTY;
@@ -112,7 +142,8 @@ class ReviewStore {
     async runAgentReview(repo: RepoRef, pr: PullRequest, strictness?: ReviewStrictness): Promise<void> {
         if (this.get(repo, pr.number).agentReview?.status === 'running') return;
         const id = crypto.randomUUID();
-        this.update(repo, pr.number, state => ({ ...state, agentReview: { status: 'running', id } }));
+        // A new review replaces the comments and the text of the last agent review.
+        this.update(repo, pr.number, state => ({ ...withoutAgentReview(state), agentReview: { status: 'running', id } }));
         try {
             const [files, level] = await Promise.all([this.loadFiles(repo, pr.number), strictness ?? defaultReviewStrictness([repo])]);
             const prompt = reviewPrompt({ pr, repo, files, strictness: level });
@@ -128,18 +159,24 @@ class ReviewStore {
 
     /**
      * Adds the result of an agent review to the review of the user: the line comments become pending comments, and the
-     * summary goes at the end of the review text. A group review uses it for each pull request of the group.
+     * summary goes at the end of the review text. The result replaces the comments and the text of the last agent review.
+     * A comment on a line that changed after the agent read the files does not apply, so it is not added.
+     * A group review uses this function for each pull request of the group.
      */
     applyAgentReview(target: RepoTarget, number: number, review: ParsedReview, agent: string): void {
         const text = reviewBody(review);
-        this.update(target, number, state => {
+        const files = queryClient.getQueryData<PullRequestFile[]>(reviewKeys.files(target, number));
+        const comments = files ? review.comments.filter(comment => agentCommentApplies(comment, files)) : review.comments;
+        this.update(target, number, current => {
+            const state = withoutAgentReview(current);
             const body = [state.body.trim(), text].filter(Boolean).join('\n\n');
             return {
                 ...state,
-                pending: [...state.pending, ...review.comments],
+                pending: [...state.pending, ...comments],
                 body,
                 agentBody: text ? body : state.agentBody,
-                agentReview: { status: 'done', agent, comments: review.comments.length, notes: review.unplaced.length }
+                agentTexts: text ? [text] : undefined,
+                agentReview: { status: 'done', agent, comments: comments.length, notes: review.unplaced.length }
             };
         });
     }
@@ -150,6 +187,27 @@ class ReviewStore {
         if (current?.status !== 'running') return;
         this.update(repo, number, state => ({ ...state, agentReview: undefined }));
         void window.shipwarden.ask.cancel(current.id);
+    }
+
+    /**
+     * Removes the comments and the summary of the agent review: the accepted comments and the comments without a
+     * decision. The comments of the user stay. A summary that the user changed stays.
+     */
+    clearAgentReview(target: RepoTarget, number: number): void {
+        this.update(target, number, state => {
+            const cleared = withoutAgentReview(state);
+            return state.agentReview?.status === 'running' ? cleared : { ...cleared, agentReview: undefined };
+        });
+    }
+
+    /** Removes the agent review comments that do not apply to the new changed files of a pull request. */
+    private dropVoidComments(stateKey: string, files: PullRequestFile[]): void {
+        const state = this.states.get(stateKey);
+        if (!state || !Array.isArray(files)) return;
+        const pending = state.pending.filter(comment => agentCommentApplies(comment, files));
+        if (pending.length === state.pending.length) return;
+        this.states.set(stateKey, { ...state, pending });
+        this.listeners.forEach(listener => listener());
     }
 
     /** Hides the result of the last agent review. */
