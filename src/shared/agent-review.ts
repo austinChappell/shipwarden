@@ -24,12 +24,55 @@ export interface CommentableLines {
  * a removed line or a context line on the left (old) side, an added line or a context line on the right (new) side.
  */
 export function commentableLines(patch: string | undefined): CommentableLines {
-    const result: CommentableLines = { LEFT: new Set(), RIGHT: new Set() };
+    const texts = lineTexts(patch);
+    return { LEFT: new Set(texts.LEFT.keys()), RIGHT: new Set(texts.RIGHT.keys()) };
+}
+
+/** The text of each line of a file diff that can have a review comment, by side and line number. */
+export interface LineTexts {
+    LEFT: Map<number, string>;
+    RIGHT: Map<number, string>;
+}
+
+/** Returns the text of each line in the "@@" hunks of a patch, by side and line number. */
+export function lineTexts(patch: string | undefined): LineTexts {
+    const result: LineTexts = { LEFT: new Map(), RIGHT: new Map() };
     for (const line of hunkLines(patch)) {
-        if (line.left !== undefined) result.LEFT.add(line.left);
-        if (line.right !== undefined) result.RIGHT.add(line.right);
+        if (line.left !== undefined) result.LEFT.set(line.left, line.text);
+        if (line.right !== undefined) result.RIGHT.set(line.right, line.text);
     }
     return result;
+}
+
+/**
+ * Returns true when a comment of an agent review still applies to the changed files of the pull request.
+ * The comment applies when its line is in a hunk of its file and has the same text as before.
+ * A file without a diff (binary or too large) keeps its comments, because the check cannot read its lines.
+ * A comment that an agent review did not write always applies.
+ */
+export function agentCommentApplies(comment: PendingComment, files: readonly { path: string; patch?: string }[]): boolean {
+    if (!comment.fromReview) return true;
+    const file = files.find(item => item.path === comment.path);
+    if (!file) return false;
+    if (!file.patch) return true;
+    const text = lineTexts(file.patch)[comment.side].get(comment.line);
+    return text !== undefined && (comment.lineText === undefined || text === comment.lineText);
+}
+
+/**
+ * Removes the texts of agent reviews from a review text. A text that the user changed is not found, so it stays.
+ * The text before and after a removed text gets one blank line between them.
+ */
+export function withoutAgentTexts(body: string, texts: readonly string[]): string {
+    let result = body;
+    for (const text of texts) {
+        const at = text ? result.indexOf(text) : -1;
+        if (at < 0) continue;
+        const before = result.slice(0, at).trimEnd();
+        const after = result.slice(at + text.length).trimStart();
+        result = [before, after].filter(Boolean).join('\n\n');
+    }
+    return result.trim();
 }
 
 /** The file diffs of a pull request for a prompt, from `fileDiffs`. */
@@ -93,7 +136,7 @@ export function reviewPrompt(input: ReviewPromptInput): string {
 
 export interface ParsedReview {
     summary: string;
-    /** The comments on lines of the diff. Each one has `fromAgent` and `needsDecision`. */
+    /** The comments on lines of the diff. Each one has `fromAgent`, `needsDecision`, `fromReview`, and `lineText`. */
     comments: PendingComment[];
     /** The comments that are not on a line of the diff, as Markdown list items. The caller adds them to the summary. */
     unplaced: string[];
@@ -133,7 +176,7 @@ export function parseAgentReview(answer: string, files: { path: string; patch?: 
 export function readReview(data: object, files: { path: string; patch?: string }[]): ParsedReview {
     const raw = data as { summary?: unknown; comments?: unknown };
     const summary = typeof raw.summary === 'string' ? raw.summary.trim() : '';
-    const lines = new Map(files.map(file => [file.path, commentableLines(file.patch)]));
+    const lines = new Map(files.map(file => [file.path, lineTexts(file.patch)]));
     const comments: PendingComment[] = [];
     const unplaced: string[] = [];
     for (const item of Array.isArray(raw.comments) ? raw.comments : []) {
@@ -144,8 +187,9 @@ export function readReview(data: object, files: { path: string; patch?: string }
         const where = typeof path === 'string' ? `\`${path}\`${typeof line === 'number' ? ` line ${line}` : ''}` : 'General';
         const wanted: DiffSide = side === 'LEFT' ? 'LEFT' : 'RIGHT';
         const fileLines = typeof path === 'string' ? lines.get(path) : undefined;
-        if (typeof path === 'string' && Number.isInteger(line) && fileLines?.[wanted].has(line as number)) {
-            comments.push({ path, line: line as number, side: wanted, body: text, fromAgent: true, needsDecision: true });
+        const lineText = Number.isInteger(line) ? fileLines?.[wanted].get(line as number) : undefined;
+        if (typeof path === 'string' && lineText !== undefined) {
+            comments.push({ path, line: line as number, side: wanted, body: text, fromAgent: true, needsDecision: true, fromReview: true, lineText });
         } else {
             unplaced.push(`- ${where}: ${text.replace(/\n/g, '\n  ')}`);
         }

@@ -1,5 +1,5 @@
 import { useId, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { Bot, Check, LoaderCircle, MessageSquare, X } from 'lucide-react';
+import { Bot, Check, Eraser, LoaderCircle, MessageSquare, X } from 'lucide-react';
 import type { DiffSide, PendingComment, PullRequest, PullRequestFile, ReviewEvent } from '@shared/github';
 import type { ReviewStrictness } from '@shared/review-strictness';
 import { decisionEvents, firstUndecided, pendingText, REVIEW_EVENT_TEXT, reviewButtons, reviewEvents, undecidedText } from '../github/review-state';
@@ -34,7 +34,12 @@ export interface AgentReviewControl {
     /** Starts a review. Without `strictness`, the review uses the default of the repository. */
     run(strictness?: ReviewStrictness): void;
     cancel(): void;
+    /** Removes the comments and the summary of the agent review. Undefined when there is nothing to remove. */
+    clear?: () => void;
 }
+
+/** The tooltip of the buttons that remove an agent review. */
+export const CLEAR_AGENT_REVIEW_TITLE = 'Remove all comments of the agent review, also the accepted comments, and its summary. Your own comments stay.';
 
 /** The button that starts an agent review. While the review runs, it shows the progress and a Cancel button. */
 function AgentReviewButton({ control }: { control: AgentReviewControl }) {
@@ -139,7 +144,27 @@ export function PullRequestReviewCard({ pr, overview, body, onBody, pending, fil
     }
     return (
         <Card as="section" className="review-card" aria-label="Your review">
-            <CardHeader title="Your review" actions={agentReview && <AgentReviewButton control={agentReview} />} />
+            <CardHeader
+                title="Your review"
+                actions={
+                    agentReview && (
+                        <>
+                            {agentReview.clear && (
+                                <Button
+                                    size="sm"
+                                    variant="danger"
+                                    icon={<Eraser size={14} strokeWidth={1.6} />}
+                                    title={CLEAR_AGENT_REVIEW_TITLE}
+                                    onClick={agentReview.clear}
+                                >
+                                    Clear
+                                </Button>
+                            )}
+                            <AgentReviewButton control={agentReview} />
+                        </>
+                    )
+                }
+            />
             <CardBody className="review-card-body">
                 {(pr.viewerIsRequested || pendingPill) && (
                     <div className="review-card-notes">
