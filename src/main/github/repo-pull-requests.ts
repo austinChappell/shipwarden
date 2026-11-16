@@ -6,35 +6,54 @@ import { PEOPLE_FIELDS, pullRequestPeople, type GraphQlPeople } from './pull-req
 
 // The open pull requests of a repository, for the review queue of the Review view.
 
-export const REPO_PULL_REQUESTS_QUERY = `query($owner: String!, $name: String!, $q: String!) {
-  viewer { login }
-  repository(owner: $owner, name: $name) {
-    pushedAt
-    pullRequests(states: OPEN, first: 100, orderBy: { field: UPDATED_AT, direction: DESC }) {
-      totalCount
-      nodes {
-        id number title url isDraft createdAt updatedAt headRefName baseRefName headRefOid
-        additions deletions changedFiles viewerDidAuthor reviewDecision mergeable mergeStateStatus
-        author { login }
-        ${PEOPLE_FIELDS}
-        comments(last: 10) { totalCount nodes { createdAt author { __typename login } } }
-        reviews(last: 10) { nodes { submittedAt author { __typename login } } }
-        viewerLatestReview { state submittedAt commit { oid } }
-        commits(last: 1) {
-          nodes {
-            commit {
-              statusCheckRollup {
-                state
-                contexts(first: 1) { checkRunCountsByState { state count } statusContextCountsByState { state count } }
-              }
-            }
-          }
+/**
+ * The number of the most recently updated open pull requests in the list. GitHub calculates the fields of each pull request
+ * slowly. In a busy repository, a list of 100 passes the time limit of GitHub (502).
+ */
+export const RECENT_LIMIT = 30;
+
+/**
+ * The fields of an open pull request. They do not include `mergeable` and `mergeStateStatus`, because GitHub calculates them slowly.
+ * Only the search for the pull requests of the viewer asks for `mergeable`.
+ */
+const OPEN_PR_FIELDS = `fragment OpenPr on PullRequest {
+  id number title url isDraft createdAt updatedAt headRefName baseRefName headRefOid
+  additions deletions changedFiles viewerDidAuthor reviewDecision
+  author { login }
+  ${PEOPLE_FIELDS}
+  comments(last: 10) { totalCount nodes { createdAt author { __typename login } } }
+  reviews(last: 10) { nodes { submittedAt author { __typename login } } }
+  viewerLatestReview { state submittedAt commit { oid } }
+  commits(last: 1) {
+    nodes {
+      commit {
+        statusCheckRollup {
+          state
+          contexts(first: 1) { checkRunCountsByState { state count } statusContextCountsByState { state count } }
         }
       }
     }
   }
-  search(query: $q, type: ISSUE, first: 100) { nodes { ... on PullRequest { number } } }
 }`;
+
+/**
+ * The open pull requests of a repository: the most recently updated ones, and the ones that involve the viewer.
+ * The searches find older pull requests for the review queue that the recent list does not contain.
+ */
+export const REPO_PULL_REQUESTS_QUERY = `query($owner: String!, $name: String!, $requested: String!, $reviewed: String!, $mine: String!) {
+  viewer { login }
+  repository(owner: $owner, name: $name) {
+    pushedAt
+    pullRequests(states: OPEN, first: ${RECENT_LIMIT}, orderBy: { field: UPDATED_AT, direction: DESC }) {
+      totalCount
+      nodes { ...OpenPr }
+    }
+  }
+  requested: search(query: $requested, type: ISSUE, first: 50) { nodes { ... on PullRequest { ...OpenPr } } }
+  reviewed: search(query: $reviewed, type: ISSUE, first: 30) { nodes { ... on PullRequest { ...OpenPr } } }
+  mine: search(query: $mine, type: ISSUE, first: 30) { nodes { ... on PullRequest { ...OpenPr mergeable } } }
+}
+${OPEN_PR_FIELDS}`;
 
 export const SINCE_REVIEW_QUERY = `query($ids: [ID!]!) {
   nodes(ids: $ids) {
@@ -46,7 +65,7 @@ export const SINCE_REVIEW_QUERY = `query($ids: [ID!]!) {
   }
 }`;
 
-interface GraphQlOpenPr extends GraphQlPeople {
+export interface GraphQlOpenPr extends GraphQlPeople {
     id: string;
     number: number;
     title: string;
@@ -61,8 +80,8 @@ interface GraphQlOpenPr extends GraphQlPeople {
     deletions: number;
     changedFiles: number;
     viewerDidAuthor: boolean;
-    mergeable: string;
-    mergeStateStatus: string;
+    /** Only the pull requests of the viewer have this field. */
+    mergeable?: string;
     comments: { totalCount: number; nodes?: { createdAt: string; author: { __typename?: string; login: string } | null }[] };
     reviews?: { nodes: { submittedAt: string | null; author: { __typename?: string; login: string } | null }[] };
     viewerLatestReview: { state: string; submittedAt: string | null; commit: { oid: string } | null } | null;
@@ -124,53 +143,82 @@ export function openPullRequest(node: GraphQlOpenPr, reviewRequested: boolean, v
             ...(node.comments.nodes ?? []).map(item => ({ at: item.createdAt, author: item.author })),
             ...(node.reviews?.nodes ?? []).map(item => ({ at: item.submittedAt, author: item.author }))
         ]),
-        actions: node.viewerDidAuthor ? myPullRequestReasons({ ...node, checks: rollup?.state ?? null }) : [],
+        actions: node.viewerDidAuthor ? myPullRequestReasons({ ...node, mergeable: node.mergeable ?? 'UNKNOWN', checks: rollup?.state ?? null }) : [],
         ...pullRequestPeople(node)
     };
 }
 
+type SearchNodes = { nodes: (GraphQlOpenPr | Record<string, never>)[] };
+
+function searchPrs(result: SearchNodes): GraphQlOpenPr[] {
+    return result.nodes.filter((node): node is GraphQlOpenPr => 'number' in node);
+}
+
 /**
- * Returns the open pull requests of a repository (up to 100, the newest update first) for the Review view.
+ * Joins the recent pull requests and the pull requests of the searches. A pull request of a search replaces the same pull
+ * request of the recent list, because only the search for the pull requests of the viewer has `mergeable`.
+ * The newest update comes first.
+ */
+export function joinOpenPullRequests(recent: GraphQlOpenPr[], searched: GraphQlOpenPr[]): GraphQlOpenPr[] {
+    const byNumber = new Map<number, GraphQlOpenPr>();
+    for (const node of [...recent, ...searched]) byNumber.set(node.number, { ...byNumber.get(node.number), ...node });
+    return [...byNumber.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+/**
+ * Returns the open pull requests of a repository for the Review view: the 30 most recently updated ones, and the ones where
+ * GitHub asks the viewer for a review, the viewer reviewed or the viewer is the author. The newest update comes first.
  * For each pull request, it tells if GitHub asks the viewer for a review, the last review of the viewer and the checks.
  * For a pull request to review again, it also counts the new commits and the resolved threads of the viewer.
  */
 export async function fetchRepoPullRequests(client: GitHubClient, repo: RepoRef): Promise<RepoPullRequests> {
+    const scope = `repo:${repo.owner}/${repo.name} is:pr is:open sort:updated-desc`;
     const data = await client.graphql<{
         viewer: { login: string };
         repository: { pushedAt: string | null; pullRequests: { totalCount: number; nodes: GraphQlOpenPr[] } } | null;
-        search: { nodes: ({ number: number } | Record<string, never>)[] };
+        requested: SearchNodes;
+        reviewed: SearchNodes;
+        mine: SearchNodes;
     }>(REPO_PULL_REQUESTS_QUERY, {
         owner: repo.owner,
         name: repo.name,
-        q: `repo:${repo.owner}/${repo.name} is:pr is:open draft:false review-requested:@me`
+        requested: `${scope} draft:false review-requested:@me`,
+        reviewed: `${scope} reviewed-by:@me -author:@me`,
+        mine: `${scope} author:@me`
     });
     if (!data.repository) {
         throw new Error(`The repository ${repo.owner}/${repo.name} does not exist, or the token cannot read it.`);
     }
     const viewer = data.viewer.login;
-    const requested = new Set(data.search.nodes.flatMap(node => ('number' in node ? [node.number] : [])));
-    const prs = data.repository.pullRequests.nodes.map(node => openPullRequest(node, requested.has(node.number), viewer));
+    const requestedPrs = searchPrs(data.requested);
+    const requested = new Set(requestedPrs.map(node => node.number));
+    const nodes = joinOpenPullRequests(data.repository.pullRequests.nodes, [...requestedPrs, ...searchPrs(data.reviewed), ...searchPrs(data.mine)]);
+    const prs = nodes.map(node => openPullRequest(node, requested.has(node.number), viewer));
 
     // The changes after the last review of the viewer, for the pull requests to review again. 20 pull requests in each request.
+    // The requests run at the same time. Usually there is only one.
     // The main process does not know the seen activity, so this list can contain pull requests that the viewer marked as seen.
     const reviewed = prs.filter(pr => reviewGroup(pr) === 're-review');
-    for (let index = 0; index < reviewed.length; index += 20) {
-        const batch = reviewed.slice(index, index + 20);
-        const details = await client.graphql<{ nodes: (GraphQlSinceReview | null)[] }>(SINCE_REVIEW_QUERY, { ids: batch.map(pr => pr.id) });
-        const byId = new Map(details.nodes.filter((node): node is GraphQlSinceReview => !!node && 'commits' in node).map(node => [node.id, node]));
-        for (const pr of batch) {
-            const node = byId.get(pr.id);
-            if (!node) continue;
-            const own = node.reviewThreads.nodes.filter(thread => thread.comments.nodes[0]?.author?.login.toLowerCase() === viewer.toLowerCase());
-            pr.sinceReview = {
-                newCommits: commitsAfter(
-                    node.commits.nodes.map(item => item.commit.oid),
-                    pr.viewerReview!.commitOid
-                ),
-                threads: own.length,
-                resolved: own.filter(thread => thread.isResolved).length
-            };
-        }
-    }
+    const batches: OpenPullRequest[][] = [];
+    for (let index = 0; index < reviewed.length; index += 20) batches.push(reviewed.slice(index, index + 20));
+    await Promise.all(
+        batches.map(async batch => {
+            const details = await client.graphql<{ nodes: (GraphQlSinceReview | null)[] }>(SINCE_REVIEW_QUERY, { ids: batch.map(pr => pr.id) });
+            const byId = new Map(details.nodes.filter((node): node is GraphQlSinceReview => !!node && 'commits' in node).map(node => [node.id, node]));
+            for (const pr of batch) {
+                const node = byId.get(pr.id);
+                if (!node) continue;
+                const own = node.reviewThreads.nodes.filter(thread => thread.comments.nodes[0]?.author?.login.toLowerCase() === viewer.toLowerCase());
+                pr.sinceReview = {
+                    newCommits: commitsAfter(
+                        node.commits.nodes.map(item => item.commit.oid),
+                        pr.viewerReview!.commitOid
+                    ),
+                    threads: own.length,
+                    resolved: own.filter(thread => thread.isResolved).length
+                };
+            }
+        })
+    );
     return { viewer, openCount: data.repository.pullRequests.totalCount, pushedAt: data.repository.pushedAt ?? undefined, pullRequests: prs };
 }
