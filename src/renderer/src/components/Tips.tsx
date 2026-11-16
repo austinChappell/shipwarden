@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import { Lightbulb, X } from 'lucide-react';
+import { Lightbulb, Star, X } from 'lucide-react';
 import { CornerNotice } from './CornerNotice';
 import { Button, IconButton } from './ui';
 import { INLINE_TIPS, type InlineTip as InlineTipContent, type InlineTipId, type Tip, type TipAction } from '@shared/tips';
@@ -101,6 +101,36 @@ export function TipNotice({ tip, onRun, onClose, onTurnOff }: NoticeProps) {
                     </span>
                 </div>
                 <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close the tip" onClick={onClose} />
+            </section>
+        </CornerNotice>
+    );
+}
+
+interface StarNoticeProps {
+    onStar(): void;
+    onClose(): void;
+}
+
+/** The notice in the bottom-right corner that asks the user to star ShipWarden on GitHub. It shows one time. */
+export function StarNotice({ onStar, onClose }: StarNoticeProps) {
+    return (
+        <CornerNotice>
+            <section className="update-notice tip-notice" aria-labelledby="star-notice-title">
+                <Star size={18} strokeWidth={1.8} className="update-notice-icon" aria-hidden="true" />
+                <div className="update-notice-text">
+                    <strong id="star-notice-title">Enjoying ShipWarden?</strong>
+                    <span className="update-notice-detail">A star on GitHub helps other developers find the app.</span>
+                    <span className="tip-notice-buttons">
+                        <Button variant="primary" onClick={onStar}>
+                            Star on GitHub
+                        </Button>
+                        <span className="header-spacer" />
+                        <Button variant="link" onClick={onClose}>
+                            No, thanks
+                        </Button>
+                    </span>
+                </div>
+                <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close" onClick={onClose} />
             </section>
         </CornerNotice>
     );

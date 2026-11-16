@@ -19,6 +19,10 @@ export interface OnboardingSettings {
     recentTips?: string[];
     /** The time (milliseconds since 1970) when the user closed the last tip notice. The next notice shows 12 hours later. */
     tipClosedAt?: number;
+    /** The time (milliseconds since 1970) when the user started to use ShipWarden. The star notice uses it. */
+    firstUsedAt?: number;
+    /** True when the user answered the GitHub star notice. The notice does not show again. */
+    starPromptDone?: boolean;
 }
 
 export type OnboardingWelcome = 'new' | 'done' | 'skipped';
@@ -52,6 +56,8 @@ export function normalizeOnboarding(raw: unknown): OnboardingSettings | undefine
         if (recent.length > 0) result.recentTips = recent;
     }
     if (typeof value.tipClosedAt === 'number' && Number.isFinite(value.tipClosedAt) && value.tipClosedAt > 0) result.tipClosedAt = value.tipClosedAt;
+    if (typeof value.firstUsedAt === 'number' && Number.isFinite(value.firstUsedAt) && value.firstUsedAt > 0) result.firstUsedAt = value.firstUsedAt;
+    if (value.starPromptDone === true) result.starPromptDone = true;
     return result;
 }
 
@@ -67,8 +73,8 @@ function normalizeChecklist(raw: unknown): Record<string, boolean> | undefined {
  * A current user (with a repository) does not see the welcome page or the checklist. A new user (without a repository)
  * sees both.
  */
-export function initialOnboarding(hasRepos: boolean): OnboardingSettings {
-    return hasRepos ? { welcome: 'done', checklistClosed: true } : { welcome: 'new' };
+export function initialOnboarding(hasRepos: boolean, firstUsedAt: number): OnboardingSettings {
+    return hasRepos ? { welcome: 'done', checklistClosed: true, firstUsedAt } : { welcome: 'new', firstUsedAt };
 }
 
 /** The items of the Help menu that the page handles: the welcome page, the tour and the keyboard shortcuts. */

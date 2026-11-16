@@ -21,6 +21,15 @@ describe('normalizeOnboarding', () => {
         expect(normalizeOnboarding({ welcome: 1, tourSeen: 1 })).toEqual({ welcome: 'done', tourSeen: 1 });
     });
 
+    it('keeps the first-use time and the star answer', () => {
+        expect(normalizeOnboarding({ welcome: 'done', firstUsedAt: 1000, starPromptDone: true })).toEqual({
+            welcome: 'done',
+            firstUsedAt: 1000,
+            starPromptDone: true
+        });
+        expect(normalizeOnboarding({ welcome: 'done', firstUsedAt: -1, starPromptDone: 'yes' })).toEqual({ welcome: 'done' });
+    });
+
     it('removes wrong optional values', () => {
         expect(normalizeOnboarding({ welcome: 'done', tourSeen: 0, checklistClosed: 'yes', checklist: 'all' })).toEqual({ welcome: 'done' });
         expect(normalizeOnboarding({ welcome: 'done', tourSeen: 1.5 })).toEqual({ welcome: 'done' });
@@ -50,8 +59,8 @@ describe('normalizeOnboarding', () => {
 
 describe('initialOnboarding', () => {
     it('shows the welcome page only to a user without repositories', () => {
-        expect(initialOnboarding(false)).toEqual({ welcome: 'new' });
-        expect(initialOnboarding(true)).toEqual({ welcome: 'done', checklistClosed: true });
+        expect(initialOnboarding(false, 5)).toEqual({ welcome: 'new', firstUsedAt: 5 });
+        expect(initialOnboarding(true, 5)).toEqual({ welcome: 'done', checklistClosed: true, firstUsedAt: 5 });
     });
 });
 
