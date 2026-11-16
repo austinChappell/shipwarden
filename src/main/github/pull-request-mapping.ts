@@ -18,6 +18,7 @@ import {
     type RequestedReviewer,
     type TimelineEvent
 } from '@shared/github';
+import { reviewStatusOf, uniqueLogins, type ReviewStatus } from '@shared/review-queue';
 
 /** The GraphQL fields of the reactions of a comment or a review. */
 const REACTION_FIELDS = 'reactionGroups { content viewerHasReacted reactors { totalCount } }';
@@ -319,7 +320,38 @@ export function githubViewerRole(
 }
 
 /** The fields of a pull request in a search result of the Review view. */
-export interface GraphQlSummary {
+/** The GraphQL fields of the assignees, the reviewers, and the review status of a pull request in a list. */
+export const PEOPLE_FIELDS = `assignees(first: 10) { nodes { login } }
+        reviewRequests(first: 10) { nodes { requestedReviewer { __typename ... on User { login } ... on Team { combinedSlug } } } }
+        latestReviews(first: 20) { nodes { state author { login } } }`;
+
+export interface GraphQlPeople {
+    reviewDecision: string | null;
+    author: { login: string } | null;
+    assignees?: { nodes: { login: string }[] };
+    reviewRequests?: { nodes: { requestedReviewer: { __typename?: string; login?: string; combinedSlug?: string } | null }[] };
+    latestReviews?: { nodes: { state: string; author: { login: string } | null }[] };
+}
+
+/**
+ * Returns the assignees, the reviewers, and the review status of a pull request.
+ * The reviewers are the requested users and teams, and the people who reviewed. A comment of the author on the own pull request is not a review.
+ */
+export function pullRequestPeople(node: GraphQlPeople): { assignees: string[]; reviewers: string[]; reviewStatus: ReviewStatus } {
+    const author = node.author?.login.toLowerCase();
+    const reviews = (node.latestReviews?.nodes ?? []).filter(review => review.author && review.author.login.toLowerCase() !== author);
+    const requested = (node.reviewRequests?.nodes ?? []).map(item => item.requestedReviewer?.login ?? item.requestedReviewer?.combinedSlug ?? '');
+    return {
+        assignees: uniqueLogins([(node.assignees?.nodes ?? []).map(item => item.login)]),
+        reviewers: uniqueLogins([requested, reviews.map(review => review.author?.login ?? '')]),
+        reviewStatus: reviewStatusOf(
+            node.reviewDecision,
+            reviews.map(review => review.state)
+        )
+    };
+}
+
+export interface GraphQlSummary extends GraphQlPeople {
     number: number;
     title: string;
     isDraft: boolean;
@@ -329,7 +361,6 @@ export interface GraphQlSummary {
     additions: number;
     deletions: number;
     viewerDidAuthor: boolean;
-    author: { login: string } | null;
     comments: { totalCount: number };
     commits?: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
 }
@@ -350,6 +381,7 @@ export function mapPullRequestSummaries(nodes: (GraphQlSummary | Record<string, 
             comments: node.comments.totalCount,
             additions: node.additions,
             deletions: node.deletions,
-            viewerDidAuthor: node.viewerDidAuthor
+            viewerDidAuthor: node.viewerDidAuthor,
+            ...pullRequestPeople(node)
         }));
 }

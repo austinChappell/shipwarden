@@ -2,6 +2,7 @@ import type { RepoRef } from '@shared/github';
 import { myPullRequestReasons } from '@shared/dashboard';
 import { checkSummary, commitsAfter, lastActivityOf, reviewGroup, type OpenPullRequest, type RepoPullRequests } from '@shared/review-queue';
 import type { GitHubClient } from './github-client';
+import { PEOPLE_FIELDS, pullRequestPeople, type GraphQlPeople } from './pull-request-mapping';
 
 // The open pull requests of a repository, for the review queue of the Review view.
 
@@ -15,6 +16,7 @@ export const REPO_PULL_REQUESTS_QUERY = `query($owner: String!, $name: String!, 
         id number title url isDraft createdAt updatedAt headRefName baseRefName headRefOid
         additions deletions changedFiles viewerDidAuthor reviewDecision mergeable mergeStateStatus
         author { login }
+        ${PEOPLE_FIELDS}
         comments(last: 10) { totalCount nodes { createdAt author { __typename login } } }
         reviews(last: 10) { nodes { submittedAt author { __typename login } } }
         viewerLatestReview { state submittedAt commit { oid } }
@@ -44,7 +46,7 @@ export const SINCE_REVIEW_QUERY = `query($ids: [ID!]!) {
   }
 }`;
 
-interface GraphQlOpenPr {
+interface GraphQlOpenPr extends GraphQlPeople {
     id: string;
     number: number;
     title: string;
@@ -59,10 +61,8 @@ interface GraphQlOpenPr {
     deletions: number;
     changedFiles: number;
     viewerDidAuthor: boolean;
-    reviewDecision: string | null;
     mergeable: string;
     mergeStateStatus: string;
-    author: { login: string } | null;
     comments: { totalCount: number; nodes?: { createdAt: string; author: { __typename?: string; login: string } | null }[] };
     reviews?: { nodes: { submittedAt: string | null; author: { __typename?: string; login: string } | null }[] };
     viewerLatestReview: { state: string; submittedAt: string | null; commit: { oid: string } | null } | null;
@@ -124,7 +124,8 @@ export function openPullRequest(node: GraphQlOpenPr, reviewRequested: boolean, v
             ...(node.comments.nodes ?? []).map(item => ({ at: item.createdAt, author: item.author })),
             ...(node.reviews?.nodes ?? []).map(item => ({ at: item.submittedAt, author: item.author }))
         ]),
-        actions: node.viewerDidAuthor ? myPullRequestReasons({ ...node, checks: rollup?.state ?? null }) : []
+        actions: node.viewerDidAuthor ? myPullRequestReasons({ ...node, checks: rollup?.state ?? null }) : [],
+        ...pullRequestPeople(node)
     };
 }
 

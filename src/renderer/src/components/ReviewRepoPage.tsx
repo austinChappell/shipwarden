@@ -8,11 +8,17 @@ import {
     PULL_REQUEST_SORTS,
     diffSize,
     hasUnseenActivity,
+    hasPullRequestFilters,
+    matchesFilters,
     matchesSearch,
+    NO_PULL_REQUEST_FILTERS,
+    REVIEW_STATUS_LABELS,
+    uniqueLogins,
     reviewActivitySeenKey,
     reviewGroup,
     sortPullRequests,
     type OpenPullRequest,
+    type PullRequestFilters,
     type PullRequestSort,
     type ReviewGroup
 } from '@shared/review-queue';
@@ -226,13 +232,15 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
     const entry = useRepoEntry(repo);
     const data = entry?.data;
     const [query, setQuery] = useState('');
+    const [filters, setFilters] = useState<PullRequestFilters>(NO_PULL_REQUEST_FILTERS);
+    const filtering = query.trim() !== '' || hasPullRequestFilters(filters);
     const [sort, setSortState] = useState<PullRequestSort>(readSort);
     const [showWaiting, setShowWaiting] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
 
     const isSeen = useIsSeen();
-    const prs = useMemo(() => (data?.pullRequests ?? []).filter(pr => matchesSearch(pr, query)), [data, query]);
+    const prs = useMemo(() => (data?.pullRequests ?? []).filter(pr => matchesSearch(pr, query) && matchesFilters(pr, filters)), [data, query, filters]);
     const byGroup = useMemo(() => {
         const result: Record<ReviewGroup, OpenPullRequest[]> = { new: [], 're-review': [], waiting: [], mine: [], other: [] };
         for (const pr of sortPullRequests(prs, sort)) result[reviewGroup(pr, isSeen)].push(pr);
@@ -251,6 +259,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
     useEffect(() => {
         setTabState(savedTabs.get(repo.toLowerCase()));
         setQuery('');
+        setFilters(NO_PULL_REQUEST_FILTERS);
         setShowWaiting(false);
     }, [repo]);
 
@@ -267,8 +276,36 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         // The last list stays while the list of a new search text loads.
         placeholderData: keepPreviousData
     });
-    const merged = mergedResult.data;
+    const merged = useMemo(() => mergedResult.data?.filter(pr => matchesFilters(pr, filters)), [mergedResult.data, filters]);
     const mergedError = optionalErrorText(mergedResult.error);
+
+    // Each people filter lists the people of the loaded PRs. A selected person stays in the list also when no loaded PR has that person.
+    const peopleGroups = useMemo(() => {
+        const loaded = [...(data?.pullRequests ?? []), ...(mergedResult.data ?? [])];
+        const group = (logins: string[][]): ComboboxGroup[] => [{ label: '', items: uniqueLogins(logins).map(login => ({ value: login, label: login })) }];
+        return {
+            authors: group([loaded.flatMap(pr => (pr.author ? [pr.author] : [])), filters.authors]),
+            assignees: group([loaded.flatMap(pr => pr.assignees), filters.assignees]),
+            reviewers: group([loaded.flatMap(pr => pr.reviewers), filters.reviewers])
+        };
+    }, [data, mergedResult.data, filters]);
+    const statusGroups: ComboboxGroup[] = [{ label: '', items: Object.entries(REVIEW_STATUS_LABELS).map(([value, label]) => ({ value, label })) }];
+    /** Adds the value to the filter, or removes it when the filter has it. */
+    const toggleFilter = (key: keyof PullRequestFilters, value: string) =>
+        setFilters(current => {
+            const values: string[] = current[key];
+            return { ...current, [key]: values.includes(value) ? values.filter(item => item !== value) : [...values, value] };
+        });
+    const noMatch = (
+        <>
+            No pull requests match the filters.{' '}
+            {hasPullRequestFilters(filters) && (
+                <Button variant="link" onClick={() => setFilters(NO_PULL_REQUEST_FILTERS)}>
+                    Clear the filters
+                </Button>
+            )}
+        </>
+    );
 
     const setSort = (value: PullRequestSort) => {
         setSortState(value);
@@ -300,7 +337,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
     const tabs: { id: RepoTab; label: string; count?: number }[] = [
         { id: 'needs', label: 'Needs me', count: needsCount },
         { id: 'mine', label: 'Mine', count: byGroup.mine.length },
-        { id: 'open', label: 'All open', count: data ? (query ? prs.length : data.openCount) : undefined },
+        { id: 'open', label: 'All open', count: data ? (filtering ? prs.length : data.openCount) : undefined },
         { id: 'merged', label: 'Recently merged' }
     ];
 
@@ -332,21 +369,68 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
     return (
         <div className="review-repo-page" ref={rootRef} hidden={hidden}>
             <PageHeader
+                className="review-repo-header"
                 leading={<IconButton size="lg" icon={<ArrowLeft size={16} strokeWidth={1.7} />} label="All repositories (Esc)" onClick={onBack} />}
                 icon={GitPullRequest}
                 title="Review"
                 meta={data && (needsCount > 0 ? `${needsCount} need${needsCount === 1 ? 's' : ''} you` : 'Nothing needs you')}
                 scope={
-                    <Combobox
-                        className="review-repo-select"
-                        size="lg"
-                        value={repo}
-                        groups={groups}
-                        placeholder={repoLabel(parseRepoId(repo))}
-                        searchPlaceholder="Filter repositories"
-                        title="Repository"
-                        onChange={onSelectRepo}
-                    />
+                    <>
+                        <Combobox
+                            className="review-repo-select"
+                            size="lg"
+                            value={repo}
+                            groups={groups}
+                            placeholder={repoLabel(parseRepoId(repo))}
+                            searchPlaceholder="Filter repositories"
+                            title="Repository"
+                            onChange={onSelectRepo}
+                        />
+                        <Combobox
+                            className="review-people-select"
+                            size="lg"
+                            value={undefined}
+                            values={filters.authors}
+                            groups={peopleGroups.authors}
+                            placeholder="All authors"
+                            searchPlaceholder="Filter authors"
+                            title="Authors"
+                            onChange={value => toggleFilter('authors', value)}
+                        />
+                        <Combobox
+                            className="review-people-select"
+                            size="lg"
+                            value={undefined}
+                            values={filters.assignees}
+                            groups={peopleGroups.assignees}
+                            placeholder="All assignees"
+                            searchPlaceholder="Filter assignees"
+                            title="Assignees"
+                            onChange={value => toggleFilter('assignees', value)}
+                        />
+                        <Combobox
+                            className="review-people-select"
+                            size="lg"
+                            value={undefined}
+                            values={filters.reviewers}
+                            groups={peopleGroups.reviewers}
+                            placeholder="All reviewers"
+                            searchPlaceholder="Filter reviewers"
+                            title="Reviewers: the requested reviewers and the people who reviewed"
+                            onChange={value => toggleFilter('reviewers', value)}
+                        />
+                        <Combobox
+                            className="review-people-select"
+                            size="lg"
+                            value={undefined}
+                            values={filters.statuses}
+                            groups={statusGroups}
+                            placeholder="All review statuses"
+                            searchPlaceholder="Filter review statuses"
+                            title="Review status"
+                            onChange={value => toggleFilter('statuses', value)}
+                        />
+                    </>
                 }
                 filter={
                     <FilterField
@@ -408,11 +492,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                     <>
                         {section('New to you', byGroup.new)}
                         {section('Re-review · updated since your review', byGroup['re-review'])}
-                        {needsCount === 0 && (
-                            <div className="panel-message">
-                                {query ? 'No pull requests match the search.' : 'Nothing in this repository needs your review.'}
-                            </div>
-                        )}
+                        {needsCount === 0 && <div className="panel-message">{filtering ? noMatch : 'Nothing in this repository needs your review.'}</div>}
                         {byGroup.waiting.length > 0 &&
                             (showWaiting ? (
                                 section('Waiting on authors', byGroup.waiting)
@@ -432,18 +512,12 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                     (byGroup.mine.length ? (
                         rows(byGroup.mine)
                     ) : (
-                        <div className="panel-message">
-                            {query ? 'No pull requests match the search.' : 'You have no open pull requests in this repository.'}
-                        </div>
+                        <div className="panel-message">{filtering ? noMatch : 'You have no open pull requests in this repository.'}</div>
                     ))}
                 {data &&
                     current === 'open' &&
-                    (sorted.length ? (
-                        rows(sorted)
-                    ) : (
-                        <div className="panel-message">{query ? 'No pull requests match the search.' : 'No open pull requests.'}</div>
-                    ))}
-                {data && current === 'open' && data.openCount > data.pullRequests.length && !query && (
+                    (sorted.length ? rows(sorted) : <div className="panel-message">{filtering ? noMatch : 'No open pull requests.'}</div>)}
+                {data && current === 'open' && data.openCount > data.pullRequests.length && !filtering && (
                     <p className="review-waiting-note">
                         The list shows the {data.pullRequests.length} most recently updated of {data.openCount} open pull requests.
                     </p>
@@ -452,7 +526,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                     <>
                         {mergedError && <div className="form-error task-list-error">{mergedError}</div>}
                         {!merged && !mergedError && <SkeletonRows label="Loading pull requests" />}
-                        {merged?.length === 0 && <div className="panel-message">No merged pull requests.</div>}
+                        {merged?.length === 0 && <div className="panel-message">{hasPullRequestFilters(filters) ? noMatch : 'No merged pull requests.'}</div>}
                         {merged?.map(pr => (
                             <MergedRow key={pr.number} pr={pr} onOpen={() => onOpen(pr.number)} />
                         ))}

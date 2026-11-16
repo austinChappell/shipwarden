@@ -5,6 +5,7 @@ import {
     mapMergedBranches,
     mapPullRequest,
     mapPullRequestSummaries,
+    pullRequestPeople,
     mapReactions,
     mapReviewRequests,
     type GraphQlBranchPullRequest
@@ -307,8 +308,44 @@ describe('mapPullRequestSummaries', () => {
                 comments: 4,
                 additions: 1,
                 deletions: 2,
-                viewerDidAuthor: false
+                viewerDidAuthor: false,
+                assignees: [],
+                reviewers: [],
+                reviewStatus: 'waiting'
             }
         ]);
+    });
+});
+
+describe('pullRequestPeople', () => {
+    it('lists the assignees, the requested reviewers and teams, and the people who reviewed', () => {
+        const people = pullRequestPeople({
+            reviewDecision: null,
+            author: { login: 'ann' },
+            assignees: { nodes: [{ login: 'bob' }] },
+            reviewRequests: {
+                nodes: [
+                    { requestedReviewer: { __typename: 'User', login: 'carl' } },
+                    { requestedReviewer: { __typename: 'Team', combinedSlug: 'acme/core' } },
+                    { requestedReviewer: null }
+                ]
+            },
+            latestReviews: {
+                nodes: [
+                    { state: 'APPROVED', author: { login: 'dana' } },
+                    { state: 'COMMENTED', author: { login: 'carl' } }
+                ]
+            }
+        });
+        expect(people).toEqual({ assignees: ['bob'], reviewers: ['acme/core', 'carl', 'dana'], reviewStatus: 'approved' });
+    });
+
+    it('ignores the comments of the author on the own pull request', () => {
+        const people = pullRequestPeople({
+            reviewDecision: null,
+            author: { login: 'ann' },
+            latestReviews: { nodes: [{ state: 'CHANGES_REQUESTED', author: { login: 'Ann' } }] }
+        });
+        expect(people).toEqual({ assignees: [], reviewers: [], reviewStatus: 'waiting' });
     });
 });

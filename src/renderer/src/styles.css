@@ -5759,6 +5759,39 @@ button:focus-visible,
     max-width: 280px;
 }
 
+.review-people-select {
+    max-width: 180px;
+}
+
+/*
+ * The header of the repository page has the repository and four filters in the scope. On a narrower page, the meta line
+ * goes and the filter field gets narrower first. Only a narrow page puts the controls on more rows.
+ */
+@container page (max-width: 1440px) {
+    .review-repo-header .page-header-meta {
+        display: none;
+    }
+
+    .review-repo-header .filter-field {
+        width: 180px;
+    }
+}
+
+@container page (max-width: 1320px) {
+    .review-repo-header {
+        flex-wrap: wrap;
+        height: auto;
+        min-height: var(--page-header-height);
+        padding-block: 10px;
+        row-gap: 8px;
+    }
+
+    .review-repo-header .page-header-scope {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+}
+
 .review-body {
     flex: 1;
     min-height: 0;

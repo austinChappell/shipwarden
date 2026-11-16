@@ -1,4 +1,5 @@
 import type { WorkflowInput } from './pipelines';
+import type { ReviewStatus } from './review-queue';
 import { azureBuildsWebUrl, azureRepoOf, azureRepoWebUrl } from './azure-devops';
 import { EMOJI_SHORTCODES } from './emoji-shortcodes';
 
@@ -132,6 +133,11 @@ export interface PullRequestSummary {
     additions: number;
     deletions: number;
     viewerDidAuthor: boolean;
+    /** The logins of the assignees. */
+    assignees: string[];
+    /** The logins of the requested reviewers and of the people who reviewed. A requested team is "org/team". */
+    reviewers: string[];
+    reviewStatus: ReviewStatus;
 }
 
 /** A GitHub user or organization that the user can select for the Review view. */
