@@ -1,11 +1,11 @@
 import { createContext } from 'react';
-import type { PullRequest, RepoRef, RepoTarget } from '@shared/github';
+import type { PullRequest, PullRequestCommit, RepoRef, RepoTarget } from '@shared/github';
 import { repoUrlOf } from '@shared/mentions';
 
 /**
  * The repository of the comment boxes and the comments below a provider.
  * - A comment box shows a list of users after "@" and a list of issues and pull requests after "#".
- * - A comment links "@login" to the user and "#123" to the issue or the pull request.
+ * - A comment links "@login" to the user, "#123" to the issue or the pull request, and a commit SHA to the commit.
  * Only GitHub repositories have a provider. Without it, a comment box is a plain text box.
  */
 export interface MentionSource {
@@ -14,12 +14,24 @@ export interface MentionSource {
     repoUrl: string;
     /** The users of the pull request: the author, the reviewers, the assignees and the people who commented. They come first in the list. */
     people: string[];
+    /** The commits that open in ShipWarden. Without it, each commit SHA in a comment is a link to GitHub. */
+    commits?: CommitOpener;
+}
+
+/** Shows the diff of a commit of the pull request in ShipWarden. */
+export interface CommitOpener {
+    /** The commits of the pull request. A SHA that matches none of them stays a link to GitHub. */
+    list: PullRequestCommit[];
+    open(commit: PullRequestCommit): void;
 }
 
 export const MentionContext = createContext<MentionSource | undefined>(undefined);
 
-/** Returns the mention source of a pull request. Returns undefined for a pull request that is not on GitHub. */
-export function mentionSourceOf(target: RepoTarget, pr: PullRequest): MentionSource | undefined {
+/**
+ * Returns the mention source of a pull request. Returns undefined for a pull request that is not on GitHub.
+ * With `openCommit`, a click on the SHA of a commit of the pull request shows the commit in ShipWarden.
+ */
+export function mentionSourceOf(target: RepoTarget, pr: PullRequest, openCommit?: (commit: PullRequestCommit) => void): MentionSource | undefined {
     if (pr.host === 'azure') return undefined;
     const repoUrl = repoUrlOf(pr.url);
     if (!repoUrl) return undefined;
@@ -33,7 +45,7 @@ export function mentionSourceOf(target: RepoTarget, pr: PullRequest): MentionSou
     ];
     // Bots cannot get a notification, so the list leaves them out.
     const people = [...new Set(logins.filter((login): login is string => !!login && !login.endsWith('[bot]')))];
-    return { target, repoUrl, people };
+    return { target, repoUrl, people, commits: openCommit && { list: pr.commits, open: openCommit } };
 }
 
 /** Returns the mention source of a GitHub repository that has no pull request yet. */

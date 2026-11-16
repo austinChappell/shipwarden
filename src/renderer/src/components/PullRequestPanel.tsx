@@ -82,7 +82,7 @@ interface Props {
     agentReview?: AgentReviewControl;
     /** Opens the pull request in the Review view. Without it, the header has no "Open in Review" button. */
     onOpenInReview?(pr: PullRequest): void;
-    /** Shows the diff of one commit. Without it, a commit in the timeline is a link to the host. */
+    /** Shows the diff of one commit. Without it, a commit in the timeline or in a comment is a link to the host. */
     onOpenCommit?(commit: PullRequestCommit): void;
     /** The buttons of the manual pull request automations, under the header. */
     renderAutomations?(pr: PullRequest): ReactNode;
@@ -298,7 +298,7 @@ export function PullRequestPanel({
     );
 
     return (
-        <MentionContext value={mentionSourceOf(target, pr)}>
+        <MentionContext value={mentionSourceOf(target, pr, onOpenCommit)}>
             <div className="pr-panel">
                 <div className="pr-scroll">
                     {!overview && (

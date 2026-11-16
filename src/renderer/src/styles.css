@@ -6182,6 +6182,12 @@ button:focus-visible,
     font-weight: 600;
 }
 
+/* A commit SHA in a comment: a normal Markdown link in the mono font, as on GitHub. */
+.markdown a.commit-link {
+    font-family: "JetBrains Mono", Menlo, monospace;
+    font-size: 0.92em;
+}
+
 /* A pull request in the Review view: a header, the tabs of GitHub, and the tab content. */
 .review-pr {
     flex: 1;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeMention, applyMention, isLoginQuery, rankUsers, repoUrlOf, splitReferences } from './mentions';
+import { activeMention, applyMention, findCommit, isLoginQuery, rankUsers, repoUrlOf, splitReferences } from './mentions';
 
 describe('activeMention', () => {
     it('finds a user or an issue at the cursor', () => {
@@ -125,5 +125,34 @@ describe('splitReferences', () => {
 
     it('ignores email addresses, paths and color codes', () => {
         expect(splitReferences('a@b.com x/#1 #12a')).toEqual([{ kind: 'text', text: 'a@b.com x/#1 #12a' }]);
+    });
+
+    it('finds commit SHAs', () => {
+        expect(splitReferences('Done in 7195c5df5. See 1464C17AB.')).toEqual([
+            { kind: 'text', text: 'Done in ' },
+            { kind: 'commit', text: '7195c5df5', sha: '7195c5df5' },
+            { kind: 'text', text: '. See ' },
+            { kind: 'commit', text: '1464C17AB', sha: '1464c17ab' },
+            { kind: 'text', text: '.' }
+        ]);
+    });
+
+    it('ignores hexadecimal words that are not commit SHAs', () => {
+        const text = 'call 1234567 or defaced, Ab12cd3, abc123, #a1b2c3d, x/7195c5df5, 7195c5d-x and a'.concat('1'.repeat(40));
+        expect(splitReferences(text)).toEqual([{ kind: 'text', text }]);
+    });
+});
+
+describe('findCommit', () => {
+    const commits = [{ oid: '7195c5df5a0b1c2d3e4f' }, { oid: '7195c5e000000000' }, { oid: 'abc1234def' }];
+
+    it('finds the one commit that starts with the SHA', () => {
+        expect(findCommit(commits, '7195c5df5')).toBe(commits[0]);
+        expect(findCommit(commits, 'ABC1234')).toBe(commits[2]);
+    });
+
+    it('returns undefined when no commit or more than one commit matches', () => {
+        expect(findCommit(commits, '1234567')).toBeUndefined();
+        expect(findCommit(commits, '7195c5')).toBeUndefined();
     });
 });

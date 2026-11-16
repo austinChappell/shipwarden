@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtualizer } from '@pierre/diffs/react';
 import { Bot, ChevronDown, ChevronRight, ChevronUp, FileCode, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import type { DiffSide, PullRequest, PullRequestFile, RepoTarget } from '@shared/github';
+import type { DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoTarget } from '@shared/github';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { errorText, timeAgo } from '../util';
 import { CopyButton } from './CopyButton';
@@ -51,6 +51,8 @@ interface Props {
     onOpenFile?(path: string): void;
     /** Sends a prompt to an agent. Without it, the review threads have no "Send to agent" button. */
     onSendToAgent?(prompt: string): void;
+    /** Shows the diff of one commit. Without it, a commit SHA in a comment is a link to GitHub. */
+    onOpenCommit?(commit: PullRequestCommit): void;
 }
 
 /** Returns true when a key goes to a field that takes text. */
@@ -82,12 +84,16 @@ export function PullRequestFilesStream({
     fileList,
     onGoToDefinition,
     onOpenFile,
-    onSendToAgent
+    onSendToAgent,
+    onOpenCommit
 }: Props) {
-    // The file bodies are memoized. A stable function keeps them from a new render each time the parent renders.
+    // The file bodies are memoized. Stable functions keep them from a new render each time the parent renders.
     const sendRef = useRef(onSendToAgent);
     sendRef.current = onSendToAgent;
     const sendToAgent = useCallback((prompt: string) => sendRef.current?.(prompt), []);
+    const openCommitRef = useRef(onOpenCommit);
+    openCommitRef.current = onOpenCommit;
+    const openCommit = useCallback((commit: PullRequestCommit) => openCommitRef.current?.(commit), []);
     const review = useReviewState(target, pr.number);
     const mode = useColorMode();
     const [diffStyle, setDiffStyle] = useState<DiffStyle>(readStyle);
@@ -599,6 +605,7 @@ export function PullRequestFilesStream({
                                     onRefresh={onRefresh}
                                     onGoToDefinition={goTo}
                                     onSendToAgent={onSendToAgent ? sendToAgent : undefined}
+                                    onOpenCommit={onOpenCommit ? openCommit : undefined}
                                 />
                             )}
                         </section>
