@@ -1,0 +1,27 @@
+{
+  "id": "trello",
+  "name": "Trello",
+  "version": "0.1.0",
+  "protocolVersion": 3,
+  "description": "Trello cards. Each Trello board is a collection, and each list on the board is a status. Restrict the connection to some workspaces in the settings.",
+  "command": "node",
+  "args": ["index.js"],
+  "settings": [
+    {
+      "key": "apiKey",
+      "label": "API key",
+      "type": "string",
+      "required": true,
+      "description": "Open trello.com/power-ups/admin. Make a Power-Up for your workspace. Open the API key page of the Power-Up. Copy the API key."
+    },
+    {
+      "key": "token",
+      "label": "Token",
+      "type": "secret",
+      "required": true,
+      "description": "On the API key page, click the Token link. Allow access. Copy the token. The token gives read and write access to your boards."
+    }
+  ],
+  "usesRepositories": false,
+  "scopeLabel": "workspace"
+}
