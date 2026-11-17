@@ -1,8 +1,9 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { AgentMode } from '@shared/agent-modes';
+import type { NoteTarget } from '@shared/code-note';
 import type { PullRequest, RepoRef } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
-import type { AppSettings, AgentDefinition, RepoScript } from '@shared/settings';
+import { agentForRepo, type AppSettings, type AgentDefinition, type RepoScript } from '@shared/settings';
 import { applyStartStatus, taskPrompt, type StartStatusResult, type Task, type TaskLink } from '@shared/tasks';
 import { isOpenShell, openShellCount, type TerminalSession } from '@shared/terminal';
 import { snoozeEnd, worktreeLabel, type CreatedWorktree, type HiddenWorktree, type Worktree } from '@shared/worktrees';
@@ -96,7 +97,7 @@ interface Options {
     /** The name of a repository in the UI. */
     repoLabel: (repo: string) => string;
     startTerminal: (worktree: Worktree, target: 'shell' | 'agent' | AgentDefinition) => Promise<TerminalSession | undefined>;
-    sendToAgent: (prompt: string, worktree?: Worktree, target?: undefined, onSession?: (session: TerminalSession) => void) => Promise<void>;
+    sendToAgent: (prompt: string, worktree?: Worktree, target?: NoteTarget, onSession?: (session: TerminalSession) => void) => Promise<void>;
     /** Sends a prompt to an agent without a banner and without a change of the selected tab. See `useAgentActions`. */
     promptAgent: (
         worktree: Pick<Worktree, 'path'>,
@@ -408,10 +409,13 @@ export function useWorktreeActions(options: Options) {
             await options.prepareWorktree(repoPath, worktree);
             // Do not wait for the prompt. The agent can show a question, for example a folder trust question. The user must
             // answer it in the agent tab, and the open dialog blocks that tab. The dialog closes when this function returns.
-            if (prompt) void options.sendToAgent(prompt, worktree).catch(err => setError(errorText(err)));
+            // The worktree list of this render does not have the new worktree. Thus give the agent of the repository here.
+            // Else the global default agent starts.
+            const agent = agentForRepo(appSettings, repoPath);
+            if (prompt) void options.sendToAgent(prompt, worktree, { kind: 'new', agentId: agent.id }).catch(err => setError(errorText(err)));
             else if (request.startAgent) {
                 if (id) worktreeProgress.step(id, 'agent');
-                await options.startTerminal(worktree, 'agent');
+                await options.startTerminal(worktree, agent);
             }
             const background = inBackground();
             if (id) worktreeProgress.finish(id, worktree);
