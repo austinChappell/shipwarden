@@ -1,7 +1,7 @@
 /**
  * The workspace shortcuts: tabs, splits, the focus between panes and close, as in Ghostty. Also ⌘[ and ⌘] for back and
  * forward, ⌘B for the sidebar, ⇧⌘B for the focus in the sidebar, ⌘E for the right panel, ⌘N for a new worktree and
- * ⇧⌘E for the focus in the file explorer.
+ * ⇧⌘E for the focus in the file explorer. ⇧⌘F searches the file contents for the selected text.
  * The tab keys are as in Ghostty: ⌘1 to ⌘8 select a tab, and ⌘9 selects the last tab. ⇧⌘[ and ⇧⌘] select the previous
  * and the next tab. ⌃⇧Tab and ⌃Tab do the same.
  * ⌥⌘1 to ⌥⌘6 open a view: Dashboard, Agents, Tasks, Review, Pipelines and Notes. ⇧⌘0 moves the focus to the workspace.
@@ -25,6 +25,7 @@ export type ShortcutAction =
     | 'toggleRightPanel'
     | 'newWorktree'
     | 'focusExplorer'
+    | 'searchContents'
     | 'focusWorkspace'
     | 'commandPalette'
     | 'copyFilePath'
@@ -89,7 +90,8 @@ function digitOf(input: { key: string; code?: string }): string | undefined {
  * Returns the workspace action of a key: ⌘T (new tab), ⌘W (close the pane, or the tab with one pane),
  * ⌘D (split right), ⇧⌘D (split down), ⌘[ (back), ⌘] (forward), ⌥⌘ and an arrow key (move the focus to the pane at
  * that side), ⌘B (show or hide the sidebar), ⇧⌘B (move the focus to the sidebar), ⌘E (show or hide the right panel),
- * ⌘N (open the New worktree dialog), ⇧⌘E (move the focus to the file explorer).
+ * ⌘N (open the New worktree dialog), ⇧⌘E (move the focus to the file explorer), ⇧⌘F (search the file contents for the
+ * selected text).
  * Also ⌘1 to ⌘8 (select that tab), ⌘9 (select the last tab), ⇧⌘[ and ⌃⇧Tab (select the previous tab), ⇧⌘] and ⌃Tab
  * (select the next tab), ⌥⌘1 to ⌥⌘6 (open a view), ⇧⌘0 (move the focus to the workspace), ⇧⌘P (open the command
  * palette), ⇧⌘C (copy the relative path of the active file, or the link of the pull request or task) and ⌥⌘R (show the active file in Finder).
@@ -127,6 +129,7 @@ export function shortcutAction(input: {
         if (digit === '0') return 'focusWorkspace';
         if (key === 'p') return 'commandPalette';
         if (key === 'c') return 'copyFilePath';
+        if (key === 'f') return 'searchContents';
         return undefined;
     }
     if (digit) return TAB_KEYS[digit];
@@ -302,6 +305,7 @@ export const SHORTCUT_INFO: Record<ShortcutAction, ShortcutInfo> = {
     focusSidebar: { label: 'Move the focus to the sidebar', keys: ['⇧⌘B'], group: 'Panels and focus' },
     toggleRightPanel: { label: 'Show or hide the right panel', keys: ['⌘E'], group: 'Panels and focus' },
     focusExplorer: { label: 'Move the focus to the file explorer', keys: ['⇧⌘E'], group: 'Panels and focus' },
+    searchContents: { label: 'Search the file contents for the selected text', keys: ['⇧⌘F'], group: 'Panels and focus' },
     focusWorkspace: { label: 'Move the focus to the workspace', keys: ['⇧⌘0'], group: 'Panels and focus' },
     copyFilePath: { label: 'Copy the relative path of the active file, or the link of a pull request or task', keys: ['⇧⌘C'], group: 'Worktrees and tabs' },
     revealFileInFinder: { label: 'Show the active file in Finder', keys: ['⌥⌘R'], group: 'Worktrees and tabs' },

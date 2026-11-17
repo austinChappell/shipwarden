@@ -50,6 +50,11 @@ describe('shortcutAction', () => {
         expect(key({ key: 'e', code: 'KeyE' })).toBe('toggleRightPanel');
     });
 
+    it('is ⇧⌘F for the content search, and leaves ⌘F to the find bars', () => {
+        expect(key({ shift: true, key: 'F', code: 'KeyF' })).toBe('searchContents');
+        expect(key({ key: 'f', code: 'KeyF' })).toBeUndefined();
+    });
+
     it('ignores other keys, key up, and other modifiers', () => {
         expect(key({ type: 'keyUp' })).toBeUndefined();
         expect(key({ meta: false })).toBeUndefined();

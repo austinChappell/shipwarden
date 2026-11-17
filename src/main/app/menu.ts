@@ -74,6 +74,7 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
                 { label: 'Focus Sidebar', accelerator: 'Shift+Command+B', click: sendShortcut('focusSidebar') },
                 { label: 'Toggle Right Panel', accelerator: 'Command+E', click: sendShortcut('toggleRightPanel') },
                 { label: 'Focus File Explorer', accelerator: 'Shift+Command+E', click: sendShortcut('focusExplorer') },
+                { label: 'Search File Contents', accelerator: 'Shift+Command+F', click: sendShortcut('searchContents') },
                 // ⌘0 stays the key of Actual Size, so this item uses ⇧⌘0.
                 { label: 'Focus Workspace', accelerator: 'Shift+Command+0', click: sendShortcut('focusWorkspace') },
                 { label: 'Command Palette…', accelerator: 'Shift+Command+P', click: sendShortcut('commandPalette') },

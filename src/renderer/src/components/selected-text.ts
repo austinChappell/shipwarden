@@ -38,6 +38,21 @@ export function findText(text: string | undefined): string | undefined {
     return line;
 }
 
+/**
+ * Returns the text for the content search from a selection. The search finds text in one line only. For a selection of
+ * more than one line, the text is the first line that is not blank, without the spaces at its start and end.
+ */
+export function searchText(text: string | undefined): string | undefined {
+    const line = findText(text);
+    if (line !== undefined || !text) return line;
+    return (
+        text
+            .split(/\r?\n/)
+            .map(item => item.trim())
+            .find(item => item) || undefined
+    );
+}
+
 /** Makes a find request with the selected text of the page. */
 export function findRequest(root?: Node | null): FindRequest {
     return { at: Date.now(), text: findText(selectedText(root)) };
