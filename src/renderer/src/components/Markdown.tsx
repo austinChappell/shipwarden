@@ -6,6 +6,7 @@ import type { PullRequestCommit } from '@shared/github';
 import { findCommit, splitReferences } from '@shared/mentions';
 import { MentionContext } from './mention-context';
 import { openLink } from '../links';
+import { openPullRequestLink } from '../pull-request-links';
 
 interface Props {
     text: string;
@@ -150,6 +151,7 @@ export function sanitizeHtml(html: string): string {
 /**
  * Shows Markdown from a task tracker or GitHub. Links open in the default browser, and with ⇧⌘-click in the in-app browser.
  * In the Review view, a click on the SHA of a commit of the pull request shows the commit in ShipWarden.
+ * A click on a link to a pull request opens the pull request in the Review view. ⌘-click opens it on GitHub.
  */
 export function Markdown({ text, className, html: rendered }: Props) {
     // In a GitHub pull request, "@login", "#123", and commit SHAs in the text become links. HTML that GitHub rendered has its own links.
@@ -175,6 +177,8 @@ export function Markdown({ text, className, html: rendered }: Props) {
             return;
         }
         const href = link.getAttribute('href') ?? '';
+        // A plain click on a link to a pull request opens the pull request in ShipWarden.
+        if (openPullRequestLink(href, event)) return;
         if (/^https?:\/\//.test(href)) {
             openLink(href, event);
         }

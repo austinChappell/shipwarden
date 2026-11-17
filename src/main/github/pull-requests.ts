@@ -132,21 +132,25 @@ export async function fetchIssueReferences(client: GitHubClient, repo: RepoRef, 
     if (!/^\d{1,9}$/.test(text)) {
         return searchReferences(client, text ? `${scope} in:title ${text}` : scope, 20);
     }
-    const [exact, recent] = await Promise.all([
+    const [exact, recent] = await Promise.all([fetchIssueReference(client, repo, Number(text)), searchReferences(client, scope, 50)]);
+    const matches = recent.filter(item => item.number !== exact?.number && String(item.number).startsWith(text));
+    return [...(exact ? [exact] : []), ...matches].slice(0, 20);
+}
+
+/** Returns the issue or the pull request with the number. Returns null when the repository has no item with the number. */
+export async function fetchIssueReference(client: GitHubClient, repo: RepoRef, number: number): Promise<IssueReference | null> {
+    return (
         client
             .graphql<{ repository: { issueOrPullRequest: GraphQlReference } }>(
                 `query($owner: String!, $name: String!, $number: Int!) {
                   repository(owner: $owner, name: $name) { issueOrPullRequest(number: $number) { ${REFERENCE_FIELDS} } }
                 }`,
-                { owner: repo.owner, name: repo.name, number: Number(text) }
+                { owner: repo.owner, name: repo.name, number }
             )
             .then(data => mapReference(data.repository.issueOrPullRequest))
             // GitHub returns an error when no issue or pull request has the number.
-            .catch(() => null),
-        searchReferences(client, scope, 50)
-    ]);
-    const matches = recent.filter(item => item.number !== exact?.number && String(item.number).startsWith(text));
-    return [...(exact ? [exact] : []), ...matches].slice(0, 20);
+            .catch(() => null)
+    );
 }
 
 /** Returns the changed files of a pull request. A failed load of the viewed state gives no viewed files. */

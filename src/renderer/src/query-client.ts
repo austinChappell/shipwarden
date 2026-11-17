@@ -47,6 +47,8 @@ export const keyRoots = {
     pullRequestCandidates: ['github', 'pullRequestCandidates'],
     /** The issues and the pull requests for a "#" reference in a comment, by repository and query. */
     issueReferences: ['github', 'issueReferences'],
+    /** The issue or the pull request with a number, by repository and number. */
+    issueReference: ['github', 'issueReference'],
     /** The pull request and CI state of each branch of a repository. */
     branchSummaries: ['github', 'branchSummaries'],
     /** The newest merged pull request of each branch of a repository. */

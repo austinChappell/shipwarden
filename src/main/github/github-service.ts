@@ -135,6 +135,11 @@ export class GitHubService {
         return pulls.fetchIssueReferences(this.client, repo, query);
     }
 
+    /** Returns the issue or the pull request with the number, or null when the repository has no item with the number. */
+    async issueReference(repo: RepoRef, number: number): Promise<IssueReference | null> {
+        return pulls.fetchIssueReference(this.client, repo, number);
+    }
+
     /** Makes one change to a pull request: the details, an assignee, a reviewer or a label. */
     async changePullRequest(repo: RepoRef, number: number, change: PullRequestChange): Promise<void> {
         return reviews.changePullRequest(this.client, repo, number, change);

@@ -79,6 +79,9 @@ export function registerGitHubIpc({ reviewProviders, seen }: Pick<Services, 'rev
     ipcMain.handle(IpcChannels.githubIssueReferences, async (_event, target: RepoTarget, query: unknown) =>
         (await host(target)).issueReferences(target, String(query ?? '').slice(0, 100))
     );
+    ipcMain.handle(IpcChannels.githubIssueReference, async (_event, target: RepoTarget, number: number) =>
+        (await host(target)).issueReference(target, Number(number))
+    );
     ipcMain.handle(IpcChannels.githubChangePullRequest, async (_event, target: RepoTarget, number: number, change: PullRequestChange) =>
         (await host(target)).changePullRequest(target, number, change)
     );

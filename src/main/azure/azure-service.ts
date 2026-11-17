@@ -725,6 +725,11 @@ export class AzureDevOpsService implements SourceHost {
         return [];
     }
 
+    /** Azure DevOps uses a different syntax for references in comments, so no number is an issue or a pull request here. */
+    async issueReference(): Promise<IssueReference | null> {
+        return null;
+    }
+
     /** The newest builds of the repository, newest first. */
     private async recentBuilds(repo: ResolvedRepo, top: number, definitionId?: number): Promise<AzBuild[]> {
         const definition = definitionId ? `&definitions=${definitionId}` : '';

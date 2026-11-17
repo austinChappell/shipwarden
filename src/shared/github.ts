@@ -74,6 +74,56 @@ export function pullRequestWebUrl(repo: RepoRef, number: number): string {
     return azureRepoOf(repo) ? `${repoWebUrl(repo)}/pullrequest/${number}` : `${repoWebUrl(repo)}/pull/${number}`;
 }
 
+/** A pull request or an issue that a web address points to. */
+export interface ItemLink {
+    repo: RepoRef;
+    number: number;
+}
+
+/** The tab of a pull request page that a web address points to: "/files" gives the files, "/checks" gives the checks. */
+export type PullRequestLinkTab = 'overview' | 'files' | 'checks';
+
+/** Decodes a part of a web address. A bad escape keeps the part as it is. */
+function decodePart(part: string): string {
+    try {
+        return decodeURIComponent(part);
+    } catch {
+        return part;
+    }
+}
+
+/**
+ * Reads the repository and the number of a pull request from its web address. Returns undefined for other addresses.
+ * It accepts these forms, also with a query or a "#" part:
+ * - https://github.com/{owner}/{repo}/pull/{number}, also with "/files", "/commits" or "/checks" after the number
+ * - https://dev.azure.com/{org}/{project}/_git/{repo}/pullrequest/{number}
+ * - https://{org}.visualstudio.com/[DefaultCollection/]{project}/_git/{repo}/pullrequest/{number}
+ */
+export function parsePullRequestUrl(url: string): (ItemLink & { tab: PullRequestLinkTab }) | undefined {
+    const github = /^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)\/([^/?#]+)\/pull\/(\d{1,9})(?:\/([^/?#]*))?\/?(?:[?#].*)?$/i.exec(url);
+    if (github) {
+        const tab = github[4] === 'files' ? 'files' : github[4] === 'checks' ? 'checks' : 'overview';
+        return { repo: { owner: decodePart(github[1]), name: decodePart(github[2]) }, number: Number(github[3]), tab };
+    }
+    const azure =
+        /^https?:\/\/dev\.azure\.com\/([^/?#]+)\/([^/?#]+)\/_git\/([^/?#]+)\/pullrequest\/(\d{1,9})\/?(?:[?#].*)?$/i.exec(url) ??
+        /^https?:\/\/([^./]+)\.visualstudio\.com\/(?:DefaultCollection\/)?([^/?#]+)\/_git\/([^/?#]+)\/pullrequest\/(\d{1,9})\/?(?:[?#].*)?$/i.exec(url);
+    if (azure) {
+        const [organization, project, name] = azure.slice(1, 4).map(decodePart);
+        return { repo: { owner: `${organization}/${project}`, name, host: 'azure' }, number: Number(azure[4]), tab: 'overview' };
+    }
+    return undefined;
+}
+
+/**
+ * Reads the repository and the number of a GitHub issue from its web address, for example https://github.com/acme/app/issues/12.
+ * A "#12" reference links to this address. The number can also be a pull request, because GitHub sends the address to the pull request.
+ */
+export function parseIssueUrl(url: string): ItemLink | undefined {
+    const match = /^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)\/([^/?#]+)\/issues\/(\d{1,9})\/?(?:[?#].*)?$/i.exec(url);
+    return match ? { repo: { owner: decodePart(match[1]), name: decodePart(match[2]) }, number: Number(match[3]) } : undefined;
+}
+
 /** Returns the web page of the pipelines of a repository: GitHub Actions, or the builds of the Azure DevOps project. */
 export function pipelinesWebUrl(repo: RepoRef): string {
     const azure = azureRepoOf(repo);

@@ -11,6 +11,7 @@ import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } fr
 import { requestExplorerFocus } from './files/explorer-focus';
 import { copyFilePath } from './files/file-path-copy';
 import { copyPageLink, currentPageLink } from './app/page-link';
+import { setPullRequestOpener } from './pull-request-links';
 import { dialogOpen, promptDialog } from './components/ConfirmDialog';
 import { AppCommandPalette } from './palette/AppCommandPalette';
 import type { PaletteActions } from './palette/palette-commands';
@@ -346,6 +347,11 @@ export function App() {
         setRoute('review', { page: reviewPage(repoId(repo), number), query: { tab } });
         setMainView('review');
     };
+
+    // A click on a pull request link in Markdown opens the pull request in the Review view. Without a provider, the link opens in the browser.
+    const openPullRequestRef = useRef(openPullRequest);
+    openPullRequestRef.current = openPullRequest;
+    useEffect(() => (reviewKey ? setPullRequestOpener((repo, number, tab) => openPullRequestRef.current(repo, number, tab)) : undefined), [reviewKey]);
 
     /** Opens the page of a PR group in the Review view. */
     const openPrGroup = (id: string) => {

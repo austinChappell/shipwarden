@@ -57,6 +57,8 @@ export interface SourceHost {
     pullRequestCandidates(target: RepoTarget): Promise<PullRequestCandidates>;
     /** The issues and the pull requests that match a "#" reference in a comment. A host without this feature returns an empty list. */
     issueReferences(target: RepoTarget, query: string): Promise<IssueReference[]>;
+    /** The issue or the pull request with the number. A host without this feature returns null. */
+    issueReference(target: RepoTarget, number: number): Promise<IssueReference | null>;
     checks(target: RepoTarget, sha: string): Promise<CheckRun[]>;
     jobProgress(target: RepoTarget, jobId: number): Promise<JobProgress>;
     jobLog(target: RepoTarget, jobId: number): Promise<string>;
@@ -131,6 +133,9 @@ export class GitHubHost implements SourceHost {
     }
     async issueReferences(target: RepoTarget, query: string) {
         return this.github.issueReferences(await this.repoOf(target), query);
+    }
+    async issueReference(target: RepoTarget, number: number) {
+        return this.github.issueReference(await this.repoOf(target), number);
     }
     async checks(target: RepoTarget, sha: string) {
         return this.github.checks(await this.repoOf(target), sha);
