@@ -3,7 +3,7 @@ import { Ban, CaseSensitive, ChevronRight, File, FilePlus, FolderPlus, ListColla
 import { baseName, fileNameError, isSameOrInside, joinPath, matchLine, parentPath, type ContentMatch, type FileEntry } from '@shared/files';
 import { fileIcon, folderIcon } from '../files/file-icons';
 import { fuzzyFilter, fuzzyPositions } from '../files/fuzzy';
-import { onExplorerFocusRequest, takeExplorerFocusRequest } from '../files/explorer-focus';
+import { onExplorerFocusRequest, takeExplorerFocusRequest, type ExplorerRequest } from '../files/explorer-focus';
 import { treeKeyAction, type TreeRow } from '../files/tree-nav';
 import { ErrorBanner } from './ErrorBanner';
 import { confirmDialog } from './ConfirmDialog';
@@ -211,6 +211,8 @@ export function FileExplorer({ root, activePath, onOpenFile, title, onMoved, onD
     const bodyRef = useRef<HTMLDivElement>(null);
     const treeRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    /** A new value selects the text of the search box. The effect runs after the render, so the box shows the new query. */
+    const [selectQueryAt, setSelectQueryAt] = useState(0);
     /** The cursor row that the tree scrolled to last. */
     const scrolledTo = useRef<string | undefined>(undefined);
     const childrenRef = useRef(children);
@@ -394,8 +396,17 @@ export function FileExplorer({ root, activePath, onOpenFile, title, onMoved, onD
     /**
      * Moves the keyboard focus to the explorer (⇧⌘E). With a query, the search box gets the focus.
      * Else the tree gets the focus, and the cursor goes to the active file. The parent folders of that file expand.
+     * A search request (⇧⌘F) selects the content search. Its text replaces the query. The search box gets the focus and
+     * its text is selected.
      */
-    const takeFocus = () => {
+    const takeFocus = (request: ExplorerRequest) => {
+        if (request.search) {
+            setEdit(undefined);
+            setMode('contents');
+            if (request.text) setQuery(request.text);
+            setSelectQueryAt(Date.now());
+            return;
+        }
         if (query) {
             inputRef.current?.focus();
             return;
@@ -412,14 +423,21 @@ export function FileExplorer({ root, activePath, onOpenFile, title, onMoved, onD
     takeFocusRef.current = takeFocus;
     useEffect(() => {
         const run = () => {
-            if (takeExplorerFocusRequest()) {
-                takeFocusRef.current();
+            const request = takeExplorerFocusRequest();
+            if (request) {
+                takeFocusRef.current(request);
             }
         };
         // A request can come before the explorer mounts, for example when ⇧⌘E shows the right panel.
         run();
         return onExplorerFocusRequest(run);
     }, []);
+
+    useEffect(() => {
+        if (!selectQueryAt) return;
+        inputRef.current?.focus();
+        inputRef.current?.select();
+    }, [selectQueryAt]);
 
     const onTreeFocus = (event: React.FocusEvent<HTMLDivElement>) => {
         // A click on a row sets the cursor itself. A focus from the keyboard starts at the active file or the first row.

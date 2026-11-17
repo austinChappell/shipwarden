@@ -9,6 +9,7 @@ import type { PullRequest, PullRequestFile } from '@shared/github';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } from './components/RightPanel';
 import { requestExplorerFocus } from './files/explorer-focus';
+import { focusedSelection } from './files/focused-selection';
 import { copyFilePath } from './files/file-path-copy';
 import { copyPageLink, currentPageLink } from './app/page-link';
 import { setPullRequestOpener } from './pull-request-links';
@@ -717,11 +718,13 @@ export function App() {
             toggleExplorer();
             return;
         }
-        if (action === 'focusExplorer') {
+        if (action === 'focusExplorer' || action === 'searchContents') {
             if (mainView !== 'worktree' || !selectedPath) return;
+            // Read the selection first. The explorer takes the focus, and a text field can lose its selection then.
+            const request = action === 'searchContents' ? { search: true, text: focusedSelection() } : {};
             if (!explorerOpen) toggleExplorer();
             selectPanelTab('files');
-            requestExplorerFocus();
+            requestExplorerFocus(request);
             return;
         }
         if (action === 'copyFilePath' || action === 'revealFileInFinder') {
