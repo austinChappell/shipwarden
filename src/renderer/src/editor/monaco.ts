@@ -5,6 +5,7 @@ import CssWorker from 'monaco-editor/language/css/css.worker?worker';
 import HtmlWorker from 'monaco-editor/language/html/html.worker?worker';
 import JsonWorker from 'monaco-editor/language/json/json.worker?worker';
 import TsWorker from 'monaco-editor/language/typescript/ts.worker?worker';
+import { registerDotenv } from './dotenv';
 
 self.MonacoEnvironment = {
     getWorker(_workerId: string, label: string) {
@@ -37,6 +38,8 @@ for (const defaults of [monaco.typescript.typescriptDefaults, monaco.typescript.
 // Monaco knows ".rb", ".gemspec" and "Gemfile" only. A second registration adds more Ruby files to the language.
 // Sorbet keeps its type signatures in ".rbi" files.
 monaco.languages.register({ id: 'ruby', extensions: ['.rbi', '.rake', '.ru'], filenames: ['Rakefile', 'Guardfile'] });
+
+registerDotenv(monaco);
 
 /** Syntax colors for each mode. Dark follows Ayu Dark. Light uses dark, saturated colors that are readable on a light background. */
 const SYNTAX: Record<Mode, Record<string, string>> = {
@@ -118,6 +121,7 @@ export function applyEditorTheme(palette: Palette, mode: Mode): void {
             { token: 'string.key.json', foreground: syntax.type },
             { token: 'string.value.json', foreground: syntax.string },
             { token: 'regexp', foreground: syntax.regexp },
+            { token: 'variable.dotenv', foreground: syntax.attributeName },
             // GitHub Actions logs (the "ci-log" language).
             { token: 'ci-error', foreground: syntax.error },
             { token: 'ci-warning', foreground: syntax.warning },
