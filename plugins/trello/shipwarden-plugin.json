@@ -1,0 +1,27 @@
+{
+  "id": "trello",
+  "name": "Trello",
+  "version": "0.1.0",
+  "protocolVersion": 3,
+  "description": "Trello cards. Each Trello board is a collection, and each list on the board is a status. Restrict the connection to some workspaces in the settings.",
+  "command": "node",
+  "args": ["index.js"],
+  "settings": [
+    {
+      "key": "apiKey",
+      "label": "API key",
+      "type": "string",
+      "required": true,
+      "description": "Open trello.com/power-ups/admin and make a Power-Up in your workspace. Open the API key page of the Power-Up. Generate the API key and copy it. Do not make an OAuth 2.0 app. Leave \"Allowed origins\" empty."
+    },
+    {
+      "key": "token",
+      "label": "Token",
+      "type": "secret",
+      "required": true,
+      "description": "On the same API key page, click the Token link. Allow access, and copy the token. ShipWarden does not use the Secret. The token gives read and write access to your boards."
+    }
+  ],
+  "usesRepositories": false,
+  "scopeLabel": "workspace"
+}
