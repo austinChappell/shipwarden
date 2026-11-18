@@ -543,6 +543,49 @@ describe('ClickUp comment mentions', () => {
     });
 });
 
+describe('ClickUp comment links', () => {
+    it('makes Markdown links from the link parts', () => {
+        const comment = {
+            comment_text: 'See the docs [v2] and https://a.test/x\n',
+            comment: [
+                { text: 'See the ' },
+                { text: 'docs [v2]', attributes: { link: 'https://a.test/docs_(v2)' } },
+                { text: ' and ' },
+                { text: 'https://a.test/x', attributes: { link: 'https://a.test/x' } },
+                { text: '\n' }
+            ]
+        };
+        expect(clickup.commentBody(comment)).toBe('See the [docs \\[v2\\]](<https://a.test/docs_(v2)>) and <https://a.test/x>\n');
+    });
+
+    it('keeps the mentions and adds the URLs of bookmarks', () => {
+        const comment = {
+            comment_text: 'Hi Ann',
+            comment: [
+                { text: 'Hi ' },
+                { type: 'tag', user: { id: 7, username: 'Ann' } },
+                { text: ' ' },
+                { type: 'bookmark', bookmark: { url: 'https://a.test' } }
+            ]
+        };
+        expect(clickup.commentBody(comment)).toBe('Hi @Ann <https://a.test>');
+    });
+
+    it('uses comment_text when no part has a web link', () => {
+        expect(clickup.commentBody({ comment_text: 'Plain', comment: [{ text: 'Plain' }] })).toBe('Plain');
+        expect(clickup.commentBody({ comment_text: 'x', comment: [{ text: 'x', attributes: { link: 'javascript:alert(1)' } }] })).toBe('x');
+        expect(clickup.commentBody({ comment_text: 'Old' })).toBe('Old');
+    });
+
+    it('uses comment_text when a part has an unknown type and no text', () => {
+        const comment = {
+            comment_text: 'A 🙂 https://a.test',
+            comment: [{ text: 'A ' }, { type: 'emoticon' }, { text: 'link', attributes: { link: 'https://a.test' } }]
+        };
+        expect(clickup.commentBody(comment)).toBe('A 🙂 https://a.test');
+    });
+});
+
 describe('ClickUp chat channels', () => {
     it('puts the workspace into the channel ID and skips channels without a name', () => {
         const channels = clickup.toChannels(

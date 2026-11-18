@@ -3195,11 +3195,14 @@ button.task-check.editable:hover:not(:disabled) {
     background: var(--bg);
 }
 
-/* The comments: one block for each comment, with a line between them. */
-.task-comments .thread-comment {
-    padding: 0 0 12px;
+/* The comments: one block for each comment. One line is between two comments, with the same space above and below it. */
+.task-comment-list {
     margin-bottom: 12px;
-    border-bottom: 1px solid var(--border);
+}
+
+.task-comments .thread-comment + .thread-comment {
+    margin-top: 12px;
+    padding-top: 12px;
 }
 
 .task-comments .review-body {
