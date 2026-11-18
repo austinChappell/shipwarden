@@ -1,4 +1,4 @@
-import { appendFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
+import { appendFile, mkdir, mkdtemp, realpath, rm, utimes, writeFile } from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -63,13 +63,25 @@ describe('TranscriptWatcher', () => {
         const folder = path.join(root, 'new-project');
         const file = path.join(folder, 'session.jsonl');
         watcher.start(file);
-        await mkdir(folder);
-        await writeFile(file, '{"a":1}\n');
-        await until(() => changes.length > 0);
+        // The watch of the parent folder can miss the first `mkdir`. A second `mkdir` gives no event, and the parent
+        // watch gives no event for a write in the new folder. Thus each try also changes the times of the folder.
+        await writeUntil(
+            async () => {
+                await mkdir(folder, { recursive: true });
+                await appendFile(file, '{"a":1}\n');
+                const now = new Date();
+                await utimes(folder, now, now);
+            },
+            () => changes.length > 0
+        );
         expect(changes.every(item => item === file)).toBe(true);
         changes.length = 0;
-        await appendFile(file, '{"b":2}\n');
-        await until(() => changes.length > 0);
+        // The new watch of the folder can also miss the first write.
+        await writeUntil(
+            () => appendFile(file, '{"b":2}\n'),
+            () => changes.length > 0
+        );
+        expect(changes.every(item => item === file)).toBe(true);
     });
 
     it('refuses a file when its folder and the parent folder are missing', () => {
