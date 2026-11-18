@@ -32,6 +32,43 @@ describe('fuzzyFilter', () => {
         expect(fuzzyFilter(paths, 'package')[0].path).toBe('package.json');
     });
 
+    it('puts an exact file name before scattered matches in longer names', () => {
+        const rules = [
+            'app/models/rules/conditional_exception_rule.rb',
+            'app/models/rules/enru.rb',
+            'app/models/rules/enru_helper.rb',
+            'app/models/rules/green_rule.rb',
+            'app/enru/config.rb'
+        ];
+        expect(fuzzyFilter(rules, 'enru').map((match) => match.path)).toEqual([
+            'app/models/rules/enru.rb',
+            'app/models/rules/enru_helper.rb',
+            'app/models/rules/green_rule.rb',
+            'app/enru/config.rb',
+            'app/models/rules/conditional_exception_rule.rb'
+        ]);
+    });
+
+    it('ranks the kinds of match from best to worst', () => {
+        const ranked = [
+            'lib/index.ts',
+            'lib/index-page.ts',
+            'lib/main-index.ts',
+            'lib/index/config.ts',
+            'lib/inline-dex.ts',
+            'lib/i/n/d/e/x.ts'
+        ];
+        expect(fuzzyFilter([...ranked].reverse(), 'index').map((match) => match.path)).toEqual(ranked);
+    });
+
+    it('puts word starts and short names first', () => {
+        expect(fuzzyFilter(['src/old-button.tsx', 'src/Button.tsx'], 'button')[0].path).toBe('src/Button.tsx');
+        expect(fuzzyFilter(['src/abutton.ts', 'src/a-button.ts'], 'button')[0].path).toBe('src/a-button.ts');
+        expect(fuzzyFilter(['src/FileExplorer.tsx', 'src/fixtures/large.tsx'], 'fe')[0].path).toBe(
+            'src/FileExplorer.tsx'
+        );
+    });
+
     it('returns no results when nothing matches', () => {
         expect(fuzzyFilter(paths, 'zzz')).toEqual([]);
     });
