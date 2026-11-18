@@ -3,6 +3,7 @@ import { findKeybind } from '@shared/keybinds';
 import { BACK_TAB, CTRL_V, isClearKey, isCtrlV, isImageOnlyPaste, isShiftTab } from '@shared/shortcuts';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { loadGhostty, prepareFonts } from './ghostty';
+import { HyperlinkFilter } from './hyperlinks';
 import { pauseRendering, resumeRendering } from './render-loop';
 import { writeKeepingScroll } from './scroll-lock';
 import { openLink } from '../links';
@@ -38,6 +39,8 @@ interface Entry {
     fitTimer?: ReturnType<typeof setTimeout>;
     /** The last size that the pool sent to the PTY. It is undefined until the terminal is visible one time. */
     ptySize?: { cols: number; rows: number };
+    /** Removes the OSC 8 links from the output of this session. See hyperlinks.ts. */
+    links: HyperlinkFilter;
 }
 
 /** A terminal that the pool makes now. */
@@ -298,7 +301,17 @@ export class TerminalPool {
         routeLinkClicks(terminal);
         stopClickCopy(terminal);
 
-        const entry: Entry = { session, terminal, fit, host, containers: [], shownSeq: -1, pending: [], bindings: [] };
+        const entry: Entry = {
+            session,
+            terminal,
+            fit,
+            host,
+            containers: [],
+            shownSeq: -1,
+            pending: [],
+            bindings: [],
+            links: new HyperlinkFilter()
+        };
         this.entries.set(session.id, entry);
         this.hosts.set(host, terminal);
         this.visibility.observe(host);
@@ -391,10 +404,15 @@ export class TerminalPool {
         return entry;
     }
 
-    /** ghostty-web 0.4 throws "offset is out of bounds" for an empty write. */
+    /**
+     * Writes output to the terminal without its OSC 8 links. These links can make ghostty-web 0.4 stop in an endless
+     * loop at a resize. See hyperlinks.ts.
+     * ghostty-web 0.4 throws "offset is out of bounds" for an empty write.
+     */
     private write(entry: Entry, data: string): void {
-        if (data.length > 0) {
-            writeKeepingScroll(entry.terminal, data);
+        const shown = entry.links.filter(data);
+        if (shown.length > 0) {
+            writeKeepingScroll(entry.terminal, shown);
         }
     }
 }
