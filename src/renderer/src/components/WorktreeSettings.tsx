@@ -1,15 +1,17 @@
 import { useContext, useEffect, useState } from 'react';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, TriangleAlert } from 'lucide-react';
 import { normalizeCodeFolder, repoDisplayName, type AppSettings } from '@shared/settings';
 import {
     DEFAULT_COPY_EXCLUDE,
     DEFAULT_COPY_PATTERNS,
     type CopyIgnoredSettings,
     type CopyMode,
+    type CopyPreviewResult,
     type WorktreeSettings as WorktreeSettingsValue
 } from '@shared/worktree-settings';
 import { BRANCH_VARIABLES, exampleValues, renderBranchTemplate, unknownVariables } from '@shared/branch-template';
 import { WORKTREE_SORT_LABELS, type WorktreeSort, type WorktreeSortKey } from '@shared/worktrees';
+import { formatSize } from '@shared/file-types';
 import { errorText } from '../util';
 import { fetchAppInfo } from '../app/task-branch';
 import { CODE_FOLDER_DIALOG_TITLE, CodeFolderContext } from './code-folder';
@@ -71,19 +73,19 @@ export function FolderField({
     );
 }
 
-/** The files that the copy settings copy now from the main worktree of a repository. */
+/** The files that the copy settings copy now from the main worktree of a repository. A large file or folder gets a warning. */
 export function CopyPreview({ repo, copy }: { repo: string | undefined; copy: CopyIgnoredSettings }) {
-    const [matches, setMatches] = useState<string[]>();
+    const [preview, setPreview] = useState<CopyPreviewResult>();
     const [error, setError] = useState<string>();
     const key = JSON.stringify(copy);
     // biome-ignore lint/correctness/useExhaustiveDependencies: key holds the content of copy. The copy object can change identity without a change in content.
     useEffect(() => {
         if (!repo) return;
         let current = true;
-        setMatches(undefined);
+        setPreview(undefined);
         setError(undefined);
         window.shipwarden.worktrees.previewCopy(repo, copy).then(
-            result => current && setMatches(result),
+            result => current && setPreview(result),
             err => current && setError(errorText(err))
         );
         return () => {
@@ -92,19 +94,38 @@ export function CopyPreview({ repo, copy }: { repo: string | undefined; copy: Co
     }, [repo, key]);
     if (!repo) return null;
     if (error) return <div className="form-error">{error}</div>;
-    if (!matches) return <div className="panel-note">Finding the files…</div>;
+    if (!preview) return <div className="panel-note">Finding the files…</div>;
+    const { entries: matches, large } = preview;
     return (
-        <div className="panel-note copy-preview">
-            {matches.length === 0 ? (
-                'No git-ignored file in the main worktree matches now.'
-            ) : (
-                <>A new worktree gets {matches.length === 1 ? 'this' : `these ${matches.length}`} (a name with &quot;/&quot; at the end is a folder):</>
+        <>
+            {large.length > 0 && (
+                <div className="copy-preview-warning" role="alert">
+                    <TriangleAlert size={14} className="copy-preview-warning-icon" />
+                    <div>
+                        Each new worktree gets a full copy of {large.length === 1 ? 'this large item' : `these ${large.length} large items`}.{' '}
+                        {copy.mode === 'allExcept' ? 'Add a pattern for it to the list' : 'Change the patterns'} to leave {large.length === 1 ? 'it' : 'them'}{' '}
+                        out.
+                        {large.map(item => (
+                            <div key={item.path} className="copy-preview-warning-item">
+                                <code>{item.path}</code> {item.atLeast ? 'more than ' : ''}
+                                {formatSize(item.bytes)}
+                            </div>
+                        ))}
+                    </div>
+                </div>
             )}
-            {matches.slice(0, 12).map(item => (
-                <code key={item}>{item}</code>
-            ))}
-            {matches.length > 12 && <span>and {matches.length - 12} more</span>}
-        </div>
+            <div className="panel-note copy-preview">
+                {matches.length === 0 ? (
+                    'No git-ignored file in the main worktree matches now.'
+                ) : (
+                    <>A new worktree gets {matches.length === 1 ? 'this' : `these ${matches.length}`} (a name with &quot;/&quot; at the end is a folder):</>
+                )}
+                {matches.slice(0, 12).map(item => (
+                    <code key={item}>{item}</code>
+                ))}
+                {matches.length > 12 && <span>and {matches.length - 12} more</span>}
+            </div>
+        </>
     );
 }
 
@@ -140,7 +161,7 @@ export function PatternsField({
 export const PATTERN_HELP =
     'One pattern on each line. A pattern without "/" matches the name in any folder, for example .env.*. ' +
     'A pattern with "/" matches the path from the repository root, for example config/master.key. ' +
-    'A pattern with "/" at the end matches only folders, for example node_modules/. Only git-ignored files are copied.';
+    'A pattern with "/" at the end matches only folders and the files in them, for example node_modules/. Only git-ignored files are copied.';
 
 const listOf = (copy: CopyIgnoredSettings) => (copy.mode === 'matching' ? copy.patterns : copy.exclude);
 const defaultsOf = (mode: CopyMode) => (mode === 'matching' ? DEFAULT_COPY_PATTERNS : DEFAULT_COPY_EXCLUDE);

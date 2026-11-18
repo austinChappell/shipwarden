@@ -75,7 +75,7 @@ export function registerWorktreeIpc({ worktrees, settings, reviewCheckouts, proc
         }
     );
     ipcMain.handle(IpcChannels.worktreesPreviewCopy, (_event, repoPath: string, copy: unknown) =>
-        worktrees.ignoredMatches(String(repoPath), normalizeWorktreeSettings({ copyIgnored: copy }).copyIgnored)
+        worktrees.previewCopy(String(repoPath), normalizeWorktreeSettings({ copyIgnored: copy }).copyIgnored)
     );
     ipcMain.handle(IpcChannels.worktreesDefaultFolder, () => worktreesRoot());
     ipcMain.handle(IpcChannels.worktreesDeleteBranch, (_event, repoPath: string, branch: string, force?: boolean, mergedHead?: string) =>

@@ -8324,6 +8324,30 @@ button:focus-visible,
     font-size: 12px;
 }
 
+.copy-preview-warning {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--border));
+    border-radius: var(--card-radius);
+    background: var(--tone-warning-bg);
+    color: var(--text-strong);
+    font-size: 12px;
+}
+
+.copy-preview-warning-icon {
+    flex: none;
+    margin-top: 1px;
+    color: var(--warning);
+}
+
+.copy-preview-warning-item {
+    margin-top: 4px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
 .copy-preview-repo {
     display: flex;
     align-items: center;
