@@ -7,13 +7,13 @@ export function threadLine(thread: ReviewThread): number | null {
 }
 
 /** Returns the place of a thread, for example "src/a.ts line 12". */
-function threadPlace(thread: ReviewThread): string {
+export function threadPlace(thread: ReviewThread): string {
     const line = threadLine(thread);
     return `${thread.path}${line ? ` line ${line}` : ''}`;
 }
 
 /** Returns the comments of a thread, each with its author, separated by empty lines. */
-function threadComments(thread: ReviewThread): string {
+export function threadComments(thread: ReviewThread): string {
     return thread.comments.map(comment => `${comment.author?.login ?? 'someone'}: ${comment.body}`).join('\n\n');
 }
 

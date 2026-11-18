@@ -1067,6 +1067,7 @@ export function App() {
                                     key={`${activeProject.id}:${viewEntry}`}
                                     project={activeProject}
                                     repoLabel={repoLabel}
+                                    repoColor={repo => appSettings.repos[repo]?.color}
                                     route={routeOf('plans')}
                                     onRoute={route => setRoute('plans', route)}
                                     onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}

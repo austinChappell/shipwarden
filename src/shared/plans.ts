@@ -63,6 +63,33 @@ export interface PlanStep {
     pr?: StepPullRequest;
     startedAt?: number;
     finishedAt?: number;
+    /** A short text about the step for the user. The agent of the step gets `description`, not this text. */
+    summary?: string;
+    /** The files, folders and modules that the step changes, for example "src/utils" or "OrganizationService". */
+    touches?: string[];
+    /** True: the user read the step and said that it is correct. A draft runs only when all its steps are reviewed. */
+    reviewed?: boolean;
+    /** The last work that the user gave to the agent of a done step, for example "Fixing the review comments". */
+    followUp?: { label: string; at: number };
+}
+
+/**
+ * A decision that the agent made for the plan, for example "One demo organization per director". The user must
+ * confirm each decision before the plan runs. To change a decision, the agent revises the plan.
+ */
+export interface PlanDecision {
+    id: string;
+    /** One short sentence. */
+    text: string;
+    /** Why the agent made the decision, or what the other choices are. */
+    detail?: string;
+    confirmed: boolean;
+}
+
+/** A key fact of the approach, for example the label "Data model" and the text "is_demo + a database trigger". */
+export interface PlanHighlight {
+    label: string;
+    text: string;
 }
 
 /** The task manager and the collection where "new" tasks go. */
@@ -78,8 +105,14 @@ export interface Plan {
     title: string;
     /** The idea of the user, as the user typed it. */
     idea: string;
-    /** The summary of the agent, in Markdown. */
+    /** The full write-up of the agent, in Markdown. */
     summary?: string;
+    /** Two or three sentences about the approach, from the agent. */
+    approach?: string;
+    /** The key facts of the approach. */
+    highlights?: PlanHighlight[];
+    /** The decisions that the user must confirm before the plan runs. */
+    decisions?: PlanDecision[];
     steps: PlanStep[];
     status: PlanStatus;
     taskTarget?: PlanTaskTarget;
@@ -116,7 +149,9 @@ export interface PlanExploreResult {
 export interface PlanProposal {
     title?: string;
     summary?: string;
-    steps: Pick<PlanStep, 'title' | 'description' | 'repo' | 'pullRequest'>[];
+    highlights?: PlanHighlight[];
+    decisions?: Pick<PlanDecision, 'text' | 'detail'>[];
+    steps: Pick<PlanStep, 'title' | 'description' | 'repo' | 'pullRequest' | 'summary' | 'touches'>[];
 }
 
 export const MAX_TITLE_LENGTH = 120;
@@ -125,6 +160,9 @@ export const MAX_TITLE_LENGTH = 120;
 export const NEW_PLAN_TITLE = 'New plan';
 const MAX_TEXT_LENGTH = 50_000;
 const MAX_STEPS = 50;
+const MAX_DECISIONS = 20;
+const MAX_HIGHLIGHTS = 8;
+const MAX_TOUCHES = 20;
 
 export const STEP_STATUS_LABELS: Record<StepStatus, string> = {
     pending: 'Not started',
@@ -192,6 +230,9 @@ export function duplicatePlan(plan: Plan, now: number): Plan {
         title: `${plan.title} (copy)`.slice(0, MAX_TITLE_LENGTH),
         idea: plan.idea,
         ...(plan.summary ? { summary: plan.summary } : {}),
+        ...(plan.approach ? { approach: plan.approach } : {}),
+        ...(plan.highlights ? { highlights: plan.highlights } : {}),
+        ...(plan.decisions ? { decisions: plan.decisions.map(decision => ({ ...decision, id: newPlanId() })) } : {}),
         ...(plan.taskTarget ? { taskTarget: plan.taskTarget } : {}),
         ...(plan.agentMode ? { agentMode: plan.agentMode } : {}),
         draftPullRequests: plan.draftPullRequests,
@@ -204,7 +245,10 @@ export function duplicatePlan(plan: Plan, now: number): Plan {
             task: step.task.kind === 'existing' ? { kind: 'existing', link: step.task.link } : step.task,
             pullRequest: step.pullRequest,
             skip: step.skip || step.status === 'skipped',
-            status: 'pending'
+            status: 'pending',
+            ...(step.summary ? { summary: step.summary } : {}),
+            ...(step.touches ? { touches: step.touches } : {}),
+            ...(step.reviewed ? { reviewed: true } : {})
         }))
     };
 }
@@ -294,7 +338,49 @@ export function normalizeStep(value: unknown): PlanStep | undefined {
     }
     const pr = pullRequestOf(raw.pr);
     if (pr) step.pr = pr;
+    const summary = nonEmpty(raw.summary, 4000);
+    if (summary) step.summary = summary;
+    const touches = textList(raw.touches, MAX_TOUCHES, 300);
+    if (touches.length > 0) step.touches = touches;
+    if (raw.reviewed === true) step.reviewed = true;
+    const followUp = record(raw.followUp);
+    const label = nonEmpty(followUp.label, 200);
+    const at = time(followUp.at);
+    if (label && at !== undefined) step.followUp = { label, at };
     return step;
+}
+
+/** Returns the non-empty strings of a list, trimmed. */
+function textList(value: unknown, maxItems: number, maxLength: number): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap(item => (nonEmpty(item, maxLength) ? [(item as string).trim()] : [])).slice(0, maxItems);
+}
+
+function highlightsOf(value: unknown): PlanHighlight[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .flatMap(item => {
+            const raw = record(item);
+            const label = nonEmpty(raw.label, 100)?.trim();
+            const content = nonEmpty(raw.text, 1000)?.trim();
+            return label && content ? [{ label, text: content }] : [];
+        })
+        .slice(0, MAX_HIGHLIGHTS);
+}
+
+function decisionsOf(value: unknown): PlanDecision[] {
+    if (!Array.isArray(value)) return [];
+    const decisions: PlanDecision[] = [];
+    for (const item of value) {
+        const raw = record(item);
+        const id = nonEmpty(raw.id, 100);
+        const content = nonEmpty(raw.text, 1000)?.trim();
+        if (!id || !content || decisions.some(decision => decision.id === id)) continue;
+        const detail = nonEmpty(raw.detail, 4000)?.trim();
+        decisions.push({ id, text: content, ...(detail ? { detail } : {}), confirmed: raw.confirmed === true });
+        if (decisions.length >= MAX_DECISIONS) break;
+    }
+    return decisions;
 }
 
 /** Returns a valid plan, or undefined when the value has no ID or no project. */
@@ -323,6 +409,12 @@ export function normalizePlan(value: unknown): Plan | undefined {
     };
     const summary = nonEmpty(raw.summary);
     if (summary) plan.summary = summary;
+    const approach = nonEmpty(raw.approach, 4000);
+    if (approach) plan.approach = approach;
+    const highlights = highlightsOf(raw.highlights);
+    if (highlights.length > 0) plan.highlights = highlights;
+    const decisions = decisionsOf(raw.decisions);
+    if (decisions.length > 0) plan.decisions = decisions;
     const connectionId = nonEmpty(target.connectionId, 200);
     const collectionId = nonEmpty(target.collectionId, 500);
     if (connectionId && collectionId) {
@@ -397,6 +489,43 @@ export function stackedOnIndex(steps: readonly PlanStep[], index: number): numbe
     return -1;
 }
 
+/** What the user must still review before the plan can run. Skipped steps need no review. */
+export interface PlanReview {
+    /** The steps that will run. */
+    steps: number;
+    reviewedSteps: number;
+    decisions: number;
+    openDecisions: number;
+    /** True: all steps that will run are reviewed, and all decisions are confirmed. */
+    complete: boolean;
+}
+
+export function planReview(plan: Pick<Plan, 'steps' | 'decisions'>): PlanReview {
+    const active = plan.steps.filter(step => !step.skip);
+    const reviewedSteps = active.filter(step => step.reviewed).length;
+    const decisions = plan.decisions ?? [];
+    const openDecisions = decisions.filter(decision => !decision.confirmed).length;
+    return {
+        steps: active.length,
+        reviewedSteps,
+        decisions: decisions.length,
+        openDecisions,
+        complete: reviewedSteps === active.length && openDecisions === 0
+    };
+}
+
+/** One sentence about what the user must still review, for example "Review 2 steps and confirm 1 decision." */
+export function reviewText(review: PlanReview): string {
+    const steps = review.steps - review.reviewedSteps;
+    const parts = [
+        steps > 0 ? `review ${steps === 1 ? '1 step' : `${steps} steps`}` : '',
+        review.openDecisions > 0 ? `confirm ${review.openDecisions === 1 ? '1 decision' : `${review.openDecisions} decisions`}` : ''
+    ].filter(Boolean);
+    if (parts.length === 0) return 'All steps are reviewed and all decisions are confirmed.';
+    const sentence = parts.join(' and ');
+    return `${sentence[0].toUpperCase()}${sentence.slice(1)} to run the plan.`;
+}
+
 /* ------------------------------------------------------------------------------------------------------------------ */
 /* Exploration                                                                                                         */
 /* ------------------------------------------------------------------------------------------------------------------ */
@@ -425,6 +554,13 @@ export function explorePrompt(input: { idea: string; repos: readonly PromptRepo[
             .join('\n');
         parts.push(`The current plan:\n\n${quoted(steps)}`);
     }
+    const decisions = input.current?.decisions ?? [];
+    if (decisions.length > 0) {
+        const lines = decisions.map(decision => `- ${decision.text}${decision.confirmed ? ' (confirmed by the user)' : ''}`).join('\n');
+        parts.push(
+            `The decisions of the current plan:\n\n${quoted(lines)}\n\nKeep the exact text of each decision that you do not change. The user confirmed some of them.`
+        );
+    }
     if (input.feedback?.trim()) {
         parts.push(`Change the plan with this feedback:\n\n${quoted(input.feedback.trim())}`);
     }
@@ -434,9 +570,12 @@ export function explorePrompt(input: { idea: string; repos: readonly PromptRepo[
             'Then propose a plan: a list of steps in the order to do them. Each step is one pull request in one repository.',
             'A step must be small enough for one agent session. A step in one repository can depend on an earlier step in the same repository or in a different repository.',
             'Write the description of each step as instructions for a coding agent: what to change, which files, and how to test it.',
+            'Also write a "summary" of each step for the user: one or two sentences. In "touches", list the files, folders, classes or modules that the step changes.',
+            'In "decisions", list each choice that you made and that the user must agree with, for example a product rule, a limit or a default. Write each decision as one short sentence. In "detail", write why, or the other choices. Do not list choices that only one answer can satisfy.',
+            'In "highlights", give two to six key facts of the approach, each with a short label, for example { "label": "Data model", "text": "is_demo flag + a database trigger" }.',
             'Use the exact repository names from the list.',
             'Answer with a short summary in Markdown, and then one JSON code block with this form:',
-            '```json\n{\n  "title": "A short title for the plan",\n  "summary": "Two or three sentences about the approach",\n  "steps": [\n    { "title": "A short title", "repo": "repository name", "description": "Markdown instructions", "pullRequest": true }\n  ]\n}\n```',
+            '```json\n{\n  "title": "A short title for the plan",\n  "summary": "Two or three sentences about the approach",\n  "highlights": [{ "label": "A short label", "text": "A short fact" }],\n  "decisions": [{ "text": "One short sentence", "detail": "Why, or the other choices" }],\n  "steps": [\n    { "title": "A short title", "repo": "repository name", "summary": "One or two sentences for the user", "touches": ["src/file.ts"], "description": "Markdown instructions", "pullRequest": true }\n  ]\n}\n```',
             'Set "pullRequest" to false for a step that is only an experiment, for example a proof of concept.'
         ].join('\n')
     );
@@ -470,19 +609,37 @@ export function parseProposal(answer: string, repos: readonly PromptRepo[]): Pla
         const title = nonEmpty(step.title, 1000)?.trim();
         if (!title) return [];
         const repo = matchRepo(typeof step.repo === 'string' ? step.repo : '', repos);
+        const summary = nonEmpty(step.summary, 4000)?.trim();
+        const touches = textList(step.touches, MAX_TOUCHES, 300);
         return [
             {
                 title: title.slice(0, MAX_TITLE_LENGTH),
                 description: text(step.description) ?? '',
                 ...(repo ? { repo } : {}),
-                pullRequest: step.pullRequest !== false
+                pullRequest: step.pullRequest !== false,
+                ...(summary ? { summary } : {}),
+                ...(touches.length > 0 ? { touches } : {})
             }
         ];
     });
     if (steps.length === 0) throw new Error('The plan of the agent has no steps. Explore again, or add the steps yourself.');
     const title = nonEmpty(raw.title, 1000)?.trim().slice(0, MAX_TITLE_LENGTH);
     const summary = nonEmpty(raw.summary);
-    return { steps, ...(title ? { title } : {}), ...(summary ? { summary: summary.trim() } : {}) };
+    const highlights = highlightsOf(raw.highlights);
+    const decisions = (Array.isArray(raw.decisions) ? raw.decisions : []).flatMap(item => {
+        // An agent can write a decision as a plain string.
+        const decision = typeof item === 'string' ? { text: item } : record(item);
+        const content = nonEmpty(decision.text, 1000)?.trim();
+        const detail = nonEmpty(decision.detail, 4000)?.trim();
+        return content ? [{ text: content, ...(detail ? { detail } : {}) }] : [];
+    });
+    return {
+        steps,
+        ...(title ? { title } : {}),
+        ...(summary ? { summary: summary.trim() } : {}),
+        ...(highlights.length > 0 ? { highlights } : {}),
+        ...(decisions.length > 0 ? { decisions: decisions.slice(0, MAX_DECISIONS) } : {})
+    };
 }
 
 /** The Markdown of the answer before its JSON block: the summary for the user. */
@@ -520,17 +677,39 @@ function matchRepo(name: string, repos: readonly PromptRepo[]): string | undefin
     );
 }
 
-/** Replaces the steps of a draft with a proposal. The task choices of steps with the same title stay. */
+function sameText(a: string, b: string): boolean {
+    return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/**
+ * Replaces the steps and the decisions of a draft with a proposal. The task choices of steps with the same title stay.
+ * A step stays reviewed only when its repository and its instructions did not change. A decision stays confirmed only
+ * when its text did not change.
+ */
 export function applyProposal(plan: Plan, proposal: PlanProposal, agent: string, now: number): Plan {
     const steps = proposal.steps.map(item => {
-        const before = plan.steps.find(step => step.title.trim().toLowerCase() === item.title.trim().toLowerCase());
-        return { ...newStep(item.repo), ...item, ...(before ? { task: before.task, skip: before.skip } : {}) };
+        const before = plan.steps.find(step => sameText(step.title, item.title));
+        const unchanged = before?.reviewed && before.repo === item.repo && before.description.trim() === item.description.trim();
+        return {
+            ...newStep(item.repo),
+            ...item,
+            ...(before ? { task: before.task, skip: before.skip } : {}),
+            ...(unchanged ? { reviewed: true } : {})
+        };
+    });
+    const decisions = (proposal.decisions ?? []).map(item => {
+        const before = plan.decisions?.find(decision => sameText(decision.text, item.text));
+        return { id: before?.id ?? newPlanId(), ...item, confirmed: before?.confirmed === true };
     });
     const keepTitle = plan.title !== NEW_PLAN_TITLE && plan.title.trim();
     return {
         ...plan,
         title: keepTitle ? plan.title : (proposal.title ?? plan.title),
         ...(proposal.summary ? { summary: proposal.summary } : {}),
+        // A new proposal replaces the approach, the highlights and the decisions of the old proposal.
+        approach: proposal.summary,
+        highlights: proposal.highlights,
+        decisions: decisions.length > 0 ? decisions : undefined,
         steps,
         agent,
         updatedAt: now
@@ -650,6 +829,7 @@ export function stepPrompt(plan: Plan, index: number, repoName: (repo: string) =
         `You work on step ${runnable.indexOf(step) + 1} of ${runnable.length} of the plan "${plan.title}".`,
         `The idea of the plan:\n\n${quoted(plan.idea.trim() || plan.title)}`,
         ...(plan.summary ? [`The approach:\n\n${plan.summary.trim()}`] : []),
+        ...(plan.decisions?.length ? [`The decisions of the plan. The user confirmed them:\n${plan.decisions.map(item => `- ${item.text}`).join('\n')}`] : []),
         `The steps:\n${list}`,
         `This step: ${step.title}\n\n${step.description.trim() || '(The step has no description. Use the title.)'}`
     ];

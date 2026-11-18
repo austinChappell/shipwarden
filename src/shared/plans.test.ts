@@ -13,9 +13,11 @@ import {
     parseProposal,
     planCounts,
     planProblems,
+    planReview,
     pullRequestBaseOf,
     pullRequestBody,
     pullRequestTitle,
+    reviewText,
     stackedOnIndex,
     stepBranch,
     stepPrompt,
@@ -343,5 +345,80 @@ describe('stepStatusLabel', () => {
         expect(stepStatusLabel('attention', 'done')).toBe('Stopped');
         expect(stepStatusLabel('attention')).toBe('Stopped');
         expect(stepStatusLabel('done', 'waiting')).toBe('Done');
+    });
+});
+
+describe('the review of a draft', () => {
+    it('needs each step that runs reviewed and each decision confirmed', () => {
+        const draft = plan([step({ reviewed: true }), step({}), step({ skip: true })], {
+            decisions: [
+                { id: 'd1', text: 'One demo per director', confirmed: true },
+                { id: 'd2', text: 'Max plan tier', confirmed: false }
+            ]
+        });
+        const review = planReview(draft);
+        expect(review).toEqual({ steps: 2, reviewedSteps: 1, decisions: 2, openDecisions: 1, complete: false });
+        expect(reviewText(review)).toBe('Review 1 step and confirm 1 decision to run the plan.');
+    });
+
+    it('is complete when all steps are reviewed and the plan has no open decision', () => {
+        const review = planReview(plan([step({ reviewed: true }), step({ skip: true })]));
+        expect(review.complete).toBe(true);
+        expect(reviewText(review)).toBe('All steps are reviewed and all decisions are confirmed.');
+    });
+
+    it('reads the decisions, the highlights and the step summaries of a proposal', () => {
+        const answer = JSON.stringify({
+            highlights: [
+                { label: 'Data model', text: 'A flag' },
+                { label: '', text: 'No label' }
+            ],
+            decisions: ['One demo per director', { text: 'Max plan tier', detail: 'Demos show all features.' }, { detail: 'No text' }],
+            steps: [{ title: 'A', repo: 'api', summary: ' Adds a flag. ', touches: ['src/db.ts', '', 3] }]
+        });
+        const proposal = parseProposal(answer, repos);
+        expect(proposal.highlights).toEqual([{ label: 'Data model', text: 'A flag' }]);
+        expect(proposal.decisions).toEqual([{ text: 'One demo per director' }, { text: 'Max plan tier', detail: 'Demos show all features.' }]);
+        expect(proposal.steps[0]).toMatchObject({ summary: 'Adds a flag.', touches: ['src/db.ts'] });
+    });
+
+    it('keeps a review and a confirmation only for things that did not change', () => {
+        const before = plan(
+            [
+                step({ title: 'Same', repo: API, description: 'Do A.', reviewed: true }),
+                step({ title: 'Changed', repo: API, description: 'Do B.', reviewed: true })
+            ],
+            { decisions: [{ id: 'd1', text: 'One demo per director', confirmed: true }] }
+        );
+        const result = applyProposal(
+            before,
+            {
+                steps: [
+                    { title: 'Same', repo: API, description: 'Do A.', pullRequest: true },
+                    { title: 'Changed', repo: API, description: 'Do B and C.', pullRequest: true }
+                ],
+                decisions: [{ text: 'one demo per director' }, { text: 'A new decision' }]
+            },
+            'a',
+            1
+        );
+        expect(result.steps.map(item => item.reviewed === true)).toEqual([true, false]);
+        expect(result.decisions?.map(item => [item.id === 'd1', item.confirmed])).toEqual([
+            [true, true],
+            [false, false]
+        ]);
+    });
+
+    it('keeps the decisions and the reviews in the file', () => {
+        const saved = normalizePlan({
+            ...plan([step({ id: 's1', reviewed: true, summary: 'Short.', touches: ['a.ts'] })]),
+            decisions: [{ id: 'd1', text: 'X', confirmed: true }, { id: 'd1', text: 'Duplicate' }, { text: 'No ID' }],
+            highlights: [{ label: 'L', text: 'T' }],
+            approach: 'Two steps.'
+        });
+        expect(saved?.decisions).toEqual([{ id: 'd1', text: 'X', confirmed: true }]);
+        expect(saved?.highlights).toEqual([{ label: 'L', text: 'T' }]);
+        expect(saved?.approach).toBe('Two steps.');
+        expect(saved?.steps[0]).toMatchObject({ reviewed: true, summary: 'Short.', touches: ['a.ts'] });
     });
 });
