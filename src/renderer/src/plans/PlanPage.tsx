@@ -498,6 +498,13 @@ function PlanEditor({ plan, project, repoLabel, repoColor, onClosed, onOpenPlan,
     const repoNames = listText(project.repos.map(repoLabel));
     const groups = repoGroups(draft.steps, project.repos, repoColor);
     const toReview = draft.steps.filter(step => !step.skip && !step.reviewed);
+    /** The steps that run and have no task. "New tasks for all" gives each of them a new task. */
+    const withoutTask = draft.steps.filter(step => !step.skip && step.task.kind === 'none');
+    const newTasksForAll = () =>
+        edit(current => ({
+            ...current,
+            steps: current.steps.map(step => (!step.skip && step.task.kind === 'none' ? { ...step, task: { kind: 'new' } } : step))
+        }));
     const shown = filter === 'open' ? toReview : draft.steps;
 
     return (
@@ -626,6 +633,16 @@ function PlanEditor({ plan, project, repoLabel, repoColor, onClosed, onOpenPlan,
                             <h3>Steps</h3>
                             {hasSteps ? (
                                 <div className="plan-section-tools">
+                                    {target && canCreateTasks && withoutTask.length > 0 && (
+                                        <Button
+                                            size="sm"
+                                            disabled={locked}
+                                            title="Make a new task for each step that has no task. Steps with a task keep it."
+                                            onClick={newTasksForAll}
+                                        >
+                                            New tasks for all <Count value={withoutTask.length} />
+                                        </Button>
+                                    )}
                                     <ButtonGroup size="sm" role="radiogroup" label="Show steps" onKeyDown={radioGroupKeys}>
                                         <Button size="sm" role="radio" aria-checked={filter === 'all'} onClick={() => setFilter('all')}>
                                             All <Count value={draft.steps.length} />
@@ -1361,18 +1378,11 @@ const TASK_CHOICES: { value: TaskChoice; label: string }[] = [
     { value: 'existing', label: 'Existing task' }
 ];
 
-/** The chips of a step: the repository, the stack, the pull request and the task. */
-function StepChips({
-    step,
-    stackedOn,
-    repoLabel,
-    target
-}: {
-    step: PlanStep;
-    stackedOn: number;
-    repoLabel(repo: string): string;
-    target: PlanTaskTarget | undefined;
-}) {
+/**
+ * The chips of a step: the repository, the stack and the pull request. A skipped step also shows its task here,
+ * because it shows no task field.
+ */
+function StepChips({ step, stackedOn, repoLabel }: { step: PlanStep; stackedOn: number; repoLabel(repo: string): string }) {
     return (
         <div className="plan-step-chips">
             {step.skip && <Chip>Skipped</Chip>}
@@ -1385,17 +1395,8 @@ function StepChips({
             <Chip title={step.pullRequest ? undefined : 'An experiment. Its branch stays on this Mac.'}>
                 {step.pullRequest ? '1 pull request' : 'Experiment'}
             </Chip>
-            {step.task.kind === 'new' && <Chip>New task</Chip>}
-            {step.task.kind === 'existing' && <Chip mono={!!step.task.link.key}>{step.task.link.key ?? step.task.link.title}</Chip>}
-            {step.task.kind === 'none' && target && (
-                <Chip
-                    tone="warning"
-                    icon={<CircleAlert size={12} />}
-                    title="This step has no task. Edit the step to make a new task or to link an existing task."
-                >
-                    No task
-                </Chip>
-            )}
+            {step.skip && step.task.kind === 'new' && <Chip>New task</Chip>}
+            {step.skip && step.task.kind === 'existing' && <Chip mono={!!step.task.link.key}>{step.task.link.key ?? step.task.link.title}</Chip>}
         </div>
     );
 }
@@ -1466,8 +1467,6 @@ function StepCard({
     onMove(delta: number): void;
     onRemove(): void;
 }) {
-    // "Existing" without a link shows the picker. The step keeps no task until the user picks one.
-    const [choice, setChoice] = useState<TaskChoice>(step.task.kind);
     const [prompt, setPrompt] = useState(false);
     const repoProblem = problems.some(problem => problem.field === 'repo');
     const reviewed = !!step.reviewed && !step.skip;
@@ -1565,7 +1564,13 @@ function StepCard({
                         </div>
                     </div>
                     <div className="plan-step-content">
-                        {!editing && <StepChips step={step} stackedOn={stackedOn} repoLabel={repoLabel} target={target} />}
+                        {!editing && <StepChips step={step} stackedOn={stackedOn} repoLabel={repoLabel} />}
+                        {!editing && !step.skip && (target || step.task.kind !== 'none') && (
+                            <div className="plan-step-fields">
+                                <span className="flow-field-label muted">Task</span>
+                                <StepTaskField step={step} target={target} disabled={disabled} onChange={onChange} />
+                            </div>
+                        )}
                         {problemLines}
                         {editing ? (
                             <>
@@ -1604,25 +1609,7 @@ function StepCard({
                                 />
                                 <div className="plan-step-fields">
                                     <span className="flow-field-label muted">Task</span>
-                                    <Select
-                                        className="plan-task-select"
-                                        aria-label="Task"
-                                        value={choice}
-                                        disabled={disabled}
-                                        options={TASK_CHOICES}
-                                        onChange={value => {
-                                            setChoice(value);
-                                            if (value !== 'existing') onChange({ task: { kind: value } as StepTask });
-                                        }}
-                                    />
-                                    {choice === 'existing' && (
-                                        <TaskPicker
-                                            target={target}
-                                            value={step.task.kind === 'existing' ? step.task.link : undefined}
-                                            disabled={disabled}
-                                            onChange={link => onChange({ task: { kind: 'existing', link } })}
-                                        />
-                                    )}
+                                    <StepTaskField step={step} target={target} disabled={disabled} onChange={onChange} />
                                     <Checkbox
                                         className="plan-check"
                                         title="Off: the step is an experiment. Its branch stays on this Mac."
@@ -1704,6 +1691,49 @@ function StepCard({
                 </div>
             </Card>
         </div>
+    );
+}
+
+/**
+ * The task of a step: a select for "No task", "New task" or "Existing task", and the task picker for "Existing task".
+ * A change goes into the step immediately. The step does not have to be in the editor.
+ */
+function StepTaskField({
+    step,
+    target,
+    disabled,
+    onChange
+}: {
+    step: PlanStep;
+    target: PlanTaskTarget | undefined;
+    disabled: boolean;
+    onChange(patch: Partial<PlanStep>): void;
+}) {
+    // "Existing task" without a link shows the picker. The step keeps no task until the user selects one.
+    const [picking, setPicking] = useState(false);
+    const choice: TaskChoice = picking && step.task.kind === 'none' ? 'existing' : step.task.kind;
+    return (
+        <>
+            <Select
+                className="plan-task-select"
+                aria-label="Task"
+                value={choice}
+                disabled={disabled}
+                options={TASK_CHOICES}
+                onChange={value => {
+                    setPicking(value === 'existing');
+                    if (value !== 'existing') onChange({ task: { kind: value } as StepTask });
+                }}
+            />
+            {choice === 'existing' && (
+                <TaskPicker
+                    target={target}
+                    value={step.task.kind === 'existing' ? step.task.link : undefined}
+                    disabled={disabled}
+                    onChange={link => onChange({ task: { kind: 'existing', link } })}
+                />
+            )}
+        </>
     );
 }
 
