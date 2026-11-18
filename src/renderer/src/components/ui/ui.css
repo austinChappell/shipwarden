@@ -16,6 +16,12 @@
     --control-radius: 6px;
     --control-font-size: 13px;
     --card-radius: 10px;
+    /*
+     * The fill of a card: one step lighter than the app background, so that a card stands out from the page. In a dark
+     * theme, "raised" is lighter than "bg". In a light theme, "raised" is near white and "bg" is a tint. Hover fills
+     * in a card use "hover" or "raised", so that they stay visible on this fill.
+     */
+    --card: color-mix(in srgb, var(--raised) 70%, var(--bg));
     --track-radius: 8px;
     --focus-ring: color-mix(in srgb, var(--accent) 70%, transparent);
     /* The page header (PageHeader.tsx). */
@@ -63,6 +69,8 @@
 
 :root[data-mode="light"] {
     --warning: #a8670f;
+    /* A light "raised" is only a little lighter than "bg". Thus a light card uses all of it. */
+    --card: var(--raised);
     --label-1: color-mix(in srgb, #6f8fc7 22%, var(--bg));
     --label-2: color-mix(in srgb, #9a82c9 22%, var(--bg));
     --label-3: color-mix(in srgb, #7fae8a 24%, var(--bg));
@@ -780,7 +788,7 @@ input[type="radio"]:disabled {
     min-width: 0;
     border: 1px solid var(--border);
     border-radius: var(--card-radius);
-    background: var(--panel);
+    background: var(--card);
 }
 
 /* The first and the last parts get the corners of the card, so a background in a part does not show at the corners. */

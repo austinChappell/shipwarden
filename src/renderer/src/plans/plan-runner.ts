@@ -5,9 +5,11 @@ import type { NotificationSettings } from '@shared/notifications';
 import {
     activeStepIndex,
     nextStepIndex,
+    planReview,
     pullRequestBaseOf,
     pullRequestBody,
     pullRequestTitle,
+    reviewText,
     stepBranch,
     stepPrompt,
     worktreeBaseOf,
@@ -91,6 +93,8 @@ export class PlanRunner {
         const plan = cachedPlan(planId);
         if (!plan) throw new Error('The plan does not exist anymore.');
         if (plan.status !== 'draft') throw new Error('The plan ran already. Duplicate it to run it again.');
+        const review = planReview(plan);
+        if (!review.complete) throw new Error(reviewText(review));
         await this.createTasks(plan);
         await updatePlan(planId, current => ({
             ...current,

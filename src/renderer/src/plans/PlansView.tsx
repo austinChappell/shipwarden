@@ -5,12 +5,15 @@ import type { Project } from '@shared/projects';
 import { EmptyState } from '../components/EmptyState';
 import { Button, Card, Chip, PageHeader } from '../components/ui';
 import { formatAgo, pluralize } from '@shared/format';
+import type { RepoColor } from '@shared/settings';
 import { PLAN_STATUS_TONES, PlanPage } from './PlanPage';
 import { createPlan, useProjectPlans, usePlans } from './plan-queries';
 
 interface Props {
     project: Project;
     repoLabel(repo: string): string;
+    /** The color of a repository from its settings, as in the sidebar. */
+    repoColor(repo: string): RepoColor | undefined;
     /** The page of the view is the ID of the open plan. */
     route: ViewRoute;
     onRoute(route: ViewRoute): void;
@@ -23,7 +26,7 @@ interface Props {
  * The Plans view of a project: the list of plans, and one plan. A plan starts as an idea. An agent reads all
  * repositories of the project and proposes steps. The user edits the steps and executes the plan.
  */
-export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree, onOpenGroup }: Props) {
+export function PlansView({ project, repoLabel, repoColor, route, onRoute, onOpenWorktree, onOpenGroup }: Props) {
     const { loaded } = usePlans();
     const plans = useProjectPlans(project.id);
     const open = route.page ? plans.find(plan => plan.id === route.page) : undefined;
@@ -50,6 +53,7 @@ export function PlansView({ project, repoLabel, route, onRoute, onOpenWorktree, 
                         plan={open}
                         project={project}
                         repoLabel={repoLabel}
+                        repoColor={repoColor}
                         onOpenWorktree={onOpenWorktree}
                         onClosed={() => onRoute({})}
                         onOpenPlan={id => onRoute({ page: id })}
