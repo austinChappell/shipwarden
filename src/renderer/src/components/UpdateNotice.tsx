@@ -9,7 +9,7 @@ import { openLink } from '../links';
 import { useModal } from './use-modal';
 import { CornerNotice } from './CornerNotice';
 import { keyRoots } from '../query-client';
-import { Button, IconButton } from './ui';
+import { Button, IconButton, useRefreshSpin } from './ui';
 
 const DISMISS_KEY = 'shipwarden.updateDismissed';
 
@@ -229,6 +229,7 @@ export function UpdateSettings() {
     const state = useUpdateState();
     const [notes, setNotes] = useState(false);
     const [error, setError] = useState<string>();
+    const checking = useRefreshSpin(state?.status === 'checking');
     if (!state) return null;
 
     const check = async () => {
@@ -269,7 +270,7 @@ export function UpdateSettings() {
                     </Button>
                 )}
                 <Button
-                    icon={<RefreshCw size={13} strokeWidth={1.8} className={state.status === 'checking' ? 'spin' : ''} />}
+                    icon={<RefreshCw size={13} strokeWidth={1.8} className={checking ? 'spin' : ''} />}
                     disabled={state.status === 'checking' || state.status === 'downloading' || state.status === 'installing'}
                     title="Check for updates (⇧⌘U)"
                     onClick={() => void check()}

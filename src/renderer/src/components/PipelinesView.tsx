@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, ListTree, LoaderCircle, Play, RefreshCw, RotateCw, ScrollText, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
+import { ExternalLink, ListTree, LoaderCircle, Play, RotateCw, ScrollText, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import {
     hostLabel,
@@ -21,7 +21,7 @@ import { formatAgo } from '@shared/format';
 import { formatDuration, optionalErrorText } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { LogView } from './LogView';
-import { Age, Button, Chip, type ChipTone, Combobox, IconButton, Input, PageHeader, Select, SkeletonRows, Switch } from './ui';
+import { Age, Button, Chip, type ChipTone, Combobox, IconButton, Input, PageHeader, RefreshButton, Select, SkeletonRows, Switch } from './ui';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
 import { useModal } from './use-modal';
@@ -354,12 +354,7 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                 onClick={event => openLink(pipelinesWebUrl(repoRef), event)}
                             />
                         )}
-                        <IconButton
-                            size="lg"
-                            icon={<RefreshCw size={16} strokeWidth={1.6} className={runsQuery.isFetching ? 'spin' : ''} />}
-                            label="Refresh"
-                            onClick={() => void runsQuery.refetch()}
-                        />
+                        <RefreshButton size="lg" refreshing={runsQuery.isFetching} onRefresh={() => runsQuery.refetch()} />
                     </>
                 }
             />

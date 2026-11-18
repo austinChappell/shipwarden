@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MultiFileDiff, Virtualizer } from '@pierre/diffs/react';
-import { ChevronRight, FileText, GitCompareArrows, LoaderCircle, Minus, Plus, RefreshCw, Search, Undo2 } from 'lucide-react';
+import { ChevronRight, FileText, GitCompareArrows, LoaderCircle, Minus, Plus, Search, Undo2 } from 'lucide-react';
 import { changeLetter, type ChangeContents, type ChangeSide, type FileChange } from '@shared/git';
 import type { DiffSide } from '@shared/github';
 import { changePatch } from '@shared/change-search';
@@ -14,7 +14,7 @@ import { isFindShortcut, openLogFind } from './log-find';
 import { findRequest as makeFindRequest, useCopySelection, type FindRequest } from './selected-text';
 import { pluralize } from '@shared/format';
 import { EmptyState } from './EmptyState';
-import { Button, ButtonGroup, Count, IconButton, SkeletonRows } from './ui';
+import { Button, ButtonGroup, Count, IconButton, RefreshButton, SkeletonRows } from './ui';
 
 interface Props {
     worktree: string;
@@ -123,7 +123,7 @@ const FileBody = memo(function FileBody({ change, side, loaded, highlight, diffS
  * ⌘F opens a search bar. The search reads the diff lines of all files and opens the file of each match.
  */
 export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
-    const { changes, error, reload } = useGitChanges(worktree);
+    const { changes, error, reload, refreshing } = useGitChanges(worktree);
     const mode = useColorMode();
     const [diffStyle, setDiffStyle] = useState<DiffStyle>(readStyle);
     /** The open state of each file, by entry key. A file without a value uses the default. */
@@ -341,7 +341,7 @@ export function WorktreeChangesView({ worktree, focused, onOpenFile }: Props) {
                     label="Find in the changes (⌘F)"
                     onClick={() => openFind(makeFindRequest(rootRef.current))}
                 />
-                <IconButton size="sm" icon={<RefreshCw size={14} strokeWidth={1.6} />} label="Load again" onClick={reloadAll} />
+                <RefreshButton size="sm" label="Load again" refreshing={refreshing} onRefresh={reloadAll} />
             </div>
             {(actionError || error) && <div className="editor-failure">{actionError ?? error}</div>}
             {entries.length === 0 ? (

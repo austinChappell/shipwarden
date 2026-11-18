@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Bot, CircleCheck, CircleDot, CircleMinus, CircleX, ExternalLink, LoaderCircle, Play, RefreshCw, RotateCw } from 'lucide-react';
+import { Bot, CircleCheck, CircleDot, CircleMinus, CircleX, ExternalLink, LoaderCircle, Play, RotateCw } from 'lucide-react';
 import { hostLabel, summarizeChecks, type BranchStatus, type CheckRun, type RepoTarget } from '@shared/github';
 import { formatDuration, optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { LogView } from './LogView';
-import { Button, IconButton } from './ui';
+import { Button, IconButton, RefreshButton } from './ui';
 import { checksQuery, ciActions, isFailedConclusion, useCiAction, workflowsQuery } from '../github/ci-queries';
 
 interface Props {
@@ -102,7 +102,7 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                 </div>
                 <div className="checks-subtitle">
                     {status.pullRequest?.state === 'OPEN' ? `PR #${status.pullRequest.number} head` : status.branch} · <code>{status.sha.slice(0, 7)}</code>
-                    <IconButton size="sm" icon={<RefreshCw size={14} strokeWidth={1.6} />} label="Refresh" onClick={() => void checksQueryResult.refetch()} />
+                    <RefreshButton size="sm" refreshing={checksQueryResult.isFetching} onRefresh={() => checksQueryResult.refetch()} />
                 </div>
                 <div className="row-buttons">
                     {failedRuns.length > 0 && (

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Ban, CaseSensitive, ChevronRight, File, FilePlus, FolderPlus, ListCollapse, RefreshCw, Search, TextAlignStart } from 'lucide-react';
+import { Ban, CaseSensitive, ChevronRight, File, FilePlus, FolderPlus, ListCollapse, Search, TextAlignStart } from 'lucide-react';
 import { baseName, fileNameError, isSameOrInside, joinPath, matchLine, parentPath, type ContentMatch, type FileEntry } from '@shared/files';
 import { fileIcon, folderIcon } from '../files/file-icons';
 import { fuzzyFilter, fuzzyPositions } from '../files/fuzzy';
@@ -9,7 +9,7 @@ import { ErrorBanner } from './ErrorBanner';
 import { confirmDialog } from './ConfirmDialog';
 import { showContextMenu, type ContextMenuItem } from './ContextMenu';
 import { pluralize } from '@shared/format';
-import { Count, IconButton, Input, inputClass, SkeletonRows } from './ui';
+import { Count, IconButton, Input, inputClass, RefreshButton, SkeletonRows } from './ui';
 
 type Mode = 'names' | 'contents';
 
@@ -248,9 +248,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title, onMoved, onD
     const reloadLoaded = useCallback(
         (directories?: string[]) => {
             const loaded = [...childrenRef.current.keys()];
-            for (const directory of directories ? loaded.filter(dir => directories.includes(dir)) : loaded) {
-                loadDirectory(directory);
-            }
+            return Promise.all((directories ? loaded.filter(dir => directories.includes(dir)) : loaded).map(loadDirectory));
         },
         [loadDirectory]
     );
@@ -965,13 +963,13 @@ export function FileExplorer({ root, activePath, onOpenFile, title, onMoved, onD
                     label="Collapse all folders"
                     onClick={() => setExpanded(new Set())}
                 />
-                <IconButton
+                <RefreshButton
                     size="sm"
-                    icon={<RefreshCw size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} />}
-                    label="Refresh"
-                    onClick={() => {
-                        reloadLoaded();
+                    iconSize={ICON_SIZE - 2}
+                    iconStroke={ICON_STROKE}
+                    onRefresh={() => {
                         setAllFiles(undefined);
+                        return reloadLoaded();
                     }}
                 />
             </div>

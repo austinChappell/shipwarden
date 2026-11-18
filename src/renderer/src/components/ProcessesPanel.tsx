@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bot, ChevronRight, CircleStop, ExternalLink, LoaderCircle, RefreshCw, SquareTerminal } from 'lucide-react';
+import { Bot, ChevronRight, CircleStop, ExternalLink, LoaderCircle, SquareTerminal } from 'lucide-react';
 import { portUrl, type ListeningPort, type ProcessInfo, type ProcessTree, type WorktreeProcesses } from '@shared/processes';
 import { errorText } from '../util';
 import { openLink } from '../links';
-import { Button, IconButton } from './ui';
+import { Button, IconButton, RefreshButton } from './ui';
 
 const POLL_MS = 3000;
 
@@ -193,7 +193,7 @@ export function ProcessesPanel({ worktreePath, onShowTerminal }: Props) {
                 <span className="processes-summary">
                     {trees.length === 0 ? 'No running processes' : `${trees.length} running · ${ports.length} ${ports.length === 1 ? 'port' : 'ports'}`}
                 </span>
-                <IconButton size="sm" icon={<RefreshCw size={14} strokeWidth={1.6} />} label="Refresh" onClick={() => void load()} />
+                <RefreshButton size="sm" onRefresh={load} />
             </div>
             {error && <div className="form-error">{error}</div>}
 

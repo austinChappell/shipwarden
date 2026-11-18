@@ -12,6 +12,8 @@ export type { ChipTone } from './Chip';
 export { Count } from './Count';
 export { FilterField } from './FilterField';
 export { PageHeader } from './PageHeader';
+export { RefreshButton, useRefreshSpin } from './RefreshButton';
+export type { RefreshButtonProps } from './RefreshButton';
 export { SkeletonRows } from './Skeleton';
 export { Age } from './Age';
 export { Checkbox, Radio, Switch } from './Choice';

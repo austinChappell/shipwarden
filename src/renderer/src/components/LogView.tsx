@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Bot, CircleCheck, CircleDashed, CircleMinus, CircleX, ExternalLink, LoaderCircle, RefreshCw, RotateCw } from 'lucide-react';
+import { ArrowLeft, Bot, CircleCheck, CircleDashed, CircleMinus, CircleX, ExternalLink, LoaderCircle, RotateCw } from 'lucide-react';
 import type { CheckRun, JobProgress, JobStep, RepoTarget } from '@shared/github';
 import { monaco } from '../editor/monaco';
 import { errorText, formatDuration, optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
-import { IconButton } from './ui';
+import { IconButton, RefreshButton } from './ui';
 import { ciActions, ciKeys, isFailedConclusion, useCiAction } from '../github/ci-queries';
 import { claimLogFind, isFindShortcut, type LogFindOwner, openLogFind, releaseLogFind } from './log-find';
 
@@ -240,7 +240,7 @@ export function LogView({ target, check, onSendToAgent, onBack }: Props) {
                 <span className="diff-path">{check.name}</span>
                 <span className="check-duration">{formatDuration(check.startedAt, check.completedAt)}</span>
                 <span className="header-spacer" />
-                <IconButton size="sm" icon={<RefreshCw size={14} strokeWidth={1.6} />} label="Load the log again" onClick={() => void logQuery.refetch()} />
+                <RefreshButton size="sm" label="Load the log again" refreshing={logQuery.isFetching} onRefresh={() => logQuery.refetch()} />
                 {check.status === 'completed' && (
                     <IconButton
                         size="sm"

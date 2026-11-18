@@ -33,12 +33,16 @@ export function useGitChanges(worktree: string | undefined): {
     fetched: FetchResult | undefined;
     /** Reads the changes again. With `fetch`, it also fetches the remote now. */
     reload(fetch?: boolean): void;
+    /** True while a load from `reload` is running. */
+    refreshing: boolean;
 } {
     const [changes, setChanges] = useState<GitChanges>();
     const [error, setError] = useState<string>();
     const [fetched, setFetched] = useState<FetchResult>();
     const [version, setVersion] = useState(0);
     const [forceFetch, setForceFetch] = useState(0);
+    const [reloading, setReloading] = useState(false);
+    const [fetching, setFetching] = useState(false);
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: A different worktree clears the old changes, the old error and the old fetch result.
     useEffect(() => {
@@ -68,7 +72,7 @@ export function useGitChanges(worktree: string | undefined): {
                 // A worktree that is gone: the status shows the error.
             }
         };
-        void fetchNow(forceFetch > 0);
+        void fetchNow(forceFetch > 0).finally(() => current && setFetching(false));
         const timer = setInterval(() => void fetchNow(false), FETCH_CHECK_MS);
         const onFocus = () => void fetchNow(false);
         window.addEventListener('focus', onFocus);
@@ -99,7 +103,7 @@ export function useGitChanges(worktree: string | undefined): {
                 running = false;
             }
         };
-        void load();
+        void load().finally(() => current && setReloading(false));
         const timer = setInterval(() => void load(), POLL_MS);
         const offFiles = window.shipwarden.files.onChanged(event => event.root === worktree && void load());
         const offGit = onGitChanged(() => void load());
@@ -119,8 +123,13 @@ export function useGitChanges(worktree: string | undefined): {
         error,
         fetched,
         reload: (fetch = false) => {
+            setReloading(true);
             setVersion(value => value + 1);
-            if (fetch) setForceFetch(value => value + 1);
-        }
+            if (fetch) {
+                setFetching(true);
+                setForceFetch(value => value + 1);
+            }
+        },
+        refreshing: reloading || fetching
     };
 }

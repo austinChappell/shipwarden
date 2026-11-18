@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, ExternalLink, LoaderCircle, Play, RefreshCw, RotateCw, Square } from 'lucide-react';
+import { ChevronRight, ExternalLink, LoaderCircle, Play, RotateCw, Square } from 'lucide-react';
 import type { CheckRun, Workflow } from '@shared/github';
 import { runIsActive, type WorkflowRun } from '@shared/pipelines';
 import { formatDuration, optionalErrorText, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { LogView } from './LogView';
-import { Button, IconButton } from './ui';
+import { Button, IconButton, RefreshButton } from './ui';
 import { confirmDialog } from './ConfirmDialog';
 import { RunDialog, RunIcon } from './PipelinesView';
 import { openLink } from '../links';
@@ -173,12 +173,7 @@ export function PipelinesPanel({ root, branch, onSendLogToAgent }: Props) {
                 >
                     <span className="pp-run-label">Run</span>
                 </Button>
-                <IconButton
-                    size="sm"
-                    icon={<RefreshCw size={14} strokeWidth={1.6} className={runsQuery.isFetching ? 'spin' : ''} />}
-                    label="Refresh"
-                    onClick={() => void runsQuery.refetch()}
-                />
+                <RefreshButton size="sm" refreshing={runsQuery.isFetching} onRefresh={() => runsQuery.refetch()} />
             </div>
 
             {showWorkflows && (

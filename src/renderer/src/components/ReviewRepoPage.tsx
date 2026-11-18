@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Check, GitMerge, GitPullRequest, GitPullRequestDraft, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Check, GitMerge, GitPullRequest, GitPullRequestDraft } from 'lucide-react';
 import { parseRepoId, repoLabel, type PullRequestSummary, type RepoRef } from '@shared/github';
 import { MY_PULL_REQUEST_REASON_LABELS, parsePullRequestTitle, type MyPullRequestReason } from '@shared/dashboard';
 import { pluralize } from '@shared/format';
@@ -26,7 +26,21 @@ import { optionalErrorText, timeAgo } from '../util';
 import { focusFirstItem, itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { seenStore, useIsSeen } from '../seen-store';
 import { overviewKeys, refreshRepo, useRepoEntry } from '../github/review-overview-store';
-import { Age, Button, Chip, type ChipTone, Combobox, Count, FilterField, IconButton, PageHeader, Select, SkeletonRows, type ComboboxGroup } from './ui';
+import {
+    Age,
+    Button,
+    Chip,
+    type ChipTone,
+    Combobox,
+    type ComboboxGroup,
+    Count,
+    FilterField,
+    IconButton,
+    PageHeader,
+    RefreshButton,
+    Select,
+    SkeletonRows
+} from './ui';
 import { ChecksLabel, Dotted, KeyLegend, focusedData, useInitialFocus, usePageKeys } from './ReviewParts';
 import { InlineTip } from './Tips';
 
@@ -458,12 +472,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                             options={PULL_REQUEST_SORTS.map(item => ({ value: item.id, label: `Sort: ${item.label}` }))}
                             onChange={setSort}
                         />
-                        <IconButton
-                            size="lg"
-                            icon={<RefreshCw size={16} strokeWidth={1.6} className={entry?.loading ? 'spin' : ''} />}
-                            label="Refresh"
-                            onClick={() => void refreshRepo(repo)}
-                        />
+                        <RefreshButton size="lg" refreshing={entry?.loading} onRefresh={() => refreshRepo(repo)} />
                     </>
                 }
             />
