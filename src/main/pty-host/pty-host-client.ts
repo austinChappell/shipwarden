@@ -1,11 +1,12 @@
 import { spawn } from 'child_process';
 import { createHash } from 'crypto';
-import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, statSync } from 'fs';
+import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, truncateSync } from 'fs';
 import { connect, type Socket } from 'net';
 import { dirname, join } from 'path';
 import { createMessageConnection, SocketMessageReader, SocketMessageWriter, type MessageConnection } from 'vscode-jsonrpc/node';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession } from '@shared/terminal';
 import type { TerminalEvents } from '../terminal/terminal-manager';
+import { launchPtyHost, ptyHostLabel } from './host-launch';
 import { BUILD_SOCKET_PREFIX, HostEvents, HostMethods, type AgentStateEvent, type DataEvent, type ExitEvent, type PtyHostHello } from './protocol';
 
 const CONNECT_TIMEOUT_MS = 8000;
@@ -25,8 +26,11 @@ export interface PtyHostClientOptions {
     /** The file that gets the output of the host process. */
     logPath: string;
     events: TerminalEvents;
-    /** Starts a host process. Tests replace it. */
-    spawnHost?(socketPath: string, buildId: string): void;
+    /**
+     * Starts a host process. Tests replace it. It can return a function that the client calls after the host listens,
+     * for example to remove the launchd job that started the host.
+     */
+    spawnHost?(socketPath: string, buildId: string): void | Promise<void | (() => Promise<void>)>;
     /** Identifies the code of the host. The default is a hash of the host script. */
     buildId?: string;
 }
@@ -240,8 +244,13 @@ export class PtyHostClient {
         }
         let socket = await tryConnect(this.options.socketPath);
         if (!socket) {
-            (this.options.spawnHost ?? ((path, buildId) => this.spawnHost(path, buildId)))(this.options.socketPath, this.buildId);
-            socket = await this.waitForHost(this.options.socketPath);
+            const spawnHost = this.options.spawnHost ?? ((path, buildId) => this.spawnHost(path, buildId));
+            const cleanup = await spawnHost(this.options.socketPath, this.buildId);
+            try {
+                socket = await this.waitForHost(this.options.socketPath);
+            } finally {
+                cleanup?.().catch(error => console.warn('[pty-host] The launchd job of the host was not removed:', error));
+            }
         }
         const link = await this.attach(socket, this.options.socketPath);
         if (link.outdated) {
@@ -385,17 +394,40 @@ export class PtyHostClient {
         link.connection.dispose();
     }
 
-    private spawnHost(socketPath: string, buildId: string): void {
+    /**
+     * Starts the host of a socket. On macOS, launchd starts it, so that a force quit of the app does not stop the host
+     * and its agents (see host-launch.ts). When launchd cannot start it, or on another system, the app starts it as a
+     * detached process.
+     */
+    private async spawnHost(socketPath: string, buildId: string): Promise<(() => Promise<void>) | undefined> {
         mkdirSync(dirname(socketPath), { recursive: true });
+        const { logPath, hostScript } = this.options;
         let size = 0;
         try {
-            size = statSync(this.options.logPath).size;
+            size = statSync(logPath).size;
         } catch {
             // The log does not exist yet.
         }
-        const log = openSync(this.options.logPath, size > MAX_LOG_BYTES ? 'w' : 'a');
+        if (process.platform === 'darwin') {
+            try {
+                if (size > MAX_LOG_BYTES) truncateSync(logPath);
+                const label = ptyHostLabel(socketPath);
+                return await launchPtyHost({
+                    label,
+                    execPath: process.execPath,
+                    hostScript,
+                    socketPath,
+                    buildId,
+                    logPath,
+                    plistPath: join(dirname(logPath), `${label}.plist`)
+                });
+            } catch (error) {
+                console.warn('[pty-host] launchd did not start the host. The app starts it. A force quit of the app stops it.', error);
+            }
+        }
+        const log = openSync(logPath, size > MAX_LOG_BYTES ? 'w' : 'a');
         try {
-            const child = spawn(process.execPath, [this.options.hostScript, socketPath, buildId], {
+            const child = spawn(process.execPath, [hostScript, socketPath, buildId], {
                 detached: true,
                 stdio: ['ignore', log, log],
                 env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
@@ -404,5 +436,6 @@ export class PtyHostClient {
         } finally {
             closeSync(log);
         }
+        return undefined;
     }
 }
