@@ -27,13 +27,30 @@ export type CopyMode = 'matching' | 'allExcept';
  * The git-ignored files and folders to copy from the main worktree to a new worktree.
  * A pattern without "/" matches the name at any depth. A pattern with "/" matches the path from the repository root.
  * "*" matches any characters except "/", "**" matches any characters, "?" matches one character.
- * A pattern that ends with "/" matches only folders.
+ * A pattern that ends with "/" matches only folders. A pattern that matches a folder also matches the entries in it.
  */
 export interface CopyIgnoredSettings {
     enabled: boolean;
     mode: CopyMode;
     patterns: string[];
     exclude: string[];
+}
+
+/** A copy entry of LARGE_COPY_BYTES or more is large. Each new worktree gets a full copy of it, so the settings show a warning. */
+export const LARGE_COPY_BYTES = 500 * 1024 ** 2;
+
+/** A large copy entry: a path from the repository root (a folder with "/" at the end) and its size. */
+export interface LargeCopyEntry {
+    path: string;
+    bytes: number;
+    /** True when the size check stopped at the limit. The real size is larger. */
+    atLeast?: boolean;
+}
+
+/** The entries that the copy settings copy now, and the large entries in them. */
+export interface CopyPreviewResult {
+    entries: string[];
+    large: LargeCopyEntry[];
 }
 
 /** The worktree settings of all repositories. */
@@ -207,9 +224,21 @@ function globToRegExp(glob: string): RegExp {
 
 /**
  * True when a path from the repository root (with "/" at the end for a folder) matches a copy pattern.
- * A pattern that ends with "/" matches only folders.
+ * A pattern that ends with "/" matches only folders. A pattern that matches a folder also matches the entries in it,
+ * as in .gitignore. Git lists the ignored files of a folder one by one when the folder has a tracked file, for example
+ * "backups/.gitkeep". Then "backups/" must match "backups/202610150300.dump".
  */
 export function matchesCopyPattern(entry: string, pattern: string): boolean {
+    if (matchesEntry(entry, pattern)) return true;
+    const parts = entry.replace(/\/+$/, '').split('/');
+    for (let count = 1; count < parts.length; count++) {
+        if (matchesEntry(`${parts.slice(0, count).join('/')}/`, pattern)) return true;
+    }
+    return false;
+}
+
+/** True when the entry itself matches the pattern. The folders that contain the entry do not count. */
+function matchesEntry(entry: string, pattern: string): boolean {
     const isFolder = entry.endsWith('/');
     const file = entry.replace(/\/+$/, '');
     let glob = pattern.trim().replace(/^\//, '');

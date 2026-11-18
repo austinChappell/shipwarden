@@ -55,7 +55,7 @@ import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSe
 import type { FileBlame, FileHistory } from './git-blame';
 import type { GraphLog, GraphScope } from './git-graph';
 import type { BranchList, CreatedWorktree, CreateWorktreeOptions, CreateWorktreeProgress, RemoveWorktreeResult, Worktree } from './worktrees';
-import type { CopyIgnoredSettings } from './worktree-settings';
+import type { CopyIgnoredSettings, CopyPreviewResult } from './worktree-settings';
 import type { BrowserBounds, BrowserState } from './browser';
 import type { Automation, AutomationList, AutomationRun, AutomationRunState, HttpMethod, TokenCount } from './automations';
 import type { HttpResponse } from './automation-templates';
@@ -247,8 +247,8 @@ export interface ShipWardenApi {
         branches(repoPath: string): Promise<BranchList>;
         /** Runs the teardown script of the repository (unless `skipTeardown`), then removes the worktree. */
         remove(repoPath: string, worktreePath: string, options?: { skipTeardown?: boolean }): Promise<RemoveWorktreeResult>;
-        /** The git-ignored files and folders of the main worktree that the copy settings copy now. */
-        previewCopy(repoPath: string, copy: CopyIgnoredSettings): Promise<string[]>;
+        /** The git-ignored files and folders of the main worktree that the copy settings copy now, and the large ones in them. */
+        previewCopy(repoPath: string, copy: CopyIgnoredSettings): Promise<CopyPreviewResult>;
         /**
          * Deletes a local branch. Without `force`, ShipWarden first pulls the start branch of the worktree. A failed pull
          * does not stop the delete. A branch that is not merged stays and `notMerged` is true. `mergedHead` is the head

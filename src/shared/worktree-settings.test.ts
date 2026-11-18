@@ -26,6 +26,24 @@ describe('matchesCopyPattern', () => {
         expect(matchesCopyPattern('certs/', '/certs/')).toBe(true);
         expect(matchesCopyPattern('certs', 'certs/')).toBe(false);
     });
+
+    it('matches the entries in a folder that the pattern matches', () => {
+        // Git lists the files one by one when the folder has a tracked file, for example backups/.gitkeep.
+        expect(matchesCopyPattern('backups/202610150300.dump', 'backups/')).toBe(true);
+        expect(matchesCopyPattern('backups/old/a.dump', 'backups/')).toBe(true);
+        expect(matchesCopyPattern('apps/web/node_modules/.cache/x', 'node_modules/')).toBe(true);
+        expect(matchesCopyPattern('apps/backups/a.dump', 'apps/backups/')).toBe(true);
+        expect(matchesCopyPattern('backups/a.dump', 'apps/backups/')).toBe(false);
+        expect(matchesCopyPattern('backups.dump', 'backups/')).toBe(false);
+        expect(
+            selectCopyEntries(['.env', 'backups/202610150300.dump', 'backups/.DS_Store'], {
+                enabled: true,
+                mode: 'allExcept',
+                patterns: [],
+                exclude: ['backups/']
+            })
+        ).toEqual(['.env']);
+    });
 });
 
 describe('worktree settings', () => {

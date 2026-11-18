@@ -3,7 +3,8 @@ import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { BranchList, CreateWorktreeOptions, Worktree } from '@shared/worktrees';
-import { ignoredUnits, selectCopyEntries, type CopyIgnoredSettings } from '@shared/worktree-settings';
+import { ignoredUnits, LARGE_COPY_BYTES, selectCopyEntries, type CopyIgnoredSettings, type CopyPreviewResult } from '@shared/worktree-settings';
+import { largeCopyEntries } from './copy-size';
 import { branchToFolderName, parseWorktreePorcelain } from './porcelain';
 
 /** The time limit for "git fetch" before a new worktree. Without network, git uses HEAD. */
@@ -315,6 +316,14 @@ export class GitWorktreeService {
         if (!main) return [];
         const output = await this.git(main.path, ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z']);
         return selectCopyEntries(ignoredUnits(output.split('\0').filter(Boolean)), copy).sort();
+    }
+
+    /** Returns the entries that the copy settings copy now, and the entries of LARGE_COPY_BYTES or more in them. */
+    async previewCopy(repoPath: string, copy: CopyIgnoredSettings): Promise<CopyPreviewResult> {
+        const entries = await this.ignoredMatches(repoPath, copy);
+        const main = (await this.list(repoPath)).find(worktree => worktree.isMain);
+        const large = main ? await largeCopyEntries(main.path, entries, LARGE_COPY_BYTES) : [];
+        return { entries, large };
     }
 
     /**
