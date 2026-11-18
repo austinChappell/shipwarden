@@ -1,18 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import {
-    Check,
-    CheckCheck,
-    ChevronRight,
-    ExternalLink,
-    EyeOff,
-    Filter,
-    GitPullRequest,
-    LayoutDashboard,
-    MessageSquare,
-    RefreshCw,
-    Settings2
-} from 'lucide-react';
+import { Check, CheckCheck, ChevronRight, ExternalLink, EyeOff, Filter, GitPullRequest, LayoutDashboard, MessageSquare, Settings2 } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import {
     bucketMyPullRequests,
@@ -46,7 +34,7 @@ import { confirmDialog } from './ConfirmDialog';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
 import { InlineTip } from './Tips';
-import { Age, Button, ButtonGroup, Card, CardHeader, Chip, Count, FilterField, IconButton, PageHeader, SkeletonRows } from './ui';
+import { Age, Button, ButtonGroup, Card, CardHeader, Chip, Count, FilterField, IconButton, PageHeader, RefreshButton, SkeletonRows } from './ui';
 
 export type ReviewTabRequest = 'overview' | 'checks' | 'files';
 
@@ -539,12 +527,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                             </Button>
                         )}
                         <IconButton size="lg" icon={<Settings2 size={16} strokeWidth={1.6} />} label="Dashboard settings" onClick={onOpenSettings} />
-                        <IconButton
-                            size="lg"
-                            icon={<RefreshCw size={16} strokeWidth={1.6} className={state.loading ? 'spin' : ''} />}
-                            label="Refresh"
-                            onClick={() => void refreshDashboard()}
-                        />
+                        <RefreshButton size="lg" refreshing={state.loading} onRefresh={() => refreshDashboard()} />
                     </>
                 }
             />

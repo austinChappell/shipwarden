@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { ExternalLink, GitPullRequest, RefreshCw } from 'lucide-react';
+import { ExternalLink, GitPullRequest } from 'lucide-react';
 import { hostLabel, type BranchStatus, type NewPullRequest, type RepoTarget } from '@shared/github';
 import { createPullRequest } from '../github/pull-request-mutations';
 import { optionalErrorText } from '../util';
@@ -8,7 +8,7 @@ import { confirmDialog } from './ConfirmDialog';
 import { openLink } from '../links';
 import { MentionTextarea } from './MentionTextarea';
 import { MentionContext, mentionSourceOfRepo } from './mention-context';
-import { Button, Checkbox, IconButton, Input } from './ui';
+import { Button, Checkbox, Input, RefreshButton } from './ui';
 import { DraftButton } from './DraftButton';
 
 const ICON = { size: 14, strokeWidth: 1.6 };
@@ -60,12 +60,7 @@ export function CreatePullRequest({
                 <p>
                     No pull request for <code>{status.branch}</code>. Push the branch before you create one.
                 </p>
-                <IconButton
-                    size="sm"
-                    icon={<RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />}
-                    label="Check for a pull request"
-                    onClick={() => onRefresh()}
-                />
+                <RefreshButton size="sm" label="Check for a pull request" refreshing={loading} onRefresh={onRefresh} />
             </div>
             {typeof target === 'string' && (
                 <div className="pr-create-form">

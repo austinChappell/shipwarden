@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, Layers, Link, ListChecks, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, Layers, Link, ListChecks, LoaderCircle, X } from 'lucide-react';
 import { pluralize } from '@shared/format';
 import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
@@ -21,7 +21,7 @@ import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
 import { AGENT_REVIEW_TITLE, CLEAR_AGENT_REVIEW_TITLE } from './PullRequestReviewCard';
 import { strictnessTitle } from './review-strictness-menu';
-import { Button, ButtonGroup, Count, IconButton, SplitButton, type SplitMenuItem } from './ui';
+import { Button, ButtonGroup, Count, IconButton, RefreshButton, SplitButton, type SplitMenuItem } from './ui';
 import { EmptyState } from './EmptyState';
 import { pullRequestKeyAction } from '@shared/shortcuts';
 import { copyPageLink, usePageLink } from '../app/page-link';
@@ -532,13 +532,7 @@ export function ReviewPullRequest({
                             menuTitle="More actions for this pull request"
                             size="lg"
                         />
-                        <IconButton
-                            size="lg"
-                            label="Refresh"
-                            icon={<RefreshCw size={16} strokeWidth={1.6} className={loading ? 'spin' : ''} />}
-                            disabled={loading}
-                            onClick={() => void onRefresh()}
-                        />
+                        <RefreshButton size="lg" refreshing={loading} disabled={loading} onRefresh={onRefresh} />
                     </div>
                 </div>
                 <div className="review-pr-meta">

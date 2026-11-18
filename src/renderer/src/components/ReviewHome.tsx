@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { CircleCheck, CircleX, Clock, FolderGit2, GitPullRequest, Plus, RefreshCw } from 'lucide-react';
+import { CircleCheck, CircleX, Clock, FolderGit2, GitPullRequest, Plus } from 'lucide-react';
 import { parseRepoId, repoId, repoLabel } from '@shared/github';
 import { isWaiting, summarizeRepo, type QueueItem, type RepoReviewSummary } from '@shared/review-queue';
 import { formatAgo, pluralize } from '@shared/format';
@@ -12,7 +12,7 @@ import { useGroups } from '../github/pr-group-store';
 import { groupSize, type PrGroup } from '@shared/pr-groups';
 import { CountPill, Dotted, KeyLegend, useInitialFocus, usePageKeys } from './ReviewParts';
 import { EmptyState } from './EmptyState';
-import { Age, Button, ButtonGroup, Count, FilterField, IconButton, PageHeader, SkeletonRows } from './ui';
+import { Age, Button, ButtonGroup, Count, FilterField, PageHeader, RefreshButton, SkeletonRows } from './ui';
 
 interface Props {
     queue: QueueItem[];
@@ -200,11 +200,10 @@ export function ReviewHome({ queue, focusRepo, onSelect, onStartQueue, onOpenSet
                     />
                 }
                 actions={
-                    <IconButton
+                    <RefreshButton
                         size="lg"
-                        icon={<RefreshCw size={16} strokeWidth={1.6} className={state.catalogLoading || entries.some(entry => entry.loading) ? 'spin' : ''} />}
-                        label="Refresh"
-                        onClick={() => void refreshReviewOverview()}
+                        refreshing={state.catalogLoading || entries.some(entry => entry.loading)}
+                        onRefresh={() => refreshReviewOverview()}
                     />
                 }
                 primary={

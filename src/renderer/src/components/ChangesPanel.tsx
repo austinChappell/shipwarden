@@ -11,7 +11,6 @@ import {
     LoaderCircle,
     Minus,
     Plus,
-    RefreshCw,
     Undo2,
     Upload
 } from 'lucide-react';
@@ -22,7 +21,7 @@ import { confirmDialog } from './ConfirmDialog';
 import { errorText } from '../util';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { pluralize } from '@shared/format';
-import { Button, Checkbox, Count, IconButton, SkeletonRows, TextArea } from './ui';
+import { Button, Checkbox, Count, IconButton, RefreshButton, SkeletonRows, TextArea } from './ui';
 import { DraftButton } from './DraftButton';
 import { OverlapNote } from './OverlapChip';
 import { useWorktreeOverlap } from '../git/overlap-query';
@@ -37,6 +36,8 @@ interface Props {
     fetched: FetchResult | undefined;
     /** Reads the changes again, and fetches the remote now. */
     onReload(): void;
+    /** True while a load from `onReload` is running. The Refresh icon turns. */
+    refreshing?: boolean;
     /** Opens the diff of a file in a tab. */
     onOpenChange(change: FileChange, side: ChangeSide): void;
     /** Opens one tab with the diffs of all changed files. */
@@ -112,7 +113,7 @@ function Group({
  * The Changes tab of the right panel: the git changes of the worktree. The user stages and unstages files, opens
  * the diff of a file, writes a commit message and commits, and pushes the branch.
  */
-export function ChangesPanel({ worktree, repo, changes, error, fetched, onReload, onOpenChange, onOpenAllChanges, onOpenFile }: Props) {
+export function ChangesPanel({ worktree, repo, changes, error, fetched, refreshing, onReload, onOpenChange, onOpenAllChanges, onOpenFile }: Props) {
     const overlap = useWorktreeOverlap(repo, worktree);
     const [message, setMessage] = useState('');
     const [amend, setAmend] = useState(false);
@@ -299,10 +300,10 @@ export function ChangesPanel({ worktree, repo, changes, error, fetched, onReload
                         View all
                     </Button>
                 )}
-                <IconButton
-                    icon={<RefreshCw size={14} strokeWidth={1.6} />}
+                <RefreshButton
                     label={`Refresh, and check the remote for new commits${fetched?.at ? `. Last check: ${new Date(fetched.at).toLocaleTimeString()}` : ''}`}
-                    onClick={onReload}
+                    refreshing={refreshing}
+                    onRefresh={onReload}
                 />
             </div>
             {changes.behind > 0 && changes.upstream && (

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { MultiFileDiff } from '@pierre/diffs/react';
-import { Check, Copy, History, LoaderCircle, RefreshCw } from 'lucide-react';
+import { Check, Copy, History, LoaderCircle } from 'lucide-react';
 import type { FileHistory, FileHistoryCommit } from '@shared/git-blame';
 import type { ChangeContents } from '@shared/git';
 import { onGitChanged } from '../git/git-store';
@@ -8,7 +8,7 @@ import { errorText } from '../util';
 import { EmptyState } from './EmptyState';
 import { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './diff-style';
 import { radioGroupKeys } from './keyboard';
-import { Age, Button, ButtonGroup, IconButton, SkeletonRows } from './ui';
+import { Age, Button, ButtonGroup, RefreshButton, SkeletonRows } from './ui';
 
 interface Props {
     root: string;
@@ -235,7 +235,7 @@ function CommitChange({ root, commit, onReload }: { root: string; commit: FileHi
                             Split
                         </Button>
                     </ButtonGroup>
-                    <IconButton size="sm" icon={<RefreshCw size={14} strokeWidth={1.6} />} label="Refresh" onClick={onReload} />
+                    <RefreshButton size="sm" onRefresh={onReload} />
                 </div>
                 <div className="file-history-info">
                     <span title={commit.authorEmail}>{commit.author}</span>

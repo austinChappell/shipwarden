@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FolderGit2, GitGraph, LoaderCircle, RefreshCw } from 'lucide-react';
+import { FolderGit2, GitGraph, LoaderCircle } from 'lucide-react';
 import { layoutGraph, type GraphLog, type GraphRef, type GraphRow, type GraphScope } from '@shared/git-graph';
 import type { Worktree } from '@shared/worktrees';
 import { formatAgo, pluralize } from '@shared/format';
@@ -7,7 +7,7 @@ import { onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
 import { moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
-import { Button, ButtonGroup, IconButton, PageHeader, SkeletonRows } from './ui';
+import { Button, ButtonGroup, IconButton, PageHeader, RefreshButton, SkeletonRows } from './ui';
 
 /** The number of commits in each load. "Load more" adds this number. */
 const PAGE = 500;
@@ -195,9 +195,7 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
                         ))}
                     </ButtonGroup>
                 }
-                actions={
-                    <IconButton size="lg" icon={<RefreshCw size={16} strokeWidth={1.6} className={loading ? 'spin' : ''} />} label="Refresh" onClick={reload} />
-                }
+                actions={<RefreshButton size="lg" refreshing={loading} onRefresh={reload} />}
             />
             {error && <div className="form-error pp-error">{error}</div>}
             {!log && !error && <SkeletonRows count={8} label="Loading the history" />}

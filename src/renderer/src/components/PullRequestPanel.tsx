@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Bot, ChevronRight, CircleX, ExternalLink, GitPullRequest, Maximize2, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Bot, ChevronRight, CircleX, ExternalLink, GitPullRequest, Maximize2, TriangleAlert } from 'lucide-react';
 import {
     hostLabel,
     undecidedCount,
@@ -50,7 +50,7 @@ import { PullRequestReviewCard, type AgentReviewControl } from './PullRequestRev
 import { PullRequestConversation, PullRequestThreads } from './PullRequestThreads';
 import { reactionActions } from './Reactions';
 import { MentionContext, mentionSourceOf } from './mention-context';
-import { Button, IconButton } from './ui';
+import { Button, IconButton, RefreshButton } from './ui';
 
 export { BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, StateBadge } from './PullRequestParts';
 export { hasConflicts, reviewText } from '../github/merge-state';
@@ -322,13 +322,7 @@ export function PullRequestPanel({
                                         onClick={() => onOpenInReview(pr)}
                                     />
                                 )}
-                                <IconButton
-                                    size="sm"
-                                    className="pr-refresh"
-                                    icon={<RefreshCw size={14} strokeWidth={1.6} className={loading ? 'spin' : ''} />}
-                                    label="Refresh"
-                                    onClick={() => onRefresh()}
-                                />
+                                <RefreshButton size="sm" className="pr-refresh" refreshing={loading} onRefresh={onRefresh} />
                             </div>
                             <h3 className="pr-title">{pr.title}</h3>
                             <div className="pr-meta">

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MultiFileDiff } from '@pierre/diffs/react';
-import { FileText, LoaderCircle, Minus, Plus, RefreshCw, Undo2 } from 'lucide-react';
+import { FileText, LoaderCircle, Minus, Plus, Undo2 } from 'lucide-react';
 import type { ChangeContents, ChangeSide, FileChange } from '@shared/git';
 import { gitChanged, onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
 import { confirmDiscard } from './ChangesPanel';
 import { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './PullRequestFilesStream';
 import { radioGroupKeys } from './keyboard';
-import { Button, ButtonGroup, IconButton } from './ui';
+import { Button, ButtonGroup, IconButton, RefreshButton } from './ui';
 
 interface Props {
     worktree: string;
@@ -131,7 +131,7 @@ export function ChangeDiffView({ worktree, change, side, onOpenFile }: Props) {
                 {change.kind !== 'deleted' && (
                     <IconButton size="sm" icon={<FileText size={14} strokeWidth={1.6} />} label="Open the file" onClick={() => onOpenFile(change.path)} />
                 )}
-                <IconButton size="sm" icon={<RefreshCw size={14} strokeWidth={1.6} />} label="Load again" onClick={() => void load()} />
+                <RefreshButton size="sm" label="Load again" onRefresh={load} />
             </div>
             {error && <div className="editor-failure">{error}</div>}
             {!contents && !error && (

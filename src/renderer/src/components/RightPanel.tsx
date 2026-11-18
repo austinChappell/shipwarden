@@ -162,6 +162,7 @@ export function RightPanel(props: Props) {
                     changes={git.changes}
                     error={git.error}
                     fetched={git.fetched}
+                    refreshing={git.refreshing}
                     onReload={() => git.reload(true)}
                     onOpenChange={props.onOpenChange}
                     onOpenAllChanges={props.onOpenAllChanges}
