@@ -42,7 +42,10 @@ const api: ShipWardenApi = {
         log: (worktree, scope, limit) => ipcRenderer.invoke(IpcChannels.gitLog, worktree, scope, limit),
         branchDiff: worktree => ipcRenderer.invoke(IpcChannels.gitBranchDiff, worktree),
         branchContents: (worktree, path, base, oldPath) => ipcRenderer.invoke(IpcChannels.gitBranchContents, worktree, path, base, oldPath),
-        worktreeFiles: repo => ipcRenderer.invoke(IpcChannels.gitWorktreeFiles, repo)
+        worktreeFiles: repo => ipcRenderer.invoke(IpcChannels.gitWorktreeFiles, repo),
+        blame: (worktree, path, contents) => ipcRenderer.invoke(IpcChannels.gitBlame, worktree, path, contents),
+        fileHistory: (worktree, path, limit) => ipcRenderer.invoke(IpcChannels.gitFileHistory, worktree, path, limit),
+        commitFileContents: (worktree, commit, path, oldPath) => ipcRenderer.invoke(IpcChannels.gitCommitFileContents, worktree, commit, path, oldPath)
     },
     updates: {
         state: () => ipcRenderer.invoke(IpcChannels.updatesState),

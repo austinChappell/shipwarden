@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { locateCode } from '@shared/ask-agent';
 import { codeNotePrompt, type NoteTarget } from '@shared/code-note';
 import type { AgentDefinition } from '@shared/settings';
+import { toggleBlame, useBlameVisible } from '../editor/blame-visible';
 import { codeQuestions, useCodeQuestions } from '../editor/code-questions';
 import { documents } from '../editor/documents';
 import { clampPosition, editorPositions } from '../editor/editor-positions';
@@ -18,6 +19,7 @@ import {
 } from './DiffView';
 import { useMissingServer } from '../lsp/missing-servers';
 import { useServerCrash } from '../lsp/server-crashes';
+import { BlameGutter } from './BlameGutter';
 import { MissingServerBanner } from './MissingServerBanner';
 import { ServerCrashBanner } from './ServerCrashBanner';
 
@@ -38,6 +40,8 @@ interface Props {
     defaultAgentId?: string;
     /** Sends a note about lines to an agent. Without it, the box has no "Send to agent" mode. */
     onSendNote?(prompt: string, target: NoteTarget): void;
+    /** Shows the git history of the file, with a commit selected. Without it, the editor has no history action. */
+    onShowHistory?(commit?: string): void;
 }
 
 /** The lines of an open "Ask agent" or "Send to agent" box. */
@@ -51,9 +55,22 @@ interface AskRange {
 /**
  * Shows one file in Monaco. Cmd+S saves the file.
  * A click in the gutter, the context menu or Cmd+Shift+A opens an "Ask agent" box for the line or the selected lines.
+ * The blame column (⌥⌘B) shows the last commit of each line. A click on it shows the commit in the history of the file.
  * The answer shows under the lines. The box can also send a note about the lines to an agent tab of the worktree, or to a new agent. A saved answer shows only while the lines have the same text as when the user asked.
  */
-export function EditorView({ root, path, revealLine, revealColumn, revealNonce, focusNonce, onError, agents, defaultAgentId, onSendNote }: Props) {
+export function EditorView({
+    root,
+    path,
+    revealLine,
+    revealColumn,
+    revealNonce,
+    focusNonce,
+    onError,
+    agents,
+    defaultAgentId,
+    onSendNote,
+    onShowHistory
+}: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | undefined>(undefined);
     const [ready, setReady] = useState(false);
@@ -62,6 +79,10 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
     const crash = useServerCrash(root, path);
     const [asking, setAsking] = useState<AskRange>();
     const questions = useCodeQuestions(root, path);
+    const blameVisible = useBlameVisible();
+    // The editor actions read the newest function through the ref.
+    const onShowHistoryRef = useRef(onShowHistory);
+    onShowHistoryRef.current = onShowHistory;
     /** Changes after each edit of the text, so that the cards follow their lines. */
     const [textVersion, setTextVersion] = useState(0);
     const onErrorRef = useRef(onError);
@@ -131,6 +152,21 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
                 const range = rangeAt();
                 setAsking(range && { ...range, note: true });
             }
+        });
+        editor.addAction({
+            id: 'shipwarden.toggleBlame',
+            label: 'Show or Hide Git Blame',
+            keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyB],
+            contextMenuGroupId: '9_git',
+            contextMenuOrder: 0,
+            run: () => toggleBlame()
+        });
+        editor.addAction({
+            id: 'shipwarden.showFileHistory',
+            label: 'Show File History',
+            contextMenuGroupId: '9_git',
+            contextMenuOrder: 1,
+            run: () => onShowHistoryRef.current?.()
         });
         // A click in the glyph margin opens the box. The editor sends the event before it moves the cursor.
         const hover = editor.createDecorationsCollection();
@@ -348,7 +384,18 @@ export function EditorView({ root, path, revealLine, revealColumn, revealNonce, 
             {failure && <div className="editor-failure">{failure}</div>}
             {missing && <MissingServerBanner {...missing} features="go to definition, hover and errors" />}
             {crash && <ServerCrashBanner crash={crash} />}
-            <div className="editor-monaco" ref={containerRef} />
+            <div className="editor-body">
+                {blameVisible && ready && editorRef.current && (
+                    <BlameGutter
+                        editor={editorRef.current}
+                        root={root}
+                        path={path}
+                        textVersion={textVersion}
+                        onShowCommit={onShowHistory && (hash => onShowHistory(hash))}
+                    />
+                )}
+                <div className="editor-monaco" ref={containerRef} />
+            </div>
         </div>
     );
 }

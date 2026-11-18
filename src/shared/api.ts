@@ -52,6 +52,7 @@ import type { CompareGroup } from './agent-compare';
 import type { WorktreeFiles } from './worktree-overlap';
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
+import type { FileBlame, FileHistory } from './git-blame';
 import type { GraphLog, GraphScope } from './git-graph';
 import type { BranchList, CreatedWorktree, CreateWorktreeOptions, CreateWorktreeProgress, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings } from './worktree-settings';
@@ -143,6 +144,15 @@ export interface ShipWardenApi {
          * merge base with the default branch, and the git status. Local git only. `repo` is the main worktree.
          */
         worktreeFiles(repo: string): Promise<WorktreeFiles[]>;
+        /**
+         * The last commit that changed each line of a file. With `contents`, git blames that text, so the lines match an
+         * editor with changes that are not saved. Null when git does not know the file.
+         */
+        blame(worktree: string, path: string, contents?: string): Promise<FileBlame | null>;
+        /** The commits that changed a file, newest first, at most `limit`. The history follows the renames. */
+        fileHistory(worktree: string, path: string, limit: number): Promise<FileHistory>;
+        /** The version of a file in the first parent of a commit and in the commit. `oldPath` is the path before a rename. */
+        commitFileContents(worktree: string, commit: string, path: string, oldPath?: string): Promise<ChangeContents>;
     };
     updates: {
         /** The state of the updater: the running version, and a newer release when there is one. */
@@ -887,6 +897,9 @@ export const IpcChannels = {
     gitBranchDiff: 'git:branchDiff',
     gitBranchContents: 'git:branchContents',
     gitWorktreeFiles: 'git:worktreeFiles',
+    gitBlame: 'git:blame',
+    gitFileHistory: 'git:fileHistory',
+    gitCommitFileContents: 'git:commitFileContents',
     updatesCheck: 'updates:check',
     updatesInstall: 'updates:install',
     updatesChanged: 'updates:changed',

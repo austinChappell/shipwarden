@@ -3,6 +3,7 @@ import { MAX_TEXT_FILE_SIZE, type FileInfo } from '@shared/file-types';
 import { parentPath } from '@shared/files';
 import { useFolderVersion } from '../files/use-file-changes';
 import { EditorView } from './EditorView';
+import { FileHistoryView } from './FileHistoryView';
 import { FilePathBar } from './FilePathBar';
 import { MarkdownFileView } from './MarkdownFileView';
 import { ImageView, MediaPlayerView, PdfView, UnsupportedFileView } from './MediaView';
@@ -17,20 +18,43 @@ type Props = ComponentProps<typeof MarkdownFileView> & {
  * images, PDF, audio and video, and a panel for binary files. The main process tells the kind (`files.info`).
  */
 export function FileView({ onRevealInExplorer, ...props }: Props) {
-    const { root, path, onError } = props;
+    const { root, path, onError, revealLine, revealNonce } = props;
+    const { info, failure, version } = useFileInfo(root, path);
+    /** The history of the file shows in place of the file. `commit` is the selected commit. */
+    const [history, setHistory] = useState<{ commit?: string }>();
+    const text = info?.kind === 'text' || info?.kind === 'markdown';
+
+    // A search result or a definition must show its line, so the file must show.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new revealNonce shows the file again for the same line.
+    useEffect(() => {
+        if (revealLine) setHistory(undefined);
+    }, [revealLine, revealNonce]);
+
+    const showHistory = (commit?: string) => setHistory({ commit });
     return (
         <div className="file-view">
-            <FilePathBar root={root} path={path} onError={onError} onRevealInExplorer={onRevealInExplorer} />
+            <FilePathBar
+                root={root}
+                path={path}
+                onError={onError}
+                onRevealInExplorer={onRevealInExplorer}
+                canBlame={text}
+                historyShown={history !== undefined}
+                onToggleHistory={() => setHistory(current => (current ? undefined : {}))}
+            />
             <div className="file-view-body">
-                <FileBody {...props} />
+                {/* The file stays loaded under the history, so the editor keeps its state. */}
+                <div className="file-view-layer" hidden={history !== undefined}>
+                    <FileBody {...props} info={info} failure={failure} version={version} onShowHistory={showHistory} />
+                </div>
+                {history && <FileHistoryView root={root} path={path} commit={history.commit} />}
             </div>
         </div>
     );
 }
 
-/** The view for the kind of the file, under the path bar. */
-function FileBody(props: ComponentProps<typeof MarkdownFileView>) {
-    const { root, path, onError } = props;
+/** Reads the information of the file again after each change of its folder. */
+function useFileInfo(root: string, path: string) {
     const [info, setInfo] = useState<FileInfo>();
     const [failure, setFailure] = useState<string>();
     const version = useFolderVersion(root, () => [parentPath(path)]);
@@ -58,6 +82,14 @@ function FileBody(props: ComponentProps<typeof MarkdownFileView>) {
         };
     }, [root, path, version]);
 
+    return { info, failure, version };
+}
+
+type BodyProps = ComponentProps<typeof MarkdownFileView> & { info?: FileInfo; failure?: string; version: number };
+
+/** The view for the kind of the file, under the path bar. */
+function FileBody({ info, failure, version, ...props }: BodyProps) {
+    const { root, path, onError } = props;
     if (failure) {
         return (
             <div className="editor">

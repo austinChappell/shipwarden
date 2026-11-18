@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
+import { FILE_HISTORY_FORMAT, parseBlamePorcelain, parseFileHistory, type FileBlame, type FileHistory } from '@shared/git-blame';
 import { GRAPH_LOG_FORMAT, parseGraphLog, type GraphLog, type GraphScope } from '@shared/git-graph';
 import { PULL_REQUEST_TEMPLATE_PATHS, type CommitDraftInput, type PullRequestDraftInput } from '@shared/drafts';
 import {
@@ -241,6 +242,50 @@ export class GitChangesService {
         if (base !== undefined && !/^[0-9a-f]{7,64}$/i.test(base)) throw new Error('The base must be a commit hash.');
         const original = (await run(worktree, ['show', `${base ?? 'HEAD'}:${before}`], { allowFailure: true })) ?? '';
         const modified = await this.readWorking(worktree, file);
+        if (isBinary(original) || isBinary(modified)) return { original: '', modified: '', binary: true };
+        return { original, modified, binary: false };
+    }
+
+    /**
+     * Returns the last commit that changed each line of a file. With `contents`, git blames that text instead of the
+     * working file, so the lines match an editor with changes that are not saved. The lines that are not in a commit
+     * get `UNCOMMITTED_HASH`. Returns null when git does not know the file, for example an untracked file.
+     */
+    async blame(worktree: string, filePath: string, contents?: string): Promise<FileBlame | null> {
+        const [file] = checkPaths([filePath]);
+        if (contents !== undefined && contents.length > MAX_DIFF_BYTES) return null;
+        const args = ['blame', '--porcelain', ...(contents !== undefined ? ['--contents', '-'] : []), '--', file];
+        const output = await run(worktree, args, { allowFailure: true, input: contents, timeout: 30_000 });
+        return output === undefined ? null : parseBlamePorcelain(output);
+    }
+
+    /**
+     * Returns the commits that changed a file, newest first, at most `limit`. The history follows the renames of the file.
+     * A file that git does not know has no commits.
+     */
+    async fileHistory(worktree: string, filePath: string, limit: number): Promise<FileHistory> {
+        const [file] = checkPaths([filePath]);
+        const count = Math.max(1, Math.min(Math.floor(limit), 2000));
+        // One more commit than the limit tells if there are more.
+        const output = await run(
+            worktree,
+            ['log', '--follow', '-M', '--name-status', '-z', `--format=${FILE_HISTORY_FORMAT}`, `--max-count=${count + 1}`, 'HEAD', '--', file],
+            { allowFailure: true, timeout: 30_000 }
+        );
+        const commits = output === undefined ? [] : parseFileHistory(output);
+        return { commits: commits.slice(0, count), more: commits.length > count };
+    }
+
+    /**
+     * Returns the change of one commit to a file: the version in the first parent and the version in the commit.
+     * `oldPath` is the path in the parent, when the commit renamed the file. A missing version is empty.
+     */
+    async commitFileContents(worktree: string, commit: string, filePath: string, oldPath?: string): Promise<ChangeContents> {
+        const [file] = checkPaths([filePath]);
+        const before = oldPath ? checkPaths([oldPath])[0] : file;
+        if (!/^[0-9a-f]{7,64}$/i.test(commit)) throw new Error('The commit must be a commit hash.');
+        const show = async (spec: string) => (await run(worktree, ['show', spec], { allowFailure: true })) ?? '';
+        const [original, modified] = await Promise.all([show(`${commit}^:${before}`), show(`${commit}:${file}`)]);
         if (isBinary(original) || isBinary(modified)) return { original: '', modified: '', binary: true };
         return { original, modified, binary: false };
     }
