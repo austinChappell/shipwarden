@@ -71,7 +71,12 @@ import { WorktreeProgressNotices } from './components/WorktreeProgressNotices';
 import { leafOfTab, resizeSplit } from '@shared/panes';
 import type { ShortcutAction, ViewAction } from '@shared/shortcuts';
 import { lspBridge } from './lsp/bridge';
-import { agentStateStore } from './terminal/agent-state-store';
+import { agentStateStore, withAgentStore } from './terminal/agent-state-store';
+import { pinOfSession, pinRequest, pinSession, unpinSession, usePinnedSessions } from './terminal/pinned-sessions';
+import type { PinnedSession } from '@shared/pinned-sessions';
+import type { ResumePlace } from './components/PinnedSessions';
+import { showToast } from './components/Toast';
+import { showContextMenu } from './components/ContextMenu';
 import { sessionListStore } from './terminal/session-list-store';
 import type { ChangeSide, FileChange } from '@shared/git';
 import { SidebarContext, SidebarToggle } from './components/SidebarToggle';
@@ -327,6 +332,72 @@ export function App() {
         }
         if (session.worktreePath) showSessionTab(session.worktreePath, session.id);
         else setMainView('worktree');
+    };
+
+    /** Pins the session of an agent. The agent names the pin in the background. */
+    const pinAgentSession = async (session: TerminalSession, place: { repoPath?: string; branch?: string } = {}) => {
+        // The page list can miss the newest agent state. The store has the transcript.
+        const transcript = session.agentTranscript ?? agentStateStore.getSnapshot().get(session.id)?.transcript;
+        const repoPath = place.repoPath ?? (session.worktreePath ? project.repoOfWorktree(session.worktreePath) : undefined);
+        const branch = place.branch ?? worktrees.find(worktree => worktree.path === session.worktreePath)?.branch;
+        const request = pinRequest({ ...session, agentTranscript: transcript }, appSettings.agents, { repoPath, branch });
+        if (!request) {
+            showToast('ShipWarden cannot pin this session', 'Only a Claude Code session can be pinned. The session needs one prompt first.');
+            return;
+        }
+        try {
+            await pinSession(request);
+            showToast('Session pinned', 'The agent is naming it. Find it in Agents › Pinned sessions.');
+        } catch (err) {
+            setError(errorText(err));
+        }
+    };
+
+    const pins = usePinnedSessions();
+    /** The context menu of an agent tab of Claude Code: pin or unpin its session. Other tabs have no menu. */
+    const tabContextMenu = (key: TabKey): boolean => {
+        const session = withAgentStore(sessions).find(item => `t:${item.id}` === key);
+        if (!session?.agentTranscript) return false;
+        const pin = pinOfSession(pins, session);
+        void showContextMenu([pin ? { id: 'unpin', label: `Unpin “${pin.name}”` } : { id: 'pin', label: 'Pin session' }]).then(choice => {
+            if (choice === 'pin') void pinAgentSession(session);
+            if (choice === 'unpin' && pin) unpinAgentSession(pin);
+        });
+        return true;
+    };
+
+    /** Removes a pin. The transcript of the session stays. */
+    const unpinAgentSession = (pin: PinnedSession) => {
+        unpinSession(pin.id).catch(err => setError(errorText(err)));
+    };
+
+    /**
+     * Resumes a pinned session in a worktree of any project. When the session runs already, its tab shows, because two
+     * agents in one session write to the same transcript.
+     */
+    const resumePinnedSession = async (pin: PinnedSession, place: ResumePlace) => {
+        const projectId =
+            (activeProject?.repos.includes(place.repo) ? activeProject.id : undefined) ?? projects?.projects.find(item => item.repos.includes(place.repo))?.id;
+        const live = withAgentStore(sessions).find(session => !session.exited && pinOfSession([pin], session));
+        if (live) {
+            await openAgent(live, projectId);
+            return;
+        }
+        const plan = await api.pins.prepareResume(pin.id, { cwd: place.worktree.path, repoPath: place.repo, branch: place.worktree.branch });
+        if (projectId && projectId !== projects?.activeId) {
+            await project.switchProject(projectId);
+        }
+        const session = await api.terminals.create({
+            cwd: place.worktree.path,
+            worktreePath: place.worktree.path,
+            title: plan.agentName,
+            command: plan.command,
+            isAgent: true,
+            cols: 120,
+            rows: 32
+        });
+        setSessions(list => (list.some(item => item.id === session.id) ? list : [...list, session]));
+        showSessionTab(place.worktree.path, session.id);
     };
 
     const reviewProviders = useReviewProviders();
@@ -1114,6 +1185,10 @@ export function App() {
                                     repoLabel={repoLabel}
                                     repoColor={repo => appSettings.repos[repo]?.color}
                                     onOpen={openAgent}
+                                    selectedPath={selectedPath}
+                                    onPin={(session, place) => void pinAgentSession(session, place)}
+                                    onUnpin={unpinAgentSession}
+                                    onResume={resumePinnedSession}
                                     onStartAgent={() => {
                                         const action = startAgentAction(selectedPath, repos.length);
                                         if (action === 'worktree') setMainView('worktree');
@@ -1180,6 +1255,7 @@ export function App() {
                                     onCloseTab={tabs.closeTabView}
                                     onCloseGroup={tabs.closeGroup}
                                     onDragStart={tabs.setDraggingTab}
+                                    onContextMenu={tabContextMenu}
                                     onDragEnd={() => {
                                         tabs.setDraggingTab(undefined);
                                         tabs.setDropTarget(undefined);

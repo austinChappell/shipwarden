@@ -10,6 +10,7 @@ import type { ProviderUsage } from '@shared/usage';
 import type { BrowserState } from '@shared/browser';
 import type { HelpAction } from '@shared/onboarding';
 import type { CreateWorktreeProgress } from '@shared/worktrees';
+import type { PinnedSession } from '@shared/pinned-sessions';
 
 function subscribe<Args extends unknown[]>(channel: string, listener: (...args: Args) => void): () => void {
     const handler = (_event: IpcRendererEvent, ...args: unknown[]) => listener(...(args as Args));
@@ -188,6 +189,14 @@ const api: ShipWardenApi = {
         remove: id => ipcRenderer.invoke(IpcChannels.prGroupsRemove, id),
         review: request => ipcRenderer.invoke(IpcChannels.prGroupsReview, request),
         cancelReview: id => ipcRenderer.invoke(IpcChannels.prGroupsCancelReview, id)
+    },
+    pins: {
+        list: () => ipcRenderer.invoke(IpcChannels.pinsList),
+        pin: request => ipcRenderer.invoke(IpcChannels.pinsPin, request),
+        rename: (id, name) => ipcRenderer.invoke(IpcChannels.pinsRename, id, name),
+        remove: id => ipcRenderer.invoke(IpcChannels.pinsRemove, id),
+        prepareResume: (id, target) => ipcRenderer.invoke(IpcChannels.pinsPrepareResume, id, target),
+        onChanged: listener => subscribe<[PinnedSession[]]>(IpcChannels.pinsChanged, listener)
     },
     compare: {
         list: () => ipcRenderer.invoke(IpcChannels.compareList),

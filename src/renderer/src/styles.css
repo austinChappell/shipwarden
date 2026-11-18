@@ -5690,6 +5690,92 @@ button:focus-visible,
     color: var(--muted);
 }
 
+/* The pin button sits next to the row of a Claude Code agent. It shows on hover and on focus, and always for a pinned session. */
+.agents-list > li:has(> .agent-pin) {
+    display: flex;
+    align-items: center;
+}
+
+.agents-list > li:has(> .agent-pin):hover {
+    background: var(--hover);
+}
+
+.agents-list > li:has(> .agent-pin) > .agent-row {
+    flex: 1;
+    min-width: 0;
+}
+
+.agents-list > li:has(> .agent-pin) > .agent-row:hover {
+    background: transparent;
+}
+
+.agent-pin {
+    flex: none;
+    margin-right: 10px;
+    opacity: 0;
+}
+
+.agents-list > li:hover > .agent-pin,
+.agent-pin:focus-visible,
+.agent-pin.pinned {
+    opacity: 1;
+}
+
+/* The pinned sessions (PinnedSessions.tsx), below the running agents. */
+.pinned-sessions h2 svg {
+    color: var(--muted);
+}
+
+.pinned-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+}
+
+.pinned-icon {
+    flex: none;
+    color: var(--muted);
+}
+
+.pinned-naming {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 400;
+}
+
+.pinned-actions {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.pinned-picker {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 0 14px 11px 39px;
+}
+
+.pinned-picker-label {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.pinned-picker-field {
+    flex: 1;
+    min-width: 0;
+    max-width: 360px;
+}
+
 /* The ShipWarden name and mark at the top of the sidebar */
 
 .brand {

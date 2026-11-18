@@ -12,6 +12,7 @@ import { registerNotesIpc } from './notes';
 import { registerPlanIpc } from './plans';
 import { registerPrGroupIpc } from './pr-groups';
 import { registerCompareIpc } from './compare';
+import { registerPinIpc } from './pins';
 import { registerProjectIpc } from './projects';
 import { registerRemoteIpc } from './remote';
 import { registerSettingsIpc } from './settings';
@@ -36,6 +37,7 @@ export function registerIpc(services: Services, runAppKey: (action: AppKeyAction
     registerPlanIpc(services);
     registerPrGroupIpc(services);
     registerCompareIpc(services);
+    registerPinIpc(services);
     registerRemoteIpc(services);
     registerGitIpc(services);
     registerAppIpc({ ...services, runAppKey });
