@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+    foldersToExpand,
     matchesCopyPattern,
+    matchesCopyPatterns,
     normalizeRepoWorktreeSettings,
     normalizeWorktreeSettings,
     resolveWorktreeSettings,
@@ -116,6 +118,20 @@ describe('selectCopyEntries', () => {
         expect(selectCopyEntries(entries, { ...base, mode: 'allExcept', exclude: [] })).toEqual(entries);
     });
 
+    it('keeps the "!" exceptions in "all except" mode', () => {
+        const files = ['backups/.gitkeep', 'backups/2026.dump', 'tmp.log'];
+        expect(selectCopyEntries(files, { ...base, mode: 'allExcept', exclude: ['backups/', '!backups/.gitkeep'] })).toEqual(['backups/.gitkeep', 'tmp.log']);
+        // The last pattern that matches sets the result.
+        expect(selectCopyEntries(files, { ...base, mode: 'allExcept', exclude: ['!backups/.gitkeep', 'backups/'] })).toEqual(['tmp.log']);
+    });
+
+    it('removes the "!" exceptions in "matching" mode', () => {
+        expect(selectCopyEntries(['.env', '.env.local', '.env.test'], { ...base, mode: 'matching', patterns: ['.env*', '!.env.test'] })).toEqual([
+            '.env',
+            '.env.local'
+        ]);
+    });
+
     it('copies nothing when the copy is off', () => {
         expect(selectCopyEntries(entries, { ...base, mode: 'allExcept', enabled: false })).toEqual([]);
     });
@@ -125,5 +141,31 @@ describe('ignoredUnits', () => {
     it('removes the folders that only contain other listed entries', () => {
         const output = ['.env', 'apps/', 'apps/web/', 'apps/web/.env.local', 'apps/web/node_modules/', 'node_modules/', 'secret.key'];
         expect(ignoredUnits(output)).toEqual(['.env', 'apps/web/.env.local', 'apps/web/node_modules/', 'node_modules/', 'secret.key']);
+    });
+});
+
+describe('matchesCopyPatterns', () => {
+    it('uses the last pattern that matches', () => {
+        expect(matchesCopyPatterns('backups/a.dump', ['backups/', '!backups/.gitkeep'])).toBe(true);
+        expect(matchesCopyPatterns('backups/.gitkeep', ['backups/', '!backups/.gitkeep'])).toBe(false);
+        expect(matchesCopyPatterns('backups/.gitkeep', ['backups/', '! backups/.gitkeep', 'backups/'])).toBe(true);
+        expect(matchesCopyPatterns('other.txt', ['!other.txt'])).toBe(false);
+    });
+});
+
+describe('foldersToExpand', () => {
+    const copy = { enabled: true, mode: 'allExcept' as const, patterns: [], exclude: ['backups/', 'node_modules/', '!backups/.gitkeep'] };
+
+    it('returns the matched folders that a "!" exception reaches into', () => {
+        expect(foldersToExpand(['backups/', 'node_modules/', 'tmp.log'], copy)).toEqual(['backups/']);
+        expect(foldersToExpand(['data/backups/'], { ...copy, exclude: ['backups/', '!**/.gitkeep'] })).toEqual(['data/backups/']);
+        expect(foldersToExpand(['data/'], { ...copy, exclude: ['data/', '!data/*/keep.txt'] })).toEqual(['data/']);
+    });
+
+    it('returns nothing without an exception with "/", or when no pattern matches the folder', () => {
+        expect(foldersToExpand(['backups/'], { ...copy, exclude: ['backups/'] })).toEqual([]);
+        expect(foldersToExpand(['backups/'], { ...copy, exclude: ['backups/', '!.gitkeep'] })).toEqual([]);
+        expect(foldersToExpand(['backups/'], { ...copy, exclude: ['!backups/.gitkeep'] })).toEqual([]);
+        expect(foldersToExpand(['backups/'], { ...copy, enabled: false })).toEqual([]);
     });
 });

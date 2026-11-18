@@ -161,7 +161,8 @@ export function PatternsField({
 export const PATTERN_HELP =
     'One pattern on each line. A pattern without "/" matches the name in any folder, for example .env.*. ' +
     'A pattern with "/" matches the path from the repository root, for example config/master.key. ' +
-    'A pattern with "/" at the end matches only folders and the files in them, for example node_modules/. Only git-ignored files are copied.';
+    'A pattern with "/" at the end matches only folders and the files in them, for example node_modules/. ' +
+    'A pattern that starts with "!" makes an exception to the patterns above it, for example !backups/.gitkeep. Only git-ignored files are copied.';
 
 const listOf = (copy: CopyIgnoredSettings) => (copy.mode === 'matching' ? copy.patterns : copy.exclude);
 const defaultsOf = (mode: CopyMode) => (mode === 'matching' ? DEFAULT_COPY_PATTERNS : DEFAULT_COPY_EXCLUDE);
