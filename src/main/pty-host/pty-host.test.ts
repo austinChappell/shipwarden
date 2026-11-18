@@ -104,6 +104,29 @@ describe('PTY host', () => {
         expect(await second.list()).toEqual([]);
     });
 
+    it('calls the cleanup of the start after the host listens', async () => {
+        const { spawnHost } = setup('build-1');
+        const order: string[] = [];
+        const client = new PtyHostClient({
+            socketPath: buildSocketPath(folder, 'build-1'),
+            hostScript: '',
+            logPath: join(folder, 'log'),
+            events: { data: () => undefined, exit: () => undefined, agentState: () => undefined },
+            buildId: 'build-1',
+            spawnHost: async (path, id) => {
+                order.push('spawn');
+                spawnHost(path, id);
+                return async () => {
+                    order.push('cleanup');
+                };
+            }
+        });
+        clients.push(client);
+        expect(await client.list()).toEqual([]);
+        await until(() => order.length === 2);
+        expect(order).toEqual(['spawn', 'cleanup']);
+    });
+
     it('stops when no app is connected and no session runs', async () => {
         const idle = { count: 0 };
         const { makeClient } = setup('build-1', idle);

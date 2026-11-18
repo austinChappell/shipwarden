@@ -18,11 +18,12 @@ export interface HelperPlistOptions {
     shell?: string;
 }
 
-function escapeXml(value: string): string {
+export function escapeXml(value: string): string {
     return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
-const str = (value: string) => `<string>${escapeXml(value)}</string>`;
+/** Returns a plist string element with the value. */
+export const str = (value: string) => `<string>${escapeXml(value)}</string>`;
 
 /**
  * Returns the launch agent plist of the background helper.
@@ -81,7 +82,7 @@ export interface LaunchctlResult {
 
 export type RunLaunchctl = (args: string[]) => Promise<LaunchctlResult>;
 
-const runLaunchctl: RunLaunchctl = args =>
+export const runLaunchctl: RunLaunchctl = args =>
     new Promise(resolve => {
         execFile('/bin/launchctl', args, { timeout: 15_000 }, (error, stdout, stderr) => {
             // For a program that ran, `code` is its exit code. Else it is a string, for example "ENOENT".
@@ -93,21 +94,33 @@ const runLaunchctl: RunLaunchctl = args =>
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+export interface LaunchAgentOptions {
+    uid?: number;
+    home?: string;
+    /** The plist file. The default is the file of the label in the user's LaunchAgents folder. */
+    plistPath?: string;
+    /** The name of the program in the error message, for example "the background helper". */
+    name?: string;
+    launchctl?: RunLaunchctl;
+}
+
 /**
  * Installs and removes a launch agent in the GUI domain of the user.
- * Only an action of the user calls `install` or `remove`.
+ * For the background helper, only an action of the user calls `install` or `remove`.
  */
 export class LaunchAgent {
     private readonly domain: string;
     private readonly launchctl: RunLaunchctl;
+    private readonly name: string;
     readonly plistPath: string;
 
     constructor(
         private readonly label: string,
-        options: { uid?: number; home?: string; launchctl?: RunLaunchctl } = {}
+        options: LaunchAgentOptions = {}
     ) {
         this.domain = `gui/${options.uid ?? process.getuid?.() ?? 501}`;
-        this.plistPath = launchAgentPath(label, options.home);
+        this.plistPath = options.plistPath ?? launchAgentPath(label, options.home);
+        this.name = options.name ?? 'the background helper';
         this.launchctl = options.launchctl ?? runLaunchctl;
     }
 
@@ -119,11 +132,12 @@ export class LaunchAgent {
     /**
      * Writes the plist and loads the agent. When the plist is the same and the agent is loaded, it does nothing.
      * A changed plist (for example a new app version) loads the agent again.
+     * With `reload`, it always loads the agent again. Then a job with RunAtLoad starts again.
      */
-    async install(content: string): Promise<void> {
+    async install(content: string, options: { reload?: boolean } = {}): Promise<void> {
         const current = await fs.readFile(this.plistPath, 'utf8').catch(() => undefined);
         const loaded = await this.isLoaded();
-        if (current === content && loaded) return;
+        if (current === content && loaded && !options.reload) return;
         await fs.mkdir(dirname(this.plistPath), { recursive: true });
         await fs.writeFile(this.plistPath, content, { mode: 0o644 });
         if (loaded) await this.launchctl(['bootout', `${this.domain}/${this.label}`]);
@@ -134,7 +148,7 @@ export class LaunchAgent {
             if (last.code === 0) return;
             await delay(300);
         }
-        throw new Error(`launchctl cannot load the background helper: ${last.output || `exit code ${last.code}`}`);
+        throw new Error(`launchctl cannot load ${this.name}: ${last.output || `exit code ${last.code}`}`);
     }
 
     /** Stops the agent and removes the plist. */

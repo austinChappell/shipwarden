@@ -16,6 +16,12 @@ export function ptyHostSocketPath(folder: string): string {
     return join(folder, `pty-host-v${PTY_HOST_PROTOCOL}.sock`);
 }
 
+/**
+ * The last argument of the host script when launchd starts it. The process then starts the host as a detached process
+ * and exits. See host-launch.ts.
+ */
+export const PTY_HOST_DETACH_ARG = '--detach';
+
 /** The prefix of the file name of a per-build socket. */
 export const BUILD_SOCKET_PREFIX = `pty-host-v${PTY_HOST_PROTOCOL}-`;
 
