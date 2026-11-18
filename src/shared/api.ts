@@ -49,6 +49,7 @@ import type { ProviderUsage } from './usage';
 import type { UpdateState } from './updates';
 import type { BranchDiff, ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
 import type { CompareGroup } from './agent-compare';
+import type { PinnedSession, PinRequest, ResumePlan } from './pinned-sessions';
 import type { WorktreeFiles } from './worktree-overlap';
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
@@ -408,6 +409,22 @@ export interface ShipWardenApi {
         /** Stops a group review that runs. */
         cancelReview(id: string): Promise<void>;
     };
+    pins: {
+        /** The pinned Claude Code sessions, the newest pin or resume first. */
+        list(): Promise<PinnedSession[]>;
+        /** Pins a session. An agent gives it a name after the pin. A session with a pin keeps its pin. */
+        pin(request: PinRequest): Promise<PinnedSession>;
+        /** Gives a pin the name of the user. */
+        rename(id: string, name: string): Promise<PinnedSession>;
+        remove(id: string): Promise<void>;
+        /**
+         * Makes the session available in a folder and returns the command that resumes it. A folder other than the
+         * folder of the session gets a copy of the transcript.
+         */
+        prepareResume(id: string, target: { cwd: string; repoPath?: string; branch?: string }): Promise<ResumePlan>;
+        /** The new list after each change, also after the agent gives a name. */
+        onChanged(listener: (pins: PinnedSession[]) => void): () => void;
+    };
     compare: {
         /** The agent comparisons (one task, several agents), the newest change first. */
         list(): Promise<CompareGroup[]>;
@@ -752,6 +769,12 @@ export const IpcChannels = {
     prGroupsRemove: 'prGroups:remove',
     prGroupsReview: 'prGroups:review',
     prGroupsCancelReview: 'prGroups:cancelReview',
+    pinsList: 'pins:list',
+    pinsPin: 'pins:pin',
+    pinsRename: 'pins:rename',
+    pinsRemove: 'pins:remove',
+    pinsPrepareResume: 'pins:prepareResume',
+    pinsChanged: 'pins:changed',
     compareList: 'compare:list',
     compareSave: 'compare:save',
     compareRemove: 'compare:remove',

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueries, type UseQueryResult } from '@tanstack/react-query';
-import { Bot, ChevronRight, Plus } from 'lucide-react';
+import { Bot, ChevronRight, Pin, PinOff, Plus } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import {
     ciStateOf,
@@ -28,10 +28,13 @@ import { runsAgent, type TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
 import { moveListFocus } from '../keyboard/list-nav';
 import { InlineTip } from './Tips';
-import { Button, Chip, Count, PageHeader, type ChipTone } from './ui';
+import { Button, Chip, Count, IconButton, PageHeader, type ChipTone } from './ui';
 import { OverlapChip } from './OverlapChip';
 import { useOverlaps } from '../git/overlap-query';
 import { overlapChipText } from '@shared/worktree-overlap';
+import type { PinnedSession } from '@shared/pinned-sessions';
+import { PinnedSessions, type ResumePlace } from './PinnedSessions';
+import { canPin, pinOfSession, usePinnedSessions } from '../terminal/pinned-sessions';
 
 const api = window.shipwarden;
 
@@ -47,6 +50,13 @@ interface Props {
     onOpen(session: TerminalSession, projectId: string | undefined): void;
     /** Goes to a place where the user can start an agent: the selected worktree, the New worktree dialog or "Add a repository". */
     onStartAgent(): void;
+    /** The worktree that the app shows now. */
+    selectedPath: string | undefined;
+    /** Pins the session of an agent. The agent gives the pin a name. */
+    onPin(session: TerminalSession, place: { repoPath?: string; branch?: string }): void;
+    onUnpin(pin: PinnedSession): void;
+    /** Resumes a pinned session in a worktree of any project. */
+    onResume(pin: PinnedSession, place: ResumePlace): Promise<void>;
 }
 
 /** Where a worktree is: its repository and its branch. */
@@ -110,7 +120,20 @@ function activityText(row: Row, now: number): string | undefined {
  * its last output, a name for the work (the linked task, the last prompt or the branch), what the agent does now,
  * the pull request with its CI state, and where the agent runs.
  */
-export function AgentsView({ sessions: sessionList, projects, links, repoLabel, repoColor, onOpen, onStartAgent }: Props) {
+export function AgentsView({
+    sessions: sessionList,
+    projects,
+    links,
+    repoLabel,
+    repoColor,
+    onOpen,
+    onStartAgent,
+    selectedPath,
+    onPin,
+    onUnpin,
+    onResume
+}: Props) {
+    const pins = usePinnedSessions();
     const [places, setPlaces] = useState<Record<string, Place>>({});
     const sessions = useAgentSessions(sessionList);
     const [now, setNow] = useState(Date.now());
@@ -262,7 +285,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
             />
             <div className="agents-scroll" onKeyDown={moveListFocus}>
                 {agents.length > 0 && <InlineTip id="agents" />}
-                {agents.length === 0 && (
+                {agents.length === 0 && pins.length === 0 && (
                     <EmptyState
                         icon={Bot}
                         title="No agents running"
@@ -363,6 +386,22 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                                                 </span>
                                                 <ChevronRight size={14} strokeWidth={1.8} className="agent-chevron" aria-hidden />
                                             </button>
+                                            {canPin(session) &&
+                                                (() => {
+                                                    const pin = pinOfSession(pins, session);
+                                                    return (
+                                                        <IconButton
+                                                            size="sm"
+                                                            className={`agent-pin${pin ? ' pinned' : ''}`}
+                                                            active={!!pin}
+                                                            icon={pin ? <PinOff size={14} strokeWidth={1.8} /> : <Pin size={14} strokeWidth={1.8} />}
+                                                            label={pin ? `Unpin “${pin.name}”` : 'Pin the session to resume it later'}
+                                                            onClick={() =>
+                                                                pin ? onUnpin(pin) : onPin(session, { repoPath: place?.repo, branch: place?.worktree.branch })
+                                                            }
+                                                        />
+                                                    );
+                                                })()}
                                         </li>
                                     );
                                 })}
@@ -370,6 +409,7 @@ export function AgentsView({ sessions: sessionList, projects, links, repoLabel, 
                         </section>
                     );
                 })}
+                <PinnedSessions pins={pins} places={places} selectedPath={selectedPath} repoLabel={repoLabel} onResume={onResume} />
             </div>
         </div>
     );

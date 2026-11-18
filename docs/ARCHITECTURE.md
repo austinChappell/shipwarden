@@ -21,6 +21,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-10 | Automations run in the page, while the app is open. Each automation is one JSON file in ~/.shipwarden/automations. | The page owns the agent tabs, the branch summaries and the Dashboard data, so it sees the events and can start agents. One file for each rule makes export, import and hand edits simple. An export has no paths of the Mac. |
 | 2026-11-12 | A prompt from a pull request in the Review view goes to the agent of the worktree, and the Review view stays. A drawer at the bottom shows the agent terminal. | The user can read the pull request and type to the agent at the same time. The drawer shows the same terminal as the agent tab. The terminal pool keeps a list of the views of a session. A hidden view does not take the terminal from a visible view, and the terminal goes back to the agent tab when the drawer closes. |
 | 2026-11-15 | "Compare agents" makes one worktree for each agent with the same steps as "Start in worktree" (`createTaskWorktree`). The comparisons are in `agent-compare.json`. The compare list counts the changes with `git diff --numstat` from the merge base with the default branch of "origin", plus the untracked files. | One code path makes all task worktrees. The agents commit their work, so the Changes tab (uncommitted changes only) cannot compare the runs. The branch summaries cache gives the CI state, so the list sends no new requests to GitHub. |
+| 2026-11-18 | A pinned session is a Claude Code transcript with a name. A resume in another folder copies the transcript into the Claude Code folder of that folder, then runs `claude --resume <id>`. | Claude Code finds a session only in the folder of its working folder. A copy needs no change to Claude Code, and the original transcript stays as it is. |
 
 ## The old name (Yardmaster)
 
@@ -269,6 +270,29 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - The project switcher is the header of the repository list, because only the repositories change with the project.
 - The worktree list also shows the open PR of each branch and its combined CI state. One GraphQL request for all
   open PRs runs every 60 seconds and when the window gets focus.
+
+### Pinned sessions
+
+- The user pins a Claude Code session to resume it later, from any project. The pin button is on the row of the agent in
+  the Agents view. The context menu of an agent tab also has "Pin session". Only a session with a transcript can be
+  pinned, so the agent needs one prompt first. Other agents write no transcript that ShipWarden reads.
+- `PinnedSessions` (main) keeps the pins in `<app data>/pinned-sessions.json`. A pin has the session ID (the name of the
+  transcript file), the transcript path, the name, the folder, the repository, the branch, and the agent of Settings ›
+  Agents. A session has at most one pin.
+- A new pin shows the last prompt as its name. Then the agent names the session: Claude Code runs in print mode with
+  `--model haiku --no-session-persistence` in an empty temporary folder (`sessionNamePrompt`). The prompt has the first
+  user prompt and the newest messages, without the tool calls. A rename of the user while the agent works wins.
+- The Agents view lists the pins under "Pinned sessions", in all projects. "Resume" starts the agent in the worktree in
+  which the session ran last. "Resume in another worktree…" shows a picker of the worktrees of all projects. When the
+  worktree is gone, "Resume in…" shows the picker.
+- A resume in another folder copies the transcript to `<Claude data>/projects/<folder name>/<session ID>.jsonl`. The
+  folder name is the path with each character that is not a letter or a digit changed to "-" (`claudeProjectFolder`).
+  A target transcript that is newer stays. Then a new agent tab runs the command of the agent with
+  `--resume <id> --name '<pin name>'`. Claude Code keeps the session ID, and each hook event gives the new transcript
+  path, so the pin follows the session (`PinnedSessions.track`).
+- When the session runs already in a tab, "Resume" shows that tab. Two agents in one session write to one transcript.
+- The main process sends the list after each change (`pins:changed`), and the page puts it into the TanStack Query
+  cache (`keyRoots.pins`). The list does not load again.
 
 ### Projects and repositories
 

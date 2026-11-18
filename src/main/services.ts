@@ -1,4 +1,5 @@
 import { join } from 'path';
+import { mkdir } from 'fs/promises';
 import * as os from 'os';
 import { execFile } from 'child_process';
 import { app, shell } from 'electron';
@@ -24,6 +25,9 @@ import { AutomationStore } from './automations/automation-store';
 import { PlanStore } from './plans/plan-store';
 import { PrGroupStore } from './pr-groups/pr-group-store';
 import { CompareStore } from './compare/compare-store';
+import { PinnedSessions } from './agents/pinned-sessions';
+import { printCommand } from '@shared/ask-agent';
+import { agentProgramOf } from '@shared/agent-programs';
 import { LEGACY_NAMES } from './legacy-migration';
 import { NotificationService } from './notifications';
 import { buildSocketPath, ptyHostSocketFolder, ptyHostSocketPath } from './pty-host/protocol';
@@ -82,6 +86,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const fileWatcher = new FileWatcher(event => window.send(IpcChannels.filesChanged, event));
     // Language servers need the PATH of the login shell. Load it in the background.
     const shellReady = loadLoginShellPath();
+    /** The pinned sessions. The terminal events use it, so it is set below with the other stores. */
+    let pinnedSessions!: PinnedSessions;
     const certificates = new TrustedCertificates(join(userData, 'trusted-ca.pem'));
     /**
      * The extra CA certificates apply before the first network request. The settings store comes later in this function,
@@ -177,6 +183,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             },
             agentState: (id, update) => {
                 window.send(IpcChannels.terminalsAgentState, id, update);
+                // A resumed session can write its transcript in a new folder. The pin follows it.
+                void pinnedSessions.track(update.transcript).catch(() => undefined);
                 remote.agentsChanged();
             }
         }
@@ -384,6 +392,33 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const plans = new PlanStore(join(userData, 'plans.json'));
     const prGroups = new PrGroupStore(join(userData, 'pr-groups.json'));
     const compare = new CompareStore(join(userData, 'agent-compare.json'));
+    /**
+     * The pinned Claude Code sessions. The agent that ran the session names it in print mode, with a small model. The
+     * run saves no session and uses an empty temporary folder, so it does not add a session to the resume list.
+     */
+    pinnedSessions = new PinnedSessions({
+        file: join(userData, 'pinned-sessions.json'),
+        onChanged: pins => window.send(IpcChannels.pinsChanged, pins),
+        ask: async (pin, prompt) => {
+            await shellReady;
+            const { agents } = await settings.get();
+            const claude = agents.filter(agent => agentProgramOf(agent.command.trim()) === 'claude');
+            const agent = claude.find(item => item.id === pin.agentId) ?? claude[0];
+            const print = agent ? printCommand(agent.command) : undefined;
+            if (!print) throw new Error('No Claude Code agent is in Settings › Agents.');
+            const cwd = join(app.getPath('temp'), 'shipwarden-ask');
+            await mkdir(cwd, { recursive: true });
+            await networkReady;
+            const bundle = certificates.status().bundlePath;
+            return askRunner.run(`pin-name:${pin.id}`, {
+                command: `${print} --model haiku --no-session-persistence`,
+                prompt,
+                cwd,
+                env: bundle ? { NODE_EXTRA_CA_CERTS: bundle } : {},
+                timeoutMs: 2 * 60_000
+            });
+        }
+    });
     const confirm = new ConfirmDialogs(() => window.get());
     const hookPaths = hookSettingsPaths(userData);
     /** The shell setup that adds the hook settings to a `claude`, `gemini` or `opencode` that the user types in a shell tab. */
@@ -428,6 +463,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         plans,
         prGroups,
         compare,
+        pinnedSessions,
         confirm,
         hookPaths,
         shellIntegration,
