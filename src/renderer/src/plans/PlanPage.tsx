@@ -14,6 +14,7 @@ import {
     Loader2,
     GitPullRequest,
     MoreHorizontal,
+    Pencil,
     Pause,
     Play,
     Plus,
@@ -311,6 +312,15 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan, onOpenGrou
     const [starting, setStarting] = useState(false);
     /** True while the user edits the idea of a plan that has steps. A plan without steps always shows the editor. */
     const [editingIdea, setEditingIdea] = useState(false);
+    /** The IDs of the steps that show the editor. The other steps show read-only text. */
+    const [editingSteps, setEditingSteps] = useState<ReadonlySet<string>>(() => new Set());
+    const setStepEditing = (id: string, on: boolean) =>
+        setEditingSteps(current => {
+            const next = new Set(current);
+            if (on) next.add(id);
+            else next.delete(id);
+            return next;
+        });
     const draftRef = useRef(draft);
     draftRef.current = draft;
     /** True while the draft has changes that are not in the file. */
@@ -410,8 +420,17 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan, onOpenGrou
         }
     };
 
-    const showStep = (stepId: string) => document.getElementById(stepElementId(stepId))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    const addStep = () => edit(current => ({ ...current, steps: [...current.steps, newStep(project.repos.length === 1 ? project.repos[0] : undefined)] }));
+    // A step with a problem opens its editor, so that the user can fix it there.
+    const showStep = (stepId: string) => {
+        setStepEditing(stepId, true);
+        requestAnimationFrame(() => document.getElementById(stepElementId(stepId))?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    };
+    // A new step is empty. Thus it opens in the editor.
+    const addStep = () => {
+        const step = newStep(project.repos.length === 1 ? project.repos[0] : undefined);
+        edit(current => ({ ...current, steps: [...current.steps, step] }));
+        setStepEditing(step.id, true);
+    };
     const repoNames = listText(project.repos.map(repoLabel));
 
     return (
@@ -541,6 +560,8 @@ function PlanEditor({ plan, project, repoLabel, onClosed, onOpenPlan, onOpenGrou
                                     repoLabel={repoLabel}
                                     target={target}
                                     disabled={locked}
+                                    editing={editingSteps.has(step.id) && !locked}
+                                    onEditing={on => setStepEditing(step.id, on)}
                                     onChange={patch => editStep(step.id, patch)}
                                     onMove={delta =>
                                         edit(current => {
@@ -776,7 +797,13 @@ function StepRail({ index, last, nextStacks }: { index: number; last: boolean; n
     );
 }
 
-/** The editor of one step of a draft. */
+/** The text under the title of a read-only step: the repository, the task and the pull request. */
+function stepMetaText(step: PlanStep, repoLabel: (repo: string) => string): string {
+    const task = step.task.kind === 'new' ? 'New task' : step.task.kind === 'existing' ? (step.task.link.key ?? step.task.link.title) : undefined;
+    return [step.repo ? repoLabel(step.repo) : 'No repository', task, step.pullRequest ? 'Pull request' : 'Experiment'].filter(Boolean).join(' · ');
+}
+
+/** One step of a draft. It shows read-only text. The "Edit" button opens the editor. */
 function StepEditor({
     step,
     index,
@@ -788,6 +815,8 @@ function StepEditor({
     repoLabel,
     target,
     disabled,
+    editing,
+    onEditing,
     onChange,
     onMove,
     onRemove
@@ -803,6 +832,9 @@ function StepEditor({
     repoLabel(repo: string): string;
     target: PlanTaskTarget | undefined;
     disabled: boolean;
+    /** True: the step shows the editor. False: the step shows read-only text. */
+    editing: boolean;
+    onEditing(editing: boolean): void;
     onChange(patch: Partial<PlanStep>): void;
     onMove(delta: number): void;
     onRemove(): void;
@@ -811,8 +843,74 @@ function StepEditor({
     const [choice, setChoice] = useState<TaskChoice>(step.task.kind);
     const repoProblem = problems.some(problem => problem.field === 'repo');
     const classes = ['plan-step-row', step.skip ? 'skipped' : '', problems.length > 0 ? 'invalid' : ''].filter(Boolean).join(' ');
+    const chips = (
+        <>
+            {step.skip && <Chip>Skipped</Chip>}
+            {stackedOn >= 0 && (
+                <Chip tone="info" icon={<Layers size={12} />} title="This step starts from the branch of the earlier step.">
+                    Stacks on step {stackedOn + 1}
+                </Chip>
+            )}
+        </>
+    );
+    const tools = (
+        <div className="plan-step-tools">
+            {index > 0 && <IconButton size="sm" label="Move up" icon={<ArrowUp size={14} />} disabled={disabled} onClick={() => onMove(-1)} />}
+            {index < count - 1 && <IconButton size="sm" label="Move down" icon={<ArrowDown size={14} />} disabled={disabled} onClick={() => onMove(1)} />}
+            <IconButton
+                size="sm"
+                label={step.skip ? 'Include the step' : 'Skip the step'}
+                icon={<EyeOff size={14} />}
+                aria-pressed={step.skip}
+                disabled={disabled}
+                onClick={() => onChange({ skip: !step.skip })}
+            />
+            <IconButton size="sm" tone="danger" label="Remove the step" icon={<Trash2 size={14} />} disabled={disabled} onClick={onRemove} />
+            {editing ? (
+                <Button size="sm" className="plan-step-edit" onClick={() => onEditing(false)}>
+                    Done
+                </Button>
+            ) : (
+                <Button size="sm" className="plan-step-edit" icon={<Pencil size={13} />} disabled={disabled} onClick={() => onEditing(true)}>
+                    Edit
+                </Button>
+            )}
+        </div>
+    );
+    const problemLines = problems.map(problem => (
+        <div key={problem.message} className="plan-step-problem">
+            <CircleAlert size={14} /> {problem.hint ?? problem.message}
+        </div>
+    ));
+
+    if (!editing) {
+        return (
+            <div className={classes} id={stepElementId(step.id)}>
+                <StepRail index={index} last={index === count - 1} nextStacks={nextStacks} />
+                <Card className="plan-step flow-card">
+                    <CardBody className="plan-step-body">
+                        <div className="plan-step-head">
+                            <div className="plan-step-heading">
+                                <div className={`plan-step-name${step.title.trim() ? '' : ' empty'}`}>{step.title.trim() || 'No title'}</div>
+                                <div className="plan-step-meta">{stepMetaText(step, repoLabel)}</div>
+                            </div>
+                            {chips}
+                            {tools}
+                        </div>
+                        {problemLines}
+                        {step.description.trim() ? (
+                            <Markdown className="plan-summary plan-step-text" text={step.description} />
+                        ) : (
+                            <div className="plan-step-text empty">No instructions. Edit the step to tell the agent what to do.</div>
+                        )}
+                    </CardBody>
+                </Card>
+            </div>
+        );
+    }
+
     return (
-        <div className={classes} id={stepElementId(step.id)}>
+        <div className={`${classes} editing`} id={stepElementId(step.id)}>
             <StepRail index={index} last={index === count - 1} nextStacks={nextStacks} />
             <Card className="plan-step flow-card">
                 <CardBody className="plan-step-body">
@@ -826,12 +924,7 @@ function StepEditor({
                             aria-label={`Title of step ${index + 1}`}
                             onChange={event => onChange({ title: event.target.value })}
                         />
-                        {step.skip && <Chip>Skipped</Chip>}
-                        {stackedOn >= 0 && (
-                            <Chip tone="info" icon={<Layers size={12} />} title="This step starts from the branch of the earlier step.">
-                                Stacks on step {stackedOn + 1}
-                            </Chip>
-                        )}
+                        {chips}
                         <Select
                             className="plan-repo-select"
                             invalid={!!repoProblem}
@@ -845,27 +938,9 @@ function StepEditor({
                             ]}
                             onChange={repo => onChange({ repo })}
                         />
-                        <div className="plan-step-tools">
-                            {index > 0 && <IconButton size="sm" label="Move up" icon={<ArrowUp size={14} />} disabled={disabled} onClick={() => onMove(-1)} />}
-                            {index < count - 1 && (
-                                <IconButton size="sm" label="Move down" icon={<ArrowDown size={14} />} disabled={disabled} onClick={() => onMove(1)} />
-                            )}
-                            <IconButton
-                                size="sm"
-                                label={step.skip ? 'Include the step' : 'Skip the step'}
-                                icon={<EyeOff size={14} />}
-                                aria-pressed={step.skip}
-                                disabled={disabled}
-                                onClick={() => onChange({ skip: !step.skip })}
-                            />
-                            <IconButton size="sm" tone="danger" label="Remove the step" icon={<Trash2 size={14} />} disabled={disabled} onClick={onRemove} />
-                        </div>
+                        {tools}
                     </div>
-                    {problems.map(problem => (
-                        <div key={problem.message} className="plan-step-problem">
-                            <CircleAlert size={14} /> {problem.hint ?? problem.message}
-                        </div>
-                    ))}
+                    {problemLines}
                     <TextArea
                         mono
                         className="plan-step-description"

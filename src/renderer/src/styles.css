@@ -12421,6 +12421,11 @@ button.pr-summary-cell:hover {
     padding: 24px var(--gutter) 56px;
 }
 
+/* A plan has long step instructions and a side panel. Thus its page is wider than a form when the window allows it. */
+.flow-page.plan-page {
+    max-width: 1280px;
+}
+
 .flow-header {
     margin-bottom: 22px;
     padding-bottom: 16px;
@@ -12813,7 +12818,23 @@ button.pr-summary-cell:hover {
 }
 
 .plan-step-description {
-    min-height: 76px;
+    min-height: 220px;
+}
+
+/* The read-only instructions of a draft step. */
+.plan-step-text {
+    overflow-wrap: anywhere;
+}
+
+.plan-step-text.empty,
+.plan-step-name.empty {
+    color: var(--muted);
+    font-size: 13px;
+    font-style: italic;
+}
+
+.plan-step-tools .plan-step-edit {
+    margin-left: 6px;
 }
 
 .plan-step-fields {
