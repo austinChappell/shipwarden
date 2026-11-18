@@ -3,10 +3,93 @@ export interface FuzzyMatch {
     score: number;
 }
 
+/** Each match kind has its own score range. A match of a better kind always ranks higher. */
+const TIER = 100_000;
+
+/** The kinds of match, worst first. */
+enum Tier {
+    /** The query characters occur in order, across the full path. */
+    ScatteredInPath = 1,
+    /** The query characters occur in order, in the file name. */
+    ScatteredInName,
+    /** The query occurs in one piece in the folder path. */
+    InPath,
+    /** The query occurs in one piece in the file name. "-", "_" and spaces in the name do not count. */
+    InName,
+    /** The file name starts with the query. */
+    NamePrefix,
+    /** The file name without its extension is the same as the query. */
+    ExactName
+}
+
+function isSeparator(char: string | undefined): boolean {
+    return char === '/' || char === '-' || char === '_' || char === '.' || char === ' ';
+}
+
+/** Returns true when the character at `index` starts a word: after a separator, or a capital after a lowercase letter. */
+function isWordStart(original: string, index: number): boolean {
+    if (index === 0) {
+        return true;
+    }
+    const before = original[index - 1];
+    if (isSeparator(before)) {
+        return true;
+    }
+    const char = original[index];
+    return char !== char.toLowerCase() && before === before.toLowerCase() && before !== before.toUpperCase();
+}
+
+/**
+ * Returns the best score of the query characters in order in `text`, or undefined when they do not occur in order.
+ * Each matched character gives 1 point. A match at a word start gives 3 more points. A match right after the
+ * previous match gives 4 more points. The function finds the best placement, not the first placement.
+ */
+function scatteredScore(original: string, text: string, needle: string): number | undefined {
+    const none = Number.NEGATIVE_INFINITY;
+    // best[j] is the best score of the needle so far, with its last character at index j of the text.
+    let best: number[] = [];
+    for (let index = 0; index < needle.length; index += 1) {
+        const next: number[] = new Array(text.length).fill(none);
+        let bestBefore = index === 0 ? 0 : none;
+        for (let j = 0; j < text.length; j += 1) {
+            if (index > 0 && j > 0) {
+                // A match at j can follow any match before j - 1 without the consecutive bonus.
+                bestBefore = j > 1 ? Math.max(bestBefore, best[j - 2]) : bestBefore;
+            }
+            if (text[j] !== needle[index]) {
+                continue;
+            }
+            const value = 1 + (isWordStart(original, j) ? 3 : 0);
+            const consecutive = index > 0 && j > 0 && best[j - 1] !== none ? best[j - 1] + 4 : none;
+            const previous = Math.max(bestBefore, consecutive);
+            if (previous !== none) {
+                next[j] = previous + value;
+            }
+        }
+        best = next;
+    }
+    const result = Math.max(none, ...best);
+    return result === none ? undefined : result;
+}
+
+/** Returns true when the query characters occur in order in the text. This check is fast. */
+function isSubsequence(text: string, needle: string): boolean {
+    let position = -1;
+    for (const char of needle) {
+        position = text.indexOf(char, position + 1);
+        if (position === -1) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /**
  * Scores a path against a query. The query characters must occur in order in the path.
  * Returns undefined when the path does not match.
- * Higher scores are better: matches in the file name, consecutive matches and matches at word starts.
+ * Higher scores are better. The kind of match counts first (see `Tier`): an exact file name is best, and scattered
+ * characters across the path are worst. Inside one kind, a match at a word start, a short file name and a short path
+ * rank higher.
  * The match ignores case when `caseSensitive` is false.
  */
 export function fuzzyScore(path: string, query: string, caseSensitive = false): number | undefined {
@@ -15,34 +98,40 @@ export function fuzzyScore(path: string, query: string, caseSensitive = false): 
     if (!needle) {
         return 0;
     }
+    if (!isSubsequence(text, needle)) {
+        return undefined;
+    }
     const nameStart = text.lastIndexOf('/') + 1;
-    let score = 0;
-    let position = -1;
-    let previous = -2;
-    for (const char of needle) {
-        const found = text.indexOf(char, position + 1);
-        if (found === -1) {
-            return undefined;
-        }
-        score += 1;
-        if (found === previous + 1) {
-            score += 4;
-        }
-        if (found >= nameStart) {
-            score += 2;
-        }
-        const before = text[found - 1];
-        if (found === 0 || before === '/' || before === '-' || before === '_' || before === '.') {
-            score += 3;
-        }
-        previous = found;
-        position = found;
+    const name = text.slice(nameStart);
+    const originalName = path.slice(nameStart);
+    const dot = name.lastIndexOf('.');
+    const stem = dot > 0 ? name.slice(0, dot) : name;
+    // Short names and short paths rank higher inside one kind of match.
+    const lengthPenalty = name.length * 0.5 + path.length * 0.01;
+
+    const tiered = (tier: Tier, bonus: number) => tier * TIER + bonus - lengthPenalty;
+    if (stem === needle || name === needle) {
+        return tiered(Tier.ExactName, 0);
     }
-    // Prefer short paths and exact file name matches.
-    if (text.slice(nameStart) === needle || text.slice(nameStart).startsWith(needle)) {
-        score += 10;
+    if (name.startsWith(needle)) {
+        return tiered(Tier.NamePrefix, 0);
     }
-    return score - path.length * 0.01;
+    const inName = name.indexOf(needle);
+    if (inName !== -1) {
+        return tiered(Tier.InName, (isWordStart(originalName, inName) ? 50 : 0) - inName * 0.1);
+    }
+    if (name.replace(/[-_ ]/g, '').includes(needle)) {
+        return tiered(Tier.InName, 0);
+    }
+    const inPath = text.lastIndexOf(needle);
+    if (inPath !== -1) {
+        return tiered(Tier.InPath, isWordStart(path, inPath) ? 50 : 0);
+    }
+    const scatteredName = scatteredScore(originalName, name, needle);
+    if (scatteredName !== undefined) {
+        return tiered(Tier.ScatteredInName, scatteredName * 10);
+    }
+    return tiered(Tier.ScatteredInPath, (scatteredScore(path, text, needle) ?? 0) * 10);
 }
 
 /**
