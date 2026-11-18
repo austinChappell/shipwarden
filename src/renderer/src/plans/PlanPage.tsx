@@ -1,16 +1,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import {
     ArrowRight,
     ArrowUpRight,
+    Bot,
     Check,
     ChevronDown,
     ChevronRight,
     CircleAlert,
     CircleCheck,
     Layers,
+    GitMerge,
     Loader2,
-    GitPullRequest,
     MoreHorizontal,
     Pencil,
     Pause,
@@ -18,10 +19,7 @@ import {
     Plus,
     RefreshCw,
     RotateCcw,
-    Send,
-    SkipForward,
     Sparkles,
-    SquareCheck,
     X
 } from 'lucide-react';
 import { AGENT_MODES, type AgentMode } from '@shared/agent-modes';
@@ -49,6 +47,20 @@ import {
     type StepTask
 } from '@shared/plans';
 import { formatAgo, pluralize } from '@shared/format';
+import {
+    PROGRESS_GROUPS,
+    PROGRESS_LABELS,
+    blockingStep,
+    mergeableSteps,
+    planShipped,
+    progressCounts,
+    stepProgress,
+    type ProgressGroup,
+    type RepoPullRequests,
+    type StepChecks,
+    type StepProgress,
+    type StepReview
+} from '@shared/plan-progress';
 import type { Project } from '@shared/projects';
 import { REPO_COLORS, type RepoColor } from '@shared/settings';
 import type { TaskLink } from '@shared/tasks';
@@ -57,7 +69,6 @@ import {
     ButtonGroup,
     Card,
     CardBody,
-    CardHeader,
     Checkbox,
     Chip,
     Combobox,
@@ -84,6 +95,8 @@ import { cancelExplore, explorePlan } from './plan-explore';
 import { cachedPlan, createPlan, removePlan, updatePlan, useExploreState } from './plan-queries';
 import { planRunner } from './plan-runner';
 import { planPullRequests, syncPlanGroup, usePlanGroup } from './plan-group';
+import { mergeStep, sendChecksToAgent, sendReviewToAgent } from './plan-actions';
+import { branchSummariesQuery } from '../github/use-branch-status';
 
 const api = window.shipwarden;
 
@@ -210,22 +223,24 @@ function IdeaText({ text, actions }: { text: string; actions: ReactNode }) {
     );
 }
 
-/** The three stages of a plan, from the idea to the run. */
-type Stage = 'explore' | 'review' | 'run';
+/** The stages of a plan, from the idea to the merged pull requests. */
+type Stage = 'explore' | 'review' | 'run' | 'merge' | 'shipped';
 
-/** The title row and the stages of a plan. */
+/** The title row and the stages of a plan. `runDetail` is a short text after the "Run" stage, for example "3/5 PRs opened". */
 function PlanHeader({
     title,
     status,
     actions,
     stage,
-    finished
+    finished,
+    runDetail
 }: {
     title: ReactNode;
     status: ReactNode;
     actions: ReactNode;
     stage: Stage;
     finished?: boolean;
+    runDetail?: string;
 }) {
     return (
         <header className="flow-header">
@@ -234,30 +249,33 @@ function PlanHeader({
                     {title}
                     {status}
                 </div>
-                <PlanStages stage={stage} finished={finished} />
+                <PlanStages stage={stage} finished={finished} runDetail={runDetail} />
             </div>
             <div className="flow-header-actions">{actions}</div>
         </header>
     );
 }
 
-function PlanStages({ stage, finished }: { stage: Stage; finished?: boolean }) {
-    const order: Stage[] = ['explore', 'review', 'run'];
+function PlanStages({ stage, finished, runDetail }: { stage: Stage; finished?: boolean; runDetail?: string }) {
+    const order: Stage[] = ['explore', 'review', 'run', 'merge', 'shipped'];
     const at = order.indexOf(stage);
     const labels: Record<Stage, [string, string]> = {
         explore: ['Explore idea', 'Idea explored'],
         review: ['Review steps', 'Steps reviewed'],
-        run: ['Run', 'Run finished']
+        run: ['Run', 'Run finished'],
+        merge: ['Review and merge', 'Merged'],
+        shipped: ['Shipped', 'Shipped']
     };
     return (
         <ol className="plan-stages">
             {order.map((item, index) => {
-                const done = index < at || (finished === true && item === 'run');
+                const done = index < at || (finished === true && item === stage);
                 const state = done ? 'done' : index === at ? 'current' : 'next';
                 return (
                     <li key={item} className={`plan-stage ${state}`} aria-current={state === 'current' ? 'step' : undefined}>
                         <span className="plan-stage-mark">{done ? <Check size={11} strokeWidth={3} /> : index + 1}</span>
                         {labels[item][done ? 1 : 0]}
+                        {item === 'run' && runDetail && <span className="plan-stage-detail">· {runDetail}</span>}
                     </li>
                 );
             })}
@@ -1343,16 +1361,6 @@ const TASK_CHOICES: { value: TaskChoice; label: string }[] = [
     { value: 'existing', label: 'Existing task' }
 ];
 
-/** The number of a step and the line to the next step. The line has a color when the next step stacks on this one. */
-function StepRail({ index, last, nextStacks }: { index: number; last: boolean; nextStacks: boolean }) {
-    return (
-        <div className="plan-step-rail">
-            <span className="plan-step-number">{index + 1}</span>
-            {!last && <span className={`plan-step-line${nextStacks ? ' stacked' : ''}`} />}
-        </div>
-    );
-}
-
 /** The chips of a step: the repository, the stack, the pull request and the task. */
 function StepChips({
     step,
@@ -1749,7 +1757,42 @@ function TaskPicker({
 /* Run                                                                                                                 */
 /* ------------------------------------------------------------------------------------------------------------------ */
 
-function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan, onOpenGroup }: Props) {
+/** The time between two loads of the merged pull requests while the page of a plan is open. */
+const MERGED_POLL_MS = 60_000;
+
+/**
+ * Loads the pull request data of the repositories of a plan: the open pull requests and the merged ones. The open
+ * pull requests come from the same cached query as the sidebar, so the page adds no request for them.
+ */
+function useRepoPullRequests(plan: Plan): Record<string, RepoPullRequests> {
+    const repos = useMemo(() => [...new Set(plan.steps.flatMap(step => (step.pr && step.repo ? [step.repo] : [])))], [plan.steps]);
+    const open = useQueries({ queries: repos.map(branchSummariesQuery) });
+    const merged = useQueries({
+        queries: repos.map(repo => ({
+            queryKey: [...keyRoots.mergedBranches, repo],
+            queryFn: () => api.github.mergedBranches(repo),
+            staleTime: MERGED_POLL_MS,
+            refetchInterval: MERGED_POLL_MS
+        }))
+    });
+    const result: Record<string, RepoPullRequests> = {};
+    repos.forEach((repo, index) => {
+        result[repo] = { open: open[index]?.data, merged: merged[index]?.data };
+    });
+    return result;
+}
+
+/** The fill color of each progress group, as a CSS class. */
+function groupClass(group: ProgressGroup): string {
+    return `progress-${group}`;
+}
+
+/** The live state of each agent session. */
+function useAgentStates() {
+    return useSyncExternalStore(agentStateStore.subscribe, agentStateStore.getSnapshot);
+}
+
+function PlanRun({ plan, repoLabel, repoColor, onOpenWorktree, onClosed, onOpenPlan, onOpenGroup }: Props) {
     const [error, setError] = useState<string>();
     const act = async (work: () => Promise<unknown>) => {
         setError(undefined);
@@ -1759,293 +1802,565 @@ function PlanRun({ plan, repoLabel, onOpenWorktree, onClosed, onOpenPlan, onOpen
             setError(errorText(err));
         }
     };
-    const withPullRequests = plan.steps.filter(step => step.pullRequest && step.status !== 'skipped');
     const group = usePlanGroup(plan.id);
-    const finished = plan.status === 'done';
-    const done = plan.steps.filter(step => step.status === 'done').length;
-    const ran = plan.steps.filter(step => step.status !== 'skipped').length;
+    const data = useRepoPullRequests(plan);
+    const progress = plan.steps.map(step => stepProgress(step, step.repo ? data[step.repo] : undefined));
+    const counts = progressCounts(progress);
+    const mergeable = mergeableSteps(plan, progress);
+    const shipped = planShipped(progress);
+    const groups = repoGroups(plan.steps, [...new Set(plan.steps.flatMap(step => (step.repo ? [step.repo] : [])))], repoColor);
+    const withPr = plan.steps.filter(step => step.pullRequest && !step.skip && step.status !== 'skipped');
+    const opened = withPr.filter(step => step.pr).length;
+    const runFinished = plan.status === 'done';
+    const stage: Stage = shipped ? 'shipped' : runFinished ? 'merge' : 'run';
+    const status = shipped
+        ? { label: 'Shipped', tone: 'success' as ChipTone }
+        : runFinished && opened > 0
+          ? { label: 'In review', tone: 'info' as ChipTone }
+          : { label: PLAN_STATUS_LABELS[plan.status], tone: PLAN_STATUS_TONES[plan.status] };
+    const runDetail = withPr.length > 0 ? `${opened}/${withPr.length} PRs opened` : undefined;
+    const next = mergeable[0];
+
+    const merge = async (index: number) => {
+        const step = plan.steps[index];
+        const ok = await confirmDialog({
+            title: `Merge #${step.pr?.number}?`,
+            message: `"${step.title}" merges into ${step.pr?.base ?? 'its base branch'} with the default merge method of the repository.`,
+            confirmLabel: 'Merge'
+        });
+        if (ok) await act(() => mergeStep(step));
+    };
+    const rowProps = { plan, progress, repoLabel, onOpenWorktree, act, onMerge: merge };
+
     return (
-        <div className="flow-page plan-page">
+        <div className="flow-page plan-page plan-run-page">
             <PlanHeader
-                stage="run"
-                finished={finished}
+                stage={stage}
+                finished={shipped}
+                runDetail={runDetail}
                 title={<h2 className="flow-title">{plan.title}</h2>}
-                status={<Chip tone={PLAN_STATUS_TONES[plan.status]}>{PLAN_STATUS_LABELS[plan.status]}</Chip>}
+                status={<Chip tone={status.tone}>{status.label}</Chip>}
                 actions={
-                    <IconButton
-                        label="More"
-                        icon={<MoreHorizontal size={14} />}
-                        onClick={event => void planMenu(plan, event.currentTarget, { onClosed, onOpenPlan, onOpenGroup })}
-                    />
+                    <>
+                        {plan.status === 'running' && (
+                            <Button icon={<Pause size={14} />} title="Stop after the current step" onClick={() => void act(() => planRunner.pause(plan.id))}>
+                                Pause
+                            </Button>
+                        )}
+                        {plan.status === 'paused' && (
+                            <Button variant="primary" icon={<Play size={14} />} onClick={() => void act(() => planRunner.resume(plan.id))}>
+                                Resume
+                            </Button>
+                        )}
+                        {group && (
+                            <Button
+                                icon={<Layers size={14} />}
+                                title={`Open the PR group "${group.name}". An agent can review all pull requests of the plan together.`}
+                                onClick={() => onOpenGroup(group.id)}
+                            >
+                                Open PR group
+                            </Button>
+                        )}
+                        <IconButton
+                            label="More"
+                            icon={<MoreHorizontal size={14} />}
+                            onClick={event => void planMenu(plan, event.currentTarget, { onClosed, onOpenPlan, onOpenGroup })}
+                        />
+                    </>
                 }
             />
 
+            <ProgressBar counts={counts} />
+
             <div className="flow-layout">
                 <div className="flow-main">
-                    {(plan.idea.trim() || plan.summary) && (
-                        <Card as="section" className="plan-idea-card">
-                            <CardBody>
-                                {plan.idea.trim() && (
-                                    <>
-                                        <div className="flow-label">Idea</div>
-                                        <div className="plan-idea-body">{plan.idea}</div>
-                                    </>
-                                )}
-                                {plan.summary && <Markdown className="plan-summary plan-idea-summary" text={plan.summary} />}
-                            </CardBody>
-                        </Card>
+                    {error && <div className="form-error">{error}</div>}
+                    {next !== undefined && (
+                        <NextToMerge step={plan.steps[next]} index={next} progress={progress[next]} repoLabel={repoLabel} onMerge={() => void merge(next)} />
                     )}
-
-                    <section className="plan-steps-section">
-                        <div className="plan-section-head">
-                            <h3>Steps</h3>
-                            <span className="plan-section-note">Each step runs in its own worktree with a new agent.</span>
-                        </div>
-                        <div className="plan-steps">
-                            {plan.steps.map((step, index) => (
-                                <StepRun
-                                    key={step.id}
-                                    plan={plan}
-                                    step={step}
-                                    index={index}
-                                    finished={finished}
-                                    repoLabel={repoLabel}
-                                    onOpenWorktree={onOpenWorktree}
-                                    act={act}
-                                />
-                            ))}
-                        </div>
-                    </section>
+                    {groups.map(item => (
+                        <RepoStack key={item.repo ?? ''} group={item} {...rowProps} />
+                    ))}
+                    <PlanDetails plan={plan} />
                 </div>
 
                 <aside className="flow-side">
-                    <Card as="section">
-                        <CardHeader
-                            title={finished ? 'Run finished' : 'Run'}
-                            description={[
-                                `${done} of ${pluralize(ran, 'step')} done`,
-                                plan.executedAt ? `started ${formatAgo(new Date(plan.executedAt).toISOString())}` : '',
-                                plan.finishedAt ? `finished ${formatAgo(new Date(plan.finishedAt).toISOString())}` : ''
-                            ]
-                                .filter(Boolean)
-                                .join(' · ')}
-                        />
-                        {(error || plan.status === 'running' || plan.status === 'paused') && (
-                            <CardBody className="flow-card-body">
-                                {error && <div className="form-error">{error}</div>}
-                                <div className="flow-actions">
-                                    {plan.status === 'running' && (
-                                        <Button
-                                            icon={<Pause size={14} />}
-                                            title="Stop after the current step"
-                                            onClick={() => void act(() => planRunner.pause(plan.id))}
-                                        >
-                                            Pause
-                                        </Button>
-                                    )}
-                                    {plan.status === 'paused' && (
-                                        <Button variant="primary" icon={<Play size={14} />} onClick={() => void act(() => planRunner.resume(plan.id))}>
-                                            Resume
-                                        </Button>
-                                    )}
-                                </div>
-                            </CardBody>
-                        )}
-                        {withPullRequests.length > 0 && (
-                            <CardBody className="flow-card-body">
-                                <div className="flow-field-label">Merge order</div>
-                                <div className="flow-field-note">A stacked pull request targets the branch of the step before it.</div>
-                                <ol className="plan-merge-list">
-                                    {withPullRequests.map(step => (
-                                        <li key={step.id}>
-                                            <span className="plan-merge-number">{plan.steps.indexOf(step) + 1}</span>
-                                            <StepStatusChip step={step} />
-                                            <div className="plan-merge-text">
-                                                <div className="plan-merge-title">{step.title}</div>
-                                                <div className="flow-field-note">
-                                                    {step.repo ? repoLabel(step.repo) : ''}
-                                                    {step.pr && ` · into ${step.pr.base}`}
-                                                </div>
-                                            </div>
-                                            <div className="plan-merge-tools">
-                                                {step.pr && (
-                                                    <Button size="sm" icon={<GitPullRequest size={14} />} onClick={() => openLink(step.pr?.url ?? '')}>
-                                                        #{step.pr.number}
-                                                    </Button>
-                                                )}
-                                                {step.worktreePath && (
-                                                    <Button
-                                                        size="sm"
-                                                        icon={<ArrowUpRight size={14} />}
-                                                        title={`Open the worktree: ${step.worktreePath}`}
-                                                        aria-label="Open the worktree"
-                                                        onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}
-                                                    />
-                                                )}
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ol>
-                                {group && (
-                                    <div className="flow-actions">
-                                        <Button
-                                            size="sm"
-                                            icon={<Layers size={14} />}
-                                            title={`Open the PR group "${group.name}". An agent can review all pull requests of the plan together.`}
-                                            onClick={() => onOpenGroup(group.id)}
-                                        >
-                                            PR group
-                                        </Button>
-                                    </div>
-                                )}
-                            </CardBody>
-                        )}
-                    </Card>
+                    <NeedsYou plan={plan} progress={progress} repoLabel={repoLabel} act={act} />
+                    <PlanAgents plan={plan} />
                 </aside>
             </div>
         </div>
     );
 }
 
-/** The status chip of a step in the merge order, for example "Needs you". */
-function StepStatusChip({ step }: { step: PlanStep }) {
-    const status = useStepStatus(step);
+/** The bar of all steps, one part for each progress group, and its legend. */
+function ProgressBar({ counts }: { counts: Record<ProgressGroup, number> }) {
+    const shown = PROGRESS_GROUPS.filter(group => counts[group] > 0);
     return (
-        <Chip className="plan-merge-chip" tone={status.tone}>
-            {status.label}
-        </Chip>
+        <div className="plan-progress-bar">
+            <div className="plan-progress-segments">
+                {shown.map(group => (
+                    <span key={group} className={`plan-progress-segment ${groupClass(group)}`} style={{ flexGrow: counts[group] }} />
+                ))}
+            </div>
+            <ul className="plan-progress-legend">
+                {shown.map(group => (
+                    <li key={group}>
+                        <span className={`plan-progress-swatch ${groupClass(group)}`} />
+                        <strong>{counts[group]}</strong> {PROGRESS_LABELS[group]}
+                    </li>
+                ))}
+            </ul>
+        </div>
     );
 }
 
-function StepRun({
-    plan,
+/** The card of the next pull request to merge: the first one that is ready and that no earlier pull request blocks. */
+function NextToMerge({
     step,
     index,
-    finished,
+    progress,
     repoLabel,
-    onOpenWorktree,
-    act
+    onMerge
 }: {
-    plan: Plan;
     step: PlanStep;
     index: number;
-    finished: boolean;
+    progress: StepProgress;
+    repoLabel(repo: string): string;
+    onMerge(): void;
+}) {
+    const pr = step.pr;
+    if (!pr) return null;
+    return (
+        <Card as="section" className="plan-next-merge">
+            <CardBody className="plan-next-merge-body">
+                <div className="plan-next-merge-text">
+                    <div className="flow-label">Next to merge{step.repo ? ` · ${repoLabel(step.repo)}` : ''}</div>
+                    <div className="plan-next-merge-title">
+                        {index + 1} · {step.title}
+                    </div>
+                    <div className="plan-step-meta">
+                        {[`#${pr.number}`, 'approved', progress.checks === 'none' ? 'no checks' : 'checks pass', `into ${pr.base}`].join(' · ')}
+                    </div>
+                </div>
+                <div className="plan-next-merge-tools">
+                    <Button onClick={() => openLink(pr.url)}>View diff</Button>
+                    <Button variant="primary" icon={<GitMerge size={14} />} onClick={onMerge}>
+                        Merge #{pr.number}
+                    </Button>
+                </div>
+            </CardBody>
+        </Card>
+    );
+}
+
+interface RowProps {
+    plan: Plan;
+    progress: StepProgress[];
     repoLabel(repo: string): string;
     onOpenWorktree(path: string, sessionId?: string): void;
     act(work: () => Promise<unknown>): Promise<void>;
-}) {
-    const link = step.task.kind === 'existing' ? step.task.link : undefined;
-    const status = useStepStatus(step);
-    const open = step.status === 'running' || step.status === 'attention' || step.status === 'failed';
+    onMerge(index: number): void;
+}
+
+/** The steps of one repository: a card with one row for each step. Steps in one repository stack. */
+function RepoStack({ group, ...rowProps }: { group: RepoGroup } & RowProps) {
+    const { progress, repoLabel } = rowProps;
+    const prs = group.steps.filter(({ step }) => step.pr).length;
+    const merged = group.steps.filter(({ index }) => progress[index].group === 'merged').length;
+    const numbers = group.steps.map(({ index }) => index + 1);
+    const summary = [
+        prs > 1 ? `${prs} stacked PRs` : prs === 1 ? '1 PR' : pluralize(group.steps.length, 'step'),
+        merged > 0 ? `${merged} merged` : '',
+        numbers.length > 1 ? `steps ${numbers[0]}–${numbers[numbers.length - 1]}` : `step ${numbers[0]}`
+    ]
+        .filter(Boolean)
+        .join(' · ');
     return (
-        <div className={`plan-step-row run ${step.status}`}>
-            <StepRail index={index} last={index === plan.steps.length - 1} nextStacks={stackedOnIndex(plan.steps, index + 1) === index} />
-            <Card className="plan-step">
-                <CardBody className="plan-step-body">
-                    <div className="plan-step-head">
-                        <div className="plan-step-heading">
-                            <div className="plan-step-name">
-                                <Chip tone={status.tone}>{status.label}</Chip> {step.title}
-                            </div>
-                            <div className="plan-step-meta">
-                                {step.repo ? repoLabel(step.repo) : 'No repository'}
-                                {step.branch && (
-                                    <>
-                                        {' · '}
-                                        <code>{step.branch}</code>
-                                        {step.baseBranch && (
-                                            <>
-                                                {' from '}
-                                                <code>{step.baseBranch}</code>
-                                            </>
-                                        )}
-                                    </>
-                                )}
-                                {!step.pullRequest && ' · experiment'}
-                            </div>
-                        </div>
-                        <div className="plan-step-tools">
-                            {step.pr && (
-                                <Button size="sm" title={step.pr.url} icon={<GitPullRequest size={14} />} onClick={() => openLink(step.pr?.url ?? '')}>
-                                    #{step.pr.number}
-                                </Button>
-                            )}
-                            {link && (
-                                <Button
-                                    size="sm"
-                                    title={link.url ?? link.title}
-                                    icon={<SquareCheck size={14} />}
-                                    disabled={!link.url}
-                                    onClick={() => link.url && openLink(link.url)}
-                                >
-                                    {link.key ?? 'Task'}
-                                </Button>
-                            )}
-                            {step.worktreePath && (
-                                <Button
-                                    size="sm"
-                                    title={step.worktreePath}
-                                    icon={<ArrowUpRight size={14} />}
-                                    onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}
-                                >
-                                    Open
-                                </Button>
-                            )}
-                        </div>
+        <Card as="section" className="plan-stack">
+            <div className="plan-stack-head">
+                <span className="plan-repo-dot" style={repoStyle(group)} />
+                <h3 className="plan-card-title">{group.repo ? repoLabel(group.repo) : 'No repository'}</h3>
+                <span className="plan-section-note">{summary}</span>
+            </div>
+            <ul className="plan-stack-rows">
+                {group.steps.map(({ step, index }) => (
+                    <RunStepRow key={step.id} step={step} index={index} {...rowProps} />
+                ))}
+            </ul>
+        </Card>
+    );
+}
+
+/** The review column of a step: the review of its pull request, or the status of the step before it has one. */
+const REVIEW_TEXT: Record<StepReview, { label: string; tone: string }> = {
+    approved: { label: 'Approved', tone: 'ok' },
+    changes: { label: 'Changes requested', tone: 'warning' },
+    awaiting: { label: 'Awaiting review', tone: 'info' },
+    draft: { label: 'Draft', tone: 'muted' },
+    unknown: { label: 'State unknown', tone: 'muted' }
+};
+
+const CHECKS_TEXT: Record<StepChecks, { label: string; tone: string }> = {
+    passing: { label: 'Checks pass', tone: 'ok' },
+    failing: { label: 'Checks failing', tone: 'danger' },
+    pending: { label: 'Checks running', tone: 'pending' },
+    none: { label: 'No checks', tone: 'muted' }
+};
+
+/**
+ * Returns where the pull request of a step merges: "Stacks on step 2 (#41)" when its base is the branch of an earlier
+ * step, else "Into main". A pull request that must wait for a different earlier one says so too.
+ */
+function baseText(plan: Plan, step: PlanStep, index: number, progress: StepProgress[]): string {
+    const base = step.pr?.base ?? '';
+    const baseIndex = plan.steps.findIndex(item => item.branch === base && item.id !== step.id);
+    const blocking = blockingStep(plan, progress, index);
+    const into =
+        baseIndex >= 0 ? `Stacks on step ${baseIndex + 1}${plan.steps[baseIndex].pr ? ` (#${plan.steps[baseIndex].pr?.number})` : ''}` : `Into ${base}`;
+    const blocker = blocking === undefined || blocking === baseIndex ? undefined : plan.steps[blocking].pr;
+    return blocker ? `${into} · merges after #${blocker.number}` : into;
+}
+
+/** The line under the title of a step in the run. */
+function rowDetail(plan: Plan, step: PlanStep, index: number, progress: StepProgress[]): { text: string; tone?: string } {
+    switch (progress[index].group) {
+        case 'merged':
+            return { text: step.pr ? `Merged into ${step.pr.base}` : 'Merged' };
+        case 'ready':
+            return { text: baseText(plan, step, index, progress) };
+        case 'changes':
+            return { text: 'A reviewer asked for changes.', tone: 'warning' };
+        case 'failing':
+            return { text: 'A check is failing.', tone: 'danger' };
+        case 'review':
+            return { text: baseText(plan, step, index, progress) };
+        case 'working':
+        case 'needs-you':
+            return { text: step.detail ?? stepStatusLabel(step.status) };
+        case 'pending':
+            return { text: 'Not started' };
+        case 'closed':
+            return { text: 'The pull request was closed without a merge.' };
+        case 'done':
+            return { text: step.pullRequest ? 'Done without a pull request' : 'An experiment. The branch stays on this Mac.' };
+        case 'skipped':
+            return { text: 'Skipped' };
+    }
+}
+
+/** One step in the run: the title, the pull request, the review, the checks and the next action. */
+function RunStepRow({ step, index, plan, progress, onOpenWorktree, act, onMerge }: { step: PlanStep; index: number } & RowProps) {
+    const item = progress[index];
+    const status = useStepStatus(step);
+    const agents = useAgentStates();
+    const agent = step.sessionId ? agents.get(step.sessionId)?.state : undefined;
+    const followUp = step.followUp && (agent === 'working' || agent === 'waiting') && step.status === 'done' ? step.followUp : undefined;
+    const detail = followUp ? { text: followUp.label, tone: 'pending' } : rowDetail(plan, step, index, progress);
+    const blocked = blockingStep(plan, progress, index) !== undefined;
+    const link = step.task.kind === 'existing' ? step.task.link : undefined;
+    const isOpen = step.status === 'running' || step.status === 'attention' || step.status === 'failed';
+    const finished = plan.status === 'done';
+
+    const menu = async (anchor: Element) => {
+        const choice = await showContextMenu(
+            [
+                ...(step.worktreePath ? [{ id: 'worktree', label: 'Open the worktree' }] : []),
+                ...(step.pr ? [{ id: 'pr', label: 'Open the pull request' }] : []),
+                ...(link?.url ? [{ id: 'task', label: `Open the task${link.key ? ` ${link.key}` : ''}` }] : []),
+                ...(!finished && step.status === 'attention' && step.worktreePath ? [{ id: 'resend', label: 'Send the prompt again' }] : []),
+                ...(!finished && step.status === 'running' ? [{ id: 'check', label: 'Check for a commit now' }] : []),
+                ...(!finished && isOpen ? [{ id: 'done', label: 'Mark as done' }] : []),
+                ...(!finished && (isOpen || step.status === 'pending') ? [{ id: 'skip', label: 'Skip the step' }] : [])
+            ],
+            anchor
+        );
+        if (choice === 'worktree' && step.worktreePath) onOpenWorktree(step.worktreePath, step.sessionId);
+        if (choice === 'pr' && step.pr) openLink(step.pr.url);
+        if (choice === 'task' && link?.url) openLink(link.url);
+        if (choice === 'resend') void act(() => planRunner.resendPrompt(plan.id, step.id));
+        if (choice === 'check') void act(() => planRunner.continueStep(plan.id, step.id));
+        if (choice === 'done') void act(() => planRunner.markDone(plan.id, step.id));
+        if (choice === 'skip') void act(() => planRunner.skipStep(plan.id, step.id));
+    };
+
+    let action: ReactNode = null;
+    if (followUp && step.worktreePath) {
+        action = (
+            <Button size="sm" icon={<ArrowUpRight size={14} />} onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}>
+                Open
+            </Button>
+        );
+    } else if (item.group === 'ready' && !blocked) {
+        action = (
+            <Button size="sm" variant="primary" onClick={() => onMerge(index)}>
+                Merge
+            </Button>
+        );
+    } else if (item.group === 'changes') {
+        action = (
+            <Button size="sm" icon={<Bot size={14} />} onClick={() => void act(() => sendReviewToAgent(plan, step))}>
+                Send to agent
+            </Button>
+        );
+    } else if (item.group === 'failing' && item.headSha) {
+        const sha = item.headSha;
+        action = (
+            <Button size="sm" icon={<Bot size={14} />} onClick={() => void act(() => sendChecksToAgent(plan, step, sha))}>
+                Fix with agent
+            </Button>
+        );
+    } else if (step.status === 'attention' && step.worktreePath && !finished) {
+        action = (
+            <Button size="sm" variant="primary" icon={<Check size={14} />} onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}>
+                Continue
+            </Button>
+        );
+    } else if (step.status === 'failed' && !finished) {
+        action = (
+            <Button size="sm" variant="primary" icon={<RotateCcw size={14} />} onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}>
+                Try again
+            </Button>
+        );
+    } else if (step.status === 'running' && step.worktreePath) {
+        action = (
+            <Button size="sm" icon={<ArrowUpRight size={14} />} onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}>
+                Open
+            </Button>
+        );
+    }
+
+    const review =
+        item.group === 'merged'
+            ? { label: 'Merged', tone: 'merged' }
+            : item.group === 'closed'
+              ? { label: 'Closed', tone: 'muted' }
+              : item.review
+                ? REVIEW_TEXT[item.review]
+                : undefined;
+    // The checks of a pull request that did not load are not known.
+    const checks = item.checks && item.review !== 'unknown' ? CHECKS_TEXT[item.checks] : undefined;
+    return (
+        <li className={`plan-run-row ${groupClass(item.group)}`}>
+            <span className={`plan-step-number${item.group === 'merged' || item.group === 'done' ? ' reviewed' : ''}`}>{index + 1}</span>
+            <div className="plan-run-main">
+                <div className="plan-run-title">{step.title}</div>
+                <div className={`plan-run-detail${detail.tone ? ` tone-${detail.tone}` : ''}`}>{detail.text}</div>
+            </div>
+            <div className="plan-run-pr">
+                {step.pr ? (
+                    <button type="button" className="plan-run-pr-link" title={step.pr.url} onClick={() => openLink(step.pr?.url ?? '')}>
+                        #{step.pr.number}
+                    </button>
+                ) : (
+                    <span className="plan-run-none">—</span>
+                )}
+            </div>
+            <div className="plan-run-review">
+                {review ? (
+                    <span className={`plan-run-state tone-${review.tone}`}>
+                        <i aria-hidden="true" />
+                        {review.label}
+                    </span>
+                ) : (
+                    <Chip tone={status.tone}>{status.label}</Chip>
+                )}
+            </div>
+            <div className="plan-run-checks">{checks && <span className={`plan-run-checks-text tone-${checks.tone}`}>{checks.label}</span>}</div>
+            <div className="plan-run-tools">
+                {action}
+                <IconButton size="sm" label="More" icon={<MoreHorizontal size={14} />} onClick={event => void menu(event.currentTarget)} />
+            </div>
+        </li>
+    );
+}
+
+/** The steps that need the user: a review that asks for changes, a failed check, or a step that stopped. */
+function NeedsYou({
+    plan,
+    progress,
+    repoLabel,
+    act
+}: {
+    plan: Plan;
+    progress: StepProgress[];
+    repoLabel(repo: string): string;
+    act(work: () => Promise<unknown>): Promise<void>;
+}) {
+    const items = plan.steps.flatMap((step, index) => {
+        const item = progress[index];
+        if (item.group !== 'changes' && item.group !== 'failing' && item.group !== 'needs-you') return [];
+        return [{ step, index, item }];
+    });
+    return (
+        <Card as="section" className="flow-card">
+            <CardBody className="flow-card-body">
+                <div className="plan-card-head">
+                    <h3 className="plan-card-title">Needs you</h3>
+                    {items.length > 0 && <Count value={items.length} label={pluralize(items.length, 'item')} />}
+                </div>
+                {items.length === 0 && <div className="flow-field-note">Nothing needs you now.</div>}
+                <ul className="plan-needs-list">
+                    {items.map(({ step, index, item }) => {
+                        const where = [step.repo ? repoLabel(step.repo) : '', `step ${index + 1}`, step.pr ? `#${step.pr.number}` : '']
+                            .filter(Boolean)
+                            .join(' · ');
+                        const kind =
+                            item.group === 'changes'
+                                ? { label: 'Changes requested', tone: 'warning' }
+                                : item.group === 'failing'
+                                  ? { label: 'Checks failing', tone: 'danger' }
+                                  : { label: step.status === 'failed' ? 'Failed' : 'Stopped', tone: step.status === 'failed' ? 'danger' : 'warning' };
+                        const text =
+                            item.group === 'changes'
+                                ? 'A reviewer asked for changes.'
+                                : item.group === 'failing'
+                                  ? 'One or more checks fail on the pull request.'
+                                  : (step.detail ?? 'The step needs you.');
+                        return (
+                            <li key={step.id} className="plan-needs-item">
+                                <div className="plan-needs-head">
+                                    <span className={`plan-run-checks-text tone-${kind.tone}`}>{kind.label}</span>
+                                    <span className="plan-section-note">{where}</span>
+                                </div>
+                                <div className="plan-needs-text">{text}</div>
+                                <div className="plan-needs-tools">
+                                    {item.group === 'changes' && (
+                                        <Button size="sm" icon={<Bot size={14} />} onClick={() => void act(() => sendReviewToAgent(plan, step))}>
+                                            Send to agent
+                                        </Button>
+                                    )}
+                                    {item.group === 'failing' && item.headSha && (
+                                        <Button
+                                            size="sm"
+                                            icon={<Bot size={14} />}
+                                            onClick={() => void act(() => sendChecksToAgent(plan, step, item.headSha as string))}
+                                        >
+                                            Fix with agent
+                                        </Button>
+                                    )}
+                                    {item.group === 'needs-you' && step.status === 'attention' && step.worktreePath && (
+                                        <Button size="sm" onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}>
+                                            Continue
+                                        </Button>
+                                    )}
+                                    {item.group === 'needs-you' && step.status === 'failed' && (
+                                        <Button size="sm" onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}>
+                                            Try again
+                                        </Button>
+                                    )}
+                                    {step.pr && (
+                                        <Button size="sm" onClick={() => openLink(step.pr?.url ?? '')}>
+                                            Open PR
+                                        </Button>
+                                    )}
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </CardBody>
+        </Card>
+    );
+}
+
+/** The agents of the steps that are working or that wait for the user now. */
+function PlanAgents({ plan }: { plan: Plan }) {
+    const agents = useAgentStates();
+    const active = plan.steps.flatMap((step, index) => {
+        const state = step.sessionId ? agents.get(step.sessionId)?.state : undefined;
+        if (state !== 'working' && state !== 'waiting') return [];
+        const label = step.status === 'done' && step.followUp ? step.followUp.label : `Step ${index + 1}: ${step.title}`;
+        return [{ step, label, state }];
+    });
+    return (
+        <Card as="section" className="flow-card">
+            <CardBody className="flow-card-body">
+                <h3 className="plan-card-title">Agents on this plan</h3>
+                {active.length === 0 ? (
+                    <div className="flow-field-note">No agent is working on this plan now.</div>
+                ) : (
+                    <ul className="plan-agent-list">
+                        {active.map(({ step, label, state }) => (
+                            <li key={step.id}>
+                                <span className="plan-agent-label">{label}</span>
+                                <span className={`plan-run-checks-text tone-${state === 'working' ? 'pending' : 'warning'}`}>
+                                    {state === 'working' ? 'Working' : 'Waiting for you'}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                <div className="flow-field-note">
+                    Each fix goes to the agent in the worktree of its step. The agent pushes to the branch of the step, and the pull request updates.
+                </div>
+            </CardBody>
+        </Card>
+    );
+}
+
+/** The idea, the decisions and the instructions of each step. They are closed at the start. */
+function PlanDetails({ plan }: { plan: Plan }) {
+    const [open, setOpen] = useState(false);
+    const meta = [
+        `Made ${formatAgo(new Date(plan.createdAt).toISOString())}`,
+        plan.executedAt ? `started ${formatAgo(new Date(plan.executedAt).toISOString())}` : '',
+        plan.agent ? `steps by ${plan.agent}` : ''
+    ]
+        .filter(Boolean)
+        .join(' · ');
+    return (
+        <Card as="section" className="plan-details">
+            <CardBody>
+                <div className="plan-card-head">
+                    <div>
+                        <h3 className="plan-card-title">Idea, decisions and step instructions</h3>
+                        <div className="plan-section-note">{meta}</div>
                     </div>
-                    {step.detail && <div className="plan-step-detail">{step.detail}</div>}
-                    {step.description.trim() && (
-                        <details className="plan-step-details">
-                            <summary>Instructions</summary>
-                            <Markdown className="plan-summary" text={step.description} />
-                        </details>
-                    )}
-                    {!finished && (open || step.status === 'pending') && (
-                        <div className="plan-step-actions">
-                            {step.status === 'attention' && step.worktreePath && (
-                                <Button variant="accent" icon={<Check size={14} />} onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}>
-                                    Continue
-                                </Button>
-                            )}
-                            {step.status === 'attention' && step.worktreePath && (
-                                <Button icon={<Send size={14} />} onClick={() => void act(() => planRunner.resendPrompt(plan.id, step.id))}>
-                                    Send the prompt again
-                                </Button>
-                            )}
-                            {step.status === 'running' && (
-                                <Button
-                                    title="Check the worktree for a new commit now"
-                                    icon={<RotateCcw size={14} />}
-                                    onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}
-                                >
-                                    Check now
-                                </Button>
-                            )}
-                            {step.status === 'failed' && (
-                                <Button
-                                    variant="accent"
-                                    icon={<RotateCcw size={14} />}
-                                    onClick={() => void act(() => planRunner.continueStep(plan.id, step.id))}
-                                >
-                                    Try again
-                                </Button>
-                            )}
-                            {open && (
-                                <Button
-                                    title="Continue with the next step. This step gets no pull request."
-                                    icon={<CircleCheck size={14} />}
-                                    onClick={() => void act(() => planRunner.markDone(plan.id, step.id))}
-                                >
-                                    Mark done
-                                </Button>
-                            )}
-                            <Button icon={<SkipForward size={14} />} onClick={() => void act(() => planRunner.skipStep(plan.id, step.id))}>
-                                Skip
-                            </Button>
-                        </div>
-                    )}
-                </CardBody>
-            </Card>
-        </div>
+                    <Button size="sm" aria-expanded={open} onClick={() => setOpen(value => !value)}>
+                        {open ? 'Hide plan' : 'Show plan'}
+                    </Button>
+                </div>
+                {open && (
+                    <div className="plan-write-up">
+                        {plan.idea.trim() && (
+                            <>
+                                <div className="flow-label">Idea</div>
+                                <div className="plan-idea-body open">{plan.idea}</div>
+                            </>
+                        )}
+                        {plan.summary && (
+                            <>
+                                <div className="flow-label">Approach</div>
+                                <Markdown className="plan-summary" text={plan.summary} />
+                            </>
+                        )}
+                        {plan.decisions && plan.decisions.length > 0 && (
+                            <>
+                                <div className="flow-label">Decisions</div>
+                                <ul className="plan-details-decisions">
+                                    {plan.decisions.map(decision => (
+                                        <li key={decision.id}>{decision.text}</li>
+                                    ))}
+                                </ul>
+                            </>
+                        )}
+                        <div className="flow-label">Steps</div>
+                        {plan.steps.map((step, index) => (
+                            <details key={step.id} className="plan-step-details">
+                                <summary>
+                                    {index + 1}. {step.title}
+                                </summary>
+                                {step.description.trim() ? (
+                                    <Markdown className="plan-summary" text={step.description} />
+                                ) : (
+                                    <div className="plan-step-text empty">No instructions.</div>
+                                )}
+                            </details>
+                        ))}
+                    </div>
+                )}
+            </CardBody>
+        </Card>
     );
 }

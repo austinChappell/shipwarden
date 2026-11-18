@@ -12434,6 +12434,17 @@ button.pr-summary-cell:hover {
     gap: 12px 20px;
 }
 
+/* The status chip of a plan sits just after the title. The title field grows with its text. */
+.plan-page .flow-title,
+.plan-page .flow-title-input {
+    flex: 0 1 auto;
+}
+
+.plan-page .flow-title-input {
+    field-sizing: content;
+    max-width: 100%;
+}
+
 .flow-header-main {
     /* A long title needs room. Below this width, the actions go to the next line. */
     flex: 1 1 560px;
@@ -12984,6 +12995,361 @@ button.pr-summary-cell:hover {
     justify-content: flex-start;
 }
 
+/* The page of a plan that runs or ran */
+
+.plan-stage-detail {
+    margin-left: 4px;
+    color: var(--muted);
+    font-weight: 400;
+}
+
+/* The color of each progress group: the status colors, and muted colors for the steps that need nothing. */
+.progress-merged {
+    --group: var(--purple);
+}
+
+.progress-ready {
+    --group: var(--ok);
+}
+
+.progress-review {
+    --group: var(--info);
+}
+
+.progress-changes {
+    --group: var(--warning);
+}
+
+.progress-failing {
+    --group: var(--danger);
+}
+
+.progress-working {
+    --group: color-mix(in srgb, var(--pending) 60%, transparent);
+}
+
+.progress-needs-you {
+    --group: color-mix(in srgb, var(--warning) 50%, var(--danger));
+}
+
+.progress-pending {
+    --group: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
+.progress-closed,
+.progress-done,
+.progress-skipped {
+    --group: color-mix(in srgb, var(--muted) 25%, transparent);
+}
+
+/* The bar of all steps, one part for each group, with its legend. */
+.plan-progress-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 22px;
+}
+
+.plan-progress-segments {
+    display: flex;
+    gap: 3px;
+    height: 8px;
+}
+
+.plan-progress-segment {
+    flex-basis: 0;
+    min-width: 6px;
+    border-radius: 3px;
+    background: var(--group);
+}
+
+.plan-progress-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0;
+    padding: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    list-style: none;
+}
+
+.plan-progress-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.plan-progress-legend strong {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.plan-progress-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    background: var(--group);
+}
+
+/* The next pull request to merge */
+.plan-next-merge {
+    border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+}
+
+.plan-next-merge-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+}
+
+.plan-next-merge-text {
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+.plan-next-merge .flow-label {
+    color: var(--tone-success-text);
+}
+
+.plan-next-merge-title {
+    color: var(--text-strong);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.plan-next-merge-tools {
+    display: flex;
+    flex: none;
+    gap: 8px;
+    margin-left: auto;
+}
+
+/* The steps of one repository */
+.plan-stack-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.plan-stack-rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.plan-run-row {
+    display: grid;
+    /* The last column has room for the widest action button and the menu, so that the columns line up in each row. */
+    grid-template-columns: 26px minmax(0, 1fr) 64px 150px 116px 160px;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+}
+
+.plan-run-row + .plan-run-row {
+    border-top: 1px solid var(--border);
+}
+
+.plan-run-main {
+    min-width: 0;
+}
+
+.plan-run-title,
+.plan-run-detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plan-run-title {
+    color: var(--text-strong);
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.plan-run-row.progress-merged .plan-run-title,
+.plan-run-row.progress-skipped .plan-run-title,
+.plan-run-row.progress-closed .plan-run-title {
+    color: var(--muted);
+}
+
+.plan-run-detail {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.plan-run-pr-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+
+.plan-run-pr-link:hover {
+    color: var(--text-strong);
+    text-decoration: underline;
+}
+
+.plan-run-none {
+    color: var(--muted);
+}
+
+.plan-run-state,
+.plan-run-checks-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    white-space: nowrap;
+}
+
+.plan-run-state i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.plan-run-page .tone-ok {
+    color: var(--tone-success-text);
+}
+
+.plan-run-page .tone-warning {
+    color: var(--tone-warning-text);
+}
+
+.plan-run-page .tone-danger {
+    color: var(--tone-danger-text);
+}
+
+.plan-run-page .tone-info {
+    color: var(--tone-info-text);
+}
+
+.plan-run-page .tone-pending {
+    color: var(--tone-pending-text);
+}
+
+.plan-run-page .tone-merged {
+    color: var(--tone-review-text);
+}
+
+.plan-run-page .tone-muted {
+    color: var(--muted);
+}
+
+.plan-run-tools {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+/* A narrower page drops the pull request and checks columns. The review column and the buttons stay. */
+@container (max-width: 1100px) {
+    .plan-run-row {
+        grid-template-columns: 26px minmax(0, 1fr) 140px 160px;
+    }
+
+    .plan-run-pr,
+    .plan-run-checks {
+        display: none;
+    }
+}
+
+/* Needs you, and the agents of the plan */
+.plan-needs-list,
+.plan-agent-list,
+.plan-details-decisions {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.plan-needs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.plan-needs-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    background: var(--bg);
+}
+
+.plan-needs-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 8px;
+}
+
+.plan-needs-head .plan-run-checks-text {
+    font-weight: 600;
+}
+
+.plan-needs-text {
+    color: var(--text-strong);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.plan-needs-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.plan-agent-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.plan-agent-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 13px;
+}
+
+.plan-agent-label {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-strong);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plan-details-decisions li {
+    position: relative;
+    padding-left: 14px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.plan-details-decisions li::before {
+    content: "•";
+    position: absolute;
+    left: 2px;
+    color: var(--muted);
+}
+
 .flow-header {
     margin-bottom: 22px;
     padding-bottom: 16px;
@@ -13275,15 +13641,6 @@ button.pr-summary-cell:hover {
     gap: 14px;
 }
 
-.plan-step-rail {
-    display: flex;
-    flex: none;
-    flex-direction: column;
-    align-items: center;
-    width: 26px;
-    padding-top: 14px;
-}
-
 .plan-step-number {
     display: inline-grid;
     flex: none;
@@ -13296,19 +13653,6 @@ button.pr-summary-cell:hover {
     color: var(--text-strong);
     font-size: 12px;
     font-weight: 600;
-}
-
-/* The line runs to the number of the next step, through the gap between the cards. */
-.plan-step-line {
-    flex: 1;
-    width: 2px;
-    margin: 6px 0 -18px;
-    border-radius: 1px;
-    background: var(--border);
-}
-
-.plan-step-line.stacked {
-    background: color-mix(in srgb, var(--ok) 55%, transparent);
 }
 
 .plan-step {
@@ -13371,7 +13715,6 @@ button.pr-summary-cell:hover {
 }
 
 .plan-step-tools,
-.plan-step-actions,
 .plan-step-fields {
     display: flex;
     flex-wrap: wrap;
@@ -13381,10 +13724,6 @@ button.pr-summary-cell:hover {
 
 .plan-step-tools {
     gap: 2px;
-}
-
-.plan-step-actions {
-    justify-content: flex-end;
 }
 
 .plan-step-problem {
@@ -13409,10 +13748,6 @@ button.pr-summary-cell:hover {
     color: var(--muted);
     font-size: 13px;
     font-style: italic;
-}
-
-.plan-step-tools .plan-step-edit {
-    margin-left: 6px;
 }
 
 .plan-step-fields {
@@ -13582,12 +13917,6 @@ button.pr-summary-cell:hover {
     gap: 8px;
 }
 
-.plan-execute-note {
-    color: var(--muted);
-    font-size: 12px;
-    text-align: right;
-}
-
 /* The run of a plan */
 
 .plan-step-heading {
@@ -13610,47 +13939,6 @@ button.pr-summary-cell:hover {
     white-space: nowrap;
 }
 
-.plan-step-row.run.attention .plan-step {
-    border-color: var(--warning);
-}
-
-.plan-step-row.run.failed .plan-step {
-    border-color: var(--danger);
-}
-
-.plan-step-row.run.running .plan-step {
-    border-color: var(--pending);
-}
-
-.plan-step-row.run.done .plan-step-number {
-    border-color: transparent;
-    background: color-mix(in srgb, var(--ok) 22%, transparent);
-    color: var(--ok);
-}
-
-.plan-step-row.run.running .plan-step-number {
-    border-color: var(--info);
-    color: var(--info);
-}
-
-.plan-step-row.run.skipped .plan-step {
-    opacity: 0.55;
-}
-
-.plan-step-detail {
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.45;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    user-select: text;
-}
-
-.plan-step-row.run.attention .plan-step-detail,
-.plan-step-row.run.failed .plan-step-detail {
-    color: var(--text);
-}
-
 .plan-step-details summary {
     color: var(--muted);
     font-size: 12px;
@@ -13659,79 +13947,6 @@ button.pr-summary-cell:hover {
 
 .plan-step-details .plan-summary {
     margin-top: 6px;
-}
-
-.plan-merge-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-/* Row 1 holds the number, the status chip, and the buttons. Row 2 gives the text the full width. */
-.plan-merge-list li {
-    display: grid;
-    grid-template-areas:
-        "number chip tools"
-        ". text text";
-    grid-template-columns: 20px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 6px 10px;
-}
-
-.plan-merge-list li + li {
-    padding-top: 10px;
-    border-top: 1px solid var(--border);
-}
-
-.plan-merge-number {
-    grid-area: number;
-}
-
-.plan-merge-chip {
-    grid-area: chip;
-    justify-self: start;
-}
-
-.plan-merge-tools {
-    display: flex;
-    grid-area: tools;
-    justify-content: flex-end;
-    gap: 6px;
-}
-
-.plan-merge-text .flow-field-note {
-    overflow-wrap: anywhere;
-}
-
-.plan-merge-number {
-    display: inline-grid;
-    flex: none;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--raised);
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.plan-merge-text {
-    grid-area: text;
-    min-width: 0;
-}
-
-/* The title wraps to 2 lines at most. */
-.plan-merge-title {
-    display: -webkit-box;
-    overflow: hidden;
-    color: var(--text-strong);
-    font-size: 12.5px;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
 }
 
 /* Text for screen readers only. */

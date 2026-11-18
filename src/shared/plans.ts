@@ -69,6 +69,8 @@ export interface PlanStep {
     touches?: string[];
     /** True: the user read the step and said that it is correct. A draft runs only when all its steps are reviewed. */
     reviewed?: boolean;
+    /** The last work that the user gave to the agent of a done step, for example "Fixing the review comments". */
+    followUp?: { label: string; at: number };
 }
 
 /**
@@ -341,6 +343,10 @@ export function normalizeStep(value: unknown): PlanStep | undefined {
     const touches = textList(raw.touches, MAX_TOUCHES, 300);
     if (touches.length > 0) step.touches = touches;
     if (raw.reviewed === true) step.reviewed = true;
+    const followUp = record(raw.followUp);
+    const label = nonEmpty(followUp.label, 200);
+    const at = time(followUp.at);
+    if (label && at !== undefined) step.followUp = { label, at };
     return step;
 }
 

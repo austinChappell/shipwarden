@@ -155,6 +155,24 @@ export class PlanRunner {
         await this.patchStep(planId, stepId, { status: 'running', sessionId: session.id, turnFrom, detail: 'The agent is working on the step.' });
     }
 
+    /**
+     * Gives more work to the agent of a done step, for example the review comments or the failed checks of its pull
+     * request. The agent of the worktree gets the prompt. Without one, a new agent starts. The status of the step stays.
+     */
+    async followUp(planId: string, stepId: string, prompt: string, label: string): Promise<void> {
+        const context = this.ready;
+        if (!context) throw new Error('ShipWarden did not load the plans yet. Try again in a few seconds.');
+        const plan = cachedPlan(planId);
+        const step = plan?.steps.find(item => item.id === stepId);
+        if (!plan || !step) throw new Error('The step does not exist anymore.');
+        if (!step.worktreePath || !step.repo) throw new Error('The step has no worktree.');
+        const session = await context.actions.promptAgent({ path: step.worktreePath }, prompt, {
+            repoPath: step.repo,
+            ...(plan.agentMode ? { mode: plan.agentMode } : {})
+        });
+        await this.patchStep(planId, stepId, { sessionId: session.id, followUp: { label, at: Date.now() } });
+    }
+
     /** Marks a step as done without a check, and starts the next step. The step gets no pull request. */
     async markDone(planId: string, stepId: string): Promise<void> {
         await this.patchStep(planId, stepId, { status: 'done', finishedAt: Date.now(), detail: 'You marked the step as done.' });
