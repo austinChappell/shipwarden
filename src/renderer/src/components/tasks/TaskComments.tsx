@@ -96,15 +96,19 @@ export function TaskComments({ state, canLoadPeople, tasks }: Props) {
 
     return (
         <TaskCard title="Comments" count={comments.length} className="task-comments">
-            {comments.map(comment => (
-                <div key={comment.id} className="thread-comment">
-                    <div className="comment-author">
-                        {comment.author && <TaskAvatar person={comment.author} size={18} />}
-                        {comment.author?.name ?? 'unknown'} {comment.createdAt && <span>{timeAgo(comment.createdAt)}</span>}
-                    </div>
-                    <Markdown className="comment-body" text={comment.body} />
+            {comments.length > 0 && (
+                <div className="task-comment-list">
+                    {comments.map(comment => (
+                        <div key={comment.id} className="thread-comment">
+                            <div className="comment-author">
+                                {comment.author && <TaskAvatar person={comment.author} size={18} />}
+                                {comment.author?.name ?? 'unknown'} {comment.createdAt && <span>{timeAgo(comment.createdAt)}</span>}
+                            </div>
+                            <Markdown className="comment-body" text={comment.body} />
+                        </div>
+                    ))}
                 </div>
-            ))}
+            )}
             <MentionTextarea
                 className="review-body"
                 value={commentText}

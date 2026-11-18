@@ -2,6 +2,7 @@
 import { log, networkDetail, runPlugin } from '../sdk/index.js';
 import {
     busiestList,
+    commentBody,
     commentParts,
     customFieldRequest,
     dayToMilliseconds,
@@ -530,7 +531,7 @@ runPlugin({
                     taskTitle: task.name,
                     taskUrl: task.url,
                     author: comment.user.username ?? comment.user.email,
-                    body: comment.comment_text ?? '',
+                    body: commentBody(comment),
                     createdAt: new Date(Number(comment.date)).toISOString()
                 }));
         });

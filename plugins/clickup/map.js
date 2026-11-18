@@ -376,11 +376,54 @@ export function plainComment(parts, mentions = []) {
         .join('');
 }
 
+/** Returns true when the URL starts with "http://" or "https://". */
+function isWebUrl(url) {
+    return typeof url === 'string' && /^https?:\/\//i.test(url);
+}
+
+/** Makes a Markdown link. The angle brackets let the URL contain parentheses. */
+function markdownLink(text, url) {
+    const target = url.replace(/[\s<>]/g, character => encodeURIComponent(character));
+    const label = text.trim();
+    if (!label || label === url) return `<${target}>`;
+    return `[${label.replace(/([\\[\]])/g, '\\$1')}](<${target}>)`;
+}
+
+/**
+ * Returns the body of a ClickUp comment as Markdown.
+ * "comment_text" has only the text of a link, so the function uses the comment parts when a part has a link.
+ * A text part with "attributes.link" becomes a Markdown link. A bookmark or a link mention becomes its URL.
+ * When a part has an unknown type and no text, the function returns "comment_text", so no text is lost.
+ */
+export function commentBody(comment) {
+    const fallback = comment.comment_text ?? '';
+    const parts = Array.isArray(comment.comment) ? comment.comment : [];
+    const linkOf = part => {
+        const url = part.attributes?.link ?? part.bookmark?.url ?? part.link_mention?.url;
+        return isWebUrl(url) ? url : undefined;
+    };
+    if (!parts.some(linkOf)) return fallback;
+    let body = '';
+    for (const part of parts) {
+        const url = linkOf(part);
+        if (url) {
+            body += markdownLink(typeof part.text === 'string' ? part.text : '', url);
+        } else if (part.type === 'tag' && part.user?.username) {
+            body += `@${part.user.username}`;
+        } else if (typeof part.text === 'string') {
+            body += part.text;
+        } else {
+            return fallback;
+        }
+    }
+    return body;
+}
+
 export function toComment(comment) {
     return {
         id: String(comment.id),
         author: comment.user ? toPerson(comment.user) : undefined,
-        body: comment.comment_text ?? '',
+        body: commentBody(comment),
         createdAt: isoDate(comment.date)
     };
 }
