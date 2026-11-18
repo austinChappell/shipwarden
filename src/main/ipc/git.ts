@@ -29,6 +29,15 @@ export function registerGitIpc({ gitChanges, projectWorktrees, worktrees }: Pick
         const root = await known(repo);
         return gitChanges.worktreeFiles(root, await worktrees.list(root));
     });
+    ipcMain.handle(IpcChannels.gitBlame, async (_event, worktree: string, path: string, contents?: unknown) =>
+        gitChanges.blame(await known(worktree), String(path), optionalString(contents))
+    );
+    ipcMain.handle(IpcChannels.gitFileHistory, async (_event, worktree: string, path: string, limit: unknown) =>
+        gitChanges.fileHistory(await known(worktree), String(path), logLimit(limit))
+    );
+    ipcMain.handle(IpcChannels.gitCommitFileContents, async (_event, worktree: string, commit: string, path: string, oldPath?: string) =>
+        gitChanges.commitFileContents(await known(worktree), String(commit), String(path), optionalString(oldPath))
+    );
     ipcMain.handle(IpcChannels.gitPull, async (_event, worktree: string) => gitChanges.pull(await known(worktree)));
     ipcMain.handle(IpcChannels.gitPush, async (_event, worktree: string) => gitChanges.push(await known(worktree)));
 }

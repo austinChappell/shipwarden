@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState, type MouseEvent } from 'react';
-import { Check, ChevronRight, Copy, FolderOpen, ListTree } from 'lucide-react';
+import { Check, ChevronRight, Copy, FolderOpen, GitCommitHorizontal, History, ListTree } from 'lucide-react';
+import { toggleBlame, useBlameVisible } from '../editor/blame-visible';
 import { copyFilePath, onFilePathCopied } from '../files/file-path-copy';
 import { errorText } from '../util';
 import { showContextMenu, type ContextMenuItem } from './ContextMenu';
@@ -12,6 +13,12 @@ interface Props {
     onError(message: string): void;
     /** Shows the file in the file explorer of the right panel. Without it, the bar has no button for it. */
     onRevealInExplorer?(): void;
+    /** True for a text file. Only then the bar has the blame button. */
+    canBlame?: boolean;
+    /** True while the history of the file shows in place of the file. */
+    historyShown?: boolean;
+    /** Shows or hides the history of the file. Without it, the bar has no history button. */
+    onToggleHistory?(): void;
 }
 
 /** The time that the copy button shows its check mark. */
@@ -19,11 +26,12 @@ const COPIED_MS = 1500;
 
 /**
  * The bar at the top of a file tab. It shows the relative path of the file, with the folders in a muted color.
- * The buttons copy the relative path (⇧⌘C), show the file in the file explorer (⇧⌘E) and show the file in Finder (⌥⌘R).
+ * The buttons show the git blame (⌥⌘B) and the git history of the file, copy the relative path (⇧⌘C), show the file in the file explorer (⇧⌘E) and show the file in Finder (⌥⌘R).
  * A right click on the bar opens a menu with the same actions and "Copy path".
  */
-export function FilePathBar({ root, path, onError, onRevealInExplorer }: Props) {
+export function FilePathBar({ root, path, onError, onRevealInExplorer, canBlame, historyShown, onToggleHistory }: Props) {
     const [copied, setCopied] = useState(false);
+    const blameVisible = useBlameVisible();
     const parts = path.split('/');
     const name = parts.pop() ?? path;
     const absolute = `${root}/${path}`;
@@ -83,6 +91,27 @@ export function FilePathBar({ root, path, onError, onRevealInExplorer }: Props) 
                 <span className="file-path-name">{name}</span>
             </span>
             <span className="file-path-actions">
+                {canBlame && (
+                    <IconButton
+                        size="sm"
+                        label={blameVisible ? 'Hide git blame (⌥⌘B)' : 'Show git blame (⌥⌘B)'}
+                        active={blameVisible}
+                        aria-pressed={blameVisible}
+                        disabled={historyShown}
+                        icon={<GitCommitHorizontal size={14} strokeWidth={1.6} />}
+                        onClick={toggleBlame}
+                    />
+                )}
+                {onToggleHistory && (
+                    <IconButton
+                        size="sm"
+                        label={historyShown ? 'Hide file history' : 'Show file history'}
+                        active={historyShown}
+                        aria-pressed={historyShown}
+                        icon={<History size={14} strokeWidth={1.6} />}
+                        onClick={onToggleHistory}
+                    />
+                )}
                 <IconButton
                     size="sm"
                     label="Copy relative path (⇧⌘C)"

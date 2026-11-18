@@ -25,6 +25,59 @@ describe('GitChangesService', () => {
 
     afterEach(() => rmSync(repo, { recursive: true, force: true }));
 
+    it('blames each line, with the unsaved text of an editor', async () => {
+        writeFileSync(join(repo, 'a.txt'), 'one\ntwo\n');
+        sh('add', 'a.txt');
+        sh('commit', '-q', '-m', 'first');
+        writeFileSync(join(repo, 'a.txt'), 'one\ntwo\nthree\n');
+        sh('commit', '-q', '-am', 'second');
+
+        const blame = await git.blame(repo, 'a.txt');
+        expect(blame?.lines).toHaveLength(3);
+        const [first, , third] = (blame?.lines ?? []).map(hash => blame?.commits[hash]);
+        expect(first).toMatchObject({ summary: 'first', author: 'Test', authorEmail: 'test@example.com', uncommitted: false });
+        expect(third?.summary).toBe('second');
+        expect(first?.date).toBeGreaterThan(0);
+
+        const edited = await git.blame(repo, 'a.txt', 'zero\none\ntwo\nthree\n');
+        expect(edited?.lines).toHaveLength(4);
+        expect(edited?.commits[edited.lines[0]].uncommitted).toBe(true);
+        expect(edited?.commits[edited.lines[1]].summary).toBe('first');
+
+        writeFileSync(join(repo, 'new.txt'), 'x\n');
+        expect(await git.blame(repo, 'new.txt')).toBeNull();
+    });
+
+    it('reads the history of a file across a rename, and the change of each commit', async () => {
+        writeFileSync(join(repo, 'old.txt'), 'one\n');
+        sh('add', 'old.txt');
+        sh('commit', '-q', '-m', 'add');
+        writeFileSync(join(repo, 'other.txt'), 'x\n');
+        sh('add', 'other.txt');
+        sh('commit', '-q', '-m', 'other\n\nwith a body');
+        sh('mv', 'old.txt', 'new.txt');
+        sh('commit', '-q', '-m', 'rename');
+        writeFileSync(join(repo, 'new.txt'), 'one\ntwo\n');
+        sh('commit', '-q', '-am', 'edit');
+
+        const history = await git.fileHistory(repo, 'new.txt', 10);
+        expect(history.more).toBe(false);
+        expect(history.commits.map(commit => [commit.subject, commit.status, commit.path, commit.oldPath])).toEqual([
+            ['edit', 'M', 'new.txt', undefined],
+            ['rename', 'R', 'new.txt', 'old.txt'],
+            ['add', 'A', 'old.txt', undefined]
+        ]);
+        expect(history.commits[0].parents).toHaveLength(1);
+        expect(history.commits[2].parents).toEqual([]);
+        expect((await git.fileHistory(repo, 'new.txt', 1)).more).toBe(true);
+
+        const [edit, rename, add] = history.commits;
+        expect(await git.commitFileContents(repo, edit.hash, edit.path)).toEqual({ original: 'one\n', modified: 'one\ntwo\n', binary: false });
+        expect(await git.commitFileContents(repo, rename.hash, rename.path, rename.oldPath)).toEqual({ original: 'one\n', modified: 'one\n', binary: false });
+        expect(await git.commitFileContents(repo, add.hash, add.path)).toEqual({ original: '', modified: 'one\n', binary: false });
+        await expect(git.commitFileContents(repo, 'HEAD; rm', 'new.txt')).rejects.toThrow('commit hash');
+    });
+
     it('reads the history for the graph, with refs, and without remote branches on request', async () => {
         expect(await git.log(repo, 'all', 10)).toEqual({ commits: [], more: false });
         sh('commit', '-q', '--allow-empty', '-m', 'one');
