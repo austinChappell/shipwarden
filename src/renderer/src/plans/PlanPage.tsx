@@ -846,6 +846,11 @@ function StepEditor({
     const chips = (
         <>
             {step.skip && <Chip>Skipped</Chip>}
+            {!editing && target && step.task.kind === 'none' && (
+                <Chip tone="warning" icon={<CircleAlert size={12} />} title="This step has no task. Open the editor to make a new task or to link an existing task.">
+                    No task
+                </Chip>
+            )}
             {stackedOn >= 0 && (
                 <Chip tone="info" icon={<Layers size={12} />} title="This step starts from the branch of the earlier step.">
                     Stacks on step {stackedOn + 1}
