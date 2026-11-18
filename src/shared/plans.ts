@@ -774,6 +774,27 @@ export function activeStepIndex(plan: Pick<Plan, 'steps'>): number {
 }
 
 /**
+ * What Resume does with a plan:
+ * - "advance": no step is active. The runner starts the next step.
+ * - "continue": the active step stopped. The runner checks it again, or starts it again when it has no worktree.
+ * - "check": the active step shows as running, but its agent is not working. The runner checks the worktree for a new
+ *   commit now. This finishes a step that missed the end of the turn, for example when a save failed on a full disk.
+ * - "wait": the agent of the running step is working. The end of its turn finishes the step.
+ */
+export type ResumeAction = { kind: 'advance' } | { kind: 'continue' | 'check' | 'wait'; stepId: string };
+
+/** Returns what Resume does. `agentState` is the state of the agent of the active step, when ShipWarden knows it. */
+export function resumeAction(plan: Pick<Plan, 'steps'>, agentState: AgentState | undefined): ResumeAction {
+    const index = activeStepIndex(plan);
+    if (index < 0) return { kind: 'advance' };
+    const step = plan.steps[index];
+    if (step.status !== 'running') return { kind: 'continue', stepId: step.id };
+    // A step without a worktree is still making it. The runner finishes it.
+    if (!step.worktreePath || agentState === 'working' || agentState === 'starting') return { kind: 'wait', stepId: step.id };
+    return { kind: 'check', stepId: step.id };
+}
+
+/**
  * The branch that a new step worktree starts from: the branch of the nearest earlier step in the same repository that
  * has a branch. Undefined: the default branch.
  */

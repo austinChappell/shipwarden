@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     activeStepIndex,
+    resumeAction,
     answerProse,
     applyProposal,
     duplicatePlan,
@@ -238,6 +239,25 @@ describe('the order of the steps', () => {
         expect(nextStepIndex(plan(steps))).toBe(3);
         expect(activeStepIndex(plan(steps))).toBe(-1);
         expect(activeStepIndex(plan(steps.map(item => (item.id === 'd' ? { ...item, status: 'attention' } : item))))).toBe(3);
+    });
+
+    it('checks a running step on Resume when its agent is not working', () => {
+        const running = (patch: Partial<PlanStep>) => plan(steps.map(item => (item.id === 'd' ? { ...item, status: 'running', ...patch } : item)));
+        const withWorktree = running({ worktreePath: '/wt/d', sessionId: 's1' });
+        expect(resumeAction(plan(steps), undefined)).toEqual({ kind: 'advance' });
+        expect(resumeAction(plan(steps.map(item => (item.id === 'd' ? { ...item, status: 'failed' } : item))), 'done')).toEqual({
+            kind: 'continue',
+            stepId: 'd'
+        });
+        expect(resumeAction(withWorktree, 'working')).toEqual({ kind: 'wait', stepId: 'd' });
+        expect(resumeAction(withWorktree, 'starting')).toEqual({ kind: 'wait', stepId: 'd' });
+        expect(resumeAction(running({}), undefined)).toEqual({ kind: 'wait', stepId: 'd' });
+        // The turn ended, but the step did not finish, for example after a save failed on a full disk.
+        expect(resumeAction(withWorktree, 'done')).toEqual({ kind: 'check', stepId: 'd' });
+        expect(resumeAction(withWorktree, 'waiting')).toEqual({ kind: 'check', stepId: 'd' });
+        expect(resumeAction(withWorktree, 'exited')).toEqual({ kind: 'check', stepId: 'd' });
+        // After a restart, ShipWarden can have no state for the agent.
+        expect(resumeAction(withWorktree, undefined)).toEqual({ kind: 'check', stepId: 'd' });
     });
 
     it('stacks a worktree on the last done step of the same repository', () => {

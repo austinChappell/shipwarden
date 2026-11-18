@@ -9,6 +9,7 @@ import {
     pullRequestBaseOf,
     pullRequestBody,
     pullRequestTitle,
+    resumeAction,
     reviewText,
     stepBranch,
     stepPrompt,
@@ -110,16 +111,20 @@ export class PlanRunner {
         await updatePlan(planId, plan => (plan.status === 'running' ? { ...plan, status: 'paused' } : plan));
     }
 
-    /** Continues a paused plan. A step that waits for the user is checked again. */
+    /**
+     * Continues a paused plan. A step that waits for the user is checked again. A running step whose agent is not
+     * working is checked for a new commit, because the step possibly missed the end of the turn.
+     */
     async resume(planId: string): Promise<void> {
         await updatePlan(planId, plan => (plan.status === 'paused' ? { ...plan, status: 'running' } : plan));
         const plan = cachedPlan(planId);
-        const active = plan ? activeStepIndex(plan) : -1;
-        if (plan && active >= 0 && plan.steps[active].status !== 'running') {
-            await this.continueStep(planId, plan.steps[active].id);
-        } else {
-            await this.advance(planId);
-        }
+        if (!plan) return;
+        const running = plan.steps.find(step => step.status === 'running');
+        const agentState = running?.sessionId ? agentStateStore.getSnapshot().get(running.sessionId)?.state : undefined;
+        const action = resumeAction(plan, agentState);
+        if (action.kind === 'continue') await this.continueStep(planId, action.stepId);
+        else if (action.kind === 'check') await this.finish(planId, action.stepId);
+        else await this.advance(planId);
     }
 
     /**
