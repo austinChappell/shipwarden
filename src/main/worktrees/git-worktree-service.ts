@@ -3,7 +3,14 @@ import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { BranchList, CreateWorktreeOptions, Worktree } from '@shared/worktrees';
-import { ignoredUnits, LARGE_COPY_BYTES, selectCopyEntries, type CopyIgnoredSettings, type CopyPreviewResult } from '@shared/worktree-settings';
+import {
+    foldersToExpand,
+    ignoredUnits,
+    LARGE_COPY_BYTES,
+    selectCopyEntries,
+    type CopyIgnoredSettings,
+    type CopyPreviewResult
+} from '@shared/worktree-settings';
 import { largeCopyEntries } from './copy-size';
 import { branchToFolderName, parseWorktreePorcelain } from './porcelain';
 
@@ -314,8 +321,17 @@ export class GitWorktreeService {
         if (!copy.enabled) return [];
         const main = (await this.list(repoPath)).find(worktree => worktree.isMain);
         if (!main) return [];
-        const output = await this.git(main.path, ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z']);
-        return selectCopyEntries(ignoredUnits(output.split('\0').filter(Boolean)), copy).sort();
+        const list = async (args: string[]) =>
+            (await this.git(main.path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z', ...args])).split('\0').filter(Boolean);
+        const units = ignoredUnits(await list(['--directory']));
+        // A "!" exception can keep a file in a folder that git lists as one entry. List the files of that folder.
+        const expand = new Set(foldersToExpand(units, copy));
+        const entries: string[] = [];
+        for (const unit of units) {
+            if (!expand.has(unit)) entries.push(unit);
+            else entries.push(...(await list(['--', unit])));
+        }
+        return selectCopyEntries(entries, copy).sort();
     }
 
     /** Returns the entries that the copy settings copy now, and the entries of LARGE_COPY_BYTES or more in them. */

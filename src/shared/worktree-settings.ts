@@ -28,6 +28,8 @@ export type CopyMode = 'matching' | 'allExcept';
  * A pattern without "/" matches the name at any depth. A pattern with "/" matches the path from the repository root.
  * "*" matches any characters except "/", "**" matches any characters, "?" matches one character.
  * A pattern that ends with "/" matches only folders. A pattern that matches a folder also matches the entries in it.
+ * A pattern that starts with "!" makes an exception to the patterns above it, as in .gitignore. The last pattern that
+ * matches an entry sets the result.
  */
 export interface CopyIgnoredSettings {
     enabled: boolean;
@@ -261,12 +263,64 @@ export function ignoredUnits(entries: string[]): string[] {
     return entries.filter(entry => !entry.endsWith('/') || !entries.some(other => other !== entry && other.startsWith(entry)));
 }
 
+/** Splits a pattern into its glob and a flag that is true for a "!" exception. */
+function parsePattern(pattern: string): { glob: string; negated: boolean } {
+    const text = pattern.trim();
+    return text.startsWith('!') ? { glob: text.slice(1).trim(), negated: true } : { glob: text, negated: false };
+}
+
+/**
+ * True when the last pattern that matches the entry is not a "!" exception. False when no pattern matches the entry,
+ * or when the last pattern that matches it is a "!" exception.
+ */
+export function matchesCopyPatterns(entry: string, patterns: string[]): boolean {
+    let result = false;
+    for (const pattern of patterns) {
+        const { glob, negated } = parsePattern(pattern);
+        if (matchesCopyPattern(entry, glob)) result = !negated;
+    }
+    return result;
+}
+
+/**
+ * True when a pattern with "/" can match an entry in the folder (a path from the root with "/" at the end).
+ * A pattern without "/" can match a name at any depth. It does not count, because then each folder needs a check.
+ */
+function reachesInto(folder: string, glob: string): boolean {
+    const clean = glob.replace(/^\//, '').replace(/\/+$/, '');
+    if (!clean.includes('/')) return false;
+    const globParts = clean.split('/');
+    const folderParts = folder.replace(/\/+$/, '').split('/');
+    for (const [index, part] of folderParts.entries()) {
+        const globPart = globParts[index];
+        if (globPart === undefined) return false;
+        if (globPart.includes('**')) return true;
+        if (!globToRegExp(globPart).test(part)) return false;
+    }
+    return globParts.length > folderParts.length;
+}
+
+/**
+ * Returns the folder entries that a "!" exception reaches into. Git lists an ignored folder as one entry, for example
+ * "backups/". The patterns "backups/" and "!backups/.gitkeep" need the files of that folder one by one.
+ * Only a folder that a pattern matches needs this. A "!" exception has no effect on other folders.
+ */
+export function foldersToExpand(entries: string[], copy: CopyIgnoredSettings): string[] {
+    if (!copy.enabled) return [];
+    const patterns = copy.mode === 'allExcept' ? copy.exclude : copy.patterns;
+    const exceptions = patterns.map(parsePattern).filter(pattern => pattern.negated);
+    if (exceptions.length === 0) return [];
+    return entries.filter(
+        entry => entry.endsWith('/') && matchesCopyPatterns(entry, patterns) && exceptions.some(exception => reachesInto(entry, exception.glob))
+    );
+}
+
 /** Returns the ignored entries (paths from the root, a folder with "/" at the end) that the copy settings copy. */
 export function selectCopyEntries(entries: string[], copy: CopyIgnoredSettings): string[] {
     if (!copy.enabled) return [];
     return copy.mode === 'allExcept'
-        ? entries.filter(entry => !copy.exclude.some(pattern => matchesCopyPattern(entry, pattern)))
-        : entries.filter(entry => copy.patterns.some(pattern => matchesCopyPattern(entry, pattern)));
+        ? entries.filter(entry => !matchesCopyPatterns(entry, copy.exclude))
+        : entries.filter(entry => matchesCopyPatterns(entry, copy.patterns));
 }
 
 /** The environment variables of the setup and teardown scripts. */

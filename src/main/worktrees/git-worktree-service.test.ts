@@ -181,6 +181,23 @@ describe('GitWorktreeService', () => {
         expect(await service.uncommittedChanges(worktree.path)).toBe('');
     });
 
+    it('keeps a "!" exception in a folder that git lists as one entry', async () => {
+        await fs.writeFile(path.join(repo, '.gitignore'), 'backups/\n');
+        git(repo, 'add', '.gitignore');
+        git(repo, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-q', '-m', 'ignore');
+        await fs.mkdir(path.join(repo, 'backups/old'), { recursive: true });
+        await fs.writeFile(path.join(repo, 'backups/.gitkeep'), '');
+        await fs.writeFile(path.join(repo, 'backups/2026.dump'), 'd');
+        await fs.writeFile(path.join(repo, 'backups/old/2025.dump'), 'd');
+
+        const copy = { enabled: true, mode: 'allExcept' as const, patterns: [], exclude: ['backups/', '!backups/.gitkeep'] };
+        expect(await service.ignoredMatches(repo, copy)).toEqual(['backups/.gitkeep']);
+        expect(await service.ignoredMatches(repo, { ...copy, exclude: ['backups/'] })).toEqual([]);
+        const worktree = await service.create({ repoPath: repo, branch: 'feat/keep' });
+        expect(await service.copyIgnored(repo, worktree.path, copy)).toEqual(['backups/.gitkeep']);
+        await expect(fs.access(path.join(worktree.path, 'backups/2026.dump'))).rejects.toThrow();
+    });
+
     it('deletes a merged branch, and a branch with new commits only with force', async () => {
         const merged = await service.create({ repoPath: repo, branch: 'feat/merged' });
         await service.remove(repo, merged.path);
