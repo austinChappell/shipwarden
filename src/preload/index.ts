@@ -200,6 +200,10 @@ const api: ShipWardenApi = {
         prepareResume: (id, target) => ipcRenderer.invoke(IpcChannels.pinsPrepareResume, id, target),
         onChanged: listener => subscribe<[PinnedSession[]]>(IpcChannels.pinsChanged, listener)
     },
+    recentSessions: {
+        list: () => ipcRenderer.invoke(IpcChannels.recentSessionsList),
+        prepareResume: (transcript, target) => ipcRenderer.invoke(IpcChannels.recentSessionsPrepareResume, transcript, target)
+    },
     compare: {
         list: () => ipcRenderer.invoke(IpcChannels.compareList),
         save: group => ipcRenderer.invoke(IpcChannels.compareSave, group),

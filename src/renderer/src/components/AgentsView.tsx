@@ -35,9 +35,12 @@ import { Button, Chip, Count, IconButton, PageHeader, type ChipTone } from './ui
 import { OverlapChip } from './OverlapChip';
 import { useOverlaps } from '../git/overlap-query';
 import { overlapChipText } from '@shared/worktree-overlap';
-import type { PinnedSession } from '@shared/pinned-sessions';
-import { PinnedSessions, type ResumePlace } from './PinnedSessions';
-import { canPin, pinOfSession, usePinnedSessions } from '../terminal/pinned-sessions';
+import { sessionIdOf, type PinnedSession } from '@shared/pinned-sessions';
+import { type RecentSession, visibleRecentSessions } from '@shared/recent-sessions';
+import { PinnedSessions, RecentSessions, type ResumePlace } from './PinnedSessions';
+import { canPin, pinOfSession, pinSession, usePinnedSessions } from '../terminal/pinned-sessions';
+import { useRecentSessions } from '../terminal/recent-sessions';
+import { showToast } from './Toast';
 
 const api = window.shipwarden;
 
@@ -60,6 +63,8 @@ interface Props {
     onUnpin(pin: PinnedSession): void;
     /** Resumes a pinned session in a worktree of any project. */
     onResume(pin: PinnedSession, place: ResumePlace): Promise<void>;
+    /** Resumes a recent session without a pin in a worktree of any project. */
+    onResumeRecent(session: RecentSession, place: ResumePlace): Promise<void>;
     /** Stops the agents and closes their terminals. The user agreed before the call. */
     onStop(sessions: TerminalSession[]): Promise<void>;
 }
@@ -137,14 +142,27 @@ export function AgentsView({
     onPin,
     onUnpin,
     onResume,
+    onResumeRecent,
     onStop
 }: Props) {
     const pins = usePinnedSessions();
+    const recentSessions = useRecentSessions();
     const [places, setPlaces] = useState<Record<string, Place>>({});
     const sessions = useAgentSessions(sessionList);
     const [now, setNow] = useState(Date.now());
 
     const agents = useMemo(() => sessions.filter(runsAgent), [sessions]);
+    // A pinned session or a running session shows in its own list, so the recent list leaves it out.
+    const recent = useMemo(() => {
+        const pinned = new Set(pins.map(pin => pin.sessionId));
+        const running = new Set(
+            sessions.flatMap(session => {
+                const id = !session.exited && session.agentTranscript ? sessionIdOf(session.agentTranscript) : undefined;
+                return id ? [id] : [];
+            })
+        );
+        return visibleRecentSessions(recentSessions, pinned, running);
+    }, [recentSessions, pins, sessions]);
     const tokensByTranscript = useAgentTokens(agents);
     const allRepos = useMemo(() => [...new Set((projects?.projects ?? []).flatMap(project => project.repos))], [projects]);
 
@@ -346,7 +364,7 @@ export function AgentsView({
             />
             <div className={`agents-scroll${selection.length > 0 ? ' has-selection' : ''}`} onKeyDown={moveListFocus}>
                 {agents.length > 0 && <InlineTip id="agents" />}
-                {agents.length === 0 && pins.length === 0 && (
+                {agents.length === 0 && pins.length === 0 && recent.length === 0 && (
                     <EmptyState
                         icon={Bot}
                         title="No agents running"
@@ -503,6 +521,30 @@ export function AgentsView({
                     );
                 })}
                 <PinnedSessions pins={pins} places={places} selectedPath={selectedPath} repoLabel={repoLabel} onResume={onResume} />
+                <RecentSessions
+                    sessions={recent}
+                    places={places}
+                    selectedPath={selectedPath}
+                    repoLabel={repoLabel}
+                    onResume={onResumeRecent}
+                    onPin={session => {
+                        const repoPath = places[session.cwd]?.repo;
+                        pinSession({
+                            transcript: session.transcript,
+                            cwd: session.cwd,
+                            ...(repoPath ? { repoPath } : {}),
+                            ...(session.branch ? { branch: session.branch } : {}),
+                            fallbackName: session.name
+                        })
+                            .then(() => showToast('Session pinned', 'The agent is naming it. Find it in Pinned sessions.'))
+                            .catch(error =>
+                                showToast(
+                                    'The session did not pin',
+                                    error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(error)
+                                )
+                            );
+                    }}
+                />
             </div>
             {/* The bar floats above the list, so a click on a checkbox does not move the rows. */}
             {selection.length > 0 && (

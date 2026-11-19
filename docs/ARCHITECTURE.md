@@ -295,6 +295,24 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - The main process sends the list after each change (`pins:changed`), and the page puts it into the TanStack Query
   cache (`keyRoots.pins`). The list does not load again.
 
+### Recent sessions
+
+- The Agents view lists the Claude Code sessions of the last 3 days under "Recent sessions", below the pins. A session
+  needs no pin to show. The list shows 5 sessions first. "Show all" shows the rest, at most 100.
+- `RecentSessions` (main) reads the transcripts in `<Claude data>/projects/*/<session ID>.jsonl` that changed in the
+  last 3 days. It reads only the first 128 KB and the last 256 KB of each file, and it keeps the result until the size
+  or the time of the file changes. ShipWarden stores no data for the list.
+- From the transcript lines it takes the folder (`cwd`), the newest branch (`gitBranch`), the title, and the first typed
+  prompt. The name is the `/rename` title, else the title from Claude Code (`ai-title`), else the first prompt.
+- Only an interactive session (`"entrypoint": "cli"`) with a typed prompt shows. Print mode runs and SDK runs do not
+  show. A resume in another folder makes a copy of the transcript, so the newest copy of a session ID wins.
+- The page leaves out a session that has a pin or that runs in ShipWarden now. Those sessions show in their own lists.
+- "Resume" and "Resume in another worktree…" work as for a pin, with the same transcript copy
+  (`copyTranscriptFor` in `session-resume.ts`). The first Claude Code agent of Settings › Agents runs
+  `--resume <id>` without `--name`, so Claude Code keeps its own title. The menu also has "Pin session".
+- The page loads the list with TanStack Query (`keyRoots.recentSessions`) each minute while the Agents view shows. A
+  resume moves the session to the top of the cache.
+
 ### Projects and repositories
 
 - A project is a named list of repositories. The sidebar shows the repositories of the active project only, so a long

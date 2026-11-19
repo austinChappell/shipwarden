@@ -74,7 +74,9 @@ import type { ShortcutAction, ViewAction } from '@shared/shortcuts';
 import { lspBridge } from './lsp/bridge';
 import { agentStateStore, withAgentStore } from './terminal/agent-state-store';
 import { pinOfSession, pinRequest, pinSession, unpinSession, usePinnedSessions } from './terminal/pinned-sessions';
-import type { PinnedSession } from '@shared/pinned-sessions';
+import { sessionIdOf, type PinnedSession, type ResumePlan } from '@shared/pinned-sessions';
+import type { RecentSession } from '@shared/recent-sessions';
+import { markRecentSessionResumed } from './terminal/recent-sessions';
 import type { ResumePlace } from './components/PinnedSessions';
 import { showToast } from './components/Toast';
 import { showContextMenu, type ContextMenuItem } from './components/ContextMenu';
@@ -394,18 +396,20 @@ export function App() {
     };
 
     /**
-     * Resumes a pinned session in a worktree of any project. When the session runs already, its tab shows, because two
-     * agents in one session write to the same transcript.
+     * Resumes a Claude Code session in a worktree of any project. When the session runs already, its tab shows, because
+     * two agents in one session write to the same transcript. `prepare` makes the session available in the worktree.
      */
-    const resumePinnedSession = async (pin: PinnedSession, place: ResumePlace) => {
+    const resumeSession = async (sessionId: string, place: ResumePlace, prepare: () => Promise<ResumePlan>) => {
         const projectId =
             (activeProject?.repos.includes(place.repo) ? activeProject.id : undefined) ?? projects?.projects.find(item => item.repos.includes(place.repo))?.id;
-        const live = withAgentStore(sessions).find(session => !session.exited && pinOfSession([pin], session));
+        const live = withAgentStore(sessions).find(
+            session => !session.exited && !!session.agentTranscript && sessionIdOf(session.agentTranscript) === sessionId
+        );
         if (live) {
             await openAgent(live, projectId);
             return;
         }
-        const plan = await api.pins.prepareResume(pin.id, { cwd: place.worktree.path, repoPath: place.repo, branch: place.worktree.branch });
+        const plan = await prepare();
         if (projectId && projectId !== projects?.activeId) {
             await project.switchProject(projectId);
         }
@@ -420,6 +424,18 @@ export function App() {
         });
         setSessions(list => (list.some(item => item.id === session.id) ? list : [...list, session]));
         showSessionTab(place.worktree.path, session.id);
+    };
+
+    /** Resumes a pinned session in a worktree of any project. */
+    const resumePinnedSession = (pin: PinnedSession, place: ResumePlace) =>
+        resumeSession(pin.sessionId, place, () =>
+            api.pins.prepareResume(pin.id, { cwd: place.worktree.path, repoPath: place.repo, branch: place.worktree.branch })
+        );
+
+    /** Resumes a recent session without a pin in a worktree of any project. */
+    const resumeRecentSession = async (recent: RecentSession, place: ResumePlace) => {
+        await resumeSession(recent.sessionId, place, () => api.recentSessions.prepareResume(recent.transcript, { cwd: place.worktree.path }));
+        markRecentSessionResumed(recent.sessionId, place.worktree.path, place.worktree.branch);
     };
 
     const reviewProviders = useReviewProviders();
@@ -1234,6 +1250,7 @@ export function App() {
                                         onPin={(session, place) => void pinAgentSession(session, place)}
                                         onUnpin={unpinAgentSession}
                                         onResume={resumePinnedSession}
+                                        onResumeRecent={resumeRecentSession}
                                         onStop={async list => {
                                             const results = await Promise.allSettled(list.map(session => tabs.closeSession(session)));
                                             const failed = results.find(result => result.status === 'rejected');

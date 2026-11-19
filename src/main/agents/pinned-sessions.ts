@@ -1,12 +1,9 @@
 import { randomUUID } from 'crypto';
-import { promises as fs } from 'fs';
 import * as path from 'path';
 import { addTranscriptLines } from '@shared/agent-chat';
 import {
-    claudeProjectFolder,
     cleanSessionName,
     MAX_PINNED_SESSIONS,
-    MAX_PROJECT_FOLDER,
     MAX_SESSION_NAME,
     normalizePinnedSession,
     sessionIdOf,
@@ -17,6 +14,7 @@ import {
 } from '@shared/pinned-sessions';
 import { JsonStore } from '../tasks/json-store';
 import { claudeDataRoots } from '../automations/token-counter';
+import { copyTranscriptFor } from './session-resume';
 import { readTranscript, transcriptPath } from './transcript-reader';
 
 interface PinFile {
@@ -109,21 +107,7 @@ export class PinnedSessions {
         if (!pin) throw new Error('The pinned session is not in the list any more.');
         const cwd = String(target?.cwd ?? '').trim();
         if (!path.isAbsolute(cwd)) throw new Error('The folder of the resume is not an absolute path.');
-        const source = transcriptPath(pin.transcript, this.roots());
-        const sourceTime = await modifiedAt(source);
-        if (sourceTime === undefined) {
-            throw new Error('ShipWarden cannot find the transcript of the session. Claude Code can delete old transcripts (the setting "cleanupPeriodDays").');
-        }
-        // <root>/projects/<folder>/<session ID>.jsonl
-        const projects = path.dirname(path.dirname(source));
-        const destination = path.join(projects, await projectFolderOf(projects, cwd), `${pin.sessionId}.jsonl`);
-        if (destination !== source) {
-            const destinationTime = await modifiedAt(destination);
-            if (destinationTime === undefined || destinationTime < sourceTime) {
-                await fs.mkdir(path.dirname(destination), { recursive: true });
-                await fs.copyFile(source, destination);
-            }
-        }
+        const destination = await copyTranscriptFor(transcriptPath(pin.transcript, this.roots()), pin.sessionId, cwd);
         return this.change(id, item => ({
             ...item,
             transcript: destination,
@@ -183,25 +167,4 @@ export class PinnedSessions {
 function pinsOf(file: PinFile): PinnedSession[] {
     const pins = (Array.isArray(file.pins) ? file.pins : []).map(normalizePinnedSession).filter((pin): pin is PinnedSession => !!pin);
     return sortPins(pins);
-}
-
-/**
- * Returns the name of the Claude Code folder of a working folder. A long path gets a name with a hash from Claude Code.
- * ShipWarden cannot make that hash, so it uses the folder that Claude Code made before: the only folder with the
- * same start.
- */
-async function projectFolderOf(projects: string, cwd: string): Promise<string> {
-    const name = claudeProjectFolder(cwd);
-    if (name) return name;
-    const start = `${cwd.replace(/[^A-Za-z0-9]/g, '-').slice(0, MAX_PROJECT_FOLDER)}-`;
-    const matches = (await fs.readdir(projects).catch(() => [] as string[])).filter(entry => entry.startsWith(start));
-    if (matches.length === 1) return matches[0] as string;
-    throw new Error('The path of the worktree is very long. Start Claude Code in the worktree one time, then resume the session again.');
-}
-
-async function modifiedAt(file: string): Promise<number | undefined> {
-    return fs.stat(file).then(
-        stat => stat.mtimeMs,
-        () => undefined
-    );
 }

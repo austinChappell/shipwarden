@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
-import { Loader2, MoreHorizontal, Pin, Play } from 'lucide-react';
+import { type ReactNode, useMemo, useState } from 'react';
+import { History, Loader2, MoreHorizontal, Pin, Play } from 'lucide-react';
 import type { PinnedSession } from '@shared/pinned-sessions';
+import { RECENT_SESSION_DAYS, type RecentSession } from '@shared/recent-sessions';
 import type { Worktree } from '@shared/worktrees';
 import { renamePin, unpinSession } from '../terminal/pinned-sessions';
-import { showContextMenu } from './ContextMenu';
+import { type ContextMenuItem, showContextMenu } from './ContextMenu';
 import { showToast } from './Toast';
 import { Age, Button, Combobox, IconButton, Input, sortedGroups } from './ui';
 
@@ -13,13 +14,16 @@ export interface ResumePlace {
     worktree: Worktree;
 }
 
-interface Props {
-    pins: PinnedSession[];
+interface PlaceProps {
     /** The worktrees of all projects, by worktree path. */
     places: Record<string, ResumePlace>;
     /** The worktree that the app shows now. The picker selects it first when the worktree of the session is gone. */
     selectedPath: string | undefined;
     repoLabel(repo: string): string;
+}
+
+interface Props extends PlaceProps {
+    pins: PinnedSession[];
     /** Resumes the session in a worktree. Resolves when the agent tab shows. */
     onResume(pin: PinnedSession, place: ResumePlace): Promise<void>;
 }
@@ -43,24 +47,137 @@ export function PinnedSessions({ pins, places, selectedPath, repoLabel, onResume
             {/* biome-ignore lint/a11y/noRedundantRoles: Safari removes the list role when the list has no bullets. */}
             <ul className="agents-list" role="list">
                 {pins.map(pin => (
-                    <PinnedRow key={pin.id} pin={pin} places={places} selectedPath={selectedPath} repoLabel={repoLabel} onResume={onResume} />
+                    <SessionRow
+                        key={pin.id}
+                        icon={<Pin size={13} strokeWidth={1.8} className="pinned-icon" aria-hidden />}
+                        name={pin.name}
+                        naming={pin.naming}
+                        cwd={pin.cwd}
+                        fallbackWhere={[pin.repoPath && repoLabel(pin.repoPath), pin.branch].filter(Boolean).join(' · ') || pin.cwd}
+                        time={pin.resumedAt ?? pin.pinnedAt}
+                        timeTitle={pin.resumedAt ? 'Last resume' : 'Pinned'}
+                        places={places}
+                        selectedPath={selectedPath}
+                        repoLabel={repoLabel}
+                        resume={place => onResume(pin, place)}
+                        rename={name => renamePin(pin.id, name).then(() => undefined)}
+                        menu={[{ id: 'unpin', label: 'Unpin', danger: true }]}
+                        onMenu={choice => {
+                            if (choice === 'unpin') unpinSession(pin.id).catch(error => showToast('The pin did not go', errorText(error)));
+                        }}
+                    />
                 ))}
             </ul>
         </section>
     );
 }
 
-function PinnedRow({ pin, places, selectedPath, repoLabel, onResume }: Omit<Props, 'pins'> & { pin: PinnedSession }) {
+interface RecentProps extends PlaceProps {
+    /** The recent sessions without a pin that do not run now. */
+    sessions: RecentSession[];
+    onResume(session: RecentSession, place: ResumePlace): Promise<void>;
+    onPin(session: RecentSession): void;
+}
+
+/** The number of recent sessions that show before "Show all". */
+const RECENT_PREVIEW = 5;
+
+/**
+ * The Claude Code sessions of the last days that have no pin and do not run now. A row resumes its session like a
+ * pinned session. The menu pins it.
+ */
+export function RecentSessions({ sessions, places, selectedPath, repoLabel, onResume, onPin }: RecentProps) {
+    const [expanded, setExpanded] = useState(false);
+    if (sessions.length === 0) return null;
+    const shown = expanded ? sessions : sessions.slice(0, RECENT_PREVIEW);
+    return (
+        <section className="agents-group pinned-sessions recent-sessions" aria-labelledby="agents-group-recent">
+            <h2 id="agents-group-recent">
+                <History size={13} strokeWidth={1.8} aria-hidden />
+                Recent sessions
+                <span className="recent-sessions-scope">Last {RECENT_SESSION_DAYS} days</span>
+            </h2>
+            {/* biome-ignore lint/a11y/noRedundantRoles: Safari removes the list role when the list has no bullets. */}
+            <ul className="agents-list" role="list">
+                {shown.map(session => {
+                    const folder = session.cwd.split('/').pop() || session.cwd;
+                    return (
+                        <SessionRow
+                            key={session.sessionId}
+                            icon={<History size={13} strokeWidth={1.8} className="pinned-icon" aria-hidden />}
+                            name={session.name}
+                            cwd={session.cwd}
+                            fallbackWhere={[folder, session.branch].filter(Boolean).join(' · ')}
+                            time={session.updatedAt}
+                            timeTitle="Last activity"
+                            places={places}
+                            selectedPath={selectedPath}
+                            repoLabel={repoLabel}
+                            resume={place => onResume(session, place)}
+                            menu={[{ id: 'pin', label: 'Pin session' }]}
+                            onMenu={choice => {
+                                if (choice === 'pin') onPin(session);
+                            }}
+                        />
+                    );
+                })}
+            </ul>
+            {sessions.length > RECENT_PREVIEW && (
+                <div className="recent-sessions-more">
+                    <Button variant="link" onClick={() => setExpanded(value => !value)}>
+                        {expanded ? 'Show fewer' : `Show all ${sessions.length}`}
+                    </Button>
+                </div>
+            )}
+        </section>
+    );
+}
+
+interface SessionRowProps extends PlaceProps {
+    icon: ReactNode;
+    name: string;
+    /** True while the agent makes a name for the session. */
+    naming?: boolean;
+    /** The folder in which the session ran last. */
+    cwd: string;
+    /** The place text when the folder is not a known worktree. */
+    fallbackWhere: string;
+    time: number;
+    timeTitle: string;
+    /** Resumes the session in a worktree. Resolves when the agent tab shows. */
+    resume(place: ResumePlace): Promise<void>;
+    /** Gives the session a new name. Without it, the menu has no "Rename". */
+    rename?(name: string): Promise<void>;
+    /** The items at the end of the menu. */
+    menu: ContextMenuItem[];
+    onMenu(choice: string): void;
+}
+
+/** One session row: the name, the place, the age, "Resume", and a menu with "Resume in another worktree…". */
+function SessionRow({
+    icon,
+    name,
+    naming,
+    cwd,
+    fallbackWhere,
+    time,
+    timeTitle,
+    places,
+    selectedPath,
+    repoLabel,
+    resume: resumeIn,
+    rename,
+    menu,
+    onMenu
+}: SessionRowProps) {
     const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState(pin.name);
+    const [draft, setDraft] = useState(name);
     const [picking, setPicking] = useState(false);
     const [target, setTarget] = useState<string | undefined>();
     const [busy, setBusy] = useState(false);
 
-    const home = places[pin.cwd];
-    const where = home
-        ? `${repoLabel(home.repo)} · ${home.worktree.branch ?? home.worktree.path.split('/').pop()}`
-        : [pin.repoPath && repoLabel(pin.repoPath), pin.branch].filter(Boolean).join(' · ') || pin.cwd;
+    const home = places[cwd];
+    const where = home ? `${repoLabel(home.repo)} · ${home.worktree.branch ?? home.worktree.path.split('/').pop()}` : fallbackWhere;
 
     const groups = useMemo(
         () =>
@@ -75,7 +192,7 @@ function PinnedRow({ pin, places, selectedPath, repoLabel, onResume }: Omit<Prop
     const resume = async (place: ResumePlace) => {
         setBusy(true);
         try {
-            await onResume(pin, place);
+            await resumeIn(place);
             setPicking(false);
         } catch (error) {
             showToast('The session did not resume', errorText(error));
@@ -90,11 +207,11 @@ function PinnedRow({ pin, places, selectedPath, repoLabel, onResume }: Omit<Prop
     };
 
     const saveName = async () => {
-        const name = draft.trim();
+        const value = draft.trim();
         setEditing(false);
-        if (!name || name === pin.name) return;
+        if (!rename || !value || value === name) return;
         try {
-            await renamePin(pin.id, name);
+            await rename(value);
         } catch (error) {
             showToast('The name did not change', errorText(error));
         }
@@ -105,27 +222,22 @@ function PinnedRow({ pin, places, selectedPath, repoLabel, onResume }: Omit<Prop
             [
                 { id: 'resume-in', label: 'Resume in another worktree…' },
                 { type: 'separator' },
-                { id: 'rename', label: 'Rename' },
-                { type: 'separator' },
-                { id: 'unpin', label: 'Unpin', danger: true }
+                ...(rename ? [{ id: 'rename', label: 'Rename' }, { type: 'separator' as const }] : []),
+                ...menu
             ],
             anchor
         );
         if (choice === 'resume-in') startPicking();
         else if (choice === 'rename') {
-            setDraft(pin.name);
+            setDraft(name);
             setEditing(true);
-        } else if (choice === 'unpin') {
-            unpinSession(pin.id).catch(error => showToast('The pin did not go', errorText(error)));
-        }
+        } else if (choice) onMenu(choice);
     };
-
-    const pinnedAt = new Date(pin.resumedAt ?? pin.pinnedAt).toISOString();
 
     return (
         <li className="pinned-row">
             <div className="pinned-line">
-                <Pin size={13} strokeWidth={1.8} className="pinned-icon" aria-hidden />
+                {icon}
                 <span className="agent-main">
                     {editing ? (
                         <Input
@@ -142,9 +254,9 @@ function PinnedRow({ pin, places, selectedPath, repoLabel, onResume }: Omit<Prop
                             }}
                         />
                     ) : (
-                        <span className="agent-name" title={pin.name}>
-                            {pin.name}
-                            {pin.naming && (
+                        <span className="agent-name" title={name}>
+                            {name}
+                            {naming && (
                                 <span className="pinned-naming" title="The agent is naming the session">
                                     <Loader2 size={11} strokeWidth={2} className="spin" aria-hidden />
                                     Naming
@@ -155,7 +267,7 @@ function PinnedRow({ pin, places, selectedPath, repoLabel, onResume }: Omit<Prop
                     <span className="agent-activity">
                         {home ? where : `${where} · The worktree is gone`}
                         {' · '}
-                        <Age date={pinnedAt} format="prose" title={pin.resumedAt ? 'Last resume' : 'Pinned'} />
+                        <Age date={new Date(time).toISOString()} format="prose" title={timeTitle} />
                     </span>
                 </span>
                 <span className="pinned-actions">

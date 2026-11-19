@@ -52,6 +52,7 @@ import type { UpdateState } from './updates';
 import type { BranchDiff, ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
 import type { CompareGroup } from './agent-compare';
 import type { PinnedSession, PinRequest, ResumePlan } from './pinned-sessions';
+import type { RecentSession } from './recent-sessions';
 import type { WorktreeFiles } from './worktree-overlap';
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
@@ -437,6 +438,15 @@ export interface ShipWardenApi {
         /** The new list after each change, also after the agent gives a name. */
         onChanged(listener: (pins: PinnedSession[]) => void): () => void;
     };
+    recentSessions: {
+        /** The interactive Claude Code sessions of the last 3 days, the newest first. The list includes pinned sessions. */
+        list(): Promise<RecentSession[]>;
+        /**
+         * Makes a recent session available in a folder and returns the command that resumes it. A folder other than the
+         * folder of the session gets a copy of the transcript.
+         */
+        prepareResume(transcript: string, target: { cwd: string }): Promise<ResumePlan>;
+    };
     compare: {
         /** The agent comparisons (one task, several agents), the newest change first. */
         list(): Promise<CompareGroup[]>;
@@ -799,6 +809,8 @@ export const IpcChannels = {
     pinsRemove: 'pins:remove',
     pinsPrepareResume: 'pins:prepareResume',
     pinsChanged: 'pins:changed',
+    recentSessionsList: 'recentSessions:list',
+    recentSessionsPrepareResume: 'recentSessions:prepareResume',
     compareList: 'compare:list',
     compareSave: 'compare:save',
     compareRemove: 'compare:remove',
