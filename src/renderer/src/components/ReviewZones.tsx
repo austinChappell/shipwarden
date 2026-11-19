@@ -165,7 +165,7 @@ export function PendingZone({
                         </Chip>
                     )}
                     {comment.needsDecision
-                        ? ' Accept or remove this comment. You cannot submit your review until you do.'
+                        ? ' Accept, edit, or remove this comment. An edit also accepts it. You cannot submit your review until you do.'
                         : ' goes out as your comment with your next review'}
                 </div>
                 {editing ? (

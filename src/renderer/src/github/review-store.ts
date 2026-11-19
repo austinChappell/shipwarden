@@ -115,9 +115,12 @@ class ReviewStore {
         this.update(target, number, state => ({ ...state, pending: state.pending.filter(item => item !== comment) }));
     }
 
-    /** Changes the text of a pending comment. */
+    /** Changes the text of a pending comment. An edit of an agent review comment also accepts the comment. */
     updatePending(target: RepoTarget, number: number, comment: PendingComment, body: string): void {
-        this.update(target, number, state => ({ ...state, pending: state.pending.map(item => (item === comment ? { ...item, body } : item)) }));
+        this.update(target, number, state => ({
+            ...state,
+            pending: state.pending.map(item => (item === comment ? { ...item, body, needsDecision: undefined } : item))
+        }));
     }
 
     /** Accepts a comment from an agent review. The comment then goes out with the review. */
@@ -220,8 +223,16 @@ class ReviewStore {
         return current?.status === 'running' && current.id === id;
     }
 
-    clearPending(target: RepoTarget, number: number): void {
-        this.update(target, number, state => ({ ...state, pending: [] }));
+    /**
+     * Resets the review state after the review goes out: the pending comments, the review text and the agent review.
+     * A running agent review continues.
+     */
+    finishReview(target: RepoTarget, number: number): void {
+        this.update(target, number, state => ({
+            pending: [],
+            body: '',
+            agentReview: state.agentReview?.status === 'running' ? state.agentReview : undefined
+        }));
     }
 
     /**
