@@ -1189,6 +1189,11 @@ export function App() {
                                     onPin={(session, place) => void pinAgentSession(session, place)}
                                     onUnpin={unpinAgentSession}
                                     onResume={resumePinnedSession}
+                                    onStop={async list => {
+                                        const results = await Promise.allSettled(list.map(session => tabs.closeSession(session)));
+                                        const failed = results.find(result => result.status === 'rejected');
+                                        if (failed) setError(errorText(failed.reason));
+                                    }}
                                     onStartAgent={() => {
                                         const action = startAgentAction(selectedPath, repos.length);
                                         if (action === 'worktree') setMainView('worktree');

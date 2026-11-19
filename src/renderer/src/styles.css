@@ -5513,6 +5513,7 @@ button:focus-visible,
 /* Agents view */
 
 .agents-view {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -5544,6 +5545,11 @@ button:focus-visible,
     color: var(--text-strong);
     font-size: 13px;
     font-weight: 600;
+}
+
+.agents-group-count {
+    color: var(--muted);
+    font-weight: 400;
 }
 
 .agents-list {
@@ -5690,28 +5696,79 @@ button:focus-visible,
     color: var(--muted);
 }
 
-/* The pin button sits next to the row of a Claude Code agent. It shows on hover and on focus, and always for a pinned session. */
-.agents-list > li:has(> .agent-pin) {
+/* Each row is a checkbox, the row button, and the pin button of a Claude Code agent. */
+.agents-list > li {
     display: flex;
     align-items: center;
 }
 
-.agents-list > li:has(> .agent-pin):hover {
+.agents-list > li:hover {
     background: var(--hover);
 }
 
-.agents-list > li:has(> .agent-pin) > .agent-row {
-    flex: 1;
-    min-width: 0;
+.agents-list > li.selected {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
-.agents-list > li:has(> .agent-pin) > .agent-row:hover {
+.agents-list > li > .agent-row {
+    flex: 1;
+    min-width: 0;
+    padding-left: 12px;
+}
+
+.agents-list > li > .agent-row:hover {
     background: transparent;
+}
+
+/* The global checkbox rule sets "margin: 0" with a high specificity. These selectors must be more specific. */
+.agents-list > li > input.agent-select[type="checkbox"] {
+    margin: 0 0 0 18px;
+}
+
+/* The heading checkbox aligns with the row checkboxes. The list has a 1px border. */
+.agents-group h2 > input.agent-select[type="checkbox"] {
+    margin: 0 4px 0 19px;
+}
+
+/* The bar of the selected agents. It floats at the bottom of the view, so it does not move the rows. */
+.agents-selection {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 340px;
+    padding: 8px 8px 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    box-shadow: 0 8px 24px var(--shadow);
+    font-size: 12px;
+    transform: translateX(-50%);
+}
+
+/* Space below the last row, so the bar does not cover it. */
+.agents-scroll.has-selection {
+    padding-bottom: 80px;
+}
+
+.agents-selection-count {
+    margin-right: auto;
+    color: var(--text-strong);
+    font-weight: 500;
+}
+
+/* The pin button shows on hover and on focus, and always for a pinned session. */
+/* The pin button follows the chevron. The row keeps only a small gap before the pin, so the chevron stays near the edge. */
+.agents-list > li > .agent-row:has(+ .agent-pin) {
+    padding-right: 2px;
 }
 
 .agent-pin {
     flex: none;
-    margin-right: 10px;
+    margin-right: 6px;
     opacity: 0;
 }
 
