@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Bot, Check, ExternalLink, FolderGit2, FolderInput, Layers, Link, ListChecks, LoaderCircle, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, ClipboardList, ExternalLink, FolderGit2, FolderInput, Layers, Link, ListChecks, LoaderCircle, X } from 'lucide-react';
 import { pluralize } from '@shared/format';
 import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
@@ -35,6 +35,7 @@ import { documents } from '../editor/documents';
 import { moveTabFocus } from '../tablist';
 import { PullRepoDialog } from './PullRepoDialog';
 import { AddToGroupDialog } from './AddToGroupDialog';
+import { AddToPlanDialog } from './AddToPlanDialog';
 import { RelatedLinks } from './RelatedLinks';
 import { isFindShortcut, openLogFind } from './log-find';
 import { findRequest as makeFindRequest, type FindRequest } from './selected-text';
@@ -116,6 +117,8 @@ interface Props {
     onPullRepo?(target: PullRepoTarget): Promise<boolean>;
     /** Opens the page of a PR group. Without it, the "Add to a PR group" item does not show. */
     onOpenGroup?(id: string): void;
+    /** Opens the page of a plan. Without it, the "Add to a plan" item does not show. */
+    onOpenPlan?(id: string): void;
 }
 
 /**
@@ -231,7 +234,8 @@ export function ReviewPullRequest({
     onSendChecksToAgent,
     projects,
     onPullRepo,
-    onOpenGroup
+    onOpenGroup,
+    onOpenPlan
 }: Props) {
     const [storedTab, setTab] = useState<ReviewTab>(readTab);
     const tab = routeTab ?? storedTab;
@@ -255,6 +259,7 @@ export function ReviewPullRequest({
     const branchWorktree = useBranchWorktree(clone, pr?.headRefName);
     const [pullOpen, setPullOpen] = useState(false);
     const [groupOpen, setGroupOpen] = useState(false);
+    const [planOpen, setPlanOpen] = useState(false);
     const [file, setFile] = useState<{ file: PullRequestFile; line?: number; side?: DiffSide; nonce: number }>();
     const [check, setCheck] = useState<CheckRun>();
     const [fileError, setFileError] = useState<string>();
@@ -491,6 +496,16 @@ export function ReviewPullRequest({
                   }
               ]
             : []),
+        ...(onOpenPlan && projects
+            ? [
+                  {
+                      label: 'Add to a plan…',
+                      icon: <ClipboardList size={14} strokeWidth={1.6} />,
+                      title: 'The pull request becomes a done step at the end of a plan that ran.',
+                      onSelect: () => setPlanOpen(true)
+                  }
+              ]
+            : []),
         ...(pr.state === 'OPEN'
             ? [
                   'separator' as const,
@@ -597,6 +612,9 @@ export function ReviewPullRequest({
                 <PullRequestSummary pr={pr} checks={checkCounts} onSelectTab={selectTab} />
             </header>
             {groupOpen && onOpenGroup && <AddToGroupDialog repo={repo} pr={pr} onClose={() => setGroupOpen(false)} onOpenGroup={onOpenGroup} />}
+            {planOpen && onOpenPlan && projects && (
+                <AddToPlanDialog repo={repo} pr={pr} projects={projects} clone={clone} onClose={() => setPlanOpen(false)} onOpenPlan={onOpenPlan} />
+            )}
             {pullOpen && onPullRepo && projects && (
                 <PullRepoDialog repo={repo} projects={projects.projects} activeId={projects.activeId} onClose={() => setPullOpen(false)} onPull={onPullRepo} />
             )}
