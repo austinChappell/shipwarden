@@ -2,6 +2,9 @@
 
 The iPhone app shows the agents that run in ShipWarden on your Mac. It connects to the Mac over your network.
 
+> **Beta.** The iPhone app is in beta. It is in App Store review now, so it is not in the App Store yet. Until Apple
+> approves it, build it from source with Xcode. See [Build](#build).
+
 - **Agents.** The agents of all projects. The agents that need you come first. Open an agent to see its terminal
   screen, answer a question with 1, 2 or 3, send keys (Enter, Esc, arrows, Tab, ⇧Tab, ⌃C) or type a reply.
 - **Worktrees.** The worktrees of each repository with their task, their pull request and the CI state. You can
