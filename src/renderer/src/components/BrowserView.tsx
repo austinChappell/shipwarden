@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, ExternalLink, Globe, RotateCw, X } from 'lucide-react';
 import { BLANK_PAGE, normalizeAddress, type BrowserBounds } from '@shared/browser';
 import { browserStore, useBrowserStates } from '../browser/browser-store';
+import { FindBar } from './FindBar';
+import { isFindKey } from './log-find';
 import { Button, IconButton, Input } from './ui';
 
 interface Props {
@@ -48,6 +50,12 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
     const content = useRef<HTMLDivElement>(null);
     const input = useRef<HTMLInputElement>(null);
     const showPage = !hidden && !state?.error;
+    // The find bar (⌘F). It is between the toolbar and the page, so the page moves down when it opens.
+    const [findOpen, setFindOpen] = useState(false);
+    const [findQuery, setFindQuery] = useState('');
+    const [matchCase, setMatchCase] = useState(false);
+    const [found, setFound] = useState({ active: 0, matches: 0 });
+    const [findFocus, setFindFocus] = useState(0);
 
     // The address bar shows the address of the page, except while the user types.
     useEffect(() => {
@@ -106,6 +114,39 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
         [api, id]
     );
 
+    // ⌘F in the page opens the find bar. The main process gives the focus to the app page first.
+    useEffect(
+        () =>
+            api.onFindOpen(target => {
+                if (target !== id) return;
+                setFindOpen(true);
+                setFindFocus(value => value + 1);
+            }),
+        [api, id]
+    );
+
+    useEffect(
+        () =>
+            api.onFound((target, active, matches) => {
+                if (target === id) setFound({ active, matches });
+            }),
+        [api, id]
+    );
+
+    // A new text, a new case option or a new page starts a new find. The bar keeps the text when the page changes.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: A new address must find the text again in the new page.
+    useEffect(() => {
+        if (!findOpen) return;
+        api.find(id, findQuery, { next: false, forward: true, matchCase });
+    }, [api, id, findOpen, findQuery, matchCase, url]);
+
+    const closeFind = () => {
+        setFindOpen(false);
+        setFound({ active: 0, matches: 0 });
+        api.stopFind(id);
+        api.focus(id);
+    };
+
     const submit = (event: FormEvent) => {
         event.preventDefault();
         const next = normalizeAddress(address);
@@ -125,7 +166,18 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
     };
 
     return (
-        <div className="editor browser-view">
+        <div
+            className="editor browser-view"
+            data-own-find=""
+            onKeyDown={event => {
+                if (isFindKey(event.nativeEvent)) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setFindOpen(true);
+                    setFindFocus(value => value + 1);
+                }
+            }}
+        >
             <form className="diff-header browser-toolbar" onSubmit={submit}>
                 <IconButton size="sm" icon={<ArrowLeft size={14} strokeWidth={1.7} />} label="Back" disabled={!state?.canGoBack} onClick={() => api.back(id)} />
                 <IconButton
@@ -179,6 +231,20 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
             </form>
             {state?.loading && <div className="browser-progress" />}
             {addressError && <div className="editor-failure">{addressError}</div>}
+            {findOpen && (
+                <FindBar
+                    label="Find in the page"
+                    query={findQuery}
+                    caseSensitive={matchCase}
+                    count={found.matches}
+                    index={Math.max(0, found.active - 1)}
+                    focusNonce={findFocus}
+                    onQuery={setFindQuery}
+                    onCaseSensitive={setMatchCase}
+                    onMove={step => findQuery && api.find(id, findQuery, { next: true, forward: step === 1, matchCase })}
+                    onClose={closeFind}
+                />
+            )}
             <div className="browser-content" ref={content}>
                 {state?.error && (
                     <div className="browser-error">

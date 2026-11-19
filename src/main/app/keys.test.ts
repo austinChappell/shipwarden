@@ -10,6 +10,7 @@ describe('browserViewKey', () => {
     it('finds the keys of a browser view', () => {
         expect(browserViewKey(key('r'))).toBe('reload');
         expect(browserViewKey(key('l'))).toBe('focusAddress');
+        expect(browserViewKey(key('f'))).toBe('find');
         expect(browserViewKey(key('i', { alt: true }))).toBe('devTools');
     });
     it('reads the physical key from the code', () => {
@@ -21,6 +22,7 @@ describe('browserViewKey', () => {
         expect(browserViewKey(key('r', { shift: true }))).toBeUndefined();
         expect(browserViewKey(key('r', { alt: true }))).toBeUndefined();
         expect(browserViewKey(key('l', { control: true }))).toBeUndefined();
+        expect(browserViewKey(key('f', { shift: true }))).toBeUndefined();
         expect(browserViewKey(key('i'))).toBeUndefined();
         expect(browserViewKey(key('i', { alt: true, shift: true }))).toBeUndefined();
     });

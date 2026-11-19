@@ -59,7 +59,7 @@ import type { FileBlame, FileHistory } from './git-blame';
 import type { GraphLog, GraphScope } from './git-graph';
 import type { BranchList, CreatedWorktree, CreateWorktreeOptions, CreateWorktreeProgress, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings, CopyPreviewResult } from './worktree-settings';
-import type { BrowserBounds, BrowserState } from './browser';
+import type { BrowserBounds, BrowserFindOptions, BrowserState } from './browser';
 import type { Automation, AutomationList, AutomationRun, AutomationRunState, HttpMethod, TokenCount } from './automations';
 import type { HttpResponse } from './automation-templates';
 import type { Plan, PlanExploreRequest, PlanExploreResult } from './plans';
@@ -637,6 +637,17 @@ export interface ShipWardenApi {
         onFocus(listener: (id: string) => void): () => void;
         /** The user pressed ⌘L in a browser view. */
         onFocusAddress(listener: (id: string) => void): () => void;
+        /**
+         * Finds the text in the page. `next` is false for a new text and true for the next match of the same text.
+         * `onFound` gives the result.
+         */
+        find(id: string, text: string, options: BrowserFindOptions): void;
+        /** Stops the find and removes the highlights of the matches. */
+        stopFind(id: string): void;
+        /** The user pressed ⌘F in a browser view. */
+        onFindOpen(listener: (id: string) => void): () => void;
+        /** The result of a find. `active` is the number of the current match, from 1. It is 0 when there is no match. */
+        onFound(listener: (id: string, active: number, matches: number) => void): () => void;
     };
     terminals: {
         settings(): Promise<TerminalSettings>;
@@ -906,6 +917,10 @@ export const IpcChannels = {
     browserOpenTab: 'browser:openTab',
     browserFocused: 'browser:focused',
     browserFocusAddress: 'browser:focusAddress',
+    browserFind: 'browser:find',
+    browserStopFind: 'browser:stopFind',
+    browserFindOpen: 'browser:findOpen',
+    browserFound: 'browser:found',
     usageGet: 'usage:get',
     askRun: 'ask:run',
     askDraft: 'ask:draft',

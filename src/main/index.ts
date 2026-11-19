@@ -147,7 +147,7 @@ function runAppKey(action: AppKeyAction): void {
 
 /**
  * The keys of a browser view. The workspace keys and the app keys work as in the rest of the window.
- * ⌘R loads the page again, ⌘L selects the address bar and ⌥⌘I opens the developer tools of the page.
+ * ⌘R loads the page again, ⌘L selects the address bar, ⌘F opens the find bar and ⌥⌘I opens the developer tools of the page.
  * Returns true when the app used the key.
  */
 function browserKey(id: string, input: Electron.Input): boolean {
@@ -168,6 +168,10 @@ function browserKey(id: string, input: Electron.Input): boolean {
         case 'focusAddress':
             mainWindow.get()?.webContents.focus();
             mainWindow.send(IpcChannels.browserFocusAddress, id);
+            return true;
+        case 'find':
+            mainWindow.get()?.webContents.focus();
+            mainWindow.send(IpcChannels.browserFindOpen, id);
             return true;
         case 'devTools':
             browserViews.toggleDevTools(id);

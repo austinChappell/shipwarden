@@ -8,6 +8,7 @@ import { EditorView } from './EditorView';
 import { HEADING_ID_PREFIX, renderMarkdownFile } from './Markdown';
 import { radioGroupKeys } from './keyboard';
 import { Button, ButtonGroup } from './ui';
+import { useDomFind } from './dom-find';
 
 export type MarkdownMode = 'source' | 'split' | 'preview';
 
@@ -106,6 +107,7 @@ interface PreviewProps {
 function MarkdownPreview({ root, path, onOpenFile, onError }: PreviewProps) {
     const [text, setText] = useState<string>();
     const containerRef = useRef<HTMLDivElement>(null);
+    const findBar = useDomFind(containerRef, 'Find in the preview');
     const imageFolders = useRef(new Set<string>());
     // Images load again when a file in one of their folders changes.
     const imageVersion = useFolderVersion(root, () => imageFolders.current);
@@ -181,9 +183,12 @@ function MarkdownPreview({ root, path, onOpenFile, onError }: PreviewProps) {
     };
 
     return (
-        <div className="markdown-file-preview" ref={containerRef}>
-            {/* biome-ignore lint/security/noDangerouslySetInnerHtml: renderMarkdownFile cleans the HTML with DOMPurify. */}
-            <div className="markdown markdown-document" onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
+        <div className="markdown-file-preview-pane">
+            {findBar}
+            <div className="markdown-file-preview" ref={containerRef}>
+                {/* biome-ignore lint/security/noDangerouslySetInnerHtml: renderMarkdownFile cleans the HTML with DOMPurify. */}
+                <div className="markdown markdown-document" onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
+            </div>
         </div>
     );
 }

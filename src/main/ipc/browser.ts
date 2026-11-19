@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { IpcChannels } from '@shared/api';
-import type { BrowserBounds } from '@shared/browser';
+import type { BrowserBounds, BrowserFindOptions } from '@shared/browser';
 import type { Services } from '../services';
 import { validBounds } from './args';
 
@@ -15,5 +15,13 @@ export function registerBrowserIpc({ browserViews }: Pick<Services, 'browserView
     ipcMain.on(IpcChannels.browserStop, (_event, id: string) => browserViews.stop(String(id)));
     ipcMain.on(IpcChannels.browserFocus, (_event, id: string) => browserViews.focus(String(id)));
     ipcMain.on(IpcChannels.browserDestroy, (_event, id: string) => browserViews.destroy(String(id)));
+    ipcMain.on(IpcChannels.browserFind, (_event, id: string, text: string, options: BrowserFindOptions) =>
+        browserViews.find(String(id), String(text), {
+            next: options?.next === true,
+            forward: options?.forward !== false,
+            matchCase: options?.matchCase === true
+        })
+    );
+    ipcMain.on(IpcChannels.browserStopFind, (_event, id: string) => browserViews.stopFind(String(id)));
     ipcMain.handle(IpcChannels.browserState, (_event, id: string) => browserViews.state(String(id)));
 }

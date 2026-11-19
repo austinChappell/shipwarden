@@ -314,7 +314,11 @@ const api: ShipWardenApi = {
         onState: listener => subscribe<[BrowserState]>(IpcChannels.browserStateChanged, listener),
         onOpenTab: listener => subscribe<[string, string]>(IpcChannels.browserOpenTab, listener),
         onFocus: listener => subscribe<[string]>(IpcChannels.browserFocused, listener),
-        onFocusAddress: listener => subscribe<[string]>(IpcChannels.browserFocusAddress, listener)
+        onFocusAddress: listener => subscribe<[string]>(IpcChannels.browserFocusAddress, listener),
+        find: (id, text, options) => ipcRenderer.send(IpcChannels.browserFind, id, text, options),
+        stopFind: id => ipcRenderer.send(IpcChannels.browserStopFind, id),
+        onFindOpen: listener => subscribe<[string]>(IpcChannels.browserFindOpen, listener),
+        onFound: listener => subscribe<[string, number, number]>(IpcChannels.browserFound, listener)
     },
     terminals: {
         settings: () => ipcRenderer.invoke(IpcChannels.terminalsSettings),

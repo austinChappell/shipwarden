@@ -117,7 +117,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             onState: state => window.send(IpcChannels.browserStateChanged, state),
             onOpenTab: (url, openerId) => window.send(IpcChannels.browserOpenTab, url, openerId),
             onFocus: id => window.send(IpcChannels.browserFocused, id),
-            onInput: (id, input) => onBrowserInput(id, input)
+            onInput: (id, input) => onBrowserInput(id, input),
+            onFound: (id, active, matches) => window.send(IpcChannels.browserFound, id, active, matches)
         }
     );
     /**

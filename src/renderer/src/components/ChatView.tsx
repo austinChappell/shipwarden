@@ -8,6 +8,7 @@ import { errorText, formatDuration } from '../util';
 import { screenTextOf } from '../app/use-agent-actions';
 import { agentViewStore } from '../terminal/agent-view-store';
 import { useTranscript } from '../terminal/transcript-store';
+import { useDomFind } from './dom-find';
 import { cx } from './ui/cx';
 import { Button, IconButton } from './ui';
 import { EmptyState } from './EmptyState';
@@ -182,6 +183,7 @@ export function ChatView({ session, focused = true }: Props) {
     const transcript = useTranscript(file, working || starting || waiting || !!pending, `${state}:${session.agentStateAt ?? 0}`);
     const [draft, setDraft] = useState('');
     const listRef = useRef<HTMLDivElement>(null);
+    const findBar = useDomFind(listRef, 'Find in the chat');
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const stick = useRef(true);
 
@@ -286,6 +288,7 @@ export function ChatView({ session, focused = true }: Props) {
 
     return (
         <div className="chat-view">
+            {findBar}
             <div
                 className="chat-list"
                 ref={listRef}

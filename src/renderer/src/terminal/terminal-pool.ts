@@ -4,9 +4,10 @@ import { BACK_TAB, CTRL_V, isClearKey, isCtrlV, isImageOnlyPaste, isShiftTab } f
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { loadGhostty, prepareFonts } from './ghostty';
 import { HyperlinkFilter } from './hyperlinks';
-import { addLineSelection } from './line-select';
+import { addLineSelection, scrollbackLength, selectCells, terminalRows } from './line-select';
 import { pauseRendering, resumeRendering } from './render-loop';
 import { writeKeepingScroll } from './scroll-lock';
+import { findInRows, type TerminalMatch } from './terminal-find';
 import { openLink } from '../links';
 
 /** Clears the screen and the scrollback (⌘K). */
@@ -116,6 +117,38 @@ export class TerminalPool {
             lines.push(buffer.getLine(index)?.translateToString(true) ?? '');
         }
         return lines.join('\n');
+    }
+
+    /** Returns the matches of the search in the scrollback and on the screen of the session, from the top to the bottom. */
+    find(sessionId: string, query: string, caseSensitive: boolean): TerminalMatch[] {
+        const terminal = this.entries.get(sessionId)?.terminal;
+        const rows = terminal && terminalRows(terminal);
+        return rows ? findInRows(rows, query, caseSensitive) : [];
+    }
+
+    /** Selects a match. When the match is not on the screen, the terminal scrolls to put it in the middle. */
+    showMatch(sessionId: string, match: TerminalMatch): void {
+        const terminal = this.entries.get(sessionId)?.terminal;
+        if (!terminal) {
+            return;
+        }
+        // getViewportY is the number of rows above the bottom. scrollToLine of ghostty-web 0.4 sets this number.
+        const scrollback = scrollbackLength(terminal);
+        const top = scrollback - Math.floor(terminal.getViewportY());
+        if (match.start.absoluteRow < top || match.end.absoluteRow >= top + terminal.rows) {
+            terminal.scrollToLine(scrollback - match.start.absoluteRow + Math.floor(terminal.rows / 2));
+        }
+        selectCells(terminal, match.start, match.end);
+    }
+
+    /** Returns the selected text of the terminal of the session. */
+    selection(sessionId: string): string {
+        return this.entries.get(sessionId)?.terminal.getSelection() ?? '';
+    }
+
+    /** Removes the selection of the terminal of the session. */
+    clearSelection(sessionId: string): void {
+        this.entries.get(sessionId)?.terminal.clearSelection();
     }
 
     /**

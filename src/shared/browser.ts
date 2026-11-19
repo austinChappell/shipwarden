@@ -138,3 +138,12 @@ export function browserTabTitle(state: Pick<BrowserState, 'title' | 'url'> | und
     }
     return 'New tab';
 }
+
+/** The options of a find in a browser page. */
+export interface BrowserFindOptions {
+    /** False for a new text. True for the next or the previous match of the same text. */
+    next: boolean;
+    /** True goes down the page. False goes up the page. */
+    forward: boolean;
+    matchCase: boolean;
+}
