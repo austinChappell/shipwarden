@@ -580,6 +580,8 @@ export interface CheckRun {
     isActions: boolean;
     /** True for a commit status (the older status API), not a check run. */
     isStatus?: boolean;
+    /** True when the check is the result of an older attempt and the job waits for the new attempt of its run. */
+    waitingForRerun?: boolean;
 }
 
 /** A step of a GitHub Actions job. */

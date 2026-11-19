@@ -121,6 +121,39 @@ describe('fetchChecks', () => {
     });
 });
 
+describe('fetchChecks with a re-run', () => {
+    const failedJob = {
+        id: 2,
+        name: 'test',
+        status: 'completed',
+        conclusion: 'failure',
+        started_at: '2026-11-18T10:00:00Z',
+        completed_at: '2026-11-18T10:05:00Z',
+        details_url: 'https://github.com/acme/api/actions/runs/900/job/2',
+        html_url: 'h',
+        app: { slug: 'github-actions' }
+    };
+
+    it('reads the runs of the commit and shows a failed job of an older attempt as queued', async () => {
+        const { client, calls } = fakeClient(call => {
+            if (call.kind === 'paginate') return { check_runs: [failedJob] };
+            if (call.path.includes('/actions/runs')) {
+                return { workflow_runs: [{ id: 900, status: 'in_progress', run_started_at: '2026-11-18T11:00:00Z' }] };
+            }
+            return { statuses: [] };
+        });
+        const checks = await fetchChecks(client, repo, 'sha1');
+        expect(calls.map(call => call.path)).toContain('/repos/acme/api/actions/runs?head_sha=sha1&per_page=100');
+        expect(checks[0]).toMatchObject({ name: 'test', status: 'queued', conclusion: null, waitingForRerun: true });
+    });
+
+    it('sends no runs request when all jobs passed', async () => {
+        const { client, calls } = fakeClient(call => (call.kind === 'paginate' ? { check_runs: [{ ...failedJob, conclusion: 'success' }] } : { statuses: [] }));
+        await fetchChecks(client, repo, 'sha1');
+        expect(calls).toHaveLength(2);
+    });
+});
+
 describe('fetchJobProgress', () => {
     it('reads the job and maps its steps', async () => {
         const { client, calls } = fakeClient(() => ({ status: 'in_progress', conclusion: null, started_at: 's', completed_at: null }));
