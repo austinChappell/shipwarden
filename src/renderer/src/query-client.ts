@@ -99,7 +99,9 @@ export const keyRoots = {
     /** The changes of a worktree branch since its base, and the file versions. Local data: git runs on this Mac. */
     branchDiff: ['branchDiff'],
     /** The PATH check of each agent command. Local data: no request goes to a service. */
-    agentCheck: ['agentCheck']
+    agentCheck: ['agentCheck'],
+    /** The models of each agent command. Each load starts the agent program on this Mac, and the program asks its service. */
+    agentModels: ['agentModels']
 } as const;
 
 /** The roots that a change to a pull request, a branch or a CI run can make stale. */

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { CircleAlert, CircleCheck, Plus, Trash2 } from 'lucide-react';
 import { AGENT_MODES, modesOf, type AgentMode } from '@shared/agent-modes';
+import { canSetModel } from '@shared/agent-models';
 import { agentProgramOf } from '@shared/agent-programs';
 import { hookAgentOf } from '@shared/agents';
 import { cleanCommand, commandProgram, missingDefaultAgents, type AgentDefinition, type AppSettings, type CommandCheck } from '@shared/settings';
 import { errorText } from '../util';
-import { Button, Chip, IconButton, Input, Select, Switch } from './ui';
+import { Button, Chip, Combobox, IconButton, Input, Select, Switch, type ComboboxGroup } from './ui';
+import { hasModelChoice, useAgentModels } from '../app/agent-models-query';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { AGENT_CHAT_ENABLED } from '../terminal/agent-view-store';
 import { DraftSettingsGroup } from './DraftSettings';
@@ -58,6 +60,37 @@ function CommandCheckLine({ command }: { command: string }) {
     );
 }
 
+/** The models of the agent, from the agent program. A saved model that is not in the list shows as not available. */
+function ModelSelect({ agent, onChange }: { agent: AgentDefinition; onChange(model: string | undefined): void }) {
+    const choice = hasModelChoice(agent.command);
+    const models = useAgentModels(agent.command);
+    const items = (models.data ?? []).map(model => ({ value: model.id, label: model.label }));
+    if (agent.model && !items.some(item => item.value === agent.model)) {
+        // Without a list (it is loading or it failed), ShipWarden cannot check the saved model. It shows the name only.
+        if (models.data) items.push({ value: agent.model, label: `${agent.model} (not available)` });
+        else if (!models.isFetching) items.push({ value: agent.model, label: agent.model });
+    }
+    const groups: ComboboxGroup[] = [{ label: '', items: [{ value: '', label: 'Own setting' }, ...items] }];
+    const title = !choice
+        ? canSetModel(agentProgramOf(agent.command))
+            ? 'The command sets the model.'
+            : 'ShipWarden sets a model only for Claude Code and Codex.'
+        : models.isError
+          ? `ShipWarden did not get the models of the agent. ${errorText(models.error)}`
+          : 'The model of a new session. ShipWarden gets the list from the agent. When the model is not available, the agent uses its own setting.';
+    return (
+        <Combobox
+            value={choice ? (agent.model ?? '') : ''}
+            groups={groups}
+            placeholder={models.isFetching ? 'Loading models…' : 'Own setting'}
+            searchPlaceholder="Search models"
+            disabled={!choice}
+            title={title}
+            onChange={value => onChange(value || undefined)}
+        />
+    );
+}
+
 interface RowProps {
     agent: AgentDefinition;
     isDefault: boolean;
@@ -67,7 +100,7 @@ interface RowProps {
     onRemove(): void;
 }
 
-/** One agent: the default choice, the name, the command, and the mode. A text change saves when the field loses focus. */
+/** One agent: the default choice, the name, the command, the mode, and the model. A text change saves when the field loses focus. */
 function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemove }: RowProps) {
     const [name, setName] = useState(agent.name);
     const [command, setCommand] = useState(agent.command);
@@ -82,10 +115,17 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
         }
         const nextName = name.trim() || agent.name;
         if (nextName !== agent.name || cleaned !== agent.command) {
-            // A new program can lack the mode of the old program. Then the agent uses its own setting.
+            // A new program can lack the mode or the model of the old program. Then the agent uses its own setting.
             const keepMode = agent.mode && modesOf(agentProgramOf(cleaned)).includes(agent.mode);
-            const { mode: _mode, ...rest } = agent;
-            onChange({ ...rest, name: nextName, command: cleaned, ...(keepMode ? { mode: agent.mode } : {}) });
+            const keepModel = agent.model && agentProgramOf(cleaned) === agentProgramOf(agent.command) && hasModelChoice(cleaned);
+            const { mode: _mode, model: _model, ...rest } = agent;
+            onChange({
+                ...rest,
+                name: nextName,
+                command: cleaned,
+                ...(keepMode ? { mode: agent.mode } : {}),
+                ...(keepModel ? { model: agent.model } : {})
+            });
         }
     };
 
@@ -93,6 +133,10 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
     const changeMode = (value: AgentMode | '') => {
         const { mode: _mode, ...rest } = agent;
         onChange(value ? { ...rest, mode: value } : rest);
+    };
+    const changeModel = (value: string | undefined) => {
+        const { model: _model, ...rest } = agent;
+        onChange(value ? { ...rest, model: value } : rest);
     };
 
     return (
@@ -102,41 +146,51 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                     <input type="radio" name="default-agent" checked={isDefault} onChange={onMakeDefault} />
                     {isDefault && <Chip tone="info">Default</Chip>}
                 </label>
-                <Input
-                    className="agent-name-field"
-                    aria-label="Agent name"
-                    value={name}
-                    onChange={event => setName(event.target.value)}
-                    onBlur={commit}
-                    onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
-                />
-                <Input
-                    className="agent-command-field"
-                    mono
-                    aria-label="Agent command"
-                    value={command}
-                    spellCheck={false}
-                    autoComplete="off"
-                    onChange={event => setCommand(event.target.value)}
-                    onBlur={commit}
-                    onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
-                />
-                <Select<AgentMode | ''>
-                    className="agent-mode-select"
-                    aria-label="Agent mode"
-                    title={
-                        modes.length > 0
-                            ? 'The permission mode of a new session. An automation can set another mode.'
-                            : 'ShipWarden sets a mode only for Claude Code, Codex, Gemini CLI, and opencode.'
-                    }
-                    disabled={modes.length === 0}
-                    value={agent.mode ?? ''}
-                    options={[
-                        { value: '', label: 'Own setting' },
-                        ...AGENT_MODES.filter(item => modes.includes(item.mode)).map(item => ({ value: item.mode, label: item.label }))
-                    ]}
-                    onChange={changeMode}
-                />
+                <label className="flow-field agent-field agent-name-field">
+                    <span className="flow-field-label muted">Name</span>
+                    <Input
+                        value={name}
+                        onChange={event => setName(event.target.value)}
+                        onBlur={commit}
+                        onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+                    />
+                </label>
+                <label className="flow-field agent-field agent-command-field">
+                    <span className="flow-field-label muted">Command</span>
+                    <Input
+                        mono
+                        value={command}
+                        spellCheck={false}
+                        autoComplete="off"
+                        onChange={event => setCommand(event.target.value)}
+                        onBlur={commit}
+                        onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+                    />
+                </label>
+                {/* The two pickers. On a wide page, they are items of the row. On a narrow page, they share one line. */}
+                <div className="agent-pickers">
+                    <label className="flow-field agent-field agent-mode-select">
+                        <span className="flow-field-label muted">Mode</span>
+                        <Select<AgentMode | ''>
+                            title={
+                                modes.length > 0
+                                    ? 'The permission mode of a new session. An automation can set another mode.'
+                                    : 'ShipWarden sets a mode only for Claude Code, Codex, Gemini CLI, and opencode.'
+                            }
+                            disabled={modes.length === 0}
+                            value={agent.mode ?? ''}
+                            options={[
+                                { value: '', label: 'Own setting' },
+                                ...AGENT_MODES.filter(item => modes.includes(item.mode)).map(item => ({ value: item.mode, label: item.label }))
+                            ]}
+                            onChange={changeMode}
+                        />
+                    </label>
+                    <label className="flow-field agent-field agent-model-select">
+                        <span className="flow-field-label muted">Model</span>
+                        <ModelSelect agent={agent} onChange={changeModel} />
+                    </label>
+                </div>
                 <IconButton
                     icon={<Trash2 size={14} strokeWidth={1.6} />}
                     label={canRemove ? 'Remove this agent' : 'ShipWarden needs at least one agent'}
@@ -189,7 +243,7 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
             <SettingsGroup
                 title="Agents"
                 description={
-                    'The agents that the Agent button can start. Each one runs in your login shell, so your PATH applies. A repository can use another agent than the default in its repository settings. The mode is the permission mode of a new session. With "Own setting", the agent uses its own configuration.'
+                    'The agents that the Agent button can start. Each one runs in your login shell, so your PATH applies. A repository can use another agent than the default in its repository settings. The mode is the permission mode of a new session. The model is the model of a new session, for Claude Code and Codex. ShipWarden gets the models from the agent. With "Own setting", the agent uses its own configuration.'
                 }
                 card
             >

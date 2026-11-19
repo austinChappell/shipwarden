@@ -25,6 +25,11 @@ export interface AgentDefinition {
     command: string;
     /** The permission mode of a new session. An automation can set another mode. Without it, the agent uses its own setting. */
     mode?: AgentMode;
+    /**
+     * The model of a new session, for example "opus". Only for Claude Code and Codex. Without it, the agent uses its own
+     * setting. When the model is not available at the start of a session, the session uses the agent's own setting.
+     */
+    model?: string;
 }
 
 /** The colors that a repository can have. Each one is readable on light and dark themes. */
@@ -256,6 +261,14 @@ function cleanName(value: unknown): string | undefined {
     return name && name.length <= MAX_NAME_LENGTH ? name : undefined;
 }
 
+const MAX_MODEL_LENGTH = 200;
+
+/** Returns a valid model name, or undefined. A model name is one word. */
+function cleanModel(value: unknown): string | undefined {
+    const model = typeof value === 'string' ? value.trim() : '';
+    return model && model.length <= MAX_MODEL_LENGTH && !/\s/.test(model) ? model : undefined;
+}
+
 function normalizeAgents(raw: Record<string, unknown>): { agents: AgentDefinition[]; defaultAgentId: string } {
     const agents: AgentDefinition[] = [];
     for (const item of Array.isArray(raw.agents) ? raw.agents : []) {
@@ -265,7 +278,14 @@ function normalizeAgents(raw: Record<string, unknown>): { agents: AgentDefinitio
         if (!agent || !id || !command || agents.some(existing => existing.id === id)) {
             continue;
         }
-        agents.push({ id, name: cleanName(agent.name) ?? agentTitle(command), command, ...(isAgentMode(agent.mode) ? { mode: agent.mode } : {}) });
+        const model = cleanModel(agent.model);
+        agents.push({
+            id,
+            name: cleanName(agent.name) ?? agentTitle(command),
+            command,
+            ...(isAgentMode(agent.mode) ? { mode: agent.mode } : {}),
+            ...(model ? { model } : {})
+        });
     }
     if (agents.length === 0) {
         // Settings from before the agent list have one "agentCommand". It becomes the default agent.

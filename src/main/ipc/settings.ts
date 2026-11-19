@@ -1,9 +1,10 @@
-import { ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 import { IpcChannels } from '@shared/api';
 import { networkErrorDetail } from '@shared/network';
 import type { AppSettings } from '@shared/settings';
 import { isSetupCheckId } from '@shared/setup-checks';
 import { checkCommand } from '../command-check';
+import { listAgentModels } from '../agents/agent-models';
 import { loginShellCaFile } from '../shell-env';
 import type { Services } from '../services';
 import { changed } from './args';
@@ -18,7 +19,7 @@ export const NETWORK_TEST_HOSTS = [
 
 type SettingsIpcDependencies = Pick<
     Services,
-    'settings' | 'certificates' | 'tasks' | 'remote' | 'window' | 'shellReady' | 'networkReady' | 'updates' | 'usage' | 'setupChecks'
+    'settings' | 'certificates' | 'tasks' | 'remote' | 'window' | 'shellReady' | 'networkReady' | 'updates' | 'usage' | 'setupChecks' | 'askRunner'
 >;
 
 /** Registers the IPC handlers of the settings, the setup checks, the network certificates, the updates and the plan usage. */
@@ -41,6 +42,17 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
         return next;
     });
     ipcMain.handle(IpcChannels.settingsCheckCommand, (_event, command: string) => checkCommand(String(command), deps.shellReady));
+    ipcMain.handle(IpcChannels.settingsListModels, (_event, command: string) =>
+        listAgentModels(String(command), {
+            runner: deps.askRunner,
+            tempFolder: app.getPath('temp'),
+            env: async (): Promise<Record<string, string>> => {
+                await deps.networkReady;
+                const bundle = certificates.status().bundlePath;
+                return bundle ? { NODE_EXTRA_CA_CERTS: bundle } : {};
+            }
+        })
+    );
     // Without an ID, all checks run. With an ID, only that check runs.
     ipcMain.handle(IpcChannels.setupCheck, async (_event, id?: unknown) => {
         if (id === undefined || id === null) return setupChecks.runAll();

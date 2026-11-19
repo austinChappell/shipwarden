@@ -1,3 +1,4 @@
+import type { AgentModel } from './agent-models';
 import type { PairingOffer, RemoteStatus } from './remote';
 import type { DashboardPullRequests, PullRequestCommentItem } from './dashboard';
 import type { RepoPullRequests } from './review-queue';
@@ -206,6 +207,11 @@ export interface ShipWardenApi {
         update(change: Partial<AppSettings>): Promise<AppSettings>;
         /** Finds the program of a command in the login shell PATH. */
         checkCommand(command: string): Promise<CommandCheck>;
+        /**
+         * Asks the agent program of a command for the models that the user can use now. Only for Claude Code and Codex.
+         * Rejects with a message when the program does not send a list.
+         */
+        listModels(command: string): Promise<AgentModel[]>;
     };
     setup: {
         /**
@@ -930,6 +936,7 @@ export const IpcChannels = {
     settingsGet: 'settings:get',
     settingsUpdate: 'settings:update',
     settingsCheckCommand: 'settings:checkCommand',
+    settingsListModels: 'settings:listModels',
     setupCheck: 'setup:check'
 } as const;
 

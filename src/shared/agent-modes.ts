@@ -1,3 +1,4 @@
+import { canSetModel, commandSetsModel, commandWithModel } from './agent-models';
 import { agentProgramOf, type AgentProgram } from './agent-programs';
 
 /**
@@ -76,10 +77,14 @@ export function modesOf(program: AgentProgram | undefined): AgentMode[] {
 /**
  * Returns the command that starts a new session of an agent. `mode` (for example from an automation) replaces the
  * default mode of the agent. Throws an error with a message when the agent does not have the mode.
+ * The command gets the model of the agent only when ShipWarden can set a model for the program, and the command does
+ * not already have a model option. The caller checks the model first with `resolveModel`.
  */
-export function agentStartCommand(agent: { name: string; command: string; mode?: AgentMode }, mode?: AgentMode): string {
+export function agentStartCommand(agent: { name: string; command: string; mode?: AgentMode; model?: string }, mode?: AgentMode): string {
     const selected = mode ?? agent.mode;
-    return selected ? commandWithMode(agent.command, agentProgramOf(agent.command), selected, agent.name) : agent.command;
+    const program = agentProgramOf(agent.command);
+    const command = selected ? commandWithMode(agent.command, program, selected, agent.name) : agent.command;
+    return agent.model && canSetModel(program) && !commandSetsModel(agent.command) ? commandWithModel(command, agent.model) : command;
 }
 
 /**
