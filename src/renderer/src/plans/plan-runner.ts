@@ -4,6 +4,7 @@ import { pullRequestWebUrl } from '@shared/github';
 import type { NotificationSettings } from '@shared/notifications';
 import {
     activeStepIndex,
+    ciWatchPrompt,
     freeBranchName,
     nextStepIndex,
     planReview,
@@ -16,6 +17,7 @@ import {
     stepBranchTask,
     stepPrompt,
     worktreeBaseOf,
+    watchesCi,
     type Plan,
     type PlanStep
 } from '@shared/plans';
@@ -49,6 +51,8 @@ export interface RunnerActions {
     prepareWorktree(repoPath: string, worktree: CreatedWorktree): Promise<void>;
     refreshWorktrees(repo: string): Promise<Worktree[]>;
     moveTaskToStatus(task: Task, connectionId: string, status: string): Promise<StartStatusResult>;
+    /** Stops the agent of a terminal session and closes its tab. */
+    stopAgent(session: TerminalSession): Promise<void>;
 }
 
 /** The newest state of the app. App gives it to the runner at each render. */
@@ -368,6 +372,7 @@ export class PlanRunner {
         const notes = dirty ? ' Some changes in the worktree are not committed. The pull request does not contain them.' : '';
         if (!step.pullRequest) {
             await this.patchStep(planId, stepId, { status: 'done', finishedAt: Date.now(), detail: `The agent committed the experiment.${notes}` });
+            await this.afterStepDone(planId, stepId);
             return;
         }
         try {
@@ -383,6 +388,28 @@ export class PlanRunner {
         const latest = cachedPlan(planId);
         if (latest && !latest.noPrGroup) {
             await syncPlanGroup(latest).catch(error => console.warn(`[plans] The PR group of "${latest.title}" did not change: ${errorText(error)}`));
+        }
+        await this.afterStepDone(planId, stepId);
+    }
+
+    /**
+     * Stops the agent of a step that the runner finished, as the settings of the plan tell. With "keep the agents",
+     * the agent can watch the CI checks of the pull request. A problem here does not stop the plan.
+     */
+    private async afterStepDone(planId: string, stepId: string): Promise<void> {
+        const context = this.ready;
+        const plan = cachedPlan(planId);
+        const step = plan?.steps.find(item => item.id === stepId);
+        if (!context || !plan || !step) return;
+        try {
+            if (!plan.keepAgents) {
+                const session = step.sessionId ? context.sessions.find(item => item.id === step.sessionId) : undefined;
+                if (session && !session.exited) await context.actions.stopAgent(session);
+            } else if (step.pr && watchesCi(plan, step)) {
+                await this.followUp(planId, stepId, ciWatchPrompt(step.pr), `Watching the checks on #${step.pr.number}`);
+            }
+        } catch (error) {
+            console.warn(`[plans] The agent of the step "${step.title}" did not stop or did not get the CI prompt: ${errorText(error)}`);
         }
     }
 

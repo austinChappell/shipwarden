@@ -30,6 +30,7 @@ import {
     PLAN_STATUS_LABELS,
     duplicatePlan,
     newStep,
+    opensPullRequests,
     planCounts,
     planProblems,
     planReview,
@@ -1166,6 +1167,11 @@ function RunSettings({
     const tasks = target ? [connection?.name, target.collectionName].filter(Boolean).join(' · ') || 'Selected' : 'No task manager';
     const mode = draft.agentMode ? (AGENT_MODES.find(item => item.mode === draft.agentMode)?.label ?? draft.agentMode) : "The agent's own setting";
     const pullRequests = [draft.draftPullRequests ? 'Drafts' : 'Ready for review', draft.noPrGroup ? 'no PR group' : 'in a PR group'].join(', ');
+    const agents = !draft.keepAgents
+        ? 'Stop when the step is done'
+        : draft.watchCi && opensPullRequests(draft)
+          ? 'Continue to run and watch CI'
+          : 'Continue to run';
     return (
         <Card as="section" className="flow-card">
             <CardBody className="flow-card-body">
@@ -1188,6 +1194,10 @@ function RunSettings({
                         <div>
                             <dt>Pull requests</dt>
                             <dd>{pullRequests}</dd>
+                        </div>
+                        <div>
+                            <dt>Agents</dt>
+                            <dd>{agents}</dd>
                         </div>
                         <div>
                             <dt>Isolation</dt>
@@ -1386,6 +1396,26 @@ function PlanSettings({
                     onChange={value => onChange({ noPrGroup: value ? undefined : true })}
                 />
             </div>
+            <div className="flow-toggle-row">
+                <span className="flow-field-label">Stop each agent when its step is done</span>
+                <Switch
+                    title="Stop the agent of each step and close its tab when the step is done"
+                    checked={!draft.keepAgents}
+                    disabled={disabled}
+                    onChange={value => onChange({ keepAgents: value ? undefined : true })}
+                />
+            </div>
+            {draft.keepAgents && opensPullRequests(draft) && (
+                <div className="flow-toggle-row">
+                    <span className="flow-field-label">Agents watch the CI of their pull requests</span>
+                    <Switch
+                        title="After ShipWarden opens a pull request, the agent of the step watches the CI checks and fixes the failures"
+                        checked={!!draft.watchCi}
+                        disabled={disabled}
+                        onChange={value => onChange({ watchCi: value ? true : undefined })}
+                    />
+                </div>
+            )}
         </CardBody>
     );
 }

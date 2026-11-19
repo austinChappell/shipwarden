@@ -520,7 +520,8 @@ export function App() {
             promptAgent: agents.promptAgent,
             prepareWorktree: agents.prepareWorktree,
             refreshWorktrees: project.refreshWorktrees,
-            moveTaskToStatus: worktreeActions.moveTaskToStatus
+            moveTaskToStatus: worktreeActions.moveTaskToStatus,
+            stopAgent: tabs.closeSession
         }
     });
     // "Prompt the agents" of a PR group gets the functions of the app here.
