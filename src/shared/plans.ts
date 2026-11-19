@@ -2,6 +2,7 @@ import { isAgentMode, type AgentMode } from './agent-modes';
 import type { AgentProgram } from './agent-programs';
 import { shellQuote, type AgentState } from './agents';
 import { fence } from './ask-agent';
+import { MAX_GROUP_PULL_REQUESTS } from './pr-groups';
 import type { TaskLink } from './tasks';
 
 /**
@@ -159,7 +160,8 @@ export const MAX_TITLE_LENGTH = 120;
 /** The title of a new plan. The plan gets the title of its first step, or the title of the proposal of an agent. */
 export const NEW_PLAN_TITLE = 'New plan';
 const MAX_TEXT_LENGTH = 50_000;
-const MAX_STEPS = 50;
+/** Each step can open a pull request, and all pull requests of the plan go into one PR group. */
+const MAX_STEPS = MAX_GROUP_PULL_REQUESTS;
 const MAX_DECISIONS = 20;
 const MAX_HIGHLIGHTS = 8;
 const MAX_TOUCHES = 20;

@@ -37,6 +37,7 @@ import { useAutomationRuns } from './automations/automation-queries';
 import { automationEngine } from './automations/engine';
 import { useAutomationEngine } from './automations/use-automation-engine';
 import { PlansView } from './plans/PlansView';
+import { setGroupAgentActions } from './github/pr-group-agents';
 import { cachedPlan, createPlan, usePlans } from './plans/plan-queries';
 import { planRunner } from './plans/plan-runner';
 import { PipelinesView } from './components/PipelinesView';
@@ -502,6 +503,13 @@ export function App() {
             refreshWorktrees: project.refreshWorktrees,
             moveTaskToStatus: worktreeActions.moveTaskToStatus
         }
+    });
+    // "Prompt the agents" of a PR group gets the functions of the app here.
+    setGroupAgentActions({
+        promptAgent: agents.promptAgent,
+        prepareWorktree: agents.prepareWorktree,
+        refreshWorktrees: project.refreshWorktrees,
+        findRepoPath: worktreeActions.findRepoPath
     });
     const plansCount = plans.reduce((count, plan) => count + plan.steps.filter(step => step.status === 'attention' || step.status === 'failed').length, 0);
 

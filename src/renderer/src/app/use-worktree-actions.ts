@@ -653,6 +653,7 @@ export function useWorktreeActions(options: Options) {
         moveTaskToStatus,
         createWorktree,
         openPullRequestWorktree,
+        findRepoPath,
         removeWorktree,
         removeWorktreeQuietly,
         saveScripts,

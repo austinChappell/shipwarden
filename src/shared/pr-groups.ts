@@ -78,7 +78,11 @@ export interface GroupReviewAnswer {
 }
 
 export const MAX_GROUP_NAME = 120;
-export const MAX_GROUP_PULL_REQUESTS = 20;
+/**
+ * The maximum count of pull requests in a group. A plan makes a group with a pull request for each step, so this is
+ * also the maximum count of steps in a plan.
+ */
+export const MAX_GROUP_PULL_REQUESTS = 50;
 const MAX_NOTE_LENGTH = 20_000;
 const MAX_SUMMARY_LENGTH = 100_000;
 

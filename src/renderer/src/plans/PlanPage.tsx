@@ -84,6 +84,7 @@ import { alertDialog, confirmDialog } from '../components/ConfirmDialog';
 import { showContextMenu } from '../components/ContextMenu';
 import { radioGroupKeys } from '../components/keyboard';
 import { Markdown } from '../components/Markdown';
+import { PromptAgentsCard, type PromptTarget } from '../components/PromptAgentsCard';
 import { collectionsQueryOptions, connectionsQueryOptions } from '../components/tasks/use-task-source';
 import { taskQueryKeys } from '../components/tasks/task-view-logic';
 import { loadCollectionTasks } from '../automations/engine';
@@ -96,7 +97,7 @@ import { cancelExplore, explorePlan } from './plan-explore';
 import { cachedPlan, createPlan, removePlan, updatePlan, useExploreState } from './plan-queries';
 import { planRunner } from './plan-runner';
 import { planPullRequests, syncPlanGroup, usePlanGroup } from './plan-group';
-import { mergeStep, sendChecksToAgent, sendReviewToAgent } from './plan-actions';
+import { canPromptStep, mergeStep, promptPlanAgents, sendChecksToAgent, sendReviewToAgent } from './plan-actions';
 import { branchSummariesQuery } from '../github/use-branch-status';
 
 const api = window.shipwarden;
@@ -1912,6 +1913,7 @@ function PlanRun({ plan, repoLabel, repoColor, onOpenWorktree, onClosed, onOpenP
                     {groups.map(item => (
                         <RepoStack key={item.repo ?? ''} group={item} {...rowProps} />
                     ))}
+                    <PlanPromptAgents plan={plan} repoLabel={repoLabel} />
                     <PlanDetails plan={plan} />
                 </div>
 
@@ -2328,6 +2330,24 @@ function PlanAgents({ plan }: { plan: Plan }) {
                 </div>
             </CardBody>
         </Card>
+    );
+}
+
+/** One prompt for the agents of the done steps. Only a step with a worktree can get it. */
+function PlanPromptAgents({ plan, repoLabel }: { plan: Plan; repoLabel(repo: string): string }) {
+    const targets: PromptTarget[] = plan.steps.flatMap((step, index) => {
+        if (!step.worktreePath || !step.repo || step.status === 'skipped') return [];
+        const label = `${repoLabel(step.repo)}${step.pr ? ` #${step.pr.number}` : ''}`;
+        const disabledReason = canPromptStep(step) ? undefined : 'The step is not done. Its agent is still working on the step.';
+        return [{ key: step.id, label, title: `${index + 1}. ${step.title}`, ...(disabledReason ? { disabledReason } : {}) }];
+    });
+    if (targets.length === 0) return null;
+    return (
+        <PromptAgentsCard
+            targets={targets}
+            description="The agent in the worktree of each selected step gets the prompt and the list of the pull requests of the plan."
+            onSend={(keys, prompt, push) => promptPlanAgents(plan, keys, prompt, push, repoLabel)}
+        />
     );
 }
 
