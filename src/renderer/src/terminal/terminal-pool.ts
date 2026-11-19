@@ -4,6 +4,7 @@ import { BACK_TAB, CTRL_V, isClearKey, isCtrlV, isImageOnlyPaste, isShiftTab } f
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { loadGhostty, prepareFonts } from './ghostty';
 import { HyperlinkFilter } from './hyperlinks';
+import { addLineSelection } from './line-select';
 import { pauseRendering, resumeRendering } from './render-loop';
 import { writeKeepingScroll } from './scroll-lock';
 import { openLink } from '../links';
@@ -300,6 +301,7 @@ export class TerminalPool {
         fit.fit();
         routeLinkClicks(terminal);
         stopClickCopy(terminal);
+        addLineSelection(terminal);
 
         const entry: Entry = {
             session,
