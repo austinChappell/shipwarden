@@ -101,10 +101,38 @@ export function mapCommitStatus(status: RestStatus): CheckRun {
     };
 }
 
-/** Returns the newest check of each name, from the check runs and the commit statuses, sorted by name. */
+/**
+ * Returns the newest check of each name, from the check runs and the commit statuses.
+ * The GitHub Actions jobs come first, in the order that GitHub shows them. Each workflow run is one group.
+ * In a run, the jobs have the order of the workflow file. The other checks come last, sorted by name.
+ */
 export function mapChecks(runs: RestCheckRun[], statuses: RestStatus[]): CheckRun[] {
     const checks = [...runs.map(mapCheckRun), ...statuses.map(mapCommitStatus)];
-    return latestChecks(checks).sort((a, b) => a.name.localeCompare(b.name));
+    // GitHub makes the jobs of a run in the order of the workflow file, so a lower job ID comes first.
+    // A job that runs again gets a new ID. Thus the sort uses the first ID of each job name.
+    const firstId = new Map<string, number>();
+    for (const check of checks) {
+        if (check.isActions) {
+            const key = `${check.runId}:${check.name}`;
+            firstId.set(key, Math.min(firstId.get(key) ?? check.id, check.id));
+        }
+    }
+    const order = (check: CheckRun) => firstId.get(`${check.runId}:${check.name}`) ?? check.id;
+    const runOrder = new Map<number | undefined, number>();
+    for (const check of checks) {
+        if (check.isActions) {
+            runOrder.set(check.runId, Math.min(runOrder.get(check.runId) ?? order(check), order(check)));
+        }
+    }
+    return latestChecks(checks).sort((a, b) => {
+        if (a.isActions !== b.isActions) {
+            return a.isActions ? -1 : 1;
+        }
+        if (!a.isActions) {
+            return a.name.localeCompare(b.name);
+        }
+        return runOrder.get(a.runId)! - runOrder.get(b.runId)! || order(a) - order(b);
+    });
 }
 
 /** Changes a job and its steps to the shared type. A job without steps gets an empty list. */

@@ -115,8 +115,8 @@ describe('fetchChecks', () => {
             ['rest', '/repos/acme/api/commits/sha1/status', undefined]
         ]);
         expect(checks.map(check => [check.name, check.conclusion, check.isActions])).toEqual([
-            ['deploy', 'error', false],
-            ['test', 'failure', true]
+            ['test', 'failure', true],
+            ['deploy', 'error', false]
         ]);
     });
 });

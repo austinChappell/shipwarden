@@ -101,7 +101,7 @@ describe('mapCommitStatus', () => {
 });
 
 describe('mapChecks', () => {
-    it('keeps the newest check run of each name and sorts the checks by name', () => {
+    it('keeps the newest check run of each name and keeps the job order of the first attempt', () => {
         const checks = mapChecks(
             [
                 checkRun({ id: 1, name: 'test', conclusion: 'failure' }),
@@ -111,10 +111,28 @@ describe('mapChecks', () => {
             [status({ id: 9, context: 'a-status' })]
         );
         expect(checks.map(check => [check.name, check.id])).toEqual([
-            ['a-status', 9],
+            ['test', 3],
             ['build', 2],
-            ['test', 3]
+            ['a-status', 9]
         ]);
+    });
+
+    it('puts the jobs in workflow order, groups them by run, and puts the other checks last by name', () => {
+        const job = (id: number, name: string, runId: number) =>
+            checkRun({ id, name, details_url: `https://github.com/acme/api/actions/runs/${runId}/job/${id}` });
+        const checks = mapChecks(
+            [
+                checkRun({ id: 50, name: 'Socket: Report', app: { slug: 'socket' }, details_url: null }),
+                job(14, 'merge-coverage', 700),
+                checkRun({ id: 40, name: 'Socket: Alerts', app: { slug: 'socket' }, details_url: null }),
+                job(21, 'lint', 800),
+                job(11, 'docker-images', 700),
+                job(13, 'test', 700),
+                job(12, 'setup', 700)
+            ],
+            []
+        );
+        expect(checks.map(check => check.name)).toEqual(['docker-images', 'setup', 'test', 'merge-coverage', 'lint', 'Socket: Alerts', 'Socket: Report']);
     });
 
     it('keeps a commit status and a check run with the same name', () => {
