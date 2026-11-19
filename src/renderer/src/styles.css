@@ -5327,6 +5327,44 @@ button:focus-visible,
     color: var(--accent);
 }
 
+/* A chip at the end of a section name, for example "Beta". */
+.settings-nav-badge {
+    margin-left: auto;
+}
+
+/* A note at the top of a settings section, for example a feature in beta. */
+.settings-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 24px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--info) 45%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--info) 10%, transparent);
+    color: var(--text);
+}
+
+.settings-banner > svg {
+    flex: none;
+    margin-top: 1px;
+    color: var(--info);
+}
+
+.settings-banner-text {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+}
+
+.settings-banner-text strong {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
 /* A form page (Settings, Automations, Plans): an 880 px column at the gutter (docs/design, finding 11). */
 .settings-page {
     box-sizing: content-box;

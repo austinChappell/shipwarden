@@ -196,6 +196,9 @@ allow notifications for ShipWarden in **System Settings › Notifications**.
 
 Open **Settings › Mobile** to connect the iPhone app. See [ios/README.md](../ios/README.md).
 
+The iPhone app is in beta. It is in App Store review now, so it is not in the App Store yet. Until Apple approves it,
+build it from source with Xcode.
+
 ## Quit and update
 
 - **ShipWarden › Quit ShipWarden (Keep Agents Running)** (⌘Q) quits the app. The agents continue their work. When

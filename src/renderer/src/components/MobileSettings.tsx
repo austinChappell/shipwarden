@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { CircleCheck, Copy, Smartphone, TriangleAlert } from 'lucide-react';
+import { CircleCheck, Copy, FlaskConical, Smartphone, TriangleAlert } from 'lucide-react';
 import type { PairingOffer, RemoteStatus } from '@shared/remote';
 import type { AppSettings } from '@shared/settings';
 import { errorText } from '../util';
@@ -182,6 +182,13 @@ export function MobileSettings({ settings, onSave }: Props) {
     const connected = new Set(status?.connected ?? []);
     return (
         <>
+            <div className="settings-banner" role="note">
+                <FlaskConical size={16} strokeWidth={1.8} />
+                <div className="settings-banner-text">
+                    <strong>The iPhone app is in beta.</strong>
+                    <span>It is in App Store review now, so it is not in the App Store yet.</span>
+                </div>
+            </div>
             <SettingsGroup
                 title="Phone connection"
                 description={

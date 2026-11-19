@@ -32,7 +32,7 @@ import { AppearanceSettings } from './AppearanceSettings';
 import { RepoSettingsPage } from './RepoSettingsPage';
 import { TaskManagersSettings } from './TaskManagersSettings';
 import { SettingsGroup, SettingsRow } from './settings-ui';
-import { IconButton, Switch } from './ui';
+import { Chip, IconButton, Switch } from './ui';
 import { changeOnboarding } from '@shared/onboarding';
 import { UpdateSettings } from './UpdateNotice';
 
@@ -41,7 +41,7 @@ type FixedSection = 'appearance' | 'notifications' | 'dashboard' | 'tasks' | 're
 type SectionId = FixedSection | `repo:${string}`;
 
 /** The fixed sections of the settings page, in the order of the section list. */
-export const SETTINGS_SECTIONS: { id: FixedSection; label: string; icon: LucideIcon }[] = [
+export const SETTINGS_SECTIONS: { id: FixedSection; label: string; icon: LucideIcon; badge?: string }[] = [
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -51,7 +51,7 @@ export const SETTINGS_SECTIONS: { id: FixedSection; label: string; icon: LucideI
     { id: 'agents', label: 'Agents', icon: Bot },
     { id: 'terminal', label: 'Terminal', icon: SquareTerminal },
     { id: 'network', label: 'Network', icon: Network },
-    { id: 'mobile', label: 'Mobile', icon: Smartphone },
+    { id: 'mobile', label: 'Mobile', icon: Smartphone, badge: 'Beta' },
     { id: 'about', label: 'About', icon: Info }
 ];
 
@@ -207,6 +207,11 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
                         >
                             <item.icon size={15} strokeWidth={1.6} />
                             {item.label}
+                            {item.badge && (
+                                <Chip tone="info" className="settings-nav-badge">
+                                    {item.badge}
+                                </Chip>
+                            )}
                         </button>
                     ))}
                     {repos.length > 0 && <div className="settings-nav-heading">Repositories</div>}
