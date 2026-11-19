@@ -279,6 +279,7 @@ export function ReviewView({
                         projects={projects}
                         onPullRepo={onPullRepo && (target => onPullRepo(repoRef, target))}
                         onOpenGroup={id => onRoute({ page: groupPage(id) })}
+                        onOpenPlan={onOpenPlan}
                     />
                 </div>
             )}

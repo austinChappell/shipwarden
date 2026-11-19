@@ -9,7 +9,8 @@ different repositories, and on GitHub or Azure Repos.
 You can make a group in three places:
 
 - The Review view: select "New group" in the "PR groups" section.
-- A pull request in the Review view: open the menu of the main button and select "Add to a PR group…".
+- A pull request in the Review view: open the menu of the main button and select "Add to a PR group…". "Add to a plan…"
+  adds the pull request to a plan and to the PR group of the plan. See [Plans](plans.md#add-a-pull-request).
 - A plan makes its group when it opens its first pull request. The group gets the title of the plan, and the merge
   order as its note. Each new pull request of the plan goes into the same group. ShipWarden updates the merge order in
   the note, but only when you did not change the note. "Review the pull requests together" in the "More" menu of the

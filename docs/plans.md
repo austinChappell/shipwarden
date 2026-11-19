@@ -70,6 +70,18 @@ turn, ShipWarden checks the step again. You can also select:
 A notification tells you when a step stops or fails and when the plan is done. Settings › Notifications › Automations turns
 these notifications on and off.
 
+## Add a pull request
+
+You can add a pull request to a plan that ran. The pull request becomes a done step at the end of the plan, and the PR
+group of the plan gets it too. The project of the plan must have the repository of the pull request. When a worktree has
+the head branch, the step gets that worktree, so that its agent can get prompts.
+
+You can add a pull request in two places:
+
+- The plan page: paste the link of the pull request in the "Add a pull request" card.
+- A pull request in the Review view: open the menu of the main button and select "Add to a plan…". Select the plan, then
+  select "Add". The plan page opens.
+
 ## Prompt the agents
 
 "Prompt the agents" on the plan page sends one prompt to the agents of more than one step. Use it for a change that
