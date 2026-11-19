@@ -21,6 +21,8 @@ import {
     reviewText,
     stackedOnIndex,
     stepBranch,
+    stepBranchTask,
+    freeBranchName,
     stepPrompt,
     stepStatusLabel,
     worktreeBaseOf,
@@ -440,5 +442,34 @@ describe('the review of a draft', () => {
         expect(saved?.highlights).toEqual([{ label: 'L', text: 'T' }]);
         expect(saved?.approach).toBe('Two steps.');
         expect(saved?.steps[0]).toMatchObject({ reviewed: true, summary: 'Short.', touches: ['a.ts'] });
+    });
+});
+
+describe('stepBranchTask', () => {
+    const plan = { id: 'lx2-abcd12' };
+    it('uses the task of the step', () => {
+        const link = { pluginId: 'clickup', taskId: '86b2x9q4f', key: 'ENG-1', title: 'Fix the login' };
+        expect(stepBranchTask(plan, { title: 'Step', description: 'Do it', task: { kind: 'existing', link } }, 0)).toEqual({
+            id: '86b2x9q4f',
+            key: 'ENG-1',
+            title: 'Fix the login',
+            description: 'Do it'
+        });
+    });
+    it('uses the step and the plan for a step without a task', () => {
+        expect(stepBranchTask(plan, { title: 'Store the theme', description: '', task: { kind: 'none' } }, 2)).toEqual({
+            id: 'cd12-3',
+            title: 'Store the theme',
+            description: ''
+        });
+    });
+});
+
+describe('freeBranchName', () => {
+    it('keeps a free branch', () => {
+        expect(freeBranchName('jsmith/ENG-1', ['main'])).toBe('jsmith/ENG-1');
+    });
+    it('adds the next free number', () => {
+        expect(freeBranchName('jsmith/ENG-1', ['jsmith/ENG-1', 'jsmith/ENG-1-2'])).toBe('jsmith/ENG-1-3');
     });
 });

@@ -22,7 +22,11 @@ export interface TaskBranch {
  * When the template has {taskShortDescription}, the agent of the repository writes the short description. This takes a few seconds.
  * When the agent fails, the short description comes from the title. The function does not throw for an agent failure.
  */
-export async function taskBranchName(task: Task, repoPath: string, template: string | undefined): Promise<TaskBranch> {
+export async function taskBranchName(
+    task: Pick<Task, 'id' | 'key' | 'title' | 'description'>,
+    repoPath: string,
+    template: string | undefined
+): Promise<TaskBranch> {
     if (!template?.trim()) return { branch: branchNameForTask(task) };
     const username = usesVariable(template, 'username')
         ? await fetchAppInfo().then(

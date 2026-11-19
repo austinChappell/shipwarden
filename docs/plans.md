@@ -38,8 +38,11 @@ The settings of the plan:
 
 "Execute plan" runs the steps one after the other. For each step, ShipWarden:
 
-1. Makes a worktree on the branch `plan/<plan>-<id>/<number>-<step>`. A step starts from the branch of the last done
-   step in the same repository. The first step in a repository starts from the default branch.
+1. Makes a worktree on a new branch. The branch uses the branch template in Settings › Worktrees, as for a task that
+   you start. A step without a task uses the step title as the task title, and `<plan>-<number>` as the task key.
+   Without a template, the branch is `plan/<plan>-<id>/<number>-<step>`. When the plan or the repository has the
+   branch already, the branch gets `-2`, `-3`, and so on. A step starts from the branch of the last done step in the
+   same repository. The first step in a repository starts from the default branch.
 2. Links the task to the worktree, and moves the task to the start status of its task manager.
 3. Gives the plan, the step, and the earlier pull requests to a new agent. The agent commits its work. It does not push.
 4. Waits for the agent to end its turn. A new commit finishes the step. ShipWarden pushes the branch and opens the pull
