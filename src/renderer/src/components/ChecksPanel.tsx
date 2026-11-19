@@ -166,7 +166,13 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                         <div
                             key={`${check.isStatus ? 's' : 'c'}${check.id}`}
                             className={`check-row${check.isActions ? ' clickable' : ''}`}
-                            title={check.isActions ? 'Show the log' : check.name}
+                            title={
+                                check.waitingForRerun
+                                    ? 'Waiting for the re-run. The log is from the last attempt.'
+                                    : check.isActions
+                                      ? 'Show the log'
+                                      : check.name
+                            }
                             tabIndex={0}
                             role={check.isActions ? 'button' : undefined}
                             aria-label={check.isActions ? check.name : undefined}

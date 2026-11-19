@@ -135,6 +135,39 @@ export function mapChecks(runs: RestCheckRun[], statuses: RestStatus[]): CheckRu
     });
 }
 
+/** The conclusions that stay valid when a run starts again. A re-run of the failed jobs keeps these jobs. */
+const KEPT_CONCLUSIONS = new Set<CheckConclusion>(['success', 'neutral']);
+
+/** The workflow run fields that show if a run started again. */
+export type RunAttempt = Pick<RestWorkflowRun, 'id' | 'status' | 'run_started_at'>;
+
+/** True when a check can be from an older attempt of its run: a GitHub Actions job that did not pass. */
+export function mayBeOldAttempt(check: CheckRun): boolean {
+    return check.isActions && check.runId !== undefined && check.status === 'completed' && !KEPT_CONCLUSIONS.has(check.conclusion);
+}
+
+/**
+ * Changes the checks from an older attempt of an active run to queued checks.
+ * When a run starts again, GitHub makes a new check for a job only when the job goes into the queue.
+ * Until then, the newest check of that job is the old result. This old result is not the state of the new attempt.
+ * A check is old when it did not pass, its run is active, and it completed before the newest attempt started.
+ */
+export function markOldAttempts(checks: CheckRun[], runs: readonly RunAttempt[]): CheckRun[] {
+    const attemptStart = new Map<number, number>();
+    for (const run of runs) {
+        if (run.status !== 'completed' && run.run_started_at) {
+            attemptStart.set(run.id, Date.parse(run.run_started_at));
+        }
+    }
+    return checks.map(check => {
+        const start = check.runId === undefined ? undefined : attemptStart.get(check.runId);
+        if (start === undefined || !mayBeOldAttempt(check) || !check.completedAt || Date.parse(check.completedAt) >= start) {
+            return check;
+        }
+        return { ...check, status: 'queued', conclusion: null, startedAt: null, completedAt: null, waitingForRerun: true };
+    });
+}
+
 /** Changes a job and its steps to the shared type. A job without steps gets an empty list. */
 export function mapJobProgress(job: RestJob): JobProgress {
     return {

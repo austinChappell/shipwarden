@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { CheckRun } from '@shared/github';
 import {
     mapCheckRun,
     mapChecks,
@@ -6,6 +7,7 @@ import {
     mapJobProgress,
     mapRunJob,
     mapWorkflowRun,
+    markOldAttempts,
     type RestCheckRun,
     type RestStatus,
     type RestWorkflowRun
@@ -243,5 +245,39 @@ describe('mapWorkflowRun', () => {
         const mapped = mapWorkflowRun(run({ status: null, run_started_at: undefined }));
         expect(mapped.status).toBe('queued');
         expect(mapped.startedAt).toBeNull();
+    });
+});
+
+describe('markOldAttempts', () => {
+    const job = (change: Partial<CheckRun>): CheckRun => ({
+        id: 1,
+        name: 'test',
+        status: 'completed',
+        conclusion: 'failure',
+        startedAt: '2026-11-18T10:00:00Z',
+        completedAt: '2026-11-18T10:05:00Z',
+        url: 'u',
+        runId: 900,
+        isActions: true,
+        ...change
+    });
+    const activeRun = { id: 900, status: 'in_progress', run_started_at: '2026-11-18T11:00:00Z' };
+
+    it('shows a failed or skipped job from an older attempt of an active run as queued', () => {
+        const [failed, skipped] = markOldAttempts([job({}), job({ id: 2, name: 'lint', conclusion: 'skipped' })], [activeRun]);
+        for (const check of [failed, skipped]) {
+            expect(check).toMatchObject({ status: 'queued', conclusion: null, startedAt: null, completedAt: null, waitingForRerun: true });
+        }
+    });
+
+    it('keeps a passed job, a job of the new attempt, and a job of a completed run', () => {
+        const checks = [
+            job({ conclusion: 'success' }),
+            job({ id: 2, completedAt: '2026-11-18T11:02:00Z' }),
+            job({ id: 3, runId: 901 }),
+            job({ id: 4, isActions: false, runId: undefined })
+        ];
+        const runs = [activeRun, { id: 901, status: 'completed', run_started_at: '2026-11-18T11:00:00Z' }];
+        expect(markOldAttempts(checks, runs)).toEqual(checks);
     });
 });
