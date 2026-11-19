@@ -38,8 +38,10 @@ export function CommentBody({ body, original, outdated, onApply }: Props) {
             {chip}
             {parts.map((part, index) =>
                 part.kind === 'text' ? (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: The parts come from the comment text in order. The index is the identity of a part.
                     part.text.trim() && <Markdown key={index} text={part.text} />
                 ) : (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: The parts come from the comment text in order. The index is the identity of a part.
                     <SuggestionDiff key={index} lines={part.lines} original={original} outdated={outdated} onApply={onApply} />
                 )
             )}
@@ -92,6 +94,7 @@ function SuggestionDiff({
             </div>
             <div className="suggestion-lines">
                 {original?.map((line, index) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: Two lines can have the same text. The line number is the identity of a line.
                     <div key={`o${index}`} className="suggestion-line removed">
                         <span className="suggestion-sign" title="Old line">
                             −
@@ -100,6 +103,7 @@ function SuggestionDiff({
                     </div>
                 ))}
                 {lines.map((line, index) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: Two lines can have the same text. The line number is the identity of a line.
                     <div key={`n${index}`} className="suggestion-line added">
                         <span className="suggestion-sign" title="New line">
                             +

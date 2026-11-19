@@ -66,6 +66,7 @@ export function Dotted({ parts }: { parts: React.ReactNode[] }) {
     return (
         <>
             {shown.map((part, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: The parts are elements in a fixed order and have no ID.
                 <Fragment key={index}>
                     {index > 0 && ' · '}
                     {part}

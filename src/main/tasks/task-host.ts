@@ -145,7 +145,7 @@ export class TaskHost {
                 if (connection.id !== id) return connection;
                 const next: TaskConnection = {
                     ...connection,
-                    ...(change.name !== undefined && change.name.trim() ? { name: change.name.trim() } : {}),
+                    ...(change.name?.trim() ? { name: change.name.trim() } : {}),
                     ...(change.scope !== undefined ? { scope: change.scope ?? undefined } : {}),
                     ...(change.enabled !== undefined ? { enabled: change.enabled } : {})
                 };

@@ -140,6 +140,7 @@ export function DialogHost() {
                     <div className="confirm-text">
                         <h2 id="confirm-title">{current.title}</h2>
                         {paragraphs.map((text, index) => (
+                            // biome-ignore lint/suspicious/noArrayIndexKey: The paragraphs come from the message in order and do not change.
                             <p key={index}>{text}</p>
                         ))}
                         {current.detail && <pre className="confirm-detail">{current.detail}</pre>}

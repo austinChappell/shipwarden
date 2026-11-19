@@ -282,7 +282,7 @@ export function normalizeGroups(value: unknown): SplitGroups {
     const groups: SplitGroups = [];
     for (const item of list) {
         const layout = normalizeLayout(item);
-        if (!layout || layout.root.kind !== 'split') continue;
+        if (layout?.root.kind !== 'split') continue;
         const tabs = leaves(layout.root).map(leaf => leaf.tab);
         if (tabs.some(tab => seen.has(tab))) continue;
         tabs.forEach(tab => seen.add(tab));

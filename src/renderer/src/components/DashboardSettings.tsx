@@ -184,6 +184,7 @@ export function DashboardSettings({ settings, onSave, prefill }: Props) {
                                 ? 'The rule hides no comment on the Dashboard now.'
                                 : `The rule hides ${pluralize(matches.length, 'comment')} on the Dashboard now, for example:`}
                             {matches.slice(0, 3).map((comment, index) => (
+                                // biome-ignore lint/suspicious/noArrayIndexKey: An example comment has no ID here. The list is a short preview that shows again for each change.
                                 <div key={index} className="rule-example">
                                     <strong>{comment.author ?? 'unknown'}</strong> {firstLine(comment.text)}
                                 </div>

@@ -27,7 +27,7 @@ export class JsonStore<T extends object> {
         return this.value;
     }
 
-    async update(change: (value: T) => T | void): Promise<T> {
+    async update(change: (value: T) => T | undefined): Promise<T> {
         await this.get();
         // Read the value after the wait, so that each change starts from the result of the change before it.
         const current = this.value as T;

@@ -64,6 +64,7 @@ function RowGraph({ row, lanes }: { row: GraphRow; lanes: number }) {
                 const y2 = y(line.toY);
                 // A line that changes lanes bends with a curve. A straight line stays straight.
                 const d = x1 === x2 ? `M${x1} ${y1}L${x2} ${y2}` : `M${x1} ${y1}C${x1} ${(y1 + y2) / 2} ${x2} ${(y1 + y2) / 2} ${x2} ${y2}`;
+                // biome-ignore lint/suspicious/noArrayIndexKey: A line has no ID. The lines of a row come from the graph layout in order.
                 return <path key={index} d={d} stroke={laneColor(line.color)} strokeWidth={1.6} fill="none" />;
             })}
             <circle
