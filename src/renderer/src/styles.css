@@ -5696,13 +5696,13 @@ button:focus-visible,
     color: var(--muted);
 }
 
-/* Each row is a checkbox, the row button, and the pin button of a Claude Code agent. */
-.agents-list > li {
+/* Each agent row is a checkbox, the row button, and the pin button of a Claude Code agent. The pinned sessions use the same list. Their rows have no checkbox and keep their own layout. */
+.agents-list > li:has(> .agent-select) {
     display: flex;
     align-items: center;
 }
 
-.agents-list > li:hover {
+.agents-list > li:has(> .agent-select):hover {
     background: var(--hover);
 }
 
