@@ -52,6 +52,13 @@ describe('isFindShortcut', () => {
         expect(isFindShortcut(asEvent(key({ metaKey: false, ctrlKey: true })))).toBe(false);
         expect(isFindShortcut(asEvent(key({ key: 'g' })))).toBe(false);
     });
+
+    it('ignores ⌘F from a view that has its own ⌘F', () => {
+        const inside = { closest: (selector: string) => (selector === '[data-own-find]' ? {} : null) };
+        const outside = { closest: () => null };
+        expect(isFindShortcut(asEvent(key({ target: inside as unknown as EventTarget })))).toBe(false);
+        expect(isFindShortcut(asEvent(key({ target: outside as unknown as EventTarget })))).toBe(true);
+    });
 });
 
 describe('openLogFind', () => {

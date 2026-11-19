@@ -1,5 +1,5 @@
 import { app, session, shell, WebContentsView, type BrowserWindow, type Certificate, type Input, type Session } from 'electron';
-import { BLANK_PAGE, isBrowsableUrl, type BrowserBounds, type BrowserState } from '@shared/browser';
+import { BLANK_PAGE, isBrowsableUrl, type BrowserBounds, type BrowserFindOptions, type BrowserState } from '@shared/browser';
 import { verifyWithExtraCas } from './extra-ca-verify';
 
 /** The session of all browser views. It is not the session of the app, so a page cannot read the data of the app. */
@@ -20,6 +20,8 @@ export interface BrowserViewEvents {
     onFocus(id: string): void;
     /** A key goes to a view. Return true when the app used the key. The page then does not get it. */
     onInput(id: string, input: Input): boolean;
+    /** A find in a page has a result. `active` is the number of the current match, from 1. */
+    onFound(id: string, active: number, matches: number): void;
 }
 
 interface Entry {
@@ -143,6 +145,25 @@ export class BrowserViews {
         this.views.get(id)?.view.webContents.focus();
     }
 
+    /** Finds the text in the page. An empty text stops the find. The found-in-page event gives the result. */
+    find(id: string, text: string, options: BrowserFindOptions): void {
+        const contents = this.views.get(id)?.view.webContents;
+        if (!contents || contents.isDestroyed()) return;
+        if (!text) {
+            contents.stopFindInPage('clearSelection');
+            this.events.onFound(id, 0, 0);
+            return;
+        }
+        // In Electron, findNext is true for the first request of a new text.
+        contents.findInPage(text, { findNext: !options.next, forward: options.forward, matchCase: options.matchCase });
+    }
+
+    /** Stops the find in the page and removes the highlights. */
+    stopFind(id: string): void {
+        const contents = this.views.get(id)?.view.webContents;
+        if (contents && !contents.isDestroyed()) contents.stopFindInPage('clearSelection');
+    }
+
     /** Opens the developer tools of the page in a separate window. */
     toggleDevTools(id: string): void {
         const contents = this.views.get(id)?.view.webContents;
@@ -212,6 +233,7 @@ export class BrowserViews {
             send();
         });
         contents.on('focus', () => this.events.onFocus(id));
+        contents.on('found-in-page', (_event, result) => this.events.onFound(id, result.activeMatchOrdinal, result.matches));
         contents.on('before-input-event', (event, input) => {
             if (this.events.onInput(id, input)) event.preventDefault();
         });

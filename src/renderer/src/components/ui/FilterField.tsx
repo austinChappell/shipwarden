@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
+import { isFindShortcut } from '../log-find';
 import { cx } from './cx';
 
 interface FilterFieldProps {
@@ -22,7 +23,8 @@ function isTyping(target: EventTarget | null): boolean {
 
 /**
  * The filter field of a page header (docs/design, board 2): 240 px, with a search icon and a "/" hint. The "/" key
- * moves the focus to the field when the focus is not in another field. Escape clears the field.
+ * moves the focus to the field when the focus is not in another field. ⌘F also moves the focus to the field.
+ * Escape clears the field.
  * Use "Filter" in the placeholder. "Search" is for a future global search.
  */
 export function FilterField({ value, onChange, placeholder, label, className, onKeyDown }: FilterFieldProps) {
@@ -30,7 +32,9 @@ export function FilterField({ value, onChange, placeholder, label, className, on
 
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
-            if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
+            // ⌘F works also in a different field. A view that opened its own search bar for the key stops it first.
+            const slash = event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey && !isTyping(event.target);
+            if (!slash && !(isFindShortcut(event) && !event.defaultPrevented)) return;
             const field = input.current;
             // A hidden page keeps its header in the document. Only the visible field takes the key.
             if (!field || field.offsetParent === null) return;

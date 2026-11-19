@@ -12,17 +12,18 @@ export interface KeyInput {
 }
 
 /** An action of a key in a browser view of the in-app browser. */
-export type BrowserViewKey = 'reload' | 'focusAddress' | 'devTools';
+export type BrowserViewKey = 'reload' | 'focusAddress' | 'devTools' | 'find';
 
 /**
  * Returns the action of a browser view key, or undefined for other keys.
- * ⌘R loads the page again, ⌘L selects the address bar and ⌥⌘I opens the developer tools of the page.
+ * ⌘R loads the page again, ⌘L selects the address bar, ⌘F opens the find bar and ⌥⌘I opens the developer tools of the page.
  */
 export function browserViewKey(input: KeyInput): BrowserViewKey | undefined {
     if (input.type !== 'keyDown' || !input.meta || input.control) return undefined;
     const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
     if (key === 'r' && !input.shift && !input.alt) return 'reload';
     if (key === 'l' && !input.shift && !input.alt) return 'focusAddress';
+    if (key === 'f' && !input.shift && !input.alt) return 'find';
     if (key === 'i' && input.alt && !input.shift) return 'devTools';
     return undefined;
 }

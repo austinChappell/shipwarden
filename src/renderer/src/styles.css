@@ -723,6 +723,44 @@ button {
     top: 42px;
 }
 
+/* A search bar (⌘F) that floats at the top right of a view: a terminal, a chat, or a Markdown preview. */
+.floating-find {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    z-index: 4;
+    width: min(440px, calc(100% - 24px));
+}
+
+.floating-find.below-notice {
+    top: 42px;
+}
+
+.floating-find .find-bar {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 10px 30px var(--shadow);
+}
+
+/* The chat button goes below the open search bar. */
+.floating-find ~ .terminal-chat-toggle {
+    top: 50px;
+}
+
+.floating-find.below-notice ~ .terminal-chat-toggle {
+    top: 84px;
+}
+
+/* The matches of a search in the text of a view (dom-find.tsx). The current match has the accent color. */
+::highlight(find-match) {
+    background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+::highlight(find-current) {
+    background-color: var(--accent);
+    color: var(--bg);
+}
+
 /* An agent tab as a chat (ChatView.tsx): the messages, a bar when the agent waits, and the prompt field. */
 .chat-view {
     position: absolute;
@@ -3806,6 +3844,13 @@ button.task-check.editable:hover:not(:disabled) {
 
 .markdown-file-body.split .markdown-file-source {
     border-right: 1px solid var(--border);
+}
+
+.markdown-file-preview-pane {
+    position: relative;
+    display: flex;
+    flex: 1 1 50%;
+    min-width: 0;
 }
 
 .markdown-file-preview {

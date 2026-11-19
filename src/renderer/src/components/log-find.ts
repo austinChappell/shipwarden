@@ -21,8 +21,22 @@ export function releaseLogFind(log: LogFindOwner): void {
 }
 
 /** True for ⌘F with no other modifier key. */
-export function isFindShortcut(event: KeyboardEvent): boolean {
+export function isFindKey(event: KeyboardEvent): boolean {
     return event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f';
+}
+
+/** True when the key comes from an element in a view that has its own ⌘F. Such a view has the attribute `data-own-find`. */
+function inOwnFind(event: KeyboardEvent): boolean {
+    const target = event.target as { closest?(selector: string): unknown } | null;
+    return typeof target?.closest === 'function' && !!target.closest('[data-own-find]');
+}
+
+/**
+ * True for ⌘F that a page-level handler can use. False for a key from a view that has its own ⌘F.
+ * That view uses isFindKey.
+ */
+export function isFindShortcut(event: KeyboardEvent): boolean {
+    return isFindKey(event) && !inOwnFind(event);
 }
 
 /**

@@ -34,8 +34,14 @@ export function renderedLines(section: HTMLElement): RenderedLine[] {
     return list;
 }
 
-/** The search bar of the changed files (⌘F). Enter goes to the next match, Shift+Enter to the previous one. */
+/**
+ * A search bar for ⌘F. Enter goes to the next match, Shift+Enter to the previous one. Escape closes the bar.
+ * The default label is for the changed files. A different view gives its own label, for example "Find in the terminal".
+ */
 export function FindBar({
+    label = 'Find in the changes',
+    className,
+    reverse = false,
     query,
     caseSensitive,
     count,
@@ -46,13 +52,18 @@ export function FindBar({
     onMove,
     onClose
 }: {
+    label?: string;
+    className?: string;
+    /** Enter goes to the previous match and Shift+Enter to the next one. A terminal uses this, because its newest text is at the bottom. */
+    reverse?: boolean;
     query: string;
     caseSensitive: boolean;
     count: number;
     index: number;
     focusNonce: number;
     onQuery(value: string): void;
-    onCaseSensitive(value: boolean): void;
+    /** The bar shows the "Aa" button only when the view can match the case. */
+    onCaseSensitive?(value: boolean): void;
     onMove(step: 1 | -1): void;
     onClose(): void;
 }) {
@@ -63,35 +74,54 @@ export function FindBar({
         inputRef.current?.select();
     }, [focusNonce]);
     return (
-        <div className="find-bar" role="search">
+        <div className={className ? `find-bar ${className}` : 'find-bar'} role="search">
             <Input
                 ref={inputRef}
                 size="sm"
                 className="find-bar-input"
                 icon={<Search size={13} strokeWidth={1.6} />}
                 value={query}
-                placeholder="Find in the changes"
-                aria-label="Find in the changes"
+                placeholder={label}
+                aria-label={label}
                 onChange={event => onQuery(event.target.value)}
                 onKeyDown={event => {
                     if (event.key === 'Enter') {
                         event.preventDefault();
-                        onMove(event.shiftKey ? -1 : 1);
+                        onMove(event.shiftKey !== reverse ? -1 : 1);
                     }
-                    if (event.key === 'Escape') onClose();
+                    if (event.key === 'Escape') {
+                        // The view under the bar must not get the key too. For example, the terminal sends Escape to its program.
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onClose();
+                    }
                 }}
             />
             <span className="find-count">{findCountText(query, count, index)}</span>
+            {onCaseSensitive && (
+                <IconButton
+                    size="sm"
+                    className="find-case"
+                    icon="Aa"
+                    label="Match case"
+                    aria-pressed={caseSensitive}
+                    onClick={() => onCaseSensitive(!caseSensitive)}
+                />
+            )}
             <IconButton
                 size="sm"
-                className="find-case"
-                icon="Aa"
-                label="Match case"
-                aria-pressed={caseSensitive}
-                onClick={() => onCaseSensitive(!caseSensitive)}
+                icon={<ChevronUp size={14} />}
+                label={reverse ? 'Previous match (Enter)' : 'Previous match (Shift+Enter)'}
+                disabled={!count}
+                onClick={() => onMove(-1)}
             />
-            <IconButton size="sm" icon={<ChevronUp size={14} />} label="Previous match (Shift+Enter)" disabled={!count} onClick={() => onMove(-1)} />
-            <IconButton size="sm" icon={<ChevronDown size={14} />} label="Next match (Enter)" disabled={!count} onClick={() => onMove(1)} />
+            <IconButton
+                size="sm"
+                icon={<ChevronDown size={14} />}
+                label={reverse ? 'Next match (Shift+Enter)' : 'Next match (Enter)'}
+                disabled={!count}
+                onClick={() => onMove(1)}
+            />
             <IconButton size="sm" icon={<X size={14} />} label="Close (Escape)" onClick={onClose} />
         </div>
     );

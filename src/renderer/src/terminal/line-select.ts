@@ -1,13 +1,15 @@
 import type { Terminal } from 'ghostty-web';
 
 /** A cell of a row, as the WASM terminal of ghostty-web 0.4 gives it. */
-interface Cell {
+export interface Cell {
     codepoint: number;
     grapheme_len: number;
+    /** 2 for a wide character, 0 for the cell to the right of a wide character. */
+    width?: number;
 }
 
 /** A position in the buffer. Rows 0 to (scrollback length - 1) are the scrollback. The screen rows follow. */
-interface Position {
+export interface Position {
     col: number;
     absoluteRow: number;
 }
@@ -95,8 +97,44 @@ interface SelectionManager {
     pixelToCell(x: number, y: number): { col: number; row: number };
     viewportRowToAbsolute(row: number): number;
     markCurrentSelectionDirty(): void;
+    requestRender(): void;
     copyToClipboard(text: string): Promise<void>;
     selectionChangedEmitter: { fire(): void };
+}
+
+/** Returns the selection manager of the terminal, or undefined when ghostty-web does not have the expected form. */
+function selectionManager(terminal: Terminal): SelectionManager | undefined {
+    const manager = (terminal as unknown as { selectionManager?: SelectionManager }).selectionManager;
+    return manager?.wasmTerm ? manager : undefined;
+}
+
+/** Returns the rows of the terminal: the scrollback and the screen. Returns undefined when the rows are not available. */
+export function terminalRows(terminal: Terminal): Rows | undefined {
+    const manager = selectionManager(terminal);
+    return manager ? wasmRows(manager.wasmTerm) : undefined;
+}
+
+/** Returns the number of rows in the scrollback. */
+export function scrollbackLength(terminal: Terminal): number {
+    return selectionManager(terminal)?.wasmTerm.getScrollbackLength() ?? 0;
+}
+
+/**
+ * Selects the cells from `start` to `end`. Both cells are in the selection. The terminal does not copy the text.
+ * ghostty-web 0.4 has select(), but it uses a wrong row when the terminal shows the scrollback.
+ */
+export function selectCells(terminal: Terminal, start: Position, end: Position): void {
+    const manager = selectionManager(terminal);
+    if (!manager) {
+        return;
+    }
+    // Mark the rows of the old and of the new selection, so that the terminal draws both again.
+    manager.markCurrentSelectionDirty();
+    manager.selectionStart = start;
+    manager.selectionEnd = end;
+    manager.markCurrentSelectionDirty();
+    manager.requestRender();
+    manager.selectionChangedEmitter.fire();
 }
 
 /** Returns true for a box-drawing character, for example the "─" of a border. */
@@ -135,9 +173,9 @@ function wasmRows(wasm: WasmTerminal): Rows {
  * ghostty-web 0.4 selects a word on a double click, but it has no triple click.
  */
 export function addLineSelection(terminal: Terminal): void {
-    const manager = (terminal as unknown as { selectionManager?: SelectionManager }).selectionManager;
+    const manager = selectionManager(terminal);
     const canvas = terminal.element?.querySelector('canvas');
-    if (!manager?.wasmTerm || !canvas) {
+    if (!manager || !canvas) {
         console.warn('[terminal] The selection manager of ghostty-web is not available. A triple click does not select a line.');
         return;
     }
