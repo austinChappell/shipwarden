@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { headingSlug, linkReferences, renderMarkdown, renderMarkdownFile } from './Markdown';
+import { headingSlug, isVideoUrl, linkReferences, renderMarkdown, renderMarkdownFile, withMedia } from './Markdown';
 
 describe('renderMarkdown', () => {
     it('shows the check boxes of a task list as marks', () => {
@@ -77,5 +77,51 @@ describe('linkReferences', () => {
             '<a class="commit-link" href="https://github.com/acme/app/commit/7195c5df5" data-commit="7195c5df5a0b" title="Show the changes of this commit. ⌘-click opens it on GitHub.">7195c5df5</a>'
         );
         expect(html).toContain('<a class="commit-link" href="https://github.com/acme/app/commit/abc1234">abc1234</a>');
+    });
+});
+
+describe('withMedia', () => {
+    const video = 'https://private-user-images.githubusercontent.com/1/2-abc.mp4?jwt=token';
+
+    it('makes a video player from a video link alone in its paragraph', () => {
+        const html = withMedia(renderMarkdown(`Before\n\n${video}\n\nAfter`));
+        expect(html).toContain('<span class="md-video"><video src="https://private-user-images.githubusercontent.com/1/2-abc.mp4?jwt=token"');
+        expect(html).toContain('class="md-zoom"');
+        expect(html).toContain('<p>After</p>');
+    });
+
+    it('keeps a video link in a sentence as a link', () => {
+        const html = withMedia(renderMarkdown(`See ${video} for the bug.`));
+        expect(html).not.toContain('<video');
+    });
+
+    it('gives a video of GitHub HTML the button', () => {
+        expect(withMedia(`<video src="${video}" controls></video>`)).toContain('class="md-zoom"');
+        expect(withMedia('<video src="http://example.com/a.mp4"></video>')).not.toContain('md-zoom');
+    });
+
+    it('marks the images that a click shows larger', () => {
+        const html = withMedia(
+            renderMarkdown(
+                '![shot](https://example.com/a.png) [![CI](https://example.com/badge.svg)](https://ci.example.com) <img class="emoji" src="https://example.com/e.png">'
+            )
+        );
+        expect(html).toMatch(/<img[^>]*src="https:\/\/example\.com\/a\.png"[^>]*class="md-zoomable"/);
+        expect(html).toMatch(/<img[^>]*badge\.svg"(?![^>]*md-zoomable)[^>]*>/);
+        expect(html).toMatch(/<img class="emoji"(?![^>]*md-zoomable)[^>]*>/);
+    });
+
+    it('marks an image in a link to the same image', () => {
+        const src = 'https://private-user-images.githubusercontent.com/1/2-abc.png?jwt=token';
+        expect(withMedia(`<a href="https://github.com/user-attachments/assets/x"><img src="${src}"></a>`)).toContain('md-zoomable');
+    });
+});
+
+describe('isVideoUrl', () => {
+    it('reads the extension of the path, not of the query', () => {
+        expect(isVideoUrl('https://example.com/a.MOV?x=1')).toBe(true);
+        expect(isVideoUrl('https://example.com/a?file=a.mp4')).toBe(false);
+        expect(isVideoUrl('http://example.com/a.mp4')).toBe(false);
+        expect(isVideoUrl('not a url')).toBe(false);
     });
 });

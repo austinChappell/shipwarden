@@ -1,9 +1,10 @@
-import { useContext, useMemo, type MouseEvent } from 'react';
+import { useContext, useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { azureImageUrl } from '@shared/azure-image-url';
 import type { PullRequestCommit } from '@shared/github';
 import { findCommit, splitReferences } from '@shared/mentions';
+import { MediaDialog, type ZoomedMedia } from './MediaDialog';
 import { MentionContext } from './mention-context';
 import { openLink } from '../links';
 import { openPullRequestLink } from '../pull-request-links';
@@ -143,6 +144,84 @@ export function linkReferences(html: string, repoUrl: string, commits: readonly 
     return template.innerHTML;
 }
 
+/** The file extensions of the videos that a Markdown text can show. */
+const VIDEO_EXTENSION = /\.(mp4|m4v|mov|webm|ogv)$/i;
+
+/** True when the path of the URL ends with a video extension, for example a GitHub attachment "….mp4?jwt=…". */
+export function isVideoUrl(url: string): boolean {
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'https:' && VIDEO_EXTENSION.test(parsed.pathname);
+    } catch {
+        return false;
+    }
+}
+
+/** The SVG of the "Maximize 2" icon of Lucide. The button that shows a video larger uses it. */
+const ZOOM_ICON =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></svg>';
+
+/** Puts a video in a frame with a button that shows the video larger. */
+function videoFrame(video: HTMLVideoElement): HTMLElement {
+    const frame = document.createElement('span');
+    frame.className = 'md-video';
+    video.controls = true;
+    video.preload = 'metadata';
+    video.setAttribute('playsinline', '');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'md-zoom';
+    button.title = 'Show larger';
+    button.setAttribute('aria-label', 'Show the video larger');
+    button.innerHTML = ZOOM_ICON;
+    frame.append(video, button);
+    return frame;
+}
+
+/**
+ * Prepares the images and the videos of the HTML for the larger view (`MediaDialog`):
+ * - A link to a video, alone in its paragraph, becomes a video player. GitHub writes a video attachment as such a link.
+ * - Each video gets a button that shows it larger. A click on a video plays or pauses it, so it needs the button.
+ * - An image gets the class "md-zoomable", and a click shows it larger. An emoji does not.
+ *   An image in a link to a different page keeps the link, for example a CI badge.
+ * The function changes the HTML after DOMPurify and adds only videos with HTTPS addresses.
+ */
+export function withMedia(html: string): string {
+    if (!/<img|<video|<a /i.test(html)) return html;
+    const template = document.createElement('template');
+    // The content of a template is inert. The images do not load and no code runs here.
+    template.innerHTML = html;
+    template.content.querySelectorAll('p').forEach(paragraph => {
+        const link = paragraph.querySelector(':scope > a');
+        const href = link?.getAttribute('href') ?? '';
+        if (!link || paragraph.textContent?.trim() !== link.textContent?.trim() || paragraph.children.length !== 1) return;
+        if (link.textContent?.trim() !== href || !isVideoUrl(href)) return;
+        const video = document.createElement('video');
+        video.src = href;
+        paragraph.replaceChildren(videoFrame(video));
+    });
+    template.content.querySelectorAll('video').forEach(video => {
+        if (video.parentElement?.classList.contains('md-video')) return;
+        const source = video.getAttribute('src') ?? video.querySelector('source')?.getAttribute('src') ?? '';
+        if (!source.startsWith('https:')) return;
+        const placeholder = document.createElement('span');
+        video.replaceWith(placeholder);
+        placeholder.replaceWith(videoFrame(video));
+    });
+    template.content.querySelectorAll('img').forEach(image => {
+        const source = image.getAttribute('src');
+        if (!source || image.classList.contains('emoji')) return;
+        const link = image.closest('a');
+        const href = link?.getAttribute('href');
+        if (link && href !== source && !/^https:\/\/(github\.com\/user-attachments\/|[\w-]+\.githubusercontent\.com\/)/.test(href ?? '')) return;
+        image.classList.add('md-zoomable');
+        image.tabIndex = 0;
+        image.setAttribute('role', 'button');
+        image.setAttribute('aria-label', `Show the image larger${image.alt ? `: ${image.alt}` : ''}`);
+    });
+    return template.innerHTML;
+}
+
 /** Removes scripts, event handlers, styles and forms from HTML. */
 export function sanitizeHtml(html: string): string {
     return DOMPurify.sanitize(html, { FORBID_TAGS: ['style', 'form', 'input', 'button', 'iframe'], FORBID_ATTR: ['style'] });
@@ -159,12 +238,51 @@ export function Markdown({ text, className, html: rendered }: Props) {
     const repoUrl = source?.repoUrl;
     const commits = source?.commits;
     const html = useMemo(() => {
-        if (rendered !== undefined) return withAzureImages(sanitizeHtml(rendered));
+        if (rendered !== undefined) return withMedia(withAzureImages(sanitizeHtml(rendered)));
         const html = renderMarkdown(text);
-        return withAzureImages(repoUrl ? linkReferences(html, repoUrl, commits?.list) : html);
+        return withMedia(withAzureImages(repoUrl ? linkReferences(html, repoUrl, commits?.list) : html));
     }, [text, rendered, repoUrl, commits?.list]);
+    const [zoomed, setZoomed] = useState<ZoomedMedia | null>(null);
+
+    /** Shows the image or the video of the target larger. Returns false when the target is not an image or a video. */
+    const zoom = (target: HTMLElement): boolean => {
+        if (target instanceof HTMLImageElement && target.classList.contains('md-zoomable')) {
+            const box = target.getBoundingClientRect();
+            setZoomed({
+                kind: 'image',
+                src: target.currentSrc || target.src,
+                alt: target.alt,
+                origin: target,
+                width: target.naturalWidth || box.width,
+                height: target.naturalHeight || box.height
+            });
+            return true;
+        }
+        const video = target.closest('.md-zoom')?.parentElement?.querySelector('video');
+        if (!video) return false;
+        const src = video.currentSrc || video.src;
+        if (!src) return false;
+        video.pause();
+        // Before the metadata loads, the video has no size. Then the size of the small player gives the aspect ratio.
+        const box = video.getBoundingClientRect();
+        const width = video.videoWidth || box.width * 2;
+        const height = video.videoHeight || box.height * 2;
+        setZoomed({ kind: 'video', src, time: video.currentTime, origin: video.parentElement ?? video, width, height });
+        return true;
+    };
+
+    const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if ((event.key === 'Enter' || event.key === ' ') && event.target instanceof HTMLImageElement && zoom(event.target)) {
+            event.preventDefault();
+        }
+    };
 
     const onClick = (event: MouseEvent<HTMLDivElement>) => {
+        // A plain click on an image or on the button of a video shows it larger. ⌘-click on an image in a link opens the link.
+        if (!event.metaKey && !event.ctrlKey && zoom(event.target as HTMLElement)) {
+            event.preventDefault();
+            return;
+        }
         const link = (event.target as HTMLElement).closest('a');
         if (!link) {
             return;
@@ -184,6 +302,16 @@ export function Markdown({ text, className, html: rendered }: Props) {
         }
     };
 
-    // biome-ignore lint/security/noDangerouslySetInnerHtml: renderMarkdown and sanitizeHtml clean the HTML with DOMPurify.
-    return <div className={`markdown${className ? ` ${className}` : ''}`} onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />;
+    return (
+        <>
+            <div
+                className={`markdown${className ? ` ${className}` : ''}`}
+                onClick={onClick}
+                onKeyDown={onKeyDown}
+                // biome-ignore lint/security/noDangerouslySetInnerHtml: renderMarkdown and sanitizeHtml clean the HTML with DOMPurify.
+                dangerouslySetInnerHTML={{ __html: html }}
+            />
+            {zoomed && <MediaDialog media={zoomed} onClose={() => setZoomed(null)} />}
+        </>
+    );
 }
