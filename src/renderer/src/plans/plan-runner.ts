@@ -4,6 +4,7 @@ import { pullRequestWebUrl } from '@shared/github';
 import type { NotificationSettings } from '@shared/notifications';
 import {
     activeStepIndex,
+    freeBranchName,
     nextStepIndex,
     planReview,
     pullRequestBaseOf,
@@ -12,6 +13,7 @@ import {
     resumeAction,
     reviewText,
     stepBranch,
+    stepBranchTask,
     stepPrompt,
     worktreeBaseOf,
     type Plan,
@@ -20,6 +22,7 @@ import {
 import type { ConnectionInfo, StartStatusResult, Task, TaskLink, TaskSource } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
 import type { CreatedWorktree, Worktree } from '@shared/worktrees';
+import { taskBranchName } from '../app/task-branch';
 import { saveTaskLink } from '../app/task-links';
 import { taskManagerKeys } from '../components/task-managers-cache';
 import { prependTask, taskQueryKeys } from '../components/tasks/task-view-logic';
@@ -54,6 +57,8 @@ export interface RunnerContext {
     ready: boolean;
     sessions: TerminalSession[];
     notifications: NotificationSettings;
+    /** The branch template in Settings › Worktrees. Undefined: the steps use "plan/<plan>-<id>/<number>-<step>". */
+    branchTemplate: string | undefined;
     repoLabel(repo: string): string;
     actions: RunnerActions;
 }
@@ -251,6 +256,29 @@ export class PlanRunner {
         }
     }
 
+    /**
+     * Returns the branch of a step. With a branch template in Settings › Worktrees, the branch uses the template, as
+     * for a task that you start. Without a template, the branch is "plan/<plan>-<id>/<number>-<step>". A branch that
+     * another step of the plan or the repository has already gets a number at the end.
+     */
+    private async branchName(plan: Plan, index: number, repo: string, template: string | undefined): Promise<string> {
+        const step = plan.steps[index];
+        if (!template?.trim()) return stepBranch(plan, step, index);
+        const { branch } = await taskBranchName(stepBranchTask(plan, step, index), repo, template);
+        const taken = plan.steps.filter(item => item.id !== step.id && item.branch).map(item => item.branch as string);
+        try {
+            const list = await api.worktrees.branches(repo);
+            taken.push(...list.local);
+            for (const remote of list.remote) {
+                const owner = list.remotes.find(name => remote.startsWith(`${name}/`));
+                taken.push(owner ? remote.slice(owner.length + 1) : remote);
+            }
+        } catch {
+            // Without the list, the branch gets no number. When the branch exists, the worktree uses that branch.
+        }
+        return freeBranchName(branch, taken);
+    }
+
     /** Makes the worktree of a step, links its task, and gives the step to a new agent. */
     private async startStep(plan: Plan, index: number): Promise<void> {
         const context = this.ready;
@@ -261,15 +289,10 @@ export class PlanRunner {
             await this.fail(plan, step, 'The step has no repository. Skip the step, or duplicate the plan and select a repository.');
             return;
         }
-        const branch = stepBranch(plan, step, index);
         const baseBranch = worktreeBaseOf(plan.steps, index);
-        await this.patchStep(plan.id, step.id, {
-            status: 'running',
-            branch,
-            ...(baseBranch ? { baseBranch } : {}),
-            startedAt: Date.now(),
-            detail: 'ShipWarden is making the worktree.'
-        });
+        await this.patchStep(plan.id, step.id, { status: 'running', startedAt: Date.now(), detail: 'ShipWarden is making the branch name.' });
+        const branch = await this.branchName(plan, index, repo, context.branchTemplate);
+        await this.patchStep(plan.id, step.id, { branch, ...(baseBranch ? { baseBranch } : {}), detail: 'ShipWarden is making the worktree.' });
         let worktree: CreatedWorktree;
         try {
             worktree = await api.worktrees.create({ repoPath: repo, branch, ...(baseBranch ? { baseRef: baseBranch } : {}) });

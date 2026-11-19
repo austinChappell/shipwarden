@@ -755,12 +755,45 @@ function slug(value: string, max: number): string {
  * no branch has the name of that folder, so git can make all of them.
  */
 export function stepBranch(plan: Pick<Plan, 'id' | 'title'>, step: Pick<PlanStep, 'title'>, index: number): string {
-    const short =
+    return `plan/${slug(plan.title, 32)}-${planShortId(plan)}/${index + 1}-${slug(step.title, 40)}`;
+}
+
+/** The last 4 letters and digits of the plan ID, in lowercase. */
+function planShortId(plan: Pick<Plan, 'id'>): string {
+    return (
         plan.id
             .replace(/[^a-z0-9]/gi, '')
             .slice(-4)
-            .toLowerCase() || 'plan';
-    return `plan/${slug(plan.title, 32)}-${short}/${index + 1}-${slug(step.title, 40)}`;
+            .toLowerCase() || 'plan'
+    );
+}
+
+/**
+ * The task of a step for the branch template in Settings › Worktrees. A step with a task uses that task. A step
+ * without a task uses the title of the step, and the ID "<plan>-<number>", for example "ab12-3".
+ */
+export function stepBranchTask(
+    plan: Pick<Plan, 'id'>,
+    step: Pick<PlanStep, 'title' | 'description' | 'task'>,
+    index: number
+): { id: string; key?: string; title: string; description: string } {
+    if (step.task.kind === 'existing') {
+        const { link } = step.task;
+        return { id: link.taskId, ...(link.key ? { key: link.key } : {}), title: link.title, description: step.description };
+    }
+    return { id: `${planShortId(plan)}-${index + 1}`, title: step.title, description: step.description };
+}
+
+/**
+ * Returns the branch, or the branch with "-2", "-3", and so on, when `taken` has the branch already. Two steps of
+ * the same task get two branches, and a step does not use a branch that exists in the repository.
+ */
+export function freeBranchName(branch: string, taken: Iterable<string>): string {
+    const used = new Set(taken);
+    if (!used.has(branch)) return branch;
+    let number = 2;
+    while (used.has(`${branch}-${number}`)) number++;
+    return `${branch}-${number}`;
 }
 
 /** The index of the next step to run: the first step that is not skipped and did not start. -1 when there is none. */

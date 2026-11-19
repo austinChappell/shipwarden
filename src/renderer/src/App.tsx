@@ -494,6 +494,7 @@ export function App() {
         ready: settingsLoaded && plansLoaded,
         sessions,
         notifications: appSettings.notifications,
+        branchTemplate: appSettings.worktrees.branchTemplate,
         repoLabel,
         actions: {
             promptAgent: agents.promptAgent,
