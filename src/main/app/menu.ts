@@ -12,6 +12,8 @@ export interface MenuActions {
     /** Opens Settings › About and checks for updates there. */
     checkForUpdates(): void;
     quitAndStopSessions(): void;
+    /** Opens one more main window. */
+    newWindow(): void;
     sendShortcut(action: ShortcutAction): void;
     /** Sends an item of the Help menu to the page. */
     help(action: HelpAction): void;
@@ -50,6 +52,7 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
             submenu: [
                 // The same keys as Ghostty. ⌘W closes a pane, so the window closes with ⇧⌘W.
                 { label: 'New Worktree…', accelerator: 'Command+N', click: sendShortcut('newWorktree') },
+                { label: 'New Window', accelerator: 'Shift+Command+N', click: () => actions.newWindow() },
                 { label: 'New Shell Tab', accelerator: 'Command+T', click: sendShortcut('newTab') },
                 { label: 'Split Right', accelerator: 'Command+D', click: sendShortcut('right') },
                 { label: 'Split Down', accelerator: 'Shift+Command+D', click: sendShortcut('down') },

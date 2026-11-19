@@ -894,6 +894,7 @@ export function App() {
         setAppearance: async change => setAppSettings(await api.settings.update({ appearance: { ...appSettings.appearance, ...change } })),
         // The same check as ⇧⌘U. The page shows the result in a notice.
         checkForUpdates: async () => api.app.runKey('checkForUpdates'),
+        newWindow: () => api.app.runKey('newWindow'),
         help
     };
 

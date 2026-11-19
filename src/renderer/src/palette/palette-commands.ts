@@ -13,6 +13,7 @@ import {
     LayoutDashboard,
     ListTodo,
     Palette,
+    PanelsTopLeft,
     Plus,
     Rocket,
     Settings,
@@ -59,6 +60,8 @@ export interface PaletteActions {
     openSettings(section?: string): void;
     setAppearance(change: Partial<Appearance>): Promise<void>;
     checkForUpdates(): Promise<void>;
+    /** Opens one more ShipWarden window (⇧⌘N). */
+    newWindow(): void;
     help(action: HelpAction): void;
 }
 
@@ -497,6 +500,15 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             keywords: ['shell', 'home'],
             icon: SquareTerminal,
             run: () => actions.enterView('terminal')
+        },
+        {
+            id: 'new-window',
+            label: 'Open a new window',
+            group: 'Views',
+            keywords: ['window', 'second'],
+            icon: PanelsTopLeft,
+            keys: APP_KEY_INFO.newWindow.keys[0],
+            run: () => actions.newWindow()
         }
     );
 

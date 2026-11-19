@@ -171,11 +171,11 @@ export function pullRequestKeyAction(input: {
 }
 
 /** The app keys of the macOS menu that the main process runs itself. */
-export type AppKeyAction = 'quit' | 'quitAndStop' | 'settings' | 'checkForUpdates' | 'hide';
+export type AppKeyAction = 'quit' | 'quitAndStop' | 'settings' | 'checkForUpdates' | 'hide' | 'newWindow';
 
 /**
  * Returns the app action of a key: ⌘Q (quit, the agents keep running), ⇧⌥⌘Q (quit and stop all agents),
- * ⌘, (settings), ⇧⌘U (check for updates) and ⌘H (hide). A focused terminal takes all keys, so the menu does not get these keys. The main
+ * ⌘, (settings), ⇧⌘U (check for updates), ⌘H (hide) and ⇧⌘N (new window). A focused terminal takes all keys, so the menu does not get these keys. The main
  * process reads them before the page. Other keys return undefined.
  */
 export function appKeyAction(input: {
@@ -194,6 +194,7 @@ export function appKeyAction(input: {
         return input.shift || input.alt ? undefined : 'quit';
     }
     if (key === 'u') return input.shift && !input.alt ? 'checkForUpdates' : undefined;
+    if (key === 'n') return input.shift && !input.alt ? 'newWindow' : undefined;
     if (input.shift || input.alt) return undefined;
     if (input.code === 'Comma' || key === ',') return 'settings';
     if (key === 'h') return 'hide';
@@ -318,6 +319,7 @@ export const SHORTCUT_INFO: Record<ShortcutAction, ShortcutInfo> = {
 export const APP_KEY_INFO: Record<AppKeyAction, ShortcutInfo> = {
     settings: { label: 'Settings', keys: ['⌘,'], group: 'App' },
     checkForUpdates: { label: 'Check for updates', keys: ['⇧⌘U'], group: 'App' },
+    newWindow: { label: 'Open a new window', keys: ['⇧⌘N'], group: 'App' },
     hide: { label: 'Hide ShipWarden', keys: ['⌘H'], group: 'App' },
     quit: { label: 'Quit ShipWarden. The agents continue to run.', keys: ['⌘Q'], group: 'App' },
     quitAndStop: { label: 'Quit and stop all agents', keys: ['⇧⌥⌘Q'], group: 'App' }

@@ -47,17 +47,34 @@ export function registerTerminalIpc(deps: TerminalIpcDependencies): void {
     ipcMain.handle(IpcChannels.terminalsReadTranscript, (_event, file: unknown, offset: unknown) =>
         readTranscript(String(file), typeof offset === 'number' && Number.isFinite(offset) ? offset : -1)
     );
-    // The watches of the chats. A reload of the page closes the chats without a stop, so a new load closes all watches.
+    // The watches of the chats. Each window has its own page, so each page has its own list of watches. A reload or a
+    // close of a page ends its chats without a stop, so these events stop the watches of that page only.
     const transcripts = new TranscriptWatcher(file => deps.window.send(IpcChannels.terminalsTranscriptChanged, file));
-    const watchingPages = new WeakSet<Electron.WebContents>();
+    const pageWatches = new Map<Electron.WebContents, string[]>();
+    const stopPageWatches = (page: Electron.WebContents) => {
+        pageWatches.get(page)?.forEach(file => transcripts.stop(file));
+        pageWatches.set(page, []);
+    };
     ipcMain.handle(IpcChannels.terminalsWatchTranscript, (event, file: unknown) => {
-        if (!watchingPages.has(event.sender)) {
-            watchingPages.add(event.sender);
-            event.sender.on('did-start-loading', () => transcripts.dispose());
+        const page = event.sender;
+        if (!pageWatches.has(page)) {
+            pageWatches.set(page, []);
+            page.on('did-start-loading', () => stopPageWatches(page));
+            page.once('destroyed', () => {
+                stopPageWatches(page);
+                pageWatches.delete(page);
+            });
         }
         transcripts.start(String(file));
+        pageWatches.get(page)?.push(String(file));
     });
-    ipcMain.on(IpcChannels.terminalsUnwatchTranscript, (_event, file: unknown) => transcripts.stop(String(file)));
+    ipcMain.on(IpcChannels.terminalsUnwatchTranscript, (event, file: unknown) => {
+        const files = pageWatches.get(event.sender);
+        const index = files?.indexOf(String(file)) ?? -1;
+        if (index < 0) return;
+        files?.splice(index, 1);
+        transcripts.stop(String(file));
+    });
     ipcMain.handle(IpcChannels.terminalsKill, (_event, id: string) => deps.killTerminal(String(id)));
     ipcMain.handle(IpcChannels.terminalsStopOutdated, async () => {
         const stopped = await terminals.shutdownOutdatedHosts();
