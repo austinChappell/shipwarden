@@ -48,3 +48,13 @@ export function openPullRequestLink(url: string, click: ClickModifiers): boolean
         });
     return true;
 }
+
+/**
+ * Opens a pull request address in the Review view of ShipWarden, on the given tab. Without a review provider, or for
+ * an address that is not a pull request, the address opens in the default browser.
+ */
+export function openPullRequestUrl(url: string, tab?: PullRequestLinkTab): void {
+    const pr = parsePullRequestUrl(url);
+    if (pullRequestOpener && pr) pullRequestOpener(pr.repo, pr.number, tab ?? pr.tab);
+    else openLink(url);
+}

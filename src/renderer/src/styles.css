@@ -2672,21 +2672,6 @@ textarea.review-body {
 
 /* The task of the selected worktree, in the workspace header. A click opens the task.
    It is a standard secondary button (28 px, radius 6). Only its width and its position are set here. */
-.task-chip {
-    flex: 0 1 auto;
-    align-self: center;
-    min-width: 0;
-    max-width: 220px;
-    margin-right: 4px;
-    -webkit-app-region: no-drag;
-}
-
-.task-chip > span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
 /* Tasks view */
 
 .tasks-view {
