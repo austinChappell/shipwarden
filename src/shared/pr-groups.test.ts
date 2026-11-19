@@ -71,17 +71,19 @@ describe('groups', () => {
         expect(() => withPullRequest(group, { repo: web, number: 1 })).toThrow(/at most/);
     });
 
-    it('moves a pull request up and down', () => {
+    it('moves a pull request to a new place', () => {
         const group = newGroup(1, 'x', [
             { repo: api, number: 1 },
             { repo: web, number: 2 },
             { repo: azure, number: 3 }
         ]);
         const keys = (value: typeof group) => value.pullRequests.map(prKey);
-        expect(keys(movePullRequest(group, 'octo/web#2', -1))).toEqual(['octo/web#2', 'octo/api#1', 'azure:contoso/Web/app#3']);
-        expect(keys(movePullRequest(group, 'octo/web#2', 1))).toEqual(['octo/api#1', 'azure:contoso/Web/app#3', 'octo/web#2']);
+        expect(keys(movePullRequest(group, 'octo/web#2', 0))).toEqual(['octo/web#2', 'octo/api#1', 'azure:contoso/Web/app#3']);
+        expect(keys(movePullRequest(group, 'octo/web#2', 2))).toEqual(['octo/api#1', 'azure:contoso/Web/app#3', 'octo/web#2']);
+        expect(keys(movePullRequest(group, 'octo/api#1', 2))).toEqual(['octo/web#2', 'azure:contoso/Web/app#3', 'octo/api#1']);
         expect(movePullRequest(group, 'octo/api#1', -1)).toBe(group);
-        expect(movePullRequest(group, 'azure:contoso/Web/app#3', 1)).toBe(group);
+        expect(movePullRequest(group, 'azure:contoso/Web/app#3', 3)).toBe(group);
+        expect(movePullRequest(group, 'octo/api#1', 0)).toBe(group);
         expect(movePullRequest(group, 'other/repo#9', 1)).toBe(group);
     });
 
