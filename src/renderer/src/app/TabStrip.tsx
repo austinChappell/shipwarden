@@ -16,8 +16,8 @@ interface Props {
     onCloseGroup: (group: PaneLayout) => void;
     onDragStart: (key: TabKey) => void;
     onDragEnd: () => void;
-    /** Opens the context menu of a tab. Returns false when the tab has no menu, so the default menu stays. */
-    onContextMenu?: (key: TabKey) => boolean;
+    /** Opens the context menu of the entry at `index`. */
+    onContextMenu?: (item: StripItem, index: number) => void;
 }
 
 /** The tab strip of the worktree view. A split tab shows the number of its panes. */
@@ -84,7 +84,9 @@ export function TabStrip({ items, activeTab, info, onSelect, onMove, onCloseTab,
                         tabIndex={active ? 0 : -1}
                         onClick={() => onSelect(key)}
                         onContextMenu={event => {
-                            if (!group && onContextMenu?.(key)) event.preventDefault();
+                            if (!onContextMenu) return;
+                            event.preventDefault();
+                            onContextMenu(item, index);
                         }}
                         onKeyDown={event => tabKeyDown(event, index, key)}
                         {...tabDragProps(key)}
