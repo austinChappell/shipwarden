@@ -5,6 +5,7 @@ import { AutomationButtons } from '../../automations/AutomationButtons';
 import { Button, Select } from '../ui';
 import { targetRepo as pickTargetRepo } from './task-view-logic';
 import { CompareAgentsDialog } from '../compare/CompareAgentsDialog';
+import { RelatedLinks } from '../RelatedLinks';
 import type { CompareProps } from '../compare/CompareRuns';
 
 interface Props {
@@ -121,6 +122,10 @@ export function TaskActions({
                     {action.label}
                 </Button>
             ))}
+            <RelatedLinks
+                anchor={{ worktreePath: worktree, task: { connectionId: source.connectionId, id: task.id, url: task.url } }}
+                show={['pullRequest', 'plan', 'group']}
+            />
             {comparing && compare && targetRepo && (
                 <CompareAgentsDialog
                     agents={compare.agents}

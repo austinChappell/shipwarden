@@ -35,6 +35,7 @@ import { documents } from '../editor/documents';
 import { moveTabFocus } from '../tablist';
 import { PullRepoDialog } from './PullRepoDialog';
 import { AddToGroupDialog } from './AddToGroupDialog';
+import { RelatedLinks } from './RelatedLinks';
 import { isFindShortcut, openLogFind } from './log-find';
 import { findRequest as makeFindRequest, type FindRequest } from './selected-text';
 
@@ -530,6 +531,11 @@ export function ReviewPullRequest({
                             onClick={mainAction.onSelect}
                             items={menuItems}
                             menuTitle="More actions for this pull request"
+                            size="lg"
+                        />
+                        <RelatedLinks
+                            anchor={{ worktreePath: branchWorktree?.path, pullRequest: { repo, number: pr.number } }}
+                            show={['task', 'plan', 'group']}
                             size="lg"
                         />
                         <RefreshButton size="lg" refreshing={loading} disabled={loading} onRefresh={onRefresh} />

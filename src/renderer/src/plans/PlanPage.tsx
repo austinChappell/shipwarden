@@ -87,7 +87,8 @@ import { Markdown } from '../components/Markdown';
 import { collectionsQueryOptions, connectionsQueryOptions } from '../components/tasks/use-task-source';
 import { taskQueryKeys } from '../components/tasks/task-view-logic';
 import { loadCollectionTasks } from '../automations/engine';
-import { openLink } from '../links';
+import { openPullRequestUrl } from '../pull-request-links';
+import { useNavigation } from '../app/navigation';
 import { agentStateStore } from '../terminal/agent-state-store';
 import { keyRoots } from '../query-client';
 import { errorText } from '../util';
@@ -1974,7 +1975,7 @@ function NextToMerge({
                     </div>
                 </div>
                 <div className="plan-next-merge-tools">
-                    <Button onClick={() => openLink(pr.url)}>View diff</Button>
+                    <Button onClick={() => openPullRequestUrl(pr.url, 'files')}>View diff</Button>
                     <Button variant="primary" icon={<GitMerge size={14} />} onClick={onMerge}>
                         Merge #{pr.number}
                     </Button>
@@ -2081,6 +2082,7 @@ function rowDetail(plan: Plan, step: PlanStep, index: number, progress: StepProg
 
 /** One step in the run: the title, the pull request, the review, the checks and the next action. */
 function RunStepRow({ step, index, plan, progress, onOpenWorktree, act, onMerge }: { step: PlanStep; index: number } & RowProps) {
+    const nav = useNavigation();
     const item = progress[index];
     const status = useStepStatus(step);
     const agents = useAgentStates();
@@ -2097,7 +2099,7 @@ function RunStepRow({ step, index, plan, progress, onOpenWorktree, act, onMerge 
             [
                 ...(step.worktreePath ? [{ id: 'worktree', label: 'Open the worktree' }] : []),
                 ...(step.pr ? [{ id: 'pr', label: 'Open the pull request' }] : []),
-                ...(link?.url ? [{ id: 'task', label: `Open the task${link.key ? ` ${link.key}` : ''}` }] : []),
+                ...(link ? [{ id: 'task', label: `Open the task${link.key ? ` ${link.key}` : ''}` }] : []),
                 ...(!finished && step.status === 'attention' && step.worktreePath ? [{ id: 'resend', label: 'Send the prompt again' }] : []),
                 ...(!finished && step.status === 'running' ? [{ id: 'check', label: 'Check for a commit now' }] : []),
                 ...(!finished && isOpen ? [{ id: 'done', label: 'Mark as done' }] : []),
@@ -2106,8 +2108,8 @@ function RunStepRow({ step, index, plan, progress, onOpenWorktree, act, onMerge 
             anchor
         );
         if (choice === 'worktree' && step.worktreePath) onOpenWorktree(step.worktreePath, step.sessionId);
-        if (choice === 'pr' && step.pr) openLink(step.pr.url);
-        if (choice === 'task' && link?.url) openLink(link.url);
+        if (choice === 'pr' && step.pr) openPullRequestUrl(step.pr.url);
+        if (choice === 'task' && link) nav?.openTask(link);
         if (choice === 'resend') void act(() => planRunner.resendPrompt(plan.id, step.id));
         if (choice === 'check') void act(() => planRunner.continueStep(plan.id, step.id));
         if (choice === 'done') void act(() => planRunner.markDone(plan.id, step.id));
@@ -2179,7 +2181,7 @@ function RunStepRow({ step, index, plan, progress, onOpenWorktree, act, onMerge 
             </div>
             <div className="plan-run-pr">
                 {step.pr ? (
-                    <button type="button" className="plan-run-pr-link" title={step.pr.url} onClick={() => openLink(step.pr?.url ?? '')}>
+                    <button type="button" className="plan-run-pr-link" title={step.pr.url} onClick={() => openPullRequestUrl(step.pr?.url ?? '')}>
                         #{step.pr.number}
                     </button>
                 ) : (
@@ -2280,7 +2282,7 @@ function NeedsYou({
                                         </Button>
                                     )}
                                     {step.pr && (
-                                        <Button size="sm" onClick={() => openLink(step.pr?.url ?? '')}>
+                                        <Button size="sm" onClick={() => openPullRequestUrl(step.pr?.url ?? '')}>
                                             Open PR
                                         </Button>
                                     )}
