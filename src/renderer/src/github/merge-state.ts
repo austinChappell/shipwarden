@@ -147,6 +147,15 @@ export function draftConfirm(pr: PullRequest, draft: boolean): { title: string; 
         : { title: `Mark pull request #${pr.number} as ready for review?`, confirmLabel: 'Ready for review' };
 }
 
+/** The question, the warning and the button text before the user points a pull request at a different base branch. */
+export function baseConfirm(pr: PullRequest, base: string): { title: string; message: string; confirmLabel: string } {
+    return {
+        title: `Change the base branch of pull request #${pr.number} to ${base}?`,
+        message: `${hostLabel(pr.host)} compares ${pr.headRefName} with ${base}. The commits and the changes can be different. Some review comments can become outdated.`,
+        confirmLabel: 'Change base'
+    };
+}
+
 /** Returns the change for a new title and description. A field that did not change is undefined. */
 export function descriptionChange(pr: PullRequest, title: string, body: string): PullRequestChange {
     return {

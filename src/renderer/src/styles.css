@@ -11699,6 +11699,20 @@ button.pr-summary-cell:hover {
     opacity: 1;
 }
 
+/* The base branch of a pull request as a small combobox in the meta line. The name keeps the code font. */
+.pr-base-branch {
+    display: inline-flex;
+    vertical-align: middle;
+    max-width: 260px;
+}
+
+.pr-base-branch .select-value {
+    font:
+        12px "JetBrains Mono",
+        Menlo,
+        monospace;
+}
+
 /* The loader box and its text. The helm loader (HelmLoader) uses these styles. */
 .sea-loader {
     display: flex;

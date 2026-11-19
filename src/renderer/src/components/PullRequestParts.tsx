@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
     ChevronRight,
     GitCommitHorizontal,
@@ -13,7 +14,10 @@ import { baseName, parentPath } from '@shared/files';
 import { hostLabel, type PullRequest, type PullRequestCommit, type PullRequestFile, type RepoTarget } from '@shared/github';
 import { fileIcon } from '../files/file-icons';
 import { reviewStore, useReviewState } from '../github/review-store';
-import { hasConflicts } from '../github/merge-state';
+import { baseConfirm, hasConflicts } from '../github/merge-state';
+import { branchesQuery } from '../github/ci-queries';
+import { changePullRequest } from '../github/pull-request-mutations';
+import { alertDialog, confirmDialog } from './ConfirmDialog';
 import { openCommentCount } from '../github/review-state';
 import { errorText, timeAgo } from '../util';
 import { Markdown } from './Markdown';
@@ -23,7 +27,7 @@ import { EditDescriptionButton } from './PullRequestDetails';
 import { openLink } from '../links';
 import { CopyButton } from './CopyButton';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
-import { Button, Card, Chip, Count, SkeletonRows } from './ui';
+import { Button, Card, Chip, Combobox, Count, SkeletonRows } from './ui';
 
 /** The icon of a chip. */
 const ICON = { size: 12, strokeWidth: 1.8 };
@@ -62,6 +66,52 @@ export function BranchName({ name }: { name: string }) {
             <code>{name}</code>
             <CopyButton text={name} title="Copy the branch name" size={12} className="branch-copy" />
         </span>
+    );
+}
+
+/**
+ * The base branch of a pull request: the branch that it merges into. When the user can change an open pull request,
+ * the name is a combobox, as on GitHub. The list of branches loads only when the user opens the combobox.
+ */
+export function BaseBranch({ target, pr }: { target: RepoTarget; pr: PullRequest }) {
+    const editable = pr.state === 'OPEN' && pr.viewerCanUpdate;
+    const [wanted, setWanted] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const branches = useQuery({ ...branchesQuery(target), enabled: editable && wanted });
+    const groups = useMemo(() => {
+        // The head branch of the same repository cannot be the base. The current base is always in the list.
+        const names = (branches.data ?? []).filter(name => name !== pr.baseRefName && (pr.isCrossRepository || name !== pr.headRefName));
+        return [{ label: '', items: [pr.baseRefName, ...names].map(name => ({ value: name, label: name })) }];
+    }, [branches.data, pr.baseRefName, pr.headRefName, pr.isCrossRepository]);
+
+    if (!editable) return <code>{pr.baseRefName}</code>;
+
+    const change = async (base: string) => {
+        if (!(await confirmDialog(baseConfirm(pr, base)))) return;
+        setBusy(true);
+        try {
+            await changePullRequest(target, pr, { kind: 'base', base });
+        } catch (error) {
+            await alertDialog('The base branch did not change.', errorText(error));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <Combobox
+            className="pr-base-branch"
+            size="sm"
+            value={pr.baseRefName}
+            groups={groups}
+            placeholder={pr.baseRefName}
+            searchPlaceholder={branches.isLoading ? 'Loading branches…' : 'Search branches'}
+            disabled={busy}
+            title="Change the base branch"
+            aria-label="Base branch"
+            onOpen={() => setWanted(true)}
+            onChange={base => void change(base)}
+        />
     );
 }
 

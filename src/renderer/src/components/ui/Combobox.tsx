@@ -49,6 +49,8 @@ interface Props {
     size?: ControlSize;
     /** The name of the control for a screen reader, when no label element holds it. */
     'aria-label'?: string;
+    /** Called when the popover opens. Use it to load the items only when the user needs them. */
+    onOpen?(): void;
 }
 
 /** A select with a search field, for long lists in groups. With `values`, it is a multi-select. */
@@ -63,7 +65,8 @@ export function Combobox({
     title,
     className,
     size,
-    'aria-label': ariaLabel
+    'aria-label': ariaLabel,
+    onOpen
 }: Props) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -129,6 +132,7 @@ export function Combobox({
         const index = flat.findIndex(item => (multiple ? values.includes(item.value) : item.value === value));
         setActive(Math.max(0, index));
         setOpen(true);
+        onOpen?.();
     };
 
     /** Closes the popover. By default, the focus goes back to the button. */

@@ -173,6 +173,7 @@ describe('pull request changes', () => {
         const pr = makePr();
         expect(changedPullRequest(pr, { kind: 'details', title: 'New', state: 'closed' })).toMatchObject({ title: 'New', body: 'Text', state: 'CLOSED' });
         expect(changedPullRequest(pr, { kind: 'draft', pullRequestId: 'PR_7', draft: true }).isDraft).toBe(true);
+        expect(changedPullRequest(pr, { kind: 'base', base: 'release' }).baseRefName).toBe('release');
         expect(changedPullRequest(pr, { kind: 'autoMerge', pullRequestId: 'PR_7', method: 'squash', headSha: 'head1' }, [], { login: 'me' }).autoMerge).toEqual(
             {
                 method: 'squash',

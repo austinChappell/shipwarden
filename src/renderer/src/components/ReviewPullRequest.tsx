@@ -1,6 +1,20 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Bot, Check, ClipboardList, ExternalLink, FolderGit2, FolderInput, Layers, Link, ListChecks, LoaderCircle, X } from 'lucide-react';
+import {
+    ArrowLeft,
+    Bot,
+    Check,
+    ClipboardList,
+    ExternalLink,
+    FolderGit2,
+    FolderInput,
+    GitBranch,
+    Layers,
+    Link,
+    ListChecks,
+    LoaderCircle,
+    X
+} from 'lucide-react';
 import { pluralize } from '@shared/format';
 import type { BranchStatus, CheckRun, DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoRef } from '@shared/github';
 import type { ProjectsState, PullRepoTarget } from '@shared/projects';
@@ -9,12 +23,14 @@ import type { Worktree } from '@shared/worktrees';
 import { keyRoots } from '../query-client';
 import { hasAgentReview, reviewStore, useReviewState } from '../github/review-store';
 import { useDefaultReviewStrictness } from '../github/review-strictness';
+import { rebasePrompt } from '../github/agent-prompts';
+import { confirmDialog } from './ConfirmDialog';
 import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
 import { CommitView } from './CommitView';
 import { LogView } from './LogView';
 import { PullRequestFilesStream } from './PullRequestFilesStream';
-import { BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, PullRequestPanel, StateBadge } from './PullRequestPanel';
+import { BaseBranch, BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, PullRequestPanel, StateBadge } from './PullRequestPanel';
 import { PullRequestSummary } from './PullRequestSummary';
 import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
@@ -458,6 +474,29 @@ export function ReviewPullRequest({
         disabled: !branchWorktree && pr.isCrossRepository,
         onSelect: () => onNewWorktree(pr)
     };
+    /**
+     * An agent rebases the head branch onto the base branch in the worktree of the head branch, and pushes the result.
+     * The agent needs a clone in a project. A branch in a fork cannot get a worktree.
+     */
+    const rebaseAction: HeaderAction | undefined =
+        sendToAgent && pr.state === 'OPEN'
+            ? {
+                  label: 'Rebase with agent',
+                  icon: <GitBranch size={14} strokeWidth={1.6} />,
+                  title: pr.isCrossRepository
+                      ? `The branch ${pr.headRefName} is in a fork. ShipWarden can make a worktree only from a branch of origin.`
+                      : `An agent rebases ${pr.headRefName} onto ${pr.baseRefName} and pushes the result`,
+                  disabled: pr.isCrossRepository,
+                  onSelect: () =>
+                      void confirmDialog({
+                          title: `Rebase pull request #${pr.number} onto ${pr.baseRefName}?`,
+                          message: `An agent rebases ${pr.headRefName} onto ${pr.baseRefName}, resolves the conflicts, and runs the tests. Then it force-pushes ${pr.headRefName}. The agent does not push if the rebase or the tests fail.`,
+                          confirmLabel: 'Rebase'
+                      }).then(confirmed => {
+                          if (confirmed) sendToAgent(rebasePrompt(pr));
+                      })
+              }
+            : undefined;
     const pullAction: HeaderAction | undefined =
         onPullRepo && inProject === false
             ? {
@@ -515,7 +554,8 @@ export function ReviewPullRequest({
                       title: strictnessTitle(AGENT_REVIEW_TITLE, defaultStrictness),
                       disabled: agentReview?.status === 'running',
                       onSelect: () => runAgentReview()
-                  }
+                  },
+                  ...(rebaseAction ? [rebaseAction] : [])
               ]
             : [])
     ];
@@ -562,7 +602,7 @@ export function ReviewPullRequest({
                     <span className="review-pr-summary">
                         <strong>{pr.author?.login ?? 'unknown'}</strong>{' '}
                         {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} {pluralize(pr.commitCount, 'commit')}{' '}
-                        into <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
+                        into <BaseBranch target={repo} pr={pr} /> from <BranchName name={pr.headRefName} />
                         <span className="dot-separator">·</span>
                         opened {timeAgo(pr.createdAt)}
                         {syncedAt ? (

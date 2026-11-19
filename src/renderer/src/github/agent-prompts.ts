@@ -40,6 +40,28 @@ export function conflictPrompt(pr: PullRequest): string {
     return `Pull request #${pr.number} (${pr.url}) has merge conflicts with ${pr.baseRefName}. Fetch origin, merge origin/${pr.baseRefName} into ${pr.headRefName}, resolve the conflicts, run the tests, and commit the merge.`;
 }
 
+/**
+ * Makes the agent prompt that rebases the head branch of a pull request onto its base branch and pushes the result.
+ * The push replaces the remote branch, so it uses "--force-with-lease". The push stops if someone else pushed in the meantime.
+ */
+export function rebasePrompt(pr: PullRequest): string {
+    const base = pr.baseRefName;
+    const head = pr.headRefName;
+    return [
+        `Rebase pull request #${pr.number} (${pr.url}) onto ${base}. Do these steps in this order:`,
+        '',
+        '1. Run "git fetch origin".',
+        `2. Make sure that the worktree is on the branch ${head} and has no uncommitted changes. If it has uncommitted changes, stop and tell me.`,
+        `3. Make sure that ${head} has all commits of origin/${head}. If it does not, run "git merge --ff-only origin/${head}".`,
+        `4. Run "git rebase origin/${base}".`,
+        `5. If a conflict occurs, resolve it. Keep the intent of the commits on ${head}. Then run "git add" and "git rebase --continue". Do this for each conflict.`,
+        '6. Run the build, the type check, and the tests of the project. Fix each failure that the rebase caused, and commit the fixes.',
+        `7. Run "git push --force-with-lease origin ${head}".`,
+        '',
+        `Do not merge ${base} into ${head}. Do not push if the rebase or the tests fail. If the push fails, do not use "--force". Tell me what stopped you.`
+    ].join('\n');
+}
+
 /** Makes the agent prompt for a comment or a review on the conversation of a pull request. */
 export function commentPrompt(pr: PullRequest, author: string | null, body: string): string {
     return `${author ?? 'Someone'} left this comment on pull request #${pr.number} (${pr.url}):\n\n${body.trim()}\n\nRead the comment and make the changes that it asks for.`;

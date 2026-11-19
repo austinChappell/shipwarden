@@ -651,6 +651,9 @@ export class AzureDevOpsService implements SourceHost {
                 await this.client.request('PATCH', base, update);
                 return;
             }
+            case 'base':
+                await this.client.request('PATCH', base, { targetRefName: toRefName(change.base) });
+                return;
             case 'draft':
                 await this.client.request('PATCH', base, { isDraft: change.draft });
                 return;

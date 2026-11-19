@@ -105,6 +105,8 @@ export function changedPullRequest(pr: PullRequest, change: PullRequestChange, k
             const state = change.state === 'open' ? 'OPEN' : change.state === 'closed' ? 'CLOSED' : pr.state;
             return { ...pr, title: change.title ?? pr.title, body: change.body ?? pr.body, state };
         }
+        case 'base':
+            return { ...pr, baseRefName: change.base };
         case 'draft':
             return { ...pr, isDraft: change.draft };
         case 'autoMerge':
