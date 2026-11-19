@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moveIndex, reorderKeyDelta } from './reorder';
+import { moveIndex, moveKeyTo, reorderKeyDelta } from './reorder';
 
 describe('moveIndex', () => {
     const keys = ['a', 'b', 'c'];
@@ -33,5 +33,27 @@ describe('reorderKeyDelta', () => {
         expect(delta('ArrowDown', { altKey: true, shiftKey: true })).toBeUndefined();
         expect(delta('ArrowDown', { altKey: true, metaKey: true })).toBeUndefined();
         expect(delta('Enter', { altKey: true })).toBeUndefined();
+    });
+});
+
+describe('moveKeyTo', () => {
+    const key = (item: string) => item;
+
+    it('moves an item to a new index', () => {
+        expect(moveKeyTo(['a', 'b', 'c', 'd'], key, 'a', 2)).toEqual(['b', 'c', 'a', 'd']);
+        expect(moveKeyTo(['a', 'b', 'c', 'd'], key, 'd', 0)).toEqual(['d', 'a', 'b', 'c']);
+    });
+
+    it('returns the same list when nothing moves', () => {
+        const list = ['a', 'b'];
+        expect(moveKeyTo(list, key, 'a', 0)).toBe(list);
+        expect(moveKeyTo(list, key, 'x', 0)).toBe(list);
+        expect(moveKeyTo(list, key, 'a', 5)).toBe(list);
+    });
+
+    it('moves an item only among the given keys, and the other items keep their index', () => {
+        // The items "a", "c" and "e" are in one repository. "b" and "d" are in another one.
+        expect(moveKeyTo(['a', 'b', 'c', 'd', 'e'], key, 'e', 0, ['a', 'c', 'e'])).toEqual(['e', 'b', 'a', 'd', 'c']);
+        expect(moveKeyTo(['a', 'b', 'c', 'd', 'e'], key, 'a', 1, ['a', 'c', 'e'])).toEqual(['c', 'b', 'a', 'd', 'e']);
     });
 });

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { ArrowDown, ArrowLeft, ArrowUp, Bot, ClipboardList, Layers, LoaderCircle, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Bot, ClipboardList, GripVertical, Layers, LoaderCircle, Trash2, X } from 'lucide-react';
 import { repoLabel, type RepoRef } from '@shared/github';
 import { formatAgo, pluralize } from '@shared/format';
 import {
@@ -8,7 +8,6 @@ import {
     groupSize,
     MAX_GROUP_NAME,
     MAX_GROUP_PULL_REQUESTS,
-    movePullRequest,
     parsePullRequestLink,
     prKey,
     withPullRequest,
@@ -17,6 +16,7 @@ import {
 } from '@shared/pr-groups';
 import { errorText } from '../util';
 import { updatePlan, usePlans } from '../plans/plan-queries';
+import { moveGroupPullRequest } from '../plans/plan-group';
 import { pullRequestQuery } from '../github/review-store';
 import { useDefaultReviewStrictness } from '../github/review-strictness';
 import { promptGroupAgents } from '../github/pr-group-agents';
@@ -28,6 +28,7 @@ import { Markdown } from './Markdown';
 import { StateBadge } from './PullRequestParts';
 import { Button, Card, CardBody, CardHeader, Chip, Field, IconButton, Input, PageHeader, SplitButton, TextArea } from './ui';
 import { STRICTNESS_MENU_TITLE, strictnessMenuItems, strictnessTitle } from './review-strictness-menu';
+import { useReorder } from './use-reorder';
 
 const GROUP_REVIEW_TITLE = 'The agent reads all pull requests of the group together. It does not change files and posts nothing.';
 
@@ -172,7 +173,10 @@ function GroupDetails({ group, onOpenPlan }: { group: PrGroup; onOpenPlan?(planI
             <CardHeader title="Details" />
             <CardBody className="review-group-fields">
                 {plan && onOpenPlan && (
-                    <Field label="Plan" hint="ShipWarden made this group from the plan. New pull requests of the plan come into the group.">
+                    <Field
+                        label="Plan"
+                        hint="ShipWarden made this group from the plan. New pull requests of the plan come into the group. The group and the plan keep the same order."
+                    >
                         <div>
                             <Button
                                 size="sm"
@@ -225,7 +229,18 @@ function PullRequestList({ group, onOpen }: { group: PrGroup; onOpen(repo: RepoR
             setError(errorText(err));
         }
     };
-    const move = (pr: GroupPullRequest, delta: number) => void updateGroup(group.id, current => movePullRequest(current, prKey(pr), delta));
+    const { plans } = usePlans();
+    const plan = group.planId ? plans.find(item => item.id === group.planId) : undefined;
+    // A move changes the order of the plan too. The plan runner keeps the index of the step that runs, so the order
+    // changes only when no step of the plan runs.
+    const planRuns = !!plan && (plan.status === 'running' || plan.steps.some(step => step.status === 'running'));
+    const keys = group.pullRequests.map(prKey);
+    const reorder = useReorder(keys, (key, to) => void moveGroupPullRequest(group.id, key, to), keys.length > 1 && !planRuns);
+    const orderNote = !plan
+        ? 'Drag a pull request to change the order.'
+        : planRuns
+          ? `You can change the order when the plan "${plan.title}" stops running.`
+          : `Drag a pull request to change the order. The plan "${plan.title}" gets the same order, and a move in the plan changes this list too.`;
     const remove = (pr: GroupPullRequest) =>
         void updateGroup(group.id, current => ({ ...current, pullRequests: current.pullRequests.filter(item => prKey(item) !== prKey(pr)) }));
 
@@ -234,22 +249,26 @@ function PullRequestList({ group, onOpen }: { group: PrGroup; onOpen(repo: RepoR
             <CardHeader
                 title="Pull requests"
                 count={group.pullRequests.length}
-                description="The agent gets them in this order. It runs in the first pull request and reads the others. Use the arrows to change the order."
+                description={`The agent gets them in this order. It runs in the first pull request and reads the others. ${orderNote}`}
             />
             {group.pullRequests.length > 0 && (
                 <ul className="review-group-list">
-                    {group.pullRequests.map((pr, index) => (
-                        <GroupRow
-                            key={prKey(pr)}
-                            group={group}
-                            pr={pr}
-                            first={index === 0}
-                            last={index === group.pullRequests.length - 1}
-                            onOpen={() => onOpen(pr.repo, pr.number)}
-                            onMove={delta => move(pr, delta)}
-                            onRemove={() => remove(pr)}
-                        />
-                    ))}
+                    {group.pullRequests.map(pr => {
+                        const key = prKey(pr);
+                        return (
+                            <GroupRow
+                                key={key}
+                                group={group}
+                                pr={pr}
+                                dropClass={reorder.dropClass(key)}
+                                dragProps={reorder.itemProps(key)}
+                                reorderHint={reorder.hint}
+                                onMoveByKey={event => reorder.moveByKey(event, key)}
+                                onOpen={() => onOpen(pr.repo, pr.number)}
+                                onRemove={() => remove(pr)}
+                            />
+                        );
+                    })}
                 </ul>
             )}
             <CardBody>
@@ -284,21 +303,23 @@ function PullRequestList({ group, onOpen }: { group: PrGroup; onOpen(repo: RepoR
 interface GroupRowProps {
     group: PrGroup;
     pr: GroupPullRequest;
-    /** True for the first pull request. It cannot move up. */
-    first: boolean;
-    /** True for the last pull request. It cannot move down. */
-    last: boolean;
+    /** The class that shows the drop line, from `useReorder`. */
+    dropClass: string;
+    /** The drag and drop handlers of the row, from `useReorder`. */
+    dragProps: object;
+    /** The tooltip that tells how to change the order. Undefined when the order cannot change. */
+    reorderHint?: string;
+    /** Alt+Up and Alt+Down move the pull request one place. */
+    onMoveByKey(event: KeyboardEvent<HTMLElement>): void;
     onOpen(): void;
-    /** Moves the pull request one place: -1 is up, 1 is down. */
-    onMove(delta: number): void;
     onRemove(): void;
 }
 
 /**
- * One pull request of the group: its state, its title, the result of the last group review, and the buttons that
- * change its place. The arrows at the start and the end of the list are disabled, so the buttons do not move.
+ * One pull request of the group: its state, its title, the result of the last group review, and the button that
+ * removes it. Drag the row to change its place.
  */
-function GroupRow({ group, pr, first, last, onOpen, onMove, onRemove }: GroupRowProps) {
+function GroupRow({ group, pr, dropClass, dragProps, reorderHint, onMoveByKey, onOpen, onRemove }: GroupRowProps) {
     const query = useQuery(pullRequestQuery(pr.repo, pr.number));
     const data = query.data;
     const key = prKey(pr);
@@ -311,7 +332,7 @@ function GroupRow({ group, pr, first, last, onOpen, onMove, onRemove }: GroupRow
     }, [counts]);
 
     return (
-        <li className="review-group-row">
+        <li className={`review-group-row${dropClass}`} title={reorderHint} {...dragProps} onKeyDown={onMoveByKey}>
             <button type="button" className="review-group-open" onClick={onOpen}>
                 <span className="review-group-repo">
                     {repoLabel(pr.repo)} <span className="review-pr-number">#{pr.number}</span>
@@ -328,9 +349,8 @@ function GroupRow({ group, pr, first, last, onOpen, onMove, onRemove }: GroupRow
                 {result && !changed && <span className="review-group-result">{result}</span>}
             </span>
             <span className="review-group-tools">
-                <IconButton size="sm" icon={<ArrowUp size={14} />} label="Move up" disabled={first} onClick={() => onMove(-1)} />
-                <IconButton size="sm" icon={<ArrowDown size={14} />} label="Move down" disabled={last} onClick={() => onMove(1)} />
                 <IconButton size="sm" icon={<X size={14} />} label={`Remove ${repoLabel(pr.repo)}#${pr.number} from the group`} onClick={onRemove} />
+                {reorderHint && <GripVertical className="drag-grip" size={12} strokeWidth={1.75} aria-hidden="true" />}
             </span>
         </li>
     );

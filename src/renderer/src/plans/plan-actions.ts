@@ -1,7 +1,7 @@
-import type { MergedPullRequest, PullRequest, RepoTarget } from '@shared/github';
-import { parsePullRequestLink } from '@shared/pr-groups';
+import { repoLabel as repoRefLabel, sameRepoRef, type MergedPullRequest, type PullRequest, type RepoRef, type RepoTarget } from '@shared/github';
+import { MAX_GROUP_PULL_REQUESTS, parsePullRequestLink, prKey } from '@shared/pr-groups';
 import { batchPrompt, type BatchPullRequest } from '@shared/batch-prompt';
-import type { Plan, PlanStep } from '@shared/plans';
+import { MAX_TITLE_LENGTH, newStep, type Plan, type PlanStep } from '@shared/plans';
 import type { BatchSendResult } from '../github/pr-group-agents';
 import { checkLine, checksPrompt } from '../app/agent-text';
 import { threadComments, threadPlace } from '../github/agent-prompts';
@@ -10,7 +10,10 @@ import { mergePullRequest } from '../github/pull-request-mutations';
 import { pullRequestQuery } from '../github/review-store';
 import { keyRoots, queryClient } from '../query-client';
 import { errorText } from '../util';
+import { syncGroupOrder, syncPlanGroup } from './plan-group';
+import { cachedPlan, updatePlan } from './plan-queries';
 import { planRunner } from './plan-runner';
+import { moveKeyTo } from '../components/reorder';
 
 const api = window.shipwarden;
 
@@ -121,4 +124,71 @@ export async function promptPlanAgents(
             }
         })
     );
+}
+
+/** Returns the repository folder of the project with the repository as its "origin" remote, or undefined. */
+async function projectRepoOf(repo: RepoRef, repos: readonly string[]): Promise<string | undefined> {
+    for (const path of repos) {
+        const remote = await queryClient.fetchQuery({ queryKey: [...keyRoots.repoOf, path], queryFn: () => api.github.repoOf(path) }).catch(() => null);
+        if (sameRepoRef(remote, repo)) return path;
+    }
+    return undefined;
+}
+
+/**
+ * Adds a pull request to a plan that ran. The pull request becomes a new done step at the end of the plan. The pull
+ * request must be in a repository of the project. When the repository has a worktree of the head branch, the step
+ * gets that worktree, so that its agent can get prompts. The PR group of the plan gets the pull request too.
+ * Throws an error with a message.
+ */
+export async function addPullRequestStep(planId: string, link: string, repos: readonly string[]): Promise<void> {
+    const parsed = parsePullRequestLink(link);
+    if (!parsed) throw new Error('Paste the link of a GitHub or Azure Repos pull request, or write owner/name#number.');
+    const plan = cachedPlan(planId);
+    if (!plan) throw new Error('The plan does not exist anymore.');
+    const key = prKey(parsed);
+    const inPlan = (steps: readonly PlanStep[]) =>
+        steps.some(step => {
+            const other = step.pr ? parsePullRequestLink(step.pr.url) : undefined;
+            return !!other && prKey(other).toLowerCase() === key.toLowerCase();
+        });
+    if (inPlan(plan.steps)) throw new Error('The pull request is in the plan already.');
+    if (plan.steps.length >= MAX_GROUP_PULL_REQUESTS) throw new Error(`A plan can have at most ${MAX_GROUP_PULL_REQUESTS} steps.`);
+    const repo = await projectRepoOf(parsed.repo, repos);
+    if (!repo) throw new Error(`The project has no clone of ${repoRefLabel(parsed.repo)}. Add the repository to the project first.`);
+    const pr = await queryClient.fetchQuery(pullRequestQuery(parsed.repo, parsed.number));
+    const worktree = (await api.worktrees.list(repo).catch(() => [])).find(item => item.branch === pr.headRefName);
+    const step: PlanStep = {
+        ...newStep(repo),
+        title: pr.title.slice(0, MAX_TITLE_LENGTH),
+        status: 'done',
+        reviewed: true,
+        branch: pr.headRefName,
+        pr: { number: pr.number, url: pr.url, base: pr.baseRefName },
+        finishedAt: Date.now(),
+        ...(worktree ? { worktreePath: worktree.path } : {})
+    };
+    const updated = await updatePlan(planId, current => {
+        if (inPlan(current.steps)) throw new Error('The pull request is in the plan already.');
+        return { ...current, steps: [...current.steps, step] };
+    });
+    // A problem with the group does not undo the new step.
+    if (updated && !updated.noPrGroup) {
+        await syncPlanGroup(updated).catch(error => console.warn(`[plans] The PR group of "${updated.title}" did not change: ${errorText(error)}`));
+    }
+}
+
+/**
+ * Moves a step of a plan to the index `to` among the steps of its repository. The steps of the other repositories keep
+ * their places. Earlier steps in a repository merge first, so the order is the merge order. The PR group of the plan
+ * gets the same order.
+ */
+export async function moveStepInRepo(planId: string, stepId: string, to: number): Promise<void> {
+    const plan = await updatePlan(planId, current => {
+        const repo = current.steps.find(step => step.id === stepId)?.repo;
+        const among = current.steps.filter(step => step.repo === repo).map(step => step.id);
+        return { ...current, steps: [...moveKeyTo(current.steps, step => step.id, stepId, to, among)] };
+    });
+    // The PR group of the plan gets the same order.
+    if (plan) await syncGroupOrder(plan);
 }

@@ -118,12 +118,11 @@ export function withPullRequest(group: PrGroup, pr: GroupPullRequest): PrGroup {
 }
 
 /**
- * Returns the group with the pull request moved by `delta` places: -1 is one place up, 1 is one place down.
- * A move past the start or the end of the list, or a key that is not in the group, changes nothing.
+ * Returns the group with the pull request at index `to`. An index past the start or the end of the list, or a key that
+ * is not in the group, changes nothing.
  */
-export function movePullRequest(group: PrGroup, key: string, delta: number): PrGroup {
+export function movePullRequest(group: PrGroup, key: string, to: number): PrGroup {
     const from = group.pullRequests.findIndex(pr => prKey(pr) === key);
-    const to = from + delta;
     if (from < 0 || to < 0 || to >= group.pullRequests.length || to === from) return group;
     const pullRequests = [...group.pullRequests];
     const [moved] = pullRequests.splice(from, 1);

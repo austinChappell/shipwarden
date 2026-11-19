@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import {
     ArrowRight,
@@ -11,6 +11,7 @@ import {
     CircleCheck,
     Layers,
     GitMerge,
+    GripVertical,
     Loader2,
     MoreHorizontal,
     Pencil,
@@ -69,11 +70,13 @@ import {
     ButtonGroup,
     Card,
     CardBody,
+    CardHeader,
     Checkbox,
     Chip,
     Combobox,
     Count,
     IconButton,
+    Input,
     Select,
     Switch,
     TextArea,
@@ -97,7 +100,10 @@ import { cancelExplore, explorePlan } from './plan-explore';
 import { cachedPlan, createPlan, removePlan, updatePlan, useExploreState } from './plan-queries';
 import { planRunner } from './plan-runner';
 import { planPullRequests, syncPlanGroup, usePlanGroup } from './plan-group';
-import { canPromptStep, mergeStep, promptPlanAgents, sendChecksToAgent, sendReviewToAgent } from './plan-actions';
+import { addPullRequestStep, canPromptStep, mergeStep, moveStepInRepo, promptPlanAgents, sendChecksToAgent, sendReviewToAgent } from './plan-actions';
+import { moveKeyTo } from '../components/reorder';
+import { useReorder } from '../components/use-reorder';
+import { MAX_GROUP_PULL_REQUESTS } from '@shared/pr-groups';
 import { branchSummariesQuery } from '../github/use-branch-status';
 
 const api = window.shipwarden;
@@ -508,6 +514,12 @@ function PlanEditor({ plan, project, repoLabel, repoColor, onClosed, onOpenPlan,
             steps: current.steps.map(step => (!step.skip && step.task.kind === 'none' ? { ...step, task: { kind: 'new' } } : step))
         }));
     const shown = filter === 'open' ? toReview : draft.steps;
+    // Drag and drop works on the full list only. A filtered list hides the steps between the shown steps.
+    const reorder = useReorder(
+        draft.steps.map(step => step.id),
+        (stepId, to) => edit(current => ({ ...current, steps: [...moveKeyTo(current.steps, step => step.id, stepId, to)] })),
+        filter === 'all' && !locked && draft.steps.length > 1
+    );
 
     return (
         <div className="flow-page plan-page">
@@ -704,6 +716,12 @@ function PlanEditor({ plan, project, repoLabel, repoColor, onClosed, onOpenPlan,
                                             })
                                         }
                                         onRemove={() => edit(current => ({ ...current, steps: current.steps.filter(item => item.id !== step.id) }))}
+                                        reorder={{
+                                            dragProps: reorder.itemProps(step.id),
+                                            dropClass: reorder.dropClass(step.id),
+                                            hint: reorder.hint,
+                                            onKeyDown: event => reorder.moveByKey(event, step.id)
+                                        }}
                                     />
                                 );
                             })}
@@ -1425,6 +1443,16 @@ function stepMetaText(step: PlanStep, stackedOn: number, repoLabel: (repo: strin
  * One step of a draft. A closed step shows one line. An open step shows its summary, the files it changes and the
  * prompt of the agent. The user reviews each step: "Looks good" marks it and opens the next step. "Edit" opens the editor.
  */
+/** The drag and drop of one step card. */
+interface StepReorder {
+    /** The handlers from `useReorder`. Only a closed card starts a drag, so the text of an open card stays selectable. */
+    dragProps: object;
+    dropClass: string;
+    /** The tooltip that tells how to change the order. Undefined when the order cannot change. */
+    hint?: string;
+    onKeyDown(event: KeyboardEvent<HTMLElement>): void;
+}
+
 function StepCard({
     step,
     index,
@@ -1444,7 +1472,8 @@ function StepCard({
     onLooksGood,
     onSkipForNow,
     onMove,
-    onRemove
+    onRemove,
+    reorder
 }: {
     step: PlanStep;
     index: number;
@@ -1468,6 +1497,8 @@ function StepCard({
     onSkipForNow(): void;
     onMove(delta: number): void;
     onRemove(): void;
+    /** Drag and drop, and Alt+Up and Alt+Down, from `useReorder`. */
+    reorder: StepReorder;
 }) {
     const [prompt, setPrompt] = useState(false);
     const repoProblem = problems.some(problem => problem.field === 'repo');
@@ -1479,7 +1510,13 @@ function StepCard({
 
     if (!open) {
         return (
-            <div className={classes} id={stepElementId(step.id)}>
+            <div
+                className={`${classes}${reorder.dropClass}`}
+                id={stepElementId(step.id)}
+                title={reorder.hint}
+                {...reorder.dragProps}
+                onKeyDown={reorder.onKeyDown}
+            >
                 <Card className="plan-step flow-card">
                     <button type="button" className="plan-step-closed" aria-expanded={false} onClick={() => onOpen(true)}>
                         <StepNumber index={index} reviewed={reviewed} />
@@ -1496,6 +1533,7 @@ function StepCard({
                         )}
                         {reviewed && <span className="plan-step-reviewed">Reviewed</span>}
                         <ChevronDown size={16} className="plan-step-chevron" aria-hidden="true" />
+                        {reorder.hint && <GripVertical className="drag-grip" size={12} strokeWidth={1.75} aria-hidden="true" />}
                     </button>
                 </Card>
             </div>
@@ -1526,7 +1564,13 @@ function StepCard({
     ));
 
     return (
-        <div className={`${classes}${editing ? ' editing' : ''}`} id={stepElementId(step.id)}>
+        <div
+            className={`${classes}${editing ? ' editing' : ''}${reorder.dropClass}`}
+            id={stepElementId(step.id)}
+            {...reorder.dragProps}
+            draggable={false}
+            onKeyDown={editing ? undefined : reorder.onKeyDown}
+        >
             <Card className="plan-step flow-card">
                 <CardBody className="plan-step-body">
                     <div className="plan-step-head">
@@ -1824,7 +1868,7 @@ function useAgentStates() {
     return useSyncExternalStore(agentStateStore.subscribe, agentStateStore.getSnapshot);
 }
 
-function PlanRun({ plan, repoLabel, repoColor, onOpenWorktree, onClosed, onOpenPlan, onOpenGroup }: Props) {
+function PlanRun({ plan, project, repoLabel, repoColor, onOpenWorktree, onClosed, onOpenPlan, onOpenGroup }: Props) {
     const [error, setError] = useState<string>();
     const act = async (work: () => Promise<unknown>) => {
         setError(undefined);
@@ -1862,6 +1906,8 @@ function PlanRun({ plan, repoLabel, repoColor, onOpenWorktree, onClosed, onOpenP
         });
         if (ok) await act(() => mergeStep(step));
     };
+    // The plan runner keeps the index of the step that runs. Thus the order changes only when no step runs.
+    const canReorder = plan.status !== 'running' && !plan.steps.some(step => step.status === 'running');
     const rowProps = { plan, progress, repoLabel, onOpenWorktree, act, onMerge: merge };
 
     return (
@@ -1911,8 +1957,18 @@ function PlanRun({ plan, repoLabel, repoColor, onOpenWorktree, onClosed, onOpenP
                         <NextToMerge step={plan.steps[next]} index={next} progress={progress[next]} repoLabel={repoLabel} onMerge={() => void merge(next)} />
                     )}
                     {groups.map(item => (
-                        <RepoStack key={item.repo ?? ''} group={item} {...rowProps} />
+                        <RepoStack key={item.repo ?? ''} group={item} canReorder={canReorder} {...rowProps} />
                     ))}
+                    {plan.steps.length > 1 && (
+                        <p className="flow-field-note plan-order-note">
+                            {!canReorder
+                                ? 'You can change the order when no step runs.'
+                                : group
+                                  ? `Drag a step to change the merge order in its repository. The PR group "${group.name}" gets the same order, and a move in the group changes the plan too.`
+                                  : 'Drag a step to change the merge order in its repository.'}
+                        </p>
+                    )}
+                    <AddPullRequest plan={plan} repos={project.repos} />
                     <PlanPromptAgents plan={plan} repoLabel={repoLabel} />
                     <PlanDetails plan={plan} />
                 </div>
@@ -1996,9 +2052,11 @@ interface RowProps {
     onMerge(index: number): void;
 }
 
-/** The steps of one repository: a card with one row for each step. Steps in one repository stack. */
-function RepoStack({ group, ...rowProps }: { group: RepoGroup } & RowProps) {
-    const { progress, repoLabel } = rowProps;
+/** The steps of one repository: a card with one row for each step. Steps in one repository stack. Drag a row to change the merge order. */
+function RepoStack({ group, canReorder, ...rowProps }: { group: RepoGroup; canReorder: boolean } & RowProps) {
+    const { plan, progress, repoLabel, act } = rowProps;
+    const ids = group.steps.map(({ step }) => step.id);
+    const reorder = useReorder(ids, (stepId, to) => void act(() => moveStepInRepo(plan.id, stepId, to)), canReorder && ids.length > 1);
     const prs = group.steps.filter(({ step }) => step.pr).length;
     const merged = group.steps.filter(({ index }) => progress[index].group === 'merged').length;
     const numbers = group.steps.map(({ index }) => index + 1);
@@ -2018,7 +2076,18 @@ function RepoStack({ group, ...rowProps }: { group: RepoGroup } & RowProps) {
             </div>
             <ul className="plan-stack-rows">
                 {group.steps.map(({ step, index }) => (
-                    <RunStepRow key={step.id} step={step} index={index} {...rowProps} />
+                    <RunStepRow
+                        key={step.id}
+                        step={step}
+                        index={index}
+                        reorder={{
+                            dragProps: reorder.itemProps(step.id),
+                            dropClass: reorder.dropClass(step.id),
+                            hint: reorder.hint,
+                            onKeyDown: event => reorder.moveByKey(event, step.id)
+                        }}
+                        {...rowProps}
+                    />
                 ))}
             </ul>
         </Card>
@@ -2083,7 +2152,16 @@ function rowDetail(plan: Plan, step: PlanStep, index: number, progress: StepProg
 }
 
 /** One step in the run: the title, the pull request, the review, the checks and the next action. */
-function RunStepRow({ step, index, plan, progress, onOpenWorktree, act, onMerge }: { step: PlanStep; index: number } & RowProps) {
+function RunStepRow({
+    step,
+    index,
+    plan,
+    progress,
+    onOpenWorktree,
+    act,
+    onMerge,
+    reorder
+}: { step: PlanStep; index: number; reorder: StepReorder } & RowProps) {
     const nav = useNavigation();
     const item = progress[index];
     const status = useStepStatus(step);
@@ -2175,7 +2253,7 @@ function RunStepRow({ step, index, plan, progress, onOpenWorktree, act, onMerge 
     // The checks of a pull request that did not load are not known.
     const checks = item.checks && item.review !== 'unknown' ? CHECKS_TEXT[item.checks] : undefined;
     return (
-        <li className={`plan-run-row ${groupClass(item.group)}`}>
+        <li className={`plan-run-row ${groupClass(item.group)}${reorder.dropClass}`} title={reorder.hint} {...reorder.dragProps} onKeyDown={reorder.onKeyDown}>
             <span className={`plan-step-number${item.group === 'merged' || item.group === 'done' ? ' reviewed' : ''}`}>{index + 1}</span>
             <div className="plan-run-main">
                 <div className="plan-run-title">{step.title}</div>
@@ -2204,8 +2282,67 @@ function RunStepRow({ step, index, plan, progress, onOpenWorktree, act, onMerge 
             <div className="plan-run-tools">
                 {action}
                 <IconButton size="sm" label="More" icon={<MoreHorizontal size={14} />} onClick={event => void menu(event.currentTarget)} />
+                {reorder.hint && <GripVertical className="drag-grip" size={12} strokeWidth={1.75} aria-hidden="true" />}
             </div>
         </li>
+    );
+}
+
+/**
+ * The field that adds a pull request to a plan that ran, for example a fix that a person made by hand. The pull request
+ * becomes a done step at the end of the plan, and goes into the PR group of the plan.
+ */
+function AddPullRequest({ plan, repos }: { plan: Plan; repos: readonly string[] }) {
+    const [link, setLink] = useState('');
+    const [error, setError] = useState<string>();
+    const [adding, setAdding] = useState(false);
+    const full = plan.steps.length >= MAX_GROUP_PULL_REQUESTS;
+
+    const add = async () => {
+        setAdding(true);
+        try {
+            await addPullRequestStep(plan.id, link, repos);
+            setLink('');
+            setError(undefined);
+        } catch (err) {
+            setError(errorText(err));
+        } finally {
+            setAdding(false);
+        }
+    };
+
+    return (
+        <Card as="section">
+            <CardHeader
+                title="Add a pull request"
+                description="The pull request becomes a done step at the end of the plan. It must be in a repository of the project."
+            />
+            <CardBody>
+                <form
+                    className="plan-add-pr"
+                    onSubmit={event => {
+                        event.preventDefault();
+                        void add();
+                    }}
+                >
+                    <Input
+                        value={link}
+                        disabled={full || adding}
+                        placeholder={full ? `A plan can have at most ${MAX_GROUP_PULL_REQUESTS} steps` : 'Paste a pull request link, or owner/name#12'}
+                        aria-label="Pull request link"
+                        invalid={!!error}
+                        onChange={event => {
+                            setLink(event.target.value);
+                            setError(undefined);
+                        }}
+                    />
+                    <Button type="submit" disabled={full || adding || !link.trim()}>
+                        {adding ? 'Adding…' : 'Add'}
+                    </Button>
+                </form>
+                {error && <div className="field-error">{error}</div>}
+            </CardBody>
+        </Card>
     );
 }
 
