@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { NoteTarget } from '@shared/code-note';
 import { agentModeLabel, agentStartCommand, claudeModeOnScreen, SHIFT_TAB, type AgentMode } from '@shared/agent-modes';
+import { unavailableModelNotice } from '@shared/agent-models';
 import { agentProgramOf } from '@shared/agent-programs';
 import type { CheckRun, RepoTarget } from '@shared/github';
 import { agentForRepo, type AgentDefinition, type AppSettings, type RepoScript } from '@shared/settings';
@@ -8,6 +9,7 @@ import type { TerminalSession } from '@shared/terminal';
 import { setupCommand } from '@shared/worktree-settings';
 import type { CreatedWorktree, Worktree } from '@shared/worktrees';
 import { terminalPool } from '../terminal/terminal-pool';
+import { withAvailableModel } from './agent-models-query';
 import { bracketedPaste, checkLine, checksPrompt, logPrompt, repoFolderName, showsAgentDialog } from './agent-text';
 import type { TabKey } from './tabs';
 import { errorText } from './worktree-edits';
@@ -146,16 +148,20 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
             }
         }
         try {
+            const start = agent ? await withAvailableModel(definition) : undefined;
             const session = await api.terminals.create({
                 cwd: worktree.path,
                 worktreePath: worktree.path,
                 title: agent ? definition.name : 'shell',
-                command: agent ? agentStartCommand(definition) : undefined,
+                command: start ? agentStartCommand(start.agent) : undefined,
                 isAgent: agent,
                 cols: 120,
                 rows: 32
             });
             showSession(session);
+            if (start?.unavailable) {
+                setError(unavailableModelNotice(definition.name, start.unavailable));
+            }
             return session;
         } catch (err) {
             setError(errorText(err));
@@ -203,15 +209,18 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
         if (!running) {
             await waitForQuietOutput(session.id);
         }
+        let asked = false;
         if (
-            !(await waitForNoDialog(session.id, () =>
-                setError('The agent is asking a question. Answer it in the agent tab. ShipWarden sends the prompt after that.')
-            ))
+            !(await waitForNoDialog(session.id, () => {
+                asked = true;
+                setError('The agent is asking a question. Answer it in the agent tab. ShipWarden sends the prompt after that.');
+            }))
         ) {
             setError('ShipWarden did not send the prompt, because the agent still shows a question. Answer it and try again.');
             return;
         }
-        setError(undefined);
+        // Remove only the question notice. Another notice, for example about the model, stays.
+        if (asked) setError(undefined);
         api.terminals.write(session.id, bracketedPaste(prompt));
         setTimeout(() => api.terminals.write(session.id, '\r'), 200);
     };
@@ -258,7 +267,8 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
             if (!definition) {
                 throw new Error(`The agent "${target.agentId}" is not in Settings › Agents.`);
             }
-            const command = agentStartCommand(definition, target.mode);
+            // An automation has no banner. A model that is not available now does not stop the run: the agent uses its own setting.
+            const command = agentStartCommand((await withAvailableModel(definition)).agent, target.mode);
             const created = await api.terminals.create({
                 cwd: worktree.path,
                 worktreePath: worktree.path,

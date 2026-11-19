@@ -5922,8 +5922,36 @@ button:focus-visible,
     flex: 0 0 150px;
 }
 
+.agent-model-select {
+    flex: 0 0 160px;
+    min-width: 0;
+}
+
+/* On a wide page, the pickers are items of the row. */
+.agent-pickers {
+    display: contents;
+}
+
 .agent-setting .settings-check {
     margin: 6px 0 0 96px;
+}
+
+/* A field of an agent: a caption above the control. The row aligns the controls at the bottom, under the captions. */
+.agent-setting-main {
+    align-items: flex-end;
+}
+
+.agent-setting-main > .agent-default {
+    height: var(--control-height);
+}
+
+.agent-field {
+    min-width: 0;
+}
+
+.agent-field > :not(.flow-field-label) {
+    width: 100%;
+    max-width: none;
 }
 
 /* The card of the agent list. On a narrow page, each agent uses two lines (see the container query below). */
@@ -5936,24 +5964,33 @@ button:focus-visible,
 }
 
 /*
- * A narrow agent list: the name, the mode, and the remove button on the first line, and the command on a full line
- * under them. The "Add" form has the same layout, with its button at the place of the mode.
+ * A narrow agent list: the name and the remove button on the first line, the command on a full line, and the mode and
+ * the model side by side on a full line. The "Add" form has the first two lines. Its button is at the place of the
+ * remove button.
  */
 @container agent-list (max-width: 640px) {
     .agent-setting-main,
     .agent-add-form {
         display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto auto;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         grid-template-areas:
-            "default name mode remove"
-            ". command command command";
+            "default name remove"
+            "command command command"
+            "pickers pickers pickers";
         row-gap: 8px;
     }
 
     .agent-add-form {
         grid-template-areas:
-            "default name name action"
-            ". command command command";
+            "default name action"
+            "command command command";
+    }
+
+    .agent-pickers {
+        grid-area: pickers;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 10px;
     }
 
     .agent-default,
@@ -5974,8 +6011,13 @@ button:focus-visible,
     }
 
     .agent-mode-select {
-        grid-area: mode;
-        width: 130px;
+        width: auto;
+        min-width: 0;
+    }
+
+    .agent-model-select {
+        width: auto;
+        max-width: none;
     }
 
     .agent-setting-main > :last-child {

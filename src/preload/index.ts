@@ -74,7 +74,8 @@ const api: ShipWardenApi = {
     settings: {
         get: () => ipcRenderer.invoke(IpcChannels.settingsGet),
         update: change => ipcRenderer.invoke(IpcChannels.settingsUpdate, change),
-        checkCommand: command => ipcRenderer.invoke(IpcChannels.settingsCheckCommand, command)
+        checkCommand: command => ipcRenderer.invoke(IpcChannels.settingsCheckCommand, command),
+        listModels: command => ipcRenderer.invoke(IpcChannels.settingsListModels, command)
     },
     setup: {
         check: id => ipcRenderer.invoke(IpcChannels.setupCheck, id)
