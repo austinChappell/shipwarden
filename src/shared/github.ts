@@ -483,7 +483,9 @@ export type PullRequestChange =
     | { kind: 'autoMerge'; pullRequestId: string; method: MergeMethod | null; headSha: string }
     | { kind: 'assignee'; login: string; add: boolean }
     | { kind: 'reviewer'; reviewer: RequestedReviewer; add: boolean }
-    | { kind: 'label'; name: string; add: boolean };
+    | { kind: 'label'; name: string; add: boolean }
+    /** Points the pull request at a different base branch (the branch that it merges into). */
+    | { kind: 'base'; base: string };
 
 /** The permissions of a repository that let a user change the assignees, the reviewers and the labels. */
 export function canManagePullRequests(permission: string | null | undefined): boolean {

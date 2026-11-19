@@ -362,7 +362,7 @@ export interface ShipWardenApi {
         issueReferences(target: RepoTarget, query: string): Promise<IssueReference[]>;
         /** The issue or the pull request with the number, or null when the repository has no item with the number. */
         issueReference(target: RepoTarget, number: number): Promise<IssueReference | null>;
-        /** Changes the details, an assignee, a reviewer or a label of a pull request. */
+        /** Changes the details, the base branch, an assignee, a reviewer or a label of a pull request. */
         changePullRequest(target: RepoTarget, number: number, change: PullRequestChange): Promise<void>;
         /** The repositories of all GitHub providers that are on, each in the organizations of its scope. */
         repositories(): Promise<GitHubRepoInfo[]>;

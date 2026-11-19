@@ -117,6 +117,15 @@ describe('merge', () => {
     });
 });
 
+describe('changePullRequest with a new base branch', () => {
+    it('sends the base branch in a PATCH of the pull request', async () => {
+        const { client, calls } = fakeClient();
+        await changePullRequest(client, repo, 7, { kind: 'base', base: 'release' });
+        expect(calls[0]).toMatchObject({ kind: 'rest', method: 'PATCH', body: { base: 'release' } });
+        expect(calls[0].path).toMatch(/\/pulls\/7$/);
+    });
+});
+
 describe('changePullRequest with GraphQL', () => {
     it('makes a pull request a draft or ready for review', async () => {
         const { client, calls } = fakeClient();

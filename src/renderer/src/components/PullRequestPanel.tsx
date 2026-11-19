@@ -43,7 +43,7 @@ import {
 } from '../github/merge-state';
 import { AGENT_BODY_WARNING, agentBodyUnedited, conversationOf, reviewConfirmTitle, shownCommentIds } from '../github/review-state';
 import { CreatePullRequest } from './CreatePullRequest';
-import { BranchName, ConflictBadge, PullRequestCommitList, PullRequestDescription, PullRequestFileList, StateBadge } from './PullRequestParts';
+import { BaseBranch, BranchName, ConflictBadge, PullRequestCommitList, PullRequestDescription, PullRequestFileList, StateBadge } from './PullRequestParts';
 import { HelmLoader } from './HelmLoader';
 import { PullRequestMergeCard } from './PullRequestMergeCard';
 import { PullRequestReviewCard, type AgentReviewControl } from './PullRequestReviewCard';
@@ -52,7 +52,7 @@ import { reactionActions } from './Reactions';
 import { MentionContext, mentionSourceOf } from './mention-context';
 import { Button, IconButton, RefreshButton } from './ui';
 
-export { BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, StateBadge } from './PullRequestParts';
+export { BaseBranch, BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, StateBadge } from './PullRequestParts';
 export { hasConflicts, reviewText } from '../github/merge-state';
 
 interface Props {
@@ -327,7 +327,7 @@ export function PullRequestPanel({
                             <div className="pr-meta">
                                 {pr.author?.login ?? 'unknown'}{' '}
                                 {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} into{' '}
-                                <code>{pr.baseRefName}</code> from <BranchName name={pr.headRefName} />
+                                <BaseBranch target={target} pr={pr} /> from <BranchName name={pr.headRefName} />
                             </div>
                             <div className="pr-meta">
                                 <span className="additions">+{pr.additions}</span> <span className="deletions">−{pr.deletions}</span>

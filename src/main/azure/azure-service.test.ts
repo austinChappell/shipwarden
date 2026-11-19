@@ -103,6 +103,7 @@ describe('AzureDevOpsService', () => {
         [{ kind: 'details', state: 'closed' }, ['PATCH', PR, { status: 'abandoned' }]],
         [{ kind: 'details', state: 'open' }, ['PATCH', PR, { status: 'active' }]],
         [{ kind: 'draft', pullRequestId: 'x', draft: true }, ['PATCH', PR, { isDraft: true }]],
+        [{ kind: 'base', base: 'release' }, ['PATCH', PR, { targetRefName: 'refs/heads/release' }]],
         [
             { kind: 'autoMerge', pullRequestId: 'x', method: 'squash', headSha: 'h' },
             ['PATCH', PR, { autoCompleteSetBy: { id: VIEWER }, completionOptions: { mergeStrategy: 'squash' } }]

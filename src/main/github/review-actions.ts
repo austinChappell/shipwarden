@@ -1,12 +1,15 @@
 import type { MergeMethod, PendingComment, PullRequestChange, ReactionContent, RepoRef, ReviewEvent } from '@shared/github';
 import type { GitHubClient } from './github-client';
 
-/** Makes one change to a pull request: the details, an assignee, a reviewer or a label. */
+/** Makes one change to a pull request: the details, the base branch, an assignee, a reviewer or a label. */
 export async function changePullRequest(client: GitHubClient, repo: RepoRef, number: number, change: PullRequestChange): Promise<void> {
     const base = `/repos/${repo.owner}/${repo.name}`;
     switch (change.kind) {
         case 'details':
             await client.rest('PATCH', `${base}/pulls/${number}`, { title: change.title, body: change.body, state: change.state });
+            return;
+        case 'base':
+            await client.rest('PATCH', `${base}/pulls/${number}`, { base: change.base });
             return;
         case 'draft': {
             // Only GraphQL can change the draft state.

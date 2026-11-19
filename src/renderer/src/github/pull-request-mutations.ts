@@ -59,10 +59,14 @@ export async function mergePullRequest(target: RepoTarget, pr: PullRequest, meth
     writePullRequest(queryClient, pr, mergedPullRequest);
 }
 
-/** Changes the details, the draft state, the auto-merge, an assignee, a reviewer or a label of a pull request. */
+/**
+ * Changes the details, the base branch, the draft state, the auto-merge, an assignee, a reviewer or a label of a pull request.
+ * A new base branch also changes the commits, the files and the merge state. The host calculates them, so the pull request loads again.
+ */
 export async function changePullRequest(target: RepoTarget, pr: PullRequest, change: PullRequestChange, knownLabels?: GitHubLabel[]): Promise<void> {
     await api().changePullRequest(target, pr.number, change);
     writePullRequest(queryClient, pr, current => changedPullRequest(current, change, knownLabels, viewerOf(queryClient, current)));
+    if (change.kind === 'base') await invalidatePullRequest(queryClient, pr.url);
 }
 
 /** The time between the review and the second load, when the merge state of the first load can be old. */

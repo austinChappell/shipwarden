@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PullRequest, Review, ReviewThread } from '@shared/github';
-import { commentPrompt, conflictPrompt, lineNotePrompt, reviewPrompt, reviewThreads, threadLine, threadPrompt } from './agent-prompts';
+import { commentPrompt, conflictPrompt, rebasePrompt, lineNotePrompt, reviewPrompt, reviewThreads, threadLine, threadPrompt } from './agent-prompts';
 
 const pr = { number: 7, url: 'https://github.com/o/r/pull/7', baseRefName: 'main', headRefName: 'fix-login' } as PullRequest;
 
@@ -76,6 +76,21 @@ describe('conflictPrompt', () => {
             'Pull request #7 (https://github.com/o/r/pull/7) has merge conflicts with main. ' +
                 'Fetch origin, merge origin/main into fix-login, resolve the conflicts, run the tests, and commit the merge.'
         );
+    });
+});
+
+describe('rebasePrompt', () => {
+    it('tells the agent to rebase onto the base branch and push with a lease', () => {
+        const prompt = rebasePrompt(pr);
+        expect(prompt).toContain('Rebase pull request #7 (https://github.com/o/r/pull/7) onto main.');
+        expect(prompt).toContain('git rebase origin/main');
+        expect(prompt).toContain('git push --force-with-lease origin fix-login');
+        expect(prompt).toContain('Do not merge main into fix-login.');
+    });
+
+    it('rebases before it pushes', () => {
+        const prompt = rebasePrompt(pr);
+        expect(prompt.indexOf('git rebase origin/main')).toBeLessThan(prompt.indexOf('git push'));
     });
 });
 
