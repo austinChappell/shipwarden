@@ -74,6 +74,18 @@ export function stripEntries(items: readonly StripItem[]): TabKey[][] {
     return items.map(item => (item.group ? leaves(item.group.root).map(leaf => leaf.tab) : [item.key]));
 }
 
+/** The entries that a "Close" command of the tab menu closes, relative to the tab that the user clicked. */
+export type CloseRange = 'all' | 'others' | 'left' | 'right';
+
+/** Returns the indexes of the strip entries that a "Close" command closes. `index` is the entry that the user clicked. */
+export function closeRangeIndexes(length: number, index: number, range: CloseRange): number[] {
+    const all = Array.from({ length }, (_, item) => item);
+    if (range === 'others') return all.filter(item => item !== index);
+    if (range === 'left') return all.filter(item => item < index);
+    if (range === 'right') return all.filter(item => item > index);
+    return all;
+}
+
 /**
  * Returns the index of the strip entry that a tab shortcut selects. "previousTab" and "nextTab" wrap at the ends.
  * "selectTab3" gives index 2. The index can be outside the list, for example for "selectTab9" with 2 entries.

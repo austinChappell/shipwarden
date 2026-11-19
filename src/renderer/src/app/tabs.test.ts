@@ -3,6 +3,7 @@ import type { PaneLayout } from '@shared/panes';
 import {
     activeLayout,
     browserIds,
+    closeRangeIndexes,
     fileKey,
     isStripItemActive,
     isTabSelectAction,
@@ -204,5 +205,20 @@ describe('keepOpenFileTabs', () => {
     it('removes a file tab whose file is not open, and keeps the other tabs', () => {
         const active = { '/a': 'f:gone.ts', '/b': 'f:open.ts', '/c': 't:1' };
         expect(keepOpenFileTabs(active, { '/b': ['open.ts'] })).toEqual({ '/b': 'f:open.ts', '/c': 't:1' });
+    });
+});
+
+describe('closeRangeIndexes', () => {
+    it('gives the entries of each close command, relative to the clicked entry', () => {
+        expect(closeRangeIndexes(4, 1, 'all')).toEqual([0, 1, 2, 3]);
+        expect(closeRangeIndexes(4, 1, 'others')).toEqual([0, 2, 3]);
+        expect(closeRangeIndexes(4, 1, 'left')).toEqual([0]);
+        expect(closeRangeIndexes(4, 1, 'right')).toEqual([2, 3]);
+    });
+
+    it('gives no entries at the ends of the strip', () => {
+        expect(closeRangeIndexes(3, 0, 'left')).toEqual([]);
+        expect(closeRangeIndexes(3, 2, 'right')).toEqual([]);
+        expect(closeRangeIndexes(1, 0, 'others')).toEqual([]);
     });
 });

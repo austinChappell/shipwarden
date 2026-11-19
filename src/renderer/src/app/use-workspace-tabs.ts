@@ -27,6 +27,7 @@ import { terminalPool } from '../terminal/terminal-pool';
 import { agentStateStore } from '../terminal/agent-state-store';
 import {
     activeLayout,
+    closeRangeIndexes,
     fileKey,
     isStripItemActive,
     isTabSelectAction,
@@ -37,6 +38,7 @@ import {
     upsertTab,
     withGroup,
     worktreeTabKeys,
+    type CloseRange,
     type ExtraTab,
     type TabKey
 } from './tabs';
@@ -348,6 +350,38 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
         }).then(ok => ok && tabs.forEach(closeTabView));
     };
 
+    /**
+     * Closes the entries of the tab strip for a "Close" command of the tab menu. `index` is the entry that the user
+     * clicked. A split tab closes with all its panes. When a terminal runs in one of the tabs, the user agrees first.
+     * A file with unsaved changes asks first.
+     */
+    const closeStripRange = async (index: number, range: CloseRange) => {
+        if (!selectedPath) return;
+        const root = selectedPath;
+        const entries = stripEntries(stripItems);
+        const closing = closeRangeIndexes(entries.length, index, range).map(item => entries[item]);
+        const tabs = closing.flat();
+        if (tabs.length === 0) return;
+        const running = worktreeSessions.filter(session => !session.exited && tabs.includes(`t:${session.id}`));
+        if (running.length > 0) {
+            const ok = await confirmDialog({
+                title: closing.length === 1 ? 'Close this tab?' : `Close ${closing.length} tabs?`,
+                message: running.length === 1 ? '1 terminal stops.' : `${running.length} terminals stop.`,
+                confirmLabel: closing.length === 1 ? 'Close tab' : 'Close tabs',
+                danger: true
+            });
+            if (!ok) return;
+        }
+        // The clicked tab stays open, so it becomes the active tab when the active tab closes.
+        const kept = stripItems[index];
+        if (range !== 'all' && kept && activeTab && tabs.includes(activeTab)) activate(root, kept.key);
+        // One file at a time, so that each file with unsaved changes asks in its own dialog.
+        for (const tab of tabs) {
+            if (tab.startsWith('f:')) await closeFile(root, tab.slice(2));
+            else closeTabView(tab);
+        }
+    };
+
     /** True when the tab can close: a running agent stops only after the user agrees. */
     const confirmClose = async (tab: TabKey): Promise<boolean> => {
         const session = tab.startsWith('t:') ? worktreeSessions.find(item => `t:${item.id}` === tab) : undefined;
@@ -464,6 +498,7 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
         movePaneToTab,
         closeFromView,
         closeGroup,
+        closeStripRange,
         confirmClose,
         sessionExited,
         paneShortcut,

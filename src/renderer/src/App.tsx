@@ -77,7 +77,7 @@ import { pinOfSession, pinRequest, pinSession, unpinSession, usePinnedSessions }
 import type { PinnedSession } from '@shared/pinned-sessions';
 import type { ResumePlace } from './components/PinnedSessions';
 import { showToast } from './components/Toast';
-import { showContextMenu } from './components/ContextMenu';
+import { showContextMenu, type ContextMenuItem } from './components/ContextMenu';
 import { sessionListStore } from './terminal/session-list-store';
 import type { ChangeSide, FileChange } from '@shared/git';
 import { SidebarContext, SidebarToggle } from './components/SidebarToggle';
@@ -93,7 +93,7 @@ import { PaneTree } from './app/PaneTree';
 import { TabStrip } from './app/TabStrip';
 import { tabInfo } from './app/tab-info';
 import { renderTabView } from './app/tab-view';
-import type { TabKey } from './app/tabs';
+import type { CloseRange, StripItem, TabKey } from './app/tabs';
 import { useAgentActions } from './app/use-agent-actions';
 import { useBrowserTabs } from './app/use-browser-tabs';
 import { useNavHistory } from './app/use-nav-history';
@@ -357,16 +357,35 @@ export function App() {
     };
 
     const pins = usePinnedSessions();
-    /** The context menu of an agent tab of Claude Code: pin or unpin its session. Other tabs have no menu. */
-    const tabContextMenu = (key: TabKey): boolean => {
-        const session = withAgentStore(sessions).find(item => `t:${item.id}` === key);
-        if (!session?.agentTranscript) return false;
-        const pin = pinOfSession(pins, session);
-        void showContextMenu([pin ? { id: 'unpin', label: `Unpin “${pin.name}”` } : { id: 'pin', label: 'Pin session' }]).then(choice => {
-            if (choice === 'pin') void pinAgentSession(session);
-            if (choice === 'unpin' && pin) unpinAgentSession(pin);
+    /**
+     * The context menu of an entry of the tab strip: close the tab, the other tabs, the tabs to the left or to the right,
+     * or all tabs. An agent tab of Claude Code can also pin or unpin its session.
+     */
+    const tabContextMenu = (item: StripItem, index: number) => {
+        const count = tabs.stripItems.length;
+        const session = item.group ? undefined : withAgentStore(sessions).find(entry => `t:${entry.id}` === item.key);
+        const pin = session?.agentTranscript ? pinOfSession(pins, session) : undefined;
+        const pinItems: ContextMenuItem[] = session?.agentTranscript
+            ? [pin ? { id: 'unpin', label: `Unpin “${pin.name}”` } : { id: 'pin', label: 'Pin session' }, { type: 'separator' }]
+            : [];
+        const closeItems: ContextMenuItem[] = [
+            { id: 'close', label: 'Close' },
+            { id: 'others', label: 'Close other tabs', enabled: count > 1 },
+            { id: 'left', label: 'Close tabs to the left', enabled: index > 0 },
+            { id: 'right', label: 'Close tabs to the right', enabled: index < count - 1 },
+            { type: 'separator' },
+            { id: 'all', label: 'Close all tabs', danger: true }
+        ];
+        void showContextMenu([...pinItems, ...closeItems]).then(async choice => {
+            if (choice === 'pin' && session) void pinAgentSession(session);
+            else if (choice === 'unpin' && pin) unpinAgentSession(pin);
+            else if (choice === 'close') {
+                if (item.group) tabs.closeGroup(item.group);
+                else if (await tabs.confirmClose(item.key)) tabs.closeTabView(item.key);
+            } else if (choice === 'others' || choice === 'left' || choice === 'right' || choice === 'all') {
+                await tabs.closeStripRange(index, choice satisfies CloseRange);
+            }
         });
-        return true;
     };
 
     /** Removes a pin. The transcript of the session stays. */
