@@ -77,6 +77,10 @@ export class MainWindow {
             backgroundColor: this.background,
             titleBarStyle: 'hiddenInset',
             trafficLightPosition: { x: 14, y: 13 },
+            // On macOS, the first click on an inactive window only activates the window. The page does not get the click.
+            // Then the focus goes back to the last focused pane, not to the pane that the user clicked. This option sends
+            // the first click to the page.
+            acceptFirstMouse: true,
             webPreferences: {
                 preload: options.preload,
                 contextIsolation: true,
