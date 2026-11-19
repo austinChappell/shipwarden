@@ -1,12 +1,15 @@
 import type { MergedPullRequest, PullRequest, RepoTarget } from '@shared/github';
 import { parsePullRequestLink } from '@shared/pr-groups';
+import { batchPrompt, type BatchPullRequest } from '@shared/batch-prompt';
 import type { Plan, PlanStep } from '@shared/plans';
+import type { BatchSendResult } from '../github/pr-group-agents';
 import { checkLine, checksPrompt } from '../app/agent-text';
 import { threadComments, threadPlace } from '../github/agent-prompts';
 import { isFailedConclusion } from '../github/ci-queries';
 import { mergePullRequest } from '../github/pull-request-mutations';
 import { pullRequestQuery } from '../github/review-store';
 import { keyRoots, queryClient } from '../query-client';
+import { errorText } from '../util';
 import { planRunner } from './plan-runner';
 
 const api = window.shipwarden;
@@ -77,4 +80,45 @@ export async function sendChecksToAgent(plan: Plan, step: PlanStep, headSha: str
     if (failed.length === 0) throw new Error('No check fails now. The checks possibly ran again.');
     const lines = await Promise.all(failed.map(async check => checkLine(check, check.isActions ? await api.github.saveJobLog(target, check.id) : undefined)));
     await planRunner.followUp(plan.id, step.id, `${checksPrompt(lines)}\n${PUSH}`, `Fixing the failed checks on #${step.pr?.number}`);
+}
+
+/**
+ * True when the agent of a step can get a prompt from "Prompt the agents": the step is done and has a worktree. A
+ * step that runs now waits for the end of its own turn.
+ */
+export function canPromptStep(step: PlanStep): boolean {
+    return step.status === 'done' && !!step.worktreePath && !!step.repo;
+}
+
+/**
+ * Sends one prompt to the agents of the selected steps. Each agent gets the list of the steps of the plan with a
+ * worktree, so it knows its part of the change. Each step gets its own result.
+ */
+export async function promptPlanAgents(
+    plan: Plan,
+    stepIds: readonly string[],
+    prompt: string,
+    push: boolean,
+    repoLabel: (repo: string) => string
+): Promise<BatchSendResult[]> {
+    const steps = plan.steps.filter(canPromptStep);
+    const list: BatchPullRequest[] = steps.map(step => ({
+        repo: step.repo ? repoLabel(step.repo) : '',
+        title: step.title,
+        ...(step.pr ? { number: step.pr.number, url: step.pr.url } : {}),
+        ...(step.branch ? { branch: step.branch } : {})
+    }));
+    const selected = new Set(stepIds);
+    const targets = steps.flatMap((step, index) => (selected.has(step.id) ? [{ step, index }] : []));
+    return Promise.all(
+        targets.map(async ({ step, index }): Promise<BatchSendResult> => {
+            try {
+                const text = batchPrompt({ kind: 'plan', title: plan.title, pullRequests: list, index, recipients: targets.length, prompt, push });
+                await planRunner.followUp(plan.id, step.id, text, 'Working on your request');
+                return { key: step.id };
+            } catch (error) {
+                return { key: step.id, error: errorText(error) };
+            }
+        })
+    );
 }

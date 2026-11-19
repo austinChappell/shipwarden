@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { ArrowDown, ArrowLeft, ArrowUp, Bot, ClipboardList, Layers, LoaderCircle, Trash2, X } from 'lucide-react';
 import { repoLabel, type RepoRef } from '@shared/github';
 import { formatAgo, pluralize } from '@shared/format';
@@ -19,9 +19,11 @@ import { errorText } from '../util';
 import { updatePlan, usePlans } from '../plans/plan-queries';
 import { pullRequestQuery } from '../github/review-store';
 import { useDefaultReviewStrictness } from '../github/review-strictness';
+import { promptGroupAgents } from '../github/pr-group-agents';
 import { cancelGroupReview, dismissGroupError, removeGroup, runGroupReview, updateGroup, useGroup, useGroupRun } from '../github/pr-group-store';
 import { confirmDialog } from './ConfirmDialog';
 import { EmptyState } from './EmptyState';
+import { PromptAgentsCard, type PromptTarget } from './PromptAgentsCard';
 import { Markdown } from './Markdown';
 import { StateBadge } from './PullRequestParts';
 import { Button, Card, CardBody, CardHeader, Chip, Field, IconButton, Input, PageHeader, SplitButton, TextArea } from './ui';
@@ -106,7 +108,7 @@ export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest, onOpenPlan
             />
 
             <div className="review-group-scroll">
-                <div className="flow-page">
+                <div className="flow-page review-group-flow">
                     {running && (
                         <div className="agent-review-status running review-group-status" role="status">
                             <LoaderCircle size={13} className="spin" />
@@ -130,6 +132,7 @@ export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest, onOpenPlan
                     <div className="flow-layout">
                         <div className="flow-main">
                             <PullRequestList group={group} onOpen={onOpenPullRequest} />
+                            <GroupPromptAgents group={group} />
                             {group.lastReview && <LastReview group={group} />}
                         </div>
                         <aside className="flow-side">
@@ -171,8 +174,14 @@ function GroupDetails({ group, onOpenPlan }: { group: PrGroup; onOpenPlan?(planI
                 {plan && onOpenPlan && (
                     <Field label="Plan" hint="ShipWarden made this group from the plan. New pull requests of the plan come into the group.">
                         <div>
-                            <Button size="sm" icon={<ClipboardList size={14} />} onClick={() => onOpenPlan(plan.id)}>
-                                {plan.title}
+                            <Button
+                                size="sm"
+                                className="review-group-plan"
+                                icon={<ClipboardList size={14} />}
+                                title={`Open the plan "${plan.title}"`}
+                                onClick={() => onOpenPlan(plan.id)}
+                            >
+                                <span className="review-group-plan-name">{plan.title}</span>
                             </Button>
                         </div>
                     </Field>
@@ -324,6 +333,33 @@ function GroupRow({ group, pr, first, last, onOpen, onMove, onRemove }: GroupRow
                 <IconButton size="sm" icon={<X size={14} />} label={`Remove ${repoLabel(pr.repo)}#${pr.number} from the group`} onClick={onRemove} />
             </span>
         </li>
+    );
+}
+
+/**
+ * One prompt for the agents of the selected pull requests. The agent in the worktree of the head branch of each pull
+ * request gets the prompt. A pull request without a worktree gets a new worktree.
+ */
+function GroupPromptAgents({ group }: { group: PrGroup }) {
+    // The rows of the list load the same queries. This adds no request.
+    const loaded = useQueries({ queries: group.pullRequests.map(pr => pullRequestQuery(pr.repo, pr.number)) });
+    if (group.pullRequests.length === 0) return null;
+    const targets: PromptTarget[] = group.pullRequests.map((pr, index) => {
+        const data = loaded[index]?.data;
+        const closed = data && data.state !== 'OPEN';
+        return {
+            key: prKey(pr),
+            label: `${repoLabel(pr.repo)} #${pr.number}`,
+            title: data?.title ?? pr.title ?? '',
+            ...(closed ? { disabledReason: `The pull request is ${data.state === 'MERGED' ? 'merged' : 'closed'}.` } : {})
+        };
+    });
+    return (
+        <PromptAgentsCard
+            targets={targets}
+            description="The agent in the worktree of each selected pull request gets the prompt and the list of the pull requests. A pull request without a worktree gets a new worktree."
+            onSend={(keys, prompt, push) => promptGroupAgents(group, keys, prompt, push)}
+        />
     );
 }
 

@@ -54,5 +54,21 @@ The review can take a few minutes. You can leave the page while it works.
 - A pull request with new commits since the last review shows "Changed". Select "Review with agent" again to review the
   new commits.
 
+## Prompt the agents
+
+"Prompt the agents" on the page of the group sends one prompt to the agents of more than one pull request. Use it for a
+change that touches all the pull requests, for example a fix that the group review found.
+
+1. Select the pull requests. "All" selects each open pull request.
+2. Write the prompt.
+3. Keep "Commit and push" on to update the pull requests. Turn it off to keep the changes on this Mac.
+4. Select "Send". Or press ⌘ Enter.
+
+For each selected pull request, ShipWarden finds the worktree of its head branch in a project. Without one, ShipWarden
+makes a worktree that tracks the branch on "origin", and runs the setup script of the repository. A branch in a fork
+cannot get a worktree. The agent in the worktree gets the prompt. Without an agent, a new agent starts. Each agent also
+gets the list of the pull requests of the group, and it changes only its own worktree. Each pull request shows "Sent"
+or the problem.
+
 The groups are in `pr-groups.json` in the app data folder. Deleting a group does not change the pull requests or the
 pending comments.

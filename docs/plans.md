@@ -70,6 +70,20 @@ turn, ShipWarden checks the step again. You can also select:
 A notification tells you when a step stops or fails and when the plan is done. Settings › Notifications › Automations turns
 these notifications on and off.
 
+## Prompt the agents
+
+"Prompt the agents" on the plan page sends one prompt to the agents of more than one step. Use it for a change that
+touches all the pull requests, for example a rename in the API and in the client.
+
+1. Select the steps. "All" selects each step. Only a done step with a worktree can get the prompt.
+2. Write the prompt.
+3. Keep "Commit and push" on to update the pull requests. Turn it off to keep the changes on this Mac.
+4. Select "Send". Or press ⌘ Enter.
+
+The agent in the worktree of each step gets the prompt. Without an agent, a new agent starts. Each agent also gets the
+list of the pull requests of the plan, and it changes only its own worktree. The step shows "Working on your request"
+while its agent works. Each step shows "Sent" or the problem.
+
 ## History
 
 A plan that ran stays in the list. Its page shows the steps, the branches, the tasks, the pull requests, and the merge

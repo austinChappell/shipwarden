@@ -11595,6 +11595,23 @@ button.pr-summary-cell:hover {
     overflow-y: auto;
 }
 
+/* The group page has a wide list of pull requests. It uses more width than a form page. */
+.flow-page.review-group-flow {
+    max-width: 1240px;
+}
+
+/* A long plan title shortens with "…". The button stays in the card. */
+.review-group-plan {
+    max-width: 100%;
+}
+
+.review-group-plan-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .review-group-status {
     margin: 0 0 16px;
 }
@@ -16062,4 +16079,35 @@ body.resizing-rows * {
 
 .compare-diff-body {
     max-height: 480px;
+}
+
+/* "Prompt the agents" on a plan and on a PR group. */
+.prompt-agents-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.prompt-agents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.prompt-agents-name {
+    color: var(--muted);
+}
+
+.prompt-agents-error {
+    color: var(--tone-danger-text);
+}
+
+.prompt-agents-tools {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
 }
