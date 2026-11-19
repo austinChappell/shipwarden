@@ -163,7 +163,8 @@ const api: ShipWardenApi = {
         dashboardPullRequests: () => ipcRenderer.invoke(IpcChannels.githubDashboardPullRequests),
         dashboardComments: () => ipcRenderer.invoke(IpcChannels.githubDashboardComments),
         openInBrowser: url => ipcRenderer.send(IpcChannels.githubOpenInBrowser, url),
-        createPullRequest: (root, request) => ipcRenderer.invoke(IpcChannels.githubCreatePullRequest, root, request)
+        createPullRequest: (root, request) => ipcRenderer.invoke(IpcChannels.githubCreatePullRequest, root, request),
+        setPullRequestInto: (root, into) => ipcRenderer.invoke(IpcChannels.githubSetPullRequestInto, root, into)
     },
     reviewProviders: {
         list: () => ipcRenderer.invoke(IpcChannels.reviewProvidersList),

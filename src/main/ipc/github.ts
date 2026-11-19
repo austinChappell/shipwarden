@@ -7,6 +7,7 @@ import type {
     PullRequestChange,
     PullRequestFile,
     PullRequestFilter,
+    PullRequestInto,
     ReactionContent,
     RepoRef,
     RepoTarget,
@@ -27,6 +28,12 @@ export function registerGitHubIpc({ reviewProviders, seen }: Pick<Services, 'rev
     ipcMain.handle(IpcChannels.githubCreatePullRequest, async (_event, root: string, request: NewPullRequest) =>
         (await host(root)).createPullRequest(root, newPullRequestOf(request))
     );
+    ipcMain.handle(IpcChannels.githubSetPullRequestInto, async (_event, root: string, into: PullRequestInto) => {
+        if (into !== 'parent' && into !== 'origin') throw new Error('The pull request target is not valid.');
+        const target = await host(String(root));
+        if (!target.setPullRequestInto) throw new Error('This host has no forks.');
+        return target.setPullRequestInto(String(root), into);
+    });
     ipcMain.handle(IpcChannels.githubFiles, async (_event, target: RepoTarget, number: number) => (await host(target)).pullRequestFiles(target, number));
     ipcMain.handle(IpcChannels.githubCommitFiles, async (_event, target: RepoTarget, sha: string) => {
         if (typeof sha !== 'string' || !/^[0-9a-f]{4,64}$/i.test(sha)) throw new Error('The commit SHA is not valid.');

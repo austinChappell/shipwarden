@@ -237,6 +237,12 @@ describe('mapMergedBranches', () => {
         const merged = mapMergedBranches({ repository: { pullRequests: { nodes: [node(5, 'a', true), node(4, 'a'), node(3, 'a'), node(2, 'b')] } } });
         expect(merged).toEqual({ a: { number: 4, title: 'PR 4', headSha: 'sha4' }, b: { number: 2, title: 'PR 2', headSha: 'sha2' } });
     });
+
+    it('keeps only the pull requests from the fork of the head owner', () => {
+        const fromFork = (number: number, owner: string) => ({ ...node(number, 'a', true), headRepositoryOwner: { login: owner } });
+        const merged = mapMergedBranches({ repository: { pullRequests: { nodes: [node(6, 'a'), fromFork(5, 'other'), fromFork(4, 'Me')] } } }, 'me');
+        expect(merged).toEqual({ a: { number: 4, title: 'PR 4', headSha: 'sha4' } });
+    });
 });
 
 describe('mapBranchSummaries', () => {
@@ -269,6 +275,25 @@ describe('mapBranchSummaries', () => {
             repository: { pullRequests: { nodes: [node({ number: 1, isCrossRepository: true }), node({ number: 2 }), node({ number: 3 })] } }
         });
         expect(summaries.feature.number).toBe(2);
+    });
+
+    it('keeps only the pull requests from the fork of the head owner', () => {
+        const summaries = mapBranchSummaries(
+            {
+                viewer: { login: 'me' },
+                repository: {
+                    pullRequests: {
+                        nodes: [
+                            node({ number: 1 }),
+                            node({ number: 2, isCrossRepository: true, headRepositoryOwner: { login: 'other' } }),
+                            node({ number: 3, isCrossRepository: true, headRepositoryOwner: { login: 'me' } })
+                        ]
+                    }
+                }
+            },
+            'me'
+        );
+        expect(summaries.feature.number).toBe(3);
     });
 
     it('gives a null CI state to a pull request without checks', () => {

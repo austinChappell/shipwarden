@@ -1,35 +1,36 @@
 import { execFile } from 'child_process';
-import {
-    parseGitHubRemote,
-    type BranchStatus,
-    type BranchSummary,
-    type CheckRun,
-    type FileVersions,
-    type GitHubOwner,
-    type GitHubRepoInfo,
-    type MergeMethod,
-    type NewPullRequest,
-    type PendingComment,
-    type IssueReference,
-    type PullRequestCandidates,
-    type PullRequestChange,
-    type MergedPullRequest,
-    type PullRequest,
-    type PullRequestFile,
-    type PullRequestFilter,
-    type PullRequestSummary,
-    type ReactionContent,
-    type RepoRef,
-    type ReviewEvent,
-    type Workflow,
-    type JobProgress,
-    type CommitFiles
+import type {
+    BranchStatus,
+    BranchSummary,
+    CheckRun,
+    FileVersions,
+    GitHubOwner,
+    GitHubRepoInfo,
+    MergeMethod,
+    NewPullRequest,
+    PendingComment,
+    IssueReference,
+    PullRequestCandidates,
+    PullRequestChange,
+    MergedPullRequest,
+    PullRequest,
+    PullRequestFile,
+    PullRequestFilter,
+    PullRequestInto,
+    PullRequestSummary,
+    ReactionContent,
+    RepoRef,
+    ReviewEvent,
+    Workflow,
+    JobProgress,
+    CommitFiles
 } from '@shared/github';
 import type { DashboardPullRequests, PullRequestCommentItem } from '@shared/dashboard';
 import type { WorkflowRun } from '@shared/pipelines';
 import type { RepoPullRequests } from '@shared/review-queue';
 import type { GitHubClient } from './github-client';
 import * as actions from './actions';
+import { headOf, resolvePullTarget, setPullRequestInto, type PullTarget } from './fork-target';
 import { DashboardLoader } from './dashboard-loader';
 import * as pulls from './pull-requests';
 import { fetchRepoPullRequests } from './repo-pull-requests';
@@ -49,6 +50,11 @@ function git(cwd: string, args: string[]): Promise<string> {
     });
 }
 
+/** Returns the owner of the fork when the pull requests go from a fork to its parent, else undefined. */
+function forkOwner(target: PullTarget): string | undefined {
+    return target.fork?.into === 'parent' ? target.headOwner : undefined;
+}
+
 /**
  * Reads and changes pull requests, reviews and GitHub Actions for the worktrees and the Review view.
  * The class sends each call to a module of this folder.
@@ -56,27 +62,70 @@ function git(cwd: string, args: string[]): Promise<string> {
 export class GitHubService {
     private readonly dashboard: DashboardLoader;
 
-    private readonly repos = new Map<string, RepoRef | null>();
+    private readonly targets = new Map<string, Promise<PullTarget | null>>();
+
+    /** The parent of each repository: a repository for a fork, else null. The key is "owner/name". */
+    private readonly parents = new Map<string, RepoRef | null>();
 
     constructor(private readonly client: GitHubClient) {
         this.dashboard = new DashboardLoader(client);
     }
 
-    /** Returns the GitHub repository of the worktree, from the "origin" remote. Returns null when it is not a GitHub repository. */
+    /**
+     * Returns the repository that gets the pull requests of the worktree. Returns null when "origin" is not a GitHub repository.
+     * It is the "origin" repository, or the parent when "origin" is a fork (see `resolvePullTarget`).
+     */
     async repoFor(root: string): Promise<RepoRef | null> {
-        if (!this.repos.has(root)) {
-            const url = await git(root, ['remote', 'get-url', 'origin']).catch(() => '');
-            this.repos.set(root, parseGitHubRemote(url) ?? null);
+        return (await this.pullTarget(root))?.repo ?? null;
+    }
+
+    /** Returns the pull request target of the worktree. A failed lookup is not kept, so the next call tries again. */
+    private pullTarget(root: string): Promise<PullTarget | null> {
+        let target = this.targets.get(root);
+        if (!target) {
+            target = resolvePullTarget(git, root, repo => this.parentOf(repo));
+            this.targets.set(root, target);
+            target.catch(() => this.targets.delete(root));
         }
-        return this.repos.get(root)!;
+        return target;
+    }
+
+    /** Returns the parent of a fork, or null for a repository that is not a fork. One request for each repository. */
+    private async parentOf(repo: RepoRef): Promise<RepoRef | null> {
+        const key = `${repo.owner}/${repo.name}`.toLowerCase();
+        if (!this.parents.has(key)) {
+            const info = await this.client.rest<{ fork?: boolean; parent?: { name: string; owner: { login: string } } }>(
+                'GET',
+                `/repos/${repo.owner}/${repo.name}`
+            );
+            this.parents.set(key, info.fork && info.parent ? { owner: info.parent.owner.login, name: info.parent.name } : null);
+        }
+        return this.parents.get(key)!;
+    }
+
+    /**
+     * Selects the repository that gets the pull requests of a fork: the parent or the fork. The choice applies to all
+     * worktrees of the repository, so all cached targets clear.
+     */
+    async setPullRequestInto(root: string, into: PullRequestInto): Promise<void> {
+        const fork = (await this.pullTarget(root))?.fork;
+        if (!fork) {
+            throw new Error('The "origin" remote of this worktree is not a fork.');
+        }
+        try {
+            await setPullRequestInto(git, root, fork, into);
+        } finally {
+            this.targets.clear();
+        }
     }
 
     /** Returns the branch, the PR of the branch and the commit to show checks for. Returns null without a GitHub remote. */
     async branchStatus(root: string): Promise<BranchStatus | null> {
-        const repo = await this.repoFor(root);
-        if (!repo) {
+        const target = await this.pullTarget(root);
+        if (!target) {
             return null;
         }
+        const { repo } = target;
         const branch = await git(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
         const localSha = await git(root, ['rev-parse', 'HEAD']);
         const found =
@@ -84,23 +133,32 @@ export class GitHubService {
                 ? []
                 : await this.client.rest<{ number: number }[]>(
                       'GET',
-                      `/repos/${repo.owner}/${repo.name}/pulls?state=all&sort=updated&direction=desc&head=${encodeURIComponent(`${repo.owner}:${branch}`)}`
+                      `/repos/${repo.owner}/${repo.name}/pulls?state=all&sort=updated&direction=desc&head=${encodeURIComponent(`${target.headOwner}:${branch}`)}`
                   );
         const pullRequest = found.length > 0 ? await this.pullRequest(repo, found[0].number) : null;
-        return { repo, branch, sha: pullRequest?.state === 'OPEN' ? pullRequest.headRefOid : localSha, pullRequest };
+        return {
+            repo,
+            branch,
+            sha: pullRequest?.state === 'OPEN' ? pullRequest.headRefOid : localSha,
+            pullRequest,
+            ...(target.fork ? { fork: target.fork } : {})
+        };
     }
 
-    /** Creates a pull request from the branch of the worktree. The base is the default branch when the request has none. Returns its number. */
+    /**
+     * Creates a pull request from the branch of the worktree. The base is the default branch when the request has none.
+     * For a fork, the pull request goes to the selected repository, with the branch of the fork as its head. Returns its number.
+     */
     async createPullRequest(root: string, request: NewPullRequest): Promise<number> {
-        const repo = await this.repoFor(root);
-        if (!repo) {
+        const target = await this.pullTarget(root);
+        if (!target) {
             throw new Error('The "origin" remote of this worktree is not a GitHub repository.');
         }
         const branch = await git(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
         if (branch === 'HEAD') {
             throw new Error('The worktree has no branch (detached HEAD).');
         }
-        return pulls.createPullRequest(this.client, repo, branch, request);
+        return pulls.createPullRequest(this.client, target.repo, headOf(target, branch), request);
     }
 
     /**
@@ -108,17 +166,17 @@ export class GitHubService {
      * One GraphQL request covers all worktrees, so the worktree list can poll it.
      */
     async branchSummaries(root: string): Promise<Record<string, BranchSummary>> {
-        const repo = await this.repoFor(root);
-        if (!repo) {
+        const target = await this.pullTarget(root);
+        if (!target) {
             return {};
         }
-        return pulls.fetchBranchSummaries(this.client, repo);
+        return pulls.fetchBranchSummaries(this.client, target.repo, forkOwner(target));
     }
 
     /** Returns the newest merged pull request of each branch. One GraphQL request covers all worktrees. */
     async mergedBranches(root: string): Promise<Record<string, MergedPullRequest>> {
-        const repo = await this.repoFor(root);
-        return repo ? pulls.fetchMergedBranches(this.client, repo) : {};
+        const target = await this.pullTarget(root);
+        return target ? pulls.fetchMergedBranches(this.client, target.repo, forkOwner(target)) : {};
     }
 
     async pullRequest(repo: RepoRef, number: number): Promise<PullRequest> {

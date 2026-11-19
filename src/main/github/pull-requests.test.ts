@@ -4,6 +4,7 @@ import { GitHubError } from './github-client';
 import { fakeClient, graphQlPullRequest, queryHas } from './fake-client';
 import {
     createPullRequest,
+    fetchBranchSummaries,
     fetchBranches,
     fetchCommitFiles,
     fetchFileVersions,
@@ -71,6 +72,31 @@ describe('createPullRequest', () => {
         await createPullRequest(client, repo, 'feature', { title: 'T', body: '', base: 'release', draft: false });
         expect(calls).toHaveLength(1);
         expect(calls[0].body).toMatchObject({ base: 'release' });
+    });
+});
+
+describe('fetchBranchSummaries', () => {
+    it('searches the pull requests of the user from a fork in the parent', async () => {
+        const pr = {
+            number: 4,
+            title: 'T',
+            url: 'u',
+            isDraft: false,
+            headRefName: 'fix',
+            headRefOid: 'sha',
+            reviewDecision: null,
+            isCrossRepository: true,
+            headRepositoryOwner: { login: 'me' },
+            viewerDidAuthor: true,
+            assignees: { nodes: [] },
+            reviewRequests: { nodes: [] },
+            participants: { nodes: [] },
+            commits: { nodes: [] }
+        };
+        const { client, calls } = fakeClient(() => ({ viewer: { login: 'me' }, search: { nodes: [{}, pr] } }));
+        const summaries = await fetchBranchSummaries(client, repo, 'me');
+        expect(calls[0].body).toEqual({ search: 'repo:acme/api is:pr is:open author:@me sort:updated-desc' });
+        expect(Object.keys(summaries)).toEqual(['fix']);
     });
 });
 
