@@ -96,6 +96,8 @@ export const keyRoots = {
     compare: ['compare'],
     /** The pinned agent sessions. Local data: the main process sends each change. */
     pins: ['pins'],
+    /** The Claude Code sessions of the last 3 days. Local data: the main process reads the transcripts on this Mac. */
+    recentSessions: ['recentSessions'],
     /** The changes of a worktree branch since its base, and the file versions. Local data: git runs on this Mac. */
     branchDiff: ['branchDiff'],
     /** The PATH check of each agent command. Local data: no request goes to a service. */

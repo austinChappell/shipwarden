@@ -26,6 +26,7 @@ import { PlanStore } from './plans/plan-store';
 import { PrGroupStore } from './pr-groups/pr-group-store';
 import { CompareStore } from './compare/compare-store';
 import { PinnedSessions } from './agents/pinned-sessions';
+import { RecentSessions } from './agents/recent-sessions';
 import { printCommand } from '@shared/ask-agent';
 import { agentProgramOf } from '@shared/agent-programs';
 import { LEGACY_NAMES } from './legacy-migration';
@@ -468,6 +469,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         prGroups,
         compare,
         pinnedSessions,
+        recentSessions: new RecentSessions(),
         confirm,
         hookPaths,
         shellIntegration,

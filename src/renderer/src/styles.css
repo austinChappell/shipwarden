@@ -5935,6 +5935,18 @@ button:focus-visible,
     max-width: 360px;
 }
 
+/* The recent sessions (RecentSessions in PinnedSessions.tsx), below the pinned sessions. They use the rows of the pins. */
+.recent-sessions-scope {
+    color: var(--muted);
+    font-weight: 400;
+}
+
+.recent-sessions-more {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 6px;
+}
+
 /* The ShipWarden name and mark at the top of the sidebar */
 
 .brand {

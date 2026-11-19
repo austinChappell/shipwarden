@@ -138,6 +138,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         body: 'The status bar shows how much of your Claude or Codex plan you used. Move the pointer over it to see the limits and when they reset.'
     },
     {
+        id: 'recentSessions',
+        title: 'Resume a session that you closed',
+        body: 'The Agents view lists the Claude Code sessions of the last 3 days under "Recent sessions". Click "Resume" to continue one, also without a pin.',
+        action: { kind: 'view', view: 'agents', label: 'Open Agents' }
+    },
+    {
         id: 'phone',
         title: 'See your agents on your phone',
         body: 'Pair the ShipWarden iPhone app in Settings › Mobile. Then you can see your agents when you are away from your Mac.',
