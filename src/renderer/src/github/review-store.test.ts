@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PendingComment, PullRequestFile } from '@shared/github';
 import { queryClient } from '../query-client';
-import { reviewKeys, reviewStore, withViewed, withoutAgentReview } from './review-store';
+import { hasAgentReview, reviewKeys, reviewStore, withViewed, withoutAgentReview } from './review-store';
 
 const REPO = { owner: 'acme', name: 'app' };
 const PATCH = ['@@ -1,2 +1,2 @@', ' a', '-b', '+c'].join('\n');
@@ -70,5 +70,20 @@ describe('reviewStore agent review', () => {
         expect(reviewStore.get(REPO, 3).pending).toEqual([mine, agentComment]);
         queryClient.setQueryData(reviewKeys.files(REPO, 3), [{ path: 'x.ts', patch: ['@@ -1,2 +1,2 @@', ' a', '-b', '+d'].join('\n') }]);
         expect(reviewStore.get(REPO, 3).pending).toEqual([mine]);
+    });
+
+    it('accepts an agent comment when the user edits it', () => {
+        reviewStore.applyAgentReview(REPO, 4, review, 'claude');
+        const [comment] = reviewStore.get(REPO, 4).pending;
+        reviewStore.updatePending(REPO, 4, comment, 'Changed.');
+        expect(reviewStore.get(REPO, 4).pending).toEqual([{ ...agentComment, body: 'Changed.', needsDecision: undefined }]);
+    });
+
+    it('removes the agent review, the comments, and the text after the review goes out', () => {
+        reviewStore.addPending(REPO, 5, mine);
+        reviewStore.applyAgentReview(REPO, 5, review, 'claude');
+        reviewStore.finishReview(REPO, 5);
+        expect(reviewStore.get(REPO, 5)).toEqual({ pending: [], body: '', agentReview: undefined });
+        expect(hasAgentReview(reviewStore.get(REPO, 5))).toBe(false);
     });
 });

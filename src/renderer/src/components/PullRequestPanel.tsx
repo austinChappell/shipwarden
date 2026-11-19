@@ -178,8 +178,7 @@ export function PullRequestPanel({
         if (!confirmed) return;
         run(async () => {
             await submitReview(target, pr, event, body.trim(), review.pending);
-            reviewStore.clearPending(target, pr.number);
-            setBody('');
+            reviewStore.finishReview(target, pr.number);
         });
     };
 
