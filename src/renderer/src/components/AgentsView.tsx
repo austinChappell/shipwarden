@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useQueries, type UseQueryResult } from '@tanstack/react-query';
-import { Bot, ChevronRight, Pin, PinOff, Plus } from 'lucide-react';
+import { Bot, ChevronRight, Pin, PinOff, Plus, Square } from 'lucide-react';
+import { pluralize } from '@shared/format';
+import { confirmDialog } from './ConfirmDialog';
+import { clickSelection, toggleAll } from './agent-selection';
 import { EmptyState } from './EmptyState';
 import {
     ciStateOf,
@@ -57,6 +60,8 @@ interface Props {
     onUnpin(pin: PinnedSession): void;
     /** Resumes a pinned session in a worktree of any project. */
     onResume(pin: PinnedSession, place: ResumePlace): Promise<void>;
+    /** Stops the agents and closes their terminals. The user agreed before the call. */
+    onStop(sessions: TerminalSession[]): Promise<void>;
 }
 
 /** Where a worktree is: its repository and its branch. */
@@ -131,7 +136,8 @@ export function AgentsView({
     selectedPath,
     onPin,
     onUnpin,
-    onResume
+    onResume,
+    onStop
 }: Props) {
     const pins = usePinnedSessions();
     const [places, setPlaces] = useState<Record<string, Place>>({});
@@ -250,8 +256,63 @@ export function AgentsView({
 
     const counts = countStates(rows.map(row => row.state));
 
+    // The selected agents, by session ID. The IDs of agents that stopped stay in the set, but `selection` drops them.
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+    /** The last checkbox that the user clicked. A Shift-click selects the range from it. */
+    const anchor = useRef<string | undefined>(undefined);
+    const [stopping, setStopping] = useState(false);
+    /** The session IDs in the order of the rows on the screen. */
+    const order = useMemo(() => groups.flatMap(group => group.rows.map(row => row.session.id)), [groups]);
+    const selection = useMemo(() => agents.filter(session => selectedIds.has(session.id)), [agents, selectedIds]);
+
+    const select = (id: string, shift: boolean) => {
+        // React calls the updater during the next render. Read the anchor now, before the next line changes it.
+        const from = anchor.current;
+        setSelectedIds(set => clickSelection(set, order, id, from, shift));
+        anchor.current = id;
+    };
+    const clearSelection = () => {
+        setSelectedIds(new Set());
+        anchor.current = undefined;
+    };
+    /** A click on a row opens the agent. A click with Shift, ⌘ or Ctrl selects the agent. */
+    const clickRow = (event: MouseEvent, session: TerminalSession, projectId: string | undefined) => {
+        if (event.shiftKey || event.metaKey || event.ctrlKey) {
+            event.preventDefault();
+            select(session.id, event.shiftKey);
+            return;
+        }
+        onOpen(session, projectId);
+    };
+    const stopSelected = async () => {
+        const list = selection;
+        if (list.length === 0) return;
+        const ok = await confirmDialog({
+            title: `Stop ${pluralize(list.length, 'agent')}?`,
+            message: list.length === 1 ? 'The agent stops and its terminal closes.' : 'The agents stop and their terminals close.',
+            confirmLabel: 'Stop',
+            danger: true
+        });
+        if (!ok) return;
+        setStopping(true);
+        try {
+            await onStop(list);
+            clearSelection();
+        } finally {
+            setStopping(false);
+        }
+    };
+
     return (
-        <div className="agents-view">
+        <div
+            className="agents-view"
+            onKeyDown={event => {
+                if (event.key === 'Escape' && selection.length > 0 && !event.defaultPrevented) {
+                    event.preventDefault();
+                    clearSelection();
+                }
+            }}
+        >
             <PageHeader
                 className="agents-header"
                 icon={Bot}
@@ -283,7 +344,7 @@ export function AgentsView({
                     </Button>
                 }
             />
-            <div className="agents-scroll" onKeyDown={moveListFocus}>
+            <div className={`agents-scroll${selection.length > 0 ? ' has-selection' : ''}`} onKeyDown={moveListFocus}>
                 {agents.length > 0 && <InlineTip id="agents" />}
                 {agents.length === 0 && pins.length === 0 && (
                     <EmptyState
@@ -301,10 +362,27 @@ export function AgentsView({
                 )}
                 {groups.map(group => {
                     const headingId = `agents-group-${group.id ?? 'other'}`;
+                    const groupIds = group.rows.map(row => row.session.id);
+                    const groupCount = groupIds.filter(id => selectedIds.has(id)).length;
                     return (
                         <section key={group.id ?? 'other'} className="agents-group" aria-labelledby={headingId}>
                             <h2 id={headingId}>
-                                {group.name}
+                                <input
+                                    type="checkbox"
+                                    className="agent-select"
+                                    aria-label={`Select all agents in ${group.name}`}
+                                    checked={groupCount > 0 && groupCount === groupIds.length}
+                                    ref={element => {
+                                        if (element) element.indeterminate = groupCount > 0 && groupCount < groupIds.length;
+                                    }}
+                                    onChange={() => {
+                                        setSelectedIds(set => toggleAll(set, groupIds));
+                                        anchor.current = undefined;
+                                    }}
+                                />
+                                <span>
+                                    {group.name} <span className="agents-group-count">({group.rows.length})</span>
+                                </span>
                                 {group.id === projects?.activeId && <Chip>Current project</Chip>}
                             </h2>
                             {/* biome-ignore lint/a11y/noRedundantRoles: Safari removes the list role when the list has no bullets. */}
@@ -333,8 +411,20 @@ export function AgentsView({
                                     const message =
                                         session.agentMessage ??
                                         (session.agentState ? '' : `${session.title} has no status hooks. The state comes from its terminal output.`);
+                                    const selected = selectedIds.has(session.id);
                                     return (
-                                        <li key={session.id}>
+                                        <li key={session.id} className={selected ? 'selected' : undefined}>
+                                            <input
+                                                type="checkbox"
+                                                className="agent-select"
+                                                aria-label={`Select “${name}”`}
+                                                checked={selected}
+                                                onMouseDown={event => {
+                                                    // Shift-click must not select the text between the rows.
+                                                    if (event.shiftKey) event.preventDefault();
+                                                }}
+                                                onChange={event => select(session.id, (event.nativeEvent as globalThis.MouseEvent).shiftKey === true)}
+                                            />
                                             <button
                                                 className={`agent-row ${state}`}
                                                 data-nav-item
@@ -349,7 +439,10 @@ export function AgentsView({
                                                 ]
                                                     .filter(Boolean)
                                                     .join('. ')}
-                                                onClick={() => onOpen(session, group.id)}
+                                                onMouseDown={event => {
+                                                    if (event.shiftKey) event.preventDefault();
+                                                }}
+                                                onClick={event => clickRow(event, session, group.id)}
                                             >
                                                 <span className={`status-dot ${DOT_CLASS[state]}`} aria-hidden />
                                                 <span className="agent-main">
@@ -411,6 +504,23 @@ export function AgentsView({
                 })}
                 <PinnedSessions pins={pins} places={places} selectedPath={selectedPath} repoLabel={repoLabel} onResume={onResume} />
             </div>
+            {/* The bar floats above the list, so a click on a checkbox does not move the rows. */}
+            {selection.length > 0 && (
+                <div className="agents-selection" role="toolbar" aria-label="Selected agents">
+                    <span className="agents-selection-count">{pluralize(selection.length, 'agent')} selected</span>
+                    <Button variant="link" onClick={clearSelection}>
+                        Clear
+                    </Button>
+                    <Button
+                        variant="danger"
+                        icon={<Square size={12} strokeWidth={2} aria-hidden="true" />}
+                        disabled={stopping}
+                        onClick={() => void stopSelected()}
+                    >
+                        {stopping ? 'Stopping…' : 'Stop selected'}
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }

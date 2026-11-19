@@ -225,6 +225,7 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
         }
     };
 
+    /** Stops the process of a terminal and forgets the session. An agent stops too. */
     const closeSession = async (session: TerminalSession) => {
         await api.terminals.kill(session.id);
         terminalPool.dispose(session.id);
@@ -457,6 +458,7 @@ export function useWorkspaceTabs({ selectedPath, setSelectedPath, sessions, setS
         focusBrowserPane,
         focusWorkspace,
         dropTab,
+        closeSession,
         closeTabView,
         closePaneView,
         movePaneToTab,
