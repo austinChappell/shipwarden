@@ -627,6 +627,24 @@ export interface BranchStatus {
     host?: SourceHostKind;
     /** The web page that creates a pull request for the branch. Undefined means the GitHub compare page. */
     createUrl?: string;
+    /** Set when the "origin" remote is a fork on GitHub. `repo` is then the repository that gets the pull requests. */
+    fork?: ForkTarget;
+}
+
+/** The repository that gets the pull requests of a fork: the parent repository or the fork. */
+export type PullRequestInto = 'parent' | 'origin';
+
+/**
+ * The pull request target of a worktree whose "origin" remote is a fork. The branches go to the fork.
+ * The pull requests go to the parent by default. `gh repo set-default` and ShipWarden change the target in the git config.
+ */
+export interface ForkTarget {
+    /** The fork: the repository of the "origin" remote. */
+    origin: RepoRef;
+    /** The repository that the fork came from. */
+    parent: RepoRef;
+    /** The repository that gets the pull requests. */
+    into: PullRequestInto;
 }
 
 /**

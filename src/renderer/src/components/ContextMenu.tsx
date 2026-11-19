@@ -204,12 +204,14 @@ function MenuPanel({ items, point, anchor, initialActive, onChoose, onBack }: Pa
             onContextMenu={event => event.preventDefault()}
         >
             {items.map((item, index) => {
+                // biome-ignore lint/suspicious/noArrayIndexKey: A separator has no ID. The menu items do not change order while the menu is open.
                 if ('type' in item) return <div key={index} className="context-menu-separator" role="separator" />;
                 const enabled = item.enabled !== false;
                 const hasSubmenu = 'submenu' in item;
                 const danger = 'danger' in item && item.danger;
                 return (
                     <div
+                        // biome-ignore lint/suspicious/noArrayIndexKey: A menu item has no ID, and two items can have the same label. The items do not change order while the menu is open.
                         key={index}
                         ref={element => {
                             rows.current[index] = element;

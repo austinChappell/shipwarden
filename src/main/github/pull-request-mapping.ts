@@ -240,17 +240,74 @@ export const MERGED_BRANCHES_QUERY = `query($owner: String!, $name: String!) {
   }
 }`;
 
-export interface GraphQlMergedBranches {
-    repository: {
-        pullRequests: { nodes: { number: number; title: string; headRefName: string; headRefOid: string; isCrossRepository: boolean }[] };
-    };
+/** The fields of an open pull request for the worktree list. */
+const BRANCH_PULL_REQUEST_FIELDS = `number title url isDraft headRefName headRefOid reviewDecision isCrossRepository viewerDidAuthor
+        headRepositoryOwner { login }
+        assignees(first: 10) { nodes { login } }
+        reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } } } }
+        participants(first: 30) { nodes { login } }
+        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
+
+/**
+ * The query for the open pull requests of the user from a fork to its parent. A search finds them also in a parent
+ * with many open pull requests. The search string has the repository and "author:@me".
+ */
+export const FORK_BRANCH_SUMMARIES_QUERY = `query($search: String!) {
+  viewer { login }
+  search(query: $search, type: ISSUE, first: 100) {
+    nodes { ... on PullRequest { ${BRANCH_PULL_REQUEST_FIELDS} } }
+  }
+}`;
+
+/** The query for the merged pull requests of the user from a fork to its parent. */
+export const FORK_MERGED_BRANCHES_QUERY = `query($search: String!) {
+  search(query: $search, type: ISSUE, first: 100) {
+    nodes { ... on PullRequest { number title headRefName headRefOid isCrossRepository headRepositoryOwner { login } } }
+  }
+}`;
+
+/** The GraphQL data of a search for pull requests. A node that is not a pull request has no fields. */
+export interface GraphQlSearch<T> {
+    viewer?: { login: string };
+    search: { nodes: (Partial<T> | null)[] };
 }
 
-/** Returns the newest merged pull request of each branch. A pull request from a fork is not the pull request of a local branch. */
-export function mapMergedBranches(data: GraphQlMergedBranches): Record<string, MergedPullRequest> {
+/** Returns the pull requests of a search. It removes the nodes that are not pull requests. */
+export function searchNodes<T extends { number: number }>(data: GraphQlSearch<T>): T[] {
+    return data.search.nodes.filter((node): node is T => typeof node?.number === 'number');
+}
+
+/**
+ * Returns true when a pull request is from a branch of the worktree's repository.
+ * Without `headOwner`, the branch is in the same repository. With `headOwner`, the branch is in the fork of that owner.
+ */
+function isOwnBranch(pr: { isCrossRepository: boolean; headRepositoryOwner?: { login: string } | null }, headOwner?: string): boolean {
+    if (!headOwner) return !pr.isCrossRepository;
+    return pr.isCrossRepository && pr.headRepositoryOwner?.login.toLowerCase() === headOwner.toLowerCase();
+}
+
+/** The fields of a merged pull request in the query for the worktree list. */
+export interface GraphQlMergedPullRequest {
+    number: number;
+    title: string;
+    headRefName: string;
+    headRefOid: string;
+    isCrossRepository: boolean;
+    headRepositoryOwner?: { login: string } | null;
+}
+
+export interface GraphQlMergedBranches {
+    repository: { pullRequests: { nodes: GraphQlMergedPullRequest[] } };
+}
+
+/**
+ * Returns the newest merged pull request of each branch. A pull request from another fork is not the pull request of a
+ * local branch. With `headOwner`, only the pull requests from the fork of that owner count.
+ */
+export function mapMergedBranches(data: GraphQlMergedBranches, headOwner?: string): Record<string, MergedPullRequest> {
     const merged: Record<string, MergedPullRequest> = {};
     for (const pr of data.repository.pullRequests.nodes) {
-        if (pr.isCrossRepository || merged[pr.headRefName]) continue;
+        if (!isOwnBranch(pr, headOwner) || merged[pr.headRefName]) continue;
         merged[pr.headRefName] = { number: pr.number, title: pr.title, headSha: pr.headRefOid };
     }
     return merged;
@@ -266,6 +323,7 @@ export interface GraphQlBranchPullRequest {
     headRefOid: string;
     reviewDecision: BranchSummary['reviewDecision'];
     isCrossRepository: boolean;
+    headRepositoryOwner?: { login: string } | null;
     viewerDidAuthor: boolean;
     assignees: { nodes: { login: string }[] };
     reviewRequests: { nodes: { requestedReviewer: { login?: string } | null }[] };
@@ -278,13 +336,16 @@ export interface GraphQlBranchSummaries {
     repository: { pullRequests: { nodes: GraphQlBranchPullRequest[] } };
 }
 
-/** Returns the open pull requests by head branch. The first pull request of a branch wins. */
-export function mapBranchSummaries(data: GraphQlBranchSummaries): Record<string, BranchSummary> {
+/**
+ * Returns the open pull requests by head branch. The first pull request of a branch wins.
+ * With `headOwner`, only the pull requests from the fork of that owner count.
+ */
+export function mapBranchSummaries(data: GraphQlBranchSummaries, headOwner?: string): Record<string, BranchSummary> {
     const viewer = data.viewer.login;
     const summaries: Record<string, BranchSummary> = {};
     for (const pr of data.repository.pullRequests.nodes) {
-        // A pull request from a fork can have the same branch name as a local branch. It is not the worktree's PR.
-        if (pr.isCrossRepository || summaries[pr.headRefName]) {
+        // A pull request from another fork can have the same branch name as a local branch. It is not the worktree's PR.
+        if (!isOwnBranch(pr, headOwner) || summaries[pr.headRefName]) {
             continue;
         }
         summaries[pr.headRefName] = {

@@ -555,7 +555,7 @@ export class LspBridge {
         monaco.languages.registerTypeDefinitionProvider(selector, {
             provideTypeDefinition: async (model, position) => {
                 const document = this.ready(model);
-                if (!document || !document.server.capabilities.typeDefinitionProvider) {
+                if (!document?.server.capabilities.typeDefinitionProvider) {
                     return null;
                 }
                 const result = await this.request<Location | Location[] | LocationLink[]>(document, 'textDocument/typeDefinition', {
@@ -570,7 +570,7 @@ export class LspBridge {
         monaco.languages.registerImplementationProvider(selector, {
             provideImplementation: async (model, position) => {
                 const document = this.ready(model);
-                if (!document || !document.server.capabilities.implementationProvider) {
+                if (!document?.server.capabilities.implementationProvider) {
                     return null;
                 }
                 const result = await this.request<Location | Location[] | LocationLink[]>(document, 'textDocument/implementation', {
@@ -611,7 +611,7 @@ export class LspBridge {
         monaco.languages.registerDocumentHighlightProvider(selector, {
             provideDocumentHighlights: async (model, position) => {
                 const document = this.ready(model);
-                if (!document || !document.server.capabilities.documentHighlightProvider) {
+                if (!document?.server.capabilities.documentHighlightProvider) {
                     return null;
                 }
                 return toHighlights(await this.request<DocumentHighlight[]>(document, 'textDocument/documentHighlight', { position: toLspPosition(position) }));

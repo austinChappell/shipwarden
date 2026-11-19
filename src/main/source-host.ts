@@ -14,6 +14,7 @@ import type {
     PullRequestCandidates,
     PullRequestChange,
     PullRequestFile,
+    PullRequestInto,
     ReactionContent,
     RepoRef,
     RepoTarget,
@@ -22,6 +23,7 @@ import type {
     Workflow
 } from '@shared/github';
 import type { WorkflowRun } from '@shared/pipelines';
+import { GitHubError } from './github/github-client';
 import type { GitHubService } from './github/github-service';
 
 /**
@@ -38,6 +40,8 @@ export interface SourceHost {
     mergedBranches(root: string): Promise<Record<string, MergedPullRequest>>;
     /** Creates a pull request from the branch of the worktree. Returns its number. */
     createPullRequest(root: string, request: NewPullRequest): Promise<number>;
+    /** Selects the repository that gets the pull requests of a fork. Only a host with forks has this method. */
+    setPullRequestInto?(root: string, into: PullRequestInto): Promise<void>;
     pullRequest(target: RepoTarget, number: number): Promise<PullRequest>;
     pullRequestFiles(target: RepoTarget, number: number): Promise<PullRequestFile[]>;
     setFileViewed(pullRequestId: string, path: string, viewed: boolean): Promise<void>;
@@ -95,6 +99,9 @@ export class GitHubHost implements SourceHost {
     createPullRequest(root: string, request: NewPullRequest) {
         return this.github.createPullRequest(root, request);
     }
+    setPullRequestInto(root: string, into: PullRequestInto) {
+        return this.github.setPullRequestInto(root, into);
+    }
     async pullRequest(target: RepoTarget, number: number) {
         return this.github.pullRequest(await this.repoOf(target), number);
     }
@@ -138,7 +145,13 @@ export class GitHubHost implements SourceHost {
         return this.github.issueReference(await this.repoOf(target), number);
     }
     async checks(target: RepoTarget, sha: string) {
-        return this.github.checks(await this.repoOf(target), sha);
+        try {
+            return await this.github.checks(await this.repoOf(target), sha);
+        } catch (err) {
+            // A worktree of a fork reads the checks from the parent. The parent does not have a commit that has no pull request yet.
+            if (typeof target === 'string' && err instanceof GitHubError && err.status === 422) return [];
+            throw err;
+        }
     }
     async jobProgress(target: RepoTarget, jobId: number) {
         return this.github.jobProgress(await this.repoOf(target), jobId);

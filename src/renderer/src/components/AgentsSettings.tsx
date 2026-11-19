@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { CircleAlert, CircleCheck, Plus, Trash2 } from 'lucide-react';
 import { AGENT_MODES, modesOf, type AgentMode } from '@shared/agent-modes';
 import { canSetModel } from '@shared/agent-models';
@@ -80,6 +80,7 @@ function ModelSelect({ agent, onChange }: { agent: AgentDefinition; onChange(mod
           : 'The model of a new session. ShipWarden gets the list from the agent. When the model is not available, the agent uses its own setting.';
     return (
         <Combobox
+            aria-label="Model"
             value={choice ? (agent.model ?? '') : ''}
             groups={groups}
             placeholder={models.isFetching ? 'Loading models…' : 'Own setting'}
@@ -104,6 +105,7 @@ interface RowProps {
 function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemove }: RowProps) {
     const [name, setName] = useState(agent.name);
     const [command, setCommand] = useState(agent.command);
+    const id = useId();
     useEffect(() => setName(agent.name), [agent.name]);
     useEffect(() => setCommand(agent.command), [agent.command]);
 
@@ -146,18 +148,24 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                     <input type="radio" name="default-agent" checked={isDefault} onChange={onMakeDefault} />
                     {isDefault && <Chip tone="info">Default</Chip>}
                 </label>
-                <label className="flow-field agent-field agent-name-field">
-                    <span className="flow-field-label muted">Name</span>
+                <div className="flow-field agent-field agent-name-field">
+                    <label htmlFor={`${id}-name`} className="flow-field-label muted">
+                        Name
+                    </label>
                     <Input
+                        id={`${id}-name`}
                         value={name}
                         onChange={event => setName(event.target.value)}
                         onBlur={commit}
                         onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                     />
-                </label>
-                <label className="flow-field agent-field agent-command-field">
-                    <span className="flow-field-label muted">Command</span>
+                </div>
+                <div className="flow-field agent-field agent-command-field">
+                    <label htmlFor={`${id}-command`} className="flow-field-label muted">
+                        Command
+                    </label>
                     <Input
+                        id={`${id}-command`}
                         mono
                         value={command}
                         spellCheck={false}
@@ -166,12 +174,13 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                         onBlur={commit}
                         onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
                     />
-                </label>
+                </div>
                 {/* The two pickers. On a wide page, they are items of the row. On a narrow page, they share one line. */}
                 <div className="agent-pickers">
-                    <label className="flow-field agent-field agent-mode-select">
+                    <div className="flow-field agent-field agent-mode-select">
                         <span className="flow-field-label muted">Mode</span>
                         <Select<AgentMode | ''>
+                            aria-label="Mode"
                             title={
                                 modes.length > 0
                                     ? 'The permission mode of a new session. An automation can set another mode.'
@@ -185,11 +194,11 @@ function AgentRow({ agent, isDefault, canRemove, onChange, onMakeDefault, onRemo
                             ]}
                             onChange={changeMode}
                         />
-                    </label>
-                    <label className="flow-field agent-field agent-model-select">
+                    </div>
+                    <div className="flow-field agent-field agent-model-select">
                         <span className="flow-field-label muted">Model</span>
                         <ModelSelect agent={agent} onChange={changeModel} />
-                    </label>
+                    </div>
                 </div>
                 <IconButton
                     icon={<Trash2 size={14} strokeWidth={1.6} />}

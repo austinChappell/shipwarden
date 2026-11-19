@@ -20,6 +20,8 @@ import {
 import { GitHubError, type GitHubClient } from './github-client';
 import {
     BRANCH_SUMMARIES_QUERY,
+    FORK_BRANCH_SUMMARIES_QUERY,
+    FORK_MERGED_BRANCHES_QUERY,
     MERGED_BRANCHES_QUERY,
     mapBranchSummaries,
     mapMergedBranches,
@@ -27,8 +29,12 @@ import {
     mapPullRequestSummaries,
     PEOPLE_FIELDS,
     PULL_REQUEST_QUERY,
+    searchNodes,
+    type GraphQlBranchPullRequest,
     type GraphQlBranchSummaries,
     type GraphQlMergedBranches,
+    type GraphQlMergedPullRequest,
+    type GraphQlSearch,
     type GraphQlPullRequest,
     type GraphQlSummary
 } from './pull-request-mapping';
@@ -54,27 +60,49 @@ export async function fetchPullRequest(client: GitHubClient, repo: RepoRef, numb
     return mapPullRequest(data, repo, number, timeline);
 }
 
-/** Creates a pull request from a branch. The base is the default branch when the request has none. Returns its number. */
-export async function createPullRequest(client: GitHubClient, repo: RepoRef, branch: string, request: NewPullRequest): Promise<number> {
+/**
+ * Creates a pull request from a branch. The base is the default branch when the request has none. Returns its number.
+ * `head` is the branch name, or "owner:branch" for a branch in a fork.
+ */
+export async function createPullRequest(client: GitHubClient, repo: RepoRef, head: string, request: NewPullRequest): Promise<number> {
     const base = request.base || (await client.rest<{ default_branch: string }>('GET', `/repos/${repo.owner}/${repo.name}`)).default_branch;
     const created = await client.rest<{ number: number }>('POST', `/repos/${repo.owner}/${repo.name}/pulls`, {
         title: request.title,
         body: request.body,
-        head: branch,
+        head,
         base,
         draft: request.draft
     });
     return created.number;
 }
 
-/** Returns the open pull requests of the repository by head branch, with the combined CI state. */
-export async function fetchBranchSummaries(client: GitHubClient, repo: RepoRef): Promise<Record<string, BranchSummary>> {
-    return mapBranchSummaries(await client.graphql<GraphQlBranchSummaries>(BRANCH_SUMMARIES_QUERY, { owner: repo.owner, name: repo.name }));
+/** Returns the search string for the pull requests of the user in a repository, the newest update first. */
+function ownPullRequestSearch(repo: RepoRef, state: 'open' | 'merged'): string {
+    return `repo:${repo.owner}/${repo.name} is:pr is:${state} author:@me sort:updated-desc`;
 }
 
-/** Returns the newest merged pull request of each branch, from the 100 most recently updated merged pull requests. */
-export async function fetchMergedBranches(client: GitHubClient, repo: RepoRef): Promise<Record<string, MergedPullRequest>> {
-    return mapMergedBranches(await client.graphql<GraphQlMergedBranches>(MERGED_BRANCHES_QUERY, { owner: repo.owner, name: repo.name }));
+/**
+ * Returns the open pull requests of the repository by head branch, with the combined CI state.
+ * With `headOwner` (a fork), it finds the pull requests of the user from the fork of that owner.
+ */
+export async function fetchBranchSummaries(client: GitHubClient, repo: RepoRef, headOwner?: string): Promise<Record<string, BranchSummary>> {
+    if (!headOwner) {
+        return mapBranchSummaries(await client.graphql<GraphQlBranchSummaries>(BRANCH_SUMMARIES_QUERY, { owner: repo.owner, name: repo.name }));
+    }
+    const data = await client.graphql<GraphQlSearch<GraphQlBranchPullRequest>>(FORK_BRANCH_SUMMARIES_QUERY, { search: ownPullRequestSearch(repo, 'open') });
+    return mapBranchSummaries({ viewer: data.viewer ?? { login: '' }, repository: { pullRequests: { nodes: searchNodes(data) } } }, headOwner);
+}
+
+/**
+ * Returns the newest merged pull request of each branch, from the 100 most recently updated merged pull requests.
+ * With `headOwner` (a fork), it finds the pull requests of the user from the fork of that owner.
+ */
+export async function fetchMergedBranches(client: GitHubClient, repo: RepoRef, headOwner?: string): Promise<Record<string, MergedPullRequest>> {
+    if (!headOwner) {
+        return mapMergedBranches(await client.graphql<GraphQlMergedBranches>(MERGED_BRANCHES_QUERY, { owner: repo.owner, name: repo.name }));
+    }
+    const data = await client.graphql<GraphQlSearch<GraphQlMergedPullRequest>>(FORK_MERGED_BRANCHES_QUERY, { search: ownPullRequestSearch(repo, 'merged') });
+    return mapMergedBranches({ repository: { pullRequests: { nodes: searchNodes(data) } } }, headOwner);
 }
 
 /** Returns the users that the user can assign or ask for a review, and the labels of the repository. */

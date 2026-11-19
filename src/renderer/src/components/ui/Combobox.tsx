@@ -47,10 +47,24 @@ interface Props {
     /** More classes for the box around the button, for example for its width. */
     className?: string;
     size?: ControlSize;
+    /** The name of the control for a screen reader, when no label element holds it. */
+    'aria-label'?: string;
 }
 
 /** A select with a search field, for long lists in groups. With `values`, it is a multi-select. */
-export function Combobox({ value, values, groups, onChange, placeholder, searchPlaceholder = 'Search', disabled, title, className, size }: Props) {
+export function Combobox({
+    value,
+    values,
+    groups,
+    onChange,
+    placeholder,
+    searchPlaceholder = 'Search',
+    disabled,
+    title,
+    className,
+    size,
+    'aria-label': ariaLabel
+}: Props) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
@@ -167,6 +181,7 @@ export function Combobox({ value, values, groups, onChange, placeholder, searchP
                 className={inputClass(size, { className: cx('select-button', 'combobox-button', open && 'on') })}
                 disabled={disabled}
                 title={title}
+                aria-label={ariaLabel}
                 aria-haspopup="listbox"
                 aria-expanded={open}
                 onClick={() => (open ? hide(false) : show())}

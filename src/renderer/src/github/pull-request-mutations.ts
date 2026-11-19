@@ -5,6 +5,7 @@ import type {
     PendingComment,
     PullRequest,
     PullRequestChange,
+    PullRequestInto,
     ReactionContent,
     RepoRef,
     RepoTarget,
@@ -133,4 +134,15 @@ export async function createPullRequest(root: string, request: NewPullRequest): 
         queryClient.invalidateQueries({ queryKey: [...keyRoots.branchStatus, root] }),
         queryClient.invalidateQueries({ queryKey: keyRoots.branchSummaries })
     ]);
+}
+
+/**
+ * Selects the repository that gets the pull requests of a fork: the parent or the fork. The change applies to all
+ * worktrees of the repository and changes the repository of their pull requests and checks, so that data loads again.
+ */
+export async function setPullRequestInto(root: string, into: PullRequestInto): Promise<void> {
+    await api().setPullRequestInto(root, into);
+    await Promise.all(
+        [keyRoots.branchStatus, keyRoots.branchSummaries, keyRoots.mergedBranches, keyRoots.checks].map(queryKey => queryClient.invalidateQueries({ queryKey }))
+    );
 }

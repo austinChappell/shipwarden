@@ -167,7 +167,6 @@ export function DatePicker({ value, label, disabled, onChange, children, placeho
             </button>
             {open && (
                 <Popover anchor={trigger} onClose={() => hide(false)} className="calendar">
-                    {/* biome-ignore lint/a11y/noStaticElementInteractions: The keys of the days and the buttons come here, so one handler serves them all. */}
                     <div role="dialog" aria-label={label} onKeyDown={onKey}>
                         <div className="calendar-header">
                             <IconButton

@@ -19,6 +19,7 @@ import type {
     GitHubRepoInfo,
     MergeMethod,
     NewPullRequest,
+    PullRequestInto,
     PendingComment,
     PullRequest,
     IssueReference,
@@ -311,6 +312,11 @@ export interface ShipWardenApi {
         status(root: string): Promise<BranchStatus | null>;
         /** Creates a pull request from the branch of the worktree. Returns its number. */
         createPullRequest(root: string, request: NewPullRequest): Promise<number>;
+        /**
+         * Sets the repository that gets the pull requests of a fork, for all worktrees of the repository. It writes the
+         * setting of `gh repo set-default` to the git config. For the parent, it adds an "upstream" remote when necessary.
+         */
+        setPullRequestInto(root: string, into: PullRequestInto): Promise<void>;
         files(target: RepoTarget, number: number): Promise<PullRequestFile[]>;
         /** Returns the changed files of one commit and its first parent, for the diff of one commit. */
         commitFiles(target: RepoTarget, sha: string): Promise<CommitFiles>;
@@ -755,6 +761,7 @@ export const IpcChannels = {
     githubRepoPullRequests: 'github:repoPullRequests',
     githubDashboardComments: 'github:dashboardComments',
     githubCreatePullRequest: 'github:createPullRequest',
+    githubSetPullRequestInto: 'github:setPullRequestInto',
     reviewProvidersList: 'reviewProviders:list',
     reviewProvidersAdd: 'reviewProviders:add',
     reviewProvidersUpdate: 'reviewProviders:update',

@@ -100,7 +100,7 @@ export class ScreenMirror {
                 let last = line.length - 1;
                 for (; last >= 0; last--) {
                     const item = line.getCell(last, cell);
-                    if (!item || item.getChars() !== '' || !item.isBgDefault() || item.isInverse()) break;
+                    if (item?.getChars() !== '' || !item.isBgDefault() || item.isInverse()) break;
                 }
                 for (let x = 0; x <= last; x++) {
                     const item = line.getCell(x, cell);
