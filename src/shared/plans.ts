@@ -123,6 +123,13 @@ export interface Plan {
     draftPullRequests: boolean;
     /** True: the pull requests of the plan do not go into a PR group. Undefined: they go into the group of the plan. */
     noPrGroup?: boolean;
+    /** True: the agent of a step continues to run after the step is done. Undefined: ShipWarden stops the agent. */
+    keepAgents?: boolean;
+    /**
+     * True: when ShipWarden opens the pull request of a step, the agent of the step watches the CI checks and fixes the
+     * failures. This applies only with `keepAgents`.
+     */
+    watchCi?: boolean;
     /** The name of the agent that wrote the last proposal. */
     agent?: string;
     createdAt: number;
@@ -239,6 +246,8 @@ export function duplicatePlan(plan: Plan, now: number): Plan {
         ...(plan.agentMode ? { agentMode: plan.agentMode } : {}),
         draftPullRequests: plan.draftPullRequests,
         ...(plan.noPrGroup ? { noPrGroup: true } : {}),
+        ...(plan.keepAgents ? { keepAgents: true } : {}),
+        ...(plan.watchCi ? { watchCi: true } : {}),
         steps: plan.steps.map(step => ({
             id: newPlanId(),
             title: step.title,
@@ -424,6 +433,8 @@ export function normalizePlan(value: unknown): Plan | undefined {
     }
     if (isAgentMode(raw.agentMode)) plan.agentMode = raw.agentMode;
     if (raw.noPrGroup === true) plan.noPrGroup = true;
+    if (raw.keepAgents === true) plan.keepAgents = true;
+    if (raw.watchCi === true) plan.watchCi = true;
     const agent = nonEmpty(raw.agent, 200);
     if (agent) plan.agent = agent;
     for (const key of ['executedAt', 'finishedAt'] as const) {
@@ -903,6 +914,26 @@ export function stepPrompt(plan: Plan, index: number, repoName: (repo: string) =
         ].join('\n')
     );
     return parts.join('\n\n');
+}
+
+/** True when a step of the plan that runs opens a pull request. */
+export function opensPullRequests(plan: Plan): boolean {
+    return plan.steps.some(step => step.pullRequest && !step.skip && step.status !== 'skipped');
+}
+
+/** True when the agent of a step watches the CI checks of its pull request after the step is done. */
+export function watchesCi(plan: Plan, step: PlanStep): boolean {
+    return !!plan.keepAgents && !!plan.watchCi && !!step.pr;
+}
+
+/** Returns the prompt that tells the agent of a done step to watch the CI checks of its pull request. */
+export function ciWatchPrompt(pr: StepPullRequest): string {
+    return [
+        `ShipWarden opened pull request #${pr.number} (${pr.url}) for your step.`,
+        `Watch its CI checks until they finish. For a GitHub repository, run \`gh pr checks ${pr.number} --watch\`.`,
+        'When a check fails, read its log and fix the problem. Run the tests and commit. Then push the branch, and watch the checks again.',
+        'Stop when all checks pass. When you cannot fix a check, stop and tell the user why.'
+    ].join('\n');
 }
 
 /** Returns the title of the pull request of a step. */

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
     activeStepIndex,
+    ciWatchPrompt,
+    opensPullRequests,
+    watchesCi,
     resumeAction,
     answerProse,
     applyProposal,
@@ -57,6 +60,13 @@ describe('normalizePlan', () => {
         expect(normalizePlan({ id: 'a', projectId: 'p', noPrGroup: true })?.noPrGroup).toBe(true);
         expect(normalizePlan({ id: 'a', projectId: 'p', noPrGroup: 'yes' })).not.toHaveProperty('noPrGroup');
         expect(normalizePlan({ id: 'a', projectId: 'p' })).not.toHaveProperty('noPrGroup');
+    });
+
+    it('keeps the agent settings only when they are true', () => {
+        expect(normalizePlan({ id: 'a', projectId: 'p', keepAgents: true, watchCi: true })).toMatchObject({ keepAgents: true, watchCi: true });
+        const plain = normalizePlan({ id: 'a', projectId: 'p', keepAgents: 'yes', watchCi: 1 });
+        expect(plain).not.toHaveProperty('keepAgents');
+        expect(plain).not.toHaveProperty('watchCi');
     });
 
     it('keeps the valid fields and drops the others', () => {
@@ -356,6 +366,39 @@ describe('duplicatePlan', () => {
     it('keeps the "no PR group" setting', () => {
         expect(duplicatePlan(plan([], { noPrGroup: true }), 10).noPrGroup).toBe(true);
         expect(duplicatePlan(plan([]), 10)).not.toHaveProperty('noPrGroup');
+    });
+
+    it('keeps the agent settings', () => {
+        expect(duplicatePlan(plan([], { keepAgents: true, watchCi: true }), 10)).toMatchObject({ keepAgents: true, watchCi: true });
+        expect(duplicatePlan(plan([]), 10)).not.toHaveProperty('keepAgents');
+        expect(duplicatePlan(plan([]), 10)).not.toHaveProperty('watchCi');
+    });
+});
+
+describe('agent settings after a step', () => {
+    const pr = { number: 7, url: 'https://github.com/o/r/pull/7', base: 'main' };
+
+    it('stops the agents by default', () => {
+        expect(newPlan('p', 1).keepAgents).toBeUndefined();
+        expect(watchesCi(plan([], { watchCi: true }), step({ pr }))).toBe(false);
+    });
+
+    it('watches CI only when the agents continue to run and the step has a pull request', () => {
+        expect(watchesCi(plan([], { keepAgents: true, watchCi: true }), step({ pr }))).toBe(true);
+        expect(watchesCi(plan([], { keepAgents: true, watchCi: true }), step({}))).toBe(false);
+        expect(watchesCi(plan([], { keepAgents: true }), step({ pr }))).toBe(false);
+    });
+
+    it('finds a step that opens a pull request', () => {
+        expect(opensPullRequests(plan([step({ pullRequest: true })]))).toBe(true);
+        expect(opensPullRequests(plan([step({ pullRequest: false }), step({ pullRequest: true, skip: true })]))).toBe(false);
+    });
+
+    it('tells the agent to watch the checks and to push the fixes', () => {
+        const text = ciWatchPrompt(pr);
+        expect(text).toContain('#7');
+        expect(text).toContain('gh pr checks 7 --watch');
+        expect(text).toContain('push the branch');
     });
 });
 

@@ -33,6 +33,11 @@ The settings of the plan:
 - The agent mode of the step agents. A mode without questions, for example `auto`, lets the plan run without you.
 - Draft pull requests.
 - A PR group for the pull requests. It is on by default.
+- "Stop each agent when its step is done". It is on by default. ShipWarden stops the agent of a step and closes its
+  tab when the step is done. Turn it off to keep the agents running.
+- "Agents watch the CI of their pull requests". This setting shows when the agents keep running and a step opens a pull
+  request. It is off by default. When ShipWarden opens the pull request of a step, the agent of the step watches the CI
+  checks. The agent fixes a failed check, commits, and pushes. The step shows "Watching the checks" while the agent works.
 
 ## Execute the plan
 
@@ -48,6 +53,8 @@ The settings of the plan:
 4. Waits for the agent to end its turn. A new commit finishes the step. ShipWarden pushes the branch and opens the pull
    request. The pull request targets the branch of the last step in the same repository with a pull request, else the
    default branch.
+5. Stops the agent of the step, or gives it the CI checks to watch, as the settings of the plan tell. "Mark done" does
+   not stop the agent.
 
 A pull request of a step in another repository shows as its web address in the body. The body lists the merge order of
 all pull requests of the plan. The plan page shows the merge order too.
