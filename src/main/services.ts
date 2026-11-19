@@ -109,18 +109,21 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         onState: state => window.send(IpcChannels.lspInstallState, state)
     });
     const lsp = new LspManager(message => window.send(IpcChannels.lspMessage, message), shellReady, serverInstaller);
-    /** The in-app browser. Each browser tab of the page has a WebContentsView in the main window. */
-    const browserViews = new BrowserViews(
-        () => window.get(),
-        () => certificates.extraCertificates(),
-        {
-            onState: state => window.send(IpcChannels.browserStateChanged, state),
-            onOpenTab: (url, openerId) => window.send(IpcChannels.browserOpenTab, url, openerId),
-            onFocus: id => window.send(IpcChannels.browserFocused, id),
-            onInput: (id, input) => onBrowserInput(id, input),
-            onFound: (id, active, matches) => window.send(IpcChannels.browserFound, id, active, matches)
-        }
-    );
+    /**
+     * The in-app browser. Each browser tab of a page has a WebContentsView in the window of that page. The events of a
+     * view go to that window only.
+     */
+    const sendToBrowserOwner = (id: string, channel: string, ...args: unknown[]) => {
+        const owner = browserViews.ownerOf(id);
+        if (owner && !owner.isDestroyed()) owner.webContents.send(channel, ...args);
+    };
+    const browserViews = new BrowserViews(() => certificates.extraCertificates(), {
+        onState: state => sendToBrowserOwner(state.id, IpcChannels.browserStateChanged, state),
+        onOpenTab: (url, openerId) => sendToBrowserOwner(openerId, IpcChannels.browserOpenTab, url, openerId),
+        onFocus: id => sendToBrowserOwner(id, IpcChannels.browserFocused, id),
+        onInput: (id, input) => onBrowserInput(id, input),
+        onFound: (id, active, matches) => sendToBrowserOwner(id, IpcChannels.browserFound, id, active, matches)
+    });
     /**
      * The code review providers (GitHub and Azure DevOps accounts). Each pull request and pipeline call goes to the provider
      * of its target. The clients use the same trusted certificates as the in-app browser (`networkReady`).

@@ -64,19 +64,23 @@ const services = createServices({
 });
 const { terminals, browserViews, settings } = services;
 
-function createWindow(): void {
-    mainWindow.create({
+/**
+ * Opens a main window. Each window shows its own page, so the user can see one view in a window and another view in a
+ * second window (⇧⌘N).
+ */
+function createWindow(): BrowserWindow {
+    return mainWindow.create({
         preload: join(__dirname, '../preload/index.js'),
         devServerUrl: process.env.ELECTRON_RENDERER_URL,
         page: join(__dirname, '../renderer/index.html'),
-        onClosed: () => browserViews.destroyAll(),
+        onClosed: window => browserViews.destroyOwnedBy(window),
         // The workspace keys go to the app before the page gets them. A focused terminal takes all keys, so the menu
         // shortcuts alone do not work in a terminal. preventDefault also stops the menu item, so the action happens once.
-        onInput: (event, input) => {
+        onInput: (window, event, input) => {
             const action = shortcutAction(input);
             if (action) {
                 event.preventDefault();
-                sendShortcut(action);
+                sendShortcut(action, window);
                 return;
             }
             // A focused terminal takes all keys, so the menu does not get ⌘Q, ⌘, or ⌘H. Run them here.
@@ -89,13 +93,16 @@ function createWindow(): void {
     });
 }
 
-/** Shows the window and opens the settings page. A section, for example "about", opens that section. */
+/** Returns the window that had the focus last. Without a window, it opens a new window. */
+function activeWindow(): BrowserWindow {
+    return mainWindow.get() ?? createWindow();
+}
+
+/** Shows the active window and opens the settings page. A section, for example "about", opens that section. */
 function openSettings(section?: string): void {
-    if (!mainWindow.get()) {
-        createWindow();
-    }
-    mainWindow.get()?.show();
-    mainWindow.send(IpcChannels.appOpenSettings, section);
+    const window = activeWindow();
+    window.show();
+    window.webContents.send(IpcChannels.appOpenSettings, section);
 }
 
 /**
@@ -103,27 +110,26 @@ function openSettings(section?: string): void {
  * seconds. A failed check also goes to the page as a state with the "error" status.
  */
 function checkForUpdates(): void {
-    if (!mainWindow.get()) {
-        createWindow();
-    }
-    mainWindow.get()?.show();
+    const window = activeWindow();
+    window.show();
     void services.updates.check().then(
-        state => mainWindow.send(IpcChannels.updatesChecked, state),
+        state => {
+            if (!window.isDestroyed()) window.webContents.send(IpcChannels.updatesChecked, state);
+        },
         () => undefined
     );
 }
 
-/** Shows the window and sends an item of the Help menu to the page. */
+/** Shows the active window and sends an item of the Help menu to its page. */
 function sendHelp(action: HelpAction): void {
-    if (!mainWindow.get()) {
-        createWindow();
-    }
-    mainWindow.get()?.show();
-    mainWindow.send(IpcChannels.appHelp, action);
+    const window = activeWindow();
+    window.show();
+    window.webContents.send(IpcChannels.appHelp, action);
 }
 
-function sendShortcut(action: ShortcutAction): void {
-    mainWindow.send(IpcChannels.appShortcut, action);
+/** Sends a workspace key to the page of a window. Without a window, the key goes to the window that had the focus last. */
+function sendShortcut(action: ShortcutAction, window: BrowserWindow | undefined = mainWindow.get()): void {
+    if (window && !window.isDestroyed()) window.webContents.send(IpcChannels.appShortcut, action);
 }
 
 /** Stops all terminal sessions and the PTY host after the user confirms, then quits. */
@@ -136,9 +142,10 @@ function quitAndStop(): Promise<void> {
     });
 }
 
-/** Runs an app key of the macOS menu: ⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U or ⌘H. */
+/** Runs an app key of the macOS menu: ⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U, ⌘H or ⇧⌘N. */
 function runAppKey(action: AppKeyAction): void {
     if (action === 'quit') app.quit();
+    else if (action === 'newWindow') createWindow();
     else if (action === 'quitAndStop') void quitAndStop();
     else if (action === 'settings') openSettings();
     else if (action === 'checkForUpdates') checkForUpdates();
@@ -151,9 +158,10 @@ function runAppKey(action: AppKeyAction): void {
  * Returns true when the app used the key.
  */
 function browserKey(id: string, input: Electron.Input): boolean {
+    const window = browserViews.ownerOf(id);
     const action = shortcutAction(input);
     if (action) {
-        sendShortcut(action);
+        sendShortcut(action, window);
         return true;
     }
     const appAction = appKeyAction(input);
@@ -166,12 +174,12 @@ function browserKey(id: string, input: Electron.Input): boolean {
             browserViews.reload(id);
             return true;
         case 'focusAddress':
-            mainWindow.get()?.webContents.focus();
-            mainWindow.send(IpcChannels.browserFocusAddress, id);
+            window?.webContents.focus();
+            window?.webContents.send(IpcChannels.browserFocusAddress, id);
             return true;
         case 'find':
-            mainWindow.get()?.webContents.focus();
-            mainWindow.send(IpcChannels.browserFindOpen, id);
+            window?.webContents.focus();
+            window?.webContents.send(IpcChannels.browserFindOpen, id);
             return true;
         case 'devTools':
             browserViews.toggleDevTools(id);
@@ -212,6 +220,7 @@ app.whenReady().then(async () => {
             menuTemplate({
                 openSettings: () => openSettings(),
                 checkForUpdates,
+                newWindow: () => void createWindow(),
                 quitAndStopSessions: () => void quitAndStop(),
                 sendShortcut,
                 help: sendHelp,

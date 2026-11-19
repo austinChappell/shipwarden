@@ -19,8 +19,8 @@ export function registerAppIpc({ window, confirm, ptyHostLog, runAppKey }: AppIp
         username: loginName(),
         homeFolder: homedir()
     }));
-    ipcMain.on(IpcChannels.appFocus, () => {
-        const current = window.get();
+    ipcMain.on(IpcChannels.appFocus, event => {
+        const current = window.fromContents(event.sender) ?? window.get();
         if (current) {
             if (current.isMinimized()) current.restore();
             current.show();

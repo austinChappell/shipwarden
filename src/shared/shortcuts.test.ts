@@ -197,6 +197,7 @@ describe('appKeyAction', () => {
         expect(appKeyAction({ ...key('Comma'), key: ',' })).toBe('settings');
         expect(appKeyAction(key('KeyU', { shift: true }))).toBe('checkForUpdates');
         expect(appKeyAction(key('KeyH'))).toBe('hide');
+        expect(appKeyAction(key('KeyN', { shift: true }))).toBe('newWindow');
     });
 
     it('leaves other keys and the keys of macOS', () => {
@@ -208,6 +209,9 @@ describe('appKeyAction', () => {
         expect(appKeyAction(key('KeyT'))).toBeUndefined();
         expect(appKeyAction(key('KeyU'))).toBeUndefined();
         expect(appKeyAction(key('KeyU', { shift: true, alt: true }))).toBeUndefined();
+        // ⌘N is the New worktree key of the workspace.
+        expect(appKeyAction(key('KeyN'))).toBeUndefined();
+        expect(appKeyAction(key('KeyN', { shift: true, alt: true }))).toBeUndefined();
     });
 });
 

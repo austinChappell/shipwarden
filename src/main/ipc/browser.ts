@@ -5,8 +5,12 @@ import type { Services } from '../services';
 import { validBounds } from './args';
 
 /** Registers the IPC handlers of the in-app browser. */
-export function registerBrowserIpc({ browserViews }: Pick<Services, 'browserViews'>): void {
-    ipcMain.on(IpcChannels.browserCreate, (_event, id: string, url: string) => browserViews.create(String(id), String(url)));
+export function registerBrowserIpc({ browserViews, window }: Pick<Services, 'browserViews' | 'window'>): void {
+    // The view shows in the window of the page that made it.
+    ipcMain.on(IpcChannels.browserCreate, (event, id: string, url: string) => {
+        const owner = window.fromContents(event.sender);
+        if (owner) browserViews.create(String(id), String(url), owner);
+    });
     ipcMain.on(IpcChannels.browserSetBounds, (_event, id: string, bounds: BrowserBounds | null) => browserViews.setBounds(String(id), validBounds(bounds)));
     ipcMain.on(IpcChannels.browserLoad, (_event, id: string, url: string) => browserViews.load(String(id), String(url)));
     ipcMain.on(IpcChannels.browserBack, (_event, id: string) => browserViews.back(String(id)));

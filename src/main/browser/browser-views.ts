@@ -26,6 +26,8 @@ export interface BrowserViewEvents {
 
 interface Entry {
     view: WebContentsView;
+    /** The window of the page that made the view. The view shows in this window only. */
+    owner: BrowserWindow;
     /** True while the view is in the window. */
     attached: boolean;
     error?: string;
@@ -34,7 +36,7 @@ interface Entry {
 }
 
 /**
- * The in-app browser. Each browser tab of the page has one WebContentsView in the main window.
+ * The in-app browser. Each browser tab of a page has one WebContentsView in the window of that page.
  * The page sends the place of the tab content, and the view shows there, above the page.
  *
  * Security:
@@ -48,16 +50,14 @@ export class BrowserViews {
     private browserSession: Session | undefined;
 
     constructor(
-        private readonly window: () => BrowserWindow | undefined,
         /** The PEM of the extra CA certificates of Settings › Network. */
         private readonly extraCas: () => readonly string[],
         private readonly events: BrowserViewEvents
     ) {}
 
-    /** Makes a view for a browser tab and loads the address. Does nothing when the view exists. */
-    create(id: string, url: string): void {
-        const window = this.window();
-        if (!window || this.views.has(id)) return;
+    /** Makes a view for a browser tab of the page in `owner` and loads the address. Does nothing when the view exists. */
+    create(id: string, url: string, owner: BrowserWindow): void {
+        if (owner.isDestroyed() || this.views.has(id)) return;
         const view = new WebContentsView({
             webPreferences: {
                 session: this.session(),
@@ -72,7 +72,7 @@ export class BrowserViews {
         });
         view.setBackgroundColor('#ffffff');
         view.setVisible(false);
-        const entry: Entry = { view, attached: false };
+        const entry: Entry = { view, owner, attached: false };
         this.views.set(id, entry);
         this.listen(id, entry);
         this.load(id, url);
@@ -83,9 +83,9 @@ export class BrowserViews {
      * `bounds` is in CSS pixels of the page. The zoom of the page changes the size of a CSS pixel.
      */
     setBounds(id: string, bounds: BrowserBounds | null): void {
-        const window = this.window();
         const entry = this.views.get(id);
-        if (!window || !entry) return;
+        if (!entry || entry.owner.isDestroyed()) return;
+        const window = entry.owner;
         if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
             entry.view.setVisible(false);
             return;
@@ -192,18 +192,22 @@ export class BrowserViews {
         const entry = this.views.get(id);
         if (!entry) return;
         this.views.delete(id);
-        const window = this.window();
-        if (entry.attached && window && !window.isDestroyed()) {
-            window.contentView.removeChildView(entry.view);
+        if (entry.attached && !entry.owner.isDestroyed()) {
+            entry.owner.contentView.removeChildView(entry.view);
         }
         if (!entry.view.webContents.isDestroyed()) {
             entry.view.webContents.close();
         }
     }
 
-    /** Removes all views, for example when the window closes. */
-    destroyAll(): void {
-        [...this.views.keys()].forEach(id => this.destroy(id));
+    /** Removes the views of a window, for example when the window closes. */
+    destroyOwnedBy(window: BrowserWindow): void {
+        [...this.views].filter(([, entry]) => entry.owner === window).forEach(([id]) => this.destroy(id));
+    }
+
+    /** Returns the window of a view, or undefined when the view does not exist. */
+    ownerOf(id: string): BrowserWindow | undefined {
+        return this.views.get(id)?.owner;
     }
 
     /** The IDs of the views. */

@@ -92,6 +92,11 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'commandPalette', label: 'Open the command palette' }
     },
     {
+        id: 'newWindow',
+        title: 'Open a second window',
+        body: 'Press ⇧⌘N to open a new ShipWarden window. Look at another view in it, and your first window stays as it is.'
+    },
+    {
         id: 'quit',
         title: 'Agents continue to run after ⌘Q',
         body: '⌘Q closes the application, and your agents continue their work. Press ⇧⌥⌘Q to quit and stop all agents.'

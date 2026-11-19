@@ -37,7 +37,7 @@ describe('browserViewKey', () => {
 
 describe('isAppKeyAction', () => {
     it('accepts the five app key actions', () => {
-        expect(['quit', 'quitAndStop', 'settings', 'checkForUpdates', 'hide'].every(isAppKeyAction)).toBe(true);
+        expect(['quit', 'quitAndStop', 'settings', 'checkForUpdates', 'hide', 'newWindow'].every(isAppKeyAction)).toBe(true);
     });
     it('rejects other values', () => {
         expect(isAppKeyAction('close')).toBe(false);

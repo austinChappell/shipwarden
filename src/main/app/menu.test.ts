@@ -10,6 +10,7 @@ function recordActions() {
         openSettings: () => calls.push('settings'),
         checkForUpdates: () => calls.push('updates'),
         quitAndStopSessions: () => calls.push('quitAndStop'),
+        newWindow: () => calls.push('newWindow'),
         sendShortcut: (action: ShortcutAction) => calls.push(`shortcut:${action}`),
         help: action => calls.push(`help:${action}`),
         openUrl: url => calls.push(`url:${url}`)
@@ -55,6 +56,9 @@ describe('menuTemplate', () => {
         click(item(template, 'Quit and Stop All Agents…'));
         expect(calls).toEqual(['settings', 'updates', 'quitAndStop']);
         expect(item(template, 'Check for Updates…').accelerator).toBe('Shift+Command+U');
+        click(item(template, 'New Window'));
+        expect(calls).toContain('newWindow');
+        expect(item(template, 'New Window').accelerator).toBe('Shift+Command+N');
         expect(item(template, 'Quit and Stop All Agents…').accelerator).toBe('Shift+Alt+Command+Q');
     });
 
