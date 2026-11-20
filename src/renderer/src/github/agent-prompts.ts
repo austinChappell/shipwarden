@@ -1,5 +1,6 @@
 import { lineLabel } from '@shared/ask-agent';
 import type { PendingComment, PullRequest, Review, ReviewThread } from '@shared/github';
+import { resolveRule } from '@shared/rebase-conflict';
 
 /** Returns the line of a thread in the current diff, or its line in an older commit. Null when it has no line. */
 export function threadLine(thread: ReviewThread): number | null {
@@ -54,7 +55,7 @@ export function rebasePrompt(pr: PullRequest): string {
         `2. Make sure that the worktree is on the branch ${head} and has no uncommitted changes. If it has uncommitted changes, stop and tell me.`,
         `3. Make sure that ${head} has all commits of origin/${head}. If it does not, run "git merge --ff-only origin/${head}".`,
         `4. Run "git rebase origin/${base}".`,
-        `5. If a conflict occurs, resolve it. Keep the intent of the commits on ${head}. Then run "git add" and "git rebase --continue". Do this for each conflict.`,
+        `5. If a conflict occurs, resolve it. ${resolveRule(head)} Then run "git add" and "git rebase --continue". Do this for each conflict.`,
         '6. Run the build, the type check, and the tests of the project. Fix each failure that the rebase caused, and commit the fixes.',
         `7. Run "git push --force-with-lease origin ${head}".`,
         '',

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Bot, ChevronRight, CircleX, ExternalLink, GitPullRequest, Maximize2, TriangleAlert } from 'lucide-react';
+import { Bot, ChevronRight, CircleX, ExternalLink, GitBranch, GitPullRequest, Maximize2, TriangleAlert } from 'lucide-react';
 import {
     hostLabel,
     undecidedCount,
@@ -28,6 +28,7 @@ import { openLink } from '../links';
 import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { showContextMenu } from './ContextMenu';
 import { conflictPrompt, threadLine } from '../github/agent-prompts';
+import { startRebase } from '../git/rebase-actions';
 import { bannerChecks, failedCheckNames, failedChecksTitle } from '../github/check-summary';
 import {
     autoMergeConfirm,
@@ -86,6 +87,11 @@ interface Props {
     onOpenCommit?(commit: PullRequestCommit): void;
     /** The buttons of the manual pull request automations, under the header. */
     renderAutomations?(pr: PullRequest): ReactNode;
+    /**
+     * Shows the Changes tab of the worktree, for a rebase that stopped on a conflict. With it, a panel of a worktree
+     * offers "Rebase onto <base>".
+     */
+    onShowChanges?(): void;
 }
 
 export function PullRequestPanel({
@@ -102,7 +108,8 @@ export function PullRequestPanel({
     agentReview,
     onOpenInReview,
     onOpenCommit,
-    renderAutomations
+    renderAutomations,
+    onShowChanges
 }: Props) {
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
@@ -188,15 +195,24 @@ export function PullRequestPanel({
         }
     };
 
-    /** The actions that the user seldom needs: convert to draft and close. They are in a menu, away from the merge button. */
+    /** The worktree of the branch, when the panel can rebase it: a panel of a worktree with "onShowChanges". */
+    const rebaseWorktree = !overview && typeof target === 'string' && onShowChanges && pr.state === 'OPEN' ? target : undefined;
+    /** "Rebase onto <base>": ShipWarden fetches origin and rebases the worktree onto the base branch of the pull request. */
+    const rebase = () => {
+        if (rebaseWorktree) run(() => startRebase(rebaseWorktree, { onto: pr.baseRefName, onShowChanges }));
+    };
+
+    /** The actions that the user seldom needs: rebase, convert to draft, and close. They are in a menu, away from the merge button. */
     const moreActions = async (button: Element) => {
         const choice = await showContextMenu(
             [
+                ...(rebaseWorktree ? [{ id: 'rebase', label: `Rebase onto ${pr.baseRefName}…` }, { type: 'separator' as const }] : []),
                 ...(pr.isDraft ? [] : [{ id: 'draft', label: 'Convert to Draft' }, { type: 'separator' as const }]),
                 { id: 'close', label: 'Close Pull Request', danger: true }
             ],
             button
         );
+        if (choice === 'rebase') rebase();
         if (choice === 'draft') await setDraft(true);
         if (choice === 'close') await setState('closed');
     };
@@ -349,6 +365,16 @@ export function PullRequestPanel({
                                     Resolve the conflicts with <code>{pr.baseRefName}</code> before you merge.
                                 </span>
                             </div>
+                            {rebaseWorktree && (
+                                <Button
+                                    disabled={busy}
+                                    title={`Fetch origin and rebase this worktree onto origin/${pr.baseRefName}. ShipWarden does not push.`}
+                                    icon={<GitBranch size={13} strokeWidth={1.6} />}
+                                    onClick={rebase}
+                                >
+                                    Rebase onto {pr.baseRefName}
+                                </Button>
+                            )}
                             {onSendToAgent && (
                                 <Button icon={<Bot size={13} strokeWidth={1.6} />} onClick={() => onSendToAgent(conflictPrompt(pr))}>
                                     Send to agent

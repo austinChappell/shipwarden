@@ -160,6 +160,7 @@ export function RightPanel(props: Props) {
                     onOpenDiff={props.onOpenDiff}
                     onSendToAgent={props.onSendToAgent}
                     onSendChecksToAgent={props.onSendChecksToAgent}
+                    onShowChanges={() => select('changes')}
                     onOpenInReview={openInReview && status ? pr => openInReview(status.repo, pr) : undefined}
                     renderAutomations={props.renderPrAutomations}
                 />
@@ -177,6 +178,7 @@ export function RightPanel(props: Props) {
                     onOpenChange={props.onOpenChange}
                     onOpenAllChanges={props.onOpenAllChanges}
                     onOpenFile={path => props.onOpenFile(path)}
+                    onSendToAgent={props.onSendToAgent}
                 />
             )}
             {tab === 'pipelines' && (

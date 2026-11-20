@@ -132,6 +132,7 @@ describe('worktreeMenuItems', () => {
             'linkTask',
             '-',
             'rename',
+            'rebase',
             'closeShells',
             '-',
             'hide',
@@ -155,6 +156,13 @@ describe('worktreeMenuItems', () => {
         expect(main.filter(item => 'enabled' in item && item.enabled === false)).toHaveLength(3);
         const detached = worktreeMenuItems(worktree({}), undefined, false, undefined, 0);
         expect(detached).toContainEqual({ id: 'removeBranch', label: 'Remove Worktree and Delete Branch…', enabled: false, danger: true });
+    });
+
+    it('offers a rebase onto the default branch only for a worktree with a branch', () => {
+        const item = (branch?: string) =>
+            worktreeMenuItems(worktree(branch ? { branch } : {}), undefined, false, undefined, 0).find(entry => 'id' in entry && entry.id === 'rebase');
+        expect(item('b')).toEqual({ id: 'rebase', label: 'Rebase onto Default Branch…', enabled: true });
+        expect(item()).toMatchObject({ enabled: false });
     });
 });
 

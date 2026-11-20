@@ -191,6 +191,11 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'view', view: 'agents', label: 'Open Agents' }
     },
     {
+        id: 'rebase',
+        title: 'Rebase a worktree in ShipWarden',
+        body: 'Right-click a worktree and select "Rebase onto Default Branch…". When a commit has a conflict, the Changes tab shows the files with Continue, Skip, Abort, and "Send to agent".'
+    },
+    {
         id: 'phone',
         title: 'See your agents on your phone',
         body: 'Pair the ShipWarden iPhone app in Settings › Mobile. Then you can see your agents when you are away from your Mac.',

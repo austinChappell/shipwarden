@@ -2,12 +2,14 @@ import { useState, type ReactNode } from 'react';
 import {
     ArrowDown,
     ArrowUp,
+    Bot,
     Check,
     ChevronRight,
     Download,
     FileText,
     GitBranch,
     GitCompareArrows,
+    GitMerge,
     LoaderCircle,
     Minus,
     Plus,
@@ -15,7 +17,7 @@ import {
     Upload
 } from 'lucide-react';
 import { baseName, parentPath } from '@shared/files';
-import { changeLetter, type ChangeSide, type FetchResult, type FileChange, type GitChanges } from '@shared/git';
+import { changeLetter, hasDiverged, type ChangeSide, type FetchResult, type FileChange, type GitChanges, type RebaseState } from '@shared/git';
 import { gitChanged } from '../git/git-store';
 import { confirmDialog } from './ConfirmDialog';
 import { errorText } from '../util';
@@ -25,6 +27,7 @@ import { Button, Checkbox, Count, IconButton, RefreshButton, SkeletonRows, TextA
 import { DraftButton } from './DraftButton';
 import { OverlapNote } from './OverlapChip';
 import { useWorktreeOverlap } from '../git/overlap-query';
+import { afterRebase, confirmForcePush, conflictPromptFor } from '../git/rebase-actions';
 
 interface Props {
     worktree: string;
@@ -43,6 +46,8 @@ interface Props {
     /** Opens one tab with the diffs of all changed files. */
     onOpenAllChanges(): void;
     onOpenFile(path: string): void;
+    /** Sends a prompt to the agent of the worktree. Without it, a rebase conflict has no "Send to agent" button. */
+    onSendToAgent?(prompt: string): void;
 }
 
 const api = window.shipwarden.git;
@@ -74,6 +79,13 @@ export async function confirmDiscard(worktree: string, files: FileChange[]): Pro
         files.map(change => change.path)
     );
     return true;
+}
+
+/** The text of the place of a rebase, for example "feature onto origin/main · commit 2 of 5". */
+export function rebaseText(state: RebaseState): string {
+    const onto = state.ontoName ?? state.onto.slice(0, 7);
+    const step = state.step && state.total ? ` · commit ${state.step} of ${state.total}` : '';
+    return `${state.branch ?? 'HEAD'} onto ${onto}${step}`;
 }
 
 /** A group of changed files: a header with a count and an action for all, and a row for each file. */
@@ -113,7 +125,19 @@ function Group({
  * The Changes tab of the right panel: the git changes of the worktree. The user stages and unstages files, opens
  * the diff of a file, writes a commit message and commits, and pushes the branch.
  */
-export function ChangesPanel({ worktree, repo, changes, error, fetched, refreshing, onReload, onOpenChange, onOpenAllChanges, onOpenFile }: Props) {
+export function ChangesPanel({
+    worktree,
+    repo,
+    changes,
+    error,
+    fetched,
+    refreshing,
+    onReload,
+    onOpenChange,
+    onOpenAllChanges,
+    onOpenFile,
+    onSendToAgent
+}: Props) {
     const overlap = useWorktreeOverlap(repo, worktree);
     const [message, setMessage] = useState('');
     const [amend, setAmend] = useState(false);
@@ -169,6 +193,43 @@ export function ChangesPanel({ worktree, repo, changes, error, fetched, refreshi
             setNotice('Pushed the branch.');
             setTimeout(() => setNotice(undefined), 6000);
         });
+    const continueRebase = (skip: boolean) =>
+        act(skip ? 'skip' : 'continue', async () => {
+            const state = changes?.rebase;
+            if (skip) {
+                const ok = await confirmDialog({
+                    title: state?.stopped ? `Skip the commit ${state.stopped.hash}?` : 'Skip the commit?',
+                    message: 'The changes of this commit are not in the branch after the rebase.',
+                    confirmLabel: 'Skip',
+                    danger: true
+                });
+                if (!ok) return;
+            }
+            const result = skip ? await api.rebaseSkip(worktree) : await api.rebaseContinue(worktree);
+            gitChanged();
+            await afterRebase(worktree, result, changes?.upstream);
+        });
+    const abortRebase = () =>
+        act('abort', async () => {
+            const ok = await confirmDialog({
+                title: 'Abort the rebase?',
+                message: 'Git runs "git rebase --abort". The branch gets its commits from before the rebase again. The resolutions that you made are lost.',
+                confirmLabel: 'Abort rebase',
+                danger: true
+            });
+            if (ok) await api.rebaseAbort(worktree);
+        });
+    const sendConflict = (send: (prompt: string) => void) =>
+        act('agent', async () => {
+            send(await conflictPromptFor(worktree, overlap));
+        });
+    const forcePush = (upstream: string) =>
+        act('forcePush', async () => {
+            if (await confirmForcePush(worktree, upstream)) {
+                setNotice('Pushed the branch.');
+                setTimeout(() => setNotice(undefined), 6000);
+            }
+        });
     const toggleAmend = async (value: boolean) => {
         setAmend(value);
         // "Amend" starts from the message of the last commit, unless the user typed one.
@@ -193,8 +254,12 @@ export function ChangesPanel({ worktree, repo, changes, error, fetched, refreshi
     }
 
     const staged = changes.staged;
+    const rebase = changes.rebase;
     const canCommit = message.trim() !== '' && (staged.length > 0 || amend) && !busy;
-    const canPush = !!changes.branch && !changes.unborn && (changes.ahead > 0 || !changes.upstream);
+    const upstream = changes.upstream;
+    const diverged = hasDiverged(changes) && !rebase;
+    const canPush = !!changes.branch && !changes.unborn && (changes.ahead > 0 || !changes.upstream) && !rebase && !diverged;
+    const spinner = (label: string, icon: ReactNode) => (busy === label ? <LoaderCircle size={13} className="spin" /> : icon);
 
     const row = (change: FileChange, side: ChangeSide | 'conflict') => {
         const inIndex = side === 'staged';
@@ -271,7 +336,7 @@ export function ChangesPanel({ worktree, repo, changes, error, fetched, refreshi
                     </span>
                 )}
                 <span className="header-spacer" />
-                {changes.upstream && changes.behind === 0 && (
+                {changes.upstream && changes.behind === 0 && !rebase && (
                     <Button
                         disabled={!!busy}
                         title={`Pull from ${changes.upstream} with a fast-forward only${changes.behind ? `: ${changes.behind} new commits` : ''}`}
@@ -306,7 +371,67 @@ export function ChangesPanel({ worktree, repo, changes, error, fetched, refreshi
                     onRefresh={onReload}
                 />
             </div>
-            {changes.behind > 0 && changes.upstream && (
+            {rebase && (
+                <div className="changes-rebase" role="status">
+                    <div className="changes-rebase-text">
+                        <strong>Rebase in progress</strong>
+                        <span>{rebaseText(rebase)}</span>
+                        {rebase.stopped && (
+                            <span className="changes-rebase-commit" title={rebase.stopped.subject}>
+                                Stopped at {rebase.stopped.hash} {rebase.stopped.subject}
+                            </span>
+                        )}
+                        <span className="changes-rebase-hint">
+                            {changes.conflicted.length
+                                ? `Resolve the conflicts in ${pluralize(changes.conflicted.length, 'file')}, and stage the files. Then continue.`
+                                : 'Stage the resolved files. Then continue.'}
+                        </span>
+                    </div>
+                    <div className="changes-rebase-actions">
+                        <Button variant="link-danger" disabled={!!busy} onClick={() => void abortRebase()}>
+                            Abort
+                        </Button>
+                        <Button disabled={!!busy} title="Skip the commit that stopped the rebase" onClick={() => void continueRebase(true)}>
+                            Skip
+                        </Button>
+                        {onSendToAgent && changes.conflicted.length > 0 && (
+                            <Button
+                                disabled={!!busy}
+                                title="Send the conflict, the commits of both sides, and the overlap with other worktrees to the agent"
+                                icon={spinner('agent', <Bot size={13} strokeWidth={1.6} />)}
+                                onClick={() => void sendConflict(onSendToAgent)}
+                            >
+                                Send to agent
+                            </Button>
+                        )}
+                        <Button
+                            variant="primary"
+                            disabled={!!busy || changes.conflicted.length > 0}
+                            title={changes.conflicted.length ? 'Resolve and stage the files with conflicts first' : 'Run "git rebase --continue"'}
+                            icon={spinner('continue', <GitMerge size={13} strokeWidth={1.8} />)}
+                            onClick={() => void continueRebase(false)}
+                        >
+                            Continue
+                        </Button>
+                    </div>
+                </div>
+            )}
+            {diverged && upstream && (
+                <div className="changes-behind">
+                    <GitCompareArrows size={14} strokeWidth={2} />
+                    <span>The branch and {upstream} have different commits, for example after a rebase.</span>
+                    <span className="header-spacer" />
+                    <Button
+                        disabled={!!busy}
+                        title={`Replace ${upstream} with the commits of the branch`}
+                        icon={spinner('forcePush', <Upload size={13} strokeWidth={1.8} />)}
+                        onClick={() => void forcePush(upstream)}
+                    >
+                        Push with --force-with-lease
+                    </Button>
+                </div>
+            )}
+            {changes.behind > 0 && changes.upstream && !diverged && !rebase && (
                 <div className="changes-behind">
                     <ArrowDown size={14} strokeWidth={2} />
                     <span>
@@ -329,49 +454,51 @@ export function ChangesPanel({ worktree, repo, changes, error, fetched, refreshi
             )}
             {overlap && <OverlapNote overlap={overlap} />}
 
-            <div className="changes-commit">
-                <TextArea
-                    className="changes-message"
-                    value={message}
-                    placeholder={amend ? 'The message of the amended commit' : 'Commit message (⌘↩ to commit)'}
-                    spellCheck
-                    onChange={event => setMessage(event.target.value)}
-                    onKeyDown={event => {
-                        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && canCommit) {
-                            event.preventDefault();
-                            void commit();
-                        }
-                    }}
-                />
-                <div className="changes-commit-row">
-                    <Checkbox
-                        label="Amend"
-                        title="Replace the last commit with the staged changes and this message"
-                        checked={amend}
-                        disabled={changes.unborn}
-                        onChange={checked => void toggleAmend(checked)}
+            {!rebase && (
+                <div className="changes-commit">
+                    <TextArea
+                        className="changes-message"
+                        value={message}
+                        placeholder={amend ? 'The message of the amended commit' : 'Commit message (⌘↩ to commit)'}
+                        spellCheck
+                        onChange={event => setMessage(event.target.value)}
+                        onKeyDown={event => {
+                            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && canCommit) {
+                                event.preventDefault();
+                                void commit();
+                            }
+                        }}
                     />
-                    <span className="header-spacer" />
-                    <DraftButton
-                        worktree={worktree}
-                        kind="commit"
-                        amend={amend}
-                        current={message}
-                        disabled={(staged.length === 0 && !amend) || !!busy}
-                        onDraft={setMessage}
-                        onError={setActionError}
-                    />
-                    <Button
-                        variant="primary"
-                        disabled={!canCommit}
-                        onClick={() => void commit()}
-                        title={staged.length === 0 && !amend ? 'Stage changes first' : message.trim() ? undefined : 'Type a commit message'}
-                        icon={busy === 'commit' ? <LoaderCircle size={13} className="spin" /> : <Check size={13} strokeWidth={2} />}
-                    >
-                        {amend ? 'Amend commit' : staged.length ? `Commit ${staged.length} ${staged.length === 1 ? 'file' : 'files'}` : 'Commit'}
-                    </Button>
+                    <div className="changes-commit-row">
+                        <Checkbox
+                            label="Amend"
+                            title="Replace the last commit with the staged changes and this message"
+                            checked={amend}
+                            disabled={changes.unborn}
+                            onChange={checked => void toggleAmend(checked)}
+                        />
+                        <span className="header-spacer" />
+                        <DraftButton
+                            worktree={worktree}
+                            kind="commit"
+                            amend={amend}
+                            current={message}
+                            disabled={(staged.length === 0 && !amend) || !!busy}
+                            onDraft={setMessage}
+                            onError={setActionError}
+                        />
+                        <Button
+                            variant="primary"
+                            disabled={!canCommit}
+                            onClick={() => void commit()}
+                            title={staged.length === 0 && !amend ? 'Stage changes first' : message.trim() ? undefined : 'Type a commit message'}
+                            icon={busy === 'commit' ? <LoaderCircle size={13} className="spin" /> : <Check size={13} strokeWidth={2} />}
+                        >
+                            {amend ? 'Amend commit' : staged.length ? `Commit ${staged.length} ${staged.length === 1 ? 'file' : 'files'}` : 'Commit'}
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {(actionError || error) && <div className="form-error changes-error">{actionError ?? error}</div>}
             {notice && <div className="changes-notice">{notice}</div>}

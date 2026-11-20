@@ -294,6 +294,11 @@ export function App() {
         sendToAgent,
         promptAgent: agents.promptAgent,
         prepareWorktree: agents.prepareWorktree,
+        showChanges: path => {
+            setSelectedPath(path);
+            setMainView('worktree');
+            selectPanelTab('changes');
+        },
         setError
     });
     const { openLinkedTask } = worktreeActions;

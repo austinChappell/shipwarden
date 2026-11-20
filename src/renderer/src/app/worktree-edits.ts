@@ -95,6 +95,7 @@ export function worktreeMenuItems(
             : [{ id: 'linkTask', label: 'Link to Task…' }]),
         { type: 'separator' as const },
         { id: 'rename', label: 'Rename…' },
+        { id: 'rebase', label: 'Rebase onto Default Branch…', enabled: !!worktree.branch },
         { id: 'closeShells', label: shells > 0 ? `Close ${shells} ${shells === 1 ? 'Shell' : 'Shells'}…` : 'Close Shells', enabled: shells > 0 },
         { type: 'separator' as const },
         ...(isHiddenAt(hidden, now)

@@ -64,6 +64,15 @@ click it in the Changes tab, to see the files. ShipWarden compares the commits s
 files, the unstaged files, and the new files. It uses local git only. The `worktree.overlap` automation trigger can
 send a note to the agents.
 
+To rebase a worktree onto the default branch, right-click the worktree in the sidebar and select **Rebase onto Default
+Branch…**. The PR tab has **Rebase onto** and the base branch of the pull request in the conflict banner and in the
+**More actions** (…) menu. ShipWarden fetches origin and runs `git rebase`. It refuses uncommitted changes and does
+not stash them. When a commit has a conflict, the Changes tab shows "Rebase in progress" with the files. Resolve and
+stage the files, then click **Continue**. You can also click **Skip** or **Abort**. **Send to agent** gives the agent
+the files, the commits of both sides, and the other worktrees that change the same files. A rebase that you start in a
+terminal shows the same state. ShipWarden never pushes after a rebase without a question. Then it pushes with
+`--force-with-lease`.
+
 The Tasks view shows the tasks of a task tracker. Task trackers are plugins. ShipWarden
 includes seven: GitHub Issues, Linear, ClickUp, Jira, Azure Boards, Trello, and Local tasks. Anyone can write a
 plugin with the [ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch

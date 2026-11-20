@@ -27,6 +27,61 @@ export interface GitChanges {
     unstaged: FileChange[];
     /** The files with merge conflicts. */
     conflicted: FileChange[];
+    /** The rebase that is in progress, also when it started outside ShipWarden. Undefined when no rebase runs. */
+    rebase?: RebaseState;
+}
+
+/** A rebase that stopped and waits for the user, from the rebase folder of git. */
+export interface RebaseState {
+    /** The branch that the rebase moves. Undefined for a detached HEAD. */
+    branch?: string;
+    /** The commit that the rebase moves the branch onto. */
+    onto: string;
+    /** The name of a branch at `onto`, for example "origin/main". Undefined when no branch points at it. */
+    ontoName?: string;
+    /** The number of the commit that the rebase applies now, from 1. */
+    step?: number;
+    /** The number of commits that the rebase applies. */
+    total?: number;
+    /** The commit that stopped the rebase, for example with a conflict. */
+    stopped?: { hash: string; subject: string };
+}
+
+/** The result of a rebase step: the rebase is complete, or it stopped on a conflict. */
+export type RebaseResult =
+    | {
+          status: 'done';
+          /** The branch that the rebase moved onto, for example "origin/main". */
+          onto: string;
+          /** False when the branch already had all commits of `onto`, so the rebase changed nothing. */
+          changed: boolean;
+      }
+    | { status: 'conflict'; state: RebaseState };
+
+/** The git data of a rebase conflict, for the prompt to an agent. */
+export interface RebaseConflictInput {
+    /** The branch that the rebase moves. Undefined for a detached HEAD. */
+    branch?: string;
+    /** The name of the branch that the rebase moves onto, else its short hash. */
+    onto: string;
+    /** The files with conflicts. */
+    files: string[];
+    /** The commit that stopped the rebase. */
+    stopped?: { hash: string; subject: string };
+    /** The commits of the branch that change the files, as "<short hash> <subject>", newest first. */
+    branchCommits: string[];
+    /** The commits of `onto` since the merge base that change the files, as "<short hash> <subject>", newest first. */
+    baseCommits: string[];
+}
+
+/** True when the worktree has changes that stop a rebase: staged, unstaged, or conflicted files. New files do not count. */
+export function hasUncommittedChanges(changes: Pick<GitChanges, 'staged' | 'unstaged' | 'conflicted'>): boolean {
+    return changes.staged.length > 0 || changes.conflicted.length > 0 || changes.unstaged.some(change => change.kind !== 'untracked');
+}
+
+/** True when the branch and its upstream both have commits that the other does not have, for example after a rebase. */
+export function hasDiverged(changes: Pick<GitChanges, 'upstream' | 'ahead' | 'behind'>): boolean {
+    return !!changes.upstream && changes.ahead > 0 && changes.behind > 0;
 }
 
 /** Which side of a change a diff shows: HEAD and the index (staged), or the index and the working file (unstaged). */
