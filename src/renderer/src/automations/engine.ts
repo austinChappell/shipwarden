@@ -55,7 +55,7 @@ import type { BranchSummary, MergedPullRequest, RepoRef } from '@shared/github';
 import type { NotificationSettings } from '@shared/notifications';
 import { linkMatchesTask, pickCollection, type StartStatusResult, type Task, type TaskLink, type TaskPerson, type TaskSource } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
-import { BUDGET_WAIT, type ProviderUsage } from '@shared/usage';
+import { BUDGET_WAIT_PREFIX, type ProviderUsage } from '@shared/usage';
 import { budgetWait } from '../usage-budget';
 import type { Worktree } from '@shared/worktrees';
 import { checkLine } from '../app/agent-text';
@@ -770,7 +770,7 @@ export class AutomationEngine {
             const hold = this.holdReason(context, automation, run);
             if (hold) {
                 // A wait for the usage budget can take days (a weekly limit). It does not fail after HOLD_LIMIT_MS.
-                if (Date.now() - run.createdAt > HOLD_LIMIT_MS && !hold.startsWith(BUDGET_WAIT)) {
+                if (Date.now() - run.createdAt > HOLD_LIMIT_MS && !hold.startsWith(BUDGET_WAIT_PREFIX)) {
                     await this.fail(run, automation, 'The run waited for more than 12 hours.');
                 } else if (run.status !== 'held' || run.detail !== hold) {
                     await this.update(run.id, { status: 'held', detail: hold });

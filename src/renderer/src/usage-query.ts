@@ -8,6 +8,11 @@ import { keyRoots, queryClient } from './query-client';
  * does not load again on a timer. The change goes into the cache without a new request.
  */
 export function useUsage() {
+    return useUsageData() ?? EMPTY;
+}
+
+/** Like `useUsage`, but undefined until the first list loaded. The usage budget counts that time as "loading". */
+export function useUsageData(): ProviderUsage[] | undefined {
     useEffect(() => window.shipwarden.usage.onChanged(usage => queryClient.setQueryData(keyRoots.usage, usage)), []);
     const query = useQuery({
         queryKey: keyRoots.usage,
@@ -15,7 +20,7 @@ export function useUsage() {
         staleTime: Number.POSITIVE_INFINITY,
         refetchInterval: false
     });
-    return query.data ?? EMPTY;
+    return query.data;
 }
 
 const EMPTY: ProviderUsage[] = [];

@@ -49,7 +49,7 @@ import {
     type StepTask
 } from '@shared/plans';
 import { formatAgo, pluralize } from '@shared/format';
-import { BUDGET_WAIT } from '@shared/usage';
+import { BUDGET_WAIT_PREFIX } from '@shared/usage';
 import {
     PROGRESS_GROUPS,
     PROGRESS_LABELS,
@@ -2173,7 +2173,7 @@ function rowDetail(plan: Plan, step: PlanStep, index: number, progress: StepProg
             return { text: step.detail ?? stepStatusLabel(step.status) };
         case 'pending':
             // A step of a running plan that waits for the usage budget shows the wait and the reset time.
-            return plan.status === 'running' && step.detail?.startsWith(BUDGET_WAIT) ? { text: step.detail, tone: 'pending' } : { text: 'Not started' };
+            return plan.status === 'running' && step.detail?.startsWith(BUDGET_WAIT_PREFIX) ? { text: step.detail, tone: 'pending' } : { text: 'Not started' };
         case 'closed':
             return { text: 'The pull request was closed without a merge.' };
         case 'done':

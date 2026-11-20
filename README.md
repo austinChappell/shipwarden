@@ -117,7 +117,8 @@ While the usage is at or above the budget, the queue, plans, Compare agents, and
 do not start new agents. The queue and the plans show "Waiting for usage to reset" with the reset time, and continue
 after the reset. The Compare agents dialog disables **Start** until the reset. A held automation run starts after the
 reset. Agents that work now continue. Agents other than Claude Code and Codex have no usage data, so the budget does not
-stop them. When ShipWarden has no usage data, the budget does not stop a start.
+stop them. Just after ShipWarden starts, a set budget waits until the usage loads ("Waiting for usage data"). When
+ShipWarden has no usage data after that (no sign-in, or a failed request), the budget does not stop a start.
 
 The automation trigger "Plan usage reached" (`usage.threshold`) runs one time when a limit reaches a percent. It runs
 again only after the limit resets. Use it to show a notification or to post a message.

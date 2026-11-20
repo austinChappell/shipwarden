@@ -378,6 +378,7 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - Intervals: Claude every 5 minutes, because its endpoint answers 429 to frequent requests. Codex every 2 minutes.
   After a 429, the provider waits for `Retry-After` (or 15 minutes). The refresh button sends at most one request
   each 30 seconds for each provider.
+- Each provider has the status "loading" until its first answer. The bar does not show it.
 - An agent without a sign-in does not show. After a failure, the bar keeps the last values and shows a warning icon.
 
 ### Usage budget
@@ -386,8 +387,10 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   (`'all'` or `'session'` for the 5-hour limit only). The default is no budget.
 - **Check.** `budgetBlock` (`src/shared/usage.ts`) is a pure function. It returns the provider and the window that stop
   a new agent, or undefined. A window stops a start when its usage is at or above the budget. Only usage with the
-  status "ok" counts, and a window whose reset time passed does not count. No usage data (signed out, an error, or an
-  agent other than Claude Code and Codex) never stops a start. `agentBudgetBlock` maps agent commands to providers.
+  status "ok" counts, and a window whose reset time passed does not count. While the first usage of the provider loads
+  (status "loading"), a set budget waits with "Waiting for usage data", so a full queue cannot start agents before the
+  usage is known. No usage data after the first load (signed out, an error, or an agent other than Claude Code and
+  Codex) never stops a start. `agentBudgetBlock` maps agent commands to providers.
   `budgetWaitText` writes "Waiting for usage to reset. … It resets at 2:30 PM."
 - **Context.** `src/renderer/src/usage-budget.ts` keeps the newest settings and usage. `App` sets them in a layout
   effect, before the effects of the runners. `budgetWait(agentId, repo)` is for the runners. `useBudgetWait` is for

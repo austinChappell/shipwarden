@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { agentForRepo, DEFAULT_SETTINGS, type AgentDefinition, type AppSettings } from '@shared/settings';
-import { agentBudgetBlock, budgetWaitText, type BudgetBlock, type ProviderUsage } from '@shared/usage';
-import { useUsage } from './usage-query';
+import { agentBudgetBlock, budgetWaitText, LOADING_USAGE, type BudgetBlock, type ProviderUsage } from '@shared/usage';
+import { useUsageData } from './usage-query';
 
 /**
  * The usage budget of Settings › Agents for the start paths outside React: the queue, the plans, and the automations.
@@ -12,7 +12,8 @@ interface BudgetContext {
     usage: readonly ProviderUsage[];
 }
 
-let context: BudgetContext = { settings: DEFAULT_SETTINGS, usage: [] };
+/** Before App gives the usage, each provider is loading. A set budget then waits, so no start races the first load. */
+let context: BudgetContext = { settings: DEFAULT_SETTINGS, usage: LOADING_USAGE };
 const listeners = new Set<() => void>();
 
 /** Gives the newest settings and usage. App calls it at each render. */
@@ -75,7 +76,7 @@ function useNow(): number {
  * example the Compare agents dialog. The text changes when the usage, the settings, or the time changes.
  */
 export function useBudgetWait(agents: readonly Pick<AgentDefinition, 'command'>[]): string | undefined {
-    const usage = useUsage();
+    const usage = useUsageData() ?? LOADING_USAGE;
     const settings = useSyncExternalStore(subscribe, () => context.settings);
     const now = useNow();
     const block = agentBudgetBlock(

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     agentBudgetBlock,
     BUDGET_WAIT,
+    BUDGET_LOADING,
     budgetBlock,
     budgetWaitText,
     formatResetIn,
@@ -14,7 +15,8 @@ import {
     usageProviderOf,
     usageSlots,
     type ProviderUsage,
-    type UsageBudget
+    type UsageBudget,
+    type UsageWindow
 } from './usage';
 
 describe('parseClaudeUsage', () => {
@@ -123,7 +125,7 @@ describe('usage budget', () => {
     });
 
     it('stops an agent above the limit', () => {
-        expect(budgetBlock(claude(93), budget, 'claude', now)?.window.label).toBe('5h');
+        expect(budgetBlock(claude(93), budget, 'claude', now)?.window?.label).toBe('5h');
     });
 
     it('lets an agent start with no usage data', () => {
@@ -133,6 +135,21 @@ describe('usage budget', () => {
         expect(budgetBlock([{ ...claude(95)[0], status: 'error' }], budget, 'claude', now)).toBeUndefined();
         // An agent without a usage provider, for example Gemini CLI.
         expect(budgetBlock(claude(95), budget, undefined, now)).toBeUndefined();
+    });
+
+    it('waits while the first usage loads, and allows after a failed or empty first load', () => {
+        const loading: ProviderUsage[] = [{ provider: 'claude', status: 'loading', windows: [] }];
+        const block = budgetBlock(loading, budget, 'claude', now);
+        expect(block).toEqual({ provider: 'claude', percent: 80 });
+        if (!block) throw new Error('The budget did not wait for the usage.');
+        expect(budgetWaitText(block, now).startsWith(`${BUDGET_LOADING}.`)).toBe(true);
+        // Without a budget, the load does not matter.
+        expect(budgetBlock(loading, { percent: null, windows: 'all' }, 'claude', now)).toBeUndefined();
+        // An agent without a usage provider does not wait.
+        expect(budgetBlock(loading, budget, undefined, now)).toBeUndefined();
+        // The first load ended: no sign-in, or an error. No data allows.
+        expect(budgetBlock([{ provider: 'claude', status: 'signed-out', windows: [] }], budget, 'claude', now)).toBeUndefined();
+        expect(budgetBlock([{ provider: 'claude', status: 'error', windows: [], error: 'HTTP 500' }], budget, 'claude', now)).toBeUndefined();
     });
 
     it('lets an agent start when the budget is off or the usage is of another provider', () => {
@@ -145,12 +162,12 @@ describe('usage budget', () => {
     });
 
     it('checks only the 5-hour limit when the setting says so', () => {
-        expect(budgetBlock(claude(10, 90), budget, 'claude', now)?.window.label).toBe('Weekly');
+        expect(budgetBlock(claude(10, 90), budget, 'claude', now)?.window?.label).toBe('Weekly');
         expect(budgetBlock(claude(10, 90), { percent: 80, windows: 'session' }, 'claude', now)).toBeUndefined();
     });
 
     it('waits for the window that resets last', () => {
-        expect(budgetBlock(claude(90, 90), budget, 'claude', now)?.window.label).toBe('Weekly');
+        expect(budgetBlock(claude(90, 90), budget, 'claude', now)?.window?.label).toBe('Weekly');
     });
 
     it('finds the provider of each agent command', () => {
@@ -168,7 +185,7 @@ describe('usage budget', () => {
         expect(text.endsWith('(in 2h 30m).')).toBe(true);
         // Without the time now, the text has the clock time only, so a saved text does not change each minute.
         expect(budgetWaitText(block)).not.toContain('(in ');
-        expect(budgetWaitText({ ...block, window: { ...block.window, resetsAt: undefined } })).toMatch(/The reset time is not known\.$/);
+        expect(budgetWaitText({ ...block, window: { ...(block.window as UsageWindow), resetsAt: undefined } })).toMatch(/The reset time is not known\.$/);
     });
 
     it('normalizes a stored budget', () => {

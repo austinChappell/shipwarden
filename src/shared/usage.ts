@@ -17,11 +17,12 @@ export type UsageProvider = 'claude' | 'codex';
 export interface ProviderUsage {
     provider: UsageProvider;
     /**
+     * - loading: ShipWarden did not get the first answer yet. The status bar does not show it.
      * - ok: the windows are current.
      * - signed-out: ShipWarden found no sign-in for this agent. The status bar does not show it.
      * - error: the last request failed. `windows` keeps the last good values, if any.
      */
-    status: 'ok' | 'signed-out' | 'error';
+    status: 'loading' | 'ok' | 'signed-out' | 'error';
     windows: UsageWindow[];
     plan?: string;
     error?: string;
@@ -208,26 +209,37 @@ export function usageProviderOf(program: string | undefined): UsageProvider | un
     return program === 'claude' || program === 'codex' ? program : undefined;
 }
 
-/** Why a budget stops a start: the provider, the window at or above the budget, and the budget. */
+/**
+ * Why a budget stops a start: the provider, the window at or above the budget, and the budget. Without a window, the
+ * first usage of the provider did not load yet. The start waits for it.
+ */
 export interface BudgetBlock {
     provider: UsageProvider;
-    window: UsageWindow;
+    window?: UsageWindow;
     percent: number;
 }
 
+/** The usage list before the first answer of the main process: each provider is loading. */
+export const LOADING_USAGE: readonly ProviderUsage[] = [
+    { provider: 'claude', status: 'loading', windows: [] },
+    { provider: 'codex', status: 'loading', windows: [] }
+];
+
 /**
  * Returns why the budget stops a new agent of the provider now, or undefined when the agent can start.
- * The agent can start in these cases:
+ * While the first usage of the provider loads, the agent waits. This stops a start before the usage is known, for
+ * example a full queue just after the app starts. The agent can start in these cases:
  * - The budget is off, or the agent has no usage provider (for example Gemini CLI).
- * - The usage of the provider did not load correctly. No data means no block.
+ * - The first load ended without usage: no sign-in, or an error. No data means no block.
  * - Each checked window is below the budget, or its reset time passed (the data is old).
  * When more than one window is at or above the budget, the window that resets last counts. The agent must wait for it.
  */
 export function budgetBlock(usage: readonly ProviderUsage[], budget: UsageBudget, provider: UsageProvider | undefined, now: number): BudgetBlock | undefined {
     if (budget.percent === null || !provider) return undefined;
     const data = usage.find(item => item.provider === provider);
-    if (data?.status !== 'ok') return undefined;
     const percent = budget.percent;
+    if (data?.status === 'loading') return { provider, percent };
+    if (data?.status !== 'ok') return undefined;
     const over = data.windows.filter(window => {
         if (budget.windows === 'session' && window.kind !== 'session') return false;
         if (window.resetsAt && Date.parse(window.resetsAt) <= now) return false;
@@ -241,6 +253,10 @@ export function budgetBlock(usage: readonly ProviderUsage[], budget: UsageBudget
 
 /** The first words of each wait text of a budget. The UI and the tests look for them. */
 export const BUDGET_WAIT = 'Waiting for usage to reset';
+/** The wait text while the first usage loads. It also starts with "Waiting for usage". */
+export const BUDGET_LOADING = 'Waiting for usage data';
+/** The common start of all wait texts of a budget. */
+export const BUDGET_WAIT_PREFIX = 'Waiting for usage';
 
 /** Returns the local clock time of a reset, for example "2:30 PM", or "Fri 2:30 PM" when it is more than 20 hours away. */
 export function formatResetAt(resetsAt: string, now: number): string {
@@ -256,6 +272,7 @@ export function formatResetAt(resetsAt: string, now: number): string {
  */
 export function budgetWaitText(block: BudgetBlock, now?: number): string {
     const { provider, window, percent } = block;
+    if (!window) return `${BUDGET_LOADING}. ShipWarden is loading the plan usage of ${PROVIDER_NAMES[provider]} to check the budget of ${percent}%.`;
     const head = `${BUDGET_WAIT}. ${PROVIDER_NAMES[provider]} (${window.label}) is at ${window.usedPercent}%, and the budget is ${percent}%.`;
     if (!window.resetsAt) return `${head} The reset time is not known.`;
     const clock = formatResetAt(window.resetsAt, now ?? Date.now());
