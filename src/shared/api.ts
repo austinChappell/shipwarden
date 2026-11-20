@@ -169,9 +169,10 @@ export interface ShipWardenApi {
         defaultBranch(worktree: string): Promise<string | undefined>;
         /**
          * Fetches "origin" and rebases the branch onto "origin/<onto>", or onto the default branch without `onto`.
-         * It refuses uncommitted changes and does not stash them. It never pushes.
+         * It refuses uncommitted changes and does not stash them. It never pushes. With `oldBases` (commits of the old
+         * base of a stacked branch), it runs "git rebase --onto" and moves only the commits of the branch itself.
          */
-        rebase(worktree: string, onto?: string): Promise<RebaseResult>;
+        rebase(worktree: string, onto?: string, oldBases?: string[]): Promise<RebaseResult>;
         /** Runs "git rebase --continue" after the conflicts are resolved and staged. */
         rebaseContinue(worktree: string): Promise<RebaseResult>;
         /** Runs "git rebase --skip". The commit that stopped the rebase is lost. */

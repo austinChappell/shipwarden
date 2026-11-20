@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupInPlanOrder, orderInPlace, planInGroupOrder } from './plan-group-order';
+import { groupInPlanOrder, orderInPlace, planInGroupOrder, stackLabels } from './plan-group-order';
 import { newStep, type PlanStep } from './plans';
 import { newGroup, prKey } from './pr-groups';
 
@@ -62,5 +62,25 @@ describe('the order of a plan and its group', () => {
         ]);
         expect(planInGroupOrder(plan, group)).toBe(plan);
         expect(groupInPlanOrder(group, plan)).toBe(group);
+    });
+});
+
+describe('stackLabels', () => {
+    it('shows where each pull request of a stack merges, in the order of the stack', () => {
+        const at = (id: string, repo: string, number: number, branch: string, base: string): PlanStep => ({
+            ...newStep(`/code/${repo}`),
+            id,
+            branch,
+            pr: { number, url: `https://github.com/octo/${repo}/pull/${number}`, base }
+        });
+        const labels = stackLabels({
+            steps: [at('1', 'api', 41, 'p/1', 'main'), at('2', 'api', 42, 'p/2', 'p/1'), at('3', 'web', 7, 'p/1', 'main'), at('4', 'api', 43, 'p/3', 'p/2')]
+        });
+        expect([...labels.entries()]).toEqual([
+            ['octo/api#41', 'Into main'],
+            ['octo/api#42', 'Stacks on #41'],
+            ['octo/web#7', 'Into main'],
+            ['octo/api#43', 'Stacks on #42']
+        ]);
     });
 });

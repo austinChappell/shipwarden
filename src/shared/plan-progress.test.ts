@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BranchSummary } from './github';
-import { blockingStep, mergeableSteps, planShipped, progressCounts, stepProgress, type RepoPullRequests } from './plan-progress';
+import { blockingStep, mergeableSteps, planShipped, progressCounts, pullRequestKnownClosed, stepProgress, type RepoPullRequests } from './plan-progress';
 import { newStep, type PlanStep } from './plans';
 
 const API = '/code/api';
@@ -81,5 +81,19 @@ describe('the merge order', () => {
         expect(planShipped(progress)).toBe(true);
         expect(planShipped([{ group: 'merged' }, { group: 'review' }])).toBe(false);
         expect(planShipped([{ group: 'skipped' }])).toBe(false);
+    });
+});
+
+describe('pullRequestKnownClosed', () => {
+    it('is true only when the full list of open pull requests does not have the pull request', () => {
+        const open = { a: summary(1), b: summary(2) };
+        expect(pullRequestKnownClosed(withPr('a', 1), open)).toBe(false);
+        expect(pullRequestKnownClosed(withPr('c', 3), open)).toBe(true);
+        // The same branch with a different number is a different pull request.
+        expect(pullRequestKnownClosed(withPr('a', 7), open)).toBe(true);
+        // An empty list can come from a repository without access.
+        expect(pullRequestKnownClosed(withPr('c', 3), {})).toBe(false);
+        expect(pullRequestKnownClosed(withPr('c', 3), undefined)).toBe(false);
+        expect(pullRequestKnownClosed(step({}), open)).toBe(false);
     });
 });
