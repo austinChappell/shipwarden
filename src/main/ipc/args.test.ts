@@ -147,6 +147,15 @@ describe('terminalCommand', () => {
     it('gives no agent state to an agent without hooks', () => {
         expect(terminalCommand({ command: 'aider', isAgent: true }, paths)).toEqual({ command: 'aider', reportsAgentState: false });
     });
+    it('adds the MCP config to a Claude Code agent after the hook settings', () => {
+        const result = terminalCommand({ command: 'claude', isAgent: true }, paths, '/data/mcp/a.json');
+        expect(result.command).toBe(`claude --settings '/data/claude-hooks.json' --mcp-config '/data/mcp/a.json'`);
+        expect(result.reportsAgentState).toBe(true);
+    });
+    it('does not add the MCP config to a shell or to an agent without MCP support', () => {
+        expect(terminalCommand({ command: 'claude', isAgent: false }, paths, '/data/mcp/a.json').command).toBe('claude');
+        expect(terminalCommand({ command: 'codex', isAgent: true }, paths, '/data/mcp/a.json').command).toBe('codex');
+    });
 });
 
 describe('changed', () => {

@@ -8,6 +8,7 @@ import { registerCodeIpc } from './code';
 import { registerFileIpc } from './files';
 import { registerGitIpc } from './git';
 import { registerGitHubIpc } from './github';
+import { registerMcpIpc } from './mcp';
 import { registerNotesIpc } from './notes';
 import { registerPlanIpc } from './plans';
 import { registerPromptIpc } from './prompts';
@@ -35,6 +36,7 @@ export function registerIpc(services: Services, runAppKey: (action: AppKeyAction
     registerCodeIpc(services);
     registerTerminalIpc(services);
     registerAskIpc(services);
+    registerMcpIpc(services);
     registerSettingsIpc(services);
     registerNotesIpc(services);
     registerAutomationIpc(services);

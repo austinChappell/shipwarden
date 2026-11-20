@@ -12,10 +12,13 @@ export class ConfirmDialogs {
 
     constructor(private readonly window: () => BrowserWindow | undefined) {}
 
-    async ask(request: ConfirmRequest): Promise<boolean> {
+    /** Asks the question. With `signal`, an abort closes the dialog, and the answer is "no". */
+    async ask(request: ConfirmRequest, signal?: AbortSignal): Promise<boolean> {
+        if (signal?.aborted) return false;
         const window = this.window();
         if (!window || window.isDestroyed() || window.webContents.isLoading()) {
-            return (await dialog.showMessageBox(nativeConfirmOptions(request))).response === 0;
+            const { response } = await dialog.showMessageBox({ ...nativeConfirmOptions(request), ...(signal ? { signal } : {}) });
+            return !signal?.aborted && response === 0;
         }
         if (window.isMinimized()) window.restore();
         window.show();
@@ -25,11 +28,17 @@ export class ConfirmDialogs {
             const done = (confirmed: boolean) => {
                 this.answers.delete(id);
                 window.removeListener('closed', onClosed);
+                signal?.removeEventListener('abort', onAbort);
                 resolve(confirmed);
             };
             // A closed window gives no answer. That is "no".
             const onClosed = () => done(false);
+            const onAbort = () => {
+                if (!window.isDestroyed()) window.webContents.send(IpcChannels.appConfirmCancel, id);
+                done(false);
+            };
             window.once('closed', onClosed);
+            signal?.addEventListener('abort', onAbort, { once: true });
             this.answers.set(id, done);
             window.webContents.send(IpcChannels.appConfirmRequest, id, request);
         });

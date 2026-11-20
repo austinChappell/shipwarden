@@ -9,6 +9,8 @@ import type { UpdateState } from '@shared/updates';
 import type { ProviderUsage } from '@shared/usage';
 import type { BrowserState } from '@shared/browser';
 import type { HelpAction } from '@shared/onboarding';
+import type { McpApprovals } from '@shared/mcp';
+import type { Task } from '@shared/tasks';
 import type { CreateWorktreeProgress } from '@shared/worktrees';
 import type { PinnedSession } from '@shared/pinned-sessions';
 
@@ -26,6 +28,7 @@ const api: ShipWardenApi = {
         onShortcut: listener => subscribe<[ShortcutAction]>(IpcChannels.appShortcut, listener),
         onConfirmRequest: listener => subscribe<[number, ConfirmRequest]>(IpcChannels.appConfirmRequest, listener),
         answerConfirm: (id, confirmed) => ipcRenderer.send(IpcChannels.appConfirmAnswer, id, confirmed),
+        onConfirmCancel: listener => subscribe<[number]>(IpcChannels.appConfirmCancel, listener),
         runKey: action => ipcRenderer.send(IpcChannels.appRunKey, action),
         onHelp: listener => subscribe<[HelpAction]>(IpcChannels.appHelp, listener)
     },
@@ -315,7 +318,13 @@ const api: ShipWardenApi = {
         setSelectedCollection: (connectionId, collectionId) => ipcRenderer.invoke(IpcChannels.tasksSetSelectedCollection, connectionId, collectionId),
         selectedConnection: () => ipcRenderer.invoke(IpcChannels.tasksSelectedConnection),
         setSelectedConnection: connectionId => ipcRenderer.invoke(IpcChannels.tasksSetSelectedConnection, connectionId),
-        onChanged: listener => subscribe<[string]>(IpcChannels.tasksChanged, listener)
+        onChanged: listener => subscribe<[string]>(IpcChannels.tasksChanged, listener),
+        onTaskChanged: listener => subscribe<[string, string, Partial<Task>]>(IpcChannels.tasksTaskChanged, listener)
+    },
+    mcp: {
+        approvals: () => ipcRenderer.invoke(IpcChannels.mcpApprovals),
+        revoke: worktree => ipcRenderer.invoke(IpcChannels.mcpRevoke, worktree),
+        onApprovalsChanged: listener => subscribe<[McpApprovals]>(IpcChannels.mcpApprovalsChanged, listener)
     },
     review: {
         checkoutStatus: (repo, number) => ipcRenderer.invoke(IpcChannels.reviewCheckoutStatus, repo, number),

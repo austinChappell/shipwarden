@@ -99,6 +99,11 @@ export interface AppSettings {
      * terminal. Each tab can change between the chat and the terminal.
      */
     agentChat: boolean;
+    /**
+     * True to run the ShipWarden MCP server. New Claude Code agents then get its tools (list_worktrees, get_overlaps,
+     * ask_agent, get_task, and set_task_status). The default is on.
+     */
+    mcpServer: boolean;
     /** The settings of each repository, by the root of its main worktree. */
     repos: Record<string, RepoSettings>;
     /**
@@ -242,6 +247,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     agents: [...DEFAULT_AGENTS],
     defaultAgentId: 'claude',
     agentChat: true,
+    mcpServer: true,
     repos: {},
     network: { useSystemCertificates: false },
     worktrees: DEFAULT_WORKTREE_SETTINGS,
@@ -343,6 +349,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         agents,
         defaultAgentId,
         agentChat: raw.agentChat !== false,
+        mcpServer: raw.mcpServer !== false,
         repos: normalizeRepos(raw.repos, agents),
         network: normalizeNetwork(raw.network),
         ...(normalizeCodeFolder(raw.codeFolder) ? { codeFolder: normalizeCodeFolder(raw.codeFolder) } : {}),
