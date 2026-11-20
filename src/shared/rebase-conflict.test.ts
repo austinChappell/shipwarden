@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { RebaseConflictInput } from './git';
 import { templateVariables } from './automation-templates';
-import { CONFLICT_VARIABLES, conflictValues, DEFAULT_CONFLICT_TEMPLATE, overlapLines, rebaseConflictPrompt, resolveRule } from './rebase-conflict';
+import {
+    CONFLICT_VARIABLES,
+    conflictValues,
+    DEFAULT_CONFLICT_TEMPLATE,
+    overlapLines,
+    rebaseConflictPrompt,
+    resolveRule,
+    restackConflictPrompt
+} from './rebase-conflict';
 
 const input: RebaseConflictInput = {
     branch: 'feature',
@@ -55,5 +63,17 @@ describe('overlapLines', () => {
     it('lists only the worktrees that change a file with a conflict', () => {
         expect(overlapLines(overlap, ['src/c.ts'])).toEqual(['other (/w/other): src/c.ts', 'third (/w/third): src/c.ts']);
         expect(overlapLines(undefined, ['src/a.ts'])).toEqual([]);
+    });
+});
+
+describe('restackConflictPrompt', () => {
+    it('tells the agent why the rebase ran, and to continue the rebase, test, and push with a lease', () => {
+        const prompt = restackConflictPrompt(input, { number: 42, url: 'https://github.com/o/r/pull/42' }, 41, overlap);
+        expect(prompt).toContain('Pull request #41 merged. ShipWarden rebased feature onto origin/main, so that pull request #42');
+        expect(prompt).toContain('- src/a.ts\n- src/b.ts');
+        expect(prompt).toContain('- other (/w/other): src/a.ts');
+        expect(prompt).toContain('"git rebase --continue"');
+        expect(prompt).toContain('Run "git push --force-with-lease origin feature".');
+        expect(prompt).toContain('do not use "--force"');
     });
 });

@@ -23,6 +23,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-15 | "Compare agents" makes one worktree for each agent with the same steps as "Start in worktree" (`createTaskWorktree`). The comparisons are in `agent-compare.json`. The compare list counts the changes with `git diff --numstat` from the merge base with the default branch of "origin", plus the untracked files. | One code path makes all task worktrees. The agents commit their work, so the Changes tab (uncommitted changes only) cannot compare the runs. The branch summaries cache gives the CI state, so the list sends no new requests to GitHub. |
 | 2026-11-18 | A pinned session is a Claude Code transcript with a name. A resume in another folder copies the transcript into the Claude Code folder of that folder, then runs `claude --resume <id>`. | Claude Code finds a session only in the folder of its working folder. A copy needs no change to Claude Code, and the original transcript stays as it is. |
 | 2026-11-19 | When "origin" is a fork on GitHub, the pull requests of its worktrees go to the parent, with "owner:branch" as the head. The choice of the repository is the `gh-resolved` setting of `gh repo set-default` in the git config. To select the parent, ShipWarden adds an "upstream" remote when no remote has the parent. | A fork exists to send pull requests to its parent, so this default needs no setup. gh in the agent terminals reads the same setting, so `gh pr create` and ShipWarden select the same repository. |
+| 2026-11-20 | Stacked plan steps restack with `git rebase --onto <new base> <old base>` for regular and squash merges. The old base is the newest of two commits that the branch contains: the parent tip when the step started (`PlanStep.stackBase`) and the head of the merged pull request. The plan runner sees a merge in the cached pull request data and sends no request. ShipWarden does not push a clean rebase without a question. On a conflict, the agent of the worktree resolves, continues, tests, and pushes with `--force-with-lease`. | One code path works for both merge methods. A squash merge has no commit of the parent branch, so a usual rebase replays the parent commits and has conflicts. The cache already has the merged pull requests of the plan page and of the "Remove merged worktrees" sweep, so a new poll is not necessary. The agent push is the same as "Rebase with agent". |
 | 2026-11-20 | "Rebase onto" runs `git rebase` in the main process (`GitChangesService.rebase`), not in an agent. The status reads the rebase folder of git (`rebase-merge` or `rebase-apply`) on each poll, so a rebase from a terminal shows the same state. The push after a rebase uses `--force-with-lease=<branch>:<commit>` with the commit of the upstream at the start of the rebase. | The user sees each conflict and decides. "Rebase with agent" (Review page) stays for a rebase without the user. A lease from the start of the rebase keeps commits that someone pushed during the rebase, also after a background fetch. |
 
 ## The old name (Yardmaster)
@@ -157,6 +158,13 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   with the ID `pr-conflict` replaces the default text. The agent resolves and stages. The user continues in the app.
 - ShipWarden never pushes after a rebase without a question. A complete rebase asks "Push with --force-with-lease?".
   A branch that has diverged from its upstream shows the same button in the Changes tab in place of Pull.
+- **Stacked plans.** `git.rebase(worktree, onto, oldBases)` runs `git rebase --onto origin/<onto> <fork point>`. The
+  fork point is the newest `git merge-base HEAD <commit>` of the old base commits. An unknown commit does not count.
+  `PlanRunner.restackMerged` reads `keyRoots.mergedBranches` and the cached pull request details, on each cache update
+  of these keys and on the 30-second timer. For a merged step, `restackTargets` gives the steps whose pull request
+  targets the merged branch. Each one gets a rebase onto the base of the merged pull request and a base change
+  (`changePullRequest` with `kind: 'base'`). `PlanStep.restack` keeps the state ("push", "conflict", or "failed").
+  The timer checks the worktree with local git: no rebase and the same commit as the upstream clears the state.
 
 ### Chat about a review comment
 

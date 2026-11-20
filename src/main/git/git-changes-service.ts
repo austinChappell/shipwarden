@@ -140,6 +140,14 @@ const isBinary = (text: string) => text.slice(0, 8000).includes('\0');
 
 /** The most entries of the cache of committed files. The cache starts again when it is full. */
 const MAX_COMMITTED_CACHE = 500;
+/** A full or short commit hash. */
+const COMMIT_PATTERN = /^[0-9a-f]{7,64}$/i;
+
+/** True when `ancestor` is an ancestor of `commit`, or the same commit. */
+async function isAncestor(worktree: string, ancestor: string, commit: string): Promise<boolean> {
+    return (await run(worktree, ['merge-base', '--is-ancestor', ancestor, commit], { allowFailure: true })) !== undefined;
+}
+
 /** The most commits of each side that the data of a rebase conflict gets. */
 const MAX_CONFLICT_COMMITS = 30;
 
@@ -659,9 +667,15 @@ export class GitChangesService {
      *
      * It refuses to start when a rebase is in progress, when the worktree has uncommitted changes (it does not stash
      * them), when HEAD is detached, and when the branch only lacks commits of its upstream (then a pull is correct).
+     *
+     * `oldBases` are commits of the old base of the branch, for a stacked branch whose parent merged. Then the rebase
+     * runs "git rebase --onto <target> <old base>" and moves only the commits of the branch itself. This works after a
+     * regular merge and after a squash merge. Without a usable commit, it is a usual rebase.
      */
-    async rebase(worktree: string, onto?: string): Promise<RebaseResult> {
+    async rebase(worktree: string, onto?: string, oldBases: readonly string[] = []): Promise<RebaseResult> {
         if (onto !== undefined && !/^[\w][\w./-]*$/.test(onto)) throw new Error(`"${onto}" is not a branch name.`);
+        const bad = oldBases.find(commit => !COMMIT_PATTERN.test(commit));
+        if (bad !== undefined) throw new Error(`"${bad}" is not a commit hash.`);
         const before = await this.status(worktree);
         if (before.rebase) throw new Error('A rebase is already in progress. Continue or abort it in the Changes tab.');
         if (!before.branch) throw new Error('The worktree has no branch (a detached HEAD).');
@@ -684,8 +698,9 @@ export class GitChangesService {
         // A second rebase before the push keeps the first lease. A new lease could hide the commits of someone else.
         const remember = () => upstreamSha && !this.leases.has(key) && this.leases.set(key, upstreamSha);
         const head = await this.head(worktree);
+        const from = await this.forkPoint(worktree, oldBases);
         try {
-            await run(worktree, ['rebase', '--no-autostash', target], { timeout: 180_000 });
+            await run(worktree, ['rebase', '--no-autostash', ...(from ? ['--onto', target, from] : [target])], { timeout: 180_000 });
         } catch (error) {
             const state = await this.rebaseState(worktree);
             if (!state) throw error;
@@ -695,6 +710,20 @@ export class GitChangesService {
         const changed = (await this.head(worktree)) !== head;
         if (changed) remember();
         return { status: 'done', onto: target, changed };
+    }
+
+    /**
+     * Returns the newest commit of HEAD that is also in one of the candidates, or undefined. A candidate that git does
+     * not know is ignored. The newest commit is the one that the others are ancestors of.
+     */
+    private async forkPoint(worktree: string, candidates: readonly string[]): Promise<string | undefined> {
+        let best: string | undefined;
+        for (const candidate of candidates) {
+            const base = (await run(worktree, ['merge-base', 'HEAD', candidate], { allowFailure: true }))?.trim();
+            if (!base) continue;
+            if (!best || (await isAncestor(worktree, best, base))) best = base;
+        }
+        return best;
     }
 
     /** The commit of HEAD, or undefined before the first commit. */

@@ -41,7 +41,9 @@ export function registerGitIpc({ gitChanges, projectWorktrees, worktrees }: Pick
     ipcMain.handle(IpcChannels.gitPull, async (_event, worktree: string) => gitChanges.pull(await known(worktree)));
     ipcMain.handle(IpcChannels.gitPush, async (_event, worktree: string) => gitChanges.push(await known(worktree)));
     ipcMain.handle(IpcChannels.gitDefaultBranch, async (_event, worktree: string) => gitChanges.defaultBranch(await known(worktree)));
-    ipcMain.handle(IpcChannels.gitRebase, async (_event, worktree: string, onto?: unknown) => gitChanges.rebase(await known(worktree), optionalString(onto)));
+    ipcMain.handle(IpcChannels.gitRebase, async (_event, worktree: string, onto?: unknown, oldBases?: unknown) =>
+        gitChanges.rebase(await known(worktree), optionalString(onto), stringsOf(oldBases).slice(0, 10))
+    );
     ipcMain.handle(IpcChannels.gitRebaseContinue, async (_event, worktree: string) => gitChanges.rebaseContinue(await known(worktree)));
     ipcMain.handle(IpcChannels.gitRebaseSkip, async (_event, worktree: string) => gitChanges.rebaseSkip(await known(worktree)));
     ipcMain.handle(IpcChannels.gitRebaseAbort, async (_event, worktree: string) => gitChanges.rebaseAbort(await known(worktree)));

@@ -170,4 +170,78 @@ describe('GitChangesService rebase', () => {
         await git.rebaseAbort(repo);
         expect((await git.status(repo)).rebase).toBeUndefined();
     });
+    describe('a stacked branch after its parent merged', () => {
+        /** The commits of the branch that origin/main does not have. */
+        const ownSubjects = () => sh('log', '--format=%s', 'origin/main..HEAD').trim().split('\n');
+
+        /**
+         * "feature" is the parent. It changes line two of a.txt two times. "child" starts from it and adds c.txt.
+         * Returns the tip of the parent when the child branched: the old base of the child.
+         */
+        const makeStack = (): string => {
+            commit('a.txt', 'one\nTWO v1\nthree\n', 'Parent one');
+            commit('a.txt', 'one\nTWO v2\nthree\n', 'Parent two');
+            sh('push', '-q', '-u', 'origin', 'feature');
+            const oldBase = head();
+            sh('checkout', '-q', '-b', 'child');
+            commit('c.txt', 'c\n', 'Child');
+            sh('push', '-q', '-u', 'origin', 'child');
+            inOther('fetch', '-q', 'origin');
+            inOther('pull', '-q', '--ff-only');
+            return oldBase;
+        };
+
+        it('moves only the commits of the child onto main after a regular merge', async () => {
+            const oldBase = makeStack();
+            inOther('merge', '-q', '--no-ff', '-m', 'Merge parent', 'origin/feature');
+            inOther('push', '-q', 'origin', 'main');
+
+            const result = await git.rebase(repo, 'main', [oldBase]);
+            expect(result).toEqual({ status: 'done', onto: 'origin/main', changed: true });
+            expect(ownSubjects()).toEqual(['Child']);
+            expect(sh('rev-parse', 'HEAD~1').trim()).toBe(sh('rev-parse', 'origin/main').trim());
+        });
+
+        it('moves only the commits of the child onto main after a squash merge', async () => {
+            const oldBase = makeStack();
+            inOther('merge', '-q', '--squash', 'origin/feature');
+            inOther('commit', '-q', '-m', 'Parent (#1)');
+            inOther('push', '-q', 'origin', 'main');
+
+            // A usual rebase replays the commits of the parent again, and the first one has a conflict.
+            expect((await git.rebase(repo, 'main')).status).toBe('conflict');
+            await git.rebaseAbort(repo);
+
+            // An unknown commit does not count. The old base of the child gives "git rebase --onto".
+            const result = await git.rebase(repo, 'main', ['0123456789abcdef0123456789abcdef01234567', oldBase]);
+            expect(result).toEqual({ status: 'done', onto: 'origin/main', changed: true });
+            expect(ownSubjects()).toEqual(['Child']);
+            expect(subjects()).toEqual(['Child', 'Parent (#1)', 'Start']);
+            expect(sh('show', 'HEAD:a.txt')).toBe('one\nTWO v2\nthree\n');
+        });
+
+        it('uses the newest old base when the child has later commits of the parent', async () => {
+            const oldBase = makeStack();
+            // The parent gets a fix, and the child merges it.
+            sh('checkout', '-q', 'feature');
+            commit('d.txt', 'd\n', 'Parent fix');
+            sh('push', '-q', 'origin', 'feature');
+            const parentTip = head();
+            sh('checkout', '-q', 'child');
+            sh('merge', '-q', '--no-edit', 'feature');
+            sh('push', '-q', 'origin', 'child');
+            inOther('fetch', '-q', 'origin');
+            inOther('merge', '-q', '--squash', 'origin/feature');
+            inOther('commit', '-q', '-m', 'Parent (#1)');
+            inOther('push', '-q', 'origin', 'main');
+
+            const result = await git.rebase(repo, 'main', [oldBase, parentTip]);
+            expect(result.status).toBe('done');
+            expect(ownSubjects()).toEqual(['Child']);
+        });
+
+        it('refuses an old base that is not a commit hash', async () => {
+            await expect(git.rebase(repo, 'main', ['--exec=x'])).rejects.toThrow(/not a commit hash/);
+        });
+    });
 });

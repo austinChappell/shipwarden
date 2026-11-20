@@ -92,3 +92,42 @@ export function conflictValues(input: RebaseConflictInput, overlap?: Pick<Worktr
 export function rebaseConflictPrompt(input: RebaseConflictInput, overlap?: Pick<WorktreeOverlap, 'peers'>, template?: string): string {
     return renderTemplate(template?.trim() ? template : DEFAULT_CONFLICT_TEMPLATE, conflictValues(input, overlap));
 }
+
+/**
+ * Makes the agent prompt for a conflict of a stacked branch. The pull request below the branch merged, and ShipWarden
+ * rebased the branch onto the new base. The agent resolves each conflict, continues the rebase, runs the tests, and
+ * pushes with "--force-with-lease", as in the "Rebase with agent" prompt.
+ */
+export function restackConflictPrompt(
+    input: RebaseConflictInput,
+    pr: { number: number; url: string },
+    merged: number,
+    overlap?: Pick<WorktreeOverlap, 'peers'>
+): string {
+    const values = conflictValues(input, overlap);
+    const branch = values['conflict.branch'];
+    return [
+        `Pull request #${merged} merged. ShipWarden rebased ${branch} onto ${values['conflict.onto']}, so that pull request #${pr.number} (${pr.url}) contains only its own commits. The rebase stopped on a merge conflict at commit ${values['conflict.commit']}.`,
+        '',
+        'The files with conflicts:',
+        values['conflict.files'],
+        '',
+        `The commits of ${branch} that change these files:`,
+        values['conflict.branchCommits'],
+        '',
+        `The commits of ${values['conflict.onto']} that change these files:`,
+        values['conflict.baseCommits'],
+        '',
+        'Other worktrees that change the same files:',
+        values['conflict.overlap'],
+        '',
+        'Do these steps in this order:',
+        '',
+        `1. Resolve the conflict markers in each file. ${values['conflict.rule']}`,
+        '2. Run "git add" for each resolved file. Then run "git rebase --continue". When the next commit has a conflict, resolve it in the same way.',
+        '3. Run the build, the type check, and the tests of the project. Fix each failure that the rebase caused, and commit the fixes.',
+        `4. Run "git push --force-with-lease origin ${branch}".`,
+        '',
+        'Do not run "git rebase --abort" or "git rebase --skip". Do not push if the rebase or the tests fail. If the push fails, do not use "--force". Tell me what stopped you.'
+    ].join('\n');
+}
