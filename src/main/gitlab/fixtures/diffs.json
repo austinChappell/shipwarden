@@ -1,0 +1,46 @@
+[
+    {
+        "old_path": "src/limits.ts",
+        "new_path": "src/limits.ts",
+        "a_mode": "100644",
+        "b_mode": "100644",
+        "new_file": false,
+        "renamed_file": false,
+        "deleted_file": false,
+        "generated_file": false,
+        "diff": "@@ -8,6 +8,9 @@ import { config } from './config';\n export interface Limit {\n     perMinute: number;\n }\n+\n+export const DEFAULT_LIMIT = 100;\n+export const limitOf = (key: string) => config.limits[key] ?? DEFAULT_LIMIT;\n \n export function check(limit: Limit, used: number): boolean {\n-    return used < 60;\n+    return used < limit.perMinute;\n }\n"
+    },
+    {
+        "old_path": "src/bucket.ts",
+        "new_path": "src/bucket.ts",
+        "a_mode": "0",
+        "b_mode": "100644",
+        "new_file": true,
+        "renamed_file": false,
+        "deleted_file": false,
+        "generated_file": false,
+        "diff": "@@ -0,0 +1,3 @@\n+export class Bucket {\n+    tokens = 0;\n+}\n"
+    },
+    {
+        "old_path": "src/old-limits.ts",
+        "new_path": "src/rate.ts",
+        "a_mode": "100644",
+        "b_mode": "100644",
+        "new_file": false,
+        "renamed_file": true,
+        "deleted_file": false,
+        "generated_file": false,
+        "diff": ""
+    },
+    {
+        "old_path": "src/constants.ts",
+        "new_path": "src/constants.ts",
+        "a_mode": "100644",
+        "b_mode": "0",
+        "new_file": false,
+        "renamed_file": false,
+        "deleted_file": true,
+        "generated_file": false,
+        "diff": "@@ -1,2 +0,0 @@\n-export const LIMIT = 60;\n-export const WINDOW = 60;\n"
+    }
+]

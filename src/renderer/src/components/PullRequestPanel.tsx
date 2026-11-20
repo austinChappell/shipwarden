@@ -329,7 +329,7 @@ export function PullRequestPanel({
                                 >
                                     #{pr.number}
                                 </Button>
-                                {onOpenInReview && pr.host !== 'azure' && (
+                                {onOpenInReview && pr.host !== 'azure' && pr.host !== 'gitlab' && (
                                     <IconButton
                                         size="sm"
                                         icon={<Maximize2 size={14} strokeWidth={1.6} />}

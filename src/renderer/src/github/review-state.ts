@@ -19,7 +19,8 @@ export const REVIEW_EVENT_TEXT: Record<ReviewEvent, { confirm: string; button: s
     APPROVE: { confirm: 'approve', button: 'Approve' },
     APPROVE_WITH_SUGGESTIONS: { confirm: 'approve with suggestions', button: 'Approve with suggestions' },
     WAIT_FOR_AUTHOR: { confirm: 'wait for the author on', button: 'Wait for author' },
-    REJECT: { confirm: 'reject', button: 'Reject' }
+    REJECT: { confirm: 'reject', button: 'Reject' },
+    UNAPPROVE: { confirm: 'revoke your approval of', button: 'Revoke approval' }
 };
 
 /**
