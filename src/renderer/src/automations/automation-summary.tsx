@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { pluralize } from '@shared/format';
 import { MANUAL_ENTITIES, actsOnTasks, needsRepo, type Automation, type AutomationAction, type TriggerType } from '@shared/automations';
 
 /** The event of each trigger, as the end of a sentence that starts with "When". */
@@ -8,6 +9,7 @@ export const TRIGGER_EVENTS: Record<TriggerType, string> = {
     'pr.conflict': 'a pull request has merge conflicts',
     'pr.merged': 'someone merges a pull request',
     'agent.done': 'an agent finishes its turn',
+    'agent.needsInput': 'an agent waits for a permission or asks a question',
     'worktree.overlap': 'two worktrees change the same files',
     'task.new': 'a task matches these filters for the first time',
     schedule: 'the time comes on a selected day',
@@ -104,6 +106,14 @@ function eventPhrase(automation: Automation, connectionName: string | undefined)
             return trigger.reviewsOnly ? 'another person reviews a pull request' : TRIGGER_EVENTS['pr.comment'];
         case 'agent.done':
             return trigger.withoutPullRequest ? 'an agent finishes its turn on a branch without a pull request' : TRIGGER_EVENTS['agent.done'];
+        case 'agent.needsInput':
+            return trigger.idleFor ? (
+                <>
+                    an agent waits for a permission or a question for <b>{pluralize(trigger.idleFor, 'minute')}</b>
+                </>
+            ) : (
+                TRIGGER_EVENTS['agent.needsInput']
+            );
         case 'schedule':
             return (
                 <>

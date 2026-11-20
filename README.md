@@ -93,8 +93,8 @@ ShipWarden does not open pull requests for the runs. Open a pull request from th
 comparisons are in `agent-compare.json` in the app data folder.
 
 The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
-send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label, or
-remove the worktree after its pull request merges. Each automation is a JSON file in `~/.shipwarden/automations` that
+send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label,
+post to Slack when an agent waits for your input for 10 minutes, or remove the worktree after its pull request merges. Each automation is a JSON file in `~/.shipwarden/automations` that
 you can export and share. Runs can wait for your approval, and limits stop loops. See
 [docs/automations.md](docs/automations.md).
 

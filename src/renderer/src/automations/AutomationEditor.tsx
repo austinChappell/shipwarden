@@ -19,6 +19,7 @@ import {
     defaultAction,
     defaultTrigger,
     flattenActions,
+    MAX_IDLE_FOR_MINUTES,
     needsRepo,
     normalizeAutomation,
     triggerVariables,
@@ -273,6 +274,26 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                     checked={!!trigger.withoutPullRequest}
                                     onChange={checked => setTrigger({ withoutPullRequest: checked || undefined })}
                                 />
+                            )}
+                            {trigger.type === 'agent.needsInput' && (
+                                <div className="automation-inline">
+                                    <span className="automation-field">
+                                        <label htmlFor={`${id}-idle-for`}>Run after the agent waits</label>
+                                        <Input
+                                            id={`${id}-idle-for`}
+                                            type="number"
+                                            min={0}
+                                            max={MAX_IDLE_FOR_MINUTES}
+                                            className="automation-number"
+                                            value={trigger.idleFor ?? 0}
+                                            onChange={event => {
+                                                const minutes = Math.round(Number(event.target.value));
+                                                setTrigger({ idleFor: minutes > 0 ? Math.min(minutes, MAX_IDLE_FOR_MINUTES) : undefined });
+                                            }}
+                                        />{' '}
+                                        minutes
+                                    </span>
+                                </div>
                             )}
                             {trigger.type === 'schedule' && (
                                 <div className="automation-schedule">
@@ -560,6 +581,8 @@ function triggerNote(trigger: Trigger): string {
             return 'ShipWarden reads the tasks every 5 minutes. Tasks that match when you turn this on do not run, and done tasks never count. Empty filters match all tasks.';
         case 'schedule':
             return 'Local time. A time that passes while ShipWarden is closed does not run later.';
+        case 'agent.needsInput':
+            return 'Use 0 to run at once. When the agent stops waiting before this time, the automation does not run. Use {{agent.waitFor}} in a condition to select permissions or questions.';
         case 'manual':
             return MANUAL_ENTITIES.find(item => item.entity === trigger.entity)?.description ?? '';
         default:

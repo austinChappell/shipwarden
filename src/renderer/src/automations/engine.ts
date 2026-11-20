@@ -33,6 +33,9 @@ import {
 import { conditionHolds, describeCondition, httpVariables } from '@shared/automation-templates';
 import {
     agentDoneEvent,
+    agentNeedsInputEvent,
+    NeedsInputTimers,
+    type AgentWait,
     ciFailedEvents,
     closedPullRequests,
     commentEvents,
@@ -190,6 +193,8 @@ export class AutomationEngine {
     private started = false;
     private ticking = false;
     private heldTimer: ReturnType<typeof setTimeout> | undefined;
+    /** The timers of the "agent.needsInput" automations, one wait for each waiting agent. */
+    private readonly needsInput = new NeedsInputTimers((wait, idleFor) => this.onNeedsInput(wait, idleFor));
 
     /** Gives the engine the newest state of the app. */
     setContext(context: EngineContext): void {
@@ -379,10 +384,17 @@ export class AutomationEngine {
         }
     }
 
-    /** A new agent state. "done" can start an "agent.done" run. A ready agent can take a held run. */
+    /**
+     * A new agent state. "done" can start an "agent.done" run. "waiting" starts the timers of the "agent.needsInput"
+     * runs, and a different state cancels them. A ready agent can take a held run.
+     */
     onAgentState(sessionId: string, update: AgentUpdate): void {
         const context = this.ready;
         if (!context) return;
+        const idleFors = this.active('agent.needsInput').map(automation =>
+            automation.trigger.type === 'agent.needsInput' ? (automation.trigger.idleFor ?? 0) : 0
+        );
+        this.needsInput.onState(sessionId, update, idleFors);
         if (update.state === 'done' && this.active('agent.done').length > 0) {
             const session = context.sessions.find(item => item.id === sessionId);
             const event = session && agentDoneEvent(session, update, context.places, context.summaries);
@@ -396,6 +408,15 @@ export class AutomationEngine {
             clearTimeout(this.heldTimer);
             this.heldTimer = setTimeout(() => void this.retryHeld(), 2000);
         }
+    }
+
+    /** A wait of an agent reached the wait time of the "agent.needsInput" automations. */
+    private onNeedsInput(wait: AgentWait, idleFor: number): void {
+        const context = this.ready;
+        if (!context) return;
+        const session = context.sessions.find(item => item.id === wait.sessionId && !item.exited);
+        const event = session && agentNeedsInputEvent(session, wait, idleFor, context.places, context.summaries);
+        if (event) this.dispatch(event);
     }
 
     /** The timer: schedules, task collections, held runs and merged worktrees. App calls it every 30 seconds. */
@@ -676,7 +697,7 @@ export class AutomationEngine {
         return undefined;
     }
 
-    /** The agent session for a run: the session of an "agent.done" event, else the agent of the worktree. */
+    /** The agent session for a run: the session of an "agent.done" or "agent.needsInput" event, else the agent of the worktree. */
     private agentOf(context: EngineContext, event: AutomationEvent): TerminalSession | undefined {
         if (event.sessionId) {
             const session = context.sessions.find(item => item.id === event.sessionId && !item.exited);

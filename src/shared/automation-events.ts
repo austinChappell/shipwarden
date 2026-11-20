@@ -1,3 +1,4 @@
+import type { AgentUpdate, AgentWaitKind } from './agents';
 import { localDateTime, type AutomationEvent, type TriggerType } from './automations';
 import type { MyPullRequestItem, PullRequestCommentItem } from './dashboard';
 import { repoId, type BranchSummary, type MergedPullRequest, type RepoRef } from './github';
@@ -223,6 +224,99 @@ export function agentDoneEvent(
         ...(summary ? { pr: prOf(summary) } : {}),
         ...(update.message ? { agentMessage: update.message } : {})
     };
+}
+
+/**
+ * The "agent.needsInput" event of an agent session in a worktree. `since` is the time when the wait started.
+ * `idleFor` is the wait time of the automations of the event, in minutes. Only the automations with the same wait time
+ * match the event.
+ */
+export function agentNeedsInputEvent(
+    session: { id: string; worktreePath?: string },
+    wait: { since: number; waitFor?: AgentWaitKind; message?: string },
+    idleFor: number,
+    places: readonly WorktreePlace[],
+    summaries: Record<string, Record<string, BranchSummary>>
+): AutomationEvent | undefined {
+    const place = places.find(item => item.worktree.path === session.worktreePath);
+    if (!place || place.worktree.isMain) return undefined;
+    const branch = place.worktree.branch;
+    const summary = branch ? summaries[place.repo]?.[branch] : undefined;
+    return {
+        trigger: 'agent.needsInput',
+        key: `needs-input:${session.id}:${wait.since}:${idleFor}`,
+        target: `wt:${place.worktree.path}`,
+        label: branch ?? place.worktree.path,
+        at: wait.since + idleFor * 60_000,
+        repoPath: place.repo,
+        worktreePath: place.worktree.path,
+        branch,
+        sessionId: session.id,
+        hasPullRequest: !!summary,
+        agentWaitFor: wait.waitFor ?? 'input',
+        agentWaitMinutes: idleFor,
+        ...(summary ? { pr: prOf(summary) } : {}),
+        ...(wait.message ? { agentMessage: wait.message } : {})
+    };
+}
+
+/** A wait of an agent that the "agent.needsInput" timers watch. */
+export interface AgentWait {
+    sessionId: string;
+    /** The time when the agent started to wait. */
+    since: number;
+    waitFor?: AgentWaitKind;
+    /** The newest question or permission request of the agent. */
+    message?: string;
+}
+
+/**
+ * The timers of the "agent.needsInput" trigger. A wait starts when an agent goes to the "waiting" state. For each wait
+ * time (`idleFor`, in minutes) of the active automations, `onDue` occurs one time: at once for 0, else after that time.
+ * A different state ends the wait and cancels its timers, so an agent that gets an answer in time starts no run.
+ */
+export class NeedsInputTimers {
+    private readonly waits = new Map<string, { wait: AgentWait; timers: ReturnType<typeof setTimeout>[] }>();
+
+    constructor(private readonly onDue: (wait: AgentWait, idleFor: number) => void) {}
+
+    /**
+     * Gives the timers a new state of a session. `idleFors` are the wait times of the active automations. A second
+     * "waiting" state during a wait keeps the timers and updates the message.
+     */
+    onState(sessionId: string, update: Pick<AgentUpdate, 'state' | 'at' | 'waitFor' | 'message'>, idleFors: readonly number[]): void {
+        const current = this.waits.get(sessionId);
+        if (update.state !== 'waiting') {
+            this.cancel(sessionId);
+            return;
+        }
+        if (current) {
+            current.wait.waitFor = update.waitFor ?? current.wait.waitFor;
+            current.wait.message = update.message ?? current.wait.message;
+            return;
+        }
+        if (idleFors.length === 0) return;
+        const wait: AgentWait = { sessionId, since: update.at, waitFor: update.waitFor, message: update.message };
+        const entry = { wait, timers: [] as ReturnType<typeof setTimeout>[] };
+        this.waits.set(sessionId, entry);
+        for (const idleFor of [...new Set(idleFors)].sort((a, b) => a - b)) {
+            if (idleFor <= 0) this.onDue({ ...wait }, 0);
+            else entry.timers.push(setTimeout(() => this.onDue({ ...entry.wait }, idleFor), idleFor * 60_000));
+        }
+    }
+
+    /** Ends the wait of a session, for example when its terminal closes. */
+    cancel(sessionId: string): void {
+        const current = this.waits.get(sessionId);
+        if (!current) return;
+        for (const timer of current.timers) clearTimeout(timer);
+        this.waits.delete(sessionId);
+    }
+
+    /** The sessions that wait now. */
+    waiting(): string[] {
+        return [...this.waits.keys()];
+    }
 }
 
 /** The most files that a "worktree.overlap" event keeps. The run history keeps the event. */

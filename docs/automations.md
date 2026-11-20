@@ -60,13 +60,59 @@ An export has `kind` and no `status` or `binding`.
 | `pr.conflict` | The pull request of a worktree branch has merge conflicts. | |
 | `pr.merged` | The pull request of a worktree branch is merged. | |
 | `agent.done` | An agent ends its turn. | `withoutPullRequest` |
+| `agent.needsInput` ("Agent needs input") | An agent waits for a permission, asks a question, or waits for other input. See [Agents that need input](#agents-that-need-input). | `idleFor` |
 | `worktree.overlap` ("Worktrees change the same files") | A worktree changes a file that a different worktree of the same repository also changes. See [Overlapping worktrees](#overlapping-worktrees). | |
 | `task.new` ("Task matches") | A task of a bound collection agrees with the filters for the first time: a new task, or a change such as a new label, a new assignee or a new status. Other changes do not count. A done or canceled task never counts. Each task runs one time only. | `labels`, `assignedToMe`, `status` |
 | `schedule` | A time of day (`"HH:MM"`, local time) on the selected days (`0` is Sunday). | `days`, `time` |
 | `manual` | You click the button of the automation. It never runs by itself. | `entity`, `button` |
 
-The pull request triggers, `agent.done` and `worktree.overlap` act only on linked worktrees, not on the main worktree.
+The pull request triggers, `agent.done`, `agent.needsInput`, and `worktree.overlap` act only on linked worktrees, not on the main worktree.
 `conditions.branchPattern` limits them to branches that match a pattern. `*` matches any text.
+
+### Agents that need input
+
+`agent.needsInput` uses the agent hooks, so it sends no requests. The agent must report its state (Claude Code, Gemini
+CLI, and opencode do).
+
+- Without `idleFor`, the automation runs when the agent starts to wait.
+- `idleFor` is a number of minutes, 1 to 1440. The automation runs only after the agent waits that long. When the agent
+  stops waiting before the time ends, for example because you answered, the automation does not run.
+- One wait starts one run only. A second notification during the same wait does not start a new run. The next wait
+  after the agent works again can start a new run.
+- The timer runs in the app. A wait that starts while ShipWarden is closed, or before you turn the automation on, does
+  not count.
+- A change of `idleFor` applies from the next wait.
+
+The trigger gives these variables:
+
+| Variable | Value |
+|---|---|
+| `{{agent.waitFor}}` | `permission`, `question`, or `input`. `input` means that the hook did not tell why. |
+| `{{agent.message}}` | The question or the permission request, for example `Claude needs your permission to use Bash`. |
+| `{{agent.waitMinutes}}` | The value of `idleFor`, or `0`. |
+| `{{agent.summary}}` | One line for a chat message, for example `The agent on fix-login is waiting for a permission (10 minutes): …`. |
+
+To run only for permission prompts, add the condition `{ "var": "agent.waitFor", "op": "equals", "value": "permission" }`.
+
+The template "Tell Slack when an agent waits" posts `{{agent.summary}}` to a Slack incoming webhook after 10 minutes.
+Put the webhook address in the secret `SLACK_WEBHOOK_URL`:
+
+```json
+{
+  "trigger": { "type": "agent.needsInput", "idleFor": 10 },
+  "actions": [
+    {
+      "type": "http",
+      "method": "POST",
+      "url": "{{secret.SLACK_WEBHOOK_URL}}",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "body": "{\n  \"text\": {{agent.summary|json}}\n}"
+    }
+  ]
+}
+```
+
+`sendToAgent` cannot follow this trigger, because the agent waits for you and not for a prompt.
 
 ### Overlapping worktrees
 
@@ -344,7 +390,7 @@ trigger. A variable that the trigger does not give becomes empty text.
 The play button of an automation starts one run at once. You select the target first:
 
 - A pull request, agent or overlap trigger, and a manual `worktree` or `pullRequest` automation: a worktree of the
-  repositories of the automation. The overlap variables stay empty. The branch must match `branchPattern`. The run gets the pull request of the branch, if there is
+  repositories of the automation. The overlap and wait variables stay empty. The branch must match `branchPattern`. The run gets the pull request of the branch, if there is
   one. A `pullRequest` automation needs one. The comment and the last agent message stay empty.
 - `task.new`: an open task of the collections of the automation.
 - A manual `task` automation: use the button in the details of a task.
