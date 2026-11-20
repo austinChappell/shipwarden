@@ -279,7 +279,28 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - A merge event has the worktree, the repository, the number, the URL, and the merge method. A compare event has the
   comparison ID, the repository, the task, the kept run, and all runs.
 - The writes go in one queue and add to the end of the file. A failed write logs one warning and never throws.
+- A start event has the worktree, the repository, the agent name and program, and the task. The renderer sends it
+  (`stats.started`) when "Start in worktree", the queue, an automation, or Compare agents makes a task worktree.
+- A CI event has the worktree, the repository, the pull request number, the head commit, and the CI state (running,
+  failed, or passed). `useStatsCi` sends it (`stats.ci`) from the branch summaries that the renderer has already. The
+  renderer and `StatsRecorder` both skip a state that they sent before for the worktree.
 - At start, `StatsStore.prune` removes the lines older than 90 days with a temporary file and a rename.
+- The Stats view (`src/renderer/src/stats/StatsView.tsx`) reads all events with `stats.events` (local IPC only) and
+  computes its numbers with `computeStats` in `src/shared/stats.ts`, for one time range and one grouping:
+  - The worktree of a merge comes from the merge event, or from a CI event with the same repository and number. The
+    work on a pull request starts after the merge before it in the same worktree.
+  - The agent of a merge is the agent of the start event, else the agent of the first state in the worktree. The model
+    comes from the states of that agent. A merge without a known worktree counts under "Unknown agent".
+  - The time to merge starts at the start event, else at the first state in the worktree.
+  - The tokens of a merge are the sum, for each session in the worktree, of its highest count in the work less its
+    count before the work.
+  - Each state lasts until the next state of its session. The last state lasts until the next merge in its worktree or
+    until now. A state counts 12 hours at most, because the log has no line when the app closes. An exited agent
+    counts no time. The CI events of the worktree cut each state, and `overviewState` gives "needs input"
+    (`waiting`) or "blocked on CI" (`blocked-ci`) for each piece.
+  - The first push of a pull request is the head commit of its first CI event. Its result is the first passed or
+    failed event of that commit.
+  - A value with no data is undefined, and the view shows "No data".
 - The CI state comes from `github.branchSummaries` for each repository that has an agent. The view loads it every
   60 seconds while it is open.
 - The renderer records the time of the last output of each terminal (`OutputActivity`). It starts when the window

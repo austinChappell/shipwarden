@@ -52,6 +52,7 @@ import type { UpdateState } from './updates';
 import type { BranchDiff, ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
 import type { CompareGroup } from './agent-compare';
 import type { QueueState } from './task-queue';
+import type { StatsCiChange, StatsEvent, StatsStart } from './stats';
 import type { PinnedSession, PinRequest, ResumePlan } from './pinned-sessions';
 import type { RecentSession } from './recent-sessions';
 import type { WorktreeFiles } from './worktree-overlap';
@@ -455,6 +456,14 @@ export interface ShipWardenApi {
         save(group: CompareGroup): Promise<CompareGroup>;
         remove(id: string): Promise<void>;
     };
+    stats: {
+        /** The events of the agent stats log (`agent-stats.jsonl`), the oldest first. Local data: no request goes to a service. */
+        events(): Promise<StatsEvent[]>;
+        /** Records the start of work on a task in a new worktree. */
+        started(start: StatsStart): Promise<void>;
+        /** Records the CI state of the pull request of a worktree. The main process ignores a state that it has already. */
+        ci(change: StatsCiChange): Promise<void>;
+    };
     queue: {
         /** The task queue: its items in order, and its settings. */
         get(): Promise<QueueState>;
@@ -821,6 +830,9 @@ export const IpcChannels = {
     compareList: 'compare:list',
     compareSave: 'compare:save',
     compareRemove: 'compare:remove',
+    statsEvents: 'stats:events',
+    statsStarted: 'stats:started',
+    statsCi: 'stats:ci',
     queueGet: 'queue:get',
     queueSave: 'queue:save',
     automationsList: 'automations:list',

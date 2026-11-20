@@ -13039,6 +13039,139 @@ button.pr-summary-cell:hover {
     margin-left: auto;
 }
 
+/* The Stats view: a row of stat tiles for all the agents, and a table with one row for each agent or model. */
+
+.stats-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.stats-scroll {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.stats-page {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 24px var(--gutter) 56px;
+}
+
+.stats-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+}
+
+.stats-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    background: var(--card);
+}
+
+.stats-tile-label {
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Board 2: the stat tile number is 28/700. A large number uses proportional figures. */
+.stats-tile-value {
+    color: var(--text-strong);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.stats-tile-note {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.stats-tile-value.no-data {
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: calc(28px * 1.2);
+}
+
+.stats-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    background: var(--card);
+}
+
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.stats-table th,
+.stats-table td {
+    height: 44px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.stats-table tbody tr:last-child > * {
+    border-bottom: 0;
+}
+
+/* Board 4: the column headings are 11/600 caps. */
+.stats-table thead th {
+    height: 36px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.stats-table thead th:not(:first-child) {
+    text-align: right;
+}
+
+.stats-table tbody th {
+    max-width: 260px;
+    overflow: hidden;
+    color: var(--text-strong);
+    font-weight: 500;
+    text-overflow: ellipsis;
+}
+
+.stats-table td.num {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.stats-table td.no-data {
+    color: var(--muted);
+}
+
+.stats-notes {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
 /* The Queue view: the settings of the queue, and the running, queued, and finished tasks. */
 
 .queue-view {

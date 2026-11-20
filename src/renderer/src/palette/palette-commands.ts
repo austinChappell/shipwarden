@@ -10,6 +10,7 @@ import {
     GitPullRequest,
     HelpCircle,
     Keyboard,
+    BarChart3,
     LayoutDashboard,
     ListOrdered,
     ListTodo,
@@ -426,6 +427,16 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
         },
         ...noteItems(context.notes ?? [], context, true)
     );
+
+    // The agent stats.
+    items.push({
+        id: 'view-stats',
+        label: 'Open Stats',
+        group: 'Views',
+        keywords: ['tokens', 'models', 'merge', 'compare', 'ci'],
+        icon: BarChart3,
+        run: () => actions.enterView('stats')
+    });
 
     // The task queue.
     items.push({

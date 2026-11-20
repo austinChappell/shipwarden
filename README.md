@@ -58,11 +58,6 @@ Move the pointer over the state of an agent to see why it does not work. Example
 prompt", "The agent is asking a question", "Waiting for your reply", "Waiting for CI", and "The process stopped". The
 iPhone app shows the same reason below the agent name.
 
-ShipWarden writes a small event log for the agent stats to `agent-stats.jsonl` in the app data folder. It adds one
-line at each agent state change, each pull request merge in ShipWarden, and each "Keep this one" in Compare agents.
-The log has no prompts and no code. ShipWarden removes the lines older than 90 days at start. A later Stats view reads
-the log.
-
 When two worktrees of a repository change the same file, ShipWarden shows a warning before GitHub reports a merge
 conflict. The Agents view and the Changes tab show a chip such as "Also changed in feat-login". Hover over the chip, or
 click it in the Changes tab, to see the files. ShipWarden compares the commits since the default branch, the staged
@@ -73,6 +68,27 @@ The Tasks view shows the tasks of a task tracker. Task trackers are plugins. Shi
 includes six: GitHub Issues, Linear, ClickUp, Azure Boards, Trello and Local tasks. Anyone can write a
 plugin with the [ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch
 for a task and gives the task to a new agent.
+
+### Agent stats
+
+Open **Stats** in the sidebar to see data that helps you choose agents and models. Select the last 7, 30, or 90 days,
+and one row for each agent or each model. The view shows:
+
+- The merged pull requests, and the median tokens of each merged pull request.
+- The median time from "Start in worktree" to the merge.
+- The part of the agent time in "needs input" and in "blocked on CI".
+- The part of the pull requests whose first push failed CI.
+- The wins in Compare agents ("Keep this one"), for example "2 of 5".
+
+A number that the log cannot give shows "No data". Only Claude Code gives a token count. Agents without hooks, for
+example Codex, give no states, so their time does not count. Only the merges in ShipWarden count. A merge without a
+"Start in worktree" line measures the time from the first agent state in the worktree.
+
+ShipWarden writes a small event log for the stats to `agent-stats.jsonl` in the app data folder. It adds one line at
+each agent state change, each "Start in worktree", each change of the CI state of a worktree pull request, each pull
+request merge in ShipWarden, and each "Keep this one" in Compare agents. The CI state comes from the pull request data
+that ShipWarden loads already. The log has no prompts and no code. ShipWarden removes the lines older than 90 days at
+start. The Stats view reads only this log. It sends no network request.
 
 ### Compare agents
 

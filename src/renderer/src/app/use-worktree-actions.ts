@@ -197,6 +197,11 @@ export function useWorktreeActions(options: Options) {
         options.setNewWorktree({ repo: repoPath, task: { task, connectionId, pluginId } });
     };
 
+    /** Writes the start of work on a task to the agent stats log. The Stats view measures the time to merge from it. */
+    const recordStart = (worktree: string, task: Task, agent: string) => {
+        void api.stats.started({ worktree, agent, task: task.key ? `${task.key} ${task.title}` : task.title }).catch(() => undefined);
+    };
+
     /** Makes the branch name for a task from the branch template of the settings. See `taskBranchName`. */
     const suggestTaskBranch = (task: Task, repoPath: string) => taskBranchName(task, repoPath, appSettings.worktrees.branchTemplate);
 
@@ -214,15 +219,24 @@ export function useWorktreeActions(options: Options) {
         mode?: AgentMode
     ): Promise<{ worktree: CreatedWorktree; session: TerminalSession }> => {
         const { branch } = await suggestTaskBranch(task, repoPath);
-        const worktree = await createTaskWorktree(task, connectionId, pluginId, repoPath, branch);
+        const agentName = (agentId ? appSettings.agents.find(agent => agent.id === agentId) : undefined)?.name ?? agentForRepo(appSettings, repoPath).name;
+        const worktree = await createTaskWorktree(task, connectionId, pluginId, repoPath, branch, agentName);
         void moveTaskToStartStatus(task, connectionId);
         const session = await options.promptAgent(worktree, prompt(branch), { agentId, repoPath, mode });
         return { worktree, session };
     };
 
     /** Makes a worktree on a new branch for a task, runs the setup of the repository, and links the worktree to the task. */
-    const createTaskWorktree = async (task: Task, connectionId: string, pluginId: string, repoPath: string, branch: string): Promise<CreatedWorktree> => {
+    const createTaskWorktree = async (
+        task: Task,
+        connectionId: string,
+        pluginId: string,
+        repoPath: string,
+        branch: string,
+        agentName: string
+    ): Promise<CreatedWorktree> => {
         const worktree = await api.worktrees.create({ repoPath, branch });
+        recordStart(worktree.path, task, agentName);
         await options.prepareWorktree(repoPath, worktree);
         await saveTaskLink(queryClient, worktree.path, taskLinkOf(task, connectionId, pluginId));
         await refreshWorktrees(repoPath);
@@ -248,7 +262,7 @@ export function useWorktreeActions(options: Options) {
         let failure: unknown;
         for (const [index, agent] of agents.entries()) {
             try {
-                const worktree = await createTaskWorktree(task, connectionId, pluginId, repoPath, branches[index]);
+                const worktree = await createTaskWorktree(task, connectionId, pluginId, repoPath, branches[index], agent.name);
                 runs.push({ agentId: agent.id, agentName: agent.name, branch: branches[index], worktreePath: worktree.path });
             } catch (err) {
                 failure = err;
@@ -398,6 +412,7 @@ export function useWorktreeActions(options: Options) {
             if (request.name) await setWorktreeName(worktree.path, request.name);
             if (start) {
                 const { task, connectionId, pluginId } = start;
+                if (prompt || request.startAgent) recordStart(worktree.path, task, agentForRepo(appSettings, repoPath).name);
                 await saveTaskLink(queryClient, worktree.path, taskLinkOf(task, connectionId, pluginId));
                 void moveTaskToStartStatus(task, connectionId);
                 if (!prompt && request.startAgent) prompt = taskPrompt(task, request.branch);
