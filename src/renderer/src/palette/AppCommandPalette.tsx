@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import type { NoteInfo } from '@shared/notes';
 import { useAutomationList } from '../automations/automation-queries';
 import { useReviewQueuePullRequests } from '../github/review-overview-store';
+import { usePromptTemplates } from '../prompts/prompt-queries';
 import { CommandPalette } from './CommandPalette';
 import { paletteItems, type PaletteContext } from './palette-commands';
 
 const api = window.shipwarden;
 
-/** The state of the app for the palette. The palette loads the notes, the automations, and the review queue itself. */
-export type AppPaletteContext = Omit<PaletteContext, 'notes' | 'automations' | 'reviewQueue'>;
+/** The state of the app for the palette. The palette loads the notes, the automations, the prompt templates, and the review queue itself. */
+export type AppPaletteContext = Omit<PaletteContext, 'notes' | 'automations' | 'prompts' | 'reviewQueue'>;
 
 interface Props {
     context: AppPaletteContext;
@@ -31,6 +32,7 @@ export function AppCommandPalette({ context, onClose, onError }: Props) {
     }, []);
     const { list } = useAutomationList();
     const reviewQueue = useReviewQueuePullRequests();
-    const items = paletteItems({ ...context, notes, automations: list.automations, reviewQueue });
+    const prompts = usePromptTemplates().list.templates;
+    const items = paletteItems({ ...context, notes, automations: list.automations, prompts, reviewQueue });
     return <CommandPalette items={items} onClose={onClose} onError={onError} />;
 }

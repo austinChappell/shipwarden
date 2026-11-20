@@ -247,6 +247,13 @@ const api: ShipWardenApi = {
         http: request => ipcRenderer.invoke(IpcChannels.automationsHttp, request),
         onChanged: listener => subscribe<[]>(IpcChannels.automationsChanged, listener)
     },
+    prompts: {
+        list: () => ipcRenderer.invoke(IpcChannels.promptsList),
+        save: (template, previousId) => ipcRenderer.invoke(IpcChannels.promptsSave, template, previousId),
+        remove: id => ipcRenderer.invoke(IpcChannels.promptsRemove, id),
+        reveal: id => ipcRenderer.send(IpcChannels.promptsReveal, id),
+        onChanged: listener => subscribe<[]>(IpcChannels.promptsChanged, listener)
+    },
     notes: {
         folder: () => ipcRenderer.invoke(IpcChannels.notesFolder),
         list: () => ipcRenderer.invoke(IpcChannels.notesList),

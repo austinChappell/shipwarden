@@ -86,6 +86,8 @@ export const keyRoots = {
     worktreeFiles: ['worktreeFiles'],
     /** The automation files and the run history. Local data: no request goes to a service. */
     automations: ['automations'],
+    /** The prompt template files. Local data: no request goes to a service. */
+    prompts: ['prompts'],
     /** The app version, the data folder and the login name. Local data: no request goes to a service. */
     appInfo: ['appInfo'],
     /** The plans of the projects. Local data: no request goes to a service. */

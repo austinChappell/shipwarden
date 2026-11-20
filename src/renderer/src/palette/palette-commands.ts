@@ -13,6 +13,7 @@ import {
     BarChart3,
     LayoutDashboard,
     ListOrdered,
+    MessageSquareText,
     ListTodo,
     Palette,
     PanelsTopLeft,
@@ -27,6 +28,7 @@ import {
 import { AUTOMATION_TEMPLATES, type Automation } from '@shared/automations';
 import type { NoteInfo } from '@shared/notes';
 import type { Plan } from '@shared/plans';
+import type { PromptTemplate } from '@shared/prompt-templates';
 import type { OpenPullRequest } from '@shared/review-queue';
 import { APP_KEY_INFO, SHORTCUT_INFO } from '@shared/shortcuts';
 import type { TaskLink } from '@shared/tasks';
@@ -64,6 +66,8 @@ export interface PaletteActions {
     checkForUpdates(): Promise<void>;
     /** Opens one more ShipWarden window (⇧⌘N). */
     newWindow(): void;
+    /** Inserts a prompt template into the agent on the screen. Throws an error with a message for the user. */
+    insertPrompt(id: string): Promise<void>;
     help(action: HelpAction): void;
 }
 
@@ -85,6 +89,8 @@ export interface PaletteContext {
     /** The notes, or undefined while they load. */
     notes: readonly NoteInfo[] | undefined;
     automations: readonly Automation[];
+    /** The prompt templates. */
+    prompts: readonly PromptTemplate[];
     /** The pull requests of the review queue. `repo` is "owner/name". */
     reviewQueue: readonly { repo: string; pr: OpenPullRequest }[];
     /** False when no review provider is on. The Review view then shows its setup page. */
@@ -212,6 +218,19 @@ function automationItems(context: PaletteContext, searchOnly: boolean): PaletteI
         icon: Zap,
         searchOnly,
         run: () => context.actions.editAutomation(automation.id)
+    }));
+}
+
+function promptItems(context: PaletteContext, searchOnly: boolean): PaletteItem[] {
+    return context.prompts.map(template => ({
+        id: `prompt:${template.id}`,
+        label: template.name,
+        group: 'Prompts',
+        keywords: ['template', 'insert', template.prompt],
+        icon: MessageSquareText,
+        keys: template.shortcut,
+        searchOnly,
+        run: () => context.actions.insertPrompt(template.id)
     }));
 }
 
@@ -486,6 +505,26 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             page: () => page('edit-automation', 'Edit an automation', 'Find an automation', 'You have no automations.', automationItems(context, false))
         },
         ...automationItems(context, true)
+    );
+
+    // Prompt templates.
+    items.push(
+        {
+            id: 'insert-prompt',
+            label: 'Insert a prompt template',
+            group: 'Prompts',
+            keywords: ['template', 'saved', 'agent', 'snippet'],
+            icon: MessageSquareText,
+            page: () =>
+                page(
+                    'insert-prompt',
+                    'Insert a prompt template',
+                    'Find a template',
+                    'You have no templates. Add one in Settings › Prompt templates.',
+                    promptItems(context, false)
+                )
+        },
+        ...promptItems(context, true)
     );
 
     // Views.

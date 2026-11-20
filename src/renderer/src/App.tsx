@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FolderDown, FolderGit2, FolderPlus, GitBranchPlus, PanelRight, Play, SquareTerminal } from 'lucide-react';
-import { keyRoots } from './query-client';
+import { keyRoots, queryClient } from './query-client';
 import { setBudgetContext } from './usage-budget';
 import { useUsageData } from './usage-query';
 import { LOADING_USAGE } from '@shared/usage';
@@ -26,7 +26,7 @@ import { LinkTaskDialog } from './components/LinkTaskDialog';
 import { GitGraphView } from './components/GitGraphView';
 import { TasksView } from './components/TasksView';
 import { Sidebar } from './components/Sidebar';
-import { useBranchStatus } from './github/use-branch-status';
+import { branchSummariesQuery, useBranchStatus } from './github/use-branch-status';
 import { ResizeHandle, usePanelWidth } from './components/ResizeHandle';
 import { readSettingsSection, SETTINGS_SECTIONS, SettingsView } from './components/SettingsView';
 import { AgentsView } from './components/AgentsView';
@@ -78,7 +78,11 @@ import { useStarPrompt } from './app/use-star-prompt';
 import type { TipAction } from '@shared/tips';
 import { WelcomeView } from './components/WelcomeView';
 import { WorktreeProgressNotices } from './components/WorktreeProgressNotices';
-import { leafOfTab, resizeSplit } from '@shared/panes';
+import { focusedTab, leafOfTab, leaves, resizeSplit } from '@shared/panes';
+import type { BranchSummary } from '@shared/github';
+import { setPromptActions, runPromptTemplate, type PromptTarget } from './prompts/prompt-runner';
+import { usePromptShortcuts } from './prompts/use-prompt-shortcuts';
+import { loadPromptTemplates } from './prompts/prompt-queries';
 import type { ShortcutAction, ViewAction } from '@shared/shortcuts';
 import { lspBridge } from './lsp/bridge';
 import { agentStateStore, withAgentStore } from './terminal/agent-state-store';
@@ -908,6 +912,47 @@ export function App() {
     };
     useShortcuts(shortcut, focusWorkspace);
 
+    /**
+     * Finds the terminal and the worktree data for a prompt template. With `sessionId`, the target is that terminal.
+     * Without it, the target is the focused terminal, else an agent in a pane of the active tab, else an agent of the
+     * worktree. The variables use only data that ShipWarden has already: the branch summaries come from the cache.
+     */
+    const promptTarget = async (sessionId?: string): Promise<PromptTarget> => {
+        const terminalOf = (tab: string | undefined) =>
+            tab?.startsWith('t:') ? worktreeSessions.find(item => `t:${item.id}` === tab && !item.exited) : undefined;
+        const tabsOnScreen = layout ? leaves(layout.root).map(leaf => leaf.tab) : activeTab ? [activeTab] : [];
+        const focused = layout ? focusedTab(layout) : activeTab;
+        const onScreen = mainView === 'worktree' || terminalView;
+        let session: TerminalSession | undefined;
+        if (sessionId) {
+            session = sessions.find(item => item.id === sessionId && !item.exited);
+            if (!session) throw new Error('The agent tab closed.');
+        } else if (onScreen) {
+            session =
+                terminalOf(focused) ?? tabsOnScreen.map(terminalOf).find(item => item?.isAgent) ?? worktreeSessions.find(item => item.isAgent && !item.exited);
+        }
+        if (!session) throw new Error('No agent is open here. Open a worktree and start an agent, then insert the template again.');
+        const path = session.worktreePath ?? session.cwd;
+        const worktree = worktrees.find(item => item.path === path);
+        const repo = project.repoOfWorktree(path) ?? '';
+        const fileTab = [focused, ...tabsOnScreen].find(tab => tab?.startsWith('f:'));
+        const file = path === workspacePath && fileTab ? fileTab.slice(2) : undefined;
+        const summaries = repo ? queryClient.getQueryData<Record<string, BranchSummary>>(branchSummariesQuery(repo).queryKey) : undefined;
+        const branch = worktree?.branch;
+        return {
+            session,
+            context: {
+                place: { repo, worktree: { path, branch, isMain: worktree?.isMain ?? false } },
+                file,
+                summary: branch ? summaries?.[branch] : undefined,
+                taskLink: links[path],
+                at: Date.now()
+            }
+        };
+    };
+    setPromptActions(promptTarget, () => openSettings('prompts'));
+    usePromptShortcuts((mainView === 'worktree' || terminalView) && !paletteOpen, setError);
+
     /** The actions of the command palette. */
     const paletteActions: PaletteActions = {
         newWorktree: repo => setNewWorktree({ repo }),
@@ -958,6 +1003,10 @@ export function App() {
         // The same check as ⇧⌘U. The page shows the result in a notice.
         checkForUpdates: async () => api.app.runKey('checkForUpdates'),
         newWindow: () => api.app.runKey('newWindow'),
+        insertPrompt: async id => {
+            const template = (await loadPromptTemplates()).find(item => item.id === id);
+            if (template) await runPromptTemplate(template);
+        },
         help
     };
 

@@ -191,12 +191,17 @@ post to Slack when an agent waits for your input for 10 minutes, or remove the w
 you can export and share. Runs can wait for your approval, and limits stop loops. See
 [docs/automations.md](docs/automations.md).
 
+Prompt templates save the prompts that you type often, for example "Write tests for {{file}}". They use the same
+variables as the automations. Insert a template from the Prompts list of an agent terminal, from the command palette,
+or with its own shortcut. A variable without a value gets a field before the insert. Each template is a JSON file in
+`~/.shipwarden/prompts`. See [docs/prompt-templates.md](docs/prompt-templates.md).
+
 At the first start, a welcome page checks your tools (git, the agent and GitHub access), helps you add or clone a
 repository, choose your agent and start the first agent. Help › Show Welcome opens it again. A short guided tour shows
 the main parts of the window. Help › Take the Tour starts it at all times. Help › Keyboard Shortcuts lists all keys.
 A new user also gets a getting started checklist on the Dashboard.
 
-Tips show the features that are easy to miss. At each start, one random tip from a list of 29 shows in the
+Tips show the features that are easy to miss. At each start, one random tip from a list of 31 shows in the
 bottom-right corner. While ShipWarden stays open, a new tip shows 12 hours after you close the last one. A tip does not
 show again within 10 tips. Some views have their own tip, for example the Dashboard. Close a tip in a view, and it does not show again.
 Turn off the tips in the corner notice or in Settings › Appearance › Tips.
