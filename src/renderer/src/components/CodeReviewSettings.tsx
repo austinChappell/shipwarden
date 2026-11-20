@@ -22,7 +22,9 @@ const api = window.shipwarden.reviewProviders;
 const TOKEN_SCOPES: Record<ReviewProviderKind, string> = {
     github: 'Make a token with these scopes: repo, read:org and workflow.',
     azure: 'Make a token with these scopes: Code (Read & write), Code (Status), Build (Read & execute), Identity (Read) and Project and Team (Read).',
-    gitlab: 'Make a token with the "api" scope.'
+    gitlab: 'Make a token with the "api" scope.',
+    bitbucket:
+        'Make an Atlassian API token for Bitbucket, or a workspace, project, or repository access token. Give it these scopes: account (read), repositories (read & write), pull requests (read & write), pipelines (read & write), and workspace membership (read).'
 };
 
 function tokenSourceText(provider: ReviewProviderInfo, source: ReviewTokenSource | undefined): string {
@@ -35,6 +37,10 @@ function tokenSourceText(provider: ReviewProviderInfo, source: ReviewTokenSource
                 : 'ShipWarden uses the GitHub CLI login (gh auth login).';
         }
         return 'No token. Save a token, or run "gh auth login" with the GitHub CLI.';
+    }
+    if (provider.kind === 'bitbucket') {
+        if (source === 'env') return 'ShipWarden uses BITBUCKET_TOKEN from the environment.';
+        return 'No token. Save a token, or set BITBUCKET_TOKEN.';
     }
     if (provider.kind === 'gitlab') {
         if (source === 'env') return 'ShipWarden uses GITLAB_TOKEN from the environment.';
@@ -52,6 +58,7 @@ function providerMeta(provider: ReviewProviderInfo): string {
     if (provider.name !== providerKindName(provider.kind)) parts.push(providerKindName(provider.kind));
     if (provider.kind === 'gitlab' && provider.baseUrl) parts.push(provider.baseUrl.replace(/^https?:\/\//, ''));
     parts.push(providerScopeSummary(provider.scope, provider.kind));
+    if (provider.kind === 'bitbucket' && provider.username) parts.push(provider.username);
     if (provider.tokenSaved) parts.push('saved token');
     else if (provider.cliAccount) parts.push(`gh account ${provider.cliAccount}`);
     return parts.join(' · ');
@@ -119,7 +126,7 @@ export function CodeReviewSettings({ children }: { children?: ReactNode }) {
                             onToggle={() => setOpenId(id => (id === provider.id ? undefined : provider.id))}
                         />
                     ))}
-                    {providers?.length === 0 && <p className="panel-note">No providers yet. Add GitHub, Azure DevOps, or GitLab above.</p>}
+                    {providers?.length === 0 && <p className="panel-note">No providers yet. Add GitHub, Azure DevOps, GitLab, or Bitbucket above.</p>}
                 </div>
             </SettingsGroup>
 
@@ -185,6 +192,7 @@ function ProviderCard({ provider, open, onToggle }: { provider: ReviewProviderIn
                     </Field>
                     {provider.kind === 'github' && <CliAccountField provider={provider} onChange={cliAccount => update({ cliAccount })} />}
                     {provider.kind === 'gitlab' && <ServerUrlField provider={provider} onChange={baseUrl => update({ baseUrl })} />}
+                    {provider.kind === 'bitbucket' && <UsernameField provider={provider} onChange={username => update({ username })} />}
                     <TokenFields provider={provider} />
                     {provider.kind === 'github' ? (
                         <GitHubScope provider={provider} onChange={scope => update({ scope })} />
@@ -261,6 +269,35 @@ function ServerUrlField({ provider, onChange }: { provider: ReviewProviderInfo; 
     );
 }
 
+/** The email or the username of a Bitbucket provider, for Basic auth. Empty means an access token (Bearer). */
+function UsernameField({ provider, onChange }: { provider: ReviewProviderInfo; onChange(username: string | null): void }) {
+    const [value, setValue] = useState(provider.username ?? '');
+    useEffect(() => setValue(provider.username ?? ''), [provider.username]);
+    const save = () => {
+        const username = value.trim();
+        if (username !== (provider.username ?? '')) onChange(username || null);
+    };
+    const id = useId();
+    return (
+        <Field
+            label="Email or username"
+            htmlFor={id}
+            hint="For an Atlassian API token, type the email of your Atlassian account. For an app password, type your Bitbucket username. For a workspace, project, or repository access token, keep it empty."
+        >
+            <Input
+                id={id}
+                value={value}
+                placeholder="Empty for an access token"
+                spellCheck={false}
+                autoComplete="off"
+                onChange={event => setValue(event.target.value)}
+                onBlur={save}
+                onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+            />
+        </Field>
+    );
+}
+
 /** The personal access token of a provider and a test of the token. The page never reads the token back. */
 function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
     const queryClient = useQueryClient();
@@ -292,7 +329,7 @@ function TokenFields({ provider }: { provider: ReviewProviderInfo }) {
     return (
         <>
             <Field
-                label="Personal access token"
+                label={provider.kind === 'bitbucket' ? 'Token' : 'Personal access token'}
                 htmlFor={tokenId}
                 hint={`${source === null ? 'Loading…' : tokenSourceText(provider, source)} ${TOKEN_SCOPES[provider.kind]}`}
             >
@@ -428,6 +465,11 @@ const NAME_SCOPE_TEXT: Partial<Record<ReviewProviderKind, { label: string; place
         placeholder: 'All organizations',
         hint: 'The names of the organizations, with a comma between them. For example "contoso" for dev.azure.com/contoso. Empty: all organizations.'
     },
+    bitbucket: {
+        label: 'Workspaces',
+        placeholder: 'All workspaces',
+        hint: 'The slugs of the workspaces, with a comma between them. For example "acme" for bitbucket.org/acme. Empty: the workspaces of your account (at most 10). An access token needs its workspace here.'
+    },
     gitlab: {
         label: 'Groups',
         placeholder: 'All groups',
@@ -435,7 +477,7 @@ const NAME_SCOPE_TEXT: Partial<Record<ReviewProviderKind, { label: string; place
     }
 };
 
-/** The Azure DevOps organizations or the GitLab groups of a provider, as a list of names. Empty means all of them. */
+/** The Azure DevOps organizations, the GitLab groups, or the Bitbucket workspaces of a provider, as a list of names. Empty means all of them. */
 function NameScope({ provider, onChange }: { provider: ReviewProviderInfo; onChange(scope: string[] | null): void }) {
     const labels = NAME_SCOPE_TEXT[provider.kind] ?? NAME_SCOPE_TEXT.azure!;
     const text = (provider.scope ?? []).join(', ');

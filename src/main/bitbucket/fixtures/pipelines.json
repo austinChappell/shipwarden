@@ -1,0 +1,53 @@
+[
+    {
+        "type": "pipeline",
+        "uuid": "{a0000000-0000-0000-0000-000000000042}",
+        "build_number": 42,
+        "state": { "type": "pipeline_state_completed", "name": "COMPLETED", "result": { "type": "pipeline_state_completed_failed", "name": "FAILED" } },
+        "target": {
+            "type": "pipeline_pullrequest_target",
+            "source": "feature/rate-limits",
+            "destination": "main",
+            "destination_commit": { "type": "commit", "hash": "3b5d7f9a1c2e" },
+            "commit": { "type": "commit", "hash": "9f2c4e1b7a6d5c4b3a291807f6e5d4c3b2a19080" },
+            "selector": { "type": "pull-requests", "pattern": "**" },
+            "pullrequest": { "type": "pullrequest", "id": 17, "title": "Add rate limits to the public API" }
+        },
+        "trigger": { "type": "pipeline_trigger_push", "name": "PUSH" },
+        "creator": { "uuid": "{6a1c1f3e-2b44-4d1c-9a76-1e1f6c1d0a01}", "display_name": "Dana Kim", "nickname": "dana" },
+        "created_on": "2026-11-18T10:41:00.000000Z",
+        "completed_on": "2026-11-18T10:47:00.000000Z"
+    },
+    {
+        "type": "pipeline",
+        "uuid": "{a0000000-0000-0000-0000-000000000041}",
+        "build_number": 41,
+        "state": { "type": "pipeline_state_in_progress", "name": "IN_PROGRESS", "stage": { "type": "pipeline_state_in_progress_running", "name": "RUNNING" } },
+        "target": {
+            "type": "pipeline_ref_target",
+            "ref_type": "branch",
+            "ref_name": "main",
+            "commit": { "type": "commit", "hash": "3b5d7f9a1c2e3b5d7f9a1c2e3b5d7f9a1c2e3b5d" },
+            "selector": { "type": "branches", "pattern": "main" }
+        },
+        "trigger": { "type": "pipeline_trigger_manual", "name": "MANUAL" },
+        "creator": { "uuid": "{7b2d2e4f-3c55-4e2d-8b87-2f2a7d2e1b02}", "display_name": "Lee Park", "nickname": "lee" },
+        "created_on": "2026-11-18T09:00:00.000000Z",
+        "completed_on": null
+    },
+    {
+        "type": "pipeline",
+        "uuid": "{a0000000-0000-0000-0000-000000000040}",
+        "build_number": 40,
+        "state": { "type": "pipeline_state_completed", "name": "COMPLETED", "result": { "type": "pipeline_state_completed_successful", "name": "SUCCESSFUL" } },
+        "target": {
+            "type": "pipeline_ref_target",
+            "ref_type": "branch",
+            "ref_name": "feature/rate-limits",
+            "commit": { "type": "commit", "hash": "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b" }
+        },
+        "trigger": { "name": "PUSH" },
+        "created_on": "2026-11-17T09:01:00.000000Z",
+        "completed_on": "2026-11-17T09:05:00.000000Z"
+    }
+]

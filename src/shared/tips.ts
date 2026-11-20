@@ -24,6 +24,12 @@ export interface Tip {
 /** The tips of the corner notice. The notice shows one tip at random (see `pickTip`). */
 export const NOTICE_TIPS: readonly Tip[] = [
     {
+        id: 'bitbucketProvider',
+        title: 'Review Bitbucket pull requests',
+        body: 'Add a Bitbucket provider for Bitbucket Cloud. Pull requests, threads, approvals, and pipeline steps then show in ShipWarden, as GitHub pull requests do.',
+        action: { kind: 'settings', section: 'review', label: 'Open Settings › Code review' }
+    },
+    {
         id: 'gitlabProvider',
         title: 'Review GitLab merge requests',
         body: 'Add a GitLab provider for gitlab.com or for your own server. Merge requests, threads, approvals, and pipeline jobs then show in ShipWarden, as GitHub pull requests do.',

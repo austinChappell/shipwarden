@@ -183,13 +183,16 @@ export const GITLAB_REVIEW_EVENTS: ReviewEvent[] = ['COMMENT', 'APPROVE'];
 export const GITLAB_APPROVED_EVENTS: ReviewEvent[] = ['COMMENT', 'UNAPPROVE'];
 
 /**
- * Returns the review events of a GitLab merge request after a review of the user. An approval gives "UNAPPROVE",
- * and "UNAPPROVE" gives "APPROVE" again. Other hosts do not change.
+ * Returns the review events of a GitLab merge request or a Bitbucket pull request after a review of the user.
+ * An approval gives "UNAPPROVE", and "UNAPPROVE" gives "APPROVE" again. On Bitbucket, a request for changes removes the
+ * approval of the user, so it also gives "APPROVE" again. Other hosts do not change.
  */
 export function reviewEventsAfter(host: string | undefined, events: ReviewEvent[] | undefined, event: ReviewEvent): ReviewEvent[] | undefined {
-    if (host !== 'gitlab' || !events) return events;
+    if ((host !== 'gitlab' && host !== 'bitbucket') || !events) return events;
     if (event === 'APPROVE') return events.map(item => (item === 'APPROVE' ? 'UNAPPROVE' : item));
-    if (event === 'UNAPPROVE') return events.map(item => (item === 'UNAPPROVE' ? 'APPROVE' : item));
+    if (event === 'UNAPPROVE' || (host === 'bitbucket' && event === 'REQUEST_CHANGES')) {
+        return events.map(item => (item === 'UNAPPROVE' ? 'APPROVE' : item));
+    }
     return events;
 }
 

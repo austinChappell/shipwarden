@@ -2,12 +2,14 @@ import type { WorkflowInput } from './pipelines';
 import type { ReviewStatus } from './review-queue';
 import { azureBuildsWebUrl, azureRepoOf, azureRepoWebUrl } from './azure-devops';
 import { gitlabRepoOf, gitlabRepoWebUrl } from './gitlab';
+import { bitbucketPipelinesWebUrl, bitbucketPullRequestWebUrl, bitbucketRepoOf, bitbucketRepoWebUrl } from './bitbucket';
 import { EMOJI_SHORTCODES } from './emoji-shortcodes';
 
 /**
- * A repository on GitHub, on Azure Repos, or on GitLab.
+ * A repository on GitHub, on Azure Repos, on GitLab, or on Bitbucket Cloud.
  * For an Azure Repos repository, `owner` is "organization/project" and `host` is "azure".
  * For a GitLab project, `owner` is "server host/namespace" (for example "gitlab.com/acme/platform") and `host` is "gitlab".
+ * For a Bitbucket repository, `owner` is the workspace, `name` is the repository slug, and `host` is "bitbucket".
  */
 export interface RepoRef {
     owner: string;
@@ -25,27 +27,36 @@ export type RepoTarget = string | RepoRef;
 /** Returns a text key for a target, for example for a cache. */
 export function targetKey(target: RepoTarget): string {
     if (typeof target === 'string') return target;
-    return target.host === 'azure' || target.host === 'gitlab' ? repoId(target) : `github:${target.owner}/${target.name}`;
+    return target.host === 'azure' || target.host === 'gitlab' || target.host === 'bitbucket' ? repoId(target) : `github:${target.owner}/${target.name}`;
 }
 
 /** The start of the ID of an Azure Repos repository. */
 const AZURE_REPO_PREFIX = 'azure:';
 /** The start of the ID of a GitLab project. */
 const GITLAB_REPO_PREFIX = 'gitlab:';
+/** The start of the ID of a Bitbucket repository. */
+const BITBUCKET_REPO_PREFIX = 'bitbucket:';
+
+/** The start of the repository ID of each host that is not GitHub. */
+const REPO_PREFIXES: [SourceHostKind, string][] = [
+    ['azure', AZURE_REPO_PREFIX],
+    ['gitlab', GITLAB_REPO_PREFIX],
+    ['bitbucket', BITBUCKET_REPO_PREFIX]
+];
 
 /**
  * Returns the ID of a repository for the page, for example for a cache or a list.
  * A GitHub repository gives "owner/name". An Azure Repos repository gives "azure:organization/project/name".
  */
 export function repoId(repo: RepoRef): string {
-    const prefix = repo.host === 'azure' ? AZURE_REPO_PREFIX : repo.host === 'gitlab' ? GITLAB_REPO_PREFIX : '';
+    const prefix = REPO_PREFIXES.find(([host]) => host === repo.host)?.[1] ?? '';
     return `${prefix}${repo.owner}/${repo.name}`;
 }
 
 /** Reads an ID from `repoId`. The name is the text after the last "/". */
 export function parseRepoId(id: string): RepoRef {
-    const host: SourceHostKind | undefined = id.startsWith(AZURE_REPO_PREFIX) ? 'azure' : id.startsWith(GITLAB_REPO_PREFIX) ? 'gitlab' : undefined;
-    const text = host ? id.slice((host === 'azure' ? AZURE_REPO_PREFIX : GITLAB_REPO_PREFIX).length) : id;
+    const [host, prefix] = REPO_PREFIXES.find(([, start]) => id.startsWith(start)) ?? [undefined, ''];
+    const text = id.slice(prefix.length);
     const slash = host ? text.lastIndexOf('/') : text.indexOf('/');
     const owner = slash < 0 ? text : text.slice(0, slash);
     const name = slash < 0 ? '' : text.slice(slash + 1);
@@ -73,13 +84,17 @@ export function repoWebUrl(repo: RepoRef): string {
     const azure = azureRepoOf(repo);
     if (azure) return azureRepoWebUrl(azure);
     const gitlab = gitlabRepoOf(repo);
-    return gitlab ? gitlabRepoWebUrl(gitlab) : `https://github.com/${repo.owner}/${repo.name}`;
+    if (gitlab) return gitlabRepoWebUrl(gitlab);
+    const bitbucket = bitbucketRepoOf(repo);
+    return bitbucket ? bitbucketRepoWebUrl(bitbucket) : `https://github.com/${repo.owner}/${repo.name}`;
 }
 
 /** Returns the web page of a pull request. */
 export function pullRequestWebUrl(repo: RepoRef, number: number): string {
     if (azureRepoOf(repo)) return `${repoWebUrl(repo)}/pullrequest/${number}`;
     if (gitlabRepoOf(repo)) return `${repoWebUrl(repo)}/-/merge_requests/${number}`;
+    const bitbucket = bitbucketRepoOf(repo);
+    if (bitbucket) return bitbucketPullRequestWebUrl(bitbucket, number);
     return `${repoWebUrl(repo)}/pull/${number}`;
 }
 
@@ -108,6 +123,7 @@ function decodePart(part: string): string {
  * - https://dev.azure.com/{org}/{project}/_git/{repo}/pullrequest/{number}
  * - https://{org}.visualstudio.com/[DefaultCollection/]{project}/_git/{repo}/pullrequest/{number}
  * - https://{gitlab host}/{group}/[{subgroup}/]{project}/-/merge_requests/{number}, also with "/diffs" or "/pipelines"
+ * - https://bitbucket.org/{workspace}/{repo}/pull-requests/{number}, also with "/diff" or "/commits"
  */
 export function parsePullRequestUrl(url: string): (ItemLink & { tab: PullRequestLinkTab }) | undefined {
     const github = /^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)\/([^/?#]+)\/pull\/(\d{1,9})(?:\/([^/?#]*))?\/?(?:[?#].*)?$/i.exec(url);
@@ -121,6 +137,11 @@ export function parsePullRequestUrl(url: string): (ItemLink & { tab: PullRequest
     if (azure) {
         const [organization, project, name] = azure.slice(1, 4).map(decodePart);
         return { repo: { owner: `${organization}/${project}`, name, host: 'azure' }, number: Number(azure[4]), tab: 'overview' };
+    }
+    const bitbucket = /^https?:\/\/(?:www\.)?bitbucket\.org\/([^/?#]+)\/([^/?#]+)\/pull-requests\/(\d{1,9})(?:\/([^/?#]*))?\/?(?:[?#].*)?$/i.exec(url);
+    if (bitbucket) {
+        const tab = bitbucket[4] === 'diff' ? 'files' : 'overview';
+        return { repo: { owner: decodePart(bitbucket[1]), name: decodePart(bitbucket[2]), host: 'bitbucket' }, number: Number(bitbucket[3]), tab };
     }
     const gitlab = /^https?:\/\/([^/?#@]+)\/((?:[^/?#]+\/)+)([^/?#]+)\/-\/merge_requests\/(\d{1,9})(?:\/([^/?#]*))?\/?(?:[?#].*)?$/i.exec(url);
     if (gitlab) {
@@ -144,6 +165,8 @@ export function parseIssueUrl(url: string): ItemLink | undefined {
 export function pipelinesWebUrl(repo: RepoRef): string {
     const azure = azureRepoOf(repo);
     if (azure) return azureBuildsWebUrl(azure);
+    const bitbucket = bitbucketRepoOf(repo);
+    if (bitbucket) return bitbucketPipelinesWebUrl(bitbucket);
     return gitlabRepoOf(repo) ? `${repoWebUrl(repo)}/-/pipelines` : `${repoWebUrl(repo)}/actions`;
 }
 
@@ -152,17 +175,22 @@ export function cloneUrl(repo: RepoRef): string {
     const azure = azureRepoOf(repo);
     if (azure) return azureRepoWebUrl(azure);
     const gitlab = gitlabRepoOf(repo);
-    return gitlab ? `${gitlabRepoWebUrl(gitlab)}.git` : `https://github.com/${repo.owner}/${repo.name}.git`;
+    if (gitlab) return `${gitlabRepoWebUrl(gitlab)}.git`;
+    const bitbucket = bitbucketRepoOf(repo);
+    return bitbucket ? `${bitbucketRepoWebUrl(bitbucket)}.git` : `https://github.com/${repo.owner}/${repo.name}.git`;
 }
 
 /**
  * Returns the ref on the "origin" remote that has the head commit of a pull request.
  * Azure Repos has only the merge ref. The head commit is the second parent of its commit.
  * GitLab keeps the head commit of a merge request in "refs/merge-requests/<iid>/head".
+ * Bitbucket has no ref for a pull request. The refspec gets all branches, so the source branch of a pull request from
+ * the same repository comes too. A pull request from a fork does not.
  */
 export function pullRequestRef(repo: RepoRef, number: number): string {
     if (repo.host === 'azure') return `refs/pull/${number}/merge`;
     if (repo.host === 'gitlab') return `refs/merge-requests/${number}/head`;
+    if (repo.host === 'bitbucket') return '+refs/heads/*:refs/remotes/origin/*';
     return `refs/pull/${number}/head`;
 }
 
@@ -235,20 +263,21 @@ export type MergeMethod = 'merge' | 'squash' | 'rebase';
  * The result of a review. GitHub accepts APPROVE, REQUEST_CHANGES and COMMENT.
  * Azure DevOps uses votes: APPROVE (10), APPROVE_WITH_SUGGESTIONS (5), WAIT_FOR_AUTHOR (-5) and REJECT (-10).
  * GitLab accepts APPROVE, COMMENT and UNAPPROVE (the user revokes an approval).
+ * Bitbucket accepts APPROVE, REQUEST_CHANGES, COMMENT and UNAPPROVE.
  */
 export type ReviewEvent = 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT' | 'APPROVE_WITH_SUGGESTIONS' | 'WAIT_FOR_AUTHOR' | 'REJECT' | 'UNAPPROVE';
 
 /** The service that keeps the repository, its pull requests and its pipelines. */
-export type SourceHostKind = 'github' | 'azure' | 'gitlab';
+export type SourceHostKind = 'github' | 'azure' | 'gitlab' | 'bitbucket';
 
 /** The name of a host for the UI, for example "Open on Azure DevOps". */
 export function hostLabel(host: SourceHostKind | undefined): string {
-    return host === 'azure' ? 'Azure DevOps' : host === 'gitlab' ? 'GitLab' : 'GitHub';
+    return host === 'azure' ? 'Azure DevOps' : host === 'gitlab' ? 'GitLab' : host === 'bitbucket' ? 'Bitbucket' : 'GitHub';
 }
 
-/** True for a host whose CI has pipelines (Azure DevOps and GitLab). GitHub has workflows. */
+/** True for a host whose CI has pipelines (Azure DevOps, GitLab, and Bitbucket). GitHub has workflows. */
 export function hostHasPipelines(host: SourceHostKind | undefined): boolean {
-    return host === 'azure' || host === 'gitlab';
+    return host === 'azure' || host === 'gitlab' || host === 'bitbucket';
 }
 
 /** The data of a new pull request from the branch of a worktree. */

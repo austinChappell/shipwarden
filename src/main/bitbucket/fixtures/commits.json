@@ -1,0 +1,19 @@
+[
+    {
+        "type": "commit",
+        "hash": "9f2c4e1b7a6d5c4b3a291807f6e5d4c3b2a19080",
+        "message": "Move the limit to the settings\n\nThe default stays 100.",
+        "date": "2026-11-18T10:40:00+00:00",
+        "author": { "type": "author", "raw": "Dana Kim <dana@example.com>", "user": { "type": "user", "uuid": "{6a1c1f3e-2b44-4d1c-9a76-1e1f6c1d0a01}", "display_name": "Dana Kim", "nickname": "dana" } },
+        "parents": [{ "hash": "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b" }],
+        "links": { "html": { "href": "https://bitbucket.org/acme/api/commits/9f2c4e1b7a6d5c4b3a291807f6e5d4c3b2a19080" } }
+    },
+    {
+        "type": "commit",
+        "hash": "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+        "message": "Add a token bucket",
+        "date": "2026-11-17T09:00:00+00:00",
+        "author": { "type": "author", "raw": "CI Bot <ci@example.com>" },
+        "parents": [{ "hash": "3b5d7f9a1c2e3b5d7f9a1c2e3b5d7f9a1c2e3b5d" }]
+    }
+]

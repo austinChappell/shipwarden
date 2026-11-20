@@ -1,0 +1,7 @@
+{
+    "type": "branch",
+    "name": "main",
+    "target": { "type": "commit", "hash": "3b5d7f9a1c2e3b5d7f9a1c2e3b5d7f9a1c2e3b5d" },
+    "merge_strategies": ["merge_commit", "squash", "fast_forward"],
+    "default_merge_strategy": "squash"
+}
