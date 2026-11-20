@@ -1,0 +1,34 @@
+{
+  "id": "jira",
+  "name": "Jira",
+  "version": "0.1.0",
+  "protocolVersion": 3,
+  "description": "Jira Cloud issues. Each Jira project is a collection. Restrict the connection to some projects in the settings.",
+  "command": "node",
+  "args": ["index.js"],
+  "settings": [
+    {
+      "key": "site",
+      "label": "Site URL",
+      "type": "string",
+      "required": true,
+      "description": "The URL of your Jira Cloud site, for example \"https://acme.atlassian.net\"."
+    },
+    {
+      "key": "email",
+      "label": "Email",
+      "type": "string",
+      "required": true,
+      "description": "The email of your Atlassian account."
+    },
+    {
+      "key": "apiToken",
+      "label": "API token",
+      "type": "secret",
+      "required": true,
+      "description": "An API token of your Atlassian account. Open id.atlassian.com/manage-profile/security/api-tokens and click \"Create API token\". Do not use a token with scopes."
+    }
+  ],
+  "usesRepositories": false,
+  "scopeLabel": "project"
+}

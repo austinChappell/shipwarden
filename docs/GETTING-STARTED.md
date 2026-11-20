@@ -164,8 +164,8 @@ Click a worktree in the sidebar to open it. Use these keys in a worktree:
 
 ### Task managers
 
-ShipWarden can show the tasks of a task manager. ShipWarden includes five task managers: GitHub Issues, Linear,
-ClickUp, Azure Boards and Local tasks.
+ShipWarden can show the tasks of a task manager. ShipWarden includes seven task managers: GitHub Issues, Linear,
+ClickUp, Jira, Azure Boards, Trello, and Local tasks.
 
 1. Open **Settings › Task managers**.
 2. In **Add a task manager…**, select a task manager.
@@ -173,6 +173,9 @@ ClickUp, Azure Boards and Local tasks.
 4. Type the credentials that the task manager needs:
    - **ClickUp:** an API token.
    - **Linear:** an API key.
+   - **Jira:** the site URL (for example `https://acme.atlassian.net`), the email of your Atlassian account, and an
+     API token. Make the token at id.atlassian.com › Security › API tokens. ShipWarden supports Jira Cloud only.
+   - **Trello:** an API key and a token.
    - **Azure Boards:** the organization and a personal access token.
    - **GitHub Issues:** no credentials. It uses the GitHub CLI. You can save a token for a second GitHub account.
    - **Local tasks:** no credentials.
