@@ -22,6 +22,7 @@ import { loadLoginShellPath, loginShellCaFile } from './shell-env';
 import { TrustedCertificates } from './network/trusted-certificates';
 import { NotesService } from './notes/notes-service';
 import { AutomationStore } from './automations/automation-store';
+import { PromptStore } from './prompts/prompt-store';
 import { PlanStore } from './plans/plan-store';
 import { PrGroupStore } from './pr-groups/pr-group-store';
 import { CompareStore } from './compare/compare-store';
@@ -312,6 +313,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const automations = new AutomationStore(join(os.homedir(), '.shipwarden', 'automations'), join(userData, 'automation-runs.json'), file =>
         shell.trashItem(file)
     );
+    /** The prompt templates are files in the home folder too, so the user can share them. */
+    const prompts = new PromptStore(join(os.homedir(), '.shipwarden', 'prompts'), file => shell.trashItem(file));
     const ptyHostLog = join(userData, 'pty-host.log');
 
     /**
@@ -516,6 +519,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         notifications,
         notes,
         automations,
+        prompts,
         ptyHostLog,
         terminalSizes,
         remote,

@@ -668,6 +668,24 @@ The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup chec
 - Actions: cancel a run that waits or runs, re-run failed jobs, re-run all jobs, open on GitHub. Each asks first.
 - The runs refresh every 8 seconds while a run waits or runs, else every minute.
 
+### Prompt templates
+
+The user guide and the file format are in [prompt-templates.md](prompt-templates.md).
+
+- **Files.** `PromptStore` (`src/main/prompts/prompt-store.ts`) keeps one JSON file for each template in
+  `~/.shipwarden/prompts`, and watches the folder (`prompts:changed`), the same as `AutomationStore`.
+  `normalizePromptTemplate` (`src/shared/prompt-templates.ts`) checks a file.
+- **Variables.** `promptValues` makes a manual worktree event (`manualWorktreeEvent`) and reads its values with
+  `eventVariables`, so the values are the same as in a manual automation. It adds `file`. `missingVariables` lists the
+  variables without a value. The page asks for them in `PromptFillDialog`.
+- **Insert.** `runPromptTemplate` (`src/renderer/src/prompts/prompt-runner.ts`) writes the text as a bracketed paste.
+  It presses Enter only for a template with `send`, or after "Send" in the dialog. App.tsx gives the target resolver:
+  the focused terminal, else an agent in a pane of the active tab, else an agent of the worktree. The branch summary
+  comes from the TanStack Query cache, so an insert sends no request.
+- **Shortcuts.** `usePromptShortcuts` reads the keys in the capture phase of the page. `shortcutConflict` rejects the
+  keys of `allShortcuts`, `shortcutAction`, `appKeyAction`, a few macOS keys, the text keybinds of the terminal config,
+  and the other templates. So the main process never takes a template key.
+
 ### Automations
 
 The user guide and the file format are in [automations.md](automations.md).
