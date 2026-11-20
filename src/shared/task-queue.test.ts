@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from './tasks';
+import { budgetBlock, budgetWaitText, type ProviderUsage } from './usage';
 import {
     activeCount,
     addToQueue,
@@ -188,6 +189,23 @@ describe('the start check', () => {
         const plan = nextStarts(state, NOW, item => (item.id === 'b' ? 'Waiting for usage to reset' : undefined));
         expect(plan.items.map(item => item.id)).toEqual(['a']);
         expect(plan.waiting).toBe('Waiting for usage to reset');
+    });
+
+    it('keeps the items queued while the usage budget stops them, and starts them after the reset', () => {
+        const state = queueOf(['a', 'b'], 2);
+        const resetsAt = new Date(NOW + 3600_000).toISOString();
+        const usage: ProviderUsage[] = [{ provider: 'claude', status: 'ok', windows: [{ kind: 'session', label: '5h', usedPercent: 90, resetsAt }] }];
+        const check = (now: number) => {
+            const block = budgetBlock(usage, { percent: 80, windows: 'all' }, 'claude', now);
+            return block && budgetWaitText(block);
+        };
+        const waiting = nextStarts(state, NOW, (_item, _state, now) => check(now));
+        expect(waiting.items).toEqual([]);
+        expect(waiting.waiting?.startsWith('Waiting for usage to reset.')).toBe(true);
+        expect(queuedItems(state).map(item => item.id)).toEqual(['a', 'b']);
+        // The reset time passed. The old usage does not stop the queue.
+        const later = nextStarts(state, NOW + 2 * 3600_000, (_item, _state, now) => check(now));
+        expect(later.items.map(item => item.id)).toEqual(['a', 'b']);
     });
 
     it('does not run the check when no place is free', () => {

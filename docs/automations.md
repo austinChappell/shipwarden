@@ -64,6 +64,7 @@ An export has `kind` and no `status` or `binding`.
 | `worktree.overlap` ("Worktrees change the same files") | A worktree changes a file that a different worktree of the same repository also changes. See [Overlapping worktrees](#overlapping-worktrees). | |
 | `task.new` ("Task matches") | A task of a bound collection agrees with the filters for the first time: a new task, or a change such as a new label, a new assignee or a new status. Other changes do not count. A done or canceled task never counts. Each task runs one time only. | `labels`, `assignedToMe`, `status` |
 | `schedule` | A time of day (`"HH:MM"`, local time) on the selected days (`0` is Sunday). | `days`, `time` |
+| `usage.threshold` ("Plan usage reached") | The plan usage of Claude or Codex reaches `percent` (5 to 100) in one of its limits. See [Plan usage](#plan-usage). | `percent` |
 | `manual` | You click the button of the automation. It never runs by itself. | `entity`, `button` |
 
 The pull request triggers, `agent.done`, `agent.needsInput`, and `worktree.overlap` act only on linked worktrees, not on the main worktree.
@@ -113,6 +114,36 @@ Put the webhook address in the secret `SLACK_WEBHOOK_URL`:
 ```
 
 `sendToAgent` cannot follow this trigger, because the agent waits for you and not for a prompt.
+
+### Plan usage
+
+`usage.threshold` reads the plan usage that the status bar shows, so it sends no extra requests. It runs one time for
+each limit (for example `5h`, `Weekly`, or a model limit) and each reset period. The next poll with the same usage does
+not run it again, also after a restart. When the limit resets and the usage reaches the percent again, it runs again.
+When ShipWarden has no usage data (no sign-in, or a failed request), it does not run. The pause at plan usage does not
+stop this trigger.
+
+| Variable | Value |
+| --- | --- |
+| `{{usage.provider}}` | `Claude` or `Codex`. |
+| `{{usage.window}}` | The limit, for example `5h`, `Weekly`, or the name of a model. |
+| `{{usage.percent}}` | The usage of the limit, in percent. |
+| `{{usage.threshold}}` | The `percent` of the trigger. |
+| `{{usage.resetsAt}}` | The reset time, as an ISO time. |
+| `{{usage.resetsIn}}` | The time until the reset, for example `2h 10m`. |
+| `{{usage.summary}}` | One line, for example `The Claude plan usage (5h) is at 82%. It resets in 2h 10m.` |
+
+The actions `notify`, `postMessage`, `http`, `if`, and `stop` can follow this trigger.
+
+```json
+{
+  "name": "Tell me about the plan usage",
+  "trigger": { "type": "usage.threshold", "percent": 80 },
+  "actions": [{ "type": "notify", "title": "Plan usage", "body": "{{usage.summary}}" }]
+}
+```
+
+To stop new agents at a usage level, use the usage budget in Settings › Agents. See the README.
 
 ### Overlapping worktrees
 
@@ -261,10 +292,10 @@ A file of an older version has `collectionId` and `collectionName`. ShipWarden r
 | Type | Does | Triggers |
 |---|---|---|
 | `sendToAgent` | Sends `prompt` to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs. `mode` sets the permission mode. | `ci.failed`, `pr.comment`, `pr.conflict`, `agent.done`, `worktree.overlap` |
-| `startAgent` | Makes a worktree and gives `prompt` to a new agent. A task gives the branch name: the template of Settings › Worktrees › Branch names for tasks, else the task key and the title. A schedule uses `branch`. `agentId` selects the agent. `mode` sets the permission mode. | `task.new`, `schedule` |
+| `startAgent` | Makes a worktree and gives `prompt` to a new agent. A task gives the branch name: the template of Settings › Worktrees › Branch names for tasks, else the task key and the title. A schedule uses `branch`. `agentId` selects the agent. `mode` sets the permission mode. While the plan usage is at or above the usage budget of Settings › Agents, the run waits ("Waiting for usage to reset") and starts after the reset. | `task.new`, `schedule` |
 | `queueTask` | Adds the task to the end of the task queue. The queue starts the task when it has a free place, with the branch template and the default task prompt. `agentId` selects the agent. A task that is in the queue already is not added again. Set the limit on the Queue page. | `task.new` |
-| `runHeadless` | Runs the agent in print mode. The agent does not change files. With `saveNote`, the answer goes into a note in the folder "Automations". | all |
-| `moveTask` | Moves the task to the status with the name `status`. | all except `schedule` |
+| `runHeadless` | Runs the agent in print mode. The agent does not change files. With `saveNote`, the answer goes into a note in the folder "Automations". | all except `usage.threshold` |
+| `moveTask` | Moves the task to the status with the name `status`. | all except `schedule` and `usage.threshold` |
 | `removeWorktree` | Removes the worktree. Git refuses a worktree with uncommitted changes. With `deleteBranch`, a merged local branch goes away too. | `pr.merged` |
 | `notify` | Shows a macOS notification with `title` and `body`. | all |
 | `postMessage` | Posts `message` to a chat channel, for example a ClickUp channel. See [Chat channels](#chat-channels). | all |

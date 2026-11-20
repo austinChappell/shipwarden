@@ -108,6 +108,20 @@ starts, the task stops, and **Try again** puts it back. The queue runs only whil
 a restart of the app. The queue is in `task-queue.json` in the app data folder. The `queueTask` automation action adds
 the new tasks of a collection to the queue.
 
+### Usage budget
+
+A usage budget stops new agents before the plan usage of Claude or Codex runs out. Set it in Settings › Agents ›
+**Usage budget**, for example "Stop new agents at plan usage: 80%". Select **All limits** or **Only the 5-hour limit**.
+
+While the usage is at or above the budget, the queue, plans, Compare agents, and the "Start an agent" automation action
+do not start new agents. The queue and the plans show "Waiting for usage to reset" with the reset time, and continue
+after the reset. The Compare agents dialog disables **Start** until the reset. A held automation run starts after the
+reset. Agents that work now continue. Agents other than Claude Code and Codex have no usage data, so the budget does not
+stop them. When ShipWarden has no usage data, the budget does not stop a start.
+
+The automation trigger "Plan usage reached" (`usage.threshold`) runs one time when a limit reaches a percent. It runs
+again only after the limit resets. Use it to show a notification or to post a message.
+
 The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
 send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label,
 post to Slack when an agent waits for your input for 10 minutes, or remove the worktree after its pull request merges. Each automation is a JSON file in `~/.shipwarden/automations` that

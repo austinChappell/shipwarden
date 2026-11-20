@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FolderDown, FolderGit2, FolderPlus, GitBranchPlus, PanelRight, Play, SquareTerminal } from 'lucide-react';
 import { keyRoots } from './query-client';
+import { setBudgetContext } from './usage-budget';
+import { useUsage } from './usage-query';
 import { EmptyState } from './components/EmptyState';
 import { CloneRepoDialog } from './components/CloneRepoDialog';
 import { startAgentAction } from './app/empty-states';
@@ -507,6 +509,11 @@ export function App() {
             !!layout &&
             !!leafOfTab(layout, `t:${session.id}`)
     });
+
+    // The usage budget of Settings › Agents. The queue, the plans, and the automations read it before they start an agent.
+    // A layout effect runs before the effects of the runners, so their first round has the newest budget.
+    const usage = useUsage();
+    useLayoutEffect(() => setBudgetContext({ settings: appSettings, usage }), [appSettings, usage]);
 
     // The automations run while the app is open. The engine gets the state of the app and its events here.
     useAutomationEngine({

@@ -11,6 +11,7 @@ import {
     TOKEN_LIMIT_STEP,
     USAGE_LIMIT_MAX,
     USAGE_LIMIT_MIN,
+    clampUsageLimit,
     USAGE_LIMIT_STEP,
     actionAllowed,
     actsOnTasks,
@@ -292,6 +293,25 @@ export function AutomationEditor({ initial, previousId, imported, repos, repoLab
                                             }}
                                         />{' '}
                                         minutes
+                                    </span>
+                                </div>
+                            )}
+                            {trigger.type === 'usage.threshold' && (
+                                <div className="automation-inline">
+                                    <span className="automation-field">
+                                        <label htmlFor={`${id}-usage-percent`}>Run at plan usage</label>
+                                        <Input
+                                            id={`${id}-usage-percent`}
+                                            type="number"
+                                            min={USAGE_LIMIT_MIN}
+                                            max={USAGE_LIMIT_MAX}
+                                            step={USAGE_LIMIT_STEP}
+                                            className="automation-number"
+                                            value={trigger.percent}
+                                            onChange={event => setTrigger({ percent: Math.round(Number(event.target.value)) })}
+                                            onBlur={() => setTrigger({ percent: clampUsageLimit(trigger.percent) })}
+                                        />{' '}
+                                        %
                                     </span>
                                 </div>
                             )}
@@ -583,6 +603,8 @@ function triggerNote(trigger: Trigger): string {
             return 'Local time. A time that passes while ShipWarden is closed does not run later.';
         case 'agent.needsInput':
             return 'Use 0 to run at once. When the agent stops waiting before this time, the automation does not run. Use {{agent.waitFor}} in a condition to select permissions or questions.';
+        case 'usage.threshold':
+            return 'Claude or Codex, in percent. Each limit (for example 5h or Weekly) runs one time until it resets. Use {{usage.summary}} in a notification or a message.';
         case 'manual':
             return MANUAL_ENTITIES.find(item => item.entity === trigger.entity)?.description ?? '';
         default:

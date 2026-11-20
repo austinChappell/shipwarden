@@ -1,7 +1,6 @@
 import type { AgentUpdate } from '@shared/agents';
 import type { BranchSummary } from '@shared/github';
 import {
-    alwaysStart,
     finishReason,
     markFinished,
     markStarted,
@@ -19,6 +18,7 @@ import type { TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
 import { agentStateStore } from '../terminal/agent-state-store';
 import { outputActivity } from '../terminal/output-activity';
+import { budgetWait } from '../usage-budget';
 import { errorText } from '../util';
 import { cachedQueue, changeQueue, queueQuery } from './queue-queries';
 import { queryClient } from '../query-client';
@@ -68,10 +68,11 @@ export class QueueRunner {
     private soon: ReturnType<typeof setTimeout> | undefined;
 
     /**
-     * The check before each start. It returns why the queue must wait, or undefined. A usage budget check goes here.
-     * Each item that a check stops stays queued, and the next round checks again.
+     * The check before each start. It returns why the queue must wait, or undefined. It checks the usage budget of
+     * Settings › Agents for the agent of the item. Each item that a check stops stays queued, and the next round checks
+     * again. The timer of `useQueueRunner` runs a round every 30 seconds, so the queue continues after the reset.
      */
-    canStart: StartCheck = alwaysStart;
+    canStart: StartCheck = item => budgetWait(item.agentId, item.repoPath);
 
     /** Gives the runner the newest state of the app. The first ready state recovers the queue that the app read. */
     setContext(context: QueueRunnerContext): void {

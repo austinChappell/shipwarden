@@ -1,5 +1,5 @@
 import type { Task } from './tasks';
-import { PROVIDER_NAMES, type ProviderUsage } from './usage';
+import { formatResetIn, PROVIDER_NAMES, usageCrossings, type ProviderUsage, type UsageProvider } from './usage';
 import { AGENT_MODES, isAgentMode, type AgentMode } from './agent-modes';
 import type { AgentWaitKind } from './agents';
 import { pluralize } from './format';
@@ -43,6 +43,7 @@ export type TriggerType =
     | 'worktree.overlap'
     | 'task.new'
     | 'schedule'
+    | 'usage.threshold'
     | 'manual';
 
 /**
@@ -84,7 +85,12 @@ export type Trigger =
     /** A task of the bound collection agrees with the filters for the first time. */
     | { type: 'task.new'; labels?: string[]; assignedToMe?: boolean; status?: string }
     /** A time of day on the selected days of the week. `days` has 0 (Sunday) to 6 (Saturday). `time` is "HH:MM". */
-    | { type: 'schedule'; days: number[]; time: string };
+    | { type: 'schedule'; days: number[]; time: string }
+    /**
+     * The plan usage of Claude or Codex reaches `percent` (5 to 100) in one of its windows (for example the 5-hour
+     * limit). It occurs one time for each window and each reset period, not at each usage request.
+     */
+    | { type: 'usage.threshold'; percent: number };
 
 export type ActionType =
     | 'sendToAgent'
@@ -289,6 +295,11 @@ export const TRIGGER_TYPES: { type: TriggerType; label: string; description: str
     },
     { type: 'schedule', label: 'Schedule', description: 'A time of day on the selected days.' },
     {
+        type: 'usage.threshold',
+        label: 'Plan usage reached',
+        description: 'The plan usage of Claude or Codex reaches a percent in one of its limits. It occurs one time until the limit resets.'
+    },
+    {
         type: 'manual',
         label: 'Manual (a button)',
         description: 'You click a button in the view of a worktree, a pull request or a task. The automation does not run by itself.'
@@ -327,11 +338,66 @@ export const ACTION_TRIGGERS: Record<ActionType, readonly TriggerType[]> = {
     runHeadless: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
     moveTask: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new'],
     removeWorktree: ['pr.merged'],
-    notify: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
-    postMessage: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
-    http: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
-    if: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
-    stop: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule']
+    notify: [
+        'ci.failed',
+        'pr.comment',
+        'pr.conflict',
+        'pr.merged',
+        'agent.done',
+        'agent.needsInput',
+        'worktree.overlap',
+        'task.new',
+        'schedule',
+        'usage.threshold'
+    ],
+    postMessage: [
+        'ci.failed',
+        'pr.comment',
+        'pr.conflict',
+        'pr.merged',
+        'agent.done',
+        'agent.needsInput',
+        'worktree.overlap',
+        'task.new',
+        'schedule',
+        'usage.threshold'
+    ],
+    http: [
+        'ci.failed',
+        'pr.comment',
+        'pr.conflict',
+        'pr.merged',
+        'agent.done',
+        'agent.needsInput',
+        'worktree.overlap',
+        'task.new',
+        'schedule',
+        'usage.threshold'
+    ],
+    if: [
+        'ci.failed',
+        'pr.comment',
+        'pr.conflict',
+        'pr.merged',
+        'agent.done',
+        'agent.needsInput',
+        'worktree.overlap',
+        'task.new',
+        'schedule',
+        'usage.threshold'
+    ],
+    stop: [
+        'ci.failed',
+        'pr.comment',
+        'pr.conflict',
+        'pr.merged',
+        'agent.done',
+        'agent.needsInput',
+        'worktree.overlap',
+        'task.new',
+        'schedule',
+        'usage.threshold'
+    ]
 };
 
 /** The entities of a manual trigger that each action can act on. */
@@ -512,6 +578,15 @@ export const TRIGGER_VARIABLES: Record<Exclude<TriggerType, 'manual'>, VariableI
         { name: 'repo', description: 'The name of the repository' },
         { name: 'date', description: 'The date, for example 2026-11-10' }
     ],
+    'usage.threshold': [
+        { name: 'usage.provider', description: 'The agent of the plan: Claude or Codex' },
+        { name: 'usage.window', description: 'The limit, for example 5h, Weekly, or the name of a model' },
+        { name: 'usage.percent', description: 'The usage of the limit now, in percent' },
+        { name: 'usage.threshold', description: 'The percent of the trigger' },
+        { name: 'usage.resetsAt', description: 'When the limit resets, as an ISO time' },
+        { name: 'usage.resetsIn', description: 'The time until the reset, for example 2h 10m' },
+        { name: 'usage.summary', description: 'One line, for example "The Claude plan usage (5h) is at 82%. It resets in 2h 10m."' }
+    ],
     schedule: [
         { name: 'date', description: 'The date, for example 2026-11-10' },
         { name: 'time', description: 'The time, for example 08:00' },
@@ -683,6 +758,8 @@ function normalizeTrigger(value: unknown): Trigger {
                 ...(status ? { status } : {})
             };
         }
+        case 'usage.threshold':
+            return { type: 'usage.threshold', percent: clampUsageLimit(raw.percent) };
         case 'schedule': {
             const days = Array.isArray(raw.days)
                 ? [...new Set(raw.days.filter((day): day is number => typeof day === 'number' && Number.isInteger(day) && day >= 0 && day <= 6))].sort()
@@ -1229,6 +1306,8 @@ export function defaultTrigger(type: TriggerType): Trigger {
     switch (type) {
         case 'schedule':
             return { type, days: [1, 2, 3, 4, 5], time: '08:00' };
+        case 'usage.threshold':
+            return { type, percent: 80 };
         case 'task.new':
             return { type, assignedToMe: true };
         case 'manual':
@@ -1287,6 +1366,14 @@ export interface AutomationEvent {
     agentWaitFor?: AgentWaitKind;
     /** How long the agent of an "agent.needsInput" event waited before the run, in minutes. */
     agentWaitMinutes?: number;
+    /** The window of a "usage.threshold" event and the percent of the trigger. */
+    usage?: {
+        provider: UsageProvider;
+        window: string;
+        percent: number;
+        threshold: number;
+        resetsAt?: string;
+    };
     /** The time of a "schedule" event, "HH:MM". */
     time?: string;
     /** The overlap of a "worktree.overlap" event: the shared files and the names of the other worktrees. */
@@ -1457,10 +1544,55 @@ export function eventVariables(event: AutomationEvent, extra: Record<string, str
         'agent.waitFor': event.agentWaitFor,
         'agent.waitMinutes': event.agentWaitMinutes === undefined ? undefined : String(event.agentWaitMinutes),
         'agent.summary': event.trigger === 'agent.needsInput' ? needsInputSummary(event) : undefined,
+        ...(event.usage ? usageValues(event.usage, event.at) : {}),
         'overlap.files': event.overlap?.files.join('\n'),
         'overlap.worktrees': event.overlap?.worktrees.join(', '),
         ...extra
     };
+}
+
+/** The variables of a "usage.threshold" event. The time until the reset counts from the time of the event. */
+function usageValues(usage: NonNullable<AutomationEvent['usage']>, at: number): Record<string, string | undefined> {
+    const resetsIn = formatResetIn(usage.resetsAt, at);
+    const name = PROVIDER_NAMES[usage.provider];
+    return {
+        'usage.provider': name,
+        'usage.window': usage.window,
+        'usage.percent': String(usage.percent),
+        'usage.threshold': String(usage.threshold),
+        'usage.resetsAt': usage.resetsAt,
+        'usage.resetsIn': resetsIn,
+        'usage.summary': `The ${name} plan usage (${usage.window}) is at ${usage.percent}%.${resetsIn ? ` It resets in ${resetsIn}.` : ''}`
+    };
+}
+
+/** The key of a "usage.threshold" event for a slot of a window and the percent of the trigger. */
+function usageKey(slot: string, threshold: number): string {
+    return `usage:${slot}:${threshold}`;
+}
+
+/**
+ * Returns the new events of a "usage.threshold" automation for the usage now: one for each window at or above the
+ * percent whose reset period did not fire. `fired` tells if an event key fired already. The run store keeps the keys,
+ * also after a restart. So each window fires one time for each reset period, and a poll with the same usage starts no run.
+ */
+export function usageThresholdEvents(usage: readonly ProviderUsage[], threshold: number, now: number, fired: (key: string) => boolean): AutomationEvent[] {
+    return usageCrossings(usage, threshold, now)
+        .filter(({ slot, nearby }) => ![slot, ...nearby].some(item => fired(usageKey(item, threshold))))
+        .map(({ provider, window, slot }) => ({
+            trigger: 'usage.threshold',
+            key: usageKey(slot, threshold),
+            target: `usage:${slot}`,
+            label: `${PROVIDER_NAMES[provider]} (${window.label}) at ${window.usedPercent}%`,
+            at: now,
+            usage: {
+                provider,
+                window: window.label,
+                percent: window.usedPercent,
+                threshold,
+                ...(window.resetsAt ? { resetsAt: window.resetsAt } : {})
+            }
+        }));
 }
 
 const WAIT_TEXT: Record<AgentWaitKind, string> = {
@@ -1687,6 +1819,8 @@ export function describeTrigger(trigger: Trigger): string {
             return trigger.withoutPullRequest ? `${label} without a pull request` : label;
         case 'agent.needsInput':
             return trigger.idleFor ? `${label} for ${pluralize(trigger.idleFor, 'minute')}` : label;
+        case 'usage.threshold':
+            return `Plan usage at ${trigger.percent}%`;
         case 'pr.comment':
             return trigger.reviewsOnly ? 'New pull request review' : label;
         case 'manual': {

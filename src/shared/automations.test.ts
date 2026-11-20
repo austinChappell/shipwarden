@@ -25,6 +25,8 @@ import {
     uniqueId,
     unknownVariables,
     usageAboveLimit,
+    usageThresholdEvents,
+    ACTION_TRIGGERS,
     planUsageReached,
     prRepo,
     countedTokens,
@@ -36,6 +38,7 @@ import {
     type AutomationRun
 } from './automations';
 import type { Task } from './tasks';
+import type { ProviderUsage } from './usage';
 
 function automation(change: Partial<Automation> = {}): Automation {
     return {
@@ -197,6 +200,90 @@ describe('templates', () => {
         const made = automationFromTemplate(AUTOMATION_TEMPLATES[0], ['fix-failed-ci']);
         expect(made.id).toBe('fix-failed-ci-2');
         expect(made.status).toBe('dry-run');
+    });
+});
+
+describe('usage.threshold', () => {
+    const now = Date.parse('2026-11-20T12:00:00Z');
+    const usage = (percent: number, resetsAt = '2026-11-20T14:30:00.000Z'): ProviderUsage[] => [
+        {
+            provider: 'claude',
+            status: 'ok',
+            windows: [
+                { kind: 'session', label: '5h', usedPercent: percent, resetsAt },
+                { kind: 'weekly', label: 'Weekly', usedPercent: 20, resetsAt: '2026-11-23T09:00:00.000Z' }
+            ]
+        }
+    ];
+    /** A copy of the run store: it keeps the keys that fired. */
+    const store = () => {
+        const fired = new Set<string>();
+        return {
+            fired,
+            poll: (list: ProviderUsage[], at = now, threshold = 80) => {
+                const events = usageThresholdEvents(list, threshold, at, key => fired.has(key));
+                for (const item of events) fired.add(item.key);
+                return events;
+            }
+        };
+    };
+
+    it('keeps a valid percent', () => {
+        const watcher = automation({ trigger: { type: 'usage.threshold', percent: 82.4 }, actions: [{ type: 'notify', title: 'Usage' }] });
+        expect(normalizeAutomation(watcher).trigger).toEqual({ type: 'usage.threshold', percent: 82 });
+        expect(normalizeAutomation({ ...watcher, trigger: { type: 'usage.threshold', percent: 500 } }).trigger).toEqual({
+            type: 'usage.threshold',
+            percent: 100
+        });
+        expect(describeTrigger({ type: 'usage.threshold', percent: 80 })).toBe('Plan usage at 80%');
+    });
+
+    it('allows the actions that tell the user, and not the actions that start agents', () => {
+        expect(ACTION_TRIGGERS.notify).toContain('usage.threshold');
+        expect(ACTION_TRIGGERS.postMessage).toContain('usage.threshold');
+        expect(ACTION_TRIGGERS.http).toContain('usage.threshold');
+        expect(ACTION_TRIGGERS.startAgent).not.toContain('usage.threshold');
+    });
+
+    it('fires one time for each crossing, not at each poll', () => {
+        const runs = store();
+        expect(runs.poll(usage(70))).toEqual([]);
+        const first = runs.poll(usage(81));
+        expect(first.map(item => item.label)).toEqual(['Claude (5h) at 81%']);
+        expect(runs.poll(usage(81))).toEqual([]);
+        expect(runs.poll(usage(95))).toEqual([]);
+        // The reset time moves by a few seconds into the next hour. It is the same period.
+        expect(runs.poll(usage(96, '2026-11-20T15:00:02.000Z'))).toEqual([]);
+    });
+
+    it('fires again after the window resets', () => {
+        const runs = store();
+        expect(runs.poll(usage(85))).toHaveLength(1);
+        expect(runs.poll(usage(10, '2026-11-20T19:30:00.000Z'), Date.parse('2026-11-20T15:00:00Z'))).toEqual([]);
+        expect(runs.poll(usage(80, '2026-11-20T19:30:00.000Z'), Date.parse('2026-11-20T18:00:00Z'))).toHaveLength(1);
+    });
+
+    it('fires for each automation percent on its own', () => {
+        const runs = store();
+        expect(runs.poll(usage(95), now, 80)).toHaveLength(1);
+        expect(runs.poll(usage(95), now, 90)).toHaveLength(1);
+    });
+
+    it('does not fire without usage data', () => {
+        expect(usageThresholdEvents([], 80, now, () => false)).toEqual([]);
+        expect(usageThresholdEvents([{ ...usage(99)[0], status: 'error' }], 80, now, () => false)).toEqual([]);
+    });
+
+    it('gives the usage variables and a summary line', () => {
+        const [first] = usageThresholdEvents(usage(82), 80, now, () => false);
+        const values = eventVariables(first);
+        expect(values['usage.provider']).toBe('Claude');
+        expect(values['usage.window']).toBe('5h');
+        expect(values['usage.percent']).toBe('82');
+        expect(values['usage.threshold']).toBe('80');
+        expect(values['usage.resetsIn']).toBe('2h 30m');
+        expect(values['usage.summary']).toBe('The Claude plan usage (5h) is at 82%. It resets in 2h 30m.');
+        expect(unknownVariables('{{usage.summary}} {{usage.resetsAt}}', { type: 'usage.threshold', percent: 80 })).toEqual([]);
     });
 });
 

@@ -49,6 +49,7 @@ import {
     type StepTask
 } from '@shared/plans';
 import { formatAgo, pluralize } from '@shared/format';
+import { BUDGET_WAIT } from '@shared/usage';
 import {
     PROGRESS_GROUPS,
     PROGRESS_LABELS,
@@ -2171,7 +2172,8 @@ function rowDetail(plan: Plan, step: PlanStep, index: number, progress: StepProg
         case 'needs-you':
             return { text: step.detail ?? stepStatusLabel(step.status) };
         case 'pending':
-            return { text: 'Not started' };
+            // A step of a running plan that waits for the usage budget shows the wait and the reset time.
+            return plan.status === 'running' && step.detail?.startsWith(BUDGET_WAIT) ? { text: step.detail, tone: 'pending' } : { text: 'Not started' };
         case 'closed':
             return { text: 'The pull request was closed without a merge.' };
         case 'done':
@@ -2287,7 +2289,9 @@ function RunStepRow({
             <span className={`plan-step-number${item.group === 'merged' || item.group === 'done' ? ' reviewed' : ''}`}>{index + 1}</span>
             <div className="plan-run-main">
                 <div className="plan-run-title">{step.title}</div>
-                <div className={`plan-run-detail${detail.tone ? ` tone-${detail.tone}` : ''}`}>{detail.text}</div>
+                <div className={`plan-run-detail${detail.tone ? ` tone-${detail.tone}` : ''}`} title={detail.text}>
+                    {detail.text}
+                </div>
             </div>
             <div className="plan-run-pr">
                 {step.pr ? (

@@ -7,6 +7,7 @@ import {
     isActive,
     MAX_START_ATTEMPTS,
     moveInQueue,
+    nextStarts,
     QUEUE_FINISH_LABELS,
     QUEUE_IDLE_MAX,
     QUEUE_IDLE_MIN,
@@ -27,6 +28,7 @@ import { EmptyState } from '../components/EmptyState';
 import { SettingsGroup, SettingsRow, Switch } from '../components/settings-ui';
 import { Button, Chip, IconButton, Input, PageHeader, Select, type ChipTone } from '../components/ui';
 import { useReorder } from '../components/use-reorder';
+import { useBudgetWaitFor } from '../usage-budget';
 import { errorText } from '../util';
 import { changeQueue, useTaskQueue } from './queue-queries';
 
@@ -66,6 +68,10 @@ export function QueueView({ repoLabel, onOpenWorktree, onOpenTasks }: Props) {
         queued.length > 1
     );
     const empty = loaded && state.items.length === 0;
+    // The next task that can start now, without the budget. When the budget stops it, the queue waits.
+    const next = nextStarts(state, Date.now()).items[0];
+    const budgetWait = useBudgetWaitFor(next?.agentId, next?.repoPath);
+    const waiting = next ? budgetWait : undefined;
 
     const remove = (item: QueueItem) => change(current => removeFromQueue(current, item.id));
 
@@ -192,6 +198,7 @@ export function QueueView({ repoLabel, onOpenWorktree, onOpenTasks }: Props) {
                                     description={queued.length > 1 ? 'Drag a task, or press ⌥↑ or ⌥↓, to change the order.' : undefined}
                                     card
                                 >
+                                    {waiting && <div className="settings-row queue-budget-wait">{waiting}</div>}
                                     {queued.map((item, index) => (
                                         <QueueRow
                                             key={item.id}

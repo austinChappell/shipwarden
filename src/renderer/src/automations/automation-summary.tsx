@@ -13,6 +13,7 @@ export const TRIGGER_EVENTS: Record<TriggerType, string> = {
     'worktree.overlap': 'two worktrees change the same files',
     'task.new': 'a task matches these filters for the first time',
     schedule: 'the time comes on a selected day',
+    'usage.threshold': 'the plan usage of Claude or Codex reaches a percent',
     manual: 'you click the button'
 };
 
@@ -115,6 +116,12 @@ function eventPhrase(automation: Automation, connectionName: string | undefined)
                 </>
             ) : (
                 TRIGGER_EVENTS['agent.needsInput']
+            );
+        case 'usage.threshold':
+            return (
+                <>
+                    the plan usage of Claude or Codex reaches <b>{trigger.percent}%</b> in a limit
+                </>
             );
         case 'schedule':
             return (
