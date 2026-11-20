@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { randomUUID } from 'crypto';
 import { azureRepoOf, azureRepoRef, parseAzureRemote } from '@shared/azure-devops';
 import type { DashboardPullRequests, PullRequestCommentItem } from '@shared/dashboard';
+import { gitlabHostOf, gitlabRepoOf, gitlabRepoRef, normalizeGitLabUrl, parseGitLabRemote, topGroupOf } from '@shared/gitlab';
 import {
     parseGitHubRemote,
     repoId,
@@ -31,6 +32,8 @@ import { AzureDevOpsClient } from './azure/azure-client';
 import { AzureDevOpsService } from './azure/azure-service';
 import { GitHubClient } from './github/github-client';
 import { GitHubService } from './github/github-service';
+import { GitLabClient } from './gitlab/gitlab-client';
+import { GitLabService } from './gitlab/gitlab-service';
 import { GitHubHost, type SourceHost } from './source-host';
 import { JsonStore } from './tasks/json-store';
 import { PluginSettings } from './tasks/plugin-settings';
@@ -61,7 +64,26 @@ interface AzureRuntime {
     host: AzureDevOpsService;
 }
 
-type Runtime = GitHubRuntime | AzureRuntime;
+interface GitLabRuntime {
+    kind: 'gitlab';
+    client: GitLabClient;
+    host: GitLabService;
+}
+
+type Runtime = GitHubRuntime | AzureRuntime | GitLabRuntime;
+
+/** The kind of a target, its organization (a GitLab group), and the host of a GitLab server. */
+interface Route {
+    kind: ReviewProviderKind;
+    organization?: string;
+    /** GitLab only: the host of the server, for example "gitlab.com". */
+    server?: string;
+}
+
+/** The host of the server of a GitLab provider. */
+function serverOf(provider: StoredReviewProvider): string | undefined {
+    return gitlabHostOf(provider.baseUrl);
+}
 
 export interface ReviewProvidersOptions {
     /** The file with the list of providers. */
@@ -84,7 +106,7 @@ export interface ReviewProvidersOptions {
 }
 
 /**
- * Keeps the code review providers (GitHub and Azure DevOps accounts) and selects the provider of each call.
+ * Keeps the code review providers (GitHub, Azure DevOps, and GitLab accounts) and selects the provider of each call.
  * Each provider has its own client and token. A worktree goes to a provider of the kind of its "origin" remote.
  * When there are more providers of that kind, the organization of the remote selects one (see `pickProvider`).
  */
@@ -140,7 +162,7 @@ export class ReviewProviders {
     }
 
     async add(kind: ReviewProviderKind, name: string): Promise<ReviewProviderInfo> {
-        if (kind !== 'github' && kind !== 'azure') {
+        if (kind !== 'github' && kind !== 'azure' && kind !== 'gitlab') {
             throw new Error(`The provider kind "${String(kind)}" is not known.`);
         }
         const provider: StoredReviewProvider = { id: randomUUID(), kind, name: name.trim() || providerKindName(kind), enabled: true };
@@ -153,6 +175,7 @@ export class ReviewProviders {
     async update(id: string, change: ReviewProviderChange): Promise<void> {
         await this.providers();
         let authChanged = false;
+        let serverChanged = false;
         await this.store.update(value => ({
             ...value,
             providers: (value.providers ?? []).map(provider => {
@@ -171,10 +194,21 @@ export class ReviewProviders {
                         this.accounts.set(id, next.cliAccount);
                     }
                 }
+                if (change.baseUrl !== undefined && provider.kind === 'gitlab') {
+                    const url = typeof change.baseUrl === 'string' ? normalizeGitLabUrl(change.baseUrl) : undefined;
+                    if (typeof change.baseUrl === 'string' && change.baseUrl.trim() && !url) {
+                        throw new Error(`"${change.baseUrl}" is not a valid URL.`);
+                    }
+                    if (url && url !== 'https://gitlab.com') next.baseUrl = url;
+                    else delete next.baseUrl;
+                    serverChanged = next.baseUrl !== provider.baseUrl;
+                }
                 return next;
             })
         }));
         if (authChanged) this.resetAuth(id);
+        // The client and the service of a GitLab provider belong to one server. A new server gets a new runtime.
+        if (serverChanged) this.runtimes.delete(id);
         this.options.onChanged();
     }
 
@@ -206,7 +240,7 @@ export class ReviewProviders {
     /** Returns where the next request of the provider gets its token. Undefined when no token is available. */
     async tokenSource(id: string): Promise<ReviewTokenSource | undefined> {
         const runtime = await this.runtime(await this.provider(id));
-        if (runtime.kind === 'github') return runtime.client.tokenSource();
+        if (runtime.kind === 'github' || runtime.kind === 'gitlab') return runtime.client.tokenSource();
         const source = await runtime.client.tokenSource();
         return source === 'az' ? 'cli' : source;
     }
@@ -220,6 +254,9 @@ export class ReviewProviders {
         const runtime = await this.runtime(provider);
         if (runtime.kind === 'github') {
             return (await runtime.client.rest<{ login: string }>('GET', '/user')).login;
+        }
+        if (runtime.kind === 'gitlab') {
+            return (await runtime.client.request<{ username: string }>('GET', '/user')).username;
         }
         const name = (organization ?? '').trim() || provider.scope?.[0];
         if (!name) {
@@ -243,12 +280,7 @@ export class ReviewProviders {
 
     /** Selects the provider of a target: a worktree path, or a repository of the Review view or the Pipelines view. */
     async for(target: RepoTarget): Promise<SourceHost> {
-        const { kind, organization } = await this.routeOf(target);
-        const provider = pickProvider(await this.providers(), kind, organization);
-        if (!provider) {
-            throw new Error(`No ${providerKindName(kind)} provider is on. Add one in Settings › Code review.`);
-        }
-        return (await this.runtime(provider)).host;
+        return (await this.runtimeFor(target)).host;
     }
 
     /** Returns the branch status from the provider of the worktree. Returns null when no provider is on for its remote. */
@@ -273,11 +305,13 @@ export class ReviewProviders {
         return parseGitHubRemote(await this.remoteOf(root)) ?? null;
     }
 
-    /** Returns the GitHub or Azure Repos repository of a worktree from its "origin" remote. Returns null for other remotes. */
+    /** Returns the GitHub, Azure Repos, or GitLab repository of a worktree from its "origin" remote. Returns null for other remotes. */
     async repoFor(root: string): Promise<RepoRef | null> {
         const url = await this.remoteOf(root);
         const azure = parseAzureRemote(url);
-        return azure ? azureRepoRef(azure) : (parseGitHubRemote(url) ?? null);
+        if (azure) return azureRepoRef(azure);
+        const gitlab = parseGitLabRemote(url, await this.gitlabServers());
+        return gitlab ? gitlabRepoRef(gitlab) : (parseGitHubRemote(url) ?? null);
     }
 
     /** Returns the open pull requests of a repository of the Review view, from the provider of its host. */
@@ -299,7 +333,8 @@ export class ReviewProviders {
     async repositories(): Promise<GitHubRepoInfo[]> {
         const lists = await this.eachProvider(
             (service, provider) => service.repositories(provider.scope),
-            async (host, provider) => host.repositories(provider.scope, await this.projectOrganizations())
+            async (host, provider) => host.repositories(provider.scope, await this.projectOrganizations()),
+            (host, provider) => host.repositories(provider.scope)
         );
         const unique = new Map<string, GitHubRepoInfo>();
         for (const repo of lists.flat()) {
@@ -314,7 +349,8 @@ export class ReviewProviders {
     async dashboardPullRequests(): Promise<DashboardPullRequests> {
         const results = await this.eachProvider(
             (service, provider) => service.dashboardPullRequests(provider.scope ?? 'all'),
-            async (host, provider) => host.dashboardPullRequests(provider.scope, await this.projectOrganizations())
+            async (host, provider) => host.dashboardPullRequests(provider.scope, await this.projectOrganizations()),
+            (host, provider) => host.dashboardPullRequests(provider.scope)
         );
         const byUrl = <T extends { url: string; updatedAt: string }>(items: T[]) =>
             [...new Map(items.map(item => [item.url, item])).values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -368,20 +404,25 @@ export class ReviewProviders {
     }
 
     /**
-     * Calls `github` for each GitHub provider and `azure` for each Azure DevOps provider that is on, at the same time.
-     * Without `azure`, the Azure DevOps providers stay out.
+     * Calls `github` for each GitHub provider, `azure` for each Azure DevOps provider, and `gitlab` for each GitLab
+     * provider that is on, at the same time. Without `azure` or `gitlab`, the providers of that kind stay out.
      * When a call fails, the error names the provider, so that the user knows which token to fix.
      */
     private async eachProvider<T>(
         github: (service: GitHubService, provider: StoredReviewProvider) => Promise<T>,
-        azure?: (host: AzureDevOpsService, provider: StoredReviewProvider) => Promise<T>
+        azure?: (host: AzureDevOpsService, provider: StoredReviewProvider) => Promise<T>,
+        gitlab?: (host: GitLabService, provider: StoredReviewProvider) => Promise<T>
     ): Promise<T[]> {
-        const providers = (await this.providers()).filter(provider => provider.enabled && (provider.kind === 'github' || (provider.kind === 'azure' && azure)));
+        const providers = (await this.providers()).filter(
+            provider => provider.enabled && (provider.kind === 'github' || (provider.kind === 'azure' && azure) || (provider.kind === 'gitlab' && gitlab))
+        );
         return Promise.all(
             providers.map(async provider => {
                 const runtime = await this.runtime(provider);
                 try {
-                    return runtime.kind === 'github' ? await github(runtime.service, provider) : await azure!(runtime.host, provider);
+                    if (runtime.kind === 'github') return await github(runtime.service, provider);
+                    if (runtime.kind === 'azure') return await azure!(runtime.host, provider);
+                    return await gitlab!(runtime.host, provider);
                 } catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
                     throw new Error(providers.length > 1 ? `${provider.name}: ${message}` : message);
@@ -397,34 +438,53 @@ export class ReviewProviders {
         return [...new Set(organizations.filter((name): name is string => !!name))];
     }
 
-    /** Returns the runtime of the provider of a repository of the Review view. */
-    private async runtimeFor(repo: RepoRef): Promise<Runtime> {
-        const { kind, organization } = await this.routeOf(repo);
-        const provider = pickProvider(await this.providers(), kind, organization);
+    /** Returns the runtime of the provider of a target. Throws an error when no provider of its kind is on. */
+    private async runtimeFor(target: RepoTarget): Promise<Runtime> {
+        const route = await this.routeOf(target);
+        const provider = await this.pick(route);
         if (!provider) {
-            throw new Error(`No ${providerKindName(kind)} provider is on. Add one in Settings › Code review.`);
+            const where = route.kind === 'gitlab' && route.server ? ` for ${route.server}` : '';
+            throw new Error(`No ${providerKindName(route.kind)} provider${where} is on. Add one in Settings › Code review.`);
         }
         return this.runtime(provider);
     }
 
     private async optionalHost(root: string): Promise<SourceHost | undefined> {
-        const { kind, organization } = await this.routeOf(root);
-        const provider = pickProvider(await this.providers(), kind, organization);
+        const provider = await this.pick(await this.routeOf(root));
         return provider ? (await this.runtime(provider)).host : undefined;
+    }
+
+    /** Selects the provider of a route. A GitLab route takes only the providers of its server. */
+    private async pick(route: Route): Promise<StoredReviewProvider | undefined> {
+        const providers = await this.providers();
+        const candidates =
+            route.kind === 'gitlab' ? providers.filter(provider => provider.kind !== 'gitlab' || serverOf(provider) === route.server) : providers;
+        return pickProvider(candidates, route.kind, route.organization);
+    }
+
+    /** The base URLs of the GitLab servers of the providers. gitlab.com is always a server (see `parseGitLabRemote`). */
+    private async gitlabServers(): Promise<string[]> {
+        return (await this.providers()).flatMap(provider => (provider.kind === 'gitlab' && provider.baseUrl ? [provider.baseUrl] : []));
     }
 
     /**
      * Returns the kind and the organization of a target. A repository of the Review view goes to the provider of its host.
-     * A worktree with a remote that is not on Azure Repos goes to GitHub, as in older versions.
+     * A worktree with a remote that is not on Azure Repos or on a GitLab server goes to GitHub, as in older versions.
      */
-    private async routeOf(target: RepoTarget): Promise<{ kind: ReviewProviderKind; organization?: string }> {
+    private async routeOf(target: RepoTarget): Promise<Route> {
         if (typeof target === 'object' && target) {
             if (target.host === 'azure') return { kind: 'azure', organization: azureRepoOf(target)?.organization };
+            if (target.host === 'gitlab') {
+                const gitlab = gitlabRepoOf(target);
+                return { kind: 'gitlab', organization: gitlab && topGroupOf(gitlab.namespace), server: gitlab?.host };
+            }
             return { kind: 'github', organization: target.owner };
         }
         const url = await this.remoteOf(String(target));
         const azure = parseAzureRemote(url);
         if (azure) return { kind: 'azure', organization: azure.organization };
+        const gitlab = parseGitLabRemote(url, await this.gitlabServers());
+        if (gitlab) return { kind: 'gitlab', organization: topGroupOf(gitlab.namespace), server: gitlab.host };
         return { kind: 'github', organization: parseGitHubRemote(url)?.owner };
     }
 
@@ -479,6 +539,10 @@ export class ReviewProviders {
                 return repo;
             };
             runtime = { kind: 'github', client, service, host: new GitHubHost(service, repoOf) };
+        } else if (provider.kind === 'gitlab') {
+            const baseUrl = provider.baseUrl;
+            const client = new GitLabClient({ ready: this.options.ready, savedToken, baseUrl: () => baseUrl });
+            runtime = { kind: 'gitlab', client, host: new GitLabService(client, root => this.remoteOf(root)) };
         } else {
             const client = new AzureDevOpsClient({ ready: this.options.ready, savedToken });
             runtime = { kind: 'azure', client, host: new AzureDevOpsService(client) };

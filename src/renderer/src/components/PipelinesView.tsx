@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, ListTree, LoaderCircle, Play, RotateCw, ScrollText, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import {
+    hostHasPipelines,
     hostLabel,
     parseRepoId,
     pipelinesWebUrl,
@@ -210,6 +211,8 @@ export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }
                     <span className="panel-note">
                         {host === 'azure' ? (
                             <>Azure DevOps queues a build of the pipeline on the branch.</>
+                        ) : host === 'gitlab' ? (
+                            <>GitLab starts a new pipeline on the branch.</>
                         ) : (
                             <>
                                 GitHub starts the workflow on <code>{workflow.path}</code> of the branch.
@@ -347,8 +350,8 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                 size="lg"
                                 icon={<ExternalLink size={16} strokeWidth={1.6} />}
                                 label={
-                                    repoRef.host === 'azure'
-                                        ? 'Open the pipelines of the project on Azure DevOps'
+                                    hostHasPipelines(repoRef.host)
+                                        ? `Open the pipelines of the project on ${host}`
                                         : 'Open the Actions of the repository on GitHub'
                                 }
                                 onClick={event => openLink(pipelinesWebUrl(repoRef), event)}
@@ -362,21 +365,21 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
 
             <div className="pipelines-body" style={style}>
                 <nav className="pipeline-workflows" onKeyDown={moveListFocus}>
-                    <div className="section-title">{repoRef?.host === 'azure' ? 'Pipelines' : 'Workflows'}</div>
+                    <div className="section-title">{hostHasPipelines(repoRef?.host) ? 'Pipelines' : 'Workflows'}</div>
                     <button
                         className={`pipeline-workflow${workflowId === undefined ? ' selected' : ''}`}
                         data-nav-item
                         aria-pressed={workflowId === undefined}
                         onClick={() => setWorkflowId(undefined)}
                     >
-                        <span className="pipeline-workflow-name">{repoRef?.host === 'azure' ? 'All pipelines' : 'All workflows'}</span>
+                        <span className="pipeline-workflow-name">{hostHasPipelines(repoRef?.host) ? 'All pipelines' : 'All workflows'}</span>
                     </button>
                     {!workflows && !error && (
-                        <SkeletonRows count={4} dot={false} label={repoRef?.host === 'azure' ? 'Loading pipelines' : 'Loading workflows'} />
+                        <SkeletonRows count={4} dot={false} label={hostHasPipelines(repoRef?.host) ? 'Loading pipelines' : 'Loading workflows'} />
                     )}
                     {workflows?.length === 0 && (
                         <div className="panel-note">
-                            {repoRef?.host === 'azure'
+                            {hostHasPipelines(repoRef?.host)
                                 ? 'This repository has no pipelines.'
                                 : 'This repository has no workflows. GitHub Actions runs the YAML files in .github/workflows when you push, and this view shows their runs.'}
                         </div>

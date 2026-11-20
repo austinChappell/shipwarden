@@ -17,7 +17,9 @@ const { PluginSettings } = await import('./tasks/plugin-settings');
 const REMOTES: Record<string, string> = {
     '/work/acme': 'git@github.com:acme/api.git',
     '/work/other': 'https://github.com/other/site.git',
-    '/work/shop': 'https://contoso@dev.azure.com/contoso/Web/_git/shop'
+    '/work/shop': 'https://contoso@dev.azure.com/contoso/Web/_git/shop',
+    '/work/lab': 'git@gitlab.com:acme/platform/api.git',
+    '/work/self': 'https://git.example.com/team/sub/web.git'
 };
 
 describe('ReviewProviders', () => {
@@ -105,6 +107,42 @@ describe('ReviewProviders', () => {
         await providers.update(azureId, { enabled: false });
         expect(await providers.branchStatus('/work/shop')).toBeNull();
         await expect(providers.for('/work/shop')).rejects.toThrow('No Azure DevOps provider is on');
+    });
+
+    it('finds GitLab projects with subgroups on gitlab.com and on a configured server', async () => {
+        const providers = create();
+        expect(await providers.repoFor('/work/lab')).toEqual({ owner: 'gitlab.com/acme/platform', name: 'api', host: 'gitlab' });
+        // Without a provider for git.example.com, ShipWarden does not know that the server is a GitLab server.
+        expect(await providers.repoFor('/work/self')).toBeNull();
+        const self = await providers.add('gitlab', 'Work GitLab');
+        await providers.update(self.id, { baseUrl: 'git.example.com/' });
+        expect((await providers.list()).find(item => item.id === self.id)?.baseUrl).toBe('https://git.example.com');
+        expect(await create().repoFor('/work/self')).toEqual({ owner: 'git.example.com/team/sub', name: 'web', host: 'gitlab' });
+    });
+
+    it('selects the GitLab provider of the server of the remote', async () => {
+        const providers = create();
+        await providers.add('github', 'GitHub');
+        const cloud = await providers.add('gitlab', 'GitLab');
+        const self = await providers.add('gitlab', 'Work GitLab');
+        await providers.update(self.id, { baseUrl: 'https://git.example.com' });
+        const fromCloud = await providers.for('/work/lab');
+        const fromSelf = await providers.for('/work/self');
+        expect(fromCloud.kind).toBe('gitlab');
+        expect(fromSelf.kind).toBe('gitlab');
+        expect(fromSelf).not.toBe(fromCloud);
+        expect(await providers.for({ owner: 'gitlab.com/acme/platform', name: 'api', host: 'gitlab' })).toBe(fromCloud);
+        expect(await providers.for({ owner: 'git.example.com/team', name: 'web', host: 'gitlab' })).toBe(fromSelf);
+        await providers.update(cloud.id, { enabled: false });
+        await expect(providers.for('/work/lab')).rejects.toThrow('No GitLab provider for gitlab.com is on');
+    });
+
+    it('refuses a server URL that is not a URL', async () => {
+        const providers = create();
+        const lab = await providers.add('gitlab', 'GitLab');
+        await expect(providers.update(lab.id, { baseUrl: 'ftp://example.com' })).rejects.toThrow('is not a valid URL');
+        await providers.update(lab.id, { baseUrl: null });
+        expect((await providers.list())[0].baseUrl).toBeUndefined();
     });
 
     it('removes the provider and its token', async () => {

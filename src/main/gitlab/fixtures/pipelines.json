@@ -1,0 +1,41 @@
+[
+    {
+        "id": 99012,
+        "iid": 812,
+        "project_id": 3471,
+        "sha": "9f2c1e7a4b5d6c8e0f1a2b3c4d5e6f708192a3b4",
+        "ref": "refs/merge-requests/42/head",
+        "status": "running",
+        "source": "merge_request_event",
+        "created_at": "2026-11-14T16:35:01.000Z",
+        "updated_at": "2026-11-14T16:36:44.000Z",
+        "web_url": "https://gitlab.com/acme/platform/api/-/pipelines/99012",
+        "name": null
+    },
+    {
+        "id": 98990,
+        "iid": 809,
+        "project_id": 3471,
+        "sha": "4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6071",
+        "ref": "feature/rate-limits",
+        "status": "failed",
+        "source": "push",
+        "created_at": "2026-11-12T09:11:00.000Z",
+        "updated_at": "2026-11-12T09:19:30.000Z",
+        "web_url": "https://gitlab.com/acme/platform/api/-/pipelines/98990",
+        "name": null
+    },
+    {
+        "id": 98950,
+        "iid": 801,
+        "project_id": 3471,
+        "sha": "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00",
+        "ref": "main",
+        "status": "success",
+        "source": "push",
+        "created_at": "2026-11-11T18:00:00.000Z",
+        "updated_at": "2026-11-11T18:08:00.000Z",
+        "web_url": "https://gitlab.com/acme/platform/api/-/pipelines/98950",
+        "name": "Nightly build"
+    }
+]

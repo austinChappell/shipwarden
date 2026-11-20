@@ -52,7 +52,7 @@ export function newPullRequestOf(request: Partial<NewPullRequest> | undefined): 
 /** Returns a repository reference with string fields. A missing field gives an empty string. */
 export function repoRefOf(repo: Partial<RepoRef> | undefined): RepoRef {
     const ref: RepoRef = { owner: String(repo?.owner ?? ''), name: String(repo?.name ?? '') };
-    return repo?.host === 'azure' ? { ...ref, host: 'azure' } : ref;
+    return repo?.host === 'azure' || repo?.host === 'gitlab' ? { ...ref, host: repo.host } : ref;
 }
 
 /** Returns true when two references name the same repository on the same host. The names ignore case. */

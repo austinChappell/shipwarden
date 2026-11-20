@@ -24,6 +24,12 @@ export interface Tip {
 /** The tips of the corner notice. The notice shows one tip at random (see `pickTip`). */
 export const NOTICE_TIPS: readonly Tip[] = [
     {
+        id: 'gitlabProvider',
+        title: 'Review GitLab merge requests',
+        body: 'Add a GitLab provider for gitlab.com or for your own server. Merge requests, threads, approvals, and pipeline jobs then show in ShipWarden, as GitHub pull requests do.',
+        action: { kind: 'settings', section: 'review', label: 'Open Settings › Code review' }
+    },
+    {
         id: 'automations',
         title: 'Let automations do the routine work',
         body: 'An automation is a rule of the form "when this occurs, do that". For example, when CI fails, it sends the log to the agent of the worktree. Start from a template.',

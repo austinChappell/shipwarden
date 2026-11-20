@@ -219,6 +219,17 @@ describe('pull request changes', () => {
         expect(pr.reviewRequests).toEqual([]);
         expect(pr.viewerIsRequested).toBe(false);
     });
+
+    it('swaps the GitLab approval button, and removes the approval of the viewer after a revoke', () => {
+        const gitlab = makePr({ host: 'gitlab', reviewEvents: ['COMMENT', 'APPROVE'], reviewDecision: 'REVIEW_REQUIRED' });
+        const approved = reviewedPullRequest(gitlab, { id: 'R', event: 'APPROVE', body: '', viewer: { login: 'me' }, submittedAt: 'now' });
+        expect(approved.reviewEvents).toEqual(['COMMENT', 'UNAPPROVE']);
+        expect(approved.reviewDecision).toBe('APPROVED');
+        const revoked = reviewedPullRequest(approved, { id: 'R2', event: 'UNAPPROVE', body: '', viewer: { login: 'me' }, submittedAt: 'later' });
+        expect(revoked.reviewEvents).toEqual(['COMMENT', 'APPROVE']);
+        expect(revoked.reviews).toEqual([]);
+        expect(revoked.reviewDecision).toBe('REVIEW_REQUIRED');
+    });
 });
 
 describe('list patches', () => {
