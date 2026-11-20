@@ -710,6 +710,32 @@ The user guide and the file format are in [automations.md](automations.md).
   the end of the queue. Running items stay: their agents keep working in the PTY host.
 - **Automations.** The `queueTask` action calls `queueTask` with the task of the event and the name of the automation.
 
+### Checkpoints
+
+- **Save.** `src/main/git/checkpoints.ts` saves the files of a worktree without a change to the index, the files, or the
+  stash list. It copies the real index to a temporary file (`GIT_INDEX_FILE`), runs `git add -A` and `git write-tree` on
+  the copy, and makes a commit with `git commit-tree`. The parent is HEAD. The commit message holds the
+  `CheckpointMeta` as JSON (worktree, session, turn, kind, time, prompt, agent). The ref is
+  `refs/shipwarden/checkpoints/<session>/<turn>`. A checkpoint with the same tree and the same HEAD as the last one of
+  its session is skipped. `git stash create` is not used, because one tree with the new files is enough.
+- **When.** `CheckpointRecorder` (`src/main/git/checkpoint-recorder.ts`) gets the agent states and the terminal output
+  in the main process. A prompt hook (`UserPromptSubmit` or Gemini's `BeforeAgent`) sets `newTurn` on the state change,
+  and the recorder saves a "prompt" checkpoint. The hook server answers before the event goes on, so the save never
+  delays the agent. An agent tab or a shell tab with an agent program, but without hook states (Codex), gets an "idle"
+  checkpoint after 15 seconds without output. The saves of one folder run one after the other, and a failure only logs
+  a warning. The app sends `checkpoints:changed` with the folder after each save.
+- **Rewind.** `previewRewind` makes a tree of the current files and compares it with the checkpoint tree
+  (`git diff-tree`). `rewindToCheckpoint` first saves a "rewind" checkpoint of the current files. It deletes the files
+  that are not in the checkpoint, and removes the empty folders. Then it reads the checkpoint tree into a temporary index
+  and runs `git checkout-index -f --stdin` for the changed files. With `reset`, it runs `git reset --mixed` to the HEAD of
+  the checkpoint. A reset is possible only when HEAD moved forward from that commit.
+- **Cleanup.** `GitWorktreeService.remove` deletes the checkpoints of the removed worktree. At start, `pruneCheckpoints`
+  deletes, in each project repository, the checkpoints older than 7 days and the checkpoints of a missing folder.
+- **Page.** The Checkpoints tab (`src/renderer/src/checkpoints/`) loads `checkpoints:list` with TanStack Query. A
+  `checkpoints:changed` event marks only the list of its worktree as stale. `RewindDialog` shows the preview, the reset
+  choice, and the "Tell the agent about the rewind" choice (off by default). The main process sends the note to the
+  agent terminal as a bracketed paste.
+
 ### Repository scripts
 
 - Each repository can have saved scripts (`repos[path].scripts`: ID, name, command). The ▷ button of the workspace

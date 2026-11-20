@@ -9599,6 +9599,171 @@ body.resizing-column * {
     background: color-mix(in srgb, var(--info) 20%, transparent);
 }
 
+/* Checkpoints tab of the right panel and the rewind dialog */
+.checkpoints-notice {
+    padding: 0 14px 6px;
+}
+
+.checkpoint-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 0 8px 0 6px;
+}
+
+.checkpoint-line:hover {
+    background: var(--hover);
+}
+
+.checkpoint-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-strong);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.checkpoint-title.muted {
+    color: var(--muted);
+}
+
+.checkpoint-meta {
+    flex: none;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.checkpoint-files {
+    margin: 0;
+    padding: 0 14px 6px 30px;
+    list-style: none;
+}
+
+.checkpoint-files li,
+.rewind-file {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 20px;
+    overflow: hidden;
+    color: var(--muted);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.checkpoint-status {
+    flex: none;
+    width: 12px;
+    font-weight: 600;
+}
+
+.checkpoint-status.added {
+    color: var(--ok);
+}
+
+.checkpoint-status.modified {
+    color: var(--warning);
+}
+
+.checkpoint-status.deleted {
+    color: var(--danger);
+}
+
+.rewind-dialog {
+    width: min(640px, calc(100vw - 32px));
+}
+
+.rewind-dialog .modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rewind-prompt {
+    margin: 6px 0 0;
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rewind-section {
+    padding: 4px 0 0;
+}
+
+.rewind-files {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.rewind-action {
+    flex: none;
+    width: 56px;
+    font-family: Inter, system-ui, sans-serif;
+    font-weight: 600;
+}
+
+.rewind-action.restore {
+    color: var(--ok);
+}
+
+.rewind-action.revert {
+    color: var(--warning);
+}
+
+.rewind-action.remove {
+    color: var(--danger);
+}
+
+.rewind-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text);
+    text-overflow: ellipsis;
+}
+
+.rewind-count {
+    flex: none;
+}
+
+.rewind-count .add,
+.rewind-patch .add {
+    color: var(--ok);
+}
+
+.rewind-count .del,
+.rewind-patch .del {
+    color: var(--danger);
+}
+
+.rewind-patch {
+    max-height: 280px;
+    margin: 0;
+    padding: 8px 10px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    white-space: pre;
+}
+
+.rewind-patch .hunk {
+    color: var(--info);
+}
+
+.rewind-patch .meta {
+    color: var(--muted);
+}
+
 .port-link {
     display: flex;
     flex: none;

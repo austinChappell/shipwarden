@@ -98,6 +98,8 @@ export const keyRoots = {
     queue: ['queue'],
     /** The event log of the agent stats. Local data: the main process reads `agent-stats.jsonl`. */
     stats: ['stats'],
+    /** The checkpoints of the agent turns in each worktree. Local data: git runs on this Mac. */
+    checkpoints: ['checkpoints'],
     /** The pinned agent sessions. Local data: the main process sends each change. */
     pins: ['pins'],
     /** The Claude Code sessions of the last 3 days. Local data: the main process reads the transcripts on this Mac. */

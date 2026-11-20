@@ -231,6 +231,7 @@ app.whenReady().then(async () => {
     writeAgentHookFiles(services.hookPaths, services.shellIntegration, join(app.getPath('userData'), 'shell-integration'));
     services.shellAgents.start();
     services.staleShells.start();
+    void services.pruneOldCheckpoints().catch(error => console.warn('[checkpoints] The cleanup failed:', error));
     protocol.handle(
         FILE_SCHEME,
         createFileProtocolHandler(worktree => services.projectWorktrees.check(worktree))

@@ -11,6 +11,7 @@ import {
     type CopyIgnoredSettings,
     type CopyPreviewResult
 } from '@shared/worktree-settings';
+import { removeWorktreeCheckpoints } from '../git/checkpoints';
 import { largeCopyEntries } from './copy-size';
 import { branchToFolderName, parseWorktreePorcelain } from './porcelain';
 
@@ -169,6 +170,10 @@ export class GitWorktreeService {
             throw new Error('ShipWarden does not remove the main worktree.');
         }
         await this.git(repoPath, ['worktree', 'remove', ...(force ? ['--force'] : []), worktree.path]);
+        // The checkpoint refs of the agent turns are of no use without the worktree. A failed cleanup does not stop the remove.
+        await removeWorktreeCheckpoints(repoPath, worktree.path).catch(error =>
+            console.warn(`[checkpoints] The checkpoints of ${worktree.path} were not removed: ${errorMessage(error)}`)
+        );
     }
 
     /**

@@ -42,6 +42,11 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
     },
     {
+        id: 'checkpoints',
+        title: 'Undo one bad agent turn',
+        body: 'ShipWarden saves the files of the worktree when an agent gets a prompt. Open the Checkpoints tab in the right panel of a worktree, and select "Rewind" on a turn. The diff shows first.'
+    },
+    {
         id: 'agentStats',
         title: 'See which agent merges the most work',
         body: 'The Stats view shows the merged pull requests, the tokens, the time to merge, the time in "needs input", and the CI failures of each agent and model. It uses local data only.',

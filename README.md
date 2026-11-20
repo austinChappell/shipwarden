@@ -139,6 +139,31 @@ ShipWarden has no usage data after that (no sign-in, or a failed request), the b
 The automation trigger "Plan usage reached" (`usage.threshold`) runs one time when a limit reaches a percent. It runs
 again only after the limit resets. Use it to show a notification or to post a message.
 
+### Checkpoints and rewind
+
+A checkpoint lets you undo one bad agent turn and keep the good turns before it.
+
+When an agent gets a prompt, ShipWarden saves all the files of the worktree as a hidden git commit: the tracked files
+with their uncommitted changes and the new files that .gitignore does not ignore. The save does not change your index,
+your files, or your stash list. When nothing changed since the last checkpoint, ShipWarden skips it. Claude Code,
+Gemini CLI, and opencode tell ShipWarden about each prompt through their hooks. Agents without a turn hook, for example
+Codex, get a checkpoint when their terminal output stops for 15 seconds. That checkpoint is the state after the turn.
+ShipWarden saves checkpoints only while it is open.
+
+1. Open the **Checkpoints** tab in the right panel of a worktree. It lists the turns of each agent session, with the
+   prompt and the files that changed after it.
+2. Click **Rewind** on a turn. The dialog shows the files that change and the diff first.
+3. Click **Rewind** in the dialog. ShipWarden writes the files of the checkpoint again, also deleted and binary files.
+   It deletes the files that are new since the checkpoint. Files that .gitignore ignores stay.
+
+ShipWarden saves the current files before each rewind, so you can rewind back. Commits that the agent made after the
+checkpoint stay on the branch. The dialog asks if you also want to move the branch back with `git reset`. Without the
+reset, the index does not change. ShipWarden does not tell the agent about a rewind. Select **Tell the agent about the
+rewind** to send a short note to its terminal. Stop the agent before you rewind.
+
+The checkpoints are refs under `refs/shipwarden/checkpoints/` in the repository. ShipWarden removes them when it removes
+the worktree, and removes the checkpoints older than 7 days at start.
+
 The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
 send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label,
 post to Slack when an agent waits for your input for 10 minutes, or remove the worktree after its pull request merges. Each automation is a JSON file in `~/.shipwarden/automations` that
@@ -150,7 +175,7 @@ repository, choose your agent and start the first agent. Help › Show Welcome o
 the main parts of the window. Help › Take the Tour starts it at all times. Help › Keyboard Shortcuts lists all keys.
 A new user also gets a getting started checklist on the Dashboard.
 
-Tips show the features that are easy to miss. At each start, one random tip from a list of 26 shows in the
+Tips show the features that are easy to miss. At each start, one random tip from a list of 29 shows in the
 bottom-right corner. While ShipWarden stays open, a new tip shows 12 hours after you close the last one. A tip does not
 show again within 10 tips. Some views have their own tip, for example the Dashboard. Close a tip in a view, and it does not show again.
 Turn off the tips in the corner notice or in Settings › Appearance › Tips.
