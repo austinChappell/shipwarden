@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changeCount, changePathError, diffTotals, parseNumstat, parseStatus } from './git';
+import { changeCount, changePathError, diffTotals, hasDiverged, hasUncommittedChanges, parseNumstat, parseStatus } from './git';
 
 describe('parseNumstat', () => {
     it('reads changed, binary, and renamed files', () => {
@@ -68,5 +68,25 @@ describe('changePathError', () => {
         expect(changePathError('../secret')).toMatch(/not a path/);
         expect(changePathError('/etc/passwd')).toMatch(/not a path/);
         expect(changePathError('a//b')).toMatch(/not a path/);
+    });
+});
+
+describe('hasUncommittedChanges', () => {
+    const none = { staged: [], unstaged: [], conflicted: [] };
+    it('counts staged, unstaged, and conflicted files, but not new files', () => {
+        expect(hasUncommittedChanges(none)).toBe(false);
+        expect(hasUncommittedChanges({ ...none, unstaged: [{ path: 'n.txt', kind: 'untracked' }] })).toBe(false);
+        expect(hasUncommittedChanges({ ...none, unstaged: [{ path: 'a.txt', kind: 'modified' }] })).toBe(true);
+        expect(hasUncommittedChanges({ ...none, staged: [{ path: 'a.txt', kind: 'added' }] })).toBe(true);
+        expect(hasUncommittedChanges({ ...none, conflicted: [{ path: 'a.txt', kind: 'conflicted' }] })).toBe(true);
+    });
+});
+
+describe('hasDiverged', () => {
+    it('is true only when the branch and its upstream both have new commits', () => {
+        expect(hasDiverged({ upstream: 'origin/f', ahead: 2, behind: 1 })).toBe(true);
+        expect(hasDiverged({ upstream: 'origin/f', ahead: 2, behind: 0 })).toBe(false);
+        expect(hasDiverged({ upstream: 'origin/f', ahead: 0, behind: 1 })).toBe(false);
+        expect(hasDiverged({ ahead: 2, behind: 1 })).toBe(false);
     });
 });

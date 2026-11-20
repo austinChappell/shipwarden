@@ -84,3 +84,22 @@ templates, with the reason.
 
 Settings › Prompt templates creates, changes, and deletes the templates. A deleted template goes to the Trash. When you
 have no templates, **Add starter templates** adds a few examples.
+
+## The conflict prompt
+
+"Send to agent" in the "Rebase in progress" state of the Changes tab uses a built-in prompt. To change it, create a
+template with the ID `pr-conflict` (the file `~/.shipwarden/prompts/pr-conflict.json`). Its text replaces the built-in
+text. These variables have values only in the conflict prompt:
+
+| Variable | Value |
+|---|---|
+| `{{conflict.branch}}` | The branch that the rebase moves |
+| `{{conflict.onto}}` | The branch that the rebase moves onto, for example `origin/main` |
+| `{{conflict.commit}}` | The commit that stopped the rebase: its short hash and subject |
+| `{{conflict.files}}` | The files with conflicts, one on each line |
+| `{{conflict.branchCommits}}` | The commits of the branch that change these files |
+| `{{conflict.baseCommits}}` | The commits of the other side that change these files |
+| `{{conflict.overlap}}` | The other worktrees that change the same files |
+| `{{conflict.rule}}` | The rule for each conflict |
+
+The template also shows in the list of templates. An insert from that list asks for each `conflict.*` value.
