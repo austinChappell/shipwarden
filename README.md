@@ -200,6 +200,22 @@ rewind** to send a short note to its terminal. Stop the agent before you rewind.
 The checkpoints are refs under `refs/shipwarden/checkpoints/` in the repository. ShipWarden removes them when it removes
 the worktree, and removes the checkpoints older than 7 days at start.
 
+### Screenshots of visual changes
+
+The Screenshots tab of a worktree shows the visual result of a frontend change. It captures each page for the branch
+and for the base, and shows the two images side by side.
+
+1. In Settings › Repositories, add the preview URL of your dev server (for example `http://localhost:3000`) and the
+   paths of the pages. You can also set a wait (milliseconds or a CSS selector) and the page width.
+2. Run the dev server in the worktree, and click **Capture branch**.
+3. Stop it. Run the dev server in the main worktree of the repository, and click **Capture base**.
+4. Click **Add to PR** to upload the images in one comment. ShipWarden asks before it posts.
+
+ShipWarden never starts or stops a dev server, and it cannot see which worktree the server uses. The images stay in
+the app data folder, with the commit of each side. On GitHub, the images go to the branch `shipwarden-screenshots` of
+the repository. Azure DevOps keeps them as attachments of the pull request, and GitLab keeps them in the uploads of the
+project. See [docs/screenshots.md](docs/screenshots.md).
+
 ### ShipWarden MCP server
 
 Agents can ask ShipWarden and each other for help, without an automation in the middle. ShipWarden runs a local MCP
@@ -235,7 +251,7 @@ repository, choose your agent and start the first agent. Help › Show Welcome o
 the main parts of the window. Help › Take the Tour starts it at all times. Help › Keyboard Shortcuts lists all keys.
 A new user also gets a getting started checklist on the Dashboard.
 
-Tips show the features that are easy to miss. At each start, one random tip from a list of 33 shows in the
+Tips show the features that are easy to miss. At each start, one random tip from a list of 36 shows in the
 bottom-right corner. While ShipWarden stays open, a new tip shows 12 hours after you close the last one. A tip does not
 show again within 10 tips. Some views have their own tip, for example the Dashboard. Close a tip in a view, and it does not show again.
 Turn off the tips in the corner notice or in Settings › Appearance › Tips.

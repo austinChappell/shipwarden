@@ -9,6 +9,7 @@ import { Button, ButtonGroup, Input, Select, TextArea } from './ui';
 import { radioGroupKeys } from './keyboard';
 import { RepoDraftGroup } from './DraftSettings';
 import { RepoReviewStrictnessGroup } from './ReviewStrictnessSettings';
+import { RepoScreenshotGroup } from '../screenshots/ScreenshotSettings';
 
 interface Props {
     repo: string;
@@ -120,6 +121,7 @@ export function RepoSettingsPage({ repo, settings, onSave }: Props) {
                 current={current.reviewStrictness}
                 onChange={reviewStrictness => void update({ reviewStrictness })}
             />
+            <RepoScreenshotGroup current={current.screenshots} onChange={screenshots => update({ screenshots })} />
         </>
     );
 }

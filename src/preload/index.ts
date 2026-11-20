@@ -13,6 +13,7 @@ import type { McpApprovals } from '@shared/mcp';
 import type { Task } from '@shared/tasks';
 import type { CreateWorktreeProgress } from '@shared/worktrees';
 import type { PinnedSession } from '@shared/pinned-sessions';
+import type { ScreenshotProgress } from '@shared/screenshots';
 
 function subscribe<Args extends unknown[]>(channel: string, listener: (...args: Args) => void): () => void {
     const handler = (_event: IpcRendererEvent, ...args: unknown[]) => listener(...(args as Args));
@@ -232,6 +233,14 @@ const api: ShipWardenApi = {
         preview: (worktree, ref, session) => ipcRenderer.invoke(IpcChannels.checkpointsPreview, worktree, ref, session),
         rewind: (worktree, ref, options) => ipcRenderer.invoke(IpcChannels.checkpointsRewind, worktree, ref, options),
         onChanged: listener => subscribe<[string]>(IpcChannels.checkpointsChanged, listener)
+    },
+    screenshots: {
+        get: worktree => ipcRenderer.invoke(IpcChannels.screenshotsGet, worktree),
+        capture: (worktree, side) => ipcRenderer.invoke(IpcChannels.screenshotsCapture, worktree, side),
+        image: (worktree, side, page) => ipcRenderer.invoke(IpcChannels.screenshotsImage, worktree, side, page),
+        clear: worktree => ipcRenderer.invoke(IpcChannels.screenshotsClear, worktree),
+        post: (worktree, number) => ipcRenderer.invoke(IpcChannels.screenshotsPost, worktree, number),
+        onProgress: listener => subscribe<[ScreenshotProgress]>(IpcChannels.screenshotsProgress, listener)
     },
     queue: {
         get: () => ipcRenderer.invoke(IpcChannels.queueGet),

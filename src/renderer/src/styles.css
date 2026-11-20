@@ -16948,3 +16948,102 @@ body.resizing-rows * {
     white-space: pre-wrap;
     word-break: break-word;
 }
+
+/* Screenshots tab of the right panel and the screenshot settings of a repository */
+.screenshot-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 14px 10px;
+}
+
+.screenshot-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.screenshot-step-text {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.5;
+}
+
+.screenshot-steps .form-error,
+.screenshot-steps .panel-note {
+    padding: 0;
+}
+
+.screenshot-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 14px 8px;
+    border-top: 1px solid var(--border);
+}
+
+.screenshot-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 0 14px;
+}
+
+.screenshot-pair.both {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.screenshot-side {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    margin: 0;
+}
+
+.screenshot-side figcaption {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.screenshot-image {
+    display: block;
+    max-height: 480px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    cursor: zoom-in;
+}
+
+.screenshot-image img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.screenshot-missing {
+    display: block;
+    padding: 12px 8px;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.screenshot-short-field {
+    width: 120px;
+}
+
+.screenshot-error {
+    display: block;
+}
+
+.screenshot-settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}

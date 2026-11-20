@@ -18,7 +18,7 @@ import { setManagedFolder } from './lsp/servers';
 import { ServerInstaller } from './lsp/server-install';
 import { PluginSettings } from './tasks/plugin-settings';
 import { TaskHost } from './tasks/task-host';
-import { ProjectStore } from './project-store';
+import { mainWorktreeRoot, ProjectStore } from './project-store';
 import { loadLoginShellPath, loginShellCaFile } from './shell-env';
 import { TrustedCertificates } from './network/trusted-certificates';
 import { NotesService } from './notes/notes-service';
@@ -63,6 +63,8 @@ import { helperPlist, LaunchAgent } from './helper/launch-agent';
 import { HELPER_LABEL, helperSocketPath } from './helper/protocol';
 import { RemoteControl } from './helper/remote-control';
 import { BrowserViews } from './browser/browser-views';
+import { ScreenshotService } from './screenshots/screenshot-service';
+import { ScreenshotStore } from './screenshots/screenshot-store';
 import { checkCommand } from './command-check';
 import { SetupChecks } from './setup-checks';
 import { McpHost } from './mcp/mcp-host';
@@ -426,6 +428,17 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         repoFor: root => reviewProviders.repoFor(root)
     });
 
+    /** Screenshots of visual changes. The images go to `<app data>/screenshots`. */
+    const screenshots = new ScreenshotService({
+        store: new ScreenshotStore(userData),
+        checkWorktree: worktree => projectWorktrees.check(worktree),
+        repoOf: async worktree => (await projectWorktrees.repoOf(worktree)) ?? (await mainWorktreeRoot(worktree)),
+        settingsOf: async repo => (await settings.get()).repos[repo]?.screenshots,
+        capture: (url, options) => browserViews.capture(url, options),
+        hostFor: worktree => reviewProviders.for(worktree),
+        onProgress: progress => window.send(IpcChannels.screenshotsProgress, progress)
+    });
+
     /**
      * Stops a terminal session and the processes that its shell started. Some processes (for example a server that
      * ignores SIGHUP, or a background job) continue to run when only the shell stops.
@@ -587,6 +600,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         terminalSizes,
         remote,
         projectWorktrees,
+        screenshots,
         askRunner,
         plans,
         prGroups,
