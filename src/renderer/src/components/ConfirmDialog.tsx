@@ -35,17 +35,29 @@ function emit() {
     listeners.forEach(listener => listener());
 }
 
-function push(request: Omit<Request, 'id' | 'resolve'>): Promise<boolean> {
+function push(request: Omit<Request, 'id' | 'resolve'>, signal?: AbortSignal): Promise<boolean> {
     return new Promise(resolve => {
+        if (signal?.aborted) return resolve(false);
         counter += 1;
-        queue = [...queue, { ...request, id: counter, resolve }];
+        const item: Request = { ...request, id: counter, resolve };
+        queue = [...queue, item];
         emit();
+        signal?.addEventListener(
+            'abort',
+            () => {
+                if (queue.includes(item)) answer(item, false);
+            },
+            { once: true }
+        );
     });
 }
 
-/** Asks the user a question in a dialog of the app. Resolves true when the user agrees. */
-export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
-    return push(options);
+/**
+ * Asks the user a question in a dialog of the app. Resolves true when the user agrees.
+ * With `signal`, an abort closes the dialog and resolves false.
+ */
+export function confirmDialog(options: ConfirmOptions, signal?: AbortSignal): Promise<boolean> {
+    return push(options, signal);
 }
 
 /** Shows a message in a dialog of the app. Resolves when the user closes it. */

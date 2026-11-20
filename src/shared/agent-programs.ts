@@ -93,3 +93,17 @@ export function agentProcessesBelow(rows: readonly ProcessRow[], rootPid: number
     }
     return result;
 }
+
+/** The agent programs that get the ShipWarden MCP server at start. Codex, Gemini CLI, and opencode do not get it yet. */
+export const MCP_PROGRAMS: readonly AgentProgram[] = ['claude'];
+
+/**
+ * Adds the ShipWarden MCP server to an agent command. `configPath` is the MCP config file of the session.
+ * Claude Code gets the file with --mcp-config. The option adds the server to the servers of the user, so the user's
+ * own MCP servers stay. Other programs keep their command.
+ */
+export function withMcpConfig(command: string, configPath: string): string {
+    const program = agentProgramOf(command.trim());
+    if (!program || !MCP_PROGRAMS.includes(program)) return command;
+    return `${command.trim()} --mcp-config '${configPath.replace(/'/g, `'\\''`)}'`;
+}

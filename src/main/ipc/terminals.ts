@@ -23,6 +23,7 @@ type TerminalIpcDependencies = Pick<
     | 'hookPaths'
     | 'shellIntegration'
     | 'transcriptIndex'
+    | 'mcp'
 >;
 
 /** Registers the IPC handlers of the terminal sessions and the processes of the worktrees. */
@@ -31,9 +32,17 @@ export function registerTerminalIpc(deps: TerminalIpcDependencies): void {
     ipcMain.handle(IpcChannels.terminalsSettings, () => loadGhosttySettings());
     ipcMain.handle(IpcChannels.terminalsList, deps.terminalSessions);
     ipcMain.handle(IpcChannels.terminalsCreate, async (_event, options: CreateTerminalOptions) => {
-        const { command, reportsAgentState } = terminalCommand(options, deps.hookPaths);
+        // A Claude Code agent tab gets the MCP server, with a token for its worktree. A failure only leaves out the server.
+        const issued = options.isAgent
+            ? await deps.mcp.issue(options.command, options.worktreePath).catch(error => {
+                  console.warn(`[mcp] No MCP config for the new agent: ${error instanceof Error ? error.message : String(error)}`);
+                  return undefined;
+              })
+            : undefined;
+        const { command, reportsAgentState } = terminalCommand(options, deps.hookPaths, issued?.configFile);
         const env = { ...process.env, ...shellIntegrationEnv(process.env, deps.shellIntegration) };
         const session = await terminals.create({ ...options, command, reportsAgentState }, env);
+        if (issued) void deps.mcp.bindSession(issued.id, session.id).catch(() => undefined);
         void shellAgents.poll();
         terminalSizes.set(session.id, { cols: options.cols, rows: options.rows });
         remote.agentsChanged();

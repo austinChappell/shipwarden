@@ -15,6 +15,7 @@ import { applyLastPalette } from './theme/appearance';
 import { outputActivity } from './terminal/output-activity';
 import { appKeyAction } from '@shared/shortcuts';
 import { queryClient } from './query-client';
+import { patchCachedTask } from './components/tasks/use-task-list';
 
 /** The page settings of Yardmaster (the old app name) have the prefix "yardmaster.". Copy them one time to the new prefix. */
 function migrateLegacyStorage(): void {
@@ -61,9 +62,19 @@ window.addEventListener(
 );
 
 // The main process asks some questions (for example "Stop and Quit") in the dialog of the page.
+// A question can end without an answer, for example the approval of an MCP tool after its timeout.
+const confirmAborts = new Map<number, AbortController>();
 window.shipwarden.app.onConfirmRequest((id, request) => {
-    void confirmDialog(request).then(confirmed => window.shipwarden.app.answerConfirm(id, confirmed));
+    const controller = new AbortController();
+    confirmAborts.set(id, controller);
+    void confirmDialog(request, controller.signal).then(confirmed => {
+        confirmAborts.delete(id);
+        window.shipwarden.app.answerConfirm(id, confirmed);
+    });
 });
+window.shipwarden.app.onConfirmCancel(id => confirmAborts.get(id)?.abort());
+// A task change from the main process (the MCP tool set_task_status) goes into the cached lists and details.
+window.shipwarden.tasks.onTaskChanged((connectionId, taskId, patch) => patchCachedTask(queryClient, connectionId, taskId, patch));
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>

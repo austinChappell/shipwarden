@@ -194,6 +194,25 @@ rewind** to send a short note to its terminal. Stop the agent before you rewind.
 The checkpoints are refs under `refs/shipwarden/checkpoints/` in the repository. ShipWarden removes them when it removes
 the worktree, and removes the checkpoints older than 7 days at start.
 
+### ShipWarden MCP server
+
+Agents can ask ShipWarden and each other for help, without an automation in the middle. ShipWarden runs a local MCP
+server on 127.0.0.1. Each new Claude Code agent tab gets it with `--mcp-config`. Your own MCP servers stay. The tools
+act on the worktree of the agent:
+
+| Tool | What it does | Approval |
+| --- | --- | --- |
+| `list_worktrees` | Lists the worktrees of the repository, with their branches, tasks, pull request states, and agents. `all` lists all projects. | No |
+| `get_overlaps` | Lists the files that this worktree and other worktrees both change. | No |
+| `get_task` | Returns the task of this worktree, with the newest comments. | No |
+| `ask_agent` | Asks the agent of a different worktree a question and waits for the answer. The other agent runs in print mode and does not change files. | First time in each worktree |
+| `set_task_status` | Moves the task of this worktree to a different status. | First time in each worktree |
+
+The first call of a write tool in a worktree shows a dialog. **Allow** applies to that tool in that worktree until you
+revoke it in Settings › Agents › MCP server. Without an answer in 2 minutes, the tool call fails with a clear error.
+Each agent session has its own token. A request without the token gets 401. Turn the server off in Settings › Agents.
+Codex, Gemini CLI, and opencode do not get the server yet. See [docs/mcp-server.md](docs/mcp-server.md).
+
 The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
 send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label,
 post to Slack when an agent waits for your input for 10 minutes, or remove the worktree after its pull request merges. Each automation is a JSON file in `~/.shipwarden/automations` that
@@ -210,7 +229,7 @@ repository, choose your agent and start the first agent. Help › Show Welcome o
 the main parts of the window. Help › Take the Tour starts it at all times. Help › Keyboard Shortcuts lists all keys.
 A new user also gets a getting started checklist on the Dashboard.
 
-Tips show the features that are easy to miss. At each start, one random tip from a list of 31 shows in the
+Tips show the features that are easy to miss. At each start, one random tip from a list of 33 shows in the
 bottom-right corner. While ShipWarden stays open, a new tip shows 12 hours after you close the last one. A tip does not
 show again within 10 tips. Some views have their own tip, for example the Dashboard. Close a tip in a view, and it does not show again.
 Turn off the tips in the corner notice or in Settings › Appearance › Tips.
