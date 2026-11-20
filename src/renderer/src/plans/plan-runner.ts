@@ -1,6 +1,8 @@
 import type { AgentMode } from '@shared/agent-modes';
 import type { AgentUpdate } from '@shared/agents';
-import { pullRequestWebUrl } from '@shared/github';
+import { hasDiverged } from '@shared/git';
+import { pullRequestWebUrl, type BranchSummary, type MergedPullRequest } from '@shared/github';
+import { pullRequestKnownClosed } from '@shared/plan-progress';
 import type { NotificationSettings } from '@shared/notifications';
 import {
     activeStepIndex,
@@ -11,22 +13,30 @@ import {
     pullRequestBaseOf,
     pullRequestBody,
     pullRequestTitle,
+    restackOldBases,
+    restackTargets,
     resumeAction,
     reviewText,
+    stackWait,
     stepBranch,
     stepBranchTask,
     stepPrompt,
     worktreeBaseOf,
     watchesCi,
     type Plan,
-    type PlanStep
+    type PlanStep,
+    type StepRestack
 } from '@shared/plans';
+import { restackConflictPrompt } from '@shared/rebase-conflict';
 import type { ConnectionInfo, StartStatusResult, Task, TaskLink, TaskSource } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
 import type { CreatedWorktree, Worktree } from '@shared/worktrees';
 import { taskBranchName } from '../app/task-branch';
 import { saveTaskLink } from '../app/task-links';
 import { taskManagerKeys } from '../components/task-managers-cache';
+import { gitChanged } from '../git/git-store';
+import { cachedPullRequest } from '../github/pull-request-cache';
+import { changePullRequest } from '../github/pull-request-mutations';
 import { prependTask, taskQueryKeys } from '../components/tasks/task-view-logic';
 import { keyRoots, queryClient } from '../query-client';
 import { agentStateStore } from '../terminal/agent-state-store';
@@ -86,6 +96,10 @@ export class PlanRunner {
         this.context = context;
         if (context.ready && !this.timer) {
             this.timer = setInterval(() => void this.tick(), TICK_MS);
+            // New pull request data in the cache can show a merge. The runner reads the cache and sends no request.
+            queryClient.getQueryCache().subscribe(event => {
+                if (event.type === 'updated' && event.action.type === 'success' && isMergeData(event.query.queryKey)) void this.restackMerged();
+            });
             void this.tick();
         }
     }
@@ -221,6 +235,8 @@ export class PlanRunner {
         const context = this.ready;
         if (!context) return;
         await queryClient.fetchQuery(plansQuery);
+        await this.restackMerged();
+        await this.checkRestacks();
         for (const plan of cachedPlans()) {
             if (plan.status !== 'running' && plan.status !== 'paused') continue;
             const running = plan.steps.find(step => step.status === 'running');
@@ -301,7 +317,16 @@ export class PlanRunner {
             if (step.detail !== wait) await this.patchStep(plan.id, step.id, { detail: wait });
             return;
         }
-        const baseBranch = worktreeBaseOf(plan.steps, index);
+        // In a stack, the step before must push its branch first. The runner tries again at the next tick.
+        const waitForStack = stackWait(plan, index);
+        if (waitForStack) {
+            if (step.detail !== waitForStack) await this.patchStep(plan.id, step.id, { detail: waitForStack });
+            return;
+        }
+        const baseBranch = worktreeBaseOf(plan.steps, index, !plan.noStack);
+        // The old base for "git rebase --onto" is the tip of the branch that the pull request targets. A step that
+        // starts from an experiment branch gets no old base, because that branch is not the target.
+        const recordBase = !!baseBranch && baseBranch === pullRequestBaseOf(plan.steps, index, !plan.noStack);
         await this.patchStep(plan.id, step.id, { status: 'running', startedAt: Date.now(), detail: 'ShipWarden is making the branch name.' });
         const branch = await this.branchName(plan, index, repo, context.branchTemplate);
         await this.patchStep(plan.id, step.id, { branch, ...(baseBranch ? { baseBranch } : {}), detail: 'ShipWarden is making the worktree.' });
@@ -314,7 +339,11 @@ export class PlanRunner {
             await this.fail(plan, step, `The worktree was not made: ${errorText(error)}`);
             return;
         }
-        await this.patchStep(plan.id, step.id, { worktreePath: worktree.path, startHead: worktree.head });
+        await this.patchStep(plan.id, step.id, {
+            worktreePath: worktree.path,
+            startHead: worktree.head,
+            ...(recordBase && worktree.head ? { stackBase: worktree.head } : {})
+        });
         try {
             await context.actions.prepareWorktree(repo, worktree);
             if (step.task.kind === 'existing') {
@@ -366,6 +395,15 @@ export class PlanRunner {
         }
         const changes = await api.git.changes(worktree.path).catch(() => undefined);
         const dirty = !!changes && changes.staged.length + changes.unstaged.length + changes.conflicted.length > 0;
+        if (changes?.rebase) {
+            await this.attention(
+                plan,
+                step,
+                'A rebase is in progress in the worktree. Continue or abort it in the Changes tab, then select Continue.',
+                worktree.path
+            );
+            return;
+        }
         if (worktree.head === step.startHead) {
             await this.attention(
                 plan,
@@ -378,6 +416,7 @@ export class PlanRunner {
             return;
         }
         const notes = dirty ? ' Some changes in the worktree are not committed. The pull request does not contain them.' : '';
+        if (step.pullRequest && !(await this.rebaseBeforePush(plan, index, worktree.path))) return;
         if (!step.pullRequest) {
             await this.patchStep(planId, stepId, { status: 'done', finishedAt: Date.now(), detail: `The agent committed the experiment.${notes}` });
             await this.afterStepDone(planId, stepId);
@@ -425,13 +464,19 @@ export class PlanRunner {
     private async openPullRequest(plan: Plan, index: number, worktreePath: string): Promise<NonNullable<PlanStep['pr']>> {
         const context = this.ready;
         const repoLabel = context?.repoLabel ?? ((repo: string) => repo);
-        const existing = await api.github.status(worktreePath).catch(() => null);
-        if (existing?.pullRequest?.state === 'OPEN') {
-            return { number: existing.pullRequest.number, url: existing.pullRequest.url, base: existing.pullRequest.baseRefName };
-        }
         const latest = cachedPlan(plan.id) ?? plan;
         const step = latest.steps[index];
-        const base = pullRequestBaseOf(latest.steps, index);
+        const base = pullRequestBaseOf(latest.steps, index, !latest.noStack);
+        const existing = await api.github.status(worktreePath).catch(() => null);
+        if (existing?.pullRequest?.state === 'OPEN') {
+            const found = { number: existing.pullRequest.number, url: existing.pullRequest.url, base: existing.pullRequest.baseRefName };
+            // A pull request that the agent opened can target the wrong branch. In a stack, it targets the step before.
+            if (base && found.base !== base && step.repo) {
+                await api.github.changePullRequest(step.repo, found.number, { kind: 'base', base });
+                return { ...found, base };
+            }
+            return found;
+        }
         const number = await api.github.createPullRequest(worktreePath, {
             title: pullRequestTitle(step),
             body: pullRequestBody(latest, index, repoLabel),
@@ -445,6 +490,230 @@ export class PlanRunner {
         }
         const remote = await api.github.repoOf(worktreePath).catch(() => null);
         return { number, url: remote ? pullRequestWebUrl(remote, number) : `#${number}`, base: base ?? 'the default branch' };
+    }
+
+    /* -------------------------------------------------------------------------------------------------------------- */
+    /* Stacks                                                                                                          */
+    /* -------------------------------------------------------------------------------------------------------------- */
+
+    /** True while `restackMerged` runs. A second call in that time does nothing. */
+    private restacking = false;
+
+    /**
+     * Finds the pull requests of stacked plans that merged, from the cached pull request data, and restacks the steps
+     * above them. It sends no request: the data comes from the queries that the views and the automations load.
+     */
+    async restackMerged(): Promise<void> {
+        if (!this.ready || this.restacking) return;
+        this.restacking = true;
+        try {
+            for (const plan of cachedPlans()) {
+                if (plan.noStack || plan.status === 'draft') continue;
+                for (const step of plan.steps) {
+                    if (!step.pr || !step.branch || step.mergedAt) continue;
+                    const merged = mergedHeadOf(step);
+                    if (merged !== null) await this.restack(plan.id, step.id, merged);
+                }
+            }
+        } finally {
+            this.restacking = false;
+        }
+    }
+
+    /**
+     * The pull request of a step merged. Each step whose pull request targets the merged branch gets a rebase onto the
+     * base of the merged pull request, and its pull request gets that base. `mergedHead` is the head commit of the
+     * merged pull request, when it is known.
+     */
+    private async restack(planId: string, stepId: string, mergedHead: string | undefined): Promise<void> {
+        await this.patchStep(planId, stepId, { mergedAt: Date.now() });
+        const plan = cachedPlan(planId);
+        const index = plan?.steps.findIndex(step => step.id === stepId) ?? -1;
+        const merged = plan?.steps[index];
+        if (!plan || !merged?.pr) return;
+        for (const target of restackTargets(plan.steps, index)) {
+            const child = plan.steps[target.index];
+            // A pull request that merged or closed needs no rebase, for example in a plan that ran before stacks restacked.
+            const open = child.repo ? queryClient.getQueryData<Record<string, BranchSummary>>([...keyRoots.branchSummaries, child.repo]) : undefined;
+            if (mergedHeadOf(child) !== null || pullRequestKnownClosed(child, open)) continue;
+            await this.restackStep(planId, child.id, {
+                onto: target.onto,
+                state: 'failed',
+                merged: merged.pr.number,
+                oldBases: restackOldBases(child, mergedHead)
+            });
+        }
+    }
+
+    /** Tries the rebase of a step again after it did not start. */
+    async retryRestack(planId: string, stepId: string): Promise<void> {
+        const restack = cachedPlan(planId)?.steps.find(step => step.id === stepId)?.restack;
+        if (restack) await this.restackStep(planId, stepId, restack);
+    }
+
+    /**
+     * Rebases the branch of a step onto `restack.onto` with "git rebase --onto", and changes the base of its pull
+     * request. ShipWarden does not push: the user confirms the push with "--force-with-lease". A conflict goes to the
+     * agent of the worktree, and the agent pushes after it resolves the conflict.
+     */
+    private async restackStep(planId: string, stepId: string, restack: StepRestack): Promise<void> {
+        const key = `restack:${planId}:${stepId}`;
+        if (this.busy.has(key)) return;
+        this.busy.add(key);
+        try {
+            const plan = cachedPlan(planId);
+            const step = plan?.steps.find(item => item.id === stepId);
+            if (!plan || !step?.worktreePath || !step.pr || !step.repo) return;
+            const { onto, merged } = restack;
+            // A rebase under a working agent can mix with its edits. The user selects Rebase when the agent stops.
+            const agent = step.sessionId ? agentStateStore.getSnapshot().get(step.sessionId)?.state : undefined;
+            if (agent === 'working' || agent === 'starting') {
+                const text = `#${merged} merged. The agent of the step is working, so ShipWarden did not rebase the branch onto ${onto}. Select Rebase when the agent stops.`;
+                await this.patchStep(planId, stepId, { restack: { ...restack, state: 'failed' }, detail: text });
+                this.notify(`"${step.title}" needs a rebase`, text, step.worktreePath);
+                return;
+            }
+            // Undefined: the rebase changed nothing, so nothing waits.
+            let state: StepRestack['state'] | undefined;
+            let detail: string;
+            try {
+                const result = await api.git.rebase(step.worktreePath, onto, restack.oldBases ?? []).finally(gitChanged);
+                if (result.status === 'conflict') {
+                    state = 'conflict';
+                    detail = `#${merged} merged. The rebase onto ${onto} stopped on a conflict.`;
+                } else if (result.changed) {
+                    state = 'push';
+                    detail = `#${merged} merged. ShipWarden rebased the branch onto ${onto}. Push it to update #${step.pr.number}.`;
+                } else {
+                    detail = `#${merged} merged. The branch already has all commits of ${onto}.`;
+                }
+            } catch (error) {
+                const text = `#${merged} merged, but the rebase onto ${onto} did not start: ${errorText(error)}`;
+                await this.patchStep(planId, stepId, { restack: { ...restack, state: 'failed' }, detail: text });
+                this.notify(`"${step.title}" needs a rebase`, text, step.worktreePath);
+                return;
+            }
+            const retargeted = await this.retarget(step, onto);
+            if (!retargeted) detail += ` Change the base of #${step.pr.number} to ${onto} by hand.`;
+            await this.patchStep(planId, stepId, {
+                restack: state ? { ...restack, state } : undefined,
+                detail,
+                ...(retargeted ? { pr: { ...step.pr, base: onto } } : {})
+            });
+            if (state === 'conflict') await this.sendRestackConflict(planId, stepId, merged);
+            else if (state) this.notify(`"${step.title}" was rebased onto ${onto}`, detail, step.worktreePath);
+        } finally {
+            this.busy.delete(key);
+        }
+    }
+
+    /** Points the pull request of a step at a new base branch. Returns false when the host refused the change. */
+    private async retarget(step: PlanStep, base: string): Promise<boolean> {
+        if (!step.pr || !step.repo) return false;
+        if (step.pr.base === base) return true;
+        try {
+            const cached = cachedPullRequest(queryClient, step.pr.url);
+            if (cached) await changePullRequest(step.repo, cached, { kind: 'base', base });
+            else await api.github.changePullRequest(step.repo, step.pr.number, { kind: 'base', base });
+            return true;
+        } catch (error) {
+            console.warn(`[plans] The base of #${step.pr.number} did not change to ${base}: ${errorText(error)}`);
+            return false;
+        }
+    }
+
+    /** Sends the rebase conflict of a step to the agent of its worktree. The usage budget can stop a new agent. */
+    private async sendRestackConflict(planId: string, stepId: string, merged: number): Promise<void> {
+        const plan = cachedPlan(planId);
+        const step = plan?.steps.find(item => item.id === stepId);
+        if (!plan || !step?.worktreePath || !step.pr) return;
+        const wait = budgetWait(undefined, step.repo);
+        const stopped = (why: string) => {
+            const text = `${step.detail ?? ''} ${why} Resolve the conflict in the Changes tab, then push the branch.`.trim();
+            void this.patchStep(planId, stepId, { detail: text });
+            this.notify(`"${step.title}" has a rebase conflict`, text, step.worktreePath);
+        };
+        if (wait) {
+            stopped(`The agent did not start: ${wait}.`);
+            return;
+        }
+        try {
+            const input = await api.git.rebaseConflict(step.worktreePath);
+            await this.followUp(planId, stepId, restackConflictPrompt(input, step.pr, merged), `Resolving the rebase conflict of #${step.pr.number}`);
+        } catch (error) {
+            stopped(`The agent did not get the conflict: ${errorText(error)}`);
+        }
+    }
+
+    /**
+     * Checks the steps with a rebase that waits: a branch that has no rebase in progress and is the same as its
+     * upstream was pushed, so the rebase is complete. A conflict that is resolved but not pushed waits for the push.
+     * It runs local git only.
+     */
+    private async checkRestacks(): Promise<void> {
+        for (const plan of cachedPlans()) {
+            for (const step of plan.steps) {
+                const restack = step.restack;
+                if (!restack || restack.state === 'failed' || !step.worktreePath || this.busy.has(`restack:${plan.id}:${step.id}`)) continue;
+                const changes = await api.git.changes(step.worktreePath).catch(() => undefined);
+                if (!changes || changes.rebase) continue;
+                if (changes.upstream && changes.ahead === 0 && changes.behind === 0) {
+                    await this.restackPushed(plan.id, step.id);
+                } else if (restack.state === 'conflict' && hasDiverged(changes)) {
+                    await this.patchStep(plan.id, step.id, {
+                        restack: { ...restack, state: 'push' },
+                        detail: `The rebase onto ${restack.onto} is complete. Push the branch to update #${step.pr?.number}.`
+                    });
+                }
+            }
+        }
+    }
+
+    /** The rebased branch of a step was pushed. */
+    async restackPushed(planId: string, stepId: string): Promise<void> {
+        const step = cachedPlan(planId)?.steps.find(item => item.id === stepId);
+        if (!step?.restack) return;
+        await this.patchStep(planId, stepId, { restack: undefined, detail: `Rebased onto ${step.restack.onto} after #${step.restack.merged} merged.` });
+    }
+
+    /**
+     * Before the first push of a step: when the step that it started from merged meanwhile, the branch moves onto the
+     * base of that pull request with "git rebase --onto". Then the new pull request contains only the commits of the
+     * step. Returns false when the step must wait, for example for a conflict.
+     */
+    private async rebaseBeforePush(plan: Plan, index: number, worktreePath: string): Promise<boolean> {
+        const step = plan.steps[index];
+        if (plan.noStack || !step.baseBranch || step.pr) return true;
+        const parent = plan.steps.find(item => item.branch === step.baseBranch && item.repo === step.repo);
+        if (!parent?.mergedAt) return true;
+        const newBase = pullRequestBaseOf(plan.steps, index);
+        // The user resolved the conflict of an earlier try. The rebase is complete.
+        if (step.restack?.state === 'conflict') {
+            await this.patchStep(plan.id, step.id, { restack: undefined, stackBase: undefined, baseBranch: newBase });
+            return true;
+        }
+        const mergedPr = parent.pr;
+        if (!mergedPr) return true;
+        const onto = mergedPr.base;
+        await this.patchStep(plan.id, step.id, { detail: `#${mergedPr.number} merged. ShipWarden is rebasing the branch onto ${onto}.` });
+        try {
+            const result = await api.git.rebase(worktreePath, onto, restackOldBases(step, mergedHeadOf(parent) ?? undefined)).finally(gitChanged);
+            if (result.status === 'conflict') {
+                await this.patchStep(plan.id, step.id, { restack: { onto, state: 'conflict', merged: mergedPr.number } });
+                await this.attention(
+                    plan,
+                    step,
+                    `#${mergedPr.number} merged, and the rebase onto ${onto} stopped on a conflict. Resolve it in the Changes tab, or send it to the agent there. Then select Continue.`,
+                    worktreePath
+                );
+                return false;
+            }
+        } catch (error) {
+            await this.attention(plan, step, `#${mergedPr.number} merged, but the rebase onto ${onto} did not work: ${errorText(error)}`, worktreePath);
+            return false;
+        }
+        await this.patchStep(plan.id, step.id, { stackBase: undefined, baseBranch: newBase });
+        return true;
     }
 
     /* -------------------------------------------------------------------------------------------------------------- */
@@ -544,6 +813,23 @@ export class PlanRunner {
             ...(worktreePath ? { target: { view: 'worktree' as const, worktreePath, ...(sessionId ? { sessionId } : {}) } } : {})
         });
     }
+}
+
+/** True for the query keys whose data can show a merged pull request: the merged branches and the pull request details. */
+function isMergeData(queryKey: readonly unknown[]): boolean {
+    return [keyRoots.mergedBranches, keyRoots.pullRequest].some(root => root.every((part, at) => queryKey[at] === part));
+}
+
+/**
+ * Returns the head commit of the merged pull request of a step, from the cache. Returns undefined for a merge with an
+ * unknown head commit, and null when the cache does not show a merge.
+ */
+function mergedHeadOf(step: PlanStep): string | undefined | null {
+    if (!step.pr || !step.branch || !step.repo) return null;
+    const merged = queryClient.getQueryData<Record<string, MergedPullRequest>>([...keyRoots.mergedBranches, step.repo])?.[step.branch];
+    if (merged?.number === step.pr.number) return merged.headSha || undefined;
+    const pr = cachedPullRequest(queryClient, step.pr.url);
+    return pr?.state === 'MERGED' ? pr.headRefOid || undefined : null;
 }
 
 /** "3 pull requests, 1 experiment, 1 skipped". */

@@ -21,7 +21,10 @@ import {
     pullRequestBaseOf,
     pullRequestBody,
     pullRequestTitle,
+    restackOldBases,
+    restackTargets,
     reviewText,
+    stackWait,
     stackedOnIndex,
     stepBranch,
     stepBranchTask,
@@ -514,5 +517,101 @@ describe('freeBranchName', () => {
     });
     it('adds the next free number', () => {
         expect(freeBranchName('jsmith/ENG-1', ['jsmith/ENG-1', 'jsmith/ENG-1-2'])).toBe('jsmith/ENG-1-3');
+    });
+});
+
+describe('stacked steps', () => {
+    const pr = (number: number, base: string) => ({ number, url: `https://github.com/o/api/pull/${number}`, base });
+    // Three stacked steps in the API repository and one step in the web repository.
+    const stack = () => [
+        step({ id: 's1', repo: API, status: 'done', branch: 'p/1', pr: pr(1, 'main'), worktreePath: '/wt/1' }),
+        step({ id: 's2', repo: API, status: 'done', branch: 'p/2', baseBranch: 'p/1', stackBase: 'aaaaaaa', pr: pr(2, 'p/1'), worktreePath: '/wt/2' }),
+        step({ id: 'w1', repo: WEB, status: 'done', branch: 'w/1', pr: pr(3, 'main'), worktreePath: '/wt/w' }),
+        step({ id: 's3', repo: API, status: 'done', branch: 'p/3', baseBranch: 'p/2', stackBase: 'bbbbbbb', pr: pr(4, 'p/2'), worktreePath: '/wt/3' })
+    ];
+
+    it('gives each step the branch of the step before it, and the first step the default branch', () => {
+        const steps = stack();
+        expect([0, 1, 2, 3].map(index => worktreeBaseOf(steps, index))).toEqual([undefined, 'p/1', undefined, 'p/2']);
+        expect([0, 1, 2, 3].map(index => pullRequestBaseOf(steps, index))).toEqual([undefined, 'p/1', undefined, 'p/2']);
+        expect([0, 1, 2, 3].map(index => stackedOnIndex(steps, index))).toEqual([-1, 0, -1, 1]);
+    });
+
+    it('gives each step the default branch when the plan does not stack', () => {
+        const steps = stack();
+        expect([0, 1, 2, 3].map(index => worktreeBaseOf(steps, index, false))).toEqual([undefined, undefined, undefined, undefined]);
+        expect([0, 1, 2, 3].map(index => pullRequestBaseOf(steps, index, false))).toEqual([undefined, undefined, undefined, undefined]);
+        expect(stackedOnIndex(steps, 3, false)).toBe(-1);
+    });
+
+    it('skips a step whose pull request merged', () => {
+        const steps = stack().map(item => (item.id === 's1' ? { ...item, mergedAt: 5 } : item));
+        expect(worktreeBaseOf(steps, 1)).toBeUndefined();
+        expect(pullRequestBaseOf(steps, 1)).toBeUndefined();
+        expect(pullRequestBaseOf(steps, 3)).toBe('p/2');
+        const both = steps.map(item => (item.id === 's2' ? { ...item, mergedAt: 6 } : item));
+        expect(pullRequestBaseOf(both, 3)).toBeUndefined();
+    });
+
+    it('waits until the step below has its branch', () => {
+        const steps = stack().map((item, index) => (index > 0 ? { ...item, status: 'pending' as const, branch: undefined, pr: undefined } : item));
+        expect(stackWait(plan(steps), 1)).toBeUndefined();
+        const running = steps.map(item => (item.id === 's2' ? { ...item, status: 'running' as const } : item));
+        expect(stackWait(plan(running), 3)).toBe('Waiting for step 2 to push its branch.');
+        expect(stackWait(plan(running, { noStack: true }), 3)).toBeUndefined();
+        // The web step does not stack on the API steps.
+        expect(stackWait(plan(running), 2)).toBeUndefined();
+    });
+
+    it('rebases the steps that target the merged branch onto the base of the merged pull request', () => {
+        const steps = stack();
+        expect(restackTargets(steps, 0)).toEqual([{ index: 1, onto: 'main' }]);
+        expect(restackTargets(steps, 1)).toEqual([{ index: 3, onto: 'p/1' }]);
+        expect(restackTargets(steps, 2)).toEqual([]);
+        expect(restackTargets(steps, 3)).toEqual([]);
+        // After the first restack, step 2 targets main. When it merges, step 3 moves onto main.
+        const after = steps.map(item => (item.id === 's1' ? { ...item, mergedAt: 5 } : item.id === 's2' ? { ...item, pr: pr(2, 'main') } : item));
+        expect(restackTargets(after, 1)).toEqual([{ index: 3, onto: 'main' }]);
+        // A step without a worktree or with a merged pull request does not rebase.
+        expect(
+            restackTargets(
+                steps.map(item => (item.id === 's2' ? { ...item, worktreePath: undefined } : item)),
+                0
+            )
+        ).toEqual([]);
+        expect(
+            restackTargets(
+                steps.map(item => (item.id === 's2' ? { ...item, mergedAt: 7 } : item)),
+                0
+            )
+        ).toEqual([]);
+    });
+
+    it('gives the old base commits for "git rebase --onto"', () => {
+        expect(restackOldBases({ stackBase: 'aaaaaaa' }, 'cccccccc')).toEqual(['aaaaaaa', 'cccccccc']);
+        expect(restackOldBases({}, undefined)).toEqual([]);
+        expect(restackOldBases({ stackBase: 'aaaaaaa' }, '--exec=x')).toEqual(['aaaaaaa']);
+    });
+
+    it('keeps the stack fields of a valid plan, and drops the fields that are not valid', () => {
+        const saved = normalizePlan({
+            id: 'a',
+            projectId: 'p',
+            noStack: true,
+            steps: [
+                { id: 's', stackBase: 'abcdef1', mergedAt: 9, restack: { onto: 'main', state: 'push', merged: 3, oldBases: ['abcdef1', 'nope'] } },
+                { id: 't', stackBase: 'not a hash', restack: { onto: 'main', state: 'other', merged: 3 } }
+            ]
+        });
+        expect(saved?.noStack).toBe(true);
+        expect(saved?.steps[0]).toMatchObject({
+            stackBase: 'abcdef1',
+            mergedAt: 9,
+            restack: { onto: 'main', state: 'push', merged: 3, oldBases: ['abcdef1'] }
+        });
+        expect(saved?.steps[1].stackBase).toBeUndefined();
+        expect(saved?.steps[1].restack).toBeUndefined();
+        expect(normalizePlan({ id: 'a', projectId: 'p' })?.noStack).toBeUndefined();
+        expect(duplicatePlan(plan([], { noStack: true }), 1).noStack).toBe(true);
     });
 });

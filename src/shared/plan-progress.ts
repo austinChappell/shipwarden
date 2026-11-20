@@ -88,6 +88,15 @@ function listIsComplete(open: Record<string, BranchSummary> | undefined): boolea
     return count > 0 && count < MAX_OPEN_SUMMARIES;
 }
 
+/**
+ * True when the open pull requests of the repository are all known and the pull request of the step is not one of
+ * them: it merged or it was closed. False when the step has no pull request or when the list can be incomplete.
+ */
+export function pullRequestKnownClosed(step: Pick<PlanStep, 'pr' | 'branch'>, open: Record<string, BranchSummary> | undefined): boolean {
+    if (!step.pr || !step.branch || !listIsComplete(open)) return false;
+    return open?.[step.branch]?.number !== step.pr.number;
+}
+
 function checksOf(state: string | null): StepChecks {
     if (state === 'SUCCESS') return 'passing';
     if (state === 'FAILURE' || state === 'ERROR') return 'failing';

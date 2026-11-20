@@ -3,6 +3,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Bot, ClipboardList, GripVertical, Layers, LoaderCircle, Trash2, X } from 'lucide-react';
 import { repoLabel, type RepoRef } from '@shared/github';
 import { formatAgo, pluralize } from '@shared/format';
+import { stackLabels } from '@shared/plan-group-order';
 import {
     changedSinceReview,
     groupSize,
@@ -235,6 +236,7 @@ function PullRequestList({ group, onOpen }: { group: PrGroup; onOpen(repo: RepoR
     // changes only when no step of the plan runs.
     const planRuns = !!plan && (plan.status === 'running' || plan.steps.some(step => step.status === 'running'));
     const keys = group.pullRequests.map(prKey);
+    const bases = useMemo(() => (plan ? stackLabels(plan) : undefined), [plan]);
     const reorder = useReorder(keys, (key, to) => void moveGroupPullRequest(group.id, key, to), keys.length > 1 && !planRuns);
     const orderNote = !plan
         ? 'Drag a pull request to change the order.'
@@ -260,6 +262,7 @@ function PullRequestList({ group, onOpen }: { group: PrGroup; onOpen(repo: RepoR
                                 key={key}
                                 group={group}
                                 pr={pr}
+                                stackLabel={bases?.get(key.toLowerCase())}
                                 dropClass={reorder.dropClass(key)}
                                 dragProps={reorder.itemProps(key)}
                                 reorderHint={reorder.hint}
@@ -303,6 +306,8 @@ function PullRequestList({ group, onOpen }: { group: PrGroup; onOpen(repo: RepoR
 interface GroupRowProps {
     group: PrGroup;
     pr: GroupPullRequest;
+    /** Where the pull request of a plan merges, for example "Stacks on #41". Undefined for a group without a plan. */
+    stackLabel?: string;
     /** The class that shows the drop line, from `useReorder`. */
     dropClass: string;
     /** The drag and drop handlers of the row, from `useReorder`. */
@@ -319,7 +324,7 @@ interface GroupRowProps {
  * One pull request of the group: its state, its title, the result of the last group review, and the button that
  * removes it. Drag the row to change its place.
  */
-function GroupRow({ group, pr, dropClass, dragProps, reorderHint, onMoveByKey, onOpen, onRemove }: GroupRowProps) {
+function GroupRow({ group, pr, stackLabel, dropClass, dragProps, reorderHint, onMoveByKey, onOpen, onRemove }: GroupRowProps) {
     const query = useQuery(pullRequestQuery(pr.repo, pr.number));
     const data = query.data;
     const key = prKey(pr);
@@ -340,6 +345,7 @@ function GroupRow({ group, pr, dropClass, dragProps, reorderHint, onMoveByKey, o
                 <span className="review-group-title">{data?.title ?? pr.title ?? (query.isError ? 'Could not load the pull request' : 'Loading…')}</span>
             </button>
             <span className="review-group-meta">
+                {stackLabel && data?.state === 'OPEN' && <span className="review-group-base">{stackLabel}</span>}
                 {data && <StateBadge pr={data} />}
                 {changed && (
                     <Chip tone="warning" title="The pull request has new commits since the last group review, or it was not in that review.">
