@@ -231,6 +231,7 @@ app.whenReady().then(async () => {
     writeAgentHookFiles(services.hookPaths, services.shellIntegration, join(app.getPath('userData'), 'shell-integration'));
     services.shellAgents.start();
     services.staleShells.start();
+    services.transcriptIndex.start();
     void services.pruneOldCheckpoints().catch(error => console.warn('[checkpoints] The cleanup failed:', error));
     protocol.handle(
         FILE_SCHEME,
@@ -277,6 +278,7 @@ app.on('before-quit', () => {
     services.staleShells.stop();
     services.updates.stop();
     services.notes.close();
+    services.transcriptIndex.close();
     services.fileWatcher.dispose();
     services.lsp.stopAll();
     services.tasks.stopAll();

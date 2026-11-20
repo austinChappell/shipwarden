@@ -44,7 +44,7 @@ function text(value: unknown): string | undefined {
 }
 
 /** Returns the text of a user prompt, or undefined for a tool result, a command, or a message from Claude Code. */
-function promptText(entry: Record<string, unknown>): string | undefined {
+export function promptText(entry: Record<string, unknown>): string | undefined {
     if (entry.isMeta === true || entry.isSidechain === true) return undefined;
     const message = entry.message as { content?: unknown } | undefined;
     const content = message?.content;
@@ -76,14 +76,19 @@ export function summarizeTranscriptLines(summary: TranscriptSummary, lines: read
             continue;
         }
         if (!entry || typeof entry !== 'object') continue;
-        if (entry.type === 'custom-title') next.customTitle = text(entry.customTitle) ?? next.customTitle;
-        else if (entry.type === 'ai-title') next.aiTitle = text(entry.aiTitle) ?? next.aiTitle;
-        next.cwd = text(entry.cwd) ?? next.cwd;
-        next.branch = text(entry.gitBranch) ?? next.branch;
-        next.entrypoint ??= text(entry.entrypoint);
-        if (entry.type === 'user' && !next.firstPrompt) next.firstPrompt = promptText(entry);
+        summarizeEntry(next, entry);
     }
     return next;
+}
+
+/** Adds the data of one parsed transcript line to a summary. The function changes the summary. */
+export function summarizeEntry(summary: TranscriptSummary, entry: Record<string, unknown>): void {
+    if (entry.type === 'custom-title') summary.customTitle = text(entry.customTitle) ?? summary.customTitle;
+    else if (entry.type === 'ai-title') summary.aiTitle = text(entry.aiTitle) ?? summary.aiTitle;
+    summary.cwd = text(entry.cwd) ?? summary.cwd;
+    summary.branch = text(entry.gitBranch) ?? summary.branch;
+    summary.entrypoint ??= text(entry.entrypoint);
+    if (entry.type === 'user' && !summary.firstPrompt) summary.firstPrompt = promptText(entry);
 }
 
 /**

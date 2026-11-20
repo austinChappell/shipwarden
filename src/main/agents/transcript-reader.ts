@@ -27,8 +27,14 @@ export function transcriptPath(file: string, roots: readonly string[] = claudeDa
  * - A missing file gives no lines. Claude Code makes the file at the first prompt.
  * - An offset of -1 is the first read. It reads only the end of a long file.
  * - An incomplete last line stays for the next read.
+ * - A read reads at most `maxBytes` bytes. The next read gets the rest.
  */
-export async function readTranscript(file: string, offset: number, roots: readonly string[] = claudeDataRoots()): Promise<TranscriptChunk> {
+export async function readTranscript(
+    file: string,
+    offset: number,
+    roots: readonly string[] = claudeDataRoots(),
+    maxBytes = MAX_READ_BYTES
+): Promise<TranscriptChunk> {
     const resolved = transcriptPath(file, roots);
     const size = await fs.stat(resolved).then(
         stat => stat.size,
@@ -39,7 +45,7 @@ export async function readTranscript(file: string, offset: number, roots: readon
     const start = offset < 0 || offset > size ? Math.max(size - FIRST_READ_BYTES, 0) : offset;
     const truncated = (offset < 0 || offset > size) && start > 0;
     if (start >= size) return { lines: [], offset: start, truncated: false };
-    const end = Math.min(size, start + MAX_READ_BYTES);
+    const end = Math.min(size, start + maxBytes);
     const handle = await fs.open(resolved, 'r');
     try {
         const buffer = Buffer.alloc(end - start);

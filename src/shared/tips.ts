@@ -173,6 +173,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'view', view: 'agents', label: 'Open Agents' }
     },
     {
+        id: 'transcriptSearch',
+        title: 'Search all your agent sessions',
+        body: 'Type in "Search transcripts" in the Agents view to find the Claude Code sessions that mention a file or a word, for example "auth.ts". Filter by repository, model, and date.',
+        action: { kind: 'view', view: 'agents', label: 'Open Agents' }
+    },
+    {
         id: 'idleReason',
         title: 'See why an agent is idle',
         body: 'In the Agents view, move the pointer over the state of an agent. The tooltip tells why it does not work, for example "Waiting for a permission prompt" or "Waiting for CI".',

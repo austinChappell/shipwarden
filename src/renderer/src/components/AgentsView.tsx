@@ -32,7 +32,8 @@ import { runsAgent, type TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
 import { moveListFocus } from '../keyboard/list-nav';
 import { InlineTip } from './Tips';
-import { Button, Chip, Count, IconButton, PageHeader, type ChipTone } from './ui';
+import { Button, Chip, Count, FilterField, IconButton, PageHeader, type ChipTone } from './ui';
+import { TranscriptSearch } from './TranscriptSearch';
 import { OverlapChip } from './OverlapChip';
 import { useOverlaps } from '../git/overlap-query';
 import { overlapChipText } from '@shared/worktree-overlap';
@@ -150,6 +151,9 @@ export function AgentsView({
 }: Props) {
     const pins = usePinnedSessions();
     const recentSessions = useRecentSessions();
+    /** The text of the transcript search. While it has text, the view shows the search results. */
+    const [searchText, setSearchText] = useState('');
+    const searching = searchText.trim().length > 0;
     const [places, setPlaces] = useState<Record<string, Place>>({});
     const sessions = useAgentSessions(sessionList);
     const [now, setNow] = useState(Date.now());
@@ -286,6 +290,25 @@ export function AgentsView({
 
     const counts = countStates(rows.map(row => row.state));
 
+    /** Pins a session that has no pin. The agent gives the pin a name. */
+    const pinRecent = (session: RecentSession) => {
+        const repoPath = places[session.cwd]?.repo;
+        pinSession({
+            transcript: session.transcript,
+            cwd: session.cwd,
+            ...(repoPath ? { repoPath } : {}),
+            ...(session.branch ? { branch: session.branch } : {}),
+            fallbackName: session.name
+        })
+            .then(() => showToast('Session pinned', 'The agent is naming it. Find it in Pinned sessions.'))
+            .catch(error =>
+                showToast(
+                    'The session did not pin',
+                    error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(error)
+                )
+            );
+    };
+
     // The selected agents, by session ID. The IDs of agents that stopped stay in the set, but `selection` drops them.
     const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
     /** The last checkbox that the user clicked. A Shift-click selects the range from it. */
@@ -368,6 +391,14 @@ export function AgentsView({
                         </span>
                     )
                 }
+                filter={
+                    <FilterField
+                        value={searchText}
+                        onChange={setSearchText}
+                        placeholder="Search transcripts"
+                        label="Search the prompts, the agent text, and the files of all Claude Code sessions"
+                    />
+                }
                 primary={
                     <Button variant="primary" size="lg" icon={<Plus size={14} strokeWidth={2} aria-hidden="true" />} onClick={onStartAgent}>
                         Start agent
@@ -375,8 +406,21 @@ export function AgentsView({
                 }
             />
             <div className={`agents-scroll${selection.length > 0 ? ' has-selection' : ''}`} onKeyDown={moveListFocus}>
-                {agents.length > 0 && <InlineTip id="agents" />}
-                {agents.length === 0 && pins.length === 0 && recent.length === 0 && (
+                {searching && (
+                    <TranscriptSearch
+                        text={searchText}
+                        repos={allRepos}
+                        places={places}
+                        selectedPath={selectedPath}
+                        repoLabel={repoLabel}
+                        pins={pins}
+                        onResume={onResume}
+                        onResumeRecent={onResumeRecent}
+                        onPin={pinRecent}
+                    />
+                )}
+                {!searching && agents.length > 0 && <InlineTip id="agents" />}
+                {!searching && agents.length === 0 && pins.length === 0 && recent.length === 0 && (
                     <EmptyState
                         icon={Bot}
                         title="No agents running"
@@ -390,7 +434,7 @@ export function AgentsView({
                         Agents from every project show here with their state.
                     </EmptyState>
                 )}
-                {groups.map(group => {
+                {(searching ? [] : groups).map(group => {
                     const headingId = `agents-group-${group.id ?? 'other'}`;
                     const groupIds = group.rows.map(row => row.session.id);
                     const groupCount = groupIds.filter(id => selectedIds.has(id)).length;
@@ -534,31 +578,19 @@ export function AgentsView({
                         </section>
                     );
                 })}
-                <PinnedSessions pins={pins} places={places} selectedPath={selectedPath} repoLabel={repoLabel} onResume={onResume} />
-                <RecentSessions
-                    sessions={recent}
-                    places={places}
-                    selectedPath={selectedPath}
-                    repoLabel={repoLabel}
-                    onResume={onResumeRecent}
-                    onPin={session => {
-                        const repoPath = places[session.cwd]?.repo;
-                        pinSession({
-                            transcript: session.transcript,
-                            cwd: session.cwd,
-                            ...(repoPath ? { repoPath } : {}),
-                            ...(session.branch ? { branch: session.branch } : {}),
-                            fallbackName: session.name
-                        })
-                            .then(() => showToast('Session pinned', 'The agent is naming it. Find it in Pinned sessions.'))
-                            .catch(error =>
-                                showToast(
-                                    'The session did not pin',
-                                    error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(error)
-                                )
-                            );
-                    }}
-                />
+                {!searching && (
+                    <>
+                        <PinnedSessions pins={pins} places={places} selectedPath={selectedPath} repoLabel={repoLabel} onResume={onResume} />
+                        <RecentSessions
+                            sessions={recent}
+                            places={places}
+                            selectedPath={selectedPath}
+                            repoLabel={repoLabel}
+                            onResume={onResumeRecent}
+                            onPin={pinRecent}
+                        />
+                    </>
+                )}
             </div>
             {/* The bar floats above the list, so a click on a checkbox does not move the rows. */}
             {selection.length > 0 && (

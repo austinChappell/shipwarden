@@ -4,9 +4,10 @@ import { agentStartCommand } from '@shared/agent-modes';
 import { agentProgramOf } from '@shared/agent-programs';
 import { resumeCommand, sessionIdOf, type PinRequest, type ResumePlan } from '@shared/pinned-sessions';
 import type { AgentDefinition } from '@shared/settings';
+import type { TranscriptSearchQuery } from '@shared/transcript-search';
 import type { Services } from '../services';
 
-type PinIpcDependencies = Pick<Services, 'pinnedSessions' | 'recentSessions' | 'settings'>;
+type PinIpcDependencies = Pick<Services, 'pinnedSessions' | 'recentSessions' | 'transcriptIndex' | 'settings'>;
 
 /** Returns the agent that resumes a session: the agent with the ID, or else the first Claude Code agent. */
 async function resumeAgent(settings: Services['settings'], agentId?: string): Promise<AgentDefinition> {
@@ -17,8 +18,8 @@ async function resumeAgent(settings: Services['settings'], agentId?: string): Pr
     return agent;
 }
 
-/** Registers the IPC handlers of the pinned agent sessions and the recent agent sessions. */
-export function registerPinIpc({ pinnedSessions, recentSessions, settings }: PinIpcDependencies): void {
+/** Registers the IPC handlers of the pinned agent sessions, the recent agent sessions, and the transcript search. */
+export function registerPinIpc({ pinnedSessions, recentSessions, transcriptIndex, settings }: PinIpcDependencies): void {
     ipcMain.handle(IpcChannels.pinsList, () => pinnedSessions.list());
     ipcMain.handle(IpcChannels.pinsPin, (_event, request: PinRequest) => pinnedSessions.pin(request));
     ipcMain.handle(IpcChannels.pinsRename, (_event, id: unknown, name: unknown) => pinnedSessions.rename(String(id), String(name ?? '')));
@@ -37,6 +38,15 @@ export function registerPinIpc({ pinnedSessions, recentSessions, settings }: Pin
         }
     );
     ipcMain.handle(IpcChannels.recentSessionsList, () => recentSessions.list());
+    ipcMain.handle(IpcChannels.transcriptSearch, (_event, query: unknown) => {
+        const value = (query ?? {}) as Partial<TranscriptSearchQuery>;
+        return transcriptIndex.search({
+            text: String(value.text ?? ''),
+            folders: Array.isArray(value.folders) ? value.folders.map(String) : undefined,
+            model: typeof value.model === 'string' ? value.model : undefined,
+            since: typeof value.since === 'number' ? value.since : undefined
+        });
+    });
     ipcMain.handle(IpcChannels.recentSessionsPrepareResume, async (_event, transcript: unknown, target: { cwd?: unknown }): Promise<ResumePlan> => {
         const destination = await recentSessions.prepareResume(String(transcript ?? ''), String(target?.cwd ?? ''));
         const sessionId = sessionIdOf(destination);

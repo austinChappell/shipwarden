@@ -6047,6 +6047,63 @@ button:focus-visible,
     padding-top: 6px;
 }
 
+/* The transcript search (TranscriptSearch.tsx). It shows in place of the agent lists while the search field has text. */
+.transcript-search h2 svg {
+    color: var(--muted);
+}
+
+.transcript-search-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 400;
+}
+
+.transcript-search-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.transcript-search-repo {
+    width: 220px;
+}
+
+.transcript-search-snippet {
+    display: -webkit-box;
+    margin: -5px 0 0;
+    padding: 0 14px 11px 39px;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+/* The same mark as the search of the file palette (.search-text mark). */
+.transcript-search-snippet mark {
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--info) 32%, transparent);
+    color: var(--text-strong);
+}
+
+.transcript-search-kind {
+    margin-right: 6px;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.transcript-search-more {
+    white-space: nowrap;
+}
+
 /* The ShipWarden name and mark at the top of the sidebar */
 
 .brand {

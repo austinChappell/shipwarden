@@ -69,6 +69,20 @@ includes six: GitHub Issues, Linear, ClickUp, Azure Boards, Trello and Local tas
 plugin with the [ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch
 for a task and gives the task to a new agent.
 
+### Search all transcripts
+
+Type in **Search transcripts** in the header of the Agents view to search all your Claude Code sessions. Use it to
+answer questions such as "Which agent changed `auth.ts` last week, and why?" The search reads the prompts that you
+typed, the text of the agent, and the file paths of the tool calls. It does not read the tool output. Filter the results
+by repository, model, and date. Each result shows the session, the text around the match, and the time of the match.
+Click **Resume** to continue the session in its worktree, or use the menu to resume it in another worktree. A session
+that runs now opens its tab.
+
+ShipWarden keeps the search index in `transcript-index.db` in the app data folder. The index is an SQLite FTS5 table
+(the built-in `node:sqlite` module). It reads only the new lines of a changed transcript. At the first start, it reads
+all transcripts in the background, the newest first. The view shows "Indexing transcripts" until the index is ready.
+The search sends no network request.
+
 ### Agent stats
 
 Open **Stats** in the sidebar to see data that helps you choose agents and models. Select the last 7, 30, or 90 days,

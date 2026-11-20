@@ -204,6 +204,9 @@ const api: ShipWardenApi = {
         list: () => ipcRenderer.invoke(IpcChannels.recentSessionsList),
         prepareResume: (transcript, target) => ipcRenderer.invoke(IpcChannels.recentSessionsPrepareResume, transcript, target)
     },
+    transcriptSearch: {
+        search: query => ipcRenderer.invoke(IpcChannels.transcriptSearch, query)
+    },
     compare: {
         list: () => ipcRenderer.invoke(IpcChannels.compareList),
         save: group => ipcRenderer.invoke(IpcChannels.compareSave, group),

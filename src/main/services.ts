@@ -31,6 +31,7 @@ import { StatsStore } from './stats/stats-store';
 import { TokenCounter } from './automations/token-counter';
 import { PinnedSessions } from './agents/pinned-sessions';
 import { RecentSessions } from './agents/recent-sessions';
+import { TranscriptIndex } from './agents/transcript-index';
 import { printCommand } from '@shared/ask-agent';
 import { agentProgramOf } from '@shared/agent-programs';
 import { LEGACY_NAMES } from './legacy-migration';
@@ -187,6 +188,12 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     });
 
     /**
+     * The search index of the Claude Code transcripts (Agents view). It reads the new lines of a transcript at each agent
+     * state change and at each change that the chat watch sees. A scan finds the other transcripts.
+     */
+    const transcriptIndex = new TranscriptIndex({ file: join(userData, 'transcript-index.db') });
+
+    /**
      * Saves a git checkpoint of the worktree at each agent turn (Checkpoints tab). The work runs after the hook answered,
      * so it never delays the agent.
      */
@@ -236,6 +243,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 checkpoints.agentState(id, update);
                 // A resumed session can write its transcript in a new folder. The pin follows it.
                 void pinnedSessions.track(update.transcript).catch(() => undefined);
+                transcriptIndex.update(update.transcript);
                 remote.agentsChanged();
             }
         }
@@ -522,6 +530,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         pruneOldCheckpoints,
         pinnedSessions,
         recentSessions: new RecentSessions(),
+        transcriptIndex,
         confirm,
         hookPaths,
         shellIntegration,
