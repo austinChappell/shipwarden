@@ -46,6 +46,7 @@ import {
 import type { WorkflowRun } from '@shared/pipelines';
 import { matchesSearch, type RepoPullRequests } from '@shared/review-queue';
 import type { SourceHost } from '../source-host';
+import { commentOnAzure, uploadToAzure, type UploadFile } from '../screenshots/screenshot-upload';
 import { type AzureDevOpsClient, AzureError } from './azure-client';
 import {
     branchSummaries,
@@ -881,5 +882,14 @@ export class AzureDevOpsService implements SourceHost {
         const data = await this.client.request<AzList<{ name: string }>>('GET', `${repo.api}/refs?filter=heads/&$top=300`);
         const names = data.value.map(item => fromRefName(item.name)).filter(name => name !== repo.defaultBranch);
         return [repo.defaultBranch, ...names];
+    }
+
+    /** Uploads the images as attachments of the pull request and adds a comment thread with them. */
+    async postScreenshots(target: RepoTarget, number: number, files: UploadFile[], body: (urls: string[]) => string): Promise<string | undefined> {
+        const repo = await this.resolve(target);
+        const prApi = this.prApi(repo, number);
+        const urls = await uploadToAzure(this.client, prApi, files);
+        await commentOnAzure(this.client, prApi, body(urls));
+        return undefined;
     }
 }

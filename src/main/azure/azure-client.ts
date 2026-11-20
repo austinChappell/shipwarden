@@ -81,6 +81,12 @@ export class AzureDevOpsClient {
         return (type.includes('json') ? await response.json() : await response.text()) as T;
     }
 
+    /** Sends the bytes of a file, for example a pull request attachment. Returns the parsed JSON of the response. */
+    async upload<T>(url: string, data: Uint8Array, contentType = 'application/octet-stream'): Promise<T> {
+        const response = await this.fetch('POST', url, data, 'application/json', contentType);
+        return (await response.json()) as T;
+    }
+
     /** Returns the raw text of a response, for example a log or a file at a commit. */
     async text(url: string, accept = 'text/plain'): Promise<string> {
         const response = await this.fetch('GET', url, undefined, accept);
@@ -124,7 +130,8 @@ export class AzureDevOpsClient {
                     'X-TFS-FedAuthRedirect': 'Suppress',
                     ...(body === undefined ? {} : { 'Content-Type': contentType })
                 },
-                body: body === undefined ? undefined : JSON.stringify(body)
+                // Bytes go as they are. Other values go as JSON.
+                body: body === undefined ? undefined : body instanceof Uint8Array ? body : JSON.stringify(body)
             });
         } catch (error) {
             throw new AzureError(`ShipWarden cannot connect to Azure DevOps: ${networkErrorDetail(error)}`, 0);

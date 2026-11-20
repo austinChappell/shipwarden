@@ -15,6 +15,7 @@ import { isAgentMode, type AgentMode } from './agent-modes';
 import { DEFAULT_REVIEW_STRICTNESS, isReviewStrictness, type ReviewStrictness } from './review-strictness';
 import { DEFAULT_DRAFT_SETTINGS, normalizeDraftSettings, normalizeRepoDraftSettings, type DraftSettings, type RepoDraftSettings } from './drafts';
 import { DEFAULT_USAGE_BUDGET, normalizeUsageBudget, type UsageBudget } from './usage';
+import { normalizeScreenshotSettings, type ScreenshotSettings } from './screenshots';
 
 /**
  * An agent that the Agent button can start, for example Claude Code. The command runs in an interactive login shell,
@@ -62,6 +63,8 @@ export interface RepoSettings {
     drafts?: RepoDraftSettings;
     /** The default strictness of an agent review of a pull request of this repository. A missing value uses the global setting. */
     reviewStrictness?: ReviewStrictness;
+    /** The preview URL and the pages for the screenshots of visual changes. */
+    screenshots?: ScreenshotSettings;
 }
 
 /** A saved script of a repository, for example "npm test". */
@@ -335,6 +338,8 @@ function normalizeRepos(value: unknown, agents: AgentDefinition[]): Record<strin
         const drafts = normalizeRepoDraftSettings(entry.drafts);
         if (drafts) settings.drafts = drafts;
         if (isReviewStrictness(entry.reviewStrictness)) settings.reviewStrictness = entry.reviewStrictness;
+        const screenshots = normalizeScreenshotSettings(entry.screenshots);
+        if (screenshots) settings.screenshots = screenshots;
         if (Object.keys(settings).length > 0) repos[repo] = settings;
     }
     return repos;

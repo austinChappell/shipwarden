@@ -1645,6 +1645,8 @@ export function App() {
                                     onOpenAllChanges={openAllChanges}
                                     // The Review view needs a provider that is on, so the button needs one.
                                     onOpenInReview={reviewKey ? (repo, pr) => openPullRequest(repo, pr.number, 'overview') : undefined}
+                                    screenshotSettings={selectedRepo ? appSettings.repos[selectedRepo]?.screenshots : undefined}
+                                    onOpenRepoSettings={selectedRepo ? () => openSettings(`repo:${selectedRepo}`) : undefined}
                                 />
                             )}
                             {cloneOpen && activeProject && (

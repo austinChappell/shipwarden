@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { onExplorerFocusRequest } from '../files/explorer-focus';
-import { CircleCheck, Files, GitCommitVertical, GitPullRequest, History, Plug, Workflow } from 'lucide-react';
+import { Camera, CircleCheck, Files, GitCommitVertical, GitPullRequest, History, Plug, Workflow } from 'lucide-react';
 import type { CheckRun, DiffSide, PullRequest, PullRequestFile, RepoRef } from '@shared/github';
 import type { BranchStatusState } from '../github/use-branch-status';
 import { ChecksPanel } from './ChecksPanel';
@@ -12,9 +12,11 @@ import { changeCount, type ChangeSide, type FileChange } from '@shared/git';
 import { useGitChanges } from '../git/git-store';
 import { PullRequestPanel } from './PullRequestPanel';
 import { CheckpointsPanel } from '../checkpoints/CheckpointsPanel';
+import { ScreenshotsPanel } from '../screenshots/ScreenshotsPanel';
+import type { ScreenshotSettings } from '@shared/screenshots';
 import { moveTabFocus } from '../tablist';
 
-export type PanelTab = 'files' | 'changes' | 'pr' | 'checks' | 'pipelines' | 'processes' | 'checkpoints';
+export type PanelTab = 'files' | 'changes' | 'pr' | 'checks' | 'pipelines' | 'processes' | 'checkpoints' | 'screenshots';
 const TAB_STORAGE_KEY = 'shipwarden.rightPanelTab';
 
 interface Props {
@@ -43,6 +45,10 @@ interface Props {
     onOpenInReview?(repo: RepoRef, pr: PullRequest): void;
     /** The buttons of the manual pull request automations. The PR tab shows them under the header. */
     renderPrAutomations?(pr: PullRequest): ReactNode;
+    /** The screenshot settings of the repository, for the Screenshots tab. */
+    screenshotSettings?: ScreenshotSettings;
+    /** Opens the settings of the repository. */
+    onOpenRepoSettings?(): void;
 }
 
 /** True when the text is the name of a tab of the right panel. */
@@ -54,7 +60,8 @@ export function isPanelTab(value: string | undefined): value is PanelTab {
         value === 'checks' ||
         value === 'pipelines' ||
         value === 'processes' ||
-        value === 'checkpoints'
+        value === 'checkpoints' ||
+        value === 'screenshots'
     );
 }
 
@@ -139,6 +146,7 @@ export function RightPanel(props: Props) {
                 {tabButton('pipelines', 'Pipelines of this repository', <Workflow size={17} strokeWidth={1.5} />)}
                 {tabButton('processes', 'Processes and ports', <Plug size={17} strokeWidth={1.5} />)}
                 {tabButton('checkpoints', 'Checkpoints of the agent turns', <History size={17} strokeWidth={1.5} />)}
+                {tabButton('screenshots', 'Screenshots of visual changes', <Camera size={17} strokeWidth={1.5} />)}
             </div>
             {tab === 'files' && (
                 <FileExplorer
@@ -185,6 +193,16 @@ export function RightPanel(props: Props) {
                 <PipelinesPanel key={props.root} root={props.root} branch={git.changes?.branch} onSendLogToAgent={props.onSendLogToAgent} />
             )}
             {tab === 'checkpoints' && <CheckpointsPanel key={props.root} worktreePath={props.root} />}
+            {tab === 'screenshots' && (
+                <ScreenshotsPanel
+                    key={props.root}
+                    worktreePath={props.root}
+                    settings={props.screenshotSettings}
+                    pullRequest={pr ?? undefined}
+                    hostKind={status?.host}
+                    onOpenRepoSettings={props.onOpenRepoSettings}
+                />
+            )}
             {tab === 'processes' && <ProcessesPanel key={props.root} worktreePath={props.root} onShowTerminal={props.onShowTerminal} />}
             {tab === 'checks' && <ChecksPanel key={props.root} target={props.root} status={props.github.status} onSendLogToAgent={props.onSendLogToAgent} />}
         </aside>
