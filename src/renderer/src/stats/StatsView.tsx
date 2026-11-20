@@ -93,7 +93,11 @@ export function StatsView() {
                                 value={formatShare(total.needsInputShare)}
                                 note={total.agentMs ? `Of ${durationText(total.agentMs)} of agent time` : 'No agent states'}
                             />
-                            <StatTile label="Time blocked on CI" value={formatShare(total.blockedCiShare)} note="The agent is done, and CI is running or failed" />
+                            <StatTile
+                                label="Time blocked on CI"
+                                value={formatShare(total.blockedCiShare)}
+                                note="The agent is done, and CI is running or failed"
+                            />
                             <StatTile
                                 label="First push fails CI"
                                 value={formatShare(total.firstPushFailRate)}
