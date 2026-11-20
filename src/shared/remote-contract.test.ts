@@ -70,7 +70,8 @@ const fullSnapshot: DeepRequired<RemoteSnapshot> = {
             message: 'Claude needs your permission to use Bash',
             prompt: 'Fix the login page',
             stateAt: 1767225600000,
-            exited: false
+            exited: false,
+            reason: 'Waiting for a permission prompt'
         }
     ]
 };

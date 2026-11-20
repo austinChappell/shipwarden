@@ -172,6 +172,11 @@ export interface RemoteAgent {
     prompt?: string;
     stateAt?: number;
     exited: boolean;
+    /**
+     * Why the agent does not work, for example "Waiting for a permission prompt" or "Waiting for CI".
+     * Undefined while the agent works or starts. Older Macs do not send it.
+     */
+    reason?: string;
 }
 
 export interface RemoteSnapshot {

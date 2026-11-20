@@ -57,6 +57,10 @@ export class TerminalManager {
         }
         session.agentState = change.state;
         session.agentMessage = change.message;
+        session.agentWaitFor = change.state === 'waiting' ? change.waitFor : undefined;
+        if (change.model) {
+            session.agentModel = change.model;
+        }
         if (change.prompt) {
             session.agentPrompt = change.prompt;
         }
@@ -68,6 +72,8 @@ export class TerminalManager {
             message: change.message,
             prompt: session.agentPrompt,
             at: session.agentStateAt,
+            ...(session.agentWaitFor ? { waitFor: session.agentWaitFor } : {}),
+            ...(session.agentModel ? { model: session.agentModel } : {}),
             ...(session.agentTranscript ? { transcript: session.agentTranscript } : {})
         });
     }
@@ -144,7 +150,14 @@ export class TerminalManager {
             if (session.agentState && session.agentState !== 'exited') {
                 session.agentState = 'exited';
                 session.agentStateAt = Date.now();
-                this.events.agentState(session.id, { state: 'exited', prompt: session.agentPrompt, at: session.agentStateAt });
+                session.agentWaitFor = undefined;
+                this.events.agentState(session.id, {
+                    state: 'exited',
+                    prompt: session.agentPrompt,
+                    at: session.agentStateAt,
+                    ...(session.agentModel ? { model: session.agentModel } : {}),
+                    ...(session.agentTranscript ? { transcript: session.agentTranscript } : {})
+                });
             }
             this.events.exit(session.id, exitCode);
         });

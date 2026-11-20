@@ -17,7 +17,7 @@ import {
 } from '@shared/remote';
 import { runsAgent, type TerminalReplay, type TerminalSession } from '@shared/terminal';
 import type { RemoteDevices } from './remote-devices';
-import { agentOf } from './remote-snapshot';
+import { agentOf, checkOf, checksByWorktree } from './remote-snapshot';
 import { ScreenMirror } from './screen-mirror';
 import type { TlsIdentity } from './tls-identity';
 
@@ -108,6 +108,8 @@ export class RemoteServer {
     private fingerprint: string | undefined;
     private readonly eventStreams = new Set<Stream>();
     private readonly mirrors = new Map<string, MirrorEntry>();
+    /** The check state of the pull request of each worktree, from the last snapshot. */
+    private checks: ReadonlyMap<string, string | null> = new Map();
     private keepalive: NodeJS.Timeout | undefined;
     private agentsTimer: NodeJS.Timeout | undefined;
 
@@ -340,15 +342,21 @@ export class RemoteServer {
     }
 
     private async snapshot(): Promise<RemoteSnapshot> {
+        const snapshot = await this.options.backend.snapshot();
+        // The agent updates between two snapshots use these checks for the idle reasons.
+        this.checks = checksByWorktree(snapshot.projects);
         return {
             protocol: REMOTE_PROTOCOL,
             mac: { name: this.options.backend.macName(), version: this.options.backend.version },
-            ...(await this.options.backend.snapshot())
+            ...snapshot
         };
     }
 
     private async agents(): Promise<RemoteAgent[]> {
-        return (await this.options.backend.sessions()).filter(session => session.isAgent || runsAgent(session)).map(agentOf);
+        const now = Date.now();
+        return (await this.options.backend.sessions())
+            .filter(session => session.isAgent || runsAgent(session))
+            .map(session => agentOf(session, checkOf(this.checks, session), now));
     }
 
     private async sendAgents(): Promise<void> {

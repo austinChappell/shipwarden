@@ -54,6 +54,15 @@ Claude and Codex. For Claude Code, each row also shows the tokens of the agent s
 header shows the tokens of the running agents since midnight. ShipWarden reads these counts from
 the Claude Code transcripts. Codex and the other agents show no token count.
 
+Move the pointer over the state of an agent to see why it does not work. Examples are "Waiting for a permission
+prompt", "The agent is asking a question", "Waiting for your reply", "Waiting for CI", and "The process stopped". The
+iPhone app shows the same reason below the agent name.
+
+ShipWarden writes a small event log for the agent stats to `agent-stats.jsonl` in the app data folder. It adds one
+line at each agent state change, each pull request merge in ShipWarden, and each "Keep this one" in Compare agents.
+The log has no prompts and no code. ShipWarden removes the lines older than 90 days at start. A later Stats view reads
+the log.
+
 When two worktrees of a repository change the same file, ShipWarden shows a warning before GitHub reports a merge
 conflict. The Agents view and the Changes tab show a chip such as "Also changed in feat-login". Hover over the chip, or
 click it in the Changes tab, to see the files. ShipWarden compares the commits since the default branch, the staged

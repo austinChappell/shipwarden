@@ -42,8 +42,20 @@ export type HookEvent = (typeof HOOK_EVENTS)[number];
 export const GEMINI_HOOK_EVENTS = ['SessionStart', 'BeforeAgent', 'BeforeTool', 'AfterTool', 'Notification', 'AfterAgent', 'SessionEnd'] as const;
 export type GeminiHookEvent = (typeof GEMINI_HOOK_EVENTS)[number];
 
+/**
+ * What a waiting agent waits for. The notification of the hooks tells it.
+ * - permission: the agent asks for a permission, for example to run a command.
+ * - question: the agent asks the user a question.
+ * - input: the agent needs the user, and the hook does not tell why.
+ */
+export type AgentWaitKind = 'permission' | 'question' | 'input';
+
 export interface AgentStateChange {
     state: AgentState;
+    /** What the agent waits for. Only the "waiting" state has it. */
+    waitFor?: AgentWaitKind;
+    /** The model of the agent, for example "claude-sonnet-4-5". Only some hook events tell it. */
+    model?: string;
     /**
      * A short text for the UI and for notifications: what the agent does now (for example "Editing App.tsx"),
      * the question that it asks, or its last message.
@@ -198,8 +210,38 @@ function toolChange(payload: Record<string, unknown>): AgentStateChange {
  */
 export function agentStateFromHook(event: string, payload: Record<string, unknown>, current?: AgentState): AgentStateChange | undefined {
     const change = stateChangeOf(event, payload, current);
+    if (!change) return undefined;
     const transcript = payload.transcript_path;
-    return change && typeof transcript === 'string' && transcript.endsWith('.jsonl') ? { ...change, transcript } : change;
+    const model = modelOf(payload.model);
+    return {
+        ...change,
+        ...(typeof transcript === 'string' && transcript.endsWith('.jsonl') ? { transcript } : {}),
+        ...(model ? { model } : {})
+    };
+}
+
+/** Reads the model of a hook payload. The value is a model ID, or an object with an "id" field. */
+function modelOf(value: unknown): string | undefined {
+    if (value && typeof value === 'object') return modelOf((value as Record<string, unknown>).id);
+    return text(value) ? oneLine(text(value)!, 80) : undefined;
+}
+
+/**
+ * Gives what a waiting agent waits for, from the type of its notification.
+ * Claude Code and opencode send "permission_prompt", and Gemini CLI sends "ToolPermission", for a permission.
+ * Claude Code sends "elicitation_dialog", and opencode sends "question", for a question.
+ */
+export function waitKindOf(notificationType: unknown): AgentWaitKind {
+    switch (notificationType) {
+        case 'permission_prompt':
+        case 'ToolPermission':
+            return 'permission';
+        case 'elicitation_dialog':
+        case 'question':
+            return 'question';
+        default:
+            return 'input';
+    }
 }
 
 function stateChangeOf(event: string, payload: Record<string, unknown>, current?: AgentState): AgentStateChange | undefined {
@@ -229,7 +271,7 @@ function stateChangeOf(event: string, payload: Record<string, unknown>, current?
                 return undefined;
             }
             // Other types, for example "permission_prompt", wait for the user.
-            return { state: 'waiting', message: text(payload.message) ?? 'The agent needs your input.' };
+            return { state: 'waiting', waitFor: waitKindOf(type), message: text(payload.message) ?? 'The agent needs your input.' };
         }
         case 'Stop':
             return { state: 'done', message: text(payload.last_assistant_message) };

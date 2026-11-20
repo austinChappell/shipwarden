@@ -144,6 +144,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'view', view: 'agents', label: 'Open Agents' }
     },
     {
+        id: 'idleReason',
+        title: 'See why an agent is idle',
+        body: 'In the Agents view, move the pointer over the state of an agent. The tooltip tells why it does not work, for example "Waiting for a permission prompt" or "Waiting for CI".',
+        action: { kind: 'view', view: 'agents', label: 'Open Agents' }
+    },
+    {
         id: 'phone',
         title: 'See your agents on your phone',
         body: 'Pair the ShipWarden iPhone app in Settings › Mobile. Then you can see your agents when you are away from your Mac.',

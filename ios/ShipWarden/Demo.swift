@@ -19,13 +19,13 @@ final class DemoState {
         agents = [
             RemoteAgent(id: "demo-login", title: "Claude", worktreePath: "/demo/web-app-login", cwd: "/demo/web-app-login",
                         state: .waiting, message: "Claude needs your permission to use Bash", prompt: "Fix the login redirect loop",
-                        stateAt: now - 95_000, exited: false),
+                        stateAt: now - 95_000, exited: false, reason: "Waiting for a permission prompt"),
             RemoteAgent(id: "demo-search", title: "Claude", worktreePath: "/demo/web-app-search", cwd: "/demo/web-app-search",
                         state: .working, message: "Running npm test", prompt: "Add fuzzy search to the command bar",
                         stateAt: now - 40_000, exited: false),
             RemoteAgent(id: "demo-api", title: "Claude", worktreePath: "/demo/api", cwd: "/demo/api",
                         state: .done, message: "I updated the rate limiter and added two tests.", prompt: "Tighten the rate limiter",
-                        stateAt: now - 640_000, exited: false)
+                        stateAt: now - 640_000, exited: false, reason: "Waiting for your reply")
         ]
         snapshot = RemoteSnapshot(
             protocol: remoteProtocol,

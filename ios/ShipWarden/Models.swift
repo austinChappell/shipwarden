@@ -43,6 +43,8 @@ struct RemoteAgent: Codable, Identifiable, Equatable {
     /// The time of the last state change, in milliseconds.
     let stateAt: Double?
     let exited: Bool
+    /// Why the agent does not work, for example "Waiting for CI". Older Macs do not send it.
+    var reason: String? = nil
 
     var stateDate: Date? { stateAt.map { Date(timeIntervalSince1970: $0 / 1000) } }
 }

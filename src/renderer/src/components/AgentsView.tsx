@@ -11,6 +11,7 @@ import {
     compareOverview,
     countStates,
     formatElapsed,
+    idleReasonText,
     lastActivityAt,
     OVERVIEW_LABELS,
     overviewState,
@@ -82,6 +83,8 @@ interface Row {
     pr: BranchSummary | undefined;
     ci: CiState | undefined;
     state: OverviewState;
+    /** Why the agent does not work, for the tooltip of the state chip. Undefined while it works or starts. */
+    reason: string | undefined;
     lastOutputAt: number | undefined;
     activityAt: number | undefined;
     /** The tokens of the agent session. Undefined when the agent writes no Claude Code transcript. */
@@ -224,6 +227,15 @@ export function AgentsView({
                     pr,
                     ci,
                     state: overviewState({ agentState: session.agentState, ci, lastOutputAt, now }),
+                    reason: idleReasonText({
+                        agentState: session.agentState,
+                        waitFor: session.agentWaitFor,
+                        ci,
+                        lastOutputAt,
+                        now,
+                        exited: session.exited,
+                        exitCode: session.exitCode
+                    }),
                     lastOutputAt,
                     activityAt: lastActivityAt(lastOutputAt, session.agentStateAt),
                     tokens: session.agentTranscript ? tokensByTranscript[session.agentTranscript] : undefined
@@ -420,6 +432,7 @@ export function AgentsView({
                                     // A narrow list hides the activity and the tokens. The chip tooltip gives them.
                                     const chipTitle =
                                         [
+                                            row.reason && `${row.reason}.`,
                                             activity,
                                             tokens && tokensTitle(tokens),
                                             shared && shared.tokens > 0 && `All agents in this worktree: ${tokensText(shared)}.`
@@ -449,6 +462,7 @@ export function AgentsView({
                                                 aria-label={[
                                                     name,
                                                     label,
+                                                    row.reason,
                                                     activity,
                                                     tokens && tokensText(tokens),
                                                     prText,

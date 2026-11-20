@@ -47,7 +47,7 @@ export interface TerminalSettings {
 }
 
 import type { AgentProgram } from './agent-programs';
-import type { AgentState } from './agents';
+import type { AgentState, AgentWaitKind } from './agents';
 
 /** A terminal process in the main process. */
 export interface TerminalSession {
@@ -78,6 +78,10 @@ export interface TerminalSession {
     agentPrompt?: string;
     /** The transcript file of a Claude Code session, from its hooks. */
     agentTranscript?: string;
+    /** What a waiting agent waits for, from its hooks. Only the "waiting" state has it. */
+    agentWaitFor?: AgentWaitKind;
+    /** The model of the agent, from its hooks. Only some agents tell it. */
+    agentModel?: string;
     /** The time of the last state change, in milliseconds. */
     agentStateAt?: number;
     /** The agent program that runs in a shell tab, for example `claude` that the user typed. The app finds it in the process table. */
