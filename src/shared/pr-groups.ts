@@ -3,7 +3,7 @@ import { extractJson, fileDiffs, MAX_REVIEW_PATCH, readReview, type ParsedReview
 import { parseAzureRemote } from './azure-devops';
 import { DEFAULT_REVIEW_STRICTNESS, strictnessInstructions, type ReviewStrictness } from './review-strictness';
 import { pluralize } from './format';
-import { repoId, type RepoRef } from './github';
+import { parsePullRequestUrl, repoId, type RepoRef } from './github';
 
 /**
  * PR groups: a saved list of pull requests that an agent reviews together. The pull requests can be in different
@@ -151,6 +151,7 @@ function uniquePullRequests(list: GroupPullRequest[]): GroupPullRequest[] {
  * - https://github.com/{owner}/{name}/pull/{number}
  * - https://dev.azure.com/{org}/{project}/_git/{repo}/pullrequest/{number}
  * - https://{org}.visualstudio.com/{project}/_git/{repo}/pullrequest/{number}
+ * - https://{gitlab host}/{group}/{project}/-/merge_requests/{number}
  * - {owner}/{name}#{number}
  */
 export function parsePullRequestLink(text: string): { repo: RepoRef; number: number } | undefined {
@@ -162,6 +163,10 @@ export function parsePullRequestLink(text: string): { repo: RepoRef; number: num
         const azure = parseAzureRemote(match[1]);
         if (azure) return pullRequestOf({ owner: `${azure.organization}/${azure.project}`, name: azure.repository, host: 'azure' }, match[2]);
         return undefined;
+    }
+    if (/\/-\/merge_requests\/\d+/.test(value)) {
+        const gitlab = parsePullRequestUrl(value);
+        return gitlab?.repo.host === 'gitlab' ? { repo: gitlab.repo, number: gitlab.number } : undefined;
     }
     match = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)#(\d+)$/.exec(value);
     if (match) return pullRequestOf({ owner: match[1], name: match[2] }, match[3]);
@@ -194,7 +199,7 @@ function repoOf(value: unknown): RepoRef | undefined {
     const owner = text(raw.owner, 400)?.trim();
     const name = text(raw.name, 400)?.trim();
     if (!owner || !name) return undefined;
-    return raw.host === 'azure' ? { owner, name, host: 'azure' } : { owner, name };
+    return raw.host === 'azure' || raw.host === 'gitlab' ? { owner, name, host: raw.host } : { owner, name };
 }
 
 function groupPullRequestOf(value: unknown): GroupPullRequest | undefined {

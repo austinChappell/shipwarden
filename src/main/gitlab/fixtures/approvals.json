@@ -1,0 +1,36 @@
+{
+    "id": 245881,
+    "iid": 42,
+    "project_id": 3471,
+    "title": "Draft: Add rate limits to the public API",
+    "description": "Adds a token bucket per API key.\n\nCloses #17.",
+    "state": "opened",
+    "created_at": "2026-11-12T09:14:03.211Z",
+    "updated_at": "2026-11-14T16:40:51.032Z",
+    "merge_status": "can_be_merged",
+    "approved": false,
+    "approvals_required": 2,
+    "approvals_left": 1,
+    "require_password_to_approve": false,
+    "approved_by": [
+        {
+            "user": {
+                "id": 202,
+                "username": "lee",
+                "name": "Lee Park",
+                "state": "active",
+                "avatar_url": "https://secure.gravatar.com/avatar/1b2c?s=80&d=identicon",
+                "web_url": "https://gitlab.com/lee"
+            }
+        }
+    ],
+    "suggested_approvers": [],
+    "approvers": [],
+    "approver_groups": [],
+    "user_has_approved": false,
+    "user_can_approve": true,
+    "approval_rules_left": [],
+    "has_approval_rules": true,
+    "merge_request_approvers_available": true,
+    "multiple_approval_rules_available": true
+}

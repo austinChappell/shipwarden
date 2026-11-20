@@ -39,7 +39,7 @@ export function isSafeAzurePart(value: string): boolean {
 
 /** True when the name of the repository can be a folder name. */
 export function isSafeRepoName(repo: Pick<RepoRef, 'name' | 'host'>): boolean {
-    return repo.host === 'azure' ? isSafeAzurePart(repo.name) : isSafeRepoPart(repo.name);
+    return repo.host === 'azure' || repo.host === 'gitlab' ? isSafeAzurePart(repo.name) : isSafeRepoPart(repo.name);
 }
 
 /**
@@ -56,6 +56,15 @@ export function checkRepoRef(value: unknown): RepoRef {
             throw new Error(`"${owner}/${name}" is not a valid Azure Repos repository name.`);
         }
         return { owner, name, host: 'azure' };
+    }
+    if (repo?.host === 'gitlab') {
+        // The owner is "server host/namespace". The host can have a port, for example "git.example.com:8443".
+        const [server, ...groups] = owner.split('/');
+        const validServer = /^[A-Za-z0-9.-]+(?::\d+)?$/.test(server ?? '');
+        if (!validServer || groups.length === 0 || !groups.every(isSafeRepoPart) || !isSafeRepoPart(name)) {
+            throw new Error(`"${owner}/${name}" is not a valid GitLab project name.`);
+        }
+        return { owner, name, host: 'gitlab' };
     }
     if (!isSafeRepoPart(owner) || !isSafeRepoPart(name)) {
         throw new Error(`"${owner}/${name}" is not a valid repository name.`);
@@ -86,5 +95,6 @@ export function checkCommitSha(value: unknown): string {
  * Owner and name are in lowercase.
  */
 export function reviewCheckoutKey(repo: RepoRef, number: number): string {
-    return `${repo.host === 'azure' ? 'azure:' : ''}${repo.owner.toLowerCase()}/${repo.name.toLowerCase()}#${number}`;
+    const prefix = repo.host === 'azure' ? 'azure:' : repo.host === 'gitlab' ? 'gitlab:' : '';
+    return `${prefix}${repo.owner.toLowerCase()}/${repo.name.toLowerCase()}#${number}`;
 }

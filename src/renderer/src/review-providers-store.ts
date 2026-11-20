@@ -60,7 +60,16 @@ export function reviewScopeKey(providers: ReviewProviderInfo[] | undefined): str
     if (!providers) return undefined;
     const enabled = providers.filter(provider => provider.enabled);
     if (enabled.length === 0) return null;
-    return JSON.stringify(enabled.map(provider => [provider.id, provider.kind, provider.scope ?? null, provider.cliAccount ?? null, provider.tokenSaved]));
+    return JSON.stringify(
+        enabled.map(provider => [
+            provider.id,
+            provider.kind,
+            provider.scope ?? null,
+            provider.cliAccount ?? null,
+            provider.baseUrl ?? null,
+            provider.tokenSaved
+        ])
+    );
 }
 
 /** The provider with the change. Null removes the scope or the CLI account. */
@@ -75,6 +84,12 @@ export function applyProviderChange(provider: ReviewProviderInfo, change: Review
         if (account) next.cliAccount = account;
         else delete next.cliAccount;
     }
+    if (change.baseUrl !== undefined) {
+        // The main process cleans the URL. The list loads again after its change event and gets the clean URL.
+        const url = change.baseUrl?.trim().replace(/\/+$/, '');
+        if (url && url !== 'https://gitlab.com') next.baseUrl = url;
+        else delete next.baseUrl;
+    }
     return next;
 }
 
@@ -85,7 +100,7 @@ export function applyProviderChange(provider: ReviewProviderInfo, change: Review
 export function changeAffectsRepos(provider: ReviewProviderInfo | undefined, change: ReviewProviderChange): boolean {
     if (change.enabled !== undefined && change.enabled !== provider?.enabled) return true;
     if (provider && !provider.enabled) return false;
-    return change.scope !== undefined || change.cliAccount !== undefined;
+    return change.scope !== undefined || change.cliAccount !== undefined || change.baseUrl !== undefined;
 }
 
 /**
@@ -114,7 +129,7 @@ export function providerChanged(client: QueryClient, provider: ReviewProviderInf
     client.setQueryData<ReviewProviderInfo[]>(reviewProviderKeys.list, list =>
         list?.map(item => (item.id === provider.id ? applyProviderChange(item, change) : item))
     );
-    if (change.cliAccount !== undefined) invalidateAuth(client, provider.id);
+    if (change.cliAccount !== undefined || change.baseUrl !== undefined) invalidateAuth(client, provider.id);
     if (changeAffectsRepos(provider, change)) invalidateRepoData(client);
 }
 

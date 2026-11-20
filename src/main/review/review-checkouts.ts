@@ -263,9 +263,17 @@ export class ReviewCheckouts {
         return path.join(this.repoFolder(repo), 'repo');
     }
 
-    /** The folder of a repository: <folder>/<owner>/<name>, or <folder>/azure/<organization>/<project>/<name> for Azure Repos. */
+    /**
+     * The folder of a repository: <folder>/<owner>/<name>, <folder>/azure/<organization>/<project>/<name> for Azure Repos,
+     * or <folder>/gitlab/<server>/<groups…>/<name> for GitLab. A ":" of a server port becomes "_".
+     */
     private repoFolder(repo: Pick<RepoRef, 'owner' | 'name' | 'host'>): string {
-        const parts = repo.host === 'azure' ? ['azure', ...repo.owner.split('/'), repo.name] : [repo.owner, repo.name];
+        const parts =
+            repo.host === 'azure'
+                ? ['azure', ...repo.owner.split('/'), repo.name]
+                : repo.host === 'gitlab'
+                  ? ['gitlab', ...repo.owner.replace(/:/g, '_').split('/'), repo.name]
+                  : [repo.owner, repo.name];
         return path.join(this.options.folder, ...parts.map(part => part.toLowerCase()));
     }
 

@@ -1149,6 +1149,46 @@ Next:
 - Not available for Azure: the Review view and the Pipelines view (they list GitHub repositories), the Dashboard,
   assignees, the label list, and a stored "viewed" state (it stays in memory until the app quits).
 
+#### GitLab
+
+- `GitLabService` (`main/gitlab/`) implements `SourceHost` for one GitLab server: gitlab.com or a self-hosted server.
+  A provider of kind `gitlab` has an optional `baseUrl` (empty means `https://gitlab.com`). Its scope is a list of
+  group paths. A group includes its subgroups (`inGroups`).
+- References: the owner of a GitLab `RepoRef` is "server host/namespace", for example `gitlab.com/acme/platform`, and
+  `host` is `gitlab`. The namespace has all subgroups. The API ID of a project is the full path, URL-encoded
+  (`gitlabProjectId`). Repository IDs start with `gitlab:`.
+- Remotes (`parseGitLabRemote`): `git@{host}:{path}.git`, `ssh://git@{host}[:port]/{path}.git` and
+  `https://[user@]{host}[:port][/folder]/{path}.git`. gitlab.com is always a server. The other servers come from the
+  `baseUrl` of the GitLab providers. SSH remotes match the server by its host name only.
+- Routing: a worktree with a remote on a GitLab server goes to a GitLab provider of that server. `pickProvider` then
+  selects by the top group, the same as an organization.
+- Token (`GitLabClient`): the saved personal access token, else `GITLAB_TOKEN` (only for gitlab.com), else the glab
+  CLI (`glab config get token --host`, then `glab auth token --hostname`). The client sends `Authorization: Bearer`, so
+  a personal access token and an OAuth token of glab both work. It uses the global fetch after `networkReady`, so the
+  trusted certificates of Settings › Network apply. `all` reads the pages with the `x-next-page` header.
+- Mapping (`main/gitlab/gitlab-mapping.ts`):
+  - A merge request is a pull request. `detailed_merge_status` gives the merge state (for example `need_rebase` is
+    BEHIND, `not_approved` is BLOCKED). Older servers have only `merge_status`.
+  - Approvals (`/approvals`) are the reviews. The decision is "approved" when no approvals are left, else "review
+    required" when approvals are required or reviewers are set. The review buttons are Comment and Approve. After an
+    approval, Approve becomes "Revoke approval" (`UNAPPROVE`, `POST /unapprove`). The cache swaps the button.
+  - Discussions with a `DiffNote` position are review threads. A thread on an older head commit is outdated. Other
+    notes are the conversation. System notes stay out. Each comment of a thread has the ID of its first note as
+    `databaseId`. A reply finds the discussion of that note.
+  - A new diff comment sends a position with the `base_sha`, `start_sha` and `head_sha` of `diff_refs`. A line without
+    a change needs both `old_line` and `new_line` (`diffLinePosition` reads them from the patch).
+  - Files come from `/diffs` (GitLab 15.7 and later), else from `/changes`. The patch gives the line counts.
+  - Each job of the newest pipeline of the commit is one check, with the pipeline as its run. The name is
+    "stage › job". A manual job is "skipped". A failed job that is allowed to fail is "neutral". The log is the job
+    trace without the section markers. Retry of a job is `POST /jobs/:id/retry`. Re-run of a pipeline retries its failed
+    jobs. The Pipelines view has one workflow ("Pipeline"), and "Run" starts a pipeline on the branch with the inputs
+    as CI/CD variables.
+  - Merge sends the head commit and the squash choice. Auto-merge is "merge when the pipeline succeeds". A change of
+    the base is `PUT target_branch`. The draft state is the "Draft:" prefix of the title.
+- Not available for GitLab yet: reactions (award emoji), "#" and "!" references in the comment box, comments on more
+  than one line (they go on the last line), the review decision in the lists (the list API has no approvals), and a
+  stored "viewed" state.
+
 #### Review view
 
 - The sidebar item "Review" (below "Tasks") opens a main view for the pull requests of any repository, not only local ones.

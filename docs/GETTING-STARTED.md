@@ -10,7 +10,7 @@ These words have a special meaning in this guide:
 | Agent | A coding agent CLI, for example Claude Code, that runs in a terminal tab of ShipWarden. |
 | Worktree | An additional working folder of a repository. Each worktree has its own branch. Each agent works in its own worktree, so the agents do not change the files of a different agent. |
 | Project | A group of repositories in the sidebar. ShipWarden makes the project "Default" for you. |
-| Code review provider | Your GitHub or Azure DevOps account in ShipWarden. ShipWarden gets the pull requests and the checks from it. |
+| Code review provider | Your GitHub, Azure DevOps, or GitLab account in ShipWarden. ShipWarden gets the pull requests and the checks from it. |
 
 ## 1. Get the tools that ShipWarden uses
 
@@ -68,9 +68,10 @@ This also occurs when you have open pull requests.
 
 1. Open **Settings** (⌘,).
 2. Select **Code review**.
-3. In **Add a provider…**, select **GitHub** (or **Azure DevOps**).
+3. In **Add a provider…**, select **GitHub** (or **Azure DevOps**, or **GitLab**).
 4. Click **Add**.
-5. For Azure DevOps, type the name of your organization.
+5. For Azure DevOps, type the name of your organization. For a self-hosted GitLab server, type its URL in
+   **Server URL**, for example `https://git.example.com`.
 6. Click **Test**. The message "The token works" shows the account of the token.
 
 ShipWarden uses the first GitHub token that it finds. It tries these sources in this order:
@@ -87,6 +88,16 @@ Use **Organizations** to select the pull requests that show. The default is "All
 Select "Only these organizations:" to show fewer.
 
 For Azure DevOps, ShipWarden uses a saved personal access token or `az login`.
+
+For GitLab, ShipWarden uses the first token that it finds:
+
+1. A token that you save in the **Personal access token** field. Give it the `api` scope.
+2. The `GITLAB_TOKEN` environment variable, only for gitlab.com.
+3. The glab CLI login of the server (`glab auth login --hostname <server>`).
+
+A GitLab provider reads only the remotes of its server. Add one provider for each server. Use **Groups** to show only
+the projects of some groups, for example `acme` or `acme/platform`. Subgroups are included. ShipWarden uses the CA
+certificates of Settings › Network for the server.
 
 ## 5. Start your first agent
 
@@ -218,7 +229,7 @@ ShipWarden checks for updates a few seconds after it starts, and then every 4 ho
 |---|---|
 | macOS does not open ShipWarden because it cannot check the app. | This can occur with a build that is not notarized. Open **System Settings › Privacy & Security** and click **Open Anyway**. |
 | The Dashboard shows zeros. | You have no code review provider, or the provider is off. Do [step 4](#4-add-a-code-review-provider). |
-| The pull request panel says that the worktree has no GitHub or Azure Repos remote named "origin". | This message also shows when you have no code review provider, or when the provider is off. Open **Settings › Code review** first. Then make sure that the repository has an `origin` remote. |
+| The pull request panel says that the worktree has no GitHub, Azure Repos, or GitLab remote named "origin". | This message also shows when you have no code review provider, or when the provider is off. Open **Settings › Code review** first. Then make sure that the repository has an `origin` remote. |
 | "ShipWarden cannot get a GitHub token." | Run `gh auth login`, or save a token in **Settings › Code review**. If you installed `gh` while ShipWarden was open, quit ShipWarden and open it again. |
 | "GitHub has no release of ShipWarden, or the repository is private." | The update check uses the token of your GitHub code review provider. Do [step 4](#4-add-a-code-review-provider). |
 | Nothing occurs when you press ⌘N. | The project has no repository. Do [step 3](#3-add-a-repository). |
