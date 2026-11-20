@@ -7,6 +7,7 @@ import {
     Info,
     LayoutDashboard,
     ListTodo,
+    MessageSquareText,
     Network,
     Palette,
     Smartphone,
@@ -35,8 +36,21 @@ import { SettingsGroup, SettingsRow } from './settings-ui';
 import { Chip, IconButton, Switch } from './ui';
 import { changeOnboarding } from '@shared/onboarding';
 import { UpdateSettings } from './UpdateNotice';
+import { PromptTemplatesSettings } from '../prompts/PromptTemplatesSettings';
 
-type FixedSection = 'appearance' | 'notifications' | 'dashboard' | 'tasks' | 'review' | 'worktrees' | 'agents' | 'terminal' | 'network' | 'mobile' | 'about';
+type FixedSection =
+    | 'appearance'
+    | 'notifications'
+    | 'dashboard'
+    | 'tasks'
+    | 'review'
+    | 'worktrees'
+    | 'agents'
+    | 'prompts'
+    | 'terminal'
+    | 'network'
+    | 'mobile'
+    | 'about';
 /** A fixed section, or "repo:<path>" for the settings of one repository. */
 type SectionId = FixedSection | `repo:${string}`;
 
@@ -49,6 +63,7 @@ export const SETTINGS_SECTIONS: { id: FixedSection; label: string; icon: LucideI
     { id: 'review', label: 'Code review', icon: GitPullRequest },
     { id: 'worktrees', label: 'Worktrees', icon: FolderTree },
     { id: 'agents', label: 'Agents', icon: Bot },
+    { id: 'prompts', label: 'Prompt templates', icon: MessageSquareText },
     { id: 'terminal', label: 'Terminal', icon: SquareTerminal },
     { id: 'network', label: 'Network', icon: Network },
     { id: 'mobile', label: 'Mobile', icon: Smartphone, badge: 'Beta' },
@@ -272,6 +287,7 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
                         {current.id === 'mobile' && <MobileSettings settings={settings} onSave={onSave} />}
                         {current.id === 'dashboard' && <DashboardSettings settings={settings} onSave={onSave} prefill={rulePrefill} />}
                         {current.id === 'agents' && <AgentsSettings settings={settings} onSave={onSave} />}
+                        {current.id === 'prompts' && <PromptTemplatesSettings terminalKeybinds={terminal?.keybinds ?? []} />}
                         {repoSection && current.id === section && <RepoSettingsPage repo={repoSection} settings={settings} onSave={onSave} />}
                         {status && <div className="form-error">{status}</div>}
                         {current.id === 'terminal' && terminalSection}

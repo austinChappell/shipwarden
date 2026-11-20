@@ -36,6 +36,7 @@ function context(change: Partial<PaletteContext> = {}): PaletteContext {
         plans: [],
         notes: [],
         automations: [],
+        prompts: [],
         reviewQueue: [],
         reviewAvailable: true,
         appearance: DEFAULT_APPEARANCE,
@@ -69,6 +70,7 @@ describe('paletteItems', () => {
             'open-note',
             'new-automation',
             'edit-automation',
+            'insert-prompt',
             'settings',
             'theme',
             'updates'
@@ -122,6 +124,17 @@ describe('paletteItems', () => {
         const ids = paletteItems(context({ reviewAvailable: false })).map(item => item.id);
         expect(ids).toContain('view-review');
         expect(ids).not.toContain('review-pr');
+    });
+
+    it('inserts a prompt template from its page, and shows the templates in a search', () => {
+        const ctx = context({ prompts: [{ version: 1, id: 'write-tests', name: 'Write tests', prompt: 'Write tests for {{file}}', shortcut: '⌃⌥T' }] });
+        const items = paletteItems(ctx);
+        expect(byId(items, 'prompt:write-tests').searchOnly).toBe(true);
+        const page = byId(items, 'insert-prompt').page?.();
+        const rows = page?.items as PaletteItem[];
+        expect(rows.map(item => [item.label, item.keys])).toEqual([['Write tests', '⌃⌥T']]);
+        rows[0].run?.();
+        expect(ctx.actions.insertPrompt).toHaveBeenCalledWith('write-tests');
     });
 
     it('gives each item a unique ID in its group', () => {

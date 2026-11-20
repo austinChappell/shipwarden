@@ -712,15 +712,23 @@ button {
 }
 
 /* The button at the top right of an agent terminal that shows the chat again. */
-.terminal-chat-toggle {
+/* The controls that float at the top right of a terminal: the prompt templates and the Chat button. */
+.terminal-tools {
     position: absolute;
     top: 8px;
     right: 12px;
     z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
-.terminal.below-notice ~ .terminal-chat-toggle {
+.terminal.below-notice ~ .terminal-tools {
     top: 42px;
+}
+
+.terminal-tools .prompt-picker {
+    width: 132px;
 }
 
 /* A search bar (⌘F) that floats at the top right of a view: a terminal, a chat, or a Markdown preview. */
@@ -743,11 +751,11 @@ button {
 }
 
 /* The chat button goes below the open search bar. */
-.floating-find ~ .terminal-chat-toggle {
+.floating-find ~ .terminal-tools {
     top: 50px;
 }
 
-.floating-find.below-notice ~ .terminal-chat-toggle {
+.floating-find.below-notice ~ .terminal-tools {
     top: 84px;
 }
 
@@ -16795,4 +16803,72 @@ body.resizing-rows * {
     align-items: center;
     justify-content: flex-end;
     gap: 12px;
+}
+
+/* Settings › Prompt templates. */
+.prompt-template-text {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.prompt-template-actions,
+.prompt-template-form-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.prompt-template-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.key-field {
+    width: 200px;
+}
+
+.key-field-value {
+    display: flex;
+    align-items: center;
+    cursor: text;
+}
+
+.key-field.recording {
+    border-color: var(--accent);
+}
+
+.key-field-value .placeholder {
+    color: var(--muted);
+}
+
+/* The dialog that asks for the values of the variables of a prompt template. */
+.prompt-fill-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 12px;
+}
+
+.prompt-fill-body p {
+    margin: 0;
+}
+
+.prompt-fill-preview {
+    max-height: 160px;
+    margin: 0;
+    overflow: auto;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "JetBrains Mono", Menlo, monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
