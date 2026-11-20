@@ -67,6 +67,7 @@ export function reviewScopeKey(providers: ReviewProviderInfo[] | undefined): str
             provider.scope ?? null,
             provider.cliAccount ?? null,
             provider.baseUrl ?? null,
+            provider.username ?? null,
             provider.tokenSaved
         ])
     );
@@ -90,6 +91,11 @@ export function applyProviderChange(provider: ReviewProviderInfo, change: Review
         if (url && url !== 'https://gitlab.com') next.baseUrl = url;
         else delete next.baseUrl;
     }
+    if (change.username !== undefined) {
+        const username = change.username?.trim();
+        if (username) next.username = username;
+        else delete next.username;
+    }
     return next;
 }
 
@@ -100,7 +106,7 @@ export function applyProviderChange(provider: ReviewProviderInfo, change: Review
 export function changeAffectsRepos(provider: ReviewProviderInfo | undefined, change: ReviewProviderChange): boolean {
     if (change.enabled !== undefined && change.enabled !== provider?.enabled) return true;
     if (provider && !provider.enabled) return false;
-    return change.scope !== undefined || change.cliAccount !== undefined || change.baseUrl !== undefined;
+    return change.scope !== undefined || change.cliAccount !== undefined || change.baseUrl !== undefined || change.username !== undefined;
 }
 
 /**
@@ -129,7 +135,7 @@ export function providerChanged(client: QueryClient, provider: ReviewProviderInf
     client.setQueryData<ReviewProviderInfo[]>(reviewProviderKeys.list, list =>
         list?.map(item => (item.id === provider.id ? applyProviderChange(item, change) : item))
     );
-    if (change.cliAccount !== undefined || change.baseUrl !== undefined) invalidateAuth(client, provider.id);
+    if (change.cliAccount !== undefined || change.baseUrl !== undefined || change.username !== undefined) invalidateAuth(client, provider.id);
     if (changeAffectsRepos(provider, change)) invalidateRepoData(client);
 }
 

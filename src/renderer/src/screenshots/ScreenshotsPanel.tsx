@@ -31,6 +31,11 @@ interface Props {
     onOpenRepoSettings?(): void;
 }
 
+/** True when ShipWarden can add the images to a comment on the provider. Bitbucket Cloud has no upload API for comments. */
+function hostCanPostImages(kind: SourceHostKind | undefined): boolean {
+    return kind !== 'bitbucket';
+}
+
 /** Where the images go for each provider. The confirm dialog shows it. */
 function uploadNote(kind: SourceHostKind | undefined): string {
     if (kind === 'azure') return 'The images become attachments of the pull request.';
@@ -259,7 +264,7 @@ export function ScreenshotsPanel({ worktreePath, settings, pullRequest, hostKind
                                 </Button>
                             ))}
                         </ButtonGroup>
-                        {pullRequest && imageCount > 0 && (
+                        {pullRequest && imageCount > 0 && hostCanPostImages(hostKind) && (
                             <Button
                                 size="sm"
                                 disabled={!!busy}
@@ -270,6 +275,12 @@ export function ScreenshotsPanel({ worktreePath, settings, pullRequest, hostKind
                             </Button>
                         )}
                     </div>
+                    {pullRequest && imageCount > 0 && !hostCanPostImages(hostKind) && (
+                        <p className="panel-note">
+                            Bitbucket Cloud has no API that adds images to a pull request comment. Open the images here and add them to the pull request on
+                            Bitbucket.
+                        </p>
+                    )}
                     {pages.map(page => (
                         <PageShots key={page.path} worktree={worktreePath} page={page} mode={mode} />
                     ))}

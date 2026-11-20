@@ -1,0 +1,63 @@
+[
+    {
+        "type": "pullrequest_comment",
+        "id": 501,
+        "content": { "type": "rendered", "raw": "Should the limit come from the settings?", "markup": "markdown" },
+        "user": { "type": "user", "uuid": "{7b2d2e4f-3c55-4e2d-8b87-2f2a7d2e1b02}", "display_name": "Lee Park", "nickname": "lee" },
+        "created_on": "2026-11-18T10:00:00.000000+00:00",
+        "updated_on": "2026-11-18T10:00:00.000000+00:00",
+        "deleted": false,
+        "pending": false,
+        "inline": { "from": null, "to": 12, "path": "src/limits.ts" },
+        "links": { "html": { "href": "https://bitbucket.org/acme/api/pull-requests/17/_/diff#comment-501" } }
+    },
+    {
+        "type": "pullrequest_comment",
+        "id": 502,
+        "content": { "raw": "Yes. I will move it." },
+        "user": { "type": "user", "uuid": "{6a1c1f3e-2b44-4d1c-9a76-1e1f6c1d0a01}", "display_name": "Dana Kim", "nickname": "dana" },
+        "created_on": "2026-11-18T10:05:00.000000+00:00",
+        "deleted": false,
+        "inline": { "from": null, "to": 12, "path": "src/limits.ts" },
+        "parent": { "id": 501 }
+    },
+    {
+        "type": "pullrequest_comment",
+        "id": 503,
+        "content": { "raw": "Done in the next commit." },
+        "user": { "type": "user", "uuid": "{6a1c1f3e-2b44-4d1c-9a76-1e1f6c1d0a01}", "display_name": "Dana Kim", "nickname": "dana" },
+        "created_on": "2026-11-18T10:06:00.000000+00:00",
+        "deleted": false,
+        "parent": { "id": 502 }
+    },
+    {
+        "type": "pullrequest_comment",
+        "id": 510,
+        "content": { "raw": "This removed check was important." },
+        "user": { "type": "user", "uuid": "{9d4f4061-5e77-4a4f-8da9-4b4c9f403d04}", "display_name": "Sam Ortiz", "nickname": "sam" },
+        "created_on": "2026-11-18T10:30:00.000000+00:00",
+        "deleted": false,
+        "inline": { "from": 7, "to": null, "path": "src/server.ts", "start_from": 5, "outdated": true },
+        "resolution": {
+            "type": "comment_resolution",
+            "user": { "type": "user", "uuid": "{6a1c1f3e-2b44-4d1c-9a76-1e1f6c1d0a01}", "display_name": "Dana Kim", "nickname": "dana" },
+            "created_on": "2026-11-18T10:45:00.000000+00:00"
+        }
+    },
+    {
+        "type": "pullrequest_comment",
+        "id": 520,
+        "content": { "raw": "Thanks. The tests pass on my machine." },
+        "user": { "type": "user", "uuid": "{9d4f4061-5e77-4a4f-8da9-4b4c9f403d04}", "display_name": "Sam Ortiz", "nickname": "sam" },
+        "created_on": "2026-11-18T11:00:00.000000+00:00",
+        "deleted": false
+    },
+    {
+        "type": "pullrequest_comment",
+        "id": 521,
+        "content": { "raw": "" },
+        "user": { "type": "user", "uuid": "{9d4f4061-5e77-4a4f-8da9-4b4c9f403d04}", "display_name": "Sam Ortiz", "nickname": "sam" },
+        "created_on": "2026-11-18T11:01:00.000000+00:00",
+        "deleted": true
+    }
+]

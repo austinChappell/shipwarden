@@ -61,7 +61,7 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
         return <div className="panel-message">Loading…</div>;
     }
     if (status === null) {
-        return <div className="panel-message">This worktree has no GitHub or Azure Repos remote named "origin".</div>;
+        return <div className="panel-message">This worktree has no GitHub, Azure Repos, GitLab, or Bitbucket remote named "origin".</div>;
     }
 
     if (logCheck) {

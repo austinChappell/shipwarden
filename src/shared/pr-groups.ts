@@ -152,6 +152,7 @@ function uniquePullRequests(list: GroupPullRequest[]): GroupPullRequest[] {
  * - https://dev.azure.com/{org}/{project}/_git/{repo}/pullrequest/{number}
  * - https://{org}.visualstudio.com/{project}/_git/{repo}/pullrequest/{number}
  * - https://{gitlab host}/{group}/{project}/-/merge_requests/{number}
+ * - https://bitbucket.org/{workspace}/{repo}/pull-requests/{number}
  * - {owner}/{name}#{number}
  */
 export function parsePullRequestLink(text: string): { repo: RepoRef; number: number } | undefined {
@@ -164,9 +165,9 @@ export function parsePullRequestLink(text: string): { repo: RepoRef; number: num
         if (azure) return pullRequestOf({ owner: `${azure.organization}/${azure.project}`, name: azure.repository, host: 'azure' }, match[2]);
         return undefined;
     }
-    if (/\/-\/merge_requests\/\d+/.test(value)) {
+    if (/\/-\/merge_requests\/\d+/.test(value) || /^https?:\/\/(?:www\.)?bitbucket\.org\//i.test(value)) {
         const gitlab = parsePullRequestUrl(value);
-        return gitlab?.repo.host === 'gitlab' ? { repo: gitlab.repo, number: gitlab.number } : undefined;
+        return gitlab?.repo.host === 'gitlab' || gitlab?.repo.host === 'bitbucket' ? { repo: gitlab.repo, number: gitlab.number } : undefined;
     }
     match = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)#(\d+)$/.exec(value);
     if (match) return pullRequestOf({ owner: match[1], name: match[2] }, match[3]);
@@ -199,7 +200,7 @@ function repoOf(value: unknown): RepoRef | undefined {
     const owner = text(raw.owner, 400)?.trim();
     const name = text(raw.name, 400)?.trim();
     if (!owner || !name) return undefined;
-    return raw.host === 'azure' || raw.host === 'gitlab' ? { owner, name, host: raw.host } : { owner, name };
+    return raw.host === 'azure' || raw.host === 'gitlab' || raw.host === 'bitbucket' ? { owner, name, host: raw.host } : { owner, name };
 }
 
 function groupPullRequestOf(value: unknown): GroupPullRequest | undefined {
