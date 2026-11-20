@@ -213,6 +213,8 @@ export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }
                             <>Azure DevOps queues a build of the pipeline on the branch.</>
                         ) : host === 'gitlab' ? (
                             <>GitLab starts a new pipeline on the branch.</>
+                        ) : host === 'bitbucket' ? (
+                            <>Bitbucket starts a new pipeline on the branch.</>
                         ) : (
                             <>
                                 GitHub starts the workflow on <code>{workflow.path}</code> of the branch.

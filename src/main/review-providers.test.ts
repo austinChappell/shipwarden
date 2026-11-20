@@ -19,7 +19,9 @@ const REMOTES: Record<string, string> = {
     '/work/other': 'https://github.com/other/site.git',
     '/work/shop': 'https://contoso@dev.azure.com/contoso/Web/_git/shop',
     '/work/lab': 'git@gitlab.com:acme/platform/api.git',
-    '/work/self': 'https://git.example.com/team/sub/web.git'
+    '/work/self': 'https://git.example.com/team/sub/web.git',
+    '/work/bucket': 'git@bitbucket.org:acme/api.git',
+    '/work/bucket-https': 'https://dana@bitbucket.org/partner/site.git'
 };
 
 describe('ReviewProviders', () => {
@@ -143,6 +145,37 @@ describe('ReviewProviders', () => {
         await expect(providers.update(lab.id, { baseUrl: 'ftp://example.com' })).rejects.toThrow('is not a valid URL');
         await providers.update(lab.id, { baseUrl: null });
         expect((await providers.list())[0].baseUrl).toBeUndefined();
+    });
+
+    it('finds Bitbucket repositories and selects the Bitbucket provider of the workspace', async () => {
+        const providers = create();
+        expect(await providers.repoFor('/work/bucket')).toEqual({ owner: 'acme', name: 'api', host: 'bitbucket' });
+        expect(await providers.repoFor('/work/bucket-https')).toEqual({ owner: 'partner', name: 'site', host: 'bitbucket' });
+        await expect(providers.for('/work/bucket')).rejects.toThrow('No Bitbucket provider is on');
+        await providers.add('github', 'GitHub');
+        const work = await providers.add('bitbucket', 'Work Bitbucket');
+        const partner = await providers.add('bitbucket', 'Partner');
+        await providers.update(work.id, { scope: ['acme'] });
+        await providers.update(partner.id, { scope: ['partner'] });
+        const fromWork = await providers.for('/work/bucket');
+        expect(fromWork.kind).toBe('bitbucket');
+        expect(await providers.for('/work/bucket-https')).not.toBe(fromWork);
+        expect(await providers.for({ owner: 'acme', name: 'api', host: 'bitbucket' })).toBe(fromWork);
+    });
+
+    it('keeps the username of a Bitbucket provider and resets the token source after a change', async () => {
+        const providers = create();
+        const bucket = await providers.add('bitbucket', 'Bitbucket');
+        await providers.update(bucket.id, { username: '  dana@example.com ' });
+        expect((await providers.list())[0].username).toBe('dana@example.com');
+        await providers.saveToken(bucket.id, 'ATATT-1');
+        expect(await providers.tokenSource(bucket.id)).toBe('saved');
+        await providers.update(bucket.id, { username: null });
+        expect((await providers.list())[0].username).toBeUndefined();
+        // A username on a provider of another kind does nothing.
+        const github = await providers.add('github', 'GitHub');
+        await providers.update(github.id, { username: 'x' });
+        expect((await providers.list()).find(item => item.id === github.id)?.username).toBeUndefined();
     });
 
     it('removes the provider and its token', async () => {

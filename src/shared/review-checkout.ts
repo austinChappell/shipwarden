@@ -66,6 +66,12 @@ export function checkRepoRef(value: unknown): RepoRef {
         }
         return { owner, name, host: 'gitlab' };
     }
+    if (repo?.host === 'bitbucket') {
+        if (!isSafeRepoPart(owner) || !isSafeRepoPart(name)) {
+            throw new Error(`"${owner}/${name}" is not a valid Bitbucket repository name.`);
+        }
+        return { owner, name, host: 'bitbucket' };
+    }
     if (!isSafeRepoPart(owner) || !isSafeRepoPart(name)) {
         throw new Error(`"${owner}/${name}" is not a valid repository name.`);
     }
@@ -95,6 +101,6 @@ export function checkCommitSha(value: unknown): string {
  * Owner and name are in lowercase.
  */
 export function reviewCheckoutKey(repo: RepoRef, number: number): string {
-    const prefix = repo.host === 'azure' ? 'azure:' : repo.host === 'gitlab' ? 'gitlab:' : '';
+    const prefix = repo.host && repo.host !== 'github' ? `${repo.host}:` : '';
     return `${prefix}${repo.owner.toLowerCase()}/${repo.name.toLowerCase()}#${number}`;
 }

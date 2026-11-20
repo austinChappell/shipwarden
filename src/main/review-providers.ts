@@ -1,6 +1,7 @@
 import { execFile } from 'child_process';
 import { randomUUID } from 'crypto';
 import { azureRepoOf, azureRepoRef, parseAzureRemote } from '@shared/azure-devops';
+import { bitbucketRepoOf, bitbucketRepoRef, parseBitbucketRemote } from '@shared/bitbucket';
 import type { DashboardPullRequests, PullRequestCommentItem } from '@shared/dashboard';
 import { gitlabHostOf, gitlabRepoOf, gitlabRepoRef, normalizeGitLabUrl, parseGitLabRemote, topGroupOf } from '@shared/gitlab';
 import {
@@ -30,6 +31,8 @@ import {
 import type { SettingDefinition } from '@shared/tasks';
 import { AzureDevOpsClient } from './azure/azure-client';
 import { AzureDevOpsService } from './azure/azure-service';
+import { BitbucketClient } from './bitbucket/bitbucket-client';
+import { BitbucketService } from './bitbucket/bitbucket-service';
 import { GitHubClient } from './github/github-client';
 import { GitHubService } from './github/github-service';
 import { GitLabClient } from './gitlab/gitlab-client';
@@ -70,9 +73,15 @@ interface GitLabRuntime {
     host: GitLabService;
 }
 
-type Runtime = GitHubRuntime | AzureRuntime | GitLabRuntime;
+interface BitbucketRuntime {
+    kind: 'bitbucket';
+    client: BitbucketClient;
+    host: BitbucketService;
+}
 
-/** The kind of a target, its organization (a GitLab group), and the host of a GitLab server. */
+type Runtime = GitHubRuntime | AzureRuntime | GitLabRuntime | BitbucketRuntime;
+
+/** The kind of a target, its organization (a GitLab group or a Bitbucket workspace), and the host of a GitLab server. */
 interface Route {
     kind: ReviewProviderKind;
     organization?: string;
@@ -106,7 +115,7 @@ export interface ReviewProvidersOptions {
 }
 
 /**
- * Keeps the code review providers (GitHub, Azure DevOps, and GitLab accounts) and selects the provider of each call.
+ * Keeps the code review providers (GitHub, Azure DevOps, GitLab, and Bitbucket accounts) and selects the provider of each call.
  * Each provider has its own client and token. A worktree goes to a provider of the kind of its "origin" remote.
  * When there are more providers of that kind, the organization of the remote selects one (see `pickProvider`).
  */
@@ -117,6 +126,8 @@ export class ReviewProviders {
     private readonly remotes = new Map<string, Promise<string>>();
     /** The GitHub CLI account of each GitHub provider, for the token of its client. */
     private readonly accounts = new Map<string, string | undefined>();
+    /** The username of each Bitbucket provider, for the Basic auth of its client. */
+    private readonly usernames = new Map<string, string | undefined>();
     private seeding: Promise<StoredReviewProvider[]> | undefined;
 
     constructor(private readonly options: ReviewProvidersOptions) {
@@ -162,7 +173,7 @@ export class ReviewProviders {
     }
 
     async add(kind: ReviewProviderKind, name: string): Promise<ReviewProviderInfo> {
-        if (kind !== 'github' && kind !== 'azure' && kind !== 'gitlab') {
+        if (kind !== 'github' && kind !== 'azure' && kind !== 'gitlab' && kind !== 'bitbucket') {
             throw new Error(`The provider kind "${String(kind)}" is not known.`);
         }
         const provider: StoredReviewProvider = { id: randomUUID(), kind, name: name.trim() || providerKindName(kind), enabled: true };
@@ -203,6 +214,15 @@ export class ReviewProviders {
                     else delete next.baseUrl;
                     serverChanged = next.baseUrl !== provider.baseUrl;
                 }
+                if (change.username !== undefined && provider.kind === 'bitbucket') {
+                    const username = typeof change.username === 'string' ? change.username.trim() : '';
+                    if (username) next.username = username;
+                    else delete next.username;
+                    if (next.username !== provider.username) {
+                        authChanged = true;
+                        this.usernames.set(id, next.username);
+                    }
+                }
                 return next;
             })
         }));
@@ -218,6 +238,7 @@ export class ReviewProviders {
         await this.secrets.clear(id, TOKEN_KEY);
         this.runtimes.delete(id);
         this.accounts.delete(id);
+        this.usernames.delete(id);
         this.options.onChanged();
     }
 
@@ -240,7 +261,7 @@ export class ReviewProviders {
     /** Returns where the next request of the provider gets its token. Undefined when no token is available. */
     async tokenSource(id: string): Promise<ReviewTokenSource | undefined> {
         const runtime = await this.runtime(await this.provider(id));
-        if (runtime.kind === 'github' || runtime.kind === 'gitlab') return runtime.client.tokenSource();
+        if (runtime.kind === 'github' || runtime.kind === 'gitlab' || runtime.kind === 'bitbucket') return runtime.client.tokenSource();
         const source = await runtime.client.tokenSource();
         return source === 'az' ? 'cli' : source;
     }
@@ -257,6 +278,10 @@ export class ReviewProviders {
         }
         if (runtime.kind === 'gitlab') {
             return (await runtime.client.request<{ username: string }>('GET', '/user')).username;
+        }
+        if (runtime.kind === 'bitbucket') {
+            const user = await runtime.client.request<{ nickname?: string; display_name?: string }>('GET', '/user');
+            return user.display_name || user.nickname || 'unknown user';
         }
         const name = (organization ?? '').trim() || provider.scope?.[0];
         if (!name) {
@@ -305,11 +330,13 @@ export class ReviewProviders {
         return parseGitHubRemote(await this.remoteOf(root)) ?? null;
     }
 
-    /** Returns the GitHub, Azure Repos, or GitLab repository of a worktree from its "origin" remote. Returns null for other remotes. */
+    /** Returns the GitHub, Azure Repos, GitLab, or Bitbucket repository of a worktree from its "origin" remote. Returns null for other remotes. */
     async repoFor(root: string): Promise<RepoRef | null> {
         const url = await this.remoteOf(root);
         const azure = parseAzureRemote(url);
         if (azure) return azureRepoRef(azure);
+        const bitbucket = parseBitbucketRemote(url);
+        if (bitbucket) return bitbucketRepoRef(bitbucket);
         const gitlab = parseGitLabRemote(url, await this.gitlabServers());
         return gitlab ? gitlabRepoRef(gitlab) : (parseGitHubRemote(url) ?? null);
     }
@@ -334,6 +361,7 @@ export class ReviewProviders {
         const lists = await this.eachProvider(
             (service, provider) => service.repositories(provider.scope),
             async (host, provider) => host.repositories(provider.scope, await this.projectOrganizations()),
+            (host, provider) => host.repositories(provider.scope),
             (host, provider) => host.repositories(provider.scope)
         );
         const unique = new Map<string, GitHubRepoInfo>();
@@ -350,6 +378,7 @@ export class ReviewProviders {
         const results = await this.eachProvider(
             (service, provider) => service.dashboardPullRequests(provider.scope ?? 'all'),
             async (host, provider) => host.dashboardPullRequests(provider.scope, await this.projectOrganizations()),
+            (host, provider) => host.dashboardPullRequests(provider.scope),
             (host, provider) => host.dashboardPullRequests(provider.scope)
         );
         const byUrl = <T extends { url: string; updatedAt: string }>(items: T[]) =>
@@ -404,17 +433,24 @@ export class ReviewProviders {
     }
 
     /**
-     * Calls `github` for each GitHub provider, `azure` for each Azure DevOps provider, and `gitlab` for each GitLab
-     * provider that is on, at the same time. Without `azure` or `gitlab`, the providers of that kind stay out.
+     * Calls `github` for each GitHub provider, `azure` for each Azure DevOps provider, `gitlab` for each GitLab provider,
+     * and `bitbucket` for each Bitbucket provider that is on, at the same time. Without a callback for a kind, the
+     * providers of that kind stay out.
      * When a call fails, the error names the provider, so that the user knows which token to fix.
      */
     private async eachProvider<T>(
         github: (service: GitHubService, provider: StoredReviewProvider) => Promise<T>,
         azure?: (host: AzureDevOpsService, provider: StoredReviewProvider) => Promise<T>,
-        gitlab?: (host: GitLabService, provider: StoredReviewProvider) => Promise<T>
+        gitlab?: (host: GitLabService, provider: StoredReviewProvider) => Promise<T>,
+        bitbucket?: (host: BitbucketService, provider: StoredReviewProvider) => Promise<T>
     ): Promise<T[]> {
         const providers = (await this.providers()).filter(
-            provider => provider.enabled && (provider.kind === 'github' || (provider.kind === 'azure' && azure) || (provider.kind === 'gitlab' && gitlab))
+            provider =>
+                provider.enabled &&
+                (provider.kind === 'github' ||
+                    (provider.kind === 'azure' && azure) ||
+                    (provider.kind === 'gitlab' && gitlab) ||
+                    (provider.kind === 'bitbucket' && bitbucket))
         );
         return Promise.all(
             providers.map(async provider => {
@@ -422,7 +458,8 @@ export class ReviewProviders {
                 try {
                     if (runtime.kind === 'github') return await github(runtime.service, provider);
                     if (runtime.kind === 'azure') return await azure!(runtime.host, provider);
-                    return await gitlab!(runtime.host, provider);
+                    if (runtime.kind === 'gitlab') return await gitlab!(runtime.host, provider);
+                    return await bitbucket!(runtime.host, provider);
                 } catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
                     throw new Error(providers.length > 1 ? `${provider.name}: ${message}` : message);
@@ -469,7 +506,8 @@ export class ReviewProviders {
 
     /**
      * Returns the kind and the organization of a target. A repository of the Review view goes to the provider of its host.
-     * A worktree with a remote that is not on Azure Repos or on a GitLab server goes to GitHub, as in older versions.
+     * A worktree with a remote that is not on Azure Repos, on a GitLab server, or on Bitbucket goes to GitHub, as in older
+     * versions.
      */
     private async routeOf(target: RepoTarget): Promise<Route> {
         if (typeof target === 'object' && target) {
@@ -478,11 +516,14 @@ export class ReviewProviders {
                 const gitlab = gitlabRepoOf(target);
                 return { kind: 'gitlab', organization: gitlab && topGroupOf(gitlab.namespace), server: gitlab?.host };
             }
+            if (target.host === 'bitbucket') return { kind: 'bitbucket', organization: bitbucketRepoOf(target)?.workspace };
             return { kind: 'github', organization: target.owner };
         }
         const url = await this.remoteOf(String(target));
         const azure = parseAzureRemote(url);
         if (azure) return { kind: 'azure', organization: azure.organization };
+        const bitbucket = parseBitbucketRemote(url);
+        if (bitbucket) return { kind: 'bitbucket', organization: bitbucket.workspace };
         const gitlab = parseGitLabRemote(url, await this.gitlabServers());
         if (gitlab) return { kind: 'gitlab', organization: topGroupOf(gitlab.namespace), server: gitlab.host };
         return { kind: 'github', organization: parseGitHubRemote(url)?.owner };
@@ -543,6 +584,11 @@ export class ReviewProviders {
             const baseUrl = provider.baseUrl;
             const client = new GitLabClient({ ready: this.options.ready, savedToken, baseUrl: () => baseUrl });
             runtime = { kind: 'gitlab', client, host: new GitLabService(client, root => this.remoteOf(root)) };
+        } else if (provider.kind === 'bitbucket') {
+            // The client reads the username at each new token, so a change of the username applies after `reset`.
+            this.usernames.set(id, provider.username);
+            const client = new BitbucketClient({ ready: this.options.ready, savedToken, username: () => this.usernames.get(id) });
+            runtime = { kind: 'bitbucket', client, host: new BitbucketService(client, root => this.remoteOf(root)) };
         } else {
             const client = new AzureDevOpsClient({ ready: this.options.ready, savedToken });
             runtime = { kind: 'azure', client, host: new AzureDevOpsService(client) };

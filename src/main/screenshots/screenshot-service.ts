@@ -116,7 +116,13 @@ export class ScreenshotService {
         const set = await this.options.store.read(repo, branch);
         if (!set) throw new Error('There are no screenshots to add. Capture them first.');
         const host = await this.options.hostFor(root);
-        if (!host.postScreenshots) throw new Error('This review provider cannot add images to a comment.');
+        if (!host.postScreenshots) {
+            throw new Error(
+                host.kind === 'bitbucket'
+                    ? 'Bitbucket Cloud has no API that adds images to a pull request comment.'
+                    : 'This review provider cannot add images to a comment.'
+            );
+        }
         const files: UploadFile[] = [];
         const refs: Omit<CommentImage, 'url'>[] = [];
         for (const [index, page] of set.pages.entries()) {

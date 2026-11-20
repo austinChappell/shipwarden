@@ -1,10 +1,11 @@
 /** The kinds of code review provider. Each kind has its own API and its own remote URL format. */
-export type ReviewProviderKind = 'github' | 'azure' | 'gitlab';
+export type ReviewProviderKind = 'github' | 'azure' | 'gitlab' | 'bitbucket';
 
 export const REVIEW_PROVIDER_KINDS: { kind: ReviewProviderKind; name: string }[] = [
     { kind: 'github', name: 'GitHub' },
     { kind: 'azure', name: 'Azure DevOps' },
-    { kind: 'gitlab', name: 'GitLab' }
+    { kind: 'gitlab', name: 'GitLab' },
+    { kind: 'bitbucket', name: 'Bitbucket' }
 ];
 
 export function providerKindName(kind: ReviewProviderKind): string {
@@ -23,6 +24,11 @@ export interface StoredReviewProvider {
     cliAccount?: string;
     /** GitLab only: the URL of a self-hosted server, for example "https://git.example.com". Undefined means https://gitlab.com. */
     baseUrl?: string;
+    /**
+     * Bitbucket only: the Atlassian account email (for an API token) or the Bitbucket username (for an app password).
+     * ShipWarden sends it with the token as Basic auth. Undefined means an access token, sent as a Bearer token.
+     */
+    username?: string;
 }
 
 /** One code review provider, for Settings › Code review. The page never gets the token. */
@@ -38,6 +44,7 @@ export interface ReviewProviderChange {
     scope?: string[] | null;
     cliAccount?: string | null;
     baseUrl?: string | null;
+    username?: string | null;
 }
 
 /** Where the token of the next request of a provider comes from. */
@@ -60,9 +67,12 @@ export function pickProvider<T extends StoredReviewProvider>(providers: T[], kin
     );
 }
 
-/** A short text for the scope of a provider, for example "All organizations" or "2 organizations". A GitLab provider has groups. */
+/**
+ * A short text for the scope of a provider, for example "All organizations" or "2 organizations".
+ * A GitLab provider has groups. A Bitbucket provider has workspaces.
+ */
 export function providerScopeSummary(scope: string[] | undefined, kind: ReviewProviderKind = 'github'): string {
-    const noun = kind === 'gitlab' ? 'group' : 'organization';
+    const noun = kind === 'gitlab' ? 'group' : kind === 'bitbucket' ? 'workspace' : 'organization';
     if (!scope) return `All ${noun}s`;
     return `${scope.length} ${noun}${scope.length === 1 ? '' : 's'}`;
 }

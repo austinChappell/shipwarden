@@ -1,0 +1,26 @@
+[
+    {
+        "type": "pipeline_step",
+        "uuid": "{b0000000-0000-0000-0000-000000000001}",
+        "name": "Lint",
+        "state": { "type": "pipeline_step_state_completed", "name": "COMPLETED", "result": { "type": "pipeline_step_state_completed_successful", "name": "SUCCESSFUL" } },
+        "started_on": "2026-11-18T10:41:30.000000Z",
+        "completed_on": "2026-11-18T10:43:00.000000Z"
+    },
+    {
+        "type": "pipeline_step",
+        "uuid": "{b0000000-0000-0000-0000-000000000002}",
+        "name": "Unit tests",
+        "state": { "type": "pipeline_step_state_completed", "name": "COMPLETED", "result": { "type": "pipeline_step_state_completed_failed", "name": "FAILED" } },
+        "started_on": "2026-11-18T10:43:00.000000Z",
+        "completed_on": "2026-11-18T10:47:00.000000Z"
+    },
+    {
+        "type": "pipeline_step",
+        "uuid": "{b0000000-0000-0000-0000-000000000003}",
+        "name": "Deploy to staging",
+        "state": { "type": "pipeline_step_state_completed", "name": "COMPLETED", "result": { "type": "pipeline_step_state_completed_not_run", "name": "NOT_RUN" } },
+        "started_on": null,
+        "completed_on": null
+    }
+]

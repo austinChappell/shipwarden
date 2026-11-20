@@ -1211,6 +1211,52 @@ Next:
   than one line (they go on the last line), the review decision in the lists (the list API has no approvals), and a
   stored "viewed" state.
 
+#### Bitbucket
+
+- `BitbucketService` (`main/bitbucket/`) implements `SourceHost` for Bitbucket Cloud (REST API 2.0 on
+  `api.bitbucket.org`). Bitbucket Data Center is not supported. A provider of kind `bitbucket` has an optional
+  `username`. Its scope is a list of workspace slugs.
+- References: the owner of a Bitbucket `RepoRef` is the workspace, the name is the repository slug, and `host` is
+  `bitbucket`. Repository IDs start with `bitbucket:`. Pull request and thread IDs hold the workspace, the repository,
+  the pull request, and the first comment (`encodeBitbucketId`).
+- Remotes (`parseBitbucketRemote`): `git@bitbucket.org:{workspace}/{repo}.git`, `ssh://git@bitbucket.org/...`,
+  `ssh://git@altssh.bitbucket.org:443/...`, and `https://[user@]bitbucket.org/{workspace}/{repo}.git`. Routing selects
+  the provider by the workspace, the same as an organization.
+- Token (`BitbucketClient`): the saved token, else `BITBUCKET_TOKEN`. With a username (the Atlassian account email for
+  an API token, or the Bitbucket username for an app password), the client sends Basic auth. Without a username (a
+  workspace, project, or repository access token), it sends `Authorization: Bearer`. It uses the global fetch after
+  `networkReady`, so the trusted certificates of Settings › Network apply. `all` follows the `next` URL of each page,
+  and it refuses a `next` URL of another server.
+- Repositories: `/repositories/{workspace}?role=member` for each workspace of the scope. Without a scope, the
+  workspaces come from `/user/workspaces` (at most 10). The cross-workspace APIs of Bitbucket are gone (CHANGE-2770).
+- Mapping (`main/bitbucket/bitbucket-mapping.ts`):
+  - Lists ask for the reviewers and the participants with the partial response `fields=+values.participants,+values.reviewers`.
+    A 400 answer gives a second request without it.
+  - Participants are the reviews. `approved` is an approval, and `state: changes_requested` is a request for changes.
+    The review buttons are Comment, Request changes, and Approve. After an approval, Approve becomes "Revoke approval"
+    (`DELETE /approve`). A request for changes removes the approval, so the cache swaps the button back.
+  - Bitbucket gives no merge state. The diffstat shows the conflicts (for example `merge conflict`). A request for
+    changes is BLOCKED. The merge strategies come from the destination branch (`merge_strategies` and
+    `default_merge_strategy`). `merge_commit` is "merge", `squash` and `squash_fast_forward` are "squash", and the
+    fast-forward and rebase strategies are "rebase".
+  - The pull request gives short hashes. The newest commit of the pull request gives the full head hash.
+  - Comments with `inline` are review threads. A reply to a reply belongs to the thread of the first comment. The
+    first comment has `resolution` when the thread is resolved. Resolve is `POST .../comments/{id}/resolve`, and
+    reopen is `DELETE` on the same path. Other comments are the conversation. Deleted comments stay out.
+  - Files come from the diffstat. The hunks come from the one diff of the pull request (`splitUnifiedDiff`).
+  - Checks: the steps of the newest pipeline of the commit, and the commit statuses of other CI services. The statuses
+    of Bitbucket Pipelines stay out when the steps show. Pipelines and steps have UUIDs, so `NumericIds` gives them
+    numbers for the UI while the app runs. A step log is `GET .../steps/{step}/log`. Bitbucket has no API that runs one
+    step or only the failed steps again, so "run again" starts a new pipeline with the same target.
+  - The Pipelines view has one workflow ("Pipeline"). "Run" starts a pipeline on the branch.
+  - An update (`PUT`) always sends the title and the current reviewers, because an update without reviewers can remove
+    them. A change of the base sets `destination.branch.name`. Draft is the `draft` field. Close is `decline`.
+- Review checkouts: Bitbucket has no ref for a pull request. The fetch gets all branches of `origin`, so a pull request
+  from a fork cannot have a checkout.
+- Not available for Bitbucket: assignees, labels, reactions, auto-merge, opening a declined pull request again, review
+  requests on the Dashboard (Bitbucket has no list of them across repositories), the Add to PR button of the
+  screenshots (no API for images in comments), and a stored "viewed" state.
+
 #### Review view
 
 - The sidebar item "Review" (below "Tasks") opens a main view for the pull requests of any repository, not only local ones.

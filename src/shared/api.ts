@@ -336,7 +336,7 @@ export interface ShipWardenApi {
      * goes to Azure DevOps. All other targets go to GitHub.
      */
     github: {
-        /** Returns the branch, its pull request and the commit for checks. Returns null when the worktree has no GitHub or Azure Repos remote. */
+        /** Returns the branch, its pull request and the commit for checks. Returns null when the worktree has no remote of a review provider. */
         status(root: string): Promise<BranchStatus | null>;
         /** Creates a pull request from the branch of the worktree. Returns its number. */
         createPullRequest(root: string, request: NewPullRequest): Promise<number>;
