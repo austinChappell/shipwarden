@@ -228,6 +228,24 @@ function ActionFields({ label, first, last, removable, action, trigger, allowed,
                 </div>
             </div>
             <CardBody className="automation-action-body">
+                {action.type === 'queueTask' && (
+                    <>
+                        <div className="automation-field-grid">
+                            <div className="flow-field">
+                                <span className="automation-field-label">Agent</span>
+                                <Select
+                                    aria-label="Agent"
+                                    value={action.agentId ?? ''}
+                                    options={[{ value: '', label: "The repository's agent" }, ...agents.map(agent => ({ value: agent.id, label: agent.name }))]}
+                                    onChange={agentId => onChange(agentId ? { ...action, agentId } : { type: 'queueTask' })}
+                                />
+                            </div>
+                        </div>
+                        <div className="automation-variables">
+                            The queue starts the task when it has a free place. The agent gets the default task prompt. Set the limit on the Queue page.
+                        </div>
+                    </>
+                )}
                 {(action.type === 'sendToAgent' || action.type === 'startAgent') && (
                     <div className="automation-field-grid">
                         {action.type === 'startAgent' && (

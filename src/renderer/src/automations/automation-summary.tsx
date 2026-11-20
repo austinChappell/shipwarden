@@ -38,6 +38,8 @@ function actionPhrase(action: AutomationAction): ReactNode {
             return 'send a prompt to the agent of the worktree';
         case 'startAgent':
             return 'start an agent in a new worktree';
+        case 'queueTask':
+            return 'add the task to the queue';
         case 'runHeadless':
             return action.saveNote ? 'ask an agent and save the answer in the Scratch Pad' : 'ask an agent';
         case 'moveTask':

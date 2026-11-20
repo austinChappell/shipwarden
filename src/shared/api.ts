@@ -51,6 +51,7 @@ import type { ProviderUsage } from './usage';
 import type { UpdateState } from './updates';
 import type { BranchDiff, ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
 import type { CompareGroup } from './agent-compare';
+import type { QueueState } from './task-queue';
 import type { PinnedSession, PinRequest, ResumePlan } from './pinned-sessions';
 import type { RecentSession } from './recent-sessions';
 import type { WorktreeFiles } from './worktree-overlap';
@@ -454,6 +455,12 @@ export interface ShipWardenApi {
         save(group: CompareGroup): Promise<CompareGroup>;
         remove(id: string): Promise<void>;
     };
+    queue: {
+        /** The task queue: its items in order, and its settings. */
+        get(): Promise<QueueState>;
+        /** Writes the full queue and returns the saved copy. The page is the only writer. */
+        save(state: QueueState): Promise<QueueState>;
+    };
     automations: {
         /** The automations in ~/.shipwarden/automations, and the files that ShipWarden could not read. */
         list(): Promise<AutomationList>;
@@ -814,6 +821,8 @@ export const IpcChannels = {
     compareList: 'compare:list',
     compareSave: 'compare:save',
     compareRemove: 'compare:remove',
+    queueGet: 'queue:get',
+    queueSave: 'queue:save',
     automationsList: 'automations:list',
     automationsSave: 'automations:save',
     automationsRemove: 'automations:remove',

@@ -12,6 +12,7 @@ export type MainView =
     | 'notes'
     | 'automations'
     | 'plans'
+    | 'queue'
     | 'terminal'
     | 'graph'
     | 'settings'

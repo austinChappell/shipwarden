@@ -86,7 +86,18 @@ export type Trigger =
     /** A time of day on the selected days of the week. `days` has 0 (Sunday) to 6 (Saturday). `time` is "HH:MM". */
     | { type: 'schedule'; days: number[]; time: string };
 
-export type ActionType = 'sendToAgent' | 'startAgent' | 'runHeadless' | 'moveTask' | 'removeWorktree' | 'notify' | 'postMessage' | 'http' | 'if' | 'stop';
+export type ActionType =
+    | 'sendToAgent'
+    | 'startAgent'
+    | 'queueTask'
+    | 'runHeadless'
+    | 'moveTask'
+    | 'removeWorktree'
+    | 'notify'
+    | 'postMessage'
+    | 'http'
+    | 'if'
+    | 'stop';
 
 export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 export type HttpMethod = (typeof HTTP_METHODS)[number];
@@ -130,6 +141,11 @@ export type AutomationAction =
      * For a schedule, `branch` is the branch name, with variables. With `mode`, the agent starts in that permission mode.
      */
     | { type: 'startAgent'; prompt: string; agentId?: string; branch?: string; mode?: AgentMode }
+    /**
+     * Adds the task to the end of the task queue. The queue starts it when it has a free place, with the branch template
+     * and the default task prompt. Without `agentId`, the agent of the repository works on the task.
+     */
+    | { type: 'queueTask'; agentId?: string }
     /** Runs the agent in print mode. The agent does not change files. With `saveNote`, the answer goes into a note. */
     | { type: 'runHeadless'; prompt: string; saveNote?: boolean }
     /** Moves the task of the worktree, or the matching task, to the status with this name. */
@@ -282,6 +298,7 @@ export const TRIGGER_TYPES: { type: TriggerType; label: string; description: str
 export const ACTION_TYPES: { type: ActionType; label: string; description: string }[] = [
     { type: 'sendToAgent', label: 'Send to the agent', description: 'Sends a prompt to the agent of the worktree.' },
     { type: 'startAgent', label: 'Start an agent', description: 'Makes a new worktree and gives the prompt to a new agent.' },
+    { type: 'queueTask', label: 'Add to the queue', description: 'Adds the task to the task queue. It starts when the queue has a free place.' },
     { type: 'runHeadless', label: 'Ask an agent', description: 'Runs the agent in print mode. The agent does not change files.' },
     { type: 'moveTask', label: 'Move the task', description: 'Moves the task to a status.' },
     { type: 'removeWorktree', label: 'Remove the worktree', description: 'Removes the worktree. Git refuses a worktree with changes.' },
@@ -306,6 +323,7 @@ const WORKTREE_TRIGGERS: readonly TriggerType[] = ['ci.failed', 'pr.comment', 'p
 export const ACTION_TRIGGERS: Record<ActionType, readonly TriggerType[]> = {
     sendToAgent: ['ci.failed', 'pr.comment', 'pr.conflict', 'agent.done', 'worktree.overlap'],
     startAgent: ['task.new', 'schedule'],
+    queueTask: ['task.new'],
     runHeadless: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
     moveTask: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new'],
     removeWorktree: ['pr.merged'],
@@ -320,6 +338,7 @@ export const ACTION_TRIGGERS: Record<ActionType, readonly TriggerType[]> = {
 const MANUAL_ACTIONS: Record<ActionType, readonly ManualEntity[]> = {
     sendToAgent: ['worktree', 'pullRequest'],
     startAgent: ['task', 'none'],
+    queueTask: ['task'],
     runHeadless: ['worktree', 'pullRequest', 'task', 'none'],
     moveTask: ['worktree', 'pullRequest', 'task'],
     removeWorktree: ['worktree', 'pullRequest'],
@@ -425,7 +444,7 @@ export function taskRepo(binding: AutomationBinding, task: Pick<Task, 'labels'>)
 export function needsRepo(automation: Pick<AutomationDefinition, 'trigger' | 'actions'>): boolean {
     const actions = flattenActions(automation.actions);
     const trigger = automation.trigger;
-    if (actsOnTasks(trigger)) return actions.some(action => action.type === 'startAgent');
+    if (actsOnTasks(trigger)) return actions.some(action => action.type === 'startAgent' || action.type === 'queueTask');
     if (trigger.type === 'schedule' || (trigger.type === 'manual' && trigger.entity === 'none')) {
         return actions.some(action => action.type === 'startAgent' || action.type === 'runHeadless');
     }
@@ -732,6 +751,10 @@ function normalizeAction(value: unknown, index: number, prefix = '', depth = 0):
             const agentId = text(raw.agentId, MAX_NAME_LENGTH);
             const branch = text(raw.branch, 200)?.trim();
             return { type: 'startAgent', prompt: prompt(), ...(agentId ? { agentId } : {}), ...(branch ? { branch } : {}), ...mode() };
+        }
+        case 'queueTask': {
+            const agentId = text(raw.agentId, MAX_NAME_LENGTH);
+            return { type: 'queueTask', ...(agentId ? { agentId } : {}) };
         }
         case 'runHeadless':
             return { type: 'runHeadless', prompt: prompt(), ...(raw.saveNote === true ? { saveNote: true } : {}) };
@@ -1179,6 +1202,8 @@ export function defaultAction(type: ActionType): AutomationAction {
             return { type, prompt: '' };
         case 'startAgent':
             return { type, prompt: '' };
+        case 'queueTask':
+            return { type };
         case 'runHeadless':
             return { type, prompt: '', saveNote: true };
         case 'moveTask':

@@ -209,6 +209,10 @@ const api: ShipWardenApi = {
         save: group => ipcRenderer.invoke(IpcChannels.compareSave, group),
         remove: id => ipcRenderer.invoke(IpcChannels.compareRemove, id)
     },
+    queue: {
+        get: () => ipcRenderer.invoke(IpcChannels.queueGet),
+        save: state => ipcRenderer.invoke(IpcChannels.queueSave, state)
+    },
     automations: {
         list: () => ipcRenderer.invoke(IpcChannels.automationsList),
         save: (automation, previousId) => ipcRenderer.invoke(IpcChannels.automationsSave, automation, previousId),
