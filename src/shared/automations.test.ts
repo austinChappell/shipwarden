@@ -105,6 +105,26 @@ describe('normalizeDefinition', () => {
         expect(() => normalizeDefinition({ ...automation(), actions: [{ type: 'removeWorktree' }] })).toThrow(/cannot follow the trigger "CI failed"/);
     });
 
+    it('reads the "Add to the queue" action for a task trigger only', () => {
+        const base = { ...automation(), trigger: { type: 'task.new' } };
+        expect(normalizeDefinition({ ...base, actions: [{ type: 'queueTask', agentId: 'codex', extra: 1 }] }).actions).toEqual([
+            { type: 'queueTask', agentId: 'codex' }
+        ]);
+        expect(normalizeDefinition({ ...base, actions: [{ type: 'queueTask' }] }).actions).toEqual([{ type: 'queueTask' }]);
+        const manual = { ...automation(), trigger: { type: 'manual', entity: 'task' } };
+        expect(normalizeDefinition({ ...manual, actions: [{ type: 'queueTask' }] }).actions).toEqual([{ type: 'queueTask' }]);
+        expect(() => normalizeDefinition({ ...automation(), actions: [{ type: 'queueTask' }] })).toThrow(/cannot follow the trigger "CI failed"/);
+        expect(() =>
+            normalizeDefinition({ ...automation(), trigger: { type: 'schedule', days: [1], time: '09:00' }, actions: [{ type: 'queueTask' }] })
+        ).toThrow(AutomationError);
+    });
+
+    it('asks for a repository for an "Add to the queue" action', () => {
+        const rule = automation({ trigger: { type: 'manual', entity: 'task' }, actions: [{ type: 'queueTask' }] });
+        expect(bindingProblems(rule, [])).toEqual(['Select a repository.']);
+        expect(bindingProblems({ ...rule, binding: { repos: ['/repo'] } }, ['/repo'])).toEqual([]);
+    });
+
     it('rejects a newer format version and a bad schedule', () => {
         expect(() => normalizeDefinition({ ...automation(), version: 2 })).toThrow(/Update ShipWarden/);
         expect(() =>

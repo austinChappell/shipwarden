@@ -262,6 +262,7 @@ A file of an older version has `collectionId` and `collectionName`. ShipWarden r
 |---|---|---|
 | `sendToAgent` | Sends `prompt` to the agent of the worktree. ShipWarden starts the agent of the repository when no agent runs. `mode` sets the permission mode. | `ci.failed`, `pr.comment`, `pr.conflict`, `agent.done`, `worktree.overlap` |
 | `startAgent` | Makes a worktree and gives `prompt` to a new agent. A task gives the branch name: the template of Settings › Worktrees › Branch names for tasks, else the task key and the title. A schedule uses `branch`. `agentId` selects the agent. `mode` sets the permission mode. | `task.new`, `schedule` |
+| `queueTask` | Adds the task to the end of the task queue. The queue starts the task when it has a free place, with the branch template and the default task prompt. `agentId` selects the agent. A task that is in the queue already is not added again. Set the limit on the Queue page. | `task.new` |
 | `runHeadless` | Runs the agent in print mode. The agent does not change files. With `saveNote`, the answer goes into a note in the folder "Automations". | all |
 | `moveTask` | Moves the task to the status with the name `status`. | all except `schedule` |
 | `removeWorktree` | Removes the worktree. Git refuses a worktree with uncommitted changes. With `deleteBranch`, a merged local branch goes away too. | `pr.merged` |
@@ -275,6 +276,7 @@ For a manual automation, the entity sets the actions:
 
 - `sendToAgent` and `removeWorktree`: `worktree` and `pullRequest`.
 - `startAgent`: `task` and `none`.
+- `queueTask`: `task`.
 - `moveTask`: `worktree`, `pullRequest` and `task`.
 - `runHeadless`, `notify`, `postMessage`, `http`, `if` and `stop`: all entities.
 
@@ -407,7 +409,8 @@ a dry run only. A manual run does not count for `maxRunsPerTarget`. Its tokens c
 
 - `approval`: `"ask"` makes each run wait in the Automations view. A notification tells you. `"auto"` runs at once.
 - `maxRunsPerTarget`: the most runs for one pull request, worktree or task. This stops a loop of fix, fail, fix.
-- `maxRunning`: the most agents of a `startAgent` automation that work at the same time. More runs wait.
+- `maxRunning`: the most agents of a `startAgent` automation that work at the same time. More runs wait. A
+  `queueTask` action does not use this limit. The queue has its own limit for all tasks.
 - `dailyTokens`: the most tokens of the runs of this automation from midnight (local time). Then the automation starts
   no runs until the next day. Leave it out for no limit.
 - A run that sends a prompt waits while the agent works. It runs when the agent finishes its turn.

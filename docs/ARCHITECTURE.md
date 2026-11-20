@@ -634,6 +634,32 @@ The user guide and the file format are in [automations.md](automations.md).
 - **Notifications.** The event "Automations" in Settings › Notifications: a run waits for approval, or a run failed.
   A click opens the Automations view. A `notify` action needs only the main switch.
 
+### Task queue
+
+- **Scheduler.** `src/shared/task-queue.ts` has pure functions only, so the unit tests need no Electron. Each function
+  takes a `QueueState` and returns a new one: `addToQueue`, `moveInQueue`, `nextStarts`, `markStarting`, `markStarted`,
+  `markStartFailed`, `markFinished`, `finishReason`, and `recoverQueue`. The queue is global. Each item keeps its task
+  (a copy), its connection, and its repository.
+- **Limit.** `nextStarts` returns the queued items that can start now: at most `maxRunning` minus the items that start
+  or run. An item that waits after a failed start (`retryAt`) is skipped. A `StartCheck` runs before each start. It
+  returns a reason to wait, or undefined. `QueueRunner.canStart` is the one place for it. Today it lets each item start.
+- **Finished.** `finishReason` reads an `AgentObservation`: the agent is alive, busy, the time it stopped its work, and a
+  pull request on its branch (the branch summaries). With `finishWhen: 'pullRequest'`, a pull request finishes the item.
+  With `'idle'`, `idleMinutes` without work finishes it. An agent that exits finishes the item in both modes, after
+  `START_GRACE_MS` for a new session.
+- **Failures.** A failed start goes to the end of the queue with its error and waits `RETRY_DELAY_MS`. After
+  `MAX_START_ATTEMPTS`, the item gets the status "failed".
+- **Store.** `QueueStore` (main process) keeps `task-queue.json` in the app data folder (`queue:get`, `queue:save`). The
+  page is the only writer. `changeQueue` (`src/renderer/src/queue/queue-queries.ts`) applies a scheduler function to the
+  cached state, puts the result in the TanStack Query cache in the same step, and saves it.
+- **Runner.** `QueueRunner` (`src/renderer/src/queue/queue-runner.ts`) runs in the page, because the page owns the agent
+  tabs. `useQueueRunner` gives it the sessions and the branch summaries at each render, and runs a round every 30
+  seconds, at each change of the queue, and 2 seconds after an agent of the queue stops its work. A round finishes the
+  items whose agents finished, then starts the next items one after the other with `startTaskQuietly`, the start code
+  of "Start in worktree". At the first round after a start of the app, `recoverQueue` puts a start that did not end at
+  the end of the queue. Running items stay: their agents keep working in the PTY host.
+- **Automations.** The `queueTask` action calls `queueTask` with the task of the event and the name of the automation.
+
 ### Repository scripts
 
 - Each repository can have saved scripts (`repos[path].scripts`: ID, name, command). The ▷ button of the workspace

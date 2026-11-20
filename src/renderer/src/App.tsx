@@ -40,6 +40,10 @@ import { PlansView } from './plans/PlansView';
 import { setGroupAgentActions } from './github/pr-group-agents';
 import { cachedPlan, createPlan, usePlans } from './plans/plan-queries';
 import { planRunner } from './plans/plan-runner';
+import { QueueView } from './queue/QueueView';
+import { queueRunner } from './queue/queue-runner';
+import { useTaskQueue } from './queue/queue-queries';
+import { useQueueRunner } from './queue/use-queue-runner';
 import { PipelinesView } from './components/PipelinesView';
 import { ScriptsMenu } from './components/ScriptsMenu';
 import { AutomationButtons } from './automations/AutomationButtons';
@@ -524,6 +528,15 @@ export function App() {
     });
     const automationsCount = useAutomationRuns().state.runs.filter(run => run.status === 'pending').length;
 
+    // The task queue starts its tasks while the app is open. It uses the start code of "Start in worktree".
+    useQueueRunner({
+        settingsLoaded,
+        sessions,
+        summaries: project.summaries,
+        actions: { startTaskQuietly: worktreeActions.startTaskQuietly }
+    });
+    const queueRunning = useTaskQueue().state.items.filter(item => item.status === 'starting' || item.status === 'running').length;
+
     // The plans execute their steps while the app is open. The runner gets the state of the app here.
     const { plans, loaded: plansLoaded } = usePlans();
     planRunner.setContext({
@@ -700,6 +713,7 @@ export function App() {
             agentStateStore.set(id, update);
             automationEngine.onAgentState(id, update);
             planRunner.onAgentState(id, update);
+            queueRunner.onAgentState(id, update);
             if (update.state === 'waiting' || update.state === 'done') {
                 notifyAgentRef.current(id, update.state, update.message);
             }
@@ -1043,6 +1057,9 @@ export function App() {
                                     plansActive={mainView === 'plans'}
                                     plansCount={plansCount}
                                     onOpenPlans={() => enterView('plans')}
+                                    queueActive={mainView === 'queue'}
+                                    queueRunning={queueRunning}
+                                    onOpenQueue={() => enterView('queue')}
                                     terminalActive={terminalView}
                                     onOpenTerminal={() => enterView('terminal')}
                                     dashboardActive={mainView === 'dashboard'}
@@ -1204,6 +1221,16 @@ export function App() {
                                         onRoute={route => setRoute('plans', route)}
                                         onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
                                         onOpenGroup={openPrGroup}
+                                    />
+                                </main>
+                            )}
+                            {mainView === 'queue' && (
+                                <main className="workspace">
+                                    <QueueView
+                                        key={viewEntry}
+                                        repoLabel={repoLabel}
+                                        onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
+                                        onOpenTasks={() => enterView('tasks')}
                                     />
                                 </main>
                             )}

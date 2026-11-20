@@ -92,6 +92,22 @@ for a task and gives the task to a new agent.
 ShipWarden does not open pull requests for the runs. Open a pull request from the kept worktree as usual. The
 comparisons are in `agent-compare.json` in the app data folder.
 
+### Task queue
+
+The task queue runs a backlog while you sleep. It starts the tasks one after the other and keeps a limit of agents.
+
+1. Open a task and click **Add to queue**. The repository is the repository that "Start in worktree" uses.
+2. Open **Queue** in the sidebar. Drag the queued tasks to change the order, or press ⌥↑ and ⌥↓.
+3. Set **Agents at the same time**, for example 3. When an agent finishes, the next task starts.
+4. Select when an agent is finished: when it opens a pull request, or when it is idle for a set time. An agent that
+   exits is always finished.
+
+Each task gets a new worktree from the branch template and the agent of its repository, the same as with
+"Start in worktree". A failed start goes to the end of the queue with its error, and waits one minute. After 3 failed
+starts, the task stops, and **Try again** puts it back. The queue runs only while ShipWarden is open. It continues after
+a restart of the app. The queue is in `task-queue.json` in the app data folder. The `queueTask` automation action adds
+the new tasks of a collection to the queue.
+
 The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
 send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label,
 post to Slack when an agent waits for your input for 10 minutes, or remove the worktree after its pull request merges. Each automation is a JSON file in `~/.shipwarden/automations` that
@@ -103,7 +119,7 @@ repository, choose your agent and start the first agent. Help › Show Welcome o
 the main parts of the window. Help › Take the Tour starts it at all times. Help › Keyboard Shortcuts lists all keys.
 A new user also gets a getting started checklist on the Dashboard.
 
-Tips show the features that are easy to miss. At each start, one random tip from a list of 20 shows in the
+Tips show the features that are easy to miss. At each start, one random tip from a list of 26 shows in the
 bottom-right corner. While ShipWarden stays open, a new tip shows 12 hours after you close the last one. A tip does not
 show again within 10 tips. Some views have their own tip, for example the Dashboard. Close a tip in a view, and it does not show again.
 Turn off the tips in the corner notice or in Settings › Appearance › Tips.

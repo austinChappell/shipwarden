@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GitBranch, GitCompareArrows, Link2, Play, Unlink } from 'lucide-react';
+import { GitBranch, GitCompareArrows, Link2, ListPlus, Play, Unlink } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { AutomationButtons } from '../../automations/AutomationButtons';
 import { Button, Select } from '../ui';
@@ -7,6 +7,8 @@ import { targetRepo as pickTargetRepo } from './task-view-logic';
 import { CompareAgentsDialog } from '../compare/CompareAgentsDialog';
 import { RelatedLinks } from '../RelatedLinks';
 import type { CompareProps } from '../compare/CompareRuns';
+import { openItemOfTask, queuePosition } from '@shared/task-queue';
+import { queueTask, useTaskQueue } from '../../queue/queue-queries';
 
 interface Props {
     task: Task;
@@ -55,6 +57,8 @@ export function TaskActions({
     compare
 }: Props) {
     const [comparing, setComparing] = useState(false);
+    const { state: queue } = useTaskQueue();
+    const queued = openItemOfTask(queue, source.connectionId, task.id);
     /** The repository for "Start in worktree": the last one in this project, else the first. */
     const targetRepo = pickTargetRepo(repos, startRepo);
     return (
@@ -85,6 +89,20 @@ export function TaskActions({
                         onClick={() => source && targetRepo && act(() => onStartTask(task, source.connectionId, source.pluginId, targetRepo))}
                     >
                         Start in worktree
+                    </Button>
+                    <Button
+                        icon={<ListPlus size={14} strokeWidth={1.8} />}
+                        disabled={busy || !targetRepo || !source || !!queued}
+                        title={queueButtonTitle(queued && queuePosition(queue, queued.id), !!queued, targetRepo ? repoLabel(targetRepo) : undefined)}
+                        onClick={() =>
+                            source &&
+                            targetRepo &&
+                            act(async () => {
+                                await queueTask({ connectionId: source.connectionId, pluginId: source.pluginId, task, repoPath: targetRepo });
+                            })
+                        }
+                    >
+                        {queued ? 'In queue' : 'Add to queue'}
                     </Button>
                     {compare && (
                         <Button
@@ -144,4 +162,12 @@ export function TaskActions({
             />
         </div>
     );
+}
+
+/** The tooltip of "Add to queue". `position` is the place of a queued task, from 1. A task that starts or runs has none. */
+function queueButtonTitle(position: number | undefined, inQueue: boolean, repo: string | undefined): string {
+    if (position) return `The task is number ${position} in the queue`;
+    if (inQueue) return 'An agent of the queue works on the task now';
+    if (!repo) return 'Add a repository to the project first';
+    return `Start the task later, when the queue has a free place. The worktree goes in ${repo}.`;
 }

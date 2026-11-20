@@ -14,6 +14,7 @@ import { registerPrGroupIpc } from './pr-groups';
 import { registerCompareIpc } from './compare';
 import { registerPinIpc } from './pins';
 import { registerProjectIpc } from './projects';
+import { registerQueueIpc } from './queue';
 import { registerRemoteIpc } from './remote';
 import { registerSettingsIpc } from './settings';
 import { registerTaskIpc } from './tasks';
@@ -37,6 +38,7 @@ export function registerIpc(services: Services, runAppKey: (action: AppKeyAction
     registerPlanIpc(services);
     registerPrGroupIpc(services);
     registerCompareIpc(services);
+    registerQueueIpc(services);
     registerPinIpc(services);
     registerRemoteIpc(services);
     registerGitIpc(services);

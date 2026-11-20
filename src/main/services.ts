@@ -25,6 +25,7 @@ import { AutomationStore } from './automations/automation-store';
 import { PlanStore } from './plans/plan-store';
 import { PrGroupStore } from './pr-groups/pr-group-store';
 import { CompareStore } from './compare/compare-store';
+import { QueueStore } from './queue/queue-store';
 import { StatsRecorder } from './stats/stats-recorder';
 import { StatsStore } from './stats/stats-store';
 import { TokenCounter } from './automations/token-counter';
@@ -421,6 +422,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const plans = new PlanStore(join(userData, 'plans.json'));
     const prGroups = new PrGroupStore(join(userData, 'pr-groups.json'));
     const compare = new CompareStore(join(userData, 'agent-compare.json'));
+    const queue = new QueueStore(join(userData, 'task-queue.json'));
     /**
      * The pinned Claude Code sessions. The agent that ran the session names it in print mode, with a small model. The
      * run saves no session and uses an empty temporary folder, so it does not add a session to the resume list.
@@ -492,6 +494,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         plans,
         prGroups,
         compare,
+        queue,
         stats,
         pinnedSessions,
         recentSessions: new RecentSessions(),

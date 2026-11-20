@@ -11,6 +11,7 @@ import {
     HelpCircle,
     Keyboard,
     LayoutDashboard,
+    ListOrdered,
     ListTodo,
     Palette,
     PanelsTopLeft,
@@ -425,6 +426,16 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
         },
         ...noteItems(context.notes ?? [], context, true)
     );
+
+    // The task queue.
+    items.push({
+        id: 'view-queue',
+        label: 'Open Queue',
+        group: 'Tasks',
+        keywords: ['backlog', 'overnight', 'limit'],
+        icon: ListOrdered,
+        run: () => actions.enterView('queue')
+    });
 
     // Automations.
     items.push(
