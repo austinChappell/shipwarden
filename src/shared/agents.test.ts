@@ -22,6 +22,7 @@ describe('agentStateFromHook', () => {
         expect(agentStateFromHook('UserPromptSubmit', { prompt: '  Fix the\nlogin page ' })).toEqual({
             state: 'working',
             message: 'Reading your prompt',
+            newTurn: true,
             prompt: 'Fix the login page'
         });
         expect(agentStateFromHook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } })).toEqual({
@@ -49,6 +50,7 @@ describe('agentStateFromHook', () => {
         expect(agentStateFromHook('BeforeAgent', { prompt: ' Add a\ntest ' })).toEqual({
             state: 'working',
             message: 'Reading your prompt',
+            newTurn: true,
             prompt: 'Add a test'
         });
         expect(agentStateFromHook('BeforeTool', { tool_name: 'run_shell_command', tool_input: { command: 'npm test' } })).toEqual({

@@ -214,6 +214,12 @@ const api: ShipWardenApi = {
         started: start => ipcRenderer.invoke(IpcChannels.statsStarted, start),
         ci: change => ipcRenderer.invoke(IpcChannels.statsCi, change)
     },
+    checkpoints: {
+        list: worktree => ipcRenderer.invoke(IpcChannels.checkpointsList, worktree),
+        preview: (worktree, ref, session) => ipcRenderer.invoke(IpcChannels.checkpointsPreview, worktree, ref, session),
+        rewind: (worktree, ref, options) => ipcRenderer.invoke(IpcChannels.checkpointsRewind, worktree, ref, options),
+        onChanged: listener => subscribe<[string]>(IpcChannels.checkpointsChanged, listener)
+    },
     queue: {
         get: () => ipcRenderer.invoke(IpcChannels.queueGet),
         save: state => ipcRenderer.invoke(IpcChannels.queueSave, state)

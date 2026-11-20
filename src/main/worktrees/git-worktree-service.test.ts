@@ -3,6 +3,7 @@ import { execFileSync } from 'child_process';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { createCheckpoint } from '../git/checkpoints';
 import { GitWorktreeService } from './git-worktree-service';
 
 describe('GitWorktreeService', () => {
@@ -142,6 +143,18 @@ describe('GitWorktreeService', () => {
 
         expect(await service.list(repo)).toHaveLength(1);
         expect(git(repo, 'branch', '--list', 'temp').trim()).toContain('temp');
+    });
+
+    it('removes the checkpoints of a removed worktree and keeps the others', async () => {
+        const worktree = await service.create({ repoPath: repo, branch: 'temp' });
+        await fs.writeFile(path.join(worktree.path, 'a.txt'), 'agent');
+        await createCheckpoint(worktree.path, { session: 'agent-1', kind: 'prompt' });
+        await fs.writeFile(path.join(repo, 'b.txt'), 'main');
+        await createCheckpoint(repo, { session: 'agent-2', kind: 'prompt' });
+
+        await service.remove(repo, worktree.path, true);
+
+        expect(git(repo, 'for-each-ref', '--format=%(refname)', 'refs/shipwarden/').trim()).toBe('refs/shipwarden/checkpoints/agent-2/000001');
     });
 
     it('does not remove the main worktree', async () => {

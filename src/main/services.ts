@@ -41,6 +41,8 @@ import { ProcessService } from './processes/process-service';
 import { StaleShellCloser } from './terminal/stale-shells';
 import { bundlePathOf, UpdateService } from './updates/update-service';
 import { GitChangesService } from './git/git-changes-service';
+import { CheckpointRecorder } from './git/checkpoint-recorder';
+import { createCheckpoint, pruneCheckpoints } from './git/checkpoints';
 import { GitWorktreeService } from './worktrees/git-worktree-service';
 import { ProjectWorktrees } from './worktrees/project-worktrees';
 import { SettingsStore } from './settings-store';
@@ -185,6 +187,23 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     });
 
     /**
+     * Saves a git checkpoint of the worktree at each agent turn (Checkpoints tab). The work runs after the hook answered,
+     * so it never delays the agent.
+     */
+    const checkpoints = new CheckpointRecorder({
+        session: async id => (await terminalSessions()).find(session => session.id === id),
+        create: createCheckpoint,
+        onSaved: cwd => window.send(IpcChannels.checkpointsChanged, cwd)
+    });
+    /** Removes the checkpoints that are older than 7 days. It runs one time, at the start of the app. */
+    const pruneOldCheckpoints = async () => {
+        const repos = new Set((await projects.get()).projects.flatMap(project => project.repos));
+        for (const repo of repos) {
+            await pruneCheckpoints(repo).catch(error => console.warn(`[checkpoints] The cleanup of ${repo} failed: ${String(error)}`));
+        }
+    };
+
+    /**
      * The terminal sessions run in the PTY host, a separate process. When the app quits, the host and its agents
      * continue to run. The next app run connects to the same host and shows the sessions again.
      */
@@ -201,17 +220,20 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         events: {
             data: (id, data, seq) => {
                 window.send(IpcChannels.terminalsData, id, data, seq);
+                checkpoints.output(id);
                 remote.terminalData(id, data, seq);
             },
             exit: (id, exitCode) => {
                 shellAgents.forget(id);
                 stats.forget(id);
+                checkpoints.forget(id);
                 window.send(IpcChannels.terminalsExit, id, exitCode);
                 remote.terminalExited(id);
             },
             agentState: (id, update) => {
                 window.send(IpcChannels.terminalsAgentState, id, update);
                 stats.agentState(id, update);
+                checkpoints.agentState(id, update);
                 // A resumed session can write its transcript in a new folder. The pin follows it.
                 void pinnedSessions.track(update.transcript).catch(() => undefined);
                 remote.agentsChanged();
@@ -496,6 +518,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         compare,
         queue,
         stats,
+        checkpoints,
+        pruneOldCheckpoints,
         pinnedSessions,
         recentSessions: new RecentSessions(),
         confirm,
