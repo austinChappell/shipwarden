@@ -1,5 +1,6 @@
-import { app, session, shell, WebContentsView, type BrowserWindow, type Certificate, type Input, type Session } from 'electron';
+import { app, BrowserWindow, session, shell, WebContentsView, type Certificate, type Input, type Session } from 'electron';
 import { BLANK_PAGE, isBrowsableUrl, type BrowserBounds, type BrowserFindOptions, type BrowserState } from '@shared/browser';
+import { SELECTOR_TIMEOUT_MS, type ScreenshotWait } from '@shared/screenshots';
 import { verifyWithExtraCas } from './extra-ca-verify';
 
 /** The session of all browser views. It is not the session of the app, so a page cannot read the data of the app. */
@@ -10,6 +11,33 @@ const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write']);
 
 /** Chromium error -3 (ERR_ABORTED): a new navigation stopped the load. This is not an error for the user. */
 const ERR_ABORTED = -3;
+
+/** The height of the window of a capture before ShipWarden measures the page. */
+const CAPTURE_START_HEIGHT = 900;
+/** The largest height of a capture in CSS pixels. A longer page is cut at this height. */
+const CAPTURE_MAX_HEIGHT = 8000;
+/** The longest time for the load of a page to capture. */
+const CAPTURE_LOAD_TIMEOUT_MS = 30_000;
+
+/** The options of a screenshot. */
+export interface CaptureOptions {
+    /** The page width in CSS pixels. */
+    width: number;
+    wait: ScreenshotWait;
+}
+
+function delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/** Rejects with the message when the promise does not settle in time. */
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 export interface BrowserViewEvents {
     /** The state of a view changed: the address, the title, the history or the load state. */
@@ -185,6 +213,82 @@ export class BrowserViews {
             loading: contents.isLoading(),
             error: entry.error
         };
+    }
+
+    /**
+     * Captures a full-page PNG of an address. The page loads in a hidden window with the session of the browser pane,
+     * so it has the same cookies and the same certificate rules. The window closes after the capture.
+     * The image has the width of the page in CSS pixels. A page that is longer than CAPTURE_MAX_HEIGHT is cut.
+     */
+    async capture(url: string, options: CaptureOptions): Promise<Buffer> {
+        if (!isBrowsableUrl(url) || url === BLANK_PAGE) throw new Error(`ShipWarden cannot capture "${url}". Use an http or https address.`);
+        const window = new BrowserWindow({
+            show: false,
+            width: options.width,
+            height: CAPTURE_START_HEIGHT,
+            useContentSize: true,
+            enableLargerThanScreen: true,
+            paintWhenInitiallyHidden: true,
+            webPreferences: {
+                session: this.session(),
+                nodeIntegration: false,
+                contextIsolation: true,
+                sandbox: true,
+                webSecurity: true,
+                allowRunningInsecureContent: false,
+                navigateOnDragDrop: false,
+                spellcheck: false
+            }
+        });
+        const contents = window.webContents;
+        contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+        contents.on('will-attach-webview', event => event.preventDefault());
+        contents.on('will-navigate', event => {
+            if (!isBrowsableUrl(event.url)) event.preventDefault();
+        });
+        try {
+            try {
+                await withTimeout(contents.loadURL(url), CAPTURE_LOAD_TIMEOUT_MS, 'The page did not load in 30 seconds.');
+            } catch (error) {
+                const detail = error instanceof Error ? error.message.replace(/\s*\(-?\d+\) loading .*$/, '') : String(error);
+                throw new Error(`ShipWarden cannot open ${url}: ${detail}. Make sure that the dev server is running.`);
+            }
+            if (options.wait.kind === 'delay') {
+                await delay(options.wait.ms);
+            } else if (options.wait.kind === 'selector') {
+                await this.waitForSelector(window, options.wait.selector);
+            }
+            const height = Number(
+                await contents.executeJavaScript('Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)', true)
+            );
+            const fullHeight = Math.min(Math.max(Number.isFinite(height) ? Math.ceil(height) : CAPTURE_START_HEIGHT, 200), CAPTURE_MAX_HEIGHT);
+            window.setContentSize(options.width, fullHeight);
+            // The page needs a moment to paint at the new size.
+            await delay(300);
+            const image = await contents.capturePage(undefined, { stayHidden: true });
+            if (image.isEmpty()) throw new Error(`The capture of ${url} gave an empty image.`);
+            const size = image.getSize();
+            return (size.width > options.width ? image.resize({ width: options.width, quality: 'best' }) : image).toPNG();
+        } finally {
+            if (!window.isDestroyed()) window.destroy();
+        }
+    }
+
+    /** Waits until an element matches the CSS selector. It rejects after SELECTOR_TIMEOUT_MS. */
+    private async waitForSelector(window: BrowserWindow, selector: string): Promise<void> {
+        const script = `!!document.querySelector(${JSON.stringify(selector)})`;
+        const end = Date.now() + SELECTOR_TIMEOUT_MS;
+        while (Date.now() < end) {
+            let found = false;
+            try {
+                found = (await window.webContents.executeJavaScript(script, true)) === true;
+            } catch {
+                throw new Error(`"${selector}" is not a valid CSS selector.`);
+            }
+            if (found) return;
+            await delay(200);
+        }
+        throw new Error(`No element matched "${selector}" in ${SELECTOR_TIMEOUT_MS / 1000} seconds.`);
     }
 
     /** Removes a view and closes its page. */

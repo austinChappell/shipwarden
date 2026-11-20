@@ -35,6 +35,7 @@ import { DashboardLoader } from './dashboard-loader';
 import * as pulls from './pull-requests';
 import { fetchRepoPullRequests } from './repo-pull-requests';
 import * as reviews from './review-actions';
+import { commentOnGitHub, uploadToGitHub, type UploadFile } from '../screenshots/screenshot-upload';
 
 export { githubViewerRole } from './pull-request-mapping';
 
@@ -345,5 +346,11 @@ export class GitHubService {
     /** Returns the branches of a repository (at most 300), the default branch first. */
     async branches(repo: RepoRef): Promise<string[]> {
         return pulls.fetchBranches(this.client, repo);
+    }
+
+    /** Commits the images to the screenshot branch and adds a comment with them to the pull request. */
+    async postScreenshots(repo: RepoRef, number: number, files: UploadFile[], body: (urls: string[]) => string): Promise<string | undefined> {
+        const urls = await uploadToGitHub(this.client, repo, number, files);
+        return commentOnGitHub(this.client, repo, number, body(urls));
     }
 }
