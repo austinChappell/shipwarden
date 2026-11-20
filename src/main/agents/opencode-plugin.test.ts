@@ -4,6 +4,7 @@ import { join } from 'path';
 import { pathToFileURL } from 'url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { agentStateFromHook } from '@shared/agents';
+import { HookServer } from './hook-server';
 import { OPENCODE_PLUGIN, writeOpencodePlugin } from './opencode-plugin';
 
 type Hooks = {
@@ -23,6 +24,8 @@ describe('opencode plugin', () => {
             sent.push({ url, event: url.split('/').pop()!, payload: JSON.parse(init.body), token: init.headers['X-ShipWarden-Token'] });
             return new Response(null, { status: 204 });
         });
+        // These tests check the events through the URL of an older PTY host. The last test checks the socket.
+        vi.stubEnv('SHIPWARDEN_HOOK_SOCKET', '');
         vi.stubEnv('SHIPWARDEN_HOOK_URL', 'http://127.0.0.1:4000');
         vi.stubEnv('SHIPWARDEN_HOOK_TOKEN', 'secret');
         vi.stubEnv('SHIPWARDEN_SESSION_ID', 'term-1');
@@ -107,5 +110,33 @@ describe('opencode plugin', () => {
         vi.stubEnv('SHIPWARDEN_SESSION_ID', '');
         expect(await load()).toEqual({});
         expect(sent).toEqual([]);
+    });
+
+    it('sends the events through the hook socket in Node.js', async () => {
+        const received: [string, string][] = [];
+        const server = new HookServer((sessionId, event) => received.push([sessionId, event]));
+        try {
+            const { socket, token } = await server.start(join(folder, 'host.hook'));
+            vi.stubEnv('SHIPWARDEN_HOOK_SOCKET', socket);
+            vi.stubEnv('SHIPWARDEN_HOOK_TOKEN', token);
+            await load();
+            await vi.waitFor(() => expect(received).toEqual([['term-1', 'SessionStart']]));
+            // The plugin does not use fetch for the socket in Node.js.
+            expect(sent).toEqual([]);
+        } finally {
+            server.stop();
+        }
+    });
+
+    it('gives the hook socket to fetch in Bun', async () => {
+        const unix: unknown[] = [];
+        vi.stubGlobal('Bun', {});
+        vi.stubGlobal('fetch', async (url: string, init: { unix?: string }) => {
+            unix.push([url, init.unix]);
+            return new Response(null, { status: 204 });
+        });
+        vi.stubEnv('SHIPWARDEN_HOOK_SOCKET', '/tmp/host.hook');
+        await load();
+        expect(unix).toEqual([['http://localhost/hook/term-1/SessionStart', '/tmp/host.hook']]);
     });
 });

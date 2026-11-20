@@ -248,10 +248,16 @@ function stateChangeOf(event: string, payload: Record<string, unknown>, current?
 
 /**
  * Returns the shell command of one hook. The command sends the event JSON (on stdin) to ShipWarden's hook server.
- * The environment of the terminal supplies the URL, the token and the session ID, so one settings file serves all sessions.
+ * The environment of the terminal supplies the socket, the token and the session ID, so one settings file serves all sessions.
  * A failed request must not block the agent, so the command always succeeds. It writes nothing to stdout.
- * A PTY host from the time when the app was Yardmaster sets YARDMASTER_* variables and reads the X-Yardmaster-Token
- * header. The command uses those when the new variables are not set, so agents of an old host also report their state.
+ *
+ * The command sends the request through the Unix socket in SHIPWARDEN_HOOK_SOCKET. It must not use TCP: network
+ * security tools read plain HTTP on 127.0.0.1, and they report the commands and file paths in the body as attacks.
+ * See hook-server.ts.
+ *
+ * A PTY host of an older build sets SHIPWARDEN_HOOK_URL (or YARDMASTER_HOOK_URL) and listens on 127.0.0.1. Its agents
+ * keep the old environment, so the command uses that URL when the socket variable is not set. A host from the time
+ * when the app was Yardmaster reads the X-Yardmaster-Token header.
  * Gemini CLI can remove a variable with "TOKEN" in its name from the environment of a hook. It always keeps a
  * variable with a name that starts with GEMINI_CLI_. Thus the Gemini command reads the GEMINI_CLI_SHIPWARDEN_* copies first.
  */
@@ -259,9 +265,12 @@ function hookCommand(event: string, gemini: boolean): string {
     const value = (name: string): string =>
         gemini ? `\${GEMINI_CLI_SHIPWARDEN_${name}:-\${SHIPWARDEN_${name}:-$YARDMASTER_${name}}}` : `\${SHIPWARDEN_${name}:-$YARDMASTER_${name}}`;
     const token = value('HOOK_TOKEN');
+    const socket = gemini ? '${GEMINI_CLI_SHIPWARDEN_HOOK_SOCKET:-$SHIPWARDEN_HOOK_SOCKET}' : '$SHIPWARDEN_HOOK_SOCKET';
+    const path = `/hook/${value('SESSION_ID')}/${event}`;
+    const curl = 'curl -s -m 2 -o /dev/null -X POST -H "Content-Type: application/json"';
     return (
-        `curl -s -m 2 -o /dev/null -X POST -H "X-ShipWarden-Token: ${token}" -H "X-Yardmaster-Token: ${token}" ` +
-        `--data-binary @- "${value('HOOK_URL')}/hook/${value('SESSION_ID')}/${event}" || true`
+        `if [ -n "${socket}" ]; then ${curl} -H "X-ShipWarden-Token: ${token}" --data-binary @- --unix-socket "${socket}" "http://localhost${path}"; ` +
+        `else ${curl} -H "X-ShipWarden-Token: ${token}" -H "X-Yardmaster-Token: ${token}" --data-binary @- "${value('HOOK_URL')}${path}"; fi || true`
     );
 }
 
