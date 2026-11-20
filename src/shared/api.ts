@@ -56,6 +56,7 @@ import type { StatsCiChange, StatsEvent, StatsStart } from './stats';
 import type { Checkpoint, RewindOptions, RewindPreview, RewindResult } from './checkpoints';
 import type { PinnedSession, PinRequest, ResumePlan } from './pinned-sessions';
 import type { RecentSession } from './recent-sessions';
+import type { TranscriptSearchQuery, TranscriptSearchResult } from './transcript-search';
 import type { WorktreeFiles } from './worktree-overlap';
 import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
@@ -450,6 +451,13 @@ export interface ShipWardenApi {
          */
         prepareResume(transcript: string, target: { cwd: string }): Promise<ResumePlan>;
     };
+    transcriptSearch: {
+        /**
+         * Finds the Claude Code sessions whose prompts, agent text, or tool call file paths match the query. The index is
+         * on this Mac. The result tells the progress while the index reads transcripts.
+         */
+        search(query: TranscriptSearchQuery): Promise<TranscriptSearchResult>;
+    };
     compare: {
         /** The agent comparisons (one task, several agents), the newest change first. */
         list(): Promise<CompareGroup[]>;
@@ -838,6 +846,7 @@ export const IpcChannels = {
     pinsChanged: 'pins:changed',
     recentSessionsList: 'recentSessions:list',
     recentSessionsPrepareResume: 'recentSessions:prepareResume',
+    transcriptSearch: 'transcriptSearch:search',
     compareList: 'compare:list',
     compareSave: 'compare:save',
     compareRemove: 'compare:remove',

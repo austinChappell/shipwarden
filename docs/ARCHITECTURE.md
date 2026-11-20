@@ -360,6 +360,38 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - The page loads the list with TanStack Query (`keyRoots.recentSessions`) each minute while the Agents view shows. A
   resume moves the session to the top of the cache.
 
+### Transcript search
+
+- The Agents view has a search field in its header ("Search transcripts"). While the field has text, the view shows
+  the results (`TranscriptSearch.tsx`) in place of the agent lists. Escape clears the field.
+- `TranscriptIndex` (main, `transcript-index.ts`) keeps an SQLite FTS5 index in `<app data>/transcript-index.db`. It
+  uses the built-in `node:sqlite` module of Node 24 (Electron 45), so the app needs no native dependency. The build
+  keeps `node:sqlite` external. The module loads with a dynamic import. When it cannot load, the search shows an error
+  and the rest of the app works.
+- Tables: `files` has one row for each transcript: the path, the session ID, the byte offset of the read, the size and
+  the time of the file at the last complete read, the summary (folder, branch, titles, first prompt), and the model.
+  `entries` (FTS5) has one row for each user prompt, agent text, or tool call file path, with the file ID, the kind,
+  and the time of the line. Tool output is not in the index. Subagent lines (`isSidechain`) are not in the index.
+- `indexTranscriptLines` (`shared/transcript-search.ts`) reads the lines. It keeps at most 8,000 characters of a text.
+- Incremental reads: the index reads a transcript from its saved offset, 512 KB at a time, with `readTranscript`. It
+  saves the offset after the last complete line. A file that is shorter than the offset was written again, so its rows
+  go and the read starts at 0. A file with the same size and time as at its last read is skipped.
+- Updates: the agent state hook (`agentState`) and the chat watch (`TranscriptWatcher`) queue the transcript of the
+  session. A scan of `<Claude data>/projects/*/<session ID>.jsonl` runs 15 seconds after the start and then every 10
+  minutes. It queues the changed transcripts, the newest first, and removes the rows of the transcripts that are gone.
+- Off the hot path: the index reads one transcript at a time, writes each part in one transaction, and lets the event
+  loop run between parts (`setImmediate`). On a test Mac with 1.3 GB in the Claude Code projects folder (most of it
+  tool output), the first build took 2.3 seconds, with an event loop delay of at most 6 ms. A line that is longer than
+  one read (512 KB) is skipped. Such a line is almost always tool output.
+- Search: the typed words become an FTS5 query. Each word must match, and the last word can be the start of a word.
+  The filters are the folders of a repository (the repository and its worktrees), the model, and the time of the
+  matching line. The result groups the matches by session ID and shows the newest match first, at most 50 sessions.
+  Only interactive sessions show, as in "Recent sessions".
+- The page loads the result with TanStack Query (`keyRoots.transcriptSearch`). While the index reads transcripts, the
+  result has a progress value, and the page loads it again every 2 seconds. The index is on this Mac, so no request
+  goes to a service.
+- A result resumes like a recent session (or like its pin, when it has one). A session that runs now opens its tab.
+
 ### Projects and repositories
 
 - A project is a named list of repositories. The sidebar shows the repositories of the active project only, so a long

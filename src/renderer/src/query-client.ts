@@ -104,6 +104,8 @@ export const keyRoots = {
     pins: ['pins'],
     /** The Claude Code sessions of the last 3 days. Local data: the main process reads the transcripts on this Mac. */
     recentSessions: ['recentSessions'],
+    /** The search across all Claude Code transcripts. Local data: the main process keeps the index on this Mac. */
+    transcriptSearch: ['transcriptSearch'],
     /** The changes of a worktree branch since its base, and the file versions. Local data: git runs on this Mac. */
     branchDiff: ['branchDiff'],
     /** The PATH check of each agent command. Local data: no request goes to a service. */
