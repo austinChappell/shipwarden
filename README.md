@@ -10,9 +10,9 @@ safely on its course. This app does the same job for coding agents.
 ## Goals
 
 1. **Task sources that anyone can add.** ShipWarden defines an open plugin
-   spec for task trackers. ShipWarden includes six plugins: GitHub
-   Issues, Linear, ClickUp, Azure Boards, Trello and Local tasks. The community can
-   write plugins for Jira and other trackers.
+   spec for task trackers. ShipWarden includes seven plugins: GitHub
+   Issues, Linear, ClickUp, Jira, Azure Boards, Trello, and Local tasks. The community can
+   write plugins for other trackers.
    Each plugin controls how its tasks show in the task UI.
 2. **A real code editor.** ShipWarden includes a full editor with LSP
    support. Go to definition, find references, hover info and diagnostics
@@ -65,9 +65,16 @@ files, the unstaged files, and the new files. It uses local git only. The `workt
 send a note to the agents.
 
 The Tasks view shows the tasks of a task tracker. Task trackers are plugins. ShipWarden
-includes six: GitHub Issues, Linear, ClickUp, Azure Boards, Trello and Local tasks. Anyone can write a
+includes seven: GitHub Issues, Linear, ClickUp, Jira, Azure Boards, Trello, and Local tasks. Anyone can write a
 plugin with the [ShipWarden Task Protocol](docs/task-plugin-protocol.md). "Start in worktree" creates a branch
 for a task and gives the task to a new agent.
+
+The Jira plugin supports Jira Cloud. It needs the site URL, the email of your Atlassian account, and an API token. Each
+Jira project is a collection. The task fields show the issue type, the sprint, the components, and the story points. The
+filters are "Assigned to me", "Current sprint", "All open issues", and "All issues". A status change uses a transition
+of the Jira workflow. ShipWarden shows the descriptions and the comments as Markdown. An attachment in a description
+shows as a placeholder, and then you cannot edit that description in ShipWarden, because the edit would remove the
+attachment.
 
 ### Search all transcripts
 

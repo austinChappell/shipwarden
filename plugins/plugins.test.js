@@ -3,6 +3,10 @@ import { createMessageParser, encodeMessage, runPlugin } from './sdk/index.js';
 import * as github from './github-issues/map.js';
 import * as clickup from './clickup/map.js';
 import * as azure from './azure-devops/map.js';
+import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { adfToMarkdown } from './jira/adf.js';
+import * as jira from './jira/map.js';
 
 describe('SDK message framing', () => {
     it('parses messages that arrive in parts and together', () => {
@@ -631,5 +635,60 @@ describe('ClickUp chat channels', () => {
         await new Promise(resolve => setTimeout(resolve, 0));
         const reply = createMessageParser()(Buffer.from(written.join('')))[0];
         expect(reply.result.capabilities.chat).toBe(true);
+    });
+});
+
+describe('Jira plugin', () => {
+    it('has a manifest with the site, the email, and the API token', () => {
+        const manifest = JSON.parse(readFileSync(new URL('./jira/shipwarden-plugin.json', import.meta.url), 'utf8'));
+        expect(manifest).toMatchObject({ id: 'jira', name: 'Jira', protocolVersion: 3, command: 'node', args: ['index.js'], scopeLabel: 'project' });
+        expect(manifest.settings.map(setting => [setting.key, setting.type])).toEqual([
+            ['site', 'string'],
+            ['email', 'string'],
+            ['apiToken', 'secret']
+        ]);
+    });
+
+    it('converts an ADF description to Markdown for the task', () => {
+        const issue = {
+            id: '1',
+            key: 'ENG-1',
+            fields: {
+                summary: 'Fix',
+                status: { id: '1', name: 'To Do', statusCategory: { key: 'new' } },
+                description: {
+                    type: 'doc',
+                    version: 1,
+                    content: [
+                        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Steps' }] },
+                        {
+                            type: 'bulletList',
+                            content: [
+                                { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Open', marks: [{ type: 'strong' }] }] }] }
+                            ]
+                        }
+                    ]
+                }
+            }
+        };
+        expect(jira.toTask(issue, { site: 'https://acme.atlassian.net', withDetails: true }).description).toBe('## Steps\n\n- **Open**');
+        expect(adfToMarkdown(issue.fields.description)).toBe('## Steps\n\n- **Open**');
+    });
+
+    it('answers initialize over stdio with an error that names the missing setting', async () => {
+        const child = spawn(process.execPath, ['index.js'], { cwd: new URL('./jira/', import.meta.url) });
+        const parse = createMessageParser();
+        const reply = new Promise(resolve => {
+            child.stdout.on('data', chunk => {
+                const [message] = parse(chunk);
+                if (message) resolve(message);
+            });
+        });
+        child.stdin.write(
+            encodeMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: 3, settings: {}, context: { repositories: [] } } })
+        );
+        const message = await reply;
+        child.kill();
+        expect(message.error.message).toContain('site URL');
     });
 });

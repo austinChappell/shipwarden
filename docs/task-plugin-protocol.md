@@ -272,6 +272,7 @@ The built-in plugins:
 | Local | A task in the file of the repository | A task with the parent number in `parent` |
 | ClickUp | A task in the list | A subtask in the list of the parent |
 | Linear | An issue in the team | A sub-issue in the team of the parent |
+| Jira | An issue of the type "Task" in the project, else the first standard type that is not an epic | An issue of the subtask type in the project of the parent |
 | GitHub Issues | An issue in the repository | A sub-issue in the repository of the parent |
 | Azure DevOps | A work item of the default requirement type, for example "User Story" | A child work item of the default task type, for example "Task", with the area and the iteration of the parent |
 | Trello | A card at the top of the list of the status, else at the top of the first open list | None. Trello cards have no subtasks. Use a checklist. |
