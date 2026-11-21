@@ -89,7 +89,7 @@ export interface QueueState {
 
 /** The smallest and the largest limit of agents. */
 export const QUEUE_MAX_RUNNING_MIN = 1;
-export const QUEUE_MAX_RUNNING_MAX = 10;
+export const QUEUE_MAX_RUNNING_MAX = 20;
 /** The smallest and the largest idle time, in minutes. */
 export const QUEUE_IDLE_MIN = 1;
 export const QUEUE_IDLE_MAX = 24 * 60;
@@ -102,7 +102,7 @@ export const START_GRACE_MS = 60_000;
 /** The file keeps at most this number of finished and failed items. The oldest go first. */
 export const MAX_FINISHED_ITEMS = 200;
 
-export const DEFAULT_QUEUE_SETTINGS: QueueSettings = { maxRunning: 2, finishWhen: 'pullRequest', idleMinutes: 15, paused: false };
+export const DEFAULT_QUEUE_SETTINGS: QueueSettings = { maxRunning: 5, finishWhen: 'pullRequest', idleMinutes: 15, paused: false };
 
 export const EMPTY_QUEUE: QueueState = { items: [], settings: DEFAULT_QUEUE_SETTINGS };
 

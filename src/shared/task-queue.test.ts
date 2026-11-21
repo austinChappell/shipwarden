@@ -106,7 +106,7 @@ describe('the limit', () => {
 
     it('keeps the limit in its range', () => {
         expect(changeQueueSettings(EMPTY_QUEUE, { maxRunning: 0 }).settings.maxRunning).toBe(1);
-        expect(changeQueueSettings(EMPTY_QUEUE, { maxRunning: 99 }).settings.maxRunning).toBe(10);
+        expect(changeQueueSettings(EMPTY_QUEUE, { maxRunning: 99 }).settings.maxRunning).toBe(20);
         expect(changeQueueSettings(EMPTY_QUEUE, { maxRunning: 2.6 }).settings.maxRunning).toBe(3);
     });
 });
@@ -264,7 +264,7 @@ describe('a restart of the app with a full queue', () => {
         });
         expect(ids(state)).toEqual(['x']);
         expect(state.items[0].task.status).toEqual({ id: '', name: '', category: 'todo' });
-        expect(state.settings).toEqual({ maxRunning: 2, finishWhen: 'idle', idleMinutes: 1, paused: false });
+        expect(state.settings).toEqual({ maxRunning: 5, finishWhen: 'idle', idleMinutes: 1, paused: false });
     });
 
     it('reads an empty or broken file as an empty queue', () => {
