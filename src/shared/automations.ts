@@ -1,6 +1,8 @@
 import type { Task } from './tasks';
 import { PROVIDER_NAMES, type ProviderUsage } from './usage';
 import { AGENT_MODES, isAgentMode, type AgentMode } from './agent-modes';
+import type { AgentWaitKind } from './agents';
+import { pluralize } from './format';
 import {
     ConditionError,
     MAX_NESTING,
@@ -31,7 +33,17 @@ export const AUTOMATION_FORMAT_VERSION = 1;
 /** The value of the "kind" field. It marks a JSON text as a ShipWarden automation. */
 export const AUTOMATION_KIND = 'shipwarden.automation';
 
-export type TriggerType = 'ci.failed' | 'pr.comment' | 'pr.conflict' | 'pr.merged' | 'agent.done' | 'worktree.overlap' | 'task.new' | 'schedule' | 'manual';
+export type TriggerType =
+    | 'ci.failed'
+    | 'pr.comment'
+    | 'pr.conflict'
+    | 'pr.merged'
+    | 'agent.done'
+    | 'agent.needsInput'
+    | 'worktree.overlap'
+    | 'task.new'
+    | 'schedule'
+    | 'manual';
 
 /**
  * The thing that a manual automation acts on. Its button shows in the view of that thing:
@@ -62,6 +74,11 @@ export type Trigger =
     | { type: 'pr.merged' }
     /** An agent ended its turn. With `withoutPullRequest`, only when the branch has no open pull request. */
     | { type: 'agent.done'; withoutPullRequest?: boolean }
+    /**
+     * An agent waits for a permission, a question, or other input from the user. With `idleFor`, only after the agent
+     * waits this number of minutes. The run does not occur when the agent stops waiting before that time.
+     */
+    | { type: 'agent.needsInput'; idleFor?: number }
     /** A worktree changes a file that a different worktree of the same repository also changes. */
     | { type: 'worktree.overlap' }
     /** A task of the bound collection agrees with the filters for the first time. */
@@ -239,6 +256,11 @@ export const TRIGGER_TYPES: { type: TriggerType; label: string; description: str
     { type: 'pr.merged', label: 'Pull request merged', description: 'The pull request of a worktree branch was merged.' },
     { type: 'agent.done', label: 'Agent finished', description: 'An agent ended its turn.' },
     {
+        type: 'agent.needsInput',
+        label: 'Agent needs input',
+        description: 'An agent waits for a permission or asks a question. Set a wait time to run only after the agent waits a few minutes.'
+    },
+    {
         type: 'worktree.overlap',
         label: 'Worktrees change the same files',
         description: 'A worktree changes a file that a different worktree of the repository also changes. A merge conflict can come later.'
@@ -275,7 +297,7 @@ export const ACTION_TYPES: { type: ActionType; label: string; description: strin
 ];
 
 /** The triggers of events about a worktree branch. */
-const WORKTREE_TRIGGERS: readonly TriggerType[] = ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap'];
+const WORKTREE_TRIGGERS: readonly TriggerType[] = ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap'];
 
 /**
  * The triggers that each action can follow. An action needs the data of its trigger, for example a worktree.
@@ -284,14 +306,14 @@ const WORKTREE_TRIGGERS: readonly TriggerType[] = ['ci.failed', 'pr.comment', 'p
 export const ACTION_TRIGGERS: Record<ActionType, readonly TriggerType[]> = {
     sendToAgent: ['ci.failed', 'pr.comment', 'pr.conflict', 'agent.done', 'worktree.overlap'],
     startAgent: ['task.new', 'schedule'],
-    runHeadless: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule'],
-    moveTask: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new'],
+    runHeadless: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
+    moveTask: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new'],
     removeWorktree: ['pr.merged'],
-    notify: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule'],
-    postMessage: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule'],
-    http: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule'],
-    if: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule'],
-    stop: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'worktree.overlap', 'task.new', 'schedule']
+    notify: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
+    postMessage: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
+    http: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
+    if: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule'],
+    stop: ['ci.failed', 'pr.comment', 'pr.conflict', 'pr.merged', 'agent.done', 'agent.needsInput', 'worktree.overlap', 'task.new', 'schedule']
 };
 
 /** The entities of a manual trigger that each action can act on. */
@@ -450,6 +472,16 @@ export const TRIGGER_VARIABLES: Record<Exclude<TriggerType, 'manual'>, VariableI
     'pr.conflict': [...prVariables(), ...worktreeVariables()],
     'pr.merged': [...prVariables(), ...worktreeVariables()],
     'agent.done': [{ name: 'agent.message', description: 'The last message of the agent' }, ...worktreeVariables()],
+    'agent.needsInput': [
+        { name: 'agent.message', description: 'The question or the permission request of the agent' },
+        { name: 'agent.waitFor', description: 'What the agent waits for: permission, question, or input' },
+        { name: 'agent.waitMinutes', description: 'The number of minutes that the agent waited' },
+        {
+            name: 'agent.summary',
+            description: 'One line about the wait, for example "The agent on fix-login is waiting for a permission (10 minutes): Bash: npm test"'
+        },
+        ...worktreeVariables()
+    ],
     'worktree.overlap': [
         { name: 'overlap.files', description: 'The files that a different worktree also changes, one on each line' },
         { name: 'overlap.worktrees', description: 'The branches of the other worktrees that change these files' },
@@ -598,6 +630,9 @@ export function isAutomationId(id: unknown): id is string {
     return typeof id === 'string' && ID_PATTERN.test(id);
 }
 
+/** The largest wait time of an "agent.needsInput" trigger, in minutes: one day. */
+export const MAX_IDLE_FOR_MINUTES = 1440;
+
 function normalizeTrigger(value: unknown): Trigger {
     const raw = record(value);
     switch (raw.type) {
@@ -612,6 +647,13 @@ function normalizeTrigger(value: unknown): Trigger {
         }
         case 'agent.done':
             return { type: 'agent.done', ...(raw.withoutPullRequest === true ? { withoutPullRequest: true } : {}) };
+        case 'agent.needsInput': {
+            const idleFor = typeof raw.idleFor === 'number' && Number.isFinite(raw.idleFor) ? Math.round(raw.idleFor) : 0;
+            if (idleFor < 0 || idleFor > MAX_IDLE_FOR_MINUTES) {
+                throw new AutomationError(`The wait time must be 0 to ${MAX_IDLE_FOR_MINUTES} minutes.`);
+            }
+            return { type: 'agent.needsInput', ...(idleFor > 0 ? { idleFor } : {}) };
+        }
         case 'task.new': {
             const labels = names(raw.labels);
             const status = text(raw.status, MAX_NAME_LENGTH)?.trim();
@@ -1036,6 +1078,25 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
         }
     },
     {
+        id: 'slack-needs-input',
+        name: 'Tell Slack when an agent waits',
+        description: 'When an agent waits for your input for 10 minutes, post a message to a Slack webhook.',
+        definition: {
+            name: 'Tell Slack when an agent waits',
+            trigger: { type: 'agent.needsInput', idleFor: 10 },
+            actions: [
+                {
+                    type: 'http',
+                    method: 'POST',
+                    url: '{{secret.SLACK_WEBHOOK_URL}}',
+                    headers: [{ name: 'Content-Type', value: 'application/json' }],
+                    body: '{\n  "text": {{agent.summary|json}}\n}'
+                }
+            ],
+            limits: { approval: 'auto', maxRunsPerTarget: 10, maxRunning: 2 }
+        }
+    },
+    {
         id: 'warn-overlap',
         name: 'Warn about shared files',
         description: 'When two worktrees change the same files, tell the agent of each worktree before a merge conflict occurs.',
@@ -1172,7 +1233,7 @@ export interface AutomationEvent {
     repoPath?: string;
     worktreePath?: string;
     branch?: string;
-    /** The agent session of an "agent.done" event. */
+    /** The agent session of an "agent.done" or "agent.needsInput" event. */
     sessionId?: string;
     pr?: {
         number: number;
@@ -1195,8 +1256,12 @@ export interface AutomationEvent {
     pluginId?: string;
     /** True when the branch has an open pull request. Only "agent.done" sets it. */
     hasPullRequest?: boolean;
-    /** The last message of the agent of an "agent.done" event. */
+    /** The last message of the agent of an "agent.done" event, or the question of an "agent.needsInput" event. */
     agentMessage?: string;
+    /** What the agent of an "agent.needsInput" event waits for. */
+    agentWaitFor?: AgentWaitKind;
+    /** How long the agent of an "agent.needsInput" event waited before the run, in minutes. */
+    agentWaitMinutes?: number;
     /** The time of a "schedule" event, "HH:MM". */
     time?: string;
     /** The overlap of a "worktree.overlap" event: the shared files and the names of the other worktrees. */
@@ -1284,6 +1349,9 @@ export function automationMatches(automation: Automation, event: AutomationEvent
         }
         case 'agent.done':
             return !trigger.withoutPullRequest || !event.hasPullRequest;
+        case 'agent.needsInput':
+            // An event of a wait timer is for the automations with the same wait time only. A manual run has no wait time.
+            return event.manual === true || (event.agentWaitMinutes ?? 0) === (trigger.idleFor ?? 0);
         case 'task.new':
             return event.connectionId === automation.binding.connectionId;
         default:
@@ -1361,10 +1429,27 @@ export function eventVariables(event: AutomationEvent, extra: Record<string, str
         'task.url': event.task?.url ?? event.taskLink?.url,
         ...(event.task ? taskValues(event.task) : {}),
         'agent.message': event.agentMessage,
+        'agent.waitFor': event.agentWaitFor,
+        'agent.waitMinutes': event.agentWaitMinutes === undefined ? undefined : String(event.agentWaitMinutes),
+        'agent.summary': event.trigger === 'agent.needsInput' ? needsInputSummary(event) : undefined,
         'overlap.files': event.overlap?.files.join('\n'),
         'overlap.worktrees': event.overlap?.worktrees.join(', '),
         ...extra
     };
+}
+
+const WAIT_TEXT: Record<AgentWaitKind, string> = {
+    permission: 'waiting for a permission',
+    question: 'asking a question',
+    input: 'waiting for your input'
+};
+
+/** One line about the wait of an "agent.needsInput" event, for a chat message or a notification. */
+export function needsInputSummary(event: Pick<AutomationEvent, 'branch' | 'worktreePath' | 'agentWaitFor' | 'agentWaitMinutes' | 'agentMessage'>): string {
+    const where = event.branch ?? folderName(event.worktreePath) ?? 'a worktree';
+    const minutes = event.agentWaitMinutes ? ` (${pluralize(event.agentWaitMinutes, 'minute')})` : '';
+    const message = event.agentMessage ? `: ${event.agentMessage}` : '.';
+    return `The agent on ${where} is ${WAIT_TEXT[event.agentWaitFor ?? 'input']}${minutes}${message}`;
 }
 
 /** The variables of a task that only the full task gives. */
@@ -1575,6 +1660,8 @@ export function describeTrigger(trigger: Trigger): string {
         }
         case 'agent.done':
             return trigger.withoutPullRequest ? `${label} without a pull request` : label;
+        case 'agent.needsInput':
+            return trigger.idleFor ? `${label} for ${pluralize(trigger.idleFor, 'minute')}` : label;
         case 'pr.comment':
             return trigger.reviewsOnly ? 'New pull request review' : label;
         case 'manual': {

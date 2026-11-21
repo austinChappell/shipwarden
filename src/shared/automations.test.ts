@@ -180,6 +180,51 @@ describe('templates', () => {
     });
 });
 
+describe('agent.needsInput', () => {
+    const waiter = (change: Partial<Automation>) => automation({ actions: [{ type: 'notify', title: 'Waiting' }], ...change });
+
+    it('keeps a valid wait time and drops 0', () => {
+        expect(normalizeAutomation(waiter({ trigger: { type: 'agent.needsInput', idleFor: 10 } })).trigger).toEqual({ type: 'agent.needsInput', idleFor: 10 });
+        expect(normalizeAutomation(waiter({ trigger: { type: 'agent.needsInput', idleFor: 0 } })).trigger).toEqual({ type: 'agent.needsInput' });
+        expect(normalizeAutomation(waiter({ trigger: { type: 'agent.needsInput' } })).trigger).toEqual({ type: 'agent.needsInput' });
+    });
+
+    it('refuses a wait time out of range', () => {
+        expect(() => normalizeAutomation(waiter({ trigger: { type: 'agent.needsInput', idleFor: -1 } }))).toThrow(/wait time/);
+        expect(() => normalizeAutomation(waiter({ trigger: { type: 'agent.needsInput', idleFor: 2000 } }))).toThrow(/wait time/);
+    });
+
+    it('describes the trigger with its wait time', () => {
+        expect(describeTrigger({ type: 'agent.needsInput' })).toBe('Agent needs input');
+        expect(describeTrigger({ type: 'agent.needsInput', idleFor: 10 })).toBe('Agent needs input for 10 minutes');
+    });
+
+    it('gives the wait variables and a summary line', () => {
+        const values = eventVariables(
+            event({ trigger: 'agent.needsInput', branch: 'fix-login', agentWaitFor: 'permission', agentWaitMinutes: 10, agentMessage: 'Bash: npm test' })
+        );
+        expect(values['agent.waitFor']).toBe('permission');
+        expect(values['agent.waitMinutes']).toBe('10');
+        expect(values['agent.message']).toBe('Bash: npm test');
+        expect(values['agent.summary']).toBe('The agent on fix-login is waiting for a permission (10 minutes): Bash: npm test');
+        expect(eventVariables(event({ trigger: 'agent.needsInput', branch: 'x', agentWaitFor: 'question', agentWaitMinutes: 0 }))['agent.summary']).toBe(
+            'The agent on x is asking a question.'
+        );
+        expect(eventVariables(event())['agent.summary']).toBeUndefined();
+    });
+
+    it('has a Slack template that uses no unknown variables', () => {
+        const template = AUTOMATION_TEMPLATES.find(item => item.id === 'slack-needs-input');
+        expect(template?.definition.trigger).toEqual({ type: 'agent.needsInput', idleFor: 10 });
+        const action = template?.definition.actions[0];
+        expect(action?.type).toBe('http');
+        if (action?.type !== 'http') return;
+        const trigger = template!.definition.trigger;
+        expect(unknownVariables(action.body ?? '', trigger)).toEqual([]);
+        expect(unknownVariables(action.url, trigger, { secrets: ['SLACK_WEBHOOK_URL'] })).toEqual([]);
+    });
+});
+
 describe('IDs', () => {
     it('makes a slug from a name', () => {
         expect(slugId('  Résumé: Fix CI!! ')).toBe('resume-fix-ci');
@@ -215,6 +260,25 @@ describe('automationMatches', () => {
         const rule = automation({ trigger: { type: 'agent.done', withoutPullRequest: true } });
         expect(automationMatches(rule, event({ trigger: 'agent.done', hasPullRequest: true }))).toBe(false);
         expect(automationMatches(rule, event({ trigger: 'agent.done', hasPullRequest: false }))).toBe(true);
+    });
+
+    it('matches an agent that needs input only for the automations with the same wait time', () => {
+        const atOnce = automation({ trigger: { type: 'agent.needsInput' } });
+        const tenMinutes = automation({ trigger: { type: 'agent.needsInput', idleFor: 10 } });
+        expect(automationMatches(atOnce, event({ trigger: 'agent.needsInput', agentWaitMinutes: 0 }))).toBe(true);
+        expect(automationMatches(tenMinutes, event({ trigger: 'agent.needsInput', agentWaitMinutes: 0 }))).toBe(false);
+        expect(automationMatches(tenMinutes, event({ trigger: 'agent.needsInput', agentWaitMinutes: 10 }))).toBe(true);
+        expect(automationMatches(atOnce, event({ trigger: 'agent.needsInput', agentWaitMinutes: 10 }))).toBe(false);
+        expect(automationMatches(tenMinutes, event({ trigger: 'agent.done' }))).toBe(false);
+        // "Run now" has no wait time.
+        expect(automationMatches(tenMinutes, event({ trigger: 'agent.needsInput', manual: true }))).toBe(true);
+    });
+
+    it('applies the binding and the branch pattern to an agent that needs input', () => {
+        const rule = automation({ trigger: { type: 'agent.needsInput' }, binding: { repos: ['/repo'] }, conditions: { branchPattern: 'feature/*' } });
+        expect(automationMatches(rule, event({ trigger: 'agent.needsInput' }))).toBe(true);
+        expect(automationMatches(rule, event({ trigger: 'agent.needsInput', repoPath: '/other' }))).toBe(false);
+        expect(automationMatches(rule, event({ trigger: 'agent.needsInput', branch: 'fix/x' }))).toBe(false);
     });
 
     it('applies the binding and the branch pattern to an overlap of worktrees', () => {

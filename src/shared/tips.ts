@@ -30,6 +30,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'view', view: 'automations', label: 'Open Automations' }
     },
     {
+        id: 'needsInputAutomation',
+        title: 'Get a Slack message when an agent waits',
+        body: 'The automation trigger "Agent needs input" runs when an agent waits for a permission or asks a question. Set a wait time, and it runs only when nobody answers in time. Start from the template "Tell Slack when an agent waits".',
+        action: { kind: 'view', view: 'automations', label: 'Open Automations' }
+    },
+    {
         id: 'sendThread',
         title: 'Send a review comment to an agent',
         body: 'Each review thread on a pull request has a "Send to agent" link. The agent of the worktree gets the comment and can fix the code.'

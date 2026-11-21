@@ -610,6 +610,9 @@ The user guide and the file format are in [automations.md](automations.md).
   - `pr.comment` and `pr.conflict`: the news of each Dashboard refresh (`onDashboardNews`), the same news as the
     notifications. The "origin" remote of each folder comes from the cache (`repoOf`).
   - `agent.done`: the agent hooks.
+  - `agent.needsInput`: the agent hooks. `NeedsInputTimers` (`src/shared/automation-events.ts`) starts one wait for
+    each agent that goes to "waiting", with one timer for each `idleFor` of the active rules. A different state cancels
+    the timers. The event key has the session, the start of the wait, and `idleFor`, so a wait runs one time only.
   - `worktree.overlap`: `git.worktreeFiles` of each watched repository (local git only), in the one-minute cycle of the
     summaries and after `gitChanged`. `findOverlaps` (`src/shared/worktree-overlap.ts`) finds the shared files, and
     `overlapEvents` makes one event for each worktree. The key has a hash of the peers and the files.

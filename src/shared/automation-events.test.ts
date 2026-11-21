@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     agentDoneEvent,
+    agentNeedsInputEvent,
+    NeedsInputTimers,
+    type AgentWait,
     ciFailedEvents,
     closedPullRequests,
     commentEvents,
@@ -163,6 +166,120 @@ describe('agentDoneEvent', () => {
     it('ignores the main worktree and unknown folders', () => {
         expect(agentDoneEvent({ id: 's1', worktreePath: '/repo' }, { at: 3 }, places, {})).toBeUndefined();
         expect(agentDoneEvent({ id: 's1', worktreePath: '/x' }, { at: 3 }, places, {})).toBeUndefined();
+    });
+});
+
+describe('agentNeedsInputEvent', () => {
+    it('keys the event by the session, the start of the wait, and the wait time', () => {
+        const event = agentNeedsInputEvent(
+            { id: 's1', worktreePath: '/wt/feature' },
+            { since: 1000, waitFor: 'permission', message: 'Bash: npm test' },
+            10,
+            places,
+            { '/repo': { feature: summary() } }
+        );
+        expect(event).toMatchObject({
+            trigger: 'agent.needsInput',
+            key: 'needs-input:s1:1000:10',
+            target: 'wt:/wt/feature',
+            label: 'feature',
+            at: 1000 + 10 * 60_000,
+            sessionId: 's1',
+            hasPullRequest: true,
+            agentWaitFor: 'permission',
+            agentWaitMinutes: 10,
+            agentMessage: 'Bash: npm test',
+            pr: { number: 7 }
+        });
+    });
+
+    it('uses "input" when the hook does not tell why the agent waits', () => {
+        expect(agentNeedsInputEvent({ id: 's1', worktreePath: '/wt/feature' }, { since: 1 }, 0, places, {})?.agentWaitFor).toBe('input');
+    });
+
+    it('ignores the main worktree and unknown folders', () => {
+        expect(agentNeedsInputEvent({ id: 's1', worktreePath: '/repo' }, { since: 1 }, 0, places, {})).toBeUndefined();
+        expect(agentNeedsInputEvent({ id: 's1', worktreePath: '/x' }, { since: 1 }, 0, places, {})).toBeUndefined();
+    });
+});
+
+describe('NeedsInputTimers', () => {
+    let due: [AgentWait, number][];
+    let timers: NeedsInputTimers;
+    const waiting = (at: number, message?: string) => ({ state: 'waiting' as const, at, waitFor: 'question' as const, message });
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        due = [];
+        timers = new NeedsInputTimers((wait, idleFor) => due.push([wait, idleFor]));
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('runs a wait time of 0 at once', () => {
+        timers.onState('s1', waiting(5, 'Which file?'), [0]);
+        expect(due).toEqual([[{ sessionId: 's1', since: 5, waitFor: 'question', message: 'Which file?' }, 0]]);
+    });
+
+    it('runs after the wait time when the agent still waits', () => {
+        timers.onState('s1', waiting(5), [10]);
+        vi.advanceTimersByTime(10 * 60_000 - 1);
+        expect(due).toEqual([]);
+        vi.advanceTimersByTime(1);
+        expect(due).toEqual([[expect.objectContaining({ sessionId: 's1', since: 5 }), 10]]);
+    });
+
+    it('cancels the timer when the agent stops waiting before the time ends', () => {
+        timers.onState('s1', waiting(5), [10]);
+        vi.advanceTimersByTime(5 * 60_000);
+        timers.onState('s1', { state: 'working', at: 6 }, [10]);
+        vi.advanceTimersByTime(60 * 60_000);
+        expect(due).toEqual([]);
+        expect(timers.waiting()).toEqual([]);
+    });
+
+    it('starts a new wait after the agent works again', () => {
+        timers.onState('s1', waiting(5), [10]);
+        timers.onState('s1', { state: 'working', at: 6 }, [10]);
+        timers.onState('s1', waiting(7), [10]);
+        vi.advanceTimersByTime(10 * 60_000);
+        expect(due).toEqual([[expect.objectContaining({ since: 7 }), 10]]);
+    });
+
+    it('keeps the first timer when the agent sends a second "waiting" state, and uses the new message', () => {
+        timers.onState('s1', waiting(5, 'First'), [10]);
+        vi.advanceTimersByTime(4 * 60_000);
+        timers.onState('s1', waiting(6, 'Second'), [10]);
+        vi.advanceTimersByTime(6 * 60_000);
+        expect(due).toEqual([[expect.objectContaining({ since: 5, message: 'Second' }), 10]]);
+    });
+
+    it('runs one time for each wait time', () => {
+        timers.onState('s1', waiting(5), [10, 0, 10, 3]);
+        vi.advanceTimersByTime(10 * 60_000);
+        expect(due.map(([, idleFor]) => idleFor)).toEqual([0, 3, 10]);
+    });
+
+    it('keeps the sessions apart', () => {
+        timers.onState('s1', waiting(5), [10]);
+        timers.onState('s2', waiting(5), [10]);
+        timers.onState('s1', { state: 'done', at: 6 }, [10]);
+        vi.advanceTimersByTime(10 * 60_000);
+        expect(due.map(([wait]) => wait.sessionId)).toEqual(['s2']);
+    });
+
+    it('does nothing without an active automation', () => {
+        timers.onState('s1', waiting(5), []);
+        expect(timers.waiting()).toEqual([]);
+    });
+
+    it('cancels the timers of a session on request', () => {
+        timers.onState('s1', waiting(5), [10]);
+        timers.cancel('s1');
+        vi.advanceTimersByTime(10 * 60_000);
+        expect(due).toEqual([]);
     });
 });
 
