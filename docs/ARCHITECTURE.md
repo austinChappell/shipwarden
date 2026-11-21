@@ -868,6 +868,12 @@ so that the mobile app and a CLI can use the same plugins.
 - Built-in plugins: GitHub Issues (each repository is a collection, the scope is users and organizations, uses the
   GitHub CLI login or its own token) and ClickUp (each list is a collection, the scope is workspaces, needs a personal
   API token).
+- Jira (`plugins/jira`): Jira Cloud only, with the REST API v3 and Basic auth (site URL, email, and API token).
+  Each project is a collection and a scope. The task list uses the enhanced JQL search (`POST /search/jql`) and its
+  `nextPageToken` as the cursor. A status change uses a workflow transition, so `tasks/statuses` returns the current
+  status and the targets of its transitions. `adf.js` converts the Atlassian Document Format to Markdown and back. The
+  description is editable only when the Markdown keeps all parts of the ADF (no attachments, mentions, panels, or
+  colors).
 - Task managers (connections): Settings > Task managers lists the connections. Each one has its own settings and an
   optional scope, and can be off. All projects use the connections that are on. The main process keeps this in
   `task-managers.json`, and the secrets by connection ID in `plugin-settings.json`.
