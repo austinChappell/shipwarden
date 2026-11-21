@@ -72,7 +72,7 @@ describe('opencode plugin', () => {
         const states = sent.map(item => agentStateFromHook(item.event, item.payload));
         expect(states).toEqual([
             { state: 'idle' },
-            { state: 'working', message: 'Reading your prompt', prompt: 'Fix the test' },
+            { state: 'working', message: 'Reading your prompt', newTurn: true, prompt: 'Fix the test' },
             { state: 'working', message: 'Reading notes.txt' },
             { state: 'done', message: 'The test passes now.' }
         ]);

@@ -73,6 +73,7 @@ export class TerminalManager {
             message: change.message,
             prompt: session.agentPrompt,
             at: session.agentStateAt,
+            ...(change.newTurn ? { newTurn: true } : {}),
             ...(session.agentWaitFor ? { waitFor: session.agentWaitFor } : {}),
             ...(session.agentModel ? { model: session.agentModel } : {}),
             ...(session.agentTranscript ? { transcript: session.agentTranscript } : {})

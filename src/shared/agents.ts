@@ -68,6 +68,8 @@ export interface AgentStateChange {
      * the tokens of their runs from it.
      */
     transcript?: string;
+    /** True when the agent got a new prompt, so a new turn starts. The app saves a checkpoint of the files then. */
+    newTurn?: boolean;
 }
 
 /** A change of an agent's state, as the PTY host sends it to the app. */
@@ -251,7 +253,7 @@ function stateChangeOf(event: string, payload: Record<string, unknown>, current?
         case 'UserPromptSubmit':
         case 'BeforeAgent': {
             const prompt = text(payload.prompt);
-            return { state: 'working', message: 'Reading your prompt', ...(prompt ? { prompt: oneLine(prompt, 120) } : {}) };
+            return { state: 'working', message: 'Reading your prompt', newTurn: true, ...(prompt ? { prompt: oneLine(prompt, 120) } : {}) };
         }
         case 'PreToolUse':
         case 'BeforeTool':

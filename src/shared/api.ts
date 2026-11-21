@@ -53,6 +53,7 @@ import type { BranchDiff, ChangeContents, ChangeSide, CommitResult, FetchResult,
 import type { CompareGroup } from './agent-compare';
 import type { QueueState } from './task-queue';
 import type { StatsCiChange, StatsEvent, StatsStart } from './stats';
+import type { Checkpoint, RewindOptions, RewindPreview, RewindResult } from './checkpoints';
 import type { PinnedSession, PinRequest, ResumePlan } from './pinned-sessions';
 import type { RecentSession } from './recent-sessions';
 import type { WorktreeFiles } from './worktree-overlap';
@@ -464,6 +465,16 @@ export interface ShipWardenApi {
         /** Records the CI state of the pull request of a worktree. The main process ignores a state that it has already. */
         ci(change: StatsCiChange): Promise<void>;
     };
+    checkpoints: {
+        /** The checkpoints of the agent turns in a worktree, the newest first. Local data: git runs on this Mac. */
+        list(worktree: string): Promise<Checkpoint[]>;
+        /** Shows what a rewind to a checkpoint changes. `session` is the agent session of the checkpoint. */
+        preview(worktree: string, ref: string, session: string): Promise<RewindPreview>;
+        /** Restores the files of the worktree to a checkpoint. */
+        rewind(worktree: string, ref: string, options: RewindOptions): Promise<RewindResult>;
+        /** Gets the worktree folder after each new checkpoint. */
+        onChanged(listener: (worktree: string) => void): () => void;
+    };
     queue: {
         /** The task queue: its items in order, and its settings. */
         get(): Promise<QueueState>;
@@ -833,6 +844,10 @@ export const IpcChannels = {
     statsEvents: 'stats:events',
     statsStarted: 'stats:started',
     statsCi: 'stats:ci',
+    checkpointsList: 'checkpoints:list',
+    checkpointsPreview: 'checkpoints:preview',
+    checkpointsRewind: 'checkpoints:rewind',
+    checkpointsChanged: 'checkpoints:changed',
     queueGet: 'queue:get',
     queueSave: 'queue:save',
     automationsList: 'automations:list',
