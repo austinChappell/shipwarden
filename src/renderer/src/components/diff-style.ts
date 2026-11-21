@@ -1,6 +1,39 @@
 import { useEffect, useState } from 'react';
+import { registerCustomTheme, resolveTheme } from '@pierre/diffs';
 
 export const STYLE_KEY = 'shipwarden.diffStyle';
+
+/**
+ * Registers a copy of a Pierre theme with two changes. Without them, some code looks like a comment.
+ *
+ * 1. The JSX text gets the normal text color. In the TSX grammar, the "meta.tag" scope covers all of an element,
+ *    also its children. The Pierre theme makes "meta.tag" gray, darker than a comment.
+ * 2. The JS and TS parameters get the variable color. The Pierre theme makes all parameters light gray. Its rule for
+ *    JS parameters uses "variable.parameter.function.js", but the JS and TS grammars give "variable.parameter.<lang>".
+ */
+function registerDiffTheme(name: string, base: string): void {
+    registerCustomTheme(name, async () => {
+        const theme = (await resolveTheme(base)).textmate;
+        if (!theme) throw new Error(`The theme "${base}" has no TextMate syntax colors.`);
+        const baseRules = theme.tokenColors ?? theme.settings ?? [];
+        const variable = baseRules.find(rule => [rule.scope ?? []].flat().includes('variable.other.readwrite'))?.settings.foreground ?? theme.fg;
+        const rules = [
+            ...baseRules,
+            { scope: ['meta.jsx.children'], settings: { foreground: theme.fg } },
+            {
+                scope: ['variable.parameter.js', 'variable.parameter.jsx', 'variable.parameter.ts', 'variable.parameter.tsx'],
+                settings: { foreground: variable }
+            }
+        ];
+        return { ...theme, name, settings: rules, tokenColors: rules };
+    });
+}
+
+registerDiffTheme('shipwarden-dark', 'pierre-dark');
+registerDiffTheme('shipwarden-light', 'pierre-light');
+
+/** The syntax theme of the diffs for each color mode. */
+export const DIFF_THEME = { dark: 'shipwarden-dark', light: 'shipwarden-light' } as const;
 
 export type DiffStyle = 'unified' | 'split';
 

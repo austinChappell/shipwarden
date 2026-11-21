@@ -10,7 +10,7 @@ import { replyToThread, setThreadResolved } from '../github/pull-request-mutatio
 import { composerFromRange, lineAnnotations, toSide, type Composer, type Note } from '../github/diff-notes';
 import type { AgentQuestion, QuestionAction } from '../github/agent-questions';
 import { openLink } from '../links';
-import { THEME_CSS, type DiffStyle } from './diff-style';
+import { DIFF_THEME, THEME_CSS, type DiffStyle } from './diff-style';
 import { ComposerZone, PendingZone, QuestionZone, ThreadZone } from './ReviewZones';
 import { reactionActions } from './Reactions';
 import { Button } from './ui';
@@ -96,6 +96,7 @@ export const FileBody = memo(function FileBody({
     const options = useMemo(
         (): FileDiffOptions<Note, undefined> => ({
             diffStyle,
+            theme: DIFF_THEME,
             themeType: mode,
             disableFileHeader: true,
             unsafeCSS: THEME_CSS,

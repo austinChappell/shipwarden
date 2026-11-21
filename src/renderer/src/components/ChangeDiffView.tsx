@@ -6,6 +6,7 @@ import { gitChanged, onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
 import { confirmDiscard } from './ChangesPanel';
 import { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './PullRequestFilesStream';
+import { DIFF_THEME } from './diff-style';
 import { radioGroupKeys } from './keyboard';
 import { Button, ButtonGroup, IconButton, RefreshButton } from './ui';
 
@@ -82,6 +83,7 @@ export function ChangeDiffView({ worktree, change, side, onOpenFile }: Props) {
     const options = useMemo(
         () => ({
             diffStyle,
+            theme: DIFF_THEME,
             themeType: mode,
             disableFileHeader: true,
             overflow: 'wrap' as const,

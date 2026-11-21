@@ -5,7 +5,7 @@ import { ChevronRight } from 'lucide-react';
 import type { BranchDiff, BranchFileStat } from '@shared/git';
 import { branchDiffKey } from '../../compare/compare-cache';
 import { optionalErrorText } from '../../util';
-import { readStyle, THEME_CSS, useColorMode } from '../diff-style';
+import { DIFF_THEME, readStyle, THEME_CSS, useColorMode } from '../diff-style';
 import { SkeletonRows } from '../ui';
 
 const api = window.shipwarden;
@@ -64,6 +64,7 @@ function FileDiff({ worktree, base, file }: { worktree: string; base: string | u
     const options = useMemo(
         () => ({
             diffStyle: readStyle(),
+            theme: DIFF_THEME,
             themeType: mode,
             disableFileHeader: true,
             overflow: 'wrap' as const,
