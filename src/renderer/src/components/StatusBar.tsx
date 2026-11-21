@@ -79,7 +79,7 @@ export function StatusBar() {
         return () => clearInterval(timer);
     }, []);
 
-    const shown = usage.filter(item => item.status !== 'signed-out');
+    const shown = usage.filter(item => item.status !== 'signed-out' && item.status !== 'loading');
 
     // A failed refresh keeps the old usage. Each provider shows its own error.
     const refresh = () => refreshUsage.mutate(undefined, { onSuccess: () => setNow(Date.now()) });

@@ -13062,6 +13062,13 @@ button.pr-summary-cell:hover {
     cursor: grab;
 }
 
+/* The usage budget stops the next start. Amber: a wait is a status that is in progress. */
+.queue-budget-wait,
+.compare-budget-wait {
+    color: var(--pending);
+    font-size: 12.5px;
+}
+
 .queue-row-actions {
     display: flex;
     align-items: center;

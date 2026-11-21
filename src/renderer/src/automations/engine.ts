@@ -21,6 +21,7 @@ import {
     taskMatchesTrigger,
     taskRepo,
     planUsageReached,
+    usageThresholdEvents,
     type Automation,
     type AutomationAction,
     type AutomationEvent,
@@ -54,7 +55,8 @@ import type { BranchSummary, MergedPullRequest, RepoRef } from '@shared/github';
 import type { NotificationSettings } from '@shared/notifications';
 import { linkMatchesTask, pickCollection, type StartStatusResult, type Task, type TaskLink, type TaskPerson, type TaskSource } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
-import type { ProviderUsage } from '@shared/usage';
+import { BUDGET_WAIT_PREFIX, type ProviderUsage } from '@shared/usage';
+import { budgetWait } from '../usage-budget';
 import type { Worktree } from '@shared/worktrees';
 import { checkLine } from '../app/agent-text';
 import { PEOPLE_STALE_MS } from '../components/tasks/use-assignee-filter';
@@ -194,6 +196,8 @@ export class AutomationEngine {
     private started = false;
     private ticking = false;
     private heldTimer: ReturnType<typeof setTimeout> | undefined;
+    /** The usage of the last `checkUsage`. A new list from the main process starts a new check. */
+    private lastUsage: readonly ProviderUsage[] | undefined;
     /** The timers of the "agent.needsInput" automations, one wait for each waiting agent. */
     private readonly needsInput = new NeedsInputTimers((wait, idleFor) => this.onNeedsInput(wait, idleFor));
 
@@ -214,6 +218,26 @@ export class AutomationEngine {
         if (context.ready && !this.started) {
             this.started = true;
             void this.recover();
+        }
+        // The main process sends each new usage. A new list can reach the percent of a "usage.threshold" automation.
+        if (context.usage !== this.lastUsage && this.ready) {
+            this.lastUsage = context.usage;
+            this.checkUsage(context);
+        }
+    }
+
+    /**
+     * Starts the runs of the "usage.threshold" automations: one event for each window at or above the percent. The key
+     * of the event has the reset period of the window. The run store refuses a key that fired, so a window fires one
+     * time until it resets, also when the usage loads again or the app starts again.
+     */
+    private checkUsage(context: EngineContext): void {
+        const now = Date.now();
+        for (const automation of this.active('usage.threshold')) {
+            if (automation.trigger.type !== 'usage.threshold') continue;
+            const { fired } = cachedRunState();
+            const isFired = (key: string) => fired[firedKey(automation.id, { key })] !== undefined;
+            for (const event of usageThresholdEvents(context.usage, automation.trigger.percent, now, isFired)) this.dispatch(event, [automation]);
         }
     }
 
@@ -584,7 +608,9 @@ export class AutomationEngine {
             if (!stopped) await this.claim(run('skipped', LIMIT_DETAIL));
             return;
         }
-        const overUsage = planUsageReached(context.usage, automation, context.settings.pauseAtUsage);
+        // A "usage.threshold" run tells the user about the usage. The pause at plan usage must not stop it.
+        const overUsage =
+            automation.trigger.type === 'usage.threshold' ? undefined : planUsageReached(context.usage, automation, context.settings.pauseAtUsage);
         if (overUsage) {
             await this.claim(run('skipped', overUsage));
             return;
@@ -686,6 +712,13 @@ export class AutomationEngine {
             if (session && agentBusy(session)) return 'Waiting for the agent to finish its turn.';
         }
         if (actions.some(action => action.type === 'startAgent')) {
+            // The usage budget of Settings › Agents. The run waits and starts after the reset. The text has the clock time
+            // only, so the run does not change each minute.
+            const repoPath = run.event.repoPath ?? automation.binding.repos?.[0];
+            for (const action of actions) {
+                const wait = action.type === 'startAgent' ? budgetWait(action.agentId, repoPath) : undefined;
+                if (wait) return wait;
+            }
             const working = cachedRunState().runs.filter(item => {
                 if (item.automationId !== automation.id || item.id === run.id || !item.sessionId) return false;
                 const session = context.sessions.find(entry => entry.id === item.sessionId && !entry.exited);
@@ -736,7 +769,8 @@ export class AutomationEngine {
             }
             const hold = this.holdReason(context, automation, run);
             if (hold) {
-                if (Date.now() - run.createdAt > HOLD_LIMIT_MS) {
+                // A wait for the usage budget can take days (a weekly limit). It does not fail after HOLD_LIMIT_MS.
+                if (Date.now() - run.createdAt > HOLD_LIMIT_MS && !hold.startsWith(BUDGET_WAIT_PREFIX)) {
                     await this.fail(run, automation, 'The run waited for more than 12 hours.');
                 } else if (run.status !== 'held' || run.detail !== hold) {
                     await this.update(run.id, { status: 'held', detail: hold });

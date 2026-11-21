@@ -11,6 +11,8 @@ import { hasModelChoice, useAgentModels } from '../app/agent-models-query';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { AGENT_CHAT_ENABLED } from '../terminal/agent-view-store';
 import { DraftSettingsGroup } from './DraftSettings';
+import { LimitField } from '../automations/LimitField';
+import { BUDGET_FALLBACK, BUDGET_MAX, BUDGET_MIN, BUDGET_STEP, type BudgetWindows } from '@shared/usage';
 
 const api = window.shipwarden;
 
@@ -326,6 +328,45 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                     />
                 </SettingsGroup>
             )}
+            <SettingsGroup
+                title="Usage budget"
+                description="ShipWarden does not start new agents from the queue, plans, Compare agents, and the “Start an agent” automation action while the plan usage of Claude or Codex is at or above the budget. These starts wait and continue after the usage resets. Agents that work now continue. Other agents have no usage data, so the budget does not stop them."
+                card
+            >
+                <SettingsRow
+                    label="Stop new agents at plan usage"
+                    description="Select “No limit” when you use the API."
+                    control={
+                        <LimitField
+                            value={settings.usageBudget.percent}
+                            fallback={BUDGET_FALLBACK}
+                            min={BUDGET_MIN}
+                            max={BUDGET_MAX}
+                            step={BUDGET_STEP}
+                            unit="%"
+                            label="Stop new agents at plan usage, in percent"
+                            onSave={percent => void save({ usageBudget: { ...settings.usageBudget, percent } })}
+                        />
+                    }
+                />
+                {settings.usageBudget.percent !== null && (
+                    <SettingsRow
+                        label="Limits to check"
+                        description="The 5-hour limit resets in a few hours. The weekly limits can stop new agents for a few days."
+                        control={
+                            <Select<BudgetWindows>
+                                aria-label="Limits to check"
+                                value={settings.usageBudget.windows}
+                                options={[
+                                    { value: 'all', label: 'All limits' },
+                                    { value: 'session', label: 'Only the 5-hour limit' }
+                                ]}
+                                onChange={windows => void save({ usageBudget: { ...settings.usageBudget, windows } })}
+                            />
+                        }
+                    />
+                )}
+            </SettingsGroup>
             <DraftSettingsGroup settings={settings} onSave={save} />
         </>
     );

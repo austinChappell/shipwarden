@@ -14,6 +14,7 @@ import { normalizeOnboarding, type OnboardingSettings } from './onboarding';
 import { isAgentMode, type AgentMode } from './agent-modes';
 import { DEFAULT_REVIEW_STRICTNESS, isReviewStrictness, type ReviewStrictness } from './review-strictness';
 import { DEFAULT_DRAFT_SETTINGS, normalizeDraftSettings, normalizeRepoDraftSettings, type DraftSettings, type RepoDraftSettings } from './drafts';
+import { DEFAULT_USAGE_BUDGET, normalizeUsageBudget, type UsageBudget } from './usage';
 
 /**
  * An agent that the Agent button can start, for example Claude Code. The command runs in an interactive login shell,
@@ -131,6 +132,11 @@ export interface AppSettings {
     remote: RemoteSettings;
     /** The settings of all automations: pause, and the usage limit. The automations are files in ~/.shipwarden/automations. */
     automations: AutomationSettings;
+    /**
+     * The usage budget: no new agents from the queue, plans, Compare agents, and the `startAgent` action while the plan
+     * usage is at or above it. Agents that work now continue.
+     */
+    usageBudget: UsageBudget;
     /** The agent drafts of commit messages and pull request descriptions: the instructions and the Conventional Commits switch. */
     drafts: DraftSettings;
     /** The default strictness of an agent review of a pull request. A repository can have its own value. */
@@ -243,6 +249,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     remote: DEFAULT_REMOTE_SETTINGS,
     automations: DEFAULT_AUTOMATION_SETTINGS,
     drafts: DEFAULT_DRAFT_SETTINGS,
+    usageBudget: DEFAULT_USAGE_BUDGET,
     reviewStrictness: DEFAULT_REVIEW_STRICTNESS
 };
 
@@ -345,6 +352,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         remote: normalizeRemoteSettings(raw.remote),
         automations: normalizeAutomationSettings(raw.automations),
         drafts: normalizeDraftSettings(raw.drafts),
+        usageBudget: normalizeUsageBudget(raw.usageBudget),
         reviewStrictness: isReviewStrictness(raw.reviewStrictness) ? raw.reviewStrictness : DEFAULT_REVIEW_STRICTNESS,
         ...(normalizeOnboarding(raw.onboarding) ? { onboarding: normalizeOnboarding(raw.onboarding) } : {}),
         ...(normalizeWorktreeNames(raw.worktreeNames) ? { worktreeNames: normalizeWorktreeNames(raw.worktreeNames) } : {}),

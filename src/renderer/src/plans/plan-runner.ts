@@ -30,6 +30,7 @@ import { taskManagerKeys } from '../components/task-managers-cache';
 import { prependTask, taskQueryKeys } from '../components/tasks/task-view-logic';
 import { keyRoots, queryClient } from '../query-client';
 import { agentStateStore } from '../terminal/agent-state-store';
+import { budgetWait } from '../usage-budget';
 import { errorText } from '../util';
 import { syncPlanGroup } from './plan-group';
 import { cachedPlan, cachedPlans, plansQuery, updatePlan } from './plan-queries';
@@ -291,6 +292,13 @@ export class PlanRunner {
         const repo = step.repo;
         if (!repo) {
             await this.fail(plan, step, 'The step has no repository. Skip the step, or duplicate the plan and select a repository.');
+            return;
+        }
+        // The usage budget of Settings › Agents stops a new agent. The step stays pending with the wait text, and the
+        // timer tries again every 30 seconds. The text has the clock time only, so the plan file does not change each minute.
+        const wait = budgetWait(undefined, repo);
+        if (wait) {
+            if (step.detail !== wait) await this.patchStep(plan.id, step.id, { detail: wait });
             return;
         }
         const baseBranch = worktreeBaseOf(plan.steps, index);

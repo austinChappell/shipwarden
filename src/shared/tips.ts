@@ -36,6 +36,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'view', view: 'automations', label: 'Open Automations' }
     },
     {
+        id: 'usageBudget',
+        title: 'Stop new agents before the plan usage runs out',
+        body: 'Set a usage budget in Settings › Agents, for example 80%. Above it, the queue, plans, and automations wait for the usage to reset. Agents that work now continue.',
+        action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
+    },
+    {
         id: 'taskQueue',
         title: 'Run a backlog overnight',
         body: 'Click "Add to queue" on a task. The Queue page starts the tasks one after the other and keeps a limit, for example 3 agents. When an agent finishes, the next task starts.',

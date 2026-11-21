@@ -3,6 +3,7 @@ import { GitCompareArrows, LoaderCircle, X } from 'lucide-react';
 import { agentCountError, MAX_COMPARE_AGENTS, MIN_COMPARE_AGENTS } from '@shared/agent-compare';
 import type { AgentDefinition } from '@shared/settings';
 import { useInstalledAgents } from '../../compare/compare-cache';
+import { useBudgetWait } from '../../usage-budget';
 import { errorText } from '../../util';
 import { Button, Checkbox, IconButton, SkeletonRows } from '../ui';
 import { useModal } from '../use-modal';
@@ -26,6 +27,9 @@ export function CompareAgentsDialog({ agents, repoName, onClose, onStart }: Prop
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>();
     const countError = agentCountError(chosen.length);
+    // The usage budget of Settings › Agents. The Start button waits until the usage of each chosen agent is below it.
+    const budgetWait = useBudgetWait(agents.filter(agent => chosen.includes(agent.id)));
+    const blocked = countError ?? budgetWait;
 
     const toggle = (id: string, on: boolean) => setChosen(list => (on ? [...list, id] : list.filter(item => item !== id)));
     const start = async () => {
@@ -94,6 +98,7 @@ export function CompareAgentsDialog({ agents, repoName, onClose, onStart }: Prop
                             <LoaderCircle size={12} className="spin" /> Making the worktrees. The branch name can take a few seconds.
                         </p>
                     )}
+                    {budgetWait && !busy && <p className="panel-note compare-budget-wait">{budgetWait} Start is on again after the reset.</p>}
                     {error && <div className="form-error">{error}</div>}
                 </div>
                 <footer className="modal-footer">
@@ -101,7 +106,7 @@ export function CompareAgentsDialog({ agents, repoName, onClose, onStart }: Prop
                     <Button disabled={busy} onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button variant="primary" disabled={busy || !!countError} title={countError} onClick={() => void start()}>
+                    <Button variant="primary" disabled={busy || !!blocked} title={blocked} onClick={() => void start()}>
                         {chosen.length >= MIN_COMPARE_AGENTS ? `Start ${chosen.length} agents` : 'Start agents'}
                     </Button>
                 </footer>

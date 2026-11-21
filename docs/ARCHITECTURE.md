@@ -383,7 +383,35 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - Intervals: Claude every 5 minutes, because its endpoint answers 429 to frequent requests. Codex every 2 minutes.
   After a 429, the provider waits for `Retry-After` (or 15 minutes). The refresh button sends at most one request
   each 30 seconds for each provider.
+- Each provider has the status "loading" until its first answer. The bar does not show it.
 - An agent without a sign-in does not show. After a failure, the bar keeps the last values and shows a warning icon.
+
+### Usage budget
+
+- **Setting.** `settings.usageBudget` (Settings › Agents): `percent` (5 to 100, or null for no budget) and `windows`
+  (`'all'` or `'session'` for the 5-hour limit only). The default is no budget.
+- **Check.** `budgetBlock` (`src/shared/usage.ts`) is a pure function. It returns the provider and the window that stop
+  a new agent, or undefined. A window stops a start when its usage is at or above the budget. Only usage with the
+  status "ok" counts, and a window whose reset time passed does not count. While the first usage of the provider loads
+  (status "loading"), a set budget waits with "Waiting for usage data", so a full queue cannot start agents before the
+  usage is known. No usage data after the first load (signed out, an error, or an agent other than Claude Code and
+  Codex) never stops a start. `agentBudgetBlock` maps agent commands to providers.
+  `budgetWaitText` writes "Waiting for usage to reset. … It resets at 2:30 PM."
+- **Context.** `src/renderer/src/usage-budget.ts` keeps the newest settings and usage. `App` sets them in a layout
+  effect, before the effects of the runners. `budgetWait(agentId, repo)` is for the runners. `useBudgetWait` is for
+  React views.
+- **Start paths.** The budget only stops new agents. Agents that work now continue.
+  - Queue: `QueueRunner.canStart` returns the wait text. The item stays queued. The Queue page shows the text above
+    "Up next".
+  - Plans: `PlanRunner.startStep` keeps the step pending with the wait text in `detail`. The timer tries again every
+    30 seconds.
+  - Compare agents: the dialog disables Start and shows the wait text. `startCompare` checks again.
+  - `startAgent` action: `holdReason` holds the run with the wait text. A budget hold does not fail after 12 hours.
+- **Trigger.** `usage.threshold` fires when a window is at or above its `percent`. `usageThresholdEvents` makes one
+  event for each window. The key has the reset hour of the window (`usageSlots`), and the hours next to it count as
+  the same period. The run store refuses a key that fired, also after a restart, so a window fires one time for each
+  reset period. The engine checks each new usage list from the main process. The pause at plan usage does not skip
+  these runs.
 
 ### Settings
 
@@ -647,7 +675,8 @@ The user guide and the file format are in [automations.md](automations.md).
   (a copy), its connection, and its repository.
 - **Limit.** `nextStarts` returns the queued items that can start now: at most `maxRunning` minus the items that start
   or run. An item that waits after a failed start (`retryAt`) is skipped. A `StartCheck` runs before each start. It
-  returns a reason to wait, or undefined. `QueueRunner.canStart` is the one place for it. Today it lets each item start.
+  returns a reason to wait, or undefined. `QueueRunner.canStart` is the one place for it. It checks the usage budget
+  (see [Usage budget](#usage-budget)).
 - **Finished.** `finishReason` reads an `AgentObservation`: the agent is alive, busy, the time it stopped its work, and a
   pull request on its branch (the branch summaries). With `finishWhen: 'pullRequest'`, a pull request finishes the item.
   With `'idle'`, `idleMinutes` without work finishes it. An agent that exits finishes the item in both modes, after

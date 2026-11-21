@@ -49,6 +49,7 @@ import {
     type CompareRun
 } from '@shared/agent-compare';
 import { saveCompareGroup } from '../compare/compare-cache';
+import { budgetWaitForAgents } from '../usage-budget';
 
 const api = window.shipwarden;
 
@@ -238,6 +239,9 @@ export function useWorktreeActions(options: Options) {
         const agents = agentIds.map(id => appSettings.agents.find(agent => agent.id === id)).filter((agent): agent is AgentDefinition => !!agent);
         const countError = agentCountError(agents.length);
         if (countError) throw new Error(countError);
+        // The dialog waits for the budget already. This check covers a reset of the usage data while the dialog is open.
+        const wait = budgetWaitForAgents(agents);
+        if (wait) throw new Error(wait);
         const { branch: base } = await suggestTaskBranch(task, repoPath);
         const branches = compareBranches(base, agents);
         const runs: CompareRun[] = [];

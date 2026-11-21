@@ -120,8 +120,9 @@ async function getJson(url: string, headers: Record<string, string>, signInHint:
  */
 export class UsageService {
     private readonly state: Record<UsageProvider, ProviderUsage> = {
-        claude: { provider: 'claude', status: 'signed-out', windows: [] },
-        codex: { provider: 'codex', status: 'signed-out', windows: [] }
+        // "loading" until the first answer. The usage budget waits for it, so a start cannot race the first load.
+        claude: { provider: 'claude', status: 'loading', windows: [] },
+        codex: { provider: 'codex', status: 'loading', windows: [] }
     };
     private readonly nextAt: Record<UsageProvider, number> = { claude: 0, codex: 0 };
     private readonly lastRequestAt: Record<UsageProvider, number> = { claude: 0, codex: 0 };
