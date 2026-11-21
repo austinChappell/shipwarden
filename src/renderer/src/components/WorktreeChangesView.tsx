@@ -9,6 +9,7 @@ import { gitChanged, onGitChanged, useGitChanges } from '../git/git-store';
 import { errorText } from '../util';
 import { confirmDiscard } from './ChangesPanel';
 import { FindBar, findLineElement, readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './PullRequestFilesStream';
+import { DIFF_THEME } from './diff-style';
 import { radioGroupKeys } from './keyboard';
 import { isFindShortcut, openLogFind } from './log-find';
 import { findRequest as makeFindRequest, useCopySelection, type FindRequest } from './selected-text';
@@ -75,6 +76,7 @@ const FileBody = memo(function FileBody({ change, side, loaded, highlight, diffS
     const options = useMemo(
         () => ({
             diffStyle,
+            theme: DIFF_THEME,
             themeType: mode,
             disableFileHeader: true,
             overflow: 'wrap' as const,
