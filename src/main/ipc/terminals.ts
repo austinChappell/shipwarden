@@ -12,7 +12,17 @@ import { TranscriptWatcher } from '../agents/transcript-watcher';
 
 type TerminalIpcDependencies = Pick<
     Services,
-    'terminals' | 'window' | 'terminalSessions' | 'terminalSizes' | 'killTerminal' | 'shellAgents' | 'remote' | 'processes' | 'hookPaths' | 'shellIntegration'
+    | 'terminals'
+    | 'window'
+    | 'terminalSessions'
+    | 'terminalSizes'
+    | 'killTerminal'
+    | 'shellAgents'
+    | 'remote'
+    | 'processes'
+    | 'hookPaths'
+    | 'shellIntegration'
+    | 'transcriptIndex'
 >;
 
 /** Registers the IPC handlers of the terminal sessions and the processes of the worktrees. */
@@ -49,7 +59,11 @@ export function registerTerminalIpc(deps: TerminalIpcDependencies): void {
     );
     // The watches of the chats. Each window has its own page, so each page has its own list of watches. A reload or a
     // close of a page ends its chats without a stop, so these events stop the watches of that page only.
-    const transcripts = new TranscriptWatcher(file => deps.window.send(IpcChannels.terminalsTranscriptChanged, file));
+    // The search index reads the new lines of each changed transcript too.
+    const transcripts = new TranscriptWatcher(file => {
+        deps.window.send(IpcChannels.terminalsTranscriptChanged, file);
+        deps.transcriptIndex.update(file);
+    });
     const pageWatches = new Map<Electron.WebContents, string[]>();
     const stopPageWatches = (page: Electron.WebContents) => {
         pageWatches.get(page)?.forEach(file => transcripts.stop(file));

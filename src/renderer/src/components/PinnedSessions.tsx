@@ -133,7 +133,7 @@ export function RecentSessions({ sessions, places, selectedPath, repoLabel, onRe
     );
 }
 
-interface SessionRowProps extends PlaceProps {
+export interface SessionRowProps extends PlaceProps {
     icon: ReactNode;
     name: string;
     /** True while the agent makes a name for the session. */
@@ -151,10 +151,12 @@ interface SessionRowProps extends PlaceProps {
     /** The items at the end of the menu. */
     menu: ContextMenuItem[];
     onMenu(choice: string): void;
+    /** More content below the first line, for example the text that matches a search. */
+    detail?: ReactNode;
 }
 
 /** One session row: the name, the place, the age, "Resume", and a menu with "Resume in another worktree…". */
-function SessionRow({
+export function SessionRow({
     icon,
     name,
     naming,
@@ -168,7 +170,8 @@ function SessionRow({
     resume: resumeIn,
     rename,
     menu,
-    onMenu
+    onMenu,
+    detail
 }: SessionRowProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(name);
@@ -288,6 +291,7 @@ function SessionRow({
                     />
                 </span>
             </div>
+            {detail}
             {picking && (
                 <div className="pinned-picker">
                     <span className="pinned-picker-label">Resume in</span>
