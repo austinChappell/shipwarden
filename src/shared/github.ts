@@ -582,7 +582,10 @@ export interface CheckRun {
     isActions: boolean;
     /** True for a commit status (the older status API), not a check run. */
     isStatus?: boolean;
-    /** True when the check is the result of an older attempt and the job waits for the new attempt of its run. */
+    /**
+     * True when the check is an old result and the job waits for a new result. The old result is from an older attempt
+     * of its run, or from an older run that a newer run of the same workflow replaces.
+     */
     waitingForRerun?: boolean;
 }
 

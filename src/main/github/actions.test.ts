@@ -138,7 +138,7 @@ describe('fetchChecks with a re-run', () => {
         const { client, calls } = fakeClient(call => {
             if (call.kind === 'paginate') return { check_runs: [failedJob] };
             if (call.path.includes('/actions/runs')) {
-                return { workflow_runs: [{ id: 900, status: 'in_progress', run_started_at: '2026-11-18T11:00:00Z' }] };
+                return { workflow_runs: [{ id: 900, workflow_id: 7, event: 'pull_request', status: 'in_progress', run_started_at: '2026-11-18T11:00:00Z' }] };
             }
             return { statuses: [] };
         });
@@ -151,6 +151,36 @@ describe('fetchChecks with a re-run', () => {
         const { client, calls } = fakeClient(call => (call.kind === 'paginate' ? { check_runs: [{ ...failedJob, conclusion: 'success' }] } : { statuses: [] }));
         await fetchChecks(client, repo, 'sha1');
         expect(calls).toHaveLength(2);
+    });
+
+    it('shows a job of a replaced run as queued while the newer run of the workflow is active', async () => {
+        const job = (id: number, name: string, runId: number, conclusion: string | null) => ({
+            ...failedJob,
+            id,
+            name,
+            conclusion,
+            status: conclusion ? 'completed' : 'in_progress',
+            details_url: `https://github.com/acme/api/actions/runs/${runId}/job/${id}`
+        });
+        const { client } = fakeClient(call => {
+            if (call.kind === 'paginate') {
+                return { check_runs: [job(1, 'setup', 800, 'success'), job(2, 'merge-coverage', 800, 'success'), job(3, 'setup', 900, null)] };
+            }
+            if (call.path.includes('/actions/runs')) {
+                return {
+                    workflow_runs: [
+                        { id: 900, workflow_id: 7, event: 'pull_request', status: 'in_progress', run_started_at: '2026-11-18T11:00:00Z' },
+                        { id: 800, workflow_id: 7, event: 'pull_request', status: 'completed', run_started_at: '2026-11-18T10:00:00Z' }
+                    ]
+                };
+            }
+            return { statuses: [] };
+        });
+        const checks = await fetchChecks(client, repo, 'sha1');
+        expect(checks.map(check => [check.name, check.status])).toEqual([
+            ['merge-coverage', 'queued'],
+            ['setup', 'in_progress']
+        ]);
     });
 });
 

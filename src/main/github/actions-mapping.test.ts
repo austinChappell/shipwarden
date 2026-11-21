@@ -8,6 +8,7 @@ import {
     mapRunJob,
     mapWorkflowRun,
     markOldAttempts,
+    hasRepeatedJobs,
     type RestCheckRun,
     type RestStatus,
     type RestWorkflowRun
@@ -261,7 +262,7 @@ describe('markOldAttempts', () => {
         isActions: true,
         ...change
     });
-    const activeRun = { id: 900, status: 'in_progress', run_started_at: '2026-11-18T11:00:00Z' };
+    const activeRun = { id: 900, workflow_id: 7, event: 'pull_request', status: 'in_progress', run_started_at: '2026-11-18T11:00:00Z' };
 
     it('shows a failed or skipped job from an older attempt of an active run as queued', () => {
         const [failed, skipped] = markOldAttempts([job({}), job({ id: 2, name: 'lint', conclusion: 'skipped' })], [activeRun]);
@@ -277,7 +278,54 @@ describe('markOldAttempts', () => {
             job({ id: 3, runId: 901 }),
             job({ id: 4, isActions: false, runId: undefined })
         ];
-        const runs = [activeRun, { id: 901, status: 'completed', run_started_at: '2026-11-18T11:00:00Z' }];
+        const runs = [activeRun, { id: 901, workflow_id: 8, event: 'pull_request', status: 'completed', run_started_at: '2026-11-18T11:00:00Z' }];
         expect(markOldAttempts(checks, runs)).toEqual(checks);
+    });
+
+    it('shows the jobs of a run that an active newer run of the same workflow replaces as queued', () => {
+        const oldRun = { id: 800, workflow_id: 7, event: 'pull_request', status: 'completed', run_started_at: '2026-11-18T09:00:00Z' };
+        const checks = [
+            job({ id: 1, runId: 800 }),
+            job({ id: 2, name: 'lint', runId: 800, conclusion: 'success' }),
+            job({ id: 3, name: 'setup', status: 'in_progress', conclusion: null, completedAt: null })
+        ];
+        const [failed, passed, running] = markOldAttempts(checks, [oldRun, activeRun]);
+        for (const check of [failed, passed]) {
+            expect(check).toMatchObject({ status: 'queued', conclusion: null, waitingForRerun: true });
+        }
+        expect(running).toBe(checks[2]);
+    });
+
+    it('removes the jobs of a replaced run when the newer run completes', () => {
+        const runs = [
+            { id: 800, workflow_id: 7, event: 'pull_request', status: 'completed', run_started_at: '2026-11-18T09:00:00Z' },
+            { id: 900, workflow_id: 7, event: 'pull_request', status: 'completed', run_started_at: '2026-11-18T11:00:00Z' }
+        ];
+        const kept = job({ id: 2, name: 'setup', conclusion: 'success' });
+        expect(markOldAttempts([job({ id: 1, runId: 800 }), kept], runs)).toEqual([kept]);
+    });
+
+    it('keeps the jobs of a run of another workflow or another event', () => {
+        const checks = [job({ id: 1, runId: 800, conclusion: 'success' }), job({ id: 2, name: 'lint', runId: 801, conclusion: 'success' })];
+        const runs = [
+            activeRun,
+            { id: 800, workflow_id: 8, event: 'pull_request', status: 'completed', run_started_at: '2026-11-18T09:00:00Z' },
+            { id: 801, workflow_id: 7, event: 'push', status: 'completed', run_started_at: '2026-11-18T09:00:00Z' }
+        ];
+        expect(markOldAttempts(checks, runs)).toEqual(checks);
+    });
+});
+
+describe('hasRepeatedJobs', () => {
+    const job = (id: number, name: string, runId: number) => checkRun({ id, name, details_url: `https://github.com/acme/api/actions/runs/${runId}/job/${id}` });
+
+    it('is true when a job name is in two runs', () => {
+        expect(hasRepeatedJobs([job(1, 'setup', 800), job(2, 'setup', 900)])).toBe(true);
+    });
+
+    it('is false for other names, the same run, or a check that is not a GitHub Actions job', () => {
+        expect(
+            hasRepeatedJobs([job(1, 'setup', 800), job(2, 'setup', 800), job(3, 'lint', 900), checkRun({ id: 4, name: 'lint', app: { slug: 'socket' } })])
+        ).toBe(false);
     });
 });
