@@ -93,4 +93,22 @@ describe('StatsRecorder', () => {
             winner: { agentId: 'codex', agentName: 'Codex', worktree: '/w/b' }
         });
     });
+
+    it('writes a start with the repository and the agent program', async () => {
+        const { events, recorder } = setup();
+        recorder.started({ worktree: '/w/a', agent: 'Claude Code', task: 'ENG-1 Fix' });
+        await vi.waitFor(() => expect(events).toHaveLength(1));
+        expect(events[0]).toEqual({ type: 'start', at: 500, worktree: '/w/a', repo: 'acme/api', program: 'claude', agent: 'Claude Code', task: 'ENG-1 Fix' });
+    });
+
+    it('writes a CI line only when the state or the commit changes', async () => {
+        const { events, recorder } = setup();
+        recorder.ci({ worktree: '/w/a', number: 7, sha: 'a1', ci: 'running' });
+        recorder.ci({ worktree: '/w/a', number: 7, sha: 'a1', ci: 'running' });
+        recorder.ci({ worktree: '/w/a', number: 7, sha: 'a1', ci: 'failed' });
+        recorder.ci({ worktree: '/w/a', number: 7, sha: 'a2', ci: 'failed' });
+        await vi.waitFor(() => expect(events).toHaveLength(3));
+        expect(events[0]).toEqual({ type: 'ci', at: 500, worktree: '/w/a', repo: 'acme/api', number: 7, sha: 'a1', ci: 'running' });
+        expect(events.map(event => (event.type === 'ci' ? `${event.sha}:${event.ci}` : ''))).toEqual(['a1:running', 'a1:failed', 'a2:failed']);
+    });
 });

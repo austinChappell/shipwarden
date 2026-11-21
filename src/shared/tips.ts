@@ -1,7 +1,7 @@
 import type { OnboardingSettings } from './onboarding';
 
 /** A view that a tip can open. */
-export type TipView = 'dashboard' | 'agents' | 'tasks' | 'review' | 'pipelines' | 'notes' | 'automations';
+export type TipView = 'dashboard' | 'agents' | 'tasks' | 'review' | 'pipelines' | 'notes' | 'automations' | 'stats';
 
 /**
  * The button of a tip: it opens a view, a settings section, the New worktree dialog, the keyboard shortcuts, or the
@@ -40,6 +40,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         title: 'Stop new agents before the plan usage runs out',
         body: 'Set a usage budget in Settings › Agents, for example 80%. Above it, the queue, plans, and automations wait for the usage to reset. Agents that work now continue.',
         action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
+    },
+    {
+        id: 'agentStats',
+        title: 'See which agent merges the most work',
+        body: 'The Stats view shows the merged pull requests, the tokens, the time to merge, the time in "needs input", and the CI failures of each agent and model. It uses local data only.',
+        action: { kind: 'view', view: 'stats', label: 'Open Stats' }
     },
     {
         id: 'taskQueue',

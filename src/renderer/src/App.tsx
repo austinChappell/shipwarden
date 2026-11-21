@@ -44,6 +44,8 @@ import { setGroupAgentActions } from './github/pr-group-agents';
 import { cachedPlan, createPlan, usePlans } from './plans/plan-queries';
 import { planRunner } from './plans/plan-runner';
 import { QueueView } from './queue/QueueView';
+import { StatsView } from './stats/StatsView';
+import { useStatsCi } from './stats/use-stats-ci';
 import { queueRunner } from './queue/queue-runner';
 import { useTaskQueue } from './queue/queue-queries';
 import { useQueueRunner } from './queue/use-queue-runner';
@@ -544,6 +546,8 @@ export function App() {
         summaries: project.summaries,
         actions: { startTaskQuietly: worktreeActions.startTaskQuietly }
     });
+    // The agent stats log gets the CI state of each worktree pull request from the data that the app loaded already.
+    useStatsCi(worktreesByRepo, project.summaries);
     const queueRunning = useTaskQueue().state.items.filter(item => item.status === 'starting' || item.status === 'running').length;
 
     // The plans execute their steps while the app is open. The runner gets the state of the app here.
@@ -1066,6 +1070,8 @@ export function App() {
                                     plansActive={mainView === 'plans'}
                                     plansCount={plansCount}
                                     onOpenPlans={() => enterView('plans')}
+                                    statsActive={mainView === 'stats'}
+                                    onOpenStats={() => enterView('stats')}
                                     queueActive={mainView === 'queue'}
                                     queueRunning={queueRunning}
                                     onOpenQueue={() => enterView('queue')}
@@ -1231,6 +1237,11 @@ export function App() {
                                         onOpenWorktree={(path, sessionId) => openNotificationTarget({ view: 'worktree', worktreePath: path, sessionId })}
                                         onOpenGroup={openPrGroup}
                                     />
+                                </main>
+                            )}
+                            {mainView === 'stats' && (
+                                <main className="workspace">
+                                    <StatsView key={viewEntry} />
                                 </main>
                             )}
                             {mainView === 'queue' && (
