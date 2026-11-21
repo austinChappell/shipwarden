@@ -36,6 +36,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'view', view: 'automations', label: 'Open Automations' }
     },
     {
+        id: 'taskQueue',
+        title: 'Run a backlog overnight',
+        body: 'Click "Add to queue" on a task. The Queue page starts the tasks one after the other and keeps a limit, for example 3 agents. When an agent finishes, the next task starts.',
+        action: { kind: 'view', view: 'tasks', label: 'Open Tasks' }
+    },
+    {
         id: 'sendThread',
         title: 'Send a review comment to an agent',
         body: 'Each review thread on a pull request has a "Send to agent" link. The agent of the worktree gets the comment and can fix the code.'

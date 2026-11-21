@@ -70,6 +70,7 @@ import { agentStateStore } from '../terminal/agent-state-store';
 import { outputActivity } from '../terminal/output-activity';
 import { addRunToCache, automationRunsQuery, cachedRunState, patchRunState, replaceRunInCache } from './automation-queries';
 import { chatConnectionOf } from './chat-queries';
+import { queueTask } from '../queue/queue-queries';
 
 const api = window.shipwarden;
 
@@ -94,7 +95,7 @@ export const MERGED_SWEEP_MS = 15 * 60_000;
 const OPEN_RUN_STATES: ReadonlySet<RunStatus> = new Set(['pending', 'held', 'running']);
 
 /** The actions that do not use the worktree of the event. The setting "Remove merged worktrees" does not wait for them. */
-const WORKTREE_FREE_ACTIONS: ReadonlySet<AutomationAction['type']> = new Set(['moveTask', 'notify', 'postMessage']);
+const WORKTREE_FREE_ACTIONS: ReadonlySet<AutomationAction['type']> = new Set(['moveTask', 'notify', 'postMessage', 'queueTask']);
 
 /** A worktree of any project, with its repository folder. */
 export interface EnginePlace extends WorktreePlace {
@@ -957,6 +958,21 @@ export class AutomationEngine {
                     turn: { sessionId: started.session.id, from: turnStart() }
                 });
                 return `Started ${started.session.title} in a new worktree on ${started.worktree.branch ?? started.worktree.path}.`;
+            }
+            case 'queueTask': {
+                if (!event.task || !event.connectionId || !event.pluginId) throw new Error('The event has no task.');
+                const repoPath = event.repoPath ?? automation.binding.repos?.[0];
+                if (!repoPath) throw new Error('The automation has no repository. Select one in the editor.');
+                const { item, added } = await queueTask({
+                    connectionId: event.connectionId,
+                    pluginId: event.pluginId,
+                    task: event.task,
+                    repoPath,
+                    ...(action.agentId ? { agentId: action.agentId } : {}),
+                    addedBy: automation.name
+                });
+                const name = item.task.key ?? item.task.title;
+                return added ? `Added ${name} to the queue.` : `${name} is in the queue already.`;
             }
             case 'runHeadless': {
                 const folder = event.worktreePath ?? event.repoPath ?? automation.binding.repos?.[0];

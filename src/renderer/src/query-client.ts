@@ -94,6 +94,8 @@ export const keyRoots = {
     prGroups: ['prGroups'],
     /** The agent comparisons of the tasks. Local data: no request goes to a service. */
     compare: ['compare'],
+    /** The task queue. Local data: no request goes to a service. */
+    queue: ['queue'],
     /** The pinned agent sessions. Local data: the main process sends each change. */
     pins: ['pins'],
     /** The Claude Code sessions of the last 3 days. Local data: the main process reads the transcripts on this Mac. */
