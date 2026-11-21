@@ -15,6 +15,7 @@ import {
     GripVertical,
     GitPullRequest,
     GitPullRequestDraft,
+    BarChart3,
     LayoutDashboard,
     ListOrdered,
     NotebookPen,
@@ -134,6 +135,8 @@ interface Props {
     /** The number of plan steps that wait for the user. */
     plansCount: number;
     onOpenPlans(): void;
+    statsActive: boolean;
+    onOpenStats(): void;
     queueActive: boolean;
     /** The number of queue items that start or run now. */
     queueRunning: number;
@@ -445,6 +448,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
         !parent.automationsActive &&
         !parent.plansActive &&
         !parent.queueActive &&
+        !parent.statsActive &&
         !parent.terminalActive &&
         !parent.pipelinesActive &&
         shown.some(worktree => worktree.path === selectedPath);
@@ -468,7 +472,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
         return (
             <li
                 key={worktree.path}
-                className={`worktree-row${isHidden ? ' hidden-worktree' : ''}${worktree.path === selectedPath && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.automationsActive && !parent.plansActive && !parent.queueActive && !parent.terminalActive && !parent.pipelinesActive ? ' selected' : ''}`}
+                className={`worktree-row${isHidden ? ' hidden-worktree' : ''}${worktree.path === selectedPath && !parent.tasksActive && !parent.settingsActive && !parent.agentsActive && !parent.reviewActive && !parent.dashboardActive && !parent.notesActive && !parent.automationsActive && !parent.plansActive && !parent.queueActive && !parent.statsActive && !parent.terminalActive && !parent.pipelinesActive ? ' selected' : ''}`}
                 title={worktree.path}
                 tabIndex={0}
                 role="button"
@@ -803,6 +807,10 @@ export function Sidebar(outerProps: Props) {
                 <ListOrdered size={15} strokeWidth={1.6} />
                 <span className="nav-row-label">Queue</span>
                 {props.queueRunning > 0 && <Count value={props.queueRunning} label={`Queue agents running: ${props.queueRunning}`} />}
+            </button>
+            <button data-sidebar-item className={`nav-row${props.statsActive ? ' selected' : ''}`} onClick={props.onOpenStats}>
+                <BarChart3 size={15} strokeWidth={1.6} />
+                <span className="nav-row-label">Stats</span>
             </button>
             <button data-sidebar-item className={`nav-row${props.terminalActive ? ' selected' : ''}`} onClick={props.onOpenTerminal}>
                 <SquareTerminal size={15} strokeWidth={1.6} />

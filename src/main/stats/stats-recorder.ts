@@ -2,7 +2,7 @@ import { idleReason } from '@shared/agent-overview';
 import type { CompareGroup } from '@shared/agent-compare';
 import type { AgentUpdate } from '@shared/agents';
 import { pullRequestWebUrl, repoId, type MergeMethod, type RepoRef, type RepoTarget } from '@shared/github';
-import type { StatsAgent } from '@shared/stats';
+import type { StatsAgent, StatsCiChange, StatsEvent, StatsStart } from '@shared/stats';
 import type { TerminalSession } from '@shared/terminal';
 import type { StatsStore } from './stats-store';
 
@@ -28,6 +28,8 @@ export class StatsRecorder {
     private readonly lastState = new Map<string, string>();
     /** The repository of each worktree. The "origin" remote seldom changes, so one read is enough. */
     private readonly repos = new Map<string, Promise<string | undefined>>();
+    /** The last CI line of each worktree, so the same pull request data from the page adds no line again. */
+    private readonly lastCi = new Map<string, string>();
 
     constructor(private readonly options: StatsRecorderOptions) {}
 
@@ -52,6 +54,51 @@ export class StatsRecorder {
     /** Records the run that the user keeps in a comparison. A comparison without a kept run adds no line. */
     kept(group: CompareGroup): void {
         void this.writeCompare(group).catch(error => console.warn(`[stats] The compare event failed: ${String(error)}`));
+    }
+
+    /** Records the start of work on a task in a new worktree. The page sends it after "Start in worktree". */
+    started(start: StatsStart): void {
+        void this.writeStart(start).catch(error => console.warn(`[stats] The start event failed: ${String(error)}`));
+    }
+
+    /** Records the CI state of the pull request of a worktree. The same state of the same commit adds no line. */
+    ci(change: StatsCiChange): void {
+        const key = `${change.number}:${change.sha}:${change.ci}`;
+        if (this.lastCi.get(change.worktree) === key) return;
+        this.lastCi.set(change.worktree, key);
+        void this.writeCi(change).catch(error => console.warn(`[stats] The CI event failed: ${String(error)}`));
+    }
+
+    /** The events of the log, the oldest first. */
+    events(): Promise<StatsEvent[]> {
+        return this.options.store.read();
+    }
+
+    private async writeStart(start: StatsStart): Promise<void> {
+        const repo = await this.repoId(start.worktree);
+        const program = start.agent ? await this.options.programOf(start.agent).catch(() => undefined) : undefined;
+        this.options.store.append({
+            type: 'start',
+            at: this.now(),
+            worktree: start.worktree,
+            ...(repo ? { repo } : {}),
+            ...(program ? { program } : {}),
+            ...(start.agent ? { agent: start.agent } : {}),
+            ...(start.task ? { task: start.task } : {})
+        });
+    }
+
+    private async writeCi(change: StatsCiChange): Promise<void> {
+        const repo = await this.repoId(change.worktree);
+        this.options.store.append({
+            type: 'ci',
+            at: this.now(),
+            worktree: change.worktree,
+            ...(repo ? { repo } : {}),
+            number: change.number,
+            sha: change.sha,
+            ci: change.ci
+        });
     }
 
     private now(): number {

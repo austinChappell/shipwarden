@@ -13,6 +13,7 @@ export type MainView =
     | 'automations'
     | 'plans'
     | 'queue'
+    | 'stats'
     | 'terminal'
     | 'graph'
     | 'settings'
