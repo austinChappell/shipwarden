@@ -11,26 +11,51 @@ import { dirname } from 'path';
  * - Notification for a permission ("permission.asked") or a question ("question.asked").
  * - Stop when the session becomes idle after a prompt. The message is the last text of the agent.
  * The events of a subagent session (a session with a parentID) do not end the turn and do not set the prompt.
+ * The plugin sends the events through the Unix socket in SHIPWARDEN_HOOK_SOCKET, not over TCP. See hook-server.ts.
+ * opencode runs on Bun, and Bun's fetch can use a Unix socket. In Node.js, the plugin uses the http module.
+ * A PTY host of an older build sets SHIPWARDEN_HOOK_URL in place of the socket. The plugin then uses the URL.
  * Without the SHIPWARDEN_* variables (for example outside ShipWarden), the plugin does nothing.
  * A failed request must not block the agent, so the plugin ignores all errors.
  */
 export const OPENCODE_PLUGIN = `// ShipWarden agent state plugin for opencode. ShipWarden writes this file. Do not edit it.
 const MAX_TEXT = 2000;
 
+const TIMEOUT_MS = 2000;
+
+// Sends a POST request through a Unix socket with the http module of Node.js.
+const postToSocket = async (socketPath, path, headers, body) => {
+    const http = await import('node:http');
+    await new Promise(resolve => {
+        const request = http.request({ socketPath, path, method: 'POST', headers, timeout: TIMEOUT_MS }, response => {
+            response.resume();
+            response.on('end', resolve);
+        });
+        request.on('error', resolve);
+        request.on('timeout', () => request.destroy());
+        request.end(body);
+    });
+};
+
 export const ShipWardenAgentState = async () => {
+    const socket = process.env.SHIPWARDEN_HOOK_SOCKET;
     const url = process.env.SHIPWARDEN_HOOK_URL;
     const token = process.env.SHIPWARDEN_HOOK_TOKEN;
     const sessionId = process.env.SHIPWARDEN_SESSION_ID;
-    if (!url || !token || !sessionId) {
+    if ((!socket && !url) || !token || !sessionId) {
         return {};
     }
+    const post = (path, body) => {
+        const headers = { 'Content-Type': 'application/json', 'X-ShipWarden-Token': token };
+        if (!socket) {
+            return fetch(url + path, { method: 'POST', headers, body, signal: AbortSignal.timeout(TIMEOUT_MS) });
+        }
+        if (typeof Bun !== 'undefined') {
+            return fetch('http://localhost' + path, { method: 'POST', headers, body, unix: socket, signal: AbortSignal.timeout(TIMEOUT_MS) });
+        }
+        return postToSocket(socket, path, headers, body);
+    };
     const send = (event, payload = {}) => {
-        fetch(url + '/hook/' + encodeURIComponent(sessionId) + '/' + event, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-ShipWarden-Token': token },
-            body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(2000)
-        }).catch(() => {});
+        post('/hook/' + encodeURIComponent(sessionId) + '/' + event, JSON.stringify(payload)).catch(() => {});
     };
     // The subagent sessions. Their idle state does not end the turn.
     const children = new Set();

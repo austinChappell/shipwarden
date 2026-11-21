@@ -5,7 +5,7 @@ import { agentStateFromHook } from '@shared/agents';
 import type { CreateTerminalOptions } from '@shared/terminal';
 import { HookServer } from '../agents/hook-server';
 import { TerminalManager } from '../terminal/terminal-manager';
-import { HostEvents, HostMethods, PTY_HOST_PROTOCOL, type PtyHostCreateParams, type PtyHostHello } from './protocol';
+import { HostEvents, HostMethods, PTY_HOST_PROTOCOL, hookSocketPath, type PtyHostCreateParams, type PtyHostHello } from './protocol';
 
 export interface PtyHostServerOptions {
     socketPath: string;
@@ -78,7 +78,7 @@ export class PtyHostServer {
             // There was no socket file.
         }
         try {
-            this.terminals.setHookEnvironment(await this.hookServer.start());
+            this.terminals.setHookEnvironment(await this.hookServer.start(hookSocketPath(this.options.socketPath)));
         } catch (error) {
             // Without the hook server, agents still run. ShipWarden then shows no agent state.
             console.warn(`[agents] The hook server did not start: ${error instanceof Error ? error.message : String(error)}`);

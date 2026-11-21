@@ -132,6 +132,11 @@ describe('claudeHookSettings', () => {
         const preToolUse = settings.hooks.PreToolUse[0] as { matcher: string; hooks: { command: string }[] };
         expect(preToolUse.matcher).toBe('*');
         expect(preToolUse.hooks[0].command).toContain(
+            '--unix-socket "$SHIPWARDEN_HOOK_SOCKET" "http://localhost/hook/${SHIPWARDEN_SESSION_ID:-$YARDMASTER_SESSION_ID}/PreToolUse"'
+        );
+        expect(preToolUse.hooks[0].command).toContain('-H "Content-Type: application/json"');
+        // Agents of an older PTY host have only the URL.
+        expect(preToolUse.hooks[0].command).toContain(
             '"${SHIPWARDEN_HOOK_URL:-$YARDMASTER_HOOK_URL}/hook/${SHIPWARDEN_SESSION_ID:-$YARDMASTER_SESSION_ID}/PreToolUse"'
         );
         expect(preToolUse.hooks[0].command.endsWith('|| true')).toBe(true);
@@ -149,6 +154,9 @@ describe('geminiHookSettings', () => {
         expect(beforeTool.matcher).toBe('.*');
         expect(hooks.AfterAgent[0].matcher).toBeUndefined();
         expect(beforeTool.hooks[0]).toMatchObject({ name: GEMINI_HOOK_NAME, type: 'command', timeout: 5000 });
+        expect(beforeTool.hooks[0].command).toContain(
+            '--unix-socket "${GEMINI_CLI_SHIPWARDEN_HOOK_SOCKET:-$SHIPWARDEN_HOOK_SOCKET}" "http://localhost/hook/${GEMINI_CLI_SHIPWARDEN_SESSION_ID:-${SHIPWARDEN_SESSION_ID:-$YARDMASTER_SESSION_ID}}/BeforeTool"'
+        );
         expect(beforeTool.hooks[0].command).toContain(
             '"${GEMINI_CLI_SHIPWARDEN_HOOK_URL:-${SHIPWARDEN_HOOK_URL:-$YARDMASTER_HOOK_URL}}/hook/${GEMINI_CLI_SHIPWARDEN_SESSION_ID:-${SHIPWARDEN_SESSION_ID:-$YARDMASTER_SESSION_ID}}/BeforeTool"'
         );
