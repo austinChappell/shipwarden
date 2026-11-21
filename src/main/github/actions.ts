@@ -11,6 +11,7 @@ import {
     markOldAttempts,
     mayBeOldAttempt,
     mapWorkflowRun,
+    hasRepeatedJobs,
     type RestCheckRun,
     type RestJob,
     type RestRunJob,
@@ -28,6 +29,7 @@ export function jobLogFolder(): string {
 /**
  * Returns the check runs and the commit statuses of a commit.
  * A job that did not pass and that is from an older attempt of an active run shows as queued.
+ * A job of a run that a newer run of the same workflow replaces shows as queued while the newer run is active.
  */
 export async function fetchChecks(client: GitHubClient, repo: RepoRef, sha: string): Promise<CheckRun[]> {
     const base = `/repos/${repo.owner}/${repo.name}/commits/${sha}`;
@@ -36,15 +38,16 @@ export async function fetchChecks(client: GitHubClient, repo: RepoRef, sha: stri
         client.rest<{ statuses: RestStatus[] }>('GET', `${base}/status`)
     ]);
     const checks = mapChecks(runs, statuses.statuses);
-    // Only a job that did not pass can be an old result. Without one, the checks need no more requests.
-    if (!checks.some(mayBeOldAttempt)) {
+    // An old result is a job that did not pass, or a job of a run that a newer run replaces.
+    // Without one of the two, the checks need no more requests.
+    if (!checks.some(mayBeOldAttempt) && !hasRepeatedJobs(runs)) {
         return checks;
     }
-    const active = await client.rest<{ workflow_runs: RunAttempt[] }>(
+    const attempts = await client.rest<{ workflow_runs: RunAttempt[] }>(
         'GET',
         `/repos/${repo.owner}/${repo.name}/actions/runs?head_sha=${encodeURIComponent(sha)}&per_page=100`
     );
-    return markOldAttempts(checks, active.workflow_runs);
+    return markOldAttempts(checks, attempts.workflow_runs);
 }
 
 /** The status of a job and its steps. It works while the job runs, also when the log is not ready. */

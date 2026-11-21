@@ -138,8 +138,8 @@ export function mapChecks(runs: RestCheckRun[], statuses: RestStatus[]): CheckRu
 /** The conclusions that stay valid when a run starts again. A re-run of the failed jobs keeps these jobs. */
 const KEPT_CONCLUSIONS = new Set<CheckConclusion>(['success', 'neutral']);
 
-/** The workflow run fields that show if a run started again. */
-export type RunAttempt = Pick<RestWorkflowRun, 'id' | 'status' | 'run_started_at'>;
+/** The workflow run fields that show if a run started again, or if a newer run replaces it. */
+export type RunAttempt = Pick<RestWorkflowRun, 'id' | 'workflow_id' | 'event' | 'status' | 'run_started_at'>;
 
 /** True when a check can be from an older attempt of its run: a GitHub Actions job that did not pass. */
 export function mayBeOldAttempt(check: CheckRun): boolean {
@@ -147,24 +147,78 @@ export function mayBeOldAttempt(check: CheckRun): boolean {
 }
 
 /**
- * Changes the checks from an older attempt of an active run to queued checks.
- * When a run starts again, GitHub makes a new check for a job only when the job goes into the queue.
- * Until then, the newest check of that job is the old result. This old result is not the state of the new attempt.
- * A check is old when it did not pass, its run is active, and it completed before the newest attempt started.
+ * True when a job name is in more than one GitHub Actions run. Then a newer run of a workflow can replace an older run.
+ * The check uses all check runs, before `latestChecks` removes the older checks.
+ */
+export function hasRepeatedJobs(runs: readonly RestCheckRun[]): boolean {
+    const runOfName = new Map<string, number>();
+    for (const check of runs.map(mapCheckRun)) {
+        if (check.runId === undefined) continue;
+        const runId = runOfName.get(check.name);
+        if (runId !== undefined && runId !== check.runId) return true;
+        runOfName.set(check.name, check.runId);
+    }
+    return false;
+}
+
+/**
+ * Finds the runs that a newer run replaces. A newer run has the same workflow and the same event, and a larger ID.
+ * Returns the newest run for each replaced run ID.
+ */
+function newerRuns(runs: readonly RunAttempt[]): Map<number, RunAttempt> {
+    const keyOf = (run: RunAttempt) => `${run.workflow_id}:${run.event}`;
+    const newest = new Map<string, RunAttempt>();
+    for (const run of runs) {
+        const current = newest.get(keyOf(run));
+        if (!current || run.id > current.id) newest.set(keyOf(run), run);
+    }
+    const replaced = new Map<number, RunAttempt>();
+    for (const run of runs) {
+        const latest = newest.get(keyOf(run))!;
+        if (latest.id !== run.id) replaced.set(run.id, latest);
+    }
+    return replaced;
+}
+
+/** Changes an old check to a queued check that waits for the new attempt or the new run. */
+const waitForNewResult = (check: CheckRun): CheckRun => ({
+    ...check,
+    status: 'queued',
+    conclusion: null,
+    startedAt: null,
+    completedAt: null,
+    waitingForRerun: true
+});
+
+/**
+ * Changes the old checks of the commit to queued checks, or removes them. A check is old in two cases:
+ *
+ * 1. A run starts again. GitHub makes a new check for a job only when the job goes into the queue.
+ *    Until then, the newest check of that job is the old result. This old result is not the state of the new attempt.
+ *    A check is old when it did not pass, its run is active, and it completed before the newest attempt started.
+ * 2. A newer run of the same workflow and event starts on the same commit. The newer run makes its jobs one by one.
+ *    Until then, the jobs of the older run show. While the newer run is active, these jobs show as queued.
+ *    When the newer run completes, the jobs of the older run do not show.
  */
 export function markOldAttempts(checks: CheckRun[], runs: readonly RunAttempt[]): CheckRun[] {
+    const replaced = newerRuns(runs);
     const attemptStart = new Map<number, number>();
     for (const run of runs) {
         if (run.status !== 'completed' && run.run_started_at) {
             attemptStart.set(run.id, Date.parse(run.run_started_at));
         }
     }
-    return checks.map(check => {
-        const start = check.runId === undefined ? undefined : attemptStart.get(check.runId);
-        if (start === undefined || !mayBeOldAttempt(check) || !check.completedAt || Date.parse(check.completedAt) >= start) {
-            return check;
+    return checks.flatMap(check => {
+        if (check.runId === undefined) return [check];
+        const newer = replaced.get(check.runId);
+        if (newer) {
+            return newer.status === 'completed' ? [] : [waitForNewResult(check)];
         }
-        return { ...check, status: 'queued', conclusion: null, startedAt: null, completedAt: null, waitingForRerun: true };
+        const start = attemptStart.get(check.runId);
+        if (start === undefined || !mayBeOldAttempt(check) || !check.completedAt || Date.parse(check.completedAt) >= start) {
+            return [check];
+        }
+        return [waitForNewResult(check)];
     });
 }
 
