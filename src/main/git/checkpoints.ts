@@ -101,7 +101,13 @@ async function withTempIndex<T>(top: string, copyRealIndex: boolean, fn: (env: R
         if (copyRealIndex) {
             const realIndex = path.resolve(top, (await git(top, ['rev-parse', '--git-path', 'index'])).trim());
             try {
+                const stat = await fs.stat(realIndex);
                 await fs.copyFile(realIndex, indexFile);
+                // Keep the time of the real index on the copy. Git compares the file times in the index with the time
+                // of the index file. A file that changes in the same second as the index write has the same time.
+                // Git reads the contents of such a file again only if the index file has its real time.
+                // A copy with a new time makes git skip a change that keeps the same size.
+                await fs.utimes(indexFile, stat.atime, stat.mtime);
             } catch {
                 // A worktree without an index file starts from HEAD. A repository without commits starts empty.
                 if (await headOf(top)) await git(top, ['read-tree', 'HEAD'], { env });
