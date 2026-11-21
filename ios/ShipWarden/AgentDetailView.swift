@@ -124,6 +124,9 @@ struct AgentDetailView: View {
                     Text(date, style: .relative).font(.caption).foregroundStyle(.secondary).monospacedDigit()
                 }
             }
+            if let reason = agent.reason, !reason.isEmpty {
+                Text(reason).font(.caption).foregroundStyle(.secondary)
+            }
             if let message = agent.message, !message.isEmpty {
                 Text(message).font(.subheadline).lineLimit(4)
             }

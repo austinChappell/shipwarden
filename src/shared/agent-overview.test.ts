@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIVE_OUTPUT_MS, ciStateOf, ciText, compareOverview, countStates, formatElapsed, lastActivityAt, overviewState } from './agent-overview';
+import {
+    ACTIVE_OUTPUT_MS,
+    ciStateOf,
+    ciText,
+    compareOverview,
+    countStates,
+    formatElapsed,
+    IDLE_REASON_TEXT,
+    idleReason,
+    idleReasonText,
+    lastActivityAt,
+    overviewState
+} from './agent-overview';
 
 const NOW = 1_000_000_000;
 
@@ -112,5 +124,60 @@ describe('countStates', () => {
             { state: 'done', count: 1 }
         ]);
         expect(countStates([])).toEqual([]);
+    });
+});
+
+describe('idleReason', () => {
+    const now = 1_000_000;
+
+    it('gives no reason while the agent works or starts', () => {
+        expect(idleReason({ agentState: 'working', now })).toBeUndefined();
+        expect(idleReason({ agentState: 'starting', now })).toBeUndefined();
+        expect(idleReason({ lastOutputAt: now - 1000, now })).toBeUndefined();
+    });
+
+    it('maps each hook notification to its reason', () => {
+        expect(idleReason({ agentState: 'waiting', waitFor: 'permission', now })).toBe('permission');
+        expect(idleReason({ agentState: 'waiting', waitFor: 'question', now })).toBe('question');
+        expect(idleReason({ agentState: 'waiting', waitFor: 'input', now })).toBe('input');
+        // A PTY host of an older build sends no "waitFor".
+        expect(idleReason({ agentState: 'waiting', now })).toBe('input');
+    });
+
+    it('waits for the first prompt or for the reply after a turn', () => {
+        expect(idleReason({ agentState: 'idle', now })).toBe('prompt');
+        expect(idleReason({ agentState: 'done', now })).toBe('reply');
+        expect(idleReason({ agentState: 'done', ci: 'passed', now })).toBe('reply');
+        expect(idleReason({ agentState: 'done', ci: 'none', now })).toBe('reply');
+    });
+
+    it('gives the CI state after the turn', () => {
+        expect(idleReason({ agentState: 'done', ci: 'running', now })).toBe('ci-running');
+        expect(idleReason({ agentState: 'done', ci: 'failed', now })).toBe('ci-failed');
+        expect(idleReason({ agentState: 'idle', ci: 'running', now })).toBe('ci-running');
+        expect(idleReason({ agentState: 'exited', ci: 'failed', exited: true, now })).toBe('ci-failed');
+        expect(idleReason({ ci: 'running', now })).toBe('ci-running');
+        // A question of the agent wins over CI.
+        expect(idleReason({ agentState: 'waiting', waitFor: 'question', ci: 'failed', now })).toBe('question');
+    });
+
+    it('maps each process state to its reason', () => {
+        expect(idleReason({ agentState: 'exited', now })).toBe('session-ended');
+        expect(idleReason({ agentState: 'exited', exited: true, exitCode: 0, now })).toBe('process-stopped');
+        expect(idleReason({ agentState: 'exited', exited: true, exitCode: 1, now })).toBe('process-failed');
+        expect(idleReason({ exited: true, now })).toBe('process-stopped');
+        expect(idleReason({ exited: true, exitCode: 137, now })).toBe('process-failed');
+    });
+
+    it('tells that an agent without hooks does not report', () => {
+        expect(idleReason({ now })).toBe('no-report');
+        expect(idleReason({ lastOutputAt: now - ACTIVE_OUTPUT_MS, now })).toBe('no-report');
+    });
+
+    it('gives the text of the reason', () => {
+        expect(idleReasonText({ agentState: 'waiting', waitFor: 'permission', now })).toBe('Waiting for a permission prompt');
+        expect(idleReasonText({ agentState: 'done', ci: 'running', now })).toBe('Waiting for CI');
+        expect(idleReasonText({ agentState: 'working', now })).toBeUndefined();
+        for (const text of Object.values(IDLE_REASON_TEXT)) expect(text).not.toMatch(/[.;]$/);
     });
 });

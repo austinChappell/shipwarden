@@ -25,6 +25,9 @@ import { AutomationStore } from './automations/automation-store';
 import { PlanStore } from './plans/plan-store';
 import { PrGroupStore } from './pr-groups/pr-group-store';
 import { CompareStore } from './compare/compare-store';
+import { StatsRecorder } from './stats/stats-recorder';
+import { StatsStore } from './stats/stats-store';
+import { TokenCounter } from './automations/token-counter';
 import { PinnedSessions } from './agents/pinned-sessions';
 import { RecentSessions } from './agents/recent-sessions';
 import { printCommand } from '@shared/ask-agent';
@@ -163,6 +166,24 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     });
 
     /**
+     * The event log of the agent stats (`agent-stats.jsonl`). It removes the lines older than 90 days at start.
+     * The functions run later, at the first event, so they can use the services below.
+     */
+    const statsStore = new StatsStore(join(userData, 'agent-stats.jsonl'));
+    void statsStore.prune();
+    const statsTokens = new TokenCounter();
+    const stats = new StatsRecorder({
+        store: statsStore,
+        session: async id => (await terminalSessions()).find(session => session.id === id),
+        repoOf: worktree => reviewProviders.repoFor(worktree),
+        tokens: async transcript => (await statsTokens.count(transcript, 0)).tokens,
+        programOf: async name => {
+            const agent = (await settings.get()).agents.find(item => item.name === name);
+            return agent ? agentProgramOf(agent.command.trim()) : undefined;
+        }
+    });
+
+    /**
      * The terminal sessions run in the PTY host, a separate process. When the app quits, the host and its agents
      * continue to run. The next app run connects to the same host and shows the sessions again.
      */
@@ -183,11 +204,13 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             },
             exit: (id, exitCode) => {
                 shellAgents.forget(id);
+                stats.forget(id);
                 window.send(IpcChannels.terminalsExit, id, exitCode);
                 remote.terminalExited(id);
             },
             agentState: (id, update) => {
                 window.send(IpcChannels.terminalsAgentState, id, update);
+                stats.agentState(id, update);
                 // A resumed session can write its transcript in a new folder. The pin follows it.
                 void pinnedSessions.track(update.transcript).catch(() => undefined);
                 remote.agentsChanged();
@@ -218,6 +241,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         processTable: () => processes.table(),
         onState: (id, update) => {
             window.send(IpcChannels.terminalsAgentState, id, update);
+            stats.agentState(id, update);
             remote.agentsChanged();
         },
         onProgram: (id, program) => {
@@ -468,6 +492,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         plans,
         prGroups,
         compare,
+        stats,
         pinnedSessions,
         recentSessions: new RecentSessions(),
         confirm,

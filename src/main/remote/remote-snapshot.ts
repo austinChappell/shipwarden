@@ -1,4 +1,5 @@
 import { basename } from 'path';
+import { ciStateOf, idleReasonText } from '@shared/agent-overview';
 import type { BranchSummary } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
 import type { RemoteAgent, RemoteProject, RemoteSnapshot } from '@shared/remote';
@@ -20,7 +21,20 @@ export interface SnapshotSources {
     sessions(): Promise<TerminalSession[]>;
 }
 
-export function agentOf(session: TerminalSession): RemoteAgent {
+/**
+ * Converts a session to an agent for the phone. `checks` is the check state of the pull request of the agent's
+ * worktree (`BranchSummary.checks`), or undefined when it has no pull request or the state is not known.
+ */
+export function agentOf(session: TerminalSession, checks?: string | null, now = Date.now()): RemoteAgent {
+    const reason = idleReasonText({
+        agentState: session.agentState,
+        waitFor: session.agentWaitFor,
+        ci: ciStateOf(checks),
+        lastOutputAt: session.lastActiveAt,
+        now,
+        exited: session.exited,
+        exitCode: session.exitCode
+    });
     return {
         id: session.id,
         title: session.title,
@@ -30,7 +44,8 @@ export function agentOf(session: TerminalSession): RemoteAgent {
         message: session.agentMessage,
         prompt: session.agentPrompt,
         stateAt: session.agentStateAt,
-        exited: session.exited
+        exited: session.exited,
+        ...(reason ? { reason } : {})
     };
 }
 
@@ -104,7 +119,12 @@ export class RemoteSnapshotBuilder {
                 .filter(repo => !!repo)
                 .map(repo => ({ ...repo, worktrees: [...repo.worktrees] }))
         }));
-        return { projects, agents: sessions.filter(session => session.isAgent || runsAgent(session)).map(agentOf) };
+        const checks = checksByWorktree(projects);
+        const now = this.now();
+        return {
+            projects,
+            agents: sessions.filter(session => session.isAgent || runsAgent(session)).map(session => agentOf(session, checkOf(checks, session), now))
+        };
     }
 
     /** Forgets the pull requests of a repository, for example after an approval. */
@@ -125,4 +145,18 @@ export class RemoteSnapshotBuilder {
             return cached?.value ?? {};
         }
     }
+}
+
+/** The check state of the pull request of each worktree in a snapshot, by worktree path. */
+export function checksByWorktree(projects: readonly RemoteProject[]): Map<string, string | null> {
+    const checks = new Map<string, string | null>();
+    for (const worktree of projects.flatMap(project => project.repos.flatMap(repo => repo.worktrees))) {
+        if (worktree.pullRequest) checks.set(worktree.path, worktree.pullRequest.checks);
+    }
+    return checks;
+}
+
+/** The check state of the pull request of a session's worktree. Undefined when the worktree has no pull request. */
+export function checkOf(checks: ReadonlyMap<string, string | null>, session: TerminalSession): string | null | undefined {
+    return session.worktreePath ? checks.get(session.worktreePath) : undefined;
 }

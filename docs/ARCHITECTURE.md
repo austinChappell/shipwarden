@@ -259,6 +259,32 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   - "idle" (ready, no prompt) becomes "Needs input", or "Blocked on CI" as above.
   - An agent without hooks (for example Codex) is "working" while its terminal sent output in the last 10 seconds.
     Else it is "Blocked on CI" as above, or "Quiet".
+- `idleReason` in the same file tells why an agent does not work. The state chip shows it as a tooltip, and the phone
+  API sends it as `RemoteAgent.reason`. The order of the checks is the same as in `overviewState`:
+  - A "waiting" agent gets the reason of its hook notification (`waitKindOf` in `src/shared/agents.ts`):
+    "permission_prompt" (Claude Code, opencode) and "ToolPermission" (Gemini CLI) give "Waiting for a permission
+    prompt". "elicitation_dialog" (Claude Code) and "question" (opencode) give "The agent is asking a question". Other
+    types give "Waiting for your input". The PTY host keeps the value in `TerminalSession.agentWaitFor`.
+  - "Blocked on CI" gives "Waiting for CI" or "CI failed. Waiting for your reply".
+  - "idle" gives "Waiting for your first prompt", and "done" gives "Waiting for your reply".
+  - A stopped terminal process gives "The process stopped", or "The process stopped with an error" for an exit code
+    other than 0. A SessionEnd hook while the shell still runs gives "The agent session ended".
+  - An agent without hooks and without recent output gives "No recent output. This agent does not report its state".
+- The phone server takes the CI state for the reason from the pull requests of the last snapshot.
+
+### Agent stats log
+
+- `StatsRecorder` (`src/main/stats/stats-recorder.ts`) writes one JSON line to `<app data>/agent-stats.jsonl`
+  (`StatsStore`) at each agent state change, each merge through `github.merge`, and each new kept run of a comparison.
+  The event types are in `src/shared/stats.ts`. Each event has a version (`v`) and a time (`at`).
+- A state event has the session ID, the worktree, the repository (`owner/name`), the agent name, the agent program,
+  the model (when a hook tells it), the state, the wait kind, the idle reason, the transcript, and the tokens of the
+  session up to the event. A tool call that reports "working" again adds no line. The reason has no CI part, because
+  the main process does not load the pull requests.
+- A merge event has the worktree, the repository, the number, the URL, and the merge method. A compare event has the
+  comparison ID, the repository, the task, the kept run, and all runs.
+- The writes go in one queue and add to the end of the file. A failed write logs one warning and never throws.
+- At start, `StatsStore.prune` removes the lines older than 90 days with a temporary file and a rename.
 - The CI state comes from `github.branchSummaries` for each repository that has an agent. The view loads it every
   60 seconds while it is open.
 - The renderer records the time of the last output of each terminal (`OutputActivity`). It starts when the window

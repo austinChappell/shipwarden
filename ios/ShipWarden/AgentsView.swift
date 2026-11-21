@@ -77,6 +77,12 @@ struct AgentRow: View {
             Text(model.name(of: agent))
                 .font(.body.weight(.medium))
                 .lineLimit(2)
+            if let reason = agent.reason, !reason.isEmpty {
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             if let message = agent.message, !message.isEmpty {
                 Text(message)
                     .font(.subheadline)

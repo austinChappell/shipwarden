@@ -89,10 +89,11 @@ describe('opencode plugin', () => {
         const [, , , permission, replied, question] = sent;
         expect(agentStateFromHook(permission.event, permission.payload)).toEqual({
             state: 'waiting',
+            waitFor: 'permission',
             message: 'opencode is asking for permission: bash (npm test)'
         });
         expect(agentStateFromHook(replied.event, replied.payload)).toEqual({ state: 'working', message: 'Running npm test' });
-        expect(agentStateFromHook(question.event, question.payload)).toEqual({ state: 'waiting', message: 'Which branch?' });
+        expect(agentStateFromHook(question.event, question.payload)).toEqual({ state: 'waiting', waitFor: 'question', message: 'Which branch?' });
     });
 
     it('does not end the turn when a subagent session becomes idle', async () => {

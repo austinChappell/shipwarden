@@ -1,4 +1,4 @@
-import type { AgentState } from './agents';
+import type { AgentState, AgentWaitKind } from './agents';
 
 /**
  * The state of an agent in the Agents view.
@@ -94,6 +94,81 @@ export function overviewState({ agentState, ci, lastOutputAt, now }: OverviewInp
             if (lastOutputAt !== undefined && now - lastOutputAt < ACTIVE_OUTPUT_MS) return 'working';
             return blockedOnCi(ci) ? 'blocked-ci' : 'quiet';
     }
+}
+
+/**
+ * Why an agent does not work. The Agents view and the phone show it for each state other than "working" and "starting".
+ * - permission, question, input: the agent waits for the user. The hook notification tells which.
+ * - prompt: the agent started and has no prompt yet.
+ * - reply: the agent finished its turn and waits for the next prompt.
+ * - ci-running, ci-failed: the agent finished its turn, and the checks of its pull request run or failed.
+ * - session-ended: the agent session ended. The terminal still runs a shell.
+ * - process-stopped, process-failed: the terminal process stopped with exit code 0, or with another exit code.
+ * - no-report: the agent has no hooks and sent no output recently.
+ */
+export type IdleReason =
+    | 'permission'
+    | 'question'
+    | 'input'
+    | 'prompt'
+    | 'reply'
+    | 'ci-running'
+    | 'ci-failed'
+    | 'session-ended'
+    | 'process-stopped'
+    | 'process-failed'
+    | 'no-report';
+
+export const IDLE_REASON_TEXT: Record<IdleReason, string> = {
+    permission: 'Waiting for a permission prompt',
+    question: 'The agent is asking a question',
+    input: 'Waiting for your input',
+    prompt: 'Waiting for your first prompt',
+    reply: 'Waiting for your reply',
+    'ci-running': 'Waiting for CI',
+    'ci-failed': 'CI failed. Waiting for your reply',
+    'session-ended': 'The agent session ended',
+    'process-stopped': 'The process stopped',
+    'process-failed': 'The process stopped with an error',
+    'no-report': 'No recent output. This agent does not report its state'
+};
+
+export interface IdleReasonInput extends OverviewInput {
+    /** What a waiting agent waits for, from its hooks. */
+    waitFor?: AgentWaitKind;
+    /** True when the terminal process stopped. */
+    exited?: boolean;
+    /** The exit code of the terminal process. */
+    exitCode?: number;
+}
+
+/**
+ * Gives the reason why an agent does not work. Undefined when the agent works or starts.
+ * The order of the checks is the same as in `overviewState`: the hook state, then the CI state, then the process.
+ */
+export function idleReason(input: IdleReasonInput): IdleReason | undefined {
+    const state = overviewState(input);
+    if (state === 'working' || state === 'starting') return undefined;
+    if (state === 'blocked-ci') return input.ci === 'failed' ? 'ci-failed' : 'ci-running';
+    switch (input.agentState) {
+        case 'waiting':
+            return input.waitFor ?? 'input';
+        case 'idle':
+            return 'prompt';
+        case 'done':
+            return 'reply';
+        default:
+            break;
+    }
+    if (input.exited) return input.exitCode ? 'process-failed' : 'process-stopped';
+    if (input.agentState === 'exited') return 'session-ended';
+    return 'no-report';
+}
+
+/** Gives the text of the reason why an agent does not work. Undefined when the agent works or starts. */
+export function idleReasonText(input: IdleReasonInput): string | undefined {
+    const reason = idleReason(input);
+    return reason ? IDLE_REASON_TEXT[reason] : undefined;
 }
 
 /** Gives a short text about the CI state, for example "CI failed". Undefined when there is no pull request. */

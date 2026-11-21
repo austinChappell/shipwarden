@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
-import { ciStateOf, ciText, OVERVIEW_LABELS, overviewState } from '@shared/agent-overview';
+import { ciStateOf, ciText, idleReasonText, OVERVIEW_LABELS, overviewState } from '@shared/agent-overview';
 import { compareRunState, groupsOfTask, runsToRemove, type CompareGroup, type CompareRun, type CompareRunState } from '@shared/agent-compare';
 import { worktreeAgentState } from '@shared/agents';
 import { pluralize } from '@shared/format';
@@ -163,7 +163,13 @@ function RunRow({ run, state, canKeep, sessions, diff, diffError, checks, prNumb
         .map(session => outputActivity.get(session.id))
         .reduce<number | undefined>((latest, at) => (at !== undefined && (latest === undefined || at > latest) ? at : latest), undefined);
     const ci = ciStateOf(checks);
-    const overview = agents.length ? overviewState({ agentState, ci, lastOutputAt, now: Date.now() }) : undefined;
+    const now = Date.now();
+    const overview = agents.length ? overviewState({ agentState, ci, lastOutputAt, now }) : undefined;
+    // The agent that gives the state of the row also gives the reason.
+    const shown = agents.find(session => session.agentState === agentState) ?? agents[0];
+    const reason = shown
+        ? idleReasonText({ agentState, waitFor: shown.agentWaitFor, ci, lastOutputAt, now, exited: shown.exited, exitCode: shown.exitCode })
+        : undefined;
     const totals = diff ? diffTotals(diff.files) : undefined;
     const stateText = RUN_STATE_TEXT[state];
 
@@ -176,7 +182,11 @@ function RunRow({ run, state, canKeep, sessions, diff, diffError, checks, prNumb
                 </Chip>
                 <span className="header-spacer" />
                 {stateText && <Chip tone={state === 'kept' ? 'success' : 'neutral'}>{stateText}</Chip>}
-                {!removed && overview && <Chip tone={STATE_TONE[overview]}>{OVERVIEW_LABELS[overview]}</Chip>}
+                {!removed && overview && (
+                    <Chip tone={STATE_TONE[overview]} title={reason}>
+                        {OVERVIEW_LABELS[overview]}
+                    </Chip>
+                )}
                 {!removed && !overview && <Chip>No agent</Chip>}
                 {!removed && totals && (
                     <span className="compare-run-stat" title={diff?.base ? `Since ${diff.base.slice(0, 7)}` : 'Since HEAD'}>

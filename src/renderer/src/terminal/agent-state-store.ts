@@ -22,6 +22,8 @@ export class AgentStateStore {
             current.message === update.message &&
             current.prompt === update.prompt &&
             current.at === update.at &&
+            current.waitFor === update.waitFor &&
+            current.model === update.model &&
             current.transcript === update.transcript
         ) {
             return;
@@ -91,6 +93,8 @@ export function withAgentStore(
                   agentMessage: update.message,
                   agentPrompt: update.prompt,
                   agentStateAt: update.at,
+                  agentWaitFor: update.waitFor,
+                  ...(update.model ? { agentModel: update.model } : {}),
                   ...(update.transcript ? { agentTranscript: update.transcript } : {})
               }
             : session;

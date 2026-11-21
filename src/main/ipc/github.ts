@@ -18,7 +18,7 @@ import type { Services } from '../services';
 import { isWebUrl, newPullRequestOf, onlyStrings, optionalString, repoRefOf } from './args';
 
 /** Registers the IPC handlers of the pull requests, the pipelines and the review providers (GitHub and Azure DevOps). */
-export function registerGitHubIpc({ reviewProviders, seen }: Pick<Services, 'reviewProviders' | 'seen'>): void {
+export function registerGitHubIpc({ reviewProviders, seen, stats }: Pick<Services, 'reviewProviders' | 'seen' | 'stats'>): void {
     // Each call goes to the provider of its target: Azure DevOps for a worktree with an Azure Repos remote or for an
     // Azure reference, else GitHub.
     const host = (target: RepoTarget) => reviewProviders.for(target);
@@ -58,9 +58,11 @@ export function registerGitHubIpc({ reviewProviders, seen }: Pick<Services, 'rev
     ipcMain.handle(IpcChannels.githubSetThreadResolved, async (_event, target: RepoTarget, threadId: string, resolved: boolean) =>
         (await host(target)).setThreadResolved(threadId, resolved)
     );
-    ipcMain.handle(IpcChannels.githubMerge, async (_event, target: RepoTarget, number: number, headSha: string, method: MergeMethod) =>
-        (await host(target)).merge(target, number, headSha, method)
-    );
+    ipcMain.handle(IpcChannels.githubMerge, async (_event, target: RepoTarget, number: number, headSha: string, method: MergeMethod) => {
+        const result = await (await host(target)).merge(target, number, headSha, method);
+        stats.merged(target, number, method);
+        return result;
+    });
     ipcMain.handle(IpcChannels.githubChecks, async (_event, target: RepoTarget, sha: string) => (await host(target)).checks(target, sha));
     ipcMain.handle(IpcChannels.githubJobProgress, async (_event, target: RepoTarget, jobId: number) => (await host(target)).jobProgress(target, Number(jobId)));
     ipcMain.handle(IpcChannels.githubJobLog, async (_event, target: RepoTarget, jobId: number) => (await host(target)).jobLog(target, jobId));

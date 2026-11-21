@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     agentStateFromHook,
+    waitKindOf,
     describeTool,
     oneLine,
     claudeHookSettings,
@@ -29,9 +30,10 @@ describe('agentStateFromHook', () => {
         });
         expect(agentStateFromHook('Notification', { message: 'Claude needs your permission to use Bash' })).toEqual({
             state: 'waiting',
+            waitFor: 'input',
             message: 'Claude needs your permission to use Bash'
         });
-        expect(agentStateFromHook('Notification', {})).toEqual({ state: 'waiting', message: 'The agent needs your input.' });
+        expect(agentStateFromHook('Notification', {})).toEqual({ state: 'waiting', waitFor: 'input', message: 'The agent needs your input.' });
         expect(agentStateFromHook('Stop', { last_assistant_message: ' I fixed the bug. ' })).toEqual({ state: 'done', message: 'I fixed the bug.' });
         expect(agentStateFromHook('Stop', { transcript_path: '/u/.claude/projects/p/s.jsonl' })).toEqual({
             state: 'done',
@@ -55,6 +57,7 @@ describe('agentStateFromHook', () => {
         });
         expect(agentStateFromHook('Notification', { notification_type: 'ToolPermission', message: 'Allow run_shell_command?' }, 'working')).toEqual({
             state: 'waiting',
+            waitFor: 'permission',
             message: 'Allow run_shell_command?'
         });
         // The user answered the permission prompt, and the tool ran.
@@ -79,11 +82,38 @@ describe('agentStateFromHook', () => {
         const idle = { notification_type: 'idle_prompt', message: 'Claude is waiting for your input' };
         expect(agentStateFromHook('Notification', idle, 'done')).toBeUndefined();
         expect(agentStateFromHook('Notification', idle, 'idle')).toBeUndefined();
-        expect(agentStateFromHook('Notification', idle, 'working')).toEqual({ state: 'waiting', message: 'Claude is waiting for your input' });
+        expect(agentStateFromHook('Notification', idle, 'working')).toEqual({
+            state: 'waiting',
+            waitFor: 'input',
+            message: 'Claude is waiting for your input'
+        });
         expect(
             agentStateFromHook('Notification', { notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' }, 'working')
-        ).toEqual({ state: 'waiting', message: 'Claude needs your permission to use Bash' });
+        ).toEqual({ state: 'waiting', waitFor: 'permission', message: 'Claude needs your permission to use Bash' });
         expect(agentStateFromHook('Notification', { notification_type: 'auth_success' }, 'working')).toBeUndefined();
+    });
+
+    it('tells what a waiting agent waits for', () => {
+        expect(agentStateFromHook('Notification', { notification_type: 'elicitation_dialog', message: 'Pick one' }, 'working')).toEqual({
+            state: 'waiting',
+            waitFor: 'question',
+            message: 'Pick one'
+        });
+        expect(waitKindOf('permission_prompt')).toBe('permission');
+        expect(waitKindOf('ToolPermission')).toBe('permission');
+        expect(waitKindOf('question')).toBe('question');
+        expect(waitKindOf('elicitation_dialog')).toBe('question');
+        expect(waitKindOf('idle_prompt')).toBe('input');
+        expect(waitKindOf(undefined)).toBe('input');
+    });
+
+    it('reads the model of a hook event', () => {
+        expect(agentStateFromHook('SessionStart', { model: 'claude-sonnet-4-5' })).toEqual({ state: 'idle', model: 'claude-sonnet-4-5' });
+        expect(agentStateFromHook('SessionStart', { model: { id: 'claude-opus-4-1', display_name: 'Opus' } })).toEqual({
+            state: 'idle',
+            model: 'claude-opus-4-1'
+        });
+        expect(agentStateFromHook('SessionStart', { model: 42 })).toEqual({ state: 'idle' });
     });
 });
 
