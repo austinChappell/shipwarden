@@ -21,6 +21,7 @@ import {
     RefreshCw,
     RotateCcw,
     Sparkles,
+    Upload,
     X
 } from 'lucide-react';
 import { AGENT_MODES, type AgentMode } from '@shared/agent-modes';
@@ -102,7 +103,16 @@ import { cancelExplore, explorePlan } from './plan-explore';
 import { cachedPlan, createPlan, removePlan, updatePlan, useExploreState } from './plan-queries';
 import { planRunner } from './plan-runner';
 import { planPullRequests, syncPlanGroup, usePlanGroup } from './plan-group';
-import { addPullRequestStep, canPromptStep, mergeStep, moveStepInRepo, promptPlanAgents, sendChecksToAgent, sendReviewToAgent } from './plan-actions';
+import {
+    addPullRequestStep,
+    canPromptStep,
+    mergeStep,
+    moveStepInRepo,
+    promptPlanAgents,
+    pushRestackedStep,
+    sendChecksToAgent,
+    sendReviewToAgent
+} from './plan-actions';
 import { moveKeyTo } from '../components/reorder';
 import { useReorder } from '../components/use-reorder';
 import { MAX_GROUP_PULL_REQUESTS } from '@shared/pr-groups';
@@ -691,7 +701,7 @@ function PlanEditor({ plan, project, repoLabel, repoColor, onClosed, onOpenPlan,
                                         step={step}
                                         index={index}
                                         count={draft.steps.length}
-                                        stackedOn={stackedOnIndex(draft.steps, index)}
+                                        stackedOn={stackedOnIndex(draft.steps, index, !draft.noStack)}
                                         next={nextToReview(draft.steps, step.id)}
                                         problems={problems.filter(problem => problem.stepId === step.id)}
                                         repos={project.repos}
@@ -1167,7 +1177,11 @@ function RunSettings({
     const connection = connections.data?.list.find(item => item.id === target?.connectionId);
     const tasks = target ? [connection?.name, target.collectionName].filter(Boolean).join(' · ') || 'Selected' : 'No task manager';
     const mode = draft.agentMode ? (AGENT_MODES.find(item => item.mode === draft.agentMode)?.label ?? draft.agentMode) : "The agent's own setting";
-    const pullRequests = [draft.draftPullRequests ? 'Drafts' : 'Ready for review', draft.noPrGroup ? 'no PR group' : 'in a PR group'].join(', ');
+    const pullRequests = [
+        draft.draftPullRequests ? 'Drafts' : 'Ready for review',
+        draft.noStack ? 'each into the default branch' : 'stacked',
+        draft.noPrGroup ? 'no PR group' : 'in a PR group'
+    ].join(', ');
     const agents = !draft.keepAgents
         ? 'Stop when the step is done'
         : draft.watchCi && opensPullRequests(draft)
@@ -1387,6 +1401,22 @@ function PlanSettings({
                     disabled={disabled}
                     onChange={value => onChange({ draftPullRequests: value })}
                 />
+            </div>
+            <div className="flow-field">
+                <div className="flow-toggle-row">
+                    <span className="flow-field-label">Stack the steps</span>
+                    <Switch
+                        title="Each step starts from the branch of the step before it in the same repository, and its pull request targets that branch"
+                        checked={!draft.noStack}
+                        disabled={disabled}
+                        onChange={value => onChange({ noStack: value ? undefined : true })}
+                    />
+                </div>
+                <div className="flow-field-note">
+                    {draft.noStack
+                        ? 'Each step starts from the default branch, and its pull request targets the default branch.'
+                        : 'Each step builds on the step before it in the same repository. When a pull request merges, ShipWarden rebases the next branch onto the new base and changes the base of its pull request.'}
+                </div>
             </div>
             <div className="flow-toggle-row">
                 <span className="flow-field-label">Put the pull requests in a PR group</span>
@@ -2183,6 +2213,20 @@ function rowDetail(plan: Plan, step: PlanStep, index: number, progress: StepProg
     }
 }
 
+/** The line under the title of a done step whose branch waits after a rebase onto a new base. */
+function restackDetail(step: PlanStep): { text: string; tone?: string } | undefined {
+    const restack = step.status === 'done' ? step.restack : undefined;
+    if (!restack) return undefined;
+    switch (restack.state) {
+        case 'push':
+            return { text: step.detail ?? `Rebased onto ${restack.onto}. Push the branch.`, tone: 'warning' };
+        case 'conflict':
+            return { text: step.detail ?? `The rebase onto ${restack.onto} stopped on a conflict.`, tone: 'warning' };
+        case 'failed':
+            return { text: step.detail ?? `The rebase onto ${restack.onto} did not start.`, tone: 'danger' };
+    }
+}
+
 /** One step in the run: the title, the pull request, the review, the checks and the next action. */
 function RunStepRow({
     step,
@@ -2200,7 +2244,8 @@ function RunStepRow({
     const agents = useAgentStates();
     const agent = step.sessionId ? agents.get(step.sessionId)?.state : undefined;
     const followUp = step.followUp && (agent === 'working' || agent === 'waiting') && step.status === 'done' ? step.followUp : undefined;
-    const detail = followUp ? { text: followUp.label, tone: 'pending' } : rowDetail(plan, step, index, progress);
+    const restack = step.status === 'done' && item.group !== 'merged' && item.group !== 'closed' ? step.restack : undefined;
+    const detail = followUp ? { text: followUp.label, tone: 'pending' } : ((restack && restackDetail(step)) ?? rowDetail(plan, step, index, progress));
     const blocked = blockingStep(plan, progress, index) !== undefined;
     const link = step.task.kind === 'existing' ? step.task.link : undefined;
     const isOpen = step.status === 'running' || step.status === 'attention' || step.status === 'failed';
@@ -2229,7 +2274,25 @@ function RunStepRow({
     };
 
     let action: ReactNode = null;
-    if (followUp && step.worktreePath) {
+    if (restack?.state === 'push' && !followUp) {
+        action = (
+            <Button size="sm" variant="primary" icon={<Upload size={14} />} onClick={() => void act(() => pushRestackedStep(plan, step))}>
+                Push
+            </Button>
+        );
+    } else if (restack?.state === 'failed') {
+        action = (
+            <Button size="sm" icon={<RotateCcw size={14} />} onClick={() => void act(() => planRunner.retryRestack(plan.id, step.id))}>
+                Rebase
+            </Button>
+        );
+    } else if (restack?.state === 'conflict' && !followUp && step.worktreePath) {
+        action = (
+            <Button size="sm" icon={<ArrowUpRight size={14} />} onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}>
+                Open
+            </Button>
+        );
+    } else if (followUp && step.worktreePath) {
         action = (
             <Button size="sm" icon={<ArrowUpRight size={14} />} onClick={() => onOpenWorktree(step.worktreePath as string, step.sessionId)}>
                 Open

@@ -51,3 +51,20 @@ export function planInGroupOrder<P extends Pick<Plan, 'steps'>>(plan: P, group: 
     const steps = orderInPlace(plan.steps, stepPrKey, order);
     return steps === plan.steps ? plan : { ...plan, steps: [...steps] };
 }
+
+/**
+ * Returns where each pull request of the plan merges, by the key of the pull request in lowercase: "Stacks on #41" when
+ * it targets the branch of an earlier step with a pull request, else "Into main". The PR group shows it next to the
+ * state of each pull request, so the order of the stack is clear.
+ */
+export function stackLabels(plan: Pick<Plan, 'steps'>): Map<string, string> {
+    const labels = new Map<string, string>();
+    for (const step of plan.steps) {
+        const key = stepPrKey(step);
+        if (!key || !step.pr) continue;
+        const base = step.pr.base;
+        const parent = plan.steps.find(item => item !== step && item.repo === step.repo && item.branch === base && item.pr);
+        labels.set(key, parent?.pr ? `Stacks on #${parent.pr.number}` : `Into ${base}`);
+    }
+    return labels;
+}

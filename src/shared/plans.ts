@@ -8,7 +8,9 @@ import type { TaskLink } from './tasks';
 /**
  * Plans: an idea for a project, broken into steps. An agent reads all repositories of the project and proposes the
  * steps. The user edits the steps, and then executes the plan. Each step runs in its own worktree, one step after the
- * other. Steps in the same repository stack: each branch starts from the branch of the step before it.
+ * other. With "Stack the steps" (the default), steps in the same repository stack: each branch starts from the branch
+ * of the step before it, and its pull request targets that branch. When a lower pull request merges, ShipWarden rebases
+ * the next branch onto the new base and changes the base of its pull request.
  *
  * The functions of this module use no Electron API and no browser API. The main process and the page both use them.
  */
@@ -72,7 +74,36 @@ export interface PlanStep {
     reviewed?: boolean;
     /** The last work that the user gave to the agent of a done step, for example "Fixing the review comments". */
     followUp?: { label: string; at: number };
+    /**
+     * The commit of the parent branch when this branch started from it: the old base for "git rebase --onto" after
+     * the parent merges. A squash merge needs it, because the new base does not contain the commits of the parent.
+     */
+    stackBase?: string;
+    /** When ShipWarden saw that the pull request of the step merged and restacked the next steps. */
+    mergedAt?: number;
+    /** The rebase of the branch after the pull request below it merged. Undefined: no rebase waits for an action. */
+    restack?: StepRestack;
 }
+
+/**
+ * The rebase of a stacked branch onto a new base:
+ * - "push": the rebase is complete, and the branch waits for a push with "--force-with-lease".
+ * - "conflict": the rebase stopped on a conflict. The agent of the worktree or the user resolves it.
+ * - "failed": the rebase did not start, for example because the worktree has uncommitted changes.
+ */
+export interface StepRestack {
+    /** The new base branch, for example "main". */
+    onto: string;
+    state: RestackState;
+    /** The merged pull request below the step. */
+    merged: number;
+    /** The commits of the old base, for "git rebase --onto". A second try uses them again. */
+    oldBases?: string[];
+}
+
+export type RestackState = 'push' | 'conflict' | 'failed';
+const RESTACK_STATES: readonly RestackState[] = ['push', 'conflict', 'failed'];
+const COMMIT_HASH = /^[0-9a-f]{7,64}$/i;
 
 /**
  * A decision that the agent made for the plan, for example "One demo organization per director". The user must
@@ -123,6 +154,11 @@ export interface Plan {
     draftPullRequests: boolean;
     /** True: the pull requests of the plan do not go into a PR group. Undefined: they go into the group of the plan. */
     noPrGroup?: boolean;
+    /**
+     * True: each step starts from the default branch, and its pull request targets the default branch. Undefined
+     * ("Stack the steps"): each step starts from the branch of the step before it in the same repository.
+     */
+    noStack?: boolean;
     /** True: the agent of a step continues to run after the step is done. Undefined: ShipWarden stops the agent. */
     keepAgents?: boolean;
     /**
@@ -246,6 +282,7 @@ export function duplicatePlan(plan: Plan, now: number): Plan {
         ...(plan.agentMode ? { agentMode: plan.agentMode } : {}),
         draftPullRequests: plan.draftPullRequests,
         ...(plan.noPrGroup ? { noPrGroup: true } : {}),
+        ...(plan.noStack ? { noStack: true } : {}),
         ...(plan.keepAgents ? { keepAgents: true } : {}),
         ...(plan.watchCi ? { watchCi: true } : {}),
         steps: plan.steps.map(step => ({
@@ -322,6 +359,15 @@ function pullRequestOf(value: unknown): StepPullRequest | undefined {
     return { number, url, base };
 }
 
+function restackOf(value: unknown): StepRestack | undefined {
+    const raw = record(value);
+    const onto = nonEmpty(raw.onto, 300);
+    const merged = raw.merged;
+    if (!onto || !RESTACK_STATES.includes(raw.state as RestackState) || typeof merged !== 'number' || !Number.isInteger(merged) || merged < 1) return undefined;
+    const oldBases = textList(raw.oldBases, 4, 64).filter(commit => COMMIT_HASH.test(commit));
+    return { onto, state: raw.state as RestackState, merged, ...(oldBases.length > 0 ? { oldBases } : {}) };
+}
+
 /** Returns a valid step, or undefined when the value has no ID. */
 export function normalizeStep(value: unknown): PlanStep | undefined {
     const raw = record(value);
@@ -343,7 +389,11 @@ export function normalizeStep(value: unknown): PlanStep | undefined {
         const value = nonEmpty(raw[key], 8000);
         if (value) step[key] = value;
     }
-    for (const key of ['turnFrom', 'startedAt', 'finishedAt'] as const) {
+    const stackBase = nonEmpty(raw.stackBase, 64);
+    if (stackBase && COMMIT_HASH.test(stackBase)) step.stackBase = stackBase;
+    const restack = restackOf(raw.restack);
+    if (restack) step.restack = restack;
+    for (const key of ['turnFrom', 'startedAt', 'finishedAt', 'mergedAt'] as const) {
         const value = time(raw[key]);
         if (value !== undefined) step[key] = value;
     }
@@ -433,6 +483,7 @@ export function normalizePlan(value: unknown): Plan | undefined {
     }
     if (isAgentMode(raw.agentMode)) plan.agentMode = raw.agentMode;
     if (raw.noPrGroup === true) plan.noPrGroup = true;
+    if (raw.noStack === true) plan.noStack = true;
     if (raw.keepAgents === true) plan.keepAgents = true;
     if (raw.watchCi === true) plan.watchCi = true;
     const agent = nonEmpty(raw.agent, 200);
@@ -491,11 +542,11 @@ export function planProblems(plan: Plan, repos: readonly string[], canCreateTask
 
 /**
  * Returns the index of the step that the step at `index` stacks on: the nearest earlier step in the same repository
- * that runs. Returns -1 when the step starts from the default branch.
+ * that runs. Returns -1 when the step starts from the default branch. `stack` is false when the plan does not stack.
  */
-export function stackedOnIndex(steps: readonly PlanStep[], index: number): number {
+export function stackedOnIndex(steps: readonly PlanStep[], index: number, stack = true): number {
     const step = steps[index];
-    if (!step?.repo || step.skip) return -1;
+    if (!stack || !step?.repo || step.skip) return -1;
     for (let at = index - 1; at >= 0; at--) {
         if (steps[at].repo === step.repo && !steps[at].skip) return at;
     }
@@ -842,28 +893,74 @@ export function resumeAction(plan: Pick<Plan, 'steps'>, agentState: AgentState |
 
 /**
  * The branch that a new step worktree starts from: the branch of the nearest earlier step in the same repository that
- * has a branch. Undefined: the default branch.
+ * has a branch. Undefined: the default branch. A step whose pull request merged is not a base: its work is in the base
+ * of its pull request. `stack` is false when the plan does not stack.
  */
-export function worktreeBaseOf(steps: readonly PlanStep[], index: number): string | undefined {
+export function worktreeBaseOf(steps: readonly PlanStep[], index: number, stack = true): string | undefined {
+    if (!stack) return undefined;
     const repo = steps[index]?.repo;
     for (let at = index - 1; at >= 0; at--) {
         const step = steps[at];
-        if (step.repo === repo && step.branch && step.status === 'done') return step.branch;
+        if (step.repo === repo && step.branch && step.status === 'done' && !step.mergedAt) return step.branch;
     }
     return undefined;
 }
 
 /**
  * The target branch of the pull request of a step: the branch of the nearest earlier step in the same repository with
- * a pull request. Undefined: the default branch. A branch without a pull request was not pushed, so it cannot be a target.
+ * a pull request that did not merge. Undefined: the default branch. A branch without a pull request was not pushed, so
+ * it cannot be a target. `stack` is false when the plan does not stack.
  */
-export function pullRequestBaseOf(steps: readonly PlanStep[], index: number): string | undefined {
+export function pullRequestBaseOf(steps: readonly PlanStep[], index: number, stack = true): string | undefined {
+    if (!stack) return undefined;
     const repo = steps[index]?.repo;
     for (let at = index - 1; at >= 0; at--) {
         const step = steps[at];
-        if (step.repo === repo && step.pr && step.branch) return step.branch;
+        if (step.repo === repo && step.pr && step.branch && !step.mergedAt) return step.branch;
     }
     return undefined;
+}
+
+/**
+ * Returns why the step at `index` cannot start yet, or undefined. In a stack, a step starts only after the step that
+ * it stacks on is done: that step then has its branch, and a step with a pull request pushed the branch.
+ */
+export function stackWait(plan: Pick<Plan, 'steps' | 'noStack'>, index: number): string | undefined {
+    const parent = stackedOnIndex(plan.steps, index, !plan.noStack);
+    if (parent < 0) return undefined;
+    const step = plan.steps[parent];
+    if (step.status === 'done' || step.status === 'skipped') return undefined;
+    return `Waiting for step ${parent + 1} to push its branch.`;
+}
+
+/** A step to rebase after the pull request of a lower step merged. */
+export interface RestackTarget {
+    /** The index of the step to rebase. */
+    index: number;
+    /** The new base branch: the base of the merged pull request, for example "main". */
+    onto: string;
+}
+
+/**
+ * Returns the steps to rebase after the pull request of the step at `mergedIndex` merged: the steps of the same
+ * repository whose pull request targets the merged branch. Each one gets the base of the merged pull request. A step
+ * without a worktree cannot rebase, so it is not in the list.
+ */
+export function restackTargets(steps: readonly PlanStep[], mergedIndex: number): RestackTarget[] {
+    const merged = steps[mergedIndex];
+    if (!merged?.pr || !merged.branch) return [];
+    const onto = merged.pr.base;
+    return steps.flatMap((step, index) =>
+        index !== mergedIndex && step.repo === merged.repo && step.pr?.base === merged.branch && !step.mergedAt && step.worktreePath ? [{ index, onto }] : []
+    );
+}
+
+/**
+ * The commits of the old base of a step for "git rebase --onto": the parent tip from when the step branched, and the
+ * head of the merged pull request. Git uses the newest one that the branch contains.
+ */
+export function restackOldBases(step: Pick<PlanStep, 'stackBase'>, mergedHead: string | undefined): string[] {
+    return [step.stackBase, mergedHead].filter((commit): commit is string => !!commit && COMMIT_HASH.test(commit));
 }
 
 /** Returns "KEY: title" or the title of a task link. */
@@ -962,7 +1059,7 @@ export function pullRequestBody(plan: Plan, index: number, repoName: (repo: stri
         })
         .filter(Boolean);
     parts.push(`---\n\nPart of the plan "${plan.title}". Merge in this order:\n\n${order.join('\n')}`);
-    if (step.baseBranch && !step.pr && pullRequestBaseOf(plan.steps, index) !== step.baseBranch) {
+    if (step.baseBranch && !step.pr && pullRequestBaseOf(plan.steps, index, !plan.noStack) !== step.baseBranch) {
         parts.push(`This branch starts from "${step.baseBranch}", an experiment step with no pull request. This pull request contains its commits too.`);
     }
     return parts.filter(Boolean).join('\n\n');

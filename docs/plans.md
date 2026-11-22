@@ -32,6 +32,7 @@ The settings of the plan:
 - The task manager and the collection for new tasks. You also pick existing tasks from this collection.
 - The agent mode of the step agents. A mode without questions, for example `auto`, lets the plan run without you.
 - Draft pull requests.
+- "Stack the steps". It is on by default. See [Stacked pull requests](#stacked-pull-requests).
 - A PR group for the pull requests. It is on by default.
 - "Stop each agent when its step is done". It is on by default. ShipWarden stops the agent of a step and closes its
   tab when the step is done. Turn it off to keep the agents running.
@@ -46,13 +47,13 @@ The settings of the plan:
 1. Makes a worktree on a new branch. The branch uses the branch template in Settings › Worktrees, as for a task that
    you start. A step without a task uses the step title as the task title, and `<plan>-<number>` as the task key.
    Without a template, the branch is `plan/<plan>-<id>/<number>-<step>`. When the plan or the repository has the
-   branch already, the branch gets `-2`, `-3`, and so on. A step starts from the branch of the last done step in the
-   same repository. The first step in a repository starts from the default branch.
+   branch already, the branch gets `-2`, `-3`, and so on. With "Stack the steps", a step starts from the branch of the
+   last done step in the same repository. The first step in a repository starts from the default branch.
 2. Links the task to the worktree, and moves the task to the start status of its task manager.
 3. Gives the plan, the step, and the earlier pull requests to a new agent. The agent commits its work. It does not push.
 4. Waits for the agent to end its turn. A new commit finishes the step. ShipWarden pushes the branch and opens the pull
-   request. The pull request targets the branch of the last step in the same repository with a pull request, else the
-   default branch.
+   request. With "Stack the steps", the pull request targets the branch of the last step in the same repository with a
+   pull request, else the default branch. This is the same for GitHub, Azure Repos, and GitLab.
 5. Stops the agent of the step, or gives it the CI checks to watch, as the settings of the plan tell. "Mark done" does
    not stop the agent.
 
@@ -76,6 +77,41 @@ turn, ShipWarden checks the step again. You can also select:
 
 A notification tells you when a step stops or fails and when the plan is done. Settings › Notifications › Automations turns
 these notifications on and off.
+
+## Stacked pull requests
+
+"Stack the steps" is on by default. Each step in a repository builds on the step before it in the same repository:
+
+- Step 1 starts from the default branch, and its pull request targets the default branch.
+- Step 2 starts from the branch of step 1, and its pull request targets that branch. Step 3 targets step 2, and so on.
+- A step starts only after the step before it is done and pushed its branch. Until then, it shows "Waiting for step N
+  to push its branch."
+
+Turn the setting off to start each step from the default branch. Then each pull request targets the default branch.
+
+When a pull request of the stack merges, ShipWarden moves the next step onto the new base:
+
+1. It runs `git rebase --onto <new base> <old base>` in the worktree of the next step. The old base is the commit of
+   the branch below when the step started, or the head of the merged pull request when the step has later commits of
+   it. Thus only the commits of the step move. This works for a regular merge and for a squash merge.
+2. It changes the base of the pull request of the step to the base of the merged pull request, for example `main`.
+3. It does not push. The step shows "Push". Select it, and confirm the push with `--force-with-lease`.
+
+When the rebase stops on a conflict, the Changes tab of the worktree shows "Rebase in progress". ShipWarden sends the
+conflict to the agent of the worktree. The agent resolves each conflict, continues the rebase, runs the tests, and
+pushes with `--force-with-lease`. The step shows "Resolving the rebase conflict" while the agent works. When the usage
+budget stops new agents, resolve the conflict yourself in the Changes tab. When the rebase cannot start, for example
+because the worktree has uncommitted changes, the step shows "Rebase". Select it to try again.
+
+ShipWarden sees a merge in the pull request data that it loads already: the merged pull requests of the plan page, the
+sweep of "Remove merged worktrees", and the pull request pages. It sends no extra requests. A merge that you start on
+the plan page shows at once.
+
+When a lower pull request merges before the next step pushes its branch, ShipWarden rebases the branch before the
+first push, so the new pull request contains only the commits of the step.
+
+The PR group of the plan shows the pull requests in the order of the stack. Each open pull request shows where it
+merges, for example "Stacks on #41" or "Into main", next to its state.
 
 ## Add a pull request
 

@@ -4,6 +4,7 @@ import { batchPrompt, type BatchPullRequest } from '@shared/batch-prompt';
 import { MAX_TITLE_LENGTH, newStep, type Plan, type PlanStep } from '@shared/plans';
 import type { BatchSendResult } from '../github/pr-group-agents';
 import { checkLine, checksPrompt } from '../app/agent-text';
+import { confirmForcePush } from '../git/rebase-actions';
 import { threadComments, threadPlace } from '../github/agent-prompts';
 import { isFailedConclusion } from '../github/ci-queries';
 import { mergePullRequest } from '../github/pull-request-mutations';
@@ -50,6 +51,18 @@ export async function mergeStep(step: PlanStep): Promise<void> {
             [branch]: { number: pr.number, title: pr.title, headSha: pr.headRefOid }
         }));
     }
+}
+
+/**
+ * Pushes the branch of a step after ShipWarden rebased it onto a new base. The user confirms the push with
+ * "--force-with-lease" first. ShipWarden never force-pushes without this question.
+ */
+export async function pushRestackedStep(plan: Plan, step: PlanStep): Promise<void> {
+    if (!step.worktreePath || !step.restack) return;
+    const changes = await api.git.changes(step.worktreePath);
+    if (changes.rebase) throw new Error('The rebase is not complete. Resolve the conflicts in the Changes tab first.');
+    if (!changes.upstream) throw new Error('The branch has no upstream branch. Push it from the Changes tab.');
+    if (await confirmForcePush(step.worktreePath, changes.upstream, `origin/${step.restack.onto}`)) await planRunner.restackPushed(plan.id, step.id);
 }
 
 /** Returns the prompt with the reviews that ask for changes and the open threads of a pull request. */

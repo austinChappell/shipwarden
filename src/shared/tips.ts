@@ -30,6 +30,11 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'settings', section: 'review', label: 'Open Settings › Code review' }
     },
     {
+        id: 'stackedPlans',
+        title: 'Merge a stack of plan pull requests',
+        body: 'A plan stacks its steps: each pull request targets the branch of the step before it. When one merges, ShipWarden rebases the next branch with "git rebase --onto" and changes its base. This works after a squash merge too.'
+    },
+    {
         id: 'automations',
         title: 'Let automations do the routine work',
         body: 'An automation is a rule of the form "when this occurs, do that". For example, when CI fails, it sends the log to the agent of the worktree. Start from a template.',
