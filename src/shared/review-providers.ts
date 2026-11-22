@@ -1,9 +1,10 @@
 /** The kinds of code review provider. Each kind has its own API and its own remote URL format. */
-export type ReviewProviderKind = 'github' | 'azure';
+export type ReviewProviderKind = 'github' | 'azure' | 'gitlab';
 
 export const REVIEW_PROVIDER_KINDS: { kind: ReviewProviderKind; name: string }[] = [
     { kind: 'github', name: 'GitHub' },
-    { kind: 'azure', name: 'Azure DevOps' }
+    { kind: 'azure', name: 'Azure DevOps' },
+    { kind: 'gitlab', name: 'GitLab' }
 ];
 
 export function providerKindName(kind: ReviewProviderKind): string {
@@ -20,6 +21,8 @@ export interface StoredReviewProvider {
     scope?: string[];
     /** GitHub only: the account of the GitHub CLI to get the token from. Undefined means the active account. */
     cliAccount?: string;
+    /** GitLab only: the URL of a self-hosted server, for example "https://git.example.com". Undefined means https://gitlab.com. */
+    baseUrl?: string;
 }
 
 /** One code review provider, for Settings › Code review. The page never gets the token. */
@@ -34,6 +37,7 @@ export interface ReviewProviderChange {
     enabled?: boolean;
     scope?: string[] | null;
     cliAccount?: string | null;
+    baseUrl?: string | null;
 }
 
 /** Where the token of the next request of a provider comes from. */
@@ -56,10 +60,11 @@ export function pickProvider<T extends StoredReviewProvider>(providers: T[], kin
     );
 }
 
-/** A short text for the scope of a provider, for example "All organizations" or "2 organizations". */
-export function providerScopeSummary(scope: string[] | undefined): string {
-    if (!scope) return 'All organizations';
-    return `${scope.length} organization${scope.length === 1 ? '' : 's'}`;
+/** A short text for the scope of a provider, for example "All organizations" or "2 organizations". A GitLab provider has groups. */
+export function providerScopeSummary(scope: string[] | undefined, kind: ReviewProviderKind = 'github'): string {
+    const noun = kind === 'gitlab' ? 'group' : 'organization';
+    if (!scope) return `All ${noun}s`;
+    return `${scope.length} ${noun}${scope.length === 1 ? '' : 's'}`;
 }
 
 /** Removes empty and repeated names from a scope. The match ignores case. */

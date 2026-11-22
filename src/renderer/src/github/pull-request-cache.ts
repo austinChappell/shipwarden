@@ -13,6 +13,7 @@ import {
     type ReviewDecision,
     type ReviewEvent
 } from '@shared/github';
+import { reviewEventsAfter } from '@shared/gitlab';
 import type { RepoPullRequests } from '@shared/review-queue';
 import { applyMetaChanges } from '../components/pr-meta-changes';
 import { keyRoots } from '../query-client';
@@ -37,7 +38,8 @@ const REVIEW_STATE: Record<ReviewEvent, string> = {
     COMMENT: 'COMMENTED',
     APPROVE_WITH_SUGGESTIONS: 'APPROVED_WITH_SUGGESTIONS',
     WAIT_FOR_AUTHOR: 'WAITING_FOR_AUTHOR',
-    REJECT: 'REJECTED'
+    REJECT: 'REJECTED',
+    UNAPPROVE: 'UNAPPROVED'
 };
 
 /** Returns the review state of a review event. */
@@ -60,7 +62,7 @@ function blocks(event: ReviewEvent): boolean {
  * rules and the permission to merge. The cache cannot know the new state.
  */
 export function changesMergeState(event: ReviewEvent): boolean {
-    return approves(event) || blocks(event);
+    return approves(event) || blocks(event) || event === 'UNAPPROVE';
 }
 
 /**
@@ -82,9 +84,11 @@ export function mergeStateMayBeOld(pr: PullRequest): boolean {
  * Returns the review decision after a review of the user.
  * A block always sets CHANGES_REQUESTED. An approval sets APPROVED, except when the decision is CHANGES_REQUESTED:
  * the changes request of another reviewer can still apply. A comment does not change the decision.
+ * A revoked approval (GitLab) makes an approved decision "review required".
  * The host can need more approvals. The next load corrects the decision.
  */
 export function decisionAfterReview(current: ReviewDecision, event: ReviewEvent): ReviewDecision {
+    if (event === 'UNAPPROVE') return current === 'APPROVED' ? 'REVIEW_REQUIRED' : current;
     if (blocks(event)) return 'CHANGES_REQUESTED';
     if (approves(event)) return current === 'CHANGES_REQUESTED' ? current : 'APPROVED';
     return current;
@@ -158,12 +162,18 @@ export function reviewedPullRequest(
     review: { id: string; event: ReviewEvent; body: string; viewer: GitHubUser | null; submittedAt: string }
 ): PullRequest {
     const login = review.viewer?.login;
+    // A revoke removes the approval of the user. It is not a new review.
+    const reviews =
+        review.event === 'UNAPPROVE'
+            ? pr.reviews.filter(item => !(item.state === 'APPROVED' && login && item.author?.login === login))
+            : [
+                  ...pr.reviews,
+                  { id: review.id, author: review.viewer, state: reviewStateOf(review.event), body: review.body, submittedAt: review.submittedAt, url: pr.url }
+              ];
     return {
         ...pr,
-        reviews: [
-            ...pr.reviews,
-            { id: review.id, author: review.viewer, state: reviewStateOf(review.event), body: review.body, submittedAt: review.submittedAt, url: pr.url }
-        ],
+        reviews,
+        reviewEvents: reviewEventsAfter(pr.host, pr.reviewEvents, review.event),
         reviewDecision: decisionAfterReview(pr.reviewDecision, review.event),
         viewerIsRequested: pr.viewerIsRequested === undefined ? undefined : false,
         reviewRequests: login ? pr.reviewRequests.filter(item => !(item.kind === 'user' && item.login === login)) : pr.reviewRequests

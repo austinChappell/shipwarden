@@ -21,7 +21,8 @@ const api = window.shipwarden.reviewProviders;
 /** The scopes that a personal access token needs, by kind. */
 const TOKEN_SCOPES: Record<ReviewProviderKind, string> = {
     github: 'Make a token with these scopes: repo, read:org and workflow.',
-    azure: 'Make a token with these scopes: Code (Read & write), Code (Status), Build (Read & execute), Identity (Read) and Project and Team (Read).'
+    azure: 'Make a token with these scopes: Code (Read & write), Code (Status), Build (Read & execute), Identity (Read) and Project and Team (Read).',
+    gitlab: 'Make a token with the "api" scope.'
 };
 
 function tokenSourceText(provider: ReviewProviderInfo, source: ReviewTokenSource | undefined): string {
@@ -35,6 +36,11 @@ function tokenSourceText(provider: ReviewProviderInfo, source: ReviewTokenSource
         }
         return 'No token. Save a token, or run "gh auth login" with the GitHub CLI.';
     }
+    if (provider.kind === 'gitlab') {
+        if (source === 'env') return 'ShipWarden uses GITLAB_TOKEN from the environment.';
+        if (source === 'cli') return 'ShipWarden uses the glab CLI login (glab auth login).';
+        return 'No token. Save a token, or run "glab auth login" with the glab CLI.';
+    }
     if (source === 'env') return 'ShipWarden uses AZURE_DEVOPS_EXT_PAT from the environment.';
     if (source === 'cli') return 'ShipWarden uses the az CLI login (az login).';
     return 'No token. Save a token, or run "az login" with the az CLI.';
@@ -44,14 +50,15 @@ function tokenSourceText(provider: ReviewProviderInfo, source: ReviewTokenSource
 function providerMeta(provider: ReviewProviderInfo): string {
     const parts: string[] = [];
     if (provider.name !== providerKindName(provider.kind)) parts.push(providerKindName(provider.kind));
-    parts.push(providerScopeSummary(provider.scope));
+    if (provider.kind === 'gitlab' && provider.baseUrl) parts.push(provider.baseUrl.replace(/^https?:\/\//, ''));
+    parts.push(providerScopeSummary(provider.scope, provider.kind));
     if (provider.tokenSaved) parts.push('saved token');
     else if (provider.cliAccount) parts.push(`gh account ${provider.cliAccount}`);
     return parts.join(' · ');
 }
 
 /**
- * The code review settings: the providers (for example two GitHub accounts and Azure DevOps), each with an on/off
+ * The code review settings: the providers (for example two GitHub accounts, Azure DevOps, and GitLab), each with an on/off
  * switch, its token and its organizations. The layout is the same as the task managers. `children` are more settings
  * groups after the providers. They are siblings of the providers group, so the space between the groups applies.
  */
@@ -83,7 +90,7 @@ export function CodeReviewSettings({ children }: { children?: ReactNode }) {
         <div className="task-managers">
             <SettingsGroup
                 title="Providers"
-                description="A worktree uses a provider of the kind of its remote. When two providers have the same kind, ShipWarden uses the provider whose organizations include the organization of the remote."
+                description="A worktree uses a provider of the kind of its remote. When two providers have the same kind, ShipWarden uses the provider whose organizations include the organization of the remote. A GitLab remote uses a provider of its server."
                 actions={
                     <div className="add-connection">
                         <Select<ReviewProviderKind | ''>
@@ -112,7 +119,7 @@ export function CodeReviewSettings({ children }: { children?: ReactNode }) {
                             onToggle={() => setOpenId(id => (id === provider.id ? undefined : provider.id))}
                         />
                     ))}
-                    {providers?.length === 0 && <p className="panel-note">No providers yet. Add GitHub or Azure DevOps above.</p>}
+                    {providers?.length === 0 && <p className="panel-note">No providers yet. Add GitHub, Azure DevOps, or GitLab above.</p>}
                 </div>
             </SettingsGroup>
 
@@ -177,11 +184,12 @@ function ProviderCard({ provider, open, onToggle }: { provider: ReviewProviderIn
                         />
                     </Field>
                     {provider.kind === 'github' && <CliAccountField provider={provider} onChange={cliAccount => update({ cliAccount })} />}
+                    {provider.kind === 'gitlab' && <ServerUrlField provider={provider} onChange={baseUrl => update({ baseUrl })} />}
                     <TokenFields provider={provider} />
                     {provider.kind === 'github' ? (
                         <GitHubScope provider={provider} onChange={scope => update({ scope })} />
                     ) : (
-                        <AzureScope provider={provider} onChange={scope => update({ scope })} />
+                        <NameScope provider={provider} onChange={scope => update({ scope })} />
                     )}
                     {error && <div className="form-error">{error}</div>}
                 </CardBody>
@@ -216,6 +224,34 @@ function CliAccountField({ provider, onChange }: { provider: ReviewProviderInfo;
                 id={id}
                 value={value}
                 placeholder="The active account"
+                spellCheck={false}
+                onChange={event => setValue(event.target.value)}
+                onBlur={save}
+                onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+            />
+        </Field>
+    );
+}
+
+/** The server of a GitLab provider. Empty means gitlab.com. */
+function ServerUrlField({ provider, onChange }: { provider: ReviewProviderInfo; onChange(url: string | null): void }) {
+    const [value, setValue] = useState(provider.baseUrl ?? '');
+    useEffect(() => setValue(provider.baseUrl ?? ''), [provider.baseUrl]);
+    const save = () => {
+        const url = value.trim();
+        if (url !== (provider.baseUrl ?? '')) onChange(url || null);
+    };
+    const id = useId();
+    return (
+        <Field
+            label="Server URL"
+            htmlFor={id}
+            hint="The URL of your self-hosted GitLab server, for example https://git.example.com. Empty: gitlab.com. ShipWarden uses the CA certificates of Settings › Network."
+        >
+            <Input
+                id={id}
+                value={value}
+                placeholder="https://gitlab.com"
                 spellCheck={false}
                 onChange={event => setValue(event.target.value)}
                 onBlur={save}
@@ -385,8 +421,23 @@ function GitHubScope({ provider, onChange }: { provider: ReviewProviderInfo; onC
     );
 }
 
-/** The Azure DevOps organizations of a provider, as a list of names. Empty means all organizations. */
-function AzureScope({ provider, onChange }: { provider: ReviewProviderInfo; onChange(scope: string[] | null): void }) {
+/** The help text of the scope field of each kind that has a list of names. */
+const NAME_SCOPE_TEXT: Partial<Record<ReviewProviderKind, { label: string; placeholder: string; hint: string }>> = {
+    azure: {
+        label: 'Organizations',
+        placeholder: 'All organizations',
+        hint: 'The names of the organizations, with a comma between them. For example "contoso" for dev.azure.com/contoso. Empty: all organizations.'
+    },
+    gitlab: {
+        label: 'Groups',
+        placeholder: 'All groups',
+        hint: 'The paths of the groups, with a comma between them. For example "acme" or "acme/platform". Subgroups are included. Empty: all projects that you are a member of.'
+    }
+};
+
+/** The Azure DevOps organizations or the GitLab groups of a provider, as a list of names. Empty means all of them. */
+function NameScope({ provider, onChange }: { provider: ReviewProviderInfo; onChange(scope: string[] | null): void }) {
+    const labels = NAME_SCOPE_TEXT[provider.kind] ?? NAME_SCOPE_TEXT.azure!;
     const text = (provider.scope ?? []).join(', ');
     const [value, setValue] = useState(text);
     useEffect(() => setValue(text), [text]);
@@ -399,15 +450,11 @@ function AzureScope({ provider, onChange }: { provider: ReviewProviderInfo; onCh
     };
     const id = useId();
     return (
-        <Field
-            label="Organizations"
-            htmlFor={id}
-            hint='The names of the organizations, with a comma between them. For example "contoso" for dev.azure.com/contoso. Empty: all organizations.'
-        >
+        <Field label={labels.label} htmlFor={id} hint={labels.hint}>
             <Input
                 id={id}
                 value={value}
-                placeholder="All organizations"
+                placeholder={labels.placeholder}
                 spellCheck={false}
                 onChange={event => setValue(event.target.value)}
                 onBlur={save}
