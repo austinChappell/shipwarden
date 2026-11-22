@@ -6,7 +6,7 @@ import type { ChangeContents } from '@shared/git';
 import { onGitChanged } from '../git/git-store';
 import { errorText } from '../util';
 import { EmptyState } from './EmptyState';
-import { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './diff-style';
+import { DIFF_THEME, readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './diff-style';
 import { radioGroupKeys } from './keyboard';
 import { Age, Button, ButtonGroup, RefreshButton, SkeletonRows } from './ui';
 
@@ -208,6 +208,7 @@ function CommitChange({ root, commit, onReload }: { root: string; commit: FileHi
     const options = useMemo(
         () => ({
             diffStyle,
+            theme: DIFF_THEME,
             themeType: mode,
             disableFileHeader: true,
             overflow: 'wrap' as const,

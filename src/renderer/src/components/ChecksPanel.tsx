@@ -167,11 +167,7 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                             key={`${check.isStatus ? 's' : 'c'}${check.id}`}
                             className={`check-row${check.isActions ? ' clickable' : ''}`}
                             title={
-                                check.waitingForRerun
-                                    ? 'Waiting for the re-run. The log is from the last attempt.'
-                                    : check.isActions
-                                      ? 'Show the log'
-                                      : check.name
+                                check.waitingForRerun ? 'Waiting for the new run. The log is from the last run.' : check.isActions ? 'Show the log' : check.name
                             }
                             tabIndex={0}
                             role={check.isActions ? 'button' : undefined}

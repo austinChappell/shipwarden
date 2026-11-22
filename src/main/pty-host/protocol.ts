@@ -25,6 +25,14 @@ export const PTY_HOST_DETACH_ARG = '--detach';
 /** The prefix of the file name of a per-build socket. */
 export const BUILD_SOCKET_PREFIX = `pty-host-v${PTY_HOST_PROTOCOL}-`;
 
+/**
+ * Returns the socket path of the agent hook server of a PTY host. The name has the same length as the host socket name,
+ * so the path also stays below the limit of macOS. The ".hook" ending keeps the file out of the list of host sockets.
+ */
+export function hookSocketPath(hostSocketPath: string): string {
+    return hostSocketPath.endsWith('.sock') ? `${hostSocketPath.slice(0, -'.sock'.length)}.hook` : `${hostSocketPath}.hook`;
+}
+
 /** macOS accepts a socket path of at most 104 bytes. A longer path gets a folder in the temporary folder. */
 const MAX_SOCKET_PATH_BYTES = 100;
 

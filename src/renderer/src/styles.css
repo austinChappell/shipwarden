@@ -5510,7 +5510,10 @@ button:focus-visible,
 }
 
 .settings-group-actions {
+    display: flex;
     flex: none;
+    align-items: center;
+    gap: 8px;
     margin-left: auto;
 }
 

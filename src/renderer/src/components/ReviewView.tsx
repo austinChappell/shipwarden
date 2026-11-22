@@ -11,6 +11,7 @@ import { errorText, optionalErrorText } from '../util';
 import { pullRequestQuery, reviewStore } from '../github/review-store';
 import { refreshRepo, useReviewOverview, useReviewQueue } from '../github/review-overview-store';
 import { repoGroups } from '../github/repo-choices';
+import { ciKeys } from '../github/ci-queries';
 import { Button, IconButton, PageHeader } from './ui';
 import { ReviewHome } from './ReviewHome';
 import { ReviewRepoPage } from './ReviewRepoPage';
@@ -113,7 +114,12 @@ export function ReviewView({
     const prError = shownAgentError ?? optionalErrorText(prQuery.error);
 
     const refresh = async () => {
-        await Promise.all([prQuery.refetch(), repo ? refreshRepo(repo) : undefined]);
+        await Promise.all([
+            prQuery.refetch(),
+            repo ? refreshRepo(repo) : undefined,
+            // The checks have their own query. Without this load, a new CI run shows only after the next poll.
+            repoRef ? queryClient.invalidateQueries({ queryKey: ciKeys.checksOf(repoRef) }) : undefined
+        ]);
     };
 
     /** The panels take a branch status. In the Review view, it comes from the pull request. */

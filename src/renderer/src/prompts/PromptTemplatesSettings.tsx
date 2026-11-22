@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { FolderOpen, Plus } from 'lucide-react';
+import { FolderOpen, MessageSquareText, Plus } from 'lucide-react';
 import { normalizePromptTemplate, promptTemplateId, promptVariables, shortcutConflict, STARTER_PROMPTS, type PromptTemplate } from '@shared/prompt-templates';
 import type { TextKeybind } from '@shared/terminal';
 import { confirmDialog } from '../components/ConfirmDialog';
+import { EmptyState } from '../components/EmptyState';
 import { SettingsGroup, SettingsRow } from '../components/settings-ui';
 import { Button, Checkbox, Field, Input, TextArea } from '../components/ui';
 import { KeyField } from '../keyboard/KeyField';
@@ -67,8 +68,8 @@ export function PromptTemplatesSettings({ terminalKeybinds }: { terminalKeybinds
                 title="Prompt templates"
                 description={
                     <>
-                        Saved prompts with variables, for example "Write tests for {'{{file}}'}". Insert a template from the Prompts list of an agent terminal,
-                        from the command palette, or with its shortcut. Each template is a JSON file in <code>~/.shipwarden/prompts</code>, so you can share it.
+                        Saved prompts with variables, for example "Write tests for {'{{file}}'}". Each template is a JSON file in{' '}
+                        <code>~/.shipwarden/prompts</code>, so you can share it.
                     </>
                 }
                 actions={
@@ -123,15 +124,18 @@ export function PromptTemplatesSettings({ terminalKeybinds }: { terminalKeybinds
                     )
                 )}
                 {loaded && templates.length === 0 && !draft && (
-                    <SettingsRow
-                        label="No templates"
-                        description="Add a new template, or start from a few starter templates."
-                        control={
+                    <EmptyState
+                        icon={MessageSquareText}
+                        title="No templates"
+                        size="compact"
+                        actions={
                             <Button size="sm" onClick={() => void addStarters()}>
                                 Add starter templates
                             </Button>
                         }
-                    />
+                    >
+                        Insert a template from the Prompts list of an agent terminal, from the command palette, or with its shortcut.
+                    </EmptyState>
                 )}
                 {error && (
                     <div className="settings-row">

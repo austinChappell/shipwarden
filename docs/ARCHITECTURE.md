@@ -215,9 +215,14 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 
 - ShipWarden starts Claude Code with `--settings <app data>/claude-hooks.json`. This adds hooks and does not change
   the user's own Claude settings.
-- Each hook runs `curl` and sends the hook's JSON to `HookServer` in the PTY host. The agent state stays correct while the app is closed. The server listens on 127.0.0.1
-  only and needs a random token. The terminal environment supplies the URL, the token and the session ID
-  (`SHIPWARDEN_HOOK_URL`, `SHIPWARDEN_HOOK_TOKEN`, `SHIPWARDEN_SESSION_ID`).
+- Each hook runs `curl` and sends the hook's JSON to `HookServer` in the PTY host. The agent state stays correct while the app is closed. The server listens on a Unix
+  socket next to the host socket (`pty-host-v1-<build>.hook`, mode 0600) and needs a random token. The terminal environment supplies the socket, the token and the
+  session ID (`SHIPWARDEN_HOOK_SOCKET`, `SHIPWARDEN_HOOK_TOKEN`, `SHIPWARDEN_SESSION_ID`).
+- The hook server must not use TCP, also not on 127.0.0.1. The hook JSON contains the agent's shell commands and file paths. Network security tools
+  (for example Bitdefender) read plain HTTP on the loopback interface, and they reported this traffic as command injection and file inclusion attacks.
+  Unix socket traffic does not go through the network stack.
+- A PTY host of an older build listens on 127.0.0.1 and sets `SHIPWARDEN_HOOK_URL`. The hook command uses that URL when `SHIPWARDEN_HOOK_SOCKET` is not set,
+  so the agents of an old host still report their state.
 - States: starting → idle (SessionStart) → working (UserPromptSubmit, PreToolUse) → waiting (Notification) → done (Stop) → exited (SessionEnd).
   A Notification with `notification_type: "idle_prompt"` does not change done or idle. Claude Code sends it about
   60 seconds after a turn ends. A SessionEnd with `reason: "clear"` (from /clear) does not change the state.

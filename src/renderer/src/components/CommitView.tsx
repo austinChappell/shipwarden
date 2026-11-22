@@ -8,7 +8,7 @@ import { reviewStore, useCommitFiles } from '../github/review-store';
 import { openLink } from '../links';
 import { errorText, timeAgo } from '../util';
 import { CopyButton } from './CopyButton';
-import { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './diff-style';
+import { DIFF_THEME, readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './diff-style';
 import { radioGroupKeys } from './keyboard';
 import { Button, ButtonGroup, IconButton } from './ui';
 
@@ -218,6 +218,7 @@ const CommitFileBody = memo(function CommitFileBody({ target, file, parentSha, s
     const options = useMemo(
         () => ({
             diffStyle,
+            theme: DIFF_THEME,
             themeType: mode,
             disableFileHeader: true,
             unsafeCSS: THEME_CSS,
