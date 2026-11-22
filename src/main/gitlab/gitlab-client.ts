@@ -84,6 +84,12 @@ export class GitLabClient {
         return (type.includes('json') ? await response.json() : await response.text()) as T;
     }
 
+    /** Sends a multipart form, for example a file for "/projects/:id/uploads". Returns the parsed JSON of the response. */
+    async form<T>(path: string, form: FormData): Promise<T> {
+        const response = await this.send('POST', path, form, 'application/json');
+        return (await response.json()) as T;
+    }
+
     /** Returns the raw text of a response, for example a job log or a file at a commit. */
     async text(path: string): Promise<string> {
         const response = await this.send('GET', path, undefined, '*/*');
@@ -133,9 +139,10 @@ export class GitLabClient {
                     Authorization: `Bearer ${token.value}`,
                     Accept: accept,
                     'User-Agent': 'ShipWarden',
-                    ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+                    // fetch sets the Content-Type of a form, with the boundary.
+                    ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' })
                 },
-                body: body === undefined ? undefined : JSON.stringify(body)
+                body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body)
             });
         } catch (error) {
             throw new GitLabError(`ShipWarden cannot connect to GitLab (${this.host()}): ${networkErrorDetail(error)}`, 0);

@@ -25,6 +25,7 @@ import type {
 import type { WorkflowRun } from '@shared/pipelines';
 import { GitHubError } from './github/github-client';
 import type { GitHubService } from './github/github-service';
+import type { UploadFile } from './screenshots/screenshot-upload';
 
 /**
  * A service that keeps repositories, pull requests and pipelines, for example GitHub or Azure DevOps.
@@ -76,6 +77,11 @@ export interface SourceHost {
     cancelRun(target: RepoTarget, runId: number): Promise<void>;
     rerunRun(target: RepoTarget, runId: number): Promise<void>;
     branches(target: RepoTarget): Promise<string[]>;
+    /**
+     * Uploads the screenshot images, builds the comment with their addresses, and adds the comment to the pull request.
+     * `body` gets the address of each file, in the order of the files. Returns the address of the comment when it is known.
+     */
+    postScreenshots?(target: RepoTarget, number: number, files: UploadFile[], body: (urls: string[]) => string): Promise<string | undefined>;
 }
 
 /** Adapts `GitHubService`, which takes a repository, to `SourceHost`, which takes a target. */
@@ -188,5 +194,8 @@ export class GitHubHost implements SourceHost {
     }
     async branches(target: RepoTarget) {
         return this.github.branches(await this.repoOf(target));
+    }
+    async postScreenshots(target: RepoTarget, number: number, files: UploadFile[], body: (urls: string[]) => string) {
+        return this.github.postScreenshots(await this.repoOf(target), number, files, body);
     }
 }

@@ -897,6 +897,20 @@ The user guide and the file format are in [automations.md](automations.md).
 - Certificates: Chromium uses the macOS keychain. When Chromium refuses a chain with `ERR_CERT_AUTHORITY_INVALID`,
   `setCertificateVerifyProc` checks the chain again with the extra CA certificates of Settings › Network
   (`verifyWithExtraCas`: the host name, the dates, each signature, and a CA of the setting at the top).
+### Screenshots
+- `RepoSettings.screenshots` keeps the preview URL, the page paths, the wait, and the width
+  (`validateScreenshotSettings` in `shared/screenshots.ts`).
+- `BrowserViews.capture` loads a page in a hidden `BrowserWindow` with the browser session, waits, measures the page
+  height (at most 8000 px), and calls `capturePage`. The image gets the CSS width of the page.
+- `ScreenshotService` (main) captures one side at a time. "branch" records the branch and HEAD of the worktree.
+  "base" records the branch and HEAD of the main worktree. It never starts or stops a dev server.
+- `ScreenshotStore` keeps `<app data>/screenshots/<repo>/<branch>/screenshots.json` and one PNG for each side and page.
+- `SourceHost.postScreenshots` uploads the images and adds one comment with `screenshotCommentMarkdown`. GitHub: a
+  commit to `shipwarden-screenshots` with the git data API, with links to the blob at that commit. Azure DevOps: the
+  pull request attachments API. GitLab: `POST /projects/:id/uploads`.
+- The Screenshots tab (`ScreenshotsPanel`) keeps the state in TanStack Query. A capture writes its result into the
+  cache. After a comment, only that pull request loads again.
+
 ### Ghostty config import
 
 - If Ghostty is installed, ShipWarden runs `ghostty +show-config`. Ghostty then resolves themes and included files.

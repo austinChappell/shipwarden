@@ -30,6 +30,11 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'settings', section: 'review', label: 'Open Settings › Code review' }
     },
     {
+        id: 'screenshots',
+        title: 'Show the visual result of a pull request',
+        body: 'Add a preview URL and pages in the settings of a repository. The Screenshots tab of a worktree then captures each page for the branch and for the base, shows them side by side, and adds them to the pull request in one comment.'
+    },
+    {
         id: 'stackedPlans',
         title: 'Merge a stack of plan pull requests',
         body: 'A plan stacks its steps: each pull request targets the branch of the step before it. When one merges, ShipWarden rebases the next branch with "git rebase --onto" and changes its base. This works after a squash merge too.'

@@ -55,6 +55,7 @@ import type { CompareGroup } from './agent-compare';
 import type { QueueState } from './task-queue';
 import type { StatsCiChange, StatsEvent, StatsStart } from './stats';
 import type { Checkpoint, RewindOptions, RewindPreview, RewindResult } from './checkpoints';
+import type { ScreenshotProgress, ScreenshotSide, ScreenshotState } from './screenshots';
 import type { PinnedSession, PinRequest, ResumePlan } from './pinned-sessions';
 import type { RecentSession } from './recent-sessions';
 import type { TranscriptSearchQuery, TranscriptSearchResult } from './transcript-search';
@@ -505,6 +506,23 @@ export interface ShipWardenApi {
         /** Gets the worktree folder after each new checkpoint. */
         onChanged(listener: (worktree: string) => void): () => void;
     };
+    screenshots: {
+        /** The screenshots of the branch of a worktree, and the branches of both sides. Local data. */
+        get(worktree: string): Promise<ScreenshotState>;
+        /**
+         * Captures the pages of the repository settings for one side. "branch" records the worktree. "base" records the
+         * main worktree. The user runs the dev server in that worktree. ShipWarden never starts or stops it.
+         */
+        capture(worktree: string, side: ScreenshotSide): Promise<ScreenshotState>;
+        /** One image as a data URL, or null when there is no image. */
+        image(worktree: string, side: ScreenshotSide, page: string): Promise<string | null>;
+        /** Removes the screenshots of the branch of a worktree. */
+        clear(worktree: string): Promise<void>;
+        /** Uploads the images and adds a comment with them to the pull request. Returns the address of the comment when known. */
+        post(worktree: string, number: number): Promise<string | undefined>;
+        /** Gets the progress of each capture. */
+        onProgress(listener: (progress: ScreenshotProgress) => void): () => void;
+    };
     queue: {
         /** The task queue: its items in order, and its settings. */
         get(): Promise<QueueState>;
@@ -901,6 +919,12 @@ export const IpcChannels = {
     checkpointsPreview: 'checkpoints:preview',
     checkpointsRewind: 'checkpoints:rewind',
     checkpointsChanged: 'checkpoints:changed',
+    screenshotsGet: 'screenshots:get',
+    screenshotsCapture: 'screenshots:capture',
+    screenshotsImage: 'screenshots:image',
+    screenshotsClear: 'screenshots:clear',
+    screenshotsPost: 'screenshots:post',
+    screenshotsProgress: 'screenshots:progress',
     mcpApprovals: 'mcp:approvals',
     mcpRevoke: 'mcp:revoke',
     mcpApprovalsChanged: 'mcp:approvalsChanged',

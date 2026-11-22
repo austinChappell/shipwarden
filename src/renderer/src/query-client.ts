@@ -102,6 +102,8 @@ export const keyRoots = {
     stats: ['stats'],
     /** The checkpoints of the agent turns in each worktree. Local data: git runs on this Mac. */
     checkpoints: ['checkpoints'],
+    /** The screenshots of visual changes of each worktree branch, and their images. Local data: the main process keeps the files. */
+    screenshots: ['screenshots'],
     /** The pinned agent sessions. Local data: the main process sends each change. */
     pins: ['pins'],
     /** The approvals of the MCP write tools in each worktree. Local data: the main process sends each change. */

@@ -45,6 +45,7 @@ import {
 import type { WorkflowRun } from '@shared/pipelines';
 import { matchesSearch, type RepoPullRequests } from '@shared/review-queue';
 import type { SourceHost } from '../source-host';
+import { commentOnGitLab, uploadToGitLab, type UploadFile } from '../screenshots/screenshot-upload';
 import { type GitLabClient, GitLabError } from './gitlab-client';
 import {
     branchSummaries,
@@ -687,5 +688,13 @@ export class GitLabService implements SourceHost {
         const data = await this.client.all<{ name: string }>(`${repo.api}/repository/branches`, 3);
         const main = repo.project.default_branch || 'main';
         return [main, ...data.map(item => item.name).filter(name => name !== main)];
+    }
+
+    /** Uploads the images to the project and adds a note with them to the merge request. */
+    async postScreenshots(target: RepoTarget, number: number, files: UploadFile[], body: (urls: string[]) => string): Promise<string | undefined> {
+        const repo = await this.resolve(target);
+        const urls = await uploadToGitLab(this.client, repo.api, files);
+        await commentOnGitLab(this.client, this.mrApi(repo, number), body(urls));
+        return undefined;
     }
 }
