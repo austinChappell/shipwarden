@@ -50,6 +50,7 @@ import {
 } from '@shared/agent-compare';
 import { saveCompareGroup } from '../compare/compare-cache';
 import { budgetWaitForAgents } from '../usage-budget';
+import { startRebase } from '../git/rebase-actions';
 
 const api = window.shipwarden;
 
@@ -106,6 +107,8 @@ interface Options {
         target?: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode }
     ) => Promise<TerminalSession>;
     prepareWorktree: (repoPath: string, worktree: CreatedWorktree) => Promise<void>;
+    /** Shows the worktree with the Changes tab of the right panel. */
+    showChanges: (path: string) => void;
     setError: (error: string | undefined) => void;
 }
 
@@ -649,6 +652,9 @@ export function useWorktreeActions(options: Options) {
         if (choice === 'linkTask') options.setLinkTaskOpen(worktree);
         if (choice === 'unlinkTask') await unlinkTask(worktree.path).catch(err => setError(errorText(err)));
         if (choice === 'rename') await renameWorktree(worktree);
+        if (choice === 'rebase') {
+            await startRebase(worktree.path, { onShowChanges: () => options.showChanges(worktree.path) }).catch(err => setError(errorText(err)));
+        }
         if (choice === 'closeShells') await closeShells(worktree);
         try {
             if (choice === 'show') await setWorktreeHidden(worktree.path, undefined);

@@ -49,7 +49,7 @@ import type { SetupCheckId, SetupCheckResult } from './setup-checks';
 import type { ProjectsState, PullRepoResult, PullRepoTarget } from './projects';
 import type { ProviderUsage } from './usage';
 import type { UpdateState } from './updates';
-import type { BranchDiff, ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges } from './git';
+import type { BranchDiff, ChangeContents, ChangeSide, CommitResult, FetchResult, GitChanges, RebaseConflictInput, RebaseResult } from './git';
 import type { CompareGroup } from './agent-compare';
 import type { QueueState } from './task-queue';
 import type { StatsCiChange, StatsEvent, StatsStart } from './stats';
@@ -162,6 +162,23 @@ export interface ShipWardenApi {
         fileHistory(worktree: string, path: string, limit: number): Promise<FileHistory>;
         /** The version of a file in the first parent of a commit and in the commit. `oldPath` is the path before a rename. */
         commitFileContents(worktree: string, commit: string, path: string, oldPath?: string): Promise<ChangeContents>;
+        /** The default branch of "origin" without the remote, for example "main". Undefined when it is not known. Local git only. */
+        defaultBranch(worktree: string): Promise<string | undefined>;
+        /**
+         * Fetches "origin" and rebases the branch onto "origin/<onto>", or onto the default branch without `onto`.
+         * It refuses uncommitted changes and does not stash them. It never pushes.
+         */
+        rebase(worktree: string, onto?: string): Promise<RebaseResult>;
+        /** Runs "git rebase --continue" after the conflicts are resolved and staged. */
+        rebaseContinue(worktree: string): Promise<RebaseResult>;
+        /** Runs "git rebase --skip". The commit that stopped the rebase is lost. */
+        rebaseSkip(worktree: string): Promise<RebaseResult>;
+        /** Runs "git rebase --abort". */
+        rebaseAbort(worktree: string): Promise<void>;
+        /** The files, the stopped commit, and the commits of both sides of a rebase conflict, for an agent prompt. */
+        rebaseConflict(worktree: string): Promise<RebaseConflictInput>;
+        /** Pushes a rebased branch with "--force-with-lease". The UI asks the user first. */
+        pushWithLease(worktree: string): Promise<void>;
     };
     updates: {
         /** The state of the updater: the running version, and a newer release when there is one. */
@@ -1026,6 +1043,13 @@ export const IpcChannels = {
     gitBlame: 'git:blame',
     gitFileHistory: 'git:fileHistory',
     gitCommitFileContents: 'git:commitFileContents',
+    gitDefaultBranch: 'git:defaultBranch',
+    gitRebase: 'git:rebase',
+    gitRebaseContinue: 'git:rebaseContinue',
+    gitRebaseSkip: 'git:rebaseSkip',
+    gitRebaseAbort: 'git:rebaseAbort',
+    gitRebaseConflict: 'git:rebaseConflict',
+    gitPushWithLease: 'git:pushWithLease',
     updatesCheck: 'updates:check',
     updatesInstall: 'updates:install',
     updatesChanged: 'updates:changed',

@@ -15,7 +15,11 @@ import {
     type ChangeSide,
     type CommitResult,
     type FetchResult,
-    type GitChanges
+    type GitChanges,
+    hasUncommittedChanges,
+    type RebaseConflictInput,
+    type RebaseResult,
+    type RebaseState
 } from '@shared/git';
 import { worktreeFileList, type WorktreeFiles } from '@shared/worktree-overlap';
 import type { Worktree } from '@shared/worktrees';
@@ -25,8 +29,11 @@ const MAX_DIFF_BYTES = 2 * 1024 * 1024;
 /** The branch diff reads at most this number of untracked files to count their lines. */
 const MAX_UNTRACKED_COUNTS = 1000;
 
-/** Git must never wait for a password on a terminal that does not exist. */
-const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+/**
+ * Git must never wait for a password on a terminal that does not exist. Git must never open an editor that nobody sees.
+ * "true" as the editor keeps the message, for example of a commit in "git rebase --continue".
+ */
+const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_EDITOR: 'true' };
 
 interface RunOptions {
     input?: string;
@@ -133,6 +140,23 @@ const isBinary = (text: string) => text.slice(0, 8000).includes('\0');
 
 /** The most entries of the cache of committed files. The cache starts again when it is full. */
 const MAX_COMMITTED_CACHE = 500;
+/** The most commits of each side that the data of a rebase conflict gets. */
+const MAX_CONFLICT_COMMITS = 30;
+
+/** Reads a file of the rebase folder. Returns undefined when the file does not exist. */
+async function readRebaseFile(folder: string, name: string): Promise<string | undefined> {
+    try {
+        return (await fs.readFile(path.join(folder, name), 'utf8')).trim();
+    } catch {
+        return undefined;
+    }
+}
+
+/** Returns a positive whole number from the text, or undefined. */
+function countOf(text: string | undefined): number | undefined {
+    const value = Number(text);
+    return Number.isInteger(value) && value > 0 ? value : undefined;
+}
 
 /**
  * The local changes of a worktree: the git status, staging, the two versions of a changed file, commit and push.
@@ -148,6 +172,15 @@ export class GitChangesService {
      */
     private readonly committedFiles = new Map<string, string[]>();
 
+    /** The git folder of each worktree, for the check of a rebase in each status. */
+    private readonly gitDirs = new Map<string, string>();
+
+    /**
+     * The commit of the upstream branch at the start of a rebase in ShipWarden, by "<worktree>\0<branch>". The push
+     * after the rebase replaces the remote branch only when it is still at this commit.
+     */
+    private readonly leases = new Map<string, string>();
+
     /** `trash` moves a file or a folder to the Trash. The tests replace it. */
     constructor(private readonly trash: (file: string) => Promise<void>) {}
 
@@ -160,7 +193,7 @@ export class GitChangesService {
         const status = await this.status(worktree);
         if (!status.upstream) return {};
         const remote = status.upstream.split('/')[0];
-        const commonDir = path.resolve(worktree, ((await run(worktree, ['rev-parse', '--git-common-dir'])) ?? '.git').trim());
+        const commonDir = await this.commonDir(worktree);
         const last = this.fetches.get(commonDir);
         if (last?.running) return last.running;
         if (last?.at && Date.now() - last.at < maxAgeMs) return { at: last.at, error: last.error };
@@ -174,9 +207,91 @@ export class GitChangesService {
         return result;
     }
 
+    /** The common git folder of the repository of a worktree. The worktrees of a repository share it. */
+    private async commonDir(worktree: string): Promise<string> {
+        return path.resolve(worktree, ((await run(worktree, ['rev-parse', '--git-common-dir'])) ?? '.git').trim());
+    }
+
     async status(worktree: string): Promise<GitChanges> {
         const output = await run(worktree, ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all']);
-        return parseStatus(output ?? '');
+        const changes = parseStatus(output ?? '');
+        const rebase = await this.rebaseState(worktree);
+        return rebase ? { ...changes, rebase } : changes;
+    }
+
+    /** The git folder of the worktree. Each linked worktree has its own. */
+    private async gitDir(worktree: string): Promise<string> {
+        const known = this.gitDirs.get(worktree);
+        // A worktree that was removed and made again at the same path can have a different git folder.
+        if (
+            known &&
+            (await fs.stat(known).then(
+                () => true,
+                () => false
+            ))
+        )
+            return known;
+        const dir = path.resolve(worktree, ((await run(worktree, ['rev-parse', '--git-dir'])) ?? '.git').trim());
+        this.gitDirs.set(worktree, dir);
+        return dir;
+    }
+
+    /** The rebase folder of git and its kind, or undefined when no rebase is in progress. "git am" does not count. */
+    private async rebaseFolder(worktree: string): Promise<string | undefined> {
+        const dir = await this.gitDir(worktree);
+        const merge = path.join(dir, 'rebase-merge');
+        if (
+            await fs.stat(merge).then(
+                stat => stat.isDirectory(),
+                () => false
+            )
+        )
+            return merge;
+        const apply = path.join(dir, 'rebase-apply');
+        if (
+            await fs.stat(path.join(apply, 'rebasing')).then(
+                () => true,
+                () => false
+            )
+        )
+            return apply;
+        return undefined;
+    }
+
+    /**
+     * Returns the rebase that is in progress in the worktree, or undefined. It reads the rebase folder of git, so it also
+     * finds a rebase that started in a terminal.
+     */
+    async rebaseState(worktree: string): Promise<RebaseState | undefined> {
+        const folder = await this.rebaseFolder(worktree);
+        if (!folder) return undefined;
+        const merge = path.basename(folder) === 'rebase-merge';
+        const [headName, onto, step, total] = await Promise.all([
+            readRebaseFile(folder, 'head-name'),
+            readRebaseFile(folder, 'onto'),
+            readRebaseFile(folder, merge ? 'msgnum' : 'next'),
+            readRebaseFile(folder, merge ? 'end' : 'last')
+        ]);
+        if (!onto) return undefined;
+        const branch = headName?.startsWith('refs/heads/') ? headName.slice('refs/heads/'.length) : undefined;
+        const names = await run(worktree, ['for-each-ref', '--points-at', onto, '--format=%(refname:short)', 'refs/remotes', 'refs/heads'], {
+            allowFailure: true
+        });
+        const ontoName = (names ?? '')
+            .split('\n')
+            .map(name => name.trim())
+            .filter(name => name && !name.endsWith('/HEAD'))
+            .sort((a, b) => Number(b.startsWith('origin/')) - Number(a.startsWith('origin/')))[0];
+        const stoppedLine = await run(worktree, ['log', '-1', '--format=%h%x00%s', 'REBASE_HEAD', '--'], { allowFailure: true });
+        const [hash, subject] = (stoppedLine ?? '').trim().split('\0');
+        return {
+            ...(branch ? { branch } : {}),
+            onto,
+            ...(ontoName ? { ontoName } : {}),
+            ...(countOf(step) ? { step: countOf(step) } : {}),
+            ...(countOf(total) ? { total: countOf(total) } : {}),
+            ...(hash ? { stopped: { hash, subject: subject ?? '' } } : {})
+        };
     }
 
     /** Adds files to the index. A deleted file is staged as deleted. */
@@ -528,6 +643,174 @@ export class GitChangesService {
             }
         }
         return undefined;
+    }
+
+    /**
+     * Returns the branch that "Rebase onto" uses: the default branch of "origin" without the remote, for example "main".
+     * Returns undefined when it is not known. It runs local git only.
+     */
+    async defaultBranch(worktree: string): Promise<string | undefined> {
+        return (await this.defaultRemoteBranch(worktree))?.replace(/^origin\//, '');
+    }
+
+    /**
+     * Fetches "origin" and rebases the branch onto "origin/<onto>". Without `onto`, the target is the default branch of
+     * "origin". When a commit has a conflict, the rebase stops and the result has the state. The rebase never pushes.
+     *
+     * It refuses to start when a rebase is in progress, when the worktree has uncommitted changes (it does not stash
+     * them), when HEAD is detached, and when the branch only lacks commits of its upstream (then a pull is correct).
+     */
+    async rebase(worktree: string, onto?: string): Promise<RebaseResult> {
+        if (onto !== undefined && !/^[\w][\w./-]*$/.test(onto)) throw new Error(`"${onto}" is not a branch name.`);
+        const before = await this.status(worktree);
+        if (before.rebase) throw new Error('A rebase is already in progress. Continue or abort it in the Changes tab.');
+        if (!before.branch) throw new Error('The worktree has no branch (a detached HEAD).');
+        if (hasUncommittedChanges(before)) throw new Error('The worktree has uncommitted changes. Commit or stash them first.');
+        await run(worktree, ['fetch', '--quiet', '--prune', 'origin'], { timeout: 60_000 });
+        this.fetches.set(await this.commonDir(worktree), { at: Date.now() });
+        const target = onto ? `origin/${onto}` : await this.defaultRemoteBranch(worktree);
+        if (!target || (await run(worktree, ['rev-parse', '--verify', '-q', `${target}^{commit}`], { allowFailure: true })) === undefined) {
+            throw new Error(onto ? `The branch "origin/${onto}" does not exist.` : 'ShipWarden cannot find the default branch of "origin".');
+        }
+        if (target === `origin/${before.branch}`) throw new Error(`The branch is ${target} itself. Use Pull to get its new commits.`);
+        const changes = await this.status(worktree);
+        if (changes.upstream && changes.behind > 0 && changes.ahead === 0) {
+            throw new Error(`The branch does not have the newest commits of ${changes.upstream}. Pull first.`);
+        }
+        const key = `${worktree}\0${before.branch}`;
+        const upstreamSha = changes.upstream
+            ? (await run(worktree, ['rev-parse', '--verify', '-q', `${changes.upstream}^{commit}`], { allowFailure: true }))?.trim()
+            : undefined;
+        // A second rebase before the push keeps the first lease. A new lease could hide the commits of someone else.
+        const remember = () => upstreamSha && !this.leases.has(key) && this.leases.set(key, upstreamSha);
+        const head = await this.head(worktree);
+        try {
+            await run(worktree, ['rebase', '--no-autostash', target], { timeout: 180_000 });
+        } catch (error) {
+            const state = await this.rebaseState(worktree);
+            if (!state) throw error;
+            remember();
+            return { status: 'conflict', state };
+        }
+        const changed = (await this.head(worktree)) !== head;
+        if (changed) remember();
+        return { status: 'done', onto: target, changed };
+    }
+
+    /** The commit of HEAD, or undefined before the first commit. */
+    private async head(worktree: string): Promise<string | undefined> {
+        return (await run(worktree, ['rev-parse', '--verify', '-q', 'HEAD'], { allowFailure: true }))?.trim();
+    }
+
+    /**
+     * Continues a rebase after the user resolved and staged the conflicts. When the next commit has a conflict, the
+     * rebase stops again and the result has the new state.
+     */
+    async rebaseContinue(worktree: string): Promise<RebaseResult> {
+        const changes = await this.status(worktree);
+        if (!changes.rebase) throw new Error('No rebase is in progress.');
+        if (changes.conflicted.length) {
+            throw new Error(`Resolve and stage the files with conflicts first: ${changes.conflicted.map(change => change.path).join(', ')}.`);
+        }
+        return this.rebaseStep(worktree, changes.rebase, '--continue');
+    }
+
+    /** Skips the commit that stopped the rebase. The changes of that commit are lost. */
+    async rebaseSkip(worktree: string): Promise<RebaseResult> {
+        const changes = await this.status(worktree);
+        if (!changes.rebase) throw new Error('No rebase is in progress.');
+        return this.rebaseStep(worktree, changes.rebase, '--skip');
+    }
+
+    /** Runs "git rebase --continue" or "--skip", and returns the result. */
+    private async rebaseStep(worktree: string, state: RebaseState, step: '--continue' | '--skip'): Promise<RebaseResult> {
+        try {
+            await run(worktree, ['rebase', step], { timeout: 180_000 });
+        } catch (error) {
+            const next = await this.status(worktree);
+            // A new conflict stops the rebase again. Other errors, for example "No changes", go to the user.
+            if (next.rebase && next.conflicted.length) return { status: 'conflict', state: next.rebase };
+            if (error instanceof Error && /No changes|nothing to commit/i.test(error.message)) {
+                throw new Error('The commit has no changes after the resolution. Skip it, or change the files.');
+            }
+            throw error;
+        }
+        const after = await this.rebaseState(worktree);
+        if (after) return { status: 'conflict', state: after };
+        return { status: 'done', onto: state.ontoName ?? state.onto.slice(0, 7), changed: true };
+    }
+
+    /** Stops the rebase with "git rebase --abort". The branch gets its commits from before the rebase again. */
+    async rebaseAbort(worktree: string): Promise<void> {
+        const changes = await this.status(worktree);
+        if (!changes.rebase) throw new Error('No rebase is in progress.');
+        await run(worktree, ['rebase', '--abort'], { timeout: 60_000 });
+        if (changes.rebase.branch) this.leases.delete(`${worktree}\0${changes.rebase.branch}`);
+    }
+
+    /**
+     * Returns the git data of a rebase conflict for an agent: the files with conflicts, the commit that stopped, and the
+     * commits of each side that change the files.
+     */
+    async rebaseConflictInput(worktree: string): Promise<RebaseConflictInput> {
+        const changes = await this.status(worktree);
+        const state = changes.rebase;
+        if (!state) throw new Error('No rebase is in progress.');
+        const files = changes.conflicted.map(change => change.path);
+        const folder = await this.rebaseFolder(worktree);
+        const original = folder ? await readRebaseFile(folder, 'orig-head') : undefined;
+        const base = original ? (await run(worktree, ['merge-base', original, state.onto], { allowFailure: true }))?.trim() : undefined;
+        const commits = async (from: string | undefined, to: string | undefined): Promise<string[]> => {
+            if (!from || !to) return [];
+            const output = await run(worktree, ['log', `--max-count=${MAX_CONFLICT_COMMITS}`, '--format=%h %s', `${from}..${to}`, '--', ...checkPaths(files)], {
+                allowFailure: true
+            });
+            return (output ?? '').split('\n').filter(Boolean);
+        };
+        const [branchCommits, baseCommits] = await Promise.all([commits(base, original), commits(base, state.onto)]);
+        return {
+            ...(state.branch ? { branch: state.branch } : {}),
+            onto: state.ontoName ?? state.onto.slice(0, 7),
+            files,
+            ...(state.stopped ? { stopped: state.stopped } : {}),
+            branchCommits,
+            baseCommits
+        };
+    }
+
+    /**
+     * Pushes the branch with "--force-with-lease" after a rebase, so the remote branch gets the new commits. After a
+     * rebase in ShipWarden, the push replaces the remote branch only when it is still at the commit of the start of the
+     * rebase. Else the lease is the remote branch of the last fetch.
+     */
+    async pushWithLease(worktree: string): Promise<void> {
+        const changes = await this.status(worktree);
+        if (changes.rebase) throw new Error('A rebase is in progress. Continue or abort it first.');
+        if (!changes.branch) throw new Error('The worktree has no branch (a detached HEAD).');
+        if (!changes.upstream) throw new Error('The branch has no upstream branch. Use Push.');
+        const slash = changes.upstream.indexOf('/');
+        const remote = changes.upstream.slice(0, slash);
+        const remoteBranch = changes.upstream.slice(slash + 1);
+        const key = `${worktree}\0${changes.branch}`;
+        const lease = this.leases.get(key);
+        try {
+            await run(
+                worktree,
+                ['push', `--force-with-lease=refs/heads/${remoteBranch}${lease ? `:${lease}` : ''}`, remote, `HEAD:refs/heads/${remoteBranch}`],
+                {
+                    timeout: 180_000
+                }
+            );
+        } catch (error) {
+            const text = error instanceof Error ? error.message : String(error);
+            if (/stale info|rejected/i.test(text)) {
+                // The next try uses the remote branch of the last fetch.
+                this.leases.delete(key);
+                throw new Error(`${changes.upstream} changed after the rebase started. Fetch, look at the new commits, and try again.`);
+            }
+            throw error;
+        }
+        this.leases.delete(key);
     }
 
     /** Pushes the branch. A branch without an upstream gets "origin" as its upstream. */

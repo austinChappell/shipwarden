@@ -10528,6 +10528,51 @@ body.resizing-column * {
     color: var(--info);
 }
 
+/* A rebase that stopped and waits for the user: the place, the stopped commit, and Abort, Skip, and Continue. */
+.changes-rebase {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 8px;
+    margin: 8px 10px 0;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--warning) 50%, var(--border));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
+    color: var(--text-strong);
+    font-size: 12px;
+}
+
+.changes-rebase-text {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.changes-rebase-text strong {
+    color: var(--warning);
+}
+
+.changes-rebase-commit {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.changes-rebase-hint {
+    color: var(--muted);
+}
+
+.changes-rebase-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
 .changes-fetch-error {
     margin: 8px 10px 0;
     color: var(--muted);

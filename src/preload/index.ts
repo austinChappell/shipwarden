@@ -46,7 +46,14 @@ const api: ShipWardenApi = {
         worktreeFiles: repo => ipcRenderer.invoke(IpcChannels.gitWorktreeFiles, repo),
         blame: (worktree, path, contents) => ipcRenderer.invoke(IpcChannels.gitBlame, worktree, path, contents),
         fileHistory: (worktree, path, limit) => ipcRenderer.invoke(IpcChannels.gitFileHistory, worktree, path, limit),
-        commitFileContents: (worktree, commit, path, oldPath) => ipcRenderer.invoke(IpcChannels.gitCommitFileContents, worktree, commit, path, oldPath)
+        commitFileContents: (worktree, commit, path, oldPath) => ipcRenderer.invoke(IpcChannels.gitCommitFileContents, worktree, commit, path, oldPath),
+        defaultBranch: worktree => ipcRenderer.invoke(IpcChannels.gitDefaultBranch, worktree),
+        rebase: (worktree, onto) => ipcRenderer.invoke(IpcChannels.gitRebase, worktree, onto),
+        rebaseContinue: worktree => ipcRenderer.invoke(IpcChannels.gitRebaseContinue, worktree),
+        rebaseSkip: worktree => ipcRenderer.invoke(IpcChannels.gitRebaseSkip, worktree),
+        rebaseAbort: worktree => ipcRenderer.invoke(IpcChannels.gitRebaseAbort, worktree),
+        rebaseConflict: worktree => ipcRenderer.invoke(IpcChannels.gitRebaseConflict, worktree),
+        pushWithLease: worktree => ipcRenderer.invoke(IpcChannels.gitPushWithLease, worktree)
     },
     updates: {
         state: () => ipcRenderer.invoke(IpcChannels.updatesState),
