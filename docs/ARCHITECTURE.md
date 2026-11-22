@@ -806,6 +806,31 @@ The user guide and the file format are in [automations.md](automations.md).
   choice, and the "Tell the agent about the rewind" choice (off by default). The main process sends the note to the
   agent terminal as a bracketed paste.
 
+### MCP server
+
+- **Server.** `src/main/mcp/server.ts` runs the MCP Streamable HTTP transport on 127.0.0.1, at `/mcp`. It takes one
+  JSON-RPC message for each POST and answers a request with `application/json`. A notification gets 202. GET and DELETE
+  get 405, because the server has no SSE stream and no MCP session. A page of another site (an `Origin` that is not
+  local) gets 403. `protocol.ts` handles `initialize` (version negotiation: 2025-11-25, 2025-06-18, and 2025-03-26),
+  `ping`, `tools/list`, and `tools/call`. It has no dependency on the MCP SDK.
+- **Tokens.** `McpTokens` (`tokens.ts`) makes a random token for each agent tab at `terminals:create`. The token
+  identifies the worktree of the tab. `mcp-tokens.json` keeps only the SHA-256 hashes and the port, so the agents in the
+  PTY host keep their access after an app restart. The token goes in a private MCP config file
+  (`<userData>/mcp/<id>.json`, mode 0600), and Claude Code gets the file with `--mcp-config`
+  (`withMcpConfig` in `src/shared/agent-programs.ts`). No `--strict-mcp-config`, so the servers of the user stay. A
+  token ends when its terminal exits, or after 30 days. No token or a wrong token gets 401.
+- **Tools.** `tools.ts` has the five tools and uses a `McpToolService` interface. `services.ts` gives the real
+  services: the phone snapshot (`RemoteSnapshotBuilder`) for `list_worktrees`, `GitChangesService.worktreeFiles` and
+  `findOverlaps` for `get_overlaps`, `AskAgentRunner` for `ask_agent`, and the task plugins for `get_task` and
+  `set_task_status`. After `set_task_status`, the main process sends `tasks:taskChanged`, and the page patches its
+  cached task lists and details (`patchCachedTask`).
+- **Approvals.** `McpApprovalGate` (`approvals.ts`) asks the user before the first `ask_agent` or `set_task_status` in a
+  worktree. It uses the confirm dialog of the page (`ConfirmDialogs`) with an `AbortSignal`. After 2 minutes, the signal
+  closes the dialog (`app:confirmCancel`), and the tool call gets an error result. `mcp-approvals.json` keeps the
+  allowed tools of each worktree. Settings › Agents lists them and can revoke them (`mcp:approvals`, `mcp:revoke`,
+  `mcp:approvalsChanged`).
+- **Setting.** `mcpServer` (default on) starts and stops the server. New agent tabs then get the config or not.
+
 ### Repository scripts
 
 - Each repository can have saved scripts (`repos[path].scripts`: ID, name, command). The ▷ button of the workspace

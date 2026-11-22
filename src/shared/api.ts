@@ -36,7 +36,8 @@ import type {
 } from './github';
 import type { ReviewProviderChange, ReviewProviderInfo, ReviewProviderKind, ReviewTokenSource } from './review-providers';
 import type { LspInstallState, LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
-import type { ConnectionChange, ConnectionInfo, PluginInfo, TaskLink, TaskScope, TaskSource } from './tasks';
+import type { ConnectionChange, ConnectionInfo, PluginInfo, Task, TaskLink, TaskScope, TaskSource } from './tasks';
+import type { McpApprovals } from './mcp';
 import type { AgentUpdate } from './agents';
 import type { TranscriptChunk } from './agent-chat';
 import type { AgentProgram } from './agent-programs';
@@ -116,6 +117,8 @@ export interface ShipWardenApi {
         /** Questions from the main process. The page shows them in its own dialog and sends the answer with `answerConfirm`. */
         onConfirmRequest(listener: (id: number, request: ConfirmRequest) => void): () => void;
         answerConfirm(id: number, confirmed: boolean): void;
+        /** The main process does not need the answer any more, for example after a timeout. The page closes the dialog. */
+        onConfirmCancel(listener: (id: number) => void): () => void;
         /** Runs an app key (⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U or ⌘H) that the page got. The main process normally reads these keys first. */
         runKey(action: AppKeyAction): void;
         /** Listens for the items of the Help menu: Show Welcome, Take the Tour and Keyboard Shortcuts. */
@@ -653,6 +656,16 @@ export interface ShipWardenApi {
         selectedConnection(): Promise<string | undefined>;
         setSelectedConnection(connectionId: string): Promise<void>;
         onChanged(listener: (connectionId: string) => void): () => void;
+        /** A change of one task from the main process, for example from the MCP tool set_task_status. The page patches its cache. */
+        onTaskChanged(listener: (connectionId: string, taskId: string, patch: Partial<Task>) => void): () => void;
+    };
+    mcp: {
+        /** The write tools that the user approved in each worktree. */
+        approvals(): Promise<McpApprovals>;
+        /** Removes the approvals of a worktree. Returns the approvals after the change. */
+        revoke(worktree: string): Promise<McpApprovals>;
+        /** Gets all approvals after each change. */
+        onApprovalsChanged(listener: (approvals: McpApprovals) => void): () => void;
     };
     review: {
         /** Returns the local copy of a pull request, and if a copy needs a clone of the repository first. */
@@ -887,6 +900,9 @@ export const IpcChannels = {
     checkpointsPreview: 'checkpoints:preview',
     checkpointsRewind: 'checkpoints:rewind',
     checkpointsChanged: 'checkpoints:changed',
+    mcpApprovals: 'mcp:approvals',
+    mcpRevoke: 'mcp:revoke',
+    mcpApprovalsChanged: 'mcp:approvalsChanged',
     queueGet: 'queue:get',
     queueSave: 'queue:save',
     automationsList: 'automations:list',
@@ -956,6 +972,7 @@ export const IpcChannels = {
     tasksSetSelectedCollection: 'tasks:setSelectedCollection',
     tasksSelectedConnection: 'tasks:selectedConnection',
     tasksSetSelectedConnection: 'tasks:setSelectedConnection',
+    tasksTaskChanged: 'tasks:taskChanged',
     reviewCheckoutStatus: 'review:checkoutStatus',
     reviewCheckout: 'review:checkout',
     reviewRelease: 'review:release',
@@ -993,6 +1010,7 @@ export const IpcChannels = {
     appShortcut: 'app:shortcut',
     appConfirmRequest: 'app:confirmRequest',
     appConfirmAnswer: 'app:confirmAnswer',
+    appConfirmCancel: 'app:confirmCancel',
     appRunKey: 'app:runKey',
     appHelp: 'app:help',
     browserCreate: 'browser:create',

@@ -1,3 +1,4 @@
+import { withMcpConfig } from '@shared/agent-programs';
 import { withAgentHooks, type HookSettingsPaths } from '@shared/agents';
 import type { BrowserBounds } from '@shared/browser';
 import { sameRepoRef, type NewPullRequest, type RepoRef } from '@shared/github';
@@ -78,13 +79,16 @@ export function fetchMaxAge(force: unknown): number {
 /**
  * Returns the command of a new terminal and whether the agent reports its state.
  * An agent command gets the hook settings. Only an agent that got the hooks reports its state.
+ * With `mcpConfigPath`, an agent command also gets the ShipWarden MCP server, when the agent supports it.
  */
 export function terminalCommand(
     options: Pick<CreateTerminalOptions, 'command' | 'isAgent'>,
-    paths: HookSettingsPaths
+    paths: HookSettingsPaths,
+    mcpConfigPath?: string
 ): { command?: string; reportsAgentState: boolean } {
-    const command = options.isAgent && options.command ? withAgentHooks(options.command, paths) : options.command;
-    return { command, reportsAgentState: !!options.isAgent && command !== options.command };
+    const hooked = options.isAgent && options.command ? withAgentHooks(options.command, paths) : options.command;
+    const command = hooked && options.isAgent && mcpConfigPath ? withMcpConfig(hooked, mcpConfigPath) : hooked;
+    return { command, reportsAgentState: !!options.isAgent && hooked !== options.command };
 }
 
 /** Returns true when the JSON text of two values is different. */

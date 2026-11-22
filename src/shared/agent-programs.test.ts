@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentProcessesBelow, agentProgramOf } from './agent-programs';
+import { agentProcessesBelow, agentProgramOf, withMcpConfig } from './agent-programs';
 import type { ProcessRow } from './processes';
 
 const row = (pid: number, ppid: number, command: string): ProcessRow => ({ pid, ppid, pgid: pid, tpgid: pid, cpu: 0, rssKb: 0, elapsed: '00:01', command });
@@ -55,5 +55,17 @@ describe('agentProcessesBelow', () => {
             row(40, 1, 'codex')
         ];
         expect(agentProcessesBelow(rows, 10)).toEqual([{ pid: 21, program: 'claude', ancestors: [21, 20] }]);
+    });
+});
+
+describe('withMcpConfig', () => {
+    it('adds --mcp-config to a Claude Code command and quotes the path', () => {
+        expect(withMcpConfig('claude --resume abc', "/data/it's/a.json")).toBe(`claude --resume abc --mcp-config '/data/it'\\''s/a.json'`);
+        expect(withMcpConfig('/usr/local/bin/claude', '/a.json')).toBe(`/usr/local/bin/claude --mcp-config '/a.json'`);
+    });
+    it('keeps the command of other programs', () => {
+        expect(withMcpConfig('codex', '/a.json')).toBe('codex');
+        expect(withMcpConfig('gemini', '/a.json')).toBe('gemini');
+        expect(withMcpConfig('aider', '/a.json')).toBe('aider');
     });
 });

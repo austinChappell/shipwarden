@@ -48,6 +48,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'settings', section: 'prompts', label: 'Open Settings › Prompt templates' }
     },
     {
+        id: 'mcpServer',
+        title: 'Let agents ask other agents',
+        body: 'Each new Claude Code agent gets the ShipWarden MCP tools. It can list the worktrees, find files that other worktrees also change, read and move its task, and ask the agent of another worktree. Turn it off in Settings › Agents.',
+        action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
+    },
+    {
         id: 'checkpoints',
         title: 'Undo one bad agent turn',
         body: 'ShipWarden saves the files of the worktree when an agent gets a prompt. Open the Checkpoints tab in the right panel of a worktree, and select "Rewind" on a turn. The diff shows first.'

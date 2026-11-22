@@ -232,6 +232,8 @@ app.whenReady().then(async () => {
     services.shellAgents.start();
     services.staleShells.start();
     services.transcriptIndex.start();
+    void services.settings.get().then(settings => services.mcp.apply(settings.mcpServer));
+    void services.mcp.prune().catch(() => undefined);
     void services.pruneOldCheckpoints().catch(error => console.warn('[checkpoints] The cleanup failed:', error));
     protocol.handle(
         FILE_SCHEME,
@@ -283,4 +285,5 @@ app.on('before-quit', () => {
     services.lsp.stopAll();
     services.tasks.stopAll();
     services.askRunner.cancelAll();
+    services.mcp.stop();
 });

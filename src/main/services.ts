@@ -1,5 +1,6 @@
-import { join } from 'path';
+import { basename, join } from 'path';
 import { mkdir } from 'fs/promises';
+import { randomUUID } from 'crypto';
 import * as os from 'os';
 import { execFile } from 'child_process';
 import { app, shell } from 'electron';
@@ -64,6 +65,11 @@ import { RemoteControl } from './helper/remote-control';
 import { BrowserViews } from './browser/browser-views';
 import { checkCommand } from './command-check';
 import { SetupChecks } from './setup-checks';
+import { McpHost } from './mcp/mcp-host';
+import { worktreesFromSnapshot } from './mcp/worktree-list';
+import { writeToolLabel } from '@shared/mcp';
+import { findOverlaps } from '@shared/worktree-overlap';
+import { agentForRepo } from '@shared/settings';
 
 /** The parts of the app that the services need. */
 export interface ServiceOptions {
@@ -232,6 +238,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 remote.terminalData(id, data, seq);
             },
             exit: (id, exitCode) => {
+                void mcp.revokeSession(id).catch(() => undefined);
                 shellAgents.forget(id);
                 stats.forget(id);
                 checkpoints.forget(id);
@@ -484,6 +491,62 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         }
     });
     const confirm = new ConfirmDialogs(() => window.get());
+
+    /**
+     * The ShipWarden MCP server (Settings › Agents). Claude Code agents get it at start. The tools act on the worktree of
+     * the agent's token. The write tools ask the user the first time in each worktree, in the dialog of the page.
+     */
+    const mcp = new McpHost({
+        userData,
+        version: app.getVersion(),
+        askUser: ({ worktree, tool, summary }, signal) =>
+            confirm.ask(
+                {
+                    title: `${writeToolLabel(tool)}?`,
+                    message: `The agent in "${basename(worktree)}" wants to use the ShipWarden tool ${tool}.\n\n${summary}\n\nAllow applies to ${tool} in this worktree until you revoke it in Settings › Agents. Without an answer in 2 minutes, the tool call fails.`,
+                    confirmLabel: 'Allow',
+                    cancelLabel: 'Deny'
+                },
+                signal
+            ),
+        onApprovalsChanged: approvals => window.send(IpcChannels.mcpApprovalsChanged, approvals),
+        service: {
+            worktrees: async (caller, all) => worktreesFromSnapshot(await remoteSnapshot.build(), caller, all),
+            overlap: async caller => {
+                const repo = await projectWorktrees.repoOf(caller);
+                if (!repo) return undefined;
+                const files = await gitChanges.worktreeFiles(repo, await worktrees.list(repo));
+                return findOverlaps(files)[caller];
+            },
+            ask: async (target, prompt, { timeoutMs, signal }) => {
+                await shellReady;
+                const cwd = await projectWorktrees.check(target);
+                const agent = agentForRepo(await settings.get(), await projectWorktrees.repoOf(cwd));
+                const command = printCommand(agent.command);
+                if (!command)
+                    throw new Error(`ShipWarden can ask only Claude Code, Codex, Gemini CLI, or opencode. The agent of the other worktree is "${agent.name}".`);
+                await networkReady;
+                const bundle = certificates.status().bundlePath;
+                const id = `mcp:${randomUUID()}`;
+                const cancel = () => askRunner.cancel(id);
+                signal.addEventListener('abort', cancel, { once: true });
+                try {
+                    const answer = await askRunner.run(id, { command, prompt, cwd, env: bundle ? { NODE_EXTRA_CA_CERTS: bundle } : {}, timeoutMs });
+                    return { agent: agent.name, answer };
+                } finally {
+                    signal.removeEventListener('abort', cancel);
+                }
+            },
+            linkedTask: async caller => {
+                const link = (await tasks.allLinks())[caller];
+                if (!link) return undefined;
+                const connectionId = link.connectionId ?? link.pluginId;
+                return { connectionId, link, capabilities: (await tasks.source(connectionId)).capabilities };
+            },
+            taskRequest: <T>(connectionId: string, method: string, params: unknown) => tasks.request(connectionId, method, params) as Promise<T>,
+            taskChanged: (connectionId, taskId, patch) => window.send(IpcChannels.tasksTaskChanged, connectionId, taskId, patch)
+        }
+    });
     const hookPaths = hookSettingsPaths(userData);
     /** The shell setup that adds the hook settings to a `claude`, `gemini` or `opencode` that the user types in a shell tab. */
     const shellIntegration: ShellIntegration = { hookSettingsPath: hookPaths.claude, geminiHookSettingsPath: hookPaths.gemini };
@@ -536,6 +599,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         recentSessions: new RecentSessions(),
         transcriptIndex,
         confirm,
+        mcp,
         hookPaths,
         shellIntegration,
         setupChecks

@@ -19,7 +19,7 @@ export const NETWORK_TEST_HOSTS = [
 
 type SettingsIpcDependencies = Pick<
     Services,
-    'settings' | 'certificates' | 'tasks' | 'remote' | 'window' | 'shellReady' | 'networkReady' | 'updates' | 'usage' | 'setupChecks' | 'askRunner'
+    'settings' | 'certificates' | 'tasks' | 'remote' | 'window' | 'shellReady' | 'networkReady' | 'updates' | 'usage' | 'setupChecks' | 'askRunner' | 'mcp'
 >;
 
 /** Registers the IPC handlers of the settings, the setup checks, the network certificates, the updates and the plan usage. */
@@ -38,6 +38,9 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
         }
         if (changed(before.remote, next.remote)) {
             await remote.apply(next.remote);
+        }
+        if (before.mcpServer !== next.mcpServer) {
+            await deps.mcp.apply(next.mcpServer);
         }
         return next;
     });
