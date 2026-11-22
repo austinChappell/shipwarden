@@ -1,0 +1,54 @@
+[
+    {
+        "type": "pullrequest",
+        "id": 17,
+        "title": "Add rate limits to the public API",
+        "state": "OPEN",
+        "draft": false,
+        "author": { "uuid": "{6a1c1f3e-2b44-4d1c-9a76-1e1f6c1d0a01}", "display_name": "Dana Kim", "nickname": "dana" },
+        "source": { "branch": { "name": "feature/rate-limits" }, "commit": { "hash": "9f2c4e1b7a6d" }, "repository": { "full_name": "acme/api" } },
+        "destination": { "branch": { "name": "main" }, "commit": { "hash": "3b5d7f9a1c2e" }, "repository": { "full_name": "acme/api" } },
+        "comment_count": 4,
+        "reviewers": [{ "uuid": "{8c3e3f50-4d66-4f3e-9c98-3a3b8e3f2c03}", "display_name": "Viewer Person", "nickname": "viewer" }],
+        "participants": [
+            { "user": { "uuid": "{8c3e3f50-4d66-4f3e-9c98-3a3b8e3f2c03}", "display_name": "Viewer Person", "nickname": "viewer" }, "role": "REVIEWER", "approved": false, "state": null }
+        ],
+        "created_on": "2026-11-17T09:00:00.000000+00:00",
+        "updated_on": "2026-11-18T11:00:00.000000+00:00",
+        "links": { "html": { "href": "https://bitbucket.org/acme/api/pull-requests/17" } }
+    },
+    {
+        "type": "pullrequest",
+        "id": 18,
+        "title": "Fix the login redirect",
+        "state": "OPEN",
+        "draft": false,
+        "author": { "uuid": "{8c3e3f50-4d66-4f3e-9c98-3a3b8e3f2c03}", "display_name": "Viewer Person", "nickname": "viewer" },
+        "source": { "branch": { "name": "fix/login" }, "commit": { "hash": "aa11bb22cc33" }, "repository": { "full_name": "acme/api" } },
+        "destination": { "branch": { "name": "main" }, "commit": { "hash": "3b5d7f9a1c2e" }, "repository": { "full_name": "acme/api" } },
+        "comment_count": 1,
+        "reviewers": [{ "uuid": "{7b2d2e4f-3c55-4e2d-8b87-2f2a7d2e1b02}", "display_name": "Lee Park", "nickname": "lee" }],
+        "participants": [
+            { "user": { "uuid": "{7b2d2e4f-3c55-4e2d-8b87-2f2a7d2e1b02}", "display_name": "Lee Park", "nickname": "lee" }, "role": "REVIEWER", "approved": false, "state": "changes_requested" }
+        ],
+        "created_on": "2026-11-16T09:00:00.000000+00:00",
+        "updated_on": "2026-11-19T08:00:00.000000+00:00",
+        "links": { "html": { "href": "https://bitbucket.org/acme/api/pull-requests/18" } }
+    },
+    {
+        "type": "pullrequest",
+        "id": 19,
+        "title": "Try a new cache",
+        "state": "OPEN",
+        "draft": true,
+        "author": { "uuid": "{9d4f4061-5e77-4a4f-8da9-4b4c9f403d04}", "display_name": "Sam Ortiz", "nickname": "sam" },
+        "source": { "branch": { "name": "spike/cache" }, "commit": { "hash": "dd44ee55ff66" }, "repository": { "full_name": "sam/api-fork" } },
+        "destination": { "branch": { "name": "main" }, "commit": { "hash": "3b5d7f9a1c2e" }, "repository": { "full_name": "acme/api" } },
+        "comment_count": 0,
+        "reviewers": [{ "uuid": "{8c3e3f50-4d66-4f3e-9c98-3a3b8e3f2c03}", "display_name": "Viewer Person", "nickname": "viewer" }],
+        "participants": [],
+        "created_on": "2026-11-15T09:00:00.000000+00:00",
+        "updated_on": "2026-11-15T09:30:00.000000+00:00",
+        "links": { "html": { "href": "https://bitbucket.org/acme/api/pull-requests/19" } }
+    }
+]

@@ -48,6 +48,7 @@ has a table with the base and the branch of each page, and the commits of both s
 | GitHub | GitHub has no API to add an image to a comment. ShipWarden commits the images to the branch `shipwarden-screenshots` of the repository with the git data API. The branch has no common history with your code. The commit message has `[skip ci]`. The comment links to each file at that commit. For a private repository, readers must be signed in to GitHub to see the images. |
 | Azure DevOps | The images become attachments of the pull request (`pullRequests/{id}/attachments/{fileName}`). |
 | GitLab | The images go to the uploads of the project (`POST /projects/:id/uploads`). |
+| Bitbucket | Not available. Bitbucket Cloud has no API that adds an image to a pull request comment. The **Add to PR** button does not show. Add the images on Bitbucket. |
 
 The token of the review provider must allow these writes: `repo` (or "Contents: write") on GitHub, "Code (read and
 write)" on Azure DevOps, and `api` on GitLab.

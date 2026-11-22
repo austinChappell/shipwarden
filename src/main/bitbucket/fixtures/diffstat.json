@@ -1,0 +1,34 @@
+[
+    {
+        "type": "diffstat",
+        "status": "modified",
+        "lines_added": 2,
+        "lines_removed": 1,
+        "old": { "path": "src/limits.ts", "type": "commit_file" },
+        "new": { "path": "src/limits.ts", "type": "commit_file" }
+    },
+    {
+        "type": "diffstat",
+        "status": "added",
+        "lines_added": 3,
+        "lines_removed": 0,
+        "old": null,
+        "new": { "path": "src/bucket.ts", "type": "commit_file" }
+    },
+    {
+        "type": "diffstat",
+        "status": "renamed",
+        "lines_added": 0,
+        "lines_removed": 0,
+        "old": { "path": "docs/old.md", "type": "commit_file" },
+        "new": { "path": "docs/limits.md", "type": "commit_file" }
+    },
+    {
+        "type": "diffstat",
+        "status": "removed",
+        "lines_added": 0,
+        "lines_removed": 2,
+        "old": { "path": "src/legacy.ts", "type": "commit_file" },
+        "new": null
+    }
+]

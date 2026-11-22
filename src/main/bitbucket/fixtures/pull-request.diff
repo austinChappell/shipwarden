@@ -1,0 +1,31 @@
+diff --git a/src/limits.ts b/src/limits.ts
+index 1111111..2222222 100644
+--- a/src/limits.ts
++++ b/src/limits.ts
+@@ -10,4 +10,5 @@ export const limits = {
+   window: 60,
+-  max: 100,
++  max: settings.max,
++  burst: 10,
+ };
+diff --git a/src/bucket.ts b/src/bucket.ts
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/src/bucket.ts
+@@ -0,0 +1,3 @@
++export class Bucket {
++  tokens = 0;
++}
+diff --git a/docs/old.md b/docs/limits.md
+similarity index 100%
+rename from docs/old.md
+rename to docs/limits.md
+diff --git a/src/legacy.ts b/src/legacy.ts
+deleted file mode 100644
+index 4444444..0000000
+--- a/src/legacy.ts
++++ /dev/null
+@@ -1,2 +0,0 @@
+-export const old = true;
+-export default old;

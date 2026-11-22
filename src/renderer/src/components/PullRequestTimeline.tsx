@@ -62,7 +62,7 @@ function avatarUrlOf(pr: PullRequest, login: string): string | undefined {
     const users = [pr.author, ...pr.assignees, ...pr.issueComments.map(comment => comment.author), ...pr.reviews.map(review => review.author)];
     const known = users.find(user => user?.login === login && user.avatarUrl)?.avatarUrl;
     if (known) return known;
-    if (pr.host === 'azure' || pr.host === 'gitlab' || !/^[A-Za-z0-9-]+$/.test(login)) return undefined;
+    if (pr.host === 'azure' || pr.host === 'gitlab' || pr.host === 'bitbucket' || !/^[A-Za-z0-9-]+$/.test(login)) return undefined;
     return `https://github.com/${login}.png`;
 }
 

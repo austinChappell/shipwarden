@@ -265,7 +265,8 @@ export class ReviewCheckouts {
 
     /**
      * The folder of a repository: <folder>/<owner>/<name>, <folder>/azure/<organization>/<project>/<name> for Azure Repos,
-     * or <folder>/gitlab/<server>/<groups…>/<name> for GitLab. A ":" of a server port becomes "_".
+     * <folder>/gitlab/<server>/<groups…>/<name> for GitLab, or <folder>/bitbucket/<workspace>/<name> for Bitbucket.
+     * A ":" of a server port becomes "_".
      */
     private repoFolder(repo: Pick<RepoRef, 'owner' | 'name' | 'host'>): string {
         const parts =
@@ -273,7 +274,9 @@ export class ReviewCheckouts {
                 ? ['azure', ...repo.owner.split('/'), repo.name]
                 : repo.host === 'gitlab'
                   ? ['gitlab', ...repo.owner.replace(/:/g, '_').split('/'), repo.name]
-                  : [repo.owner, repo.name];
+                  : repo.host === 'bitbucket'
+                    ? ['bitbucket', repo.owner, repo.name]
+                    : [repo.owner, repo.name];
         return path.join(this.options.folder, ...parts.map(part => part.toLowerCase()));
     }
 
