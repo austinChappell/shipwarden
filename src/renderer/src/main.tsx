@@ -7,6 +7,7 @@ import './components/ui/ui.css';
 import './styles.css';
 import { App } from './App';
 import { confirmDialog, DialogHost } from './components/ConfirmDialog';
+import { PromptFillHost } from './prompts/PromptFillDialog';
 import { ContextMenuHost } from './components/ContextMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { ToastHost } from './components/Toast';
@@ -71,6 +72,7 @@ createRoot(document.getElementById('root')!).render(
             <UpdateNotice />
             <ToastHost />
             <DialogHost />
+            <PromptFillHost />
             <ContextMenuHost />
         </QueryClientProvider>
     </StrictMode>

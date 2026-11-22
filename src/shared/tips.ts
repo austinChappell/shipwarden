@@ -42,6 +42,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
     },
     {
+        id: 'promptTemplates',
+        title: 'Save the prompts that you type often',
+        body: 'A prompt template is a saved prompt with variables, for example "Write tests for {{file}}". Insert it from the Prompts list of an agent terminal, from the command palette, or with its own shortcut.',
+        action: { kind: 'settings', section: 'prompts', label: 'Open Settings › Prompt templates' }
+    },
+    {
         id: 'checkpoints',
         title: 'Undo one bad agent turn',
         body: 'ShipWarden saves the files of the worktree when an agent gets a prompt. Open the Checkpoints tab in the right panel of a worktree, and select "Rewind" on a turn. The diff shows first.'

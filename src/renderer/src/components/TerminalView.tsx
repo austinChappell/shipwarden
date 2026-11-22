@@ -9,6 +9,7 @@ import { confirmDialog } from './ConfirmDialog';
 import { FindBar } from './FindBar';
 import { isFindKey } from './log-find';
 import { Button } from './ui';
+import { PromptPicker } from '../prompts/PromptPicker';
 
 interface Props {
     session: TerminalSession;
@@ -204,10 +205,15 @@ export function TerminalView({ session, settings, focused = true, onShowChat }: 
                     />
                 </div>
             )}
-            {onShowChat && (
-                <Button className="terminal-chat-toggle" size="sm" icon={<MessagesSquare size={13} strokeWidth={1.8} />} onClick={onShowChat}>
-                    Chat
-                </Button>
+            {((session.isAgent && !session.exited) || onShowChat) && (
+                <div className="terminal-tools">
+                    {session.isAgent && !session.exited && <PromptPicker sessionId={session.id} />}
+                    {onShowChat && (
+                        <Button className="terminal-chat-toggle" size="sm" icon={<MessagesSquare size={13} strokeWidth={1.8} />} onClick={onShowChat}>
+                            Chat
+                        </Button>
+                    )}
+                </div>
             )}
         </>
     );

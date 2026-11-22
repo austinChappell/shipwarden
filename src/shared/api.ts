@@ -66,6 +66,7 @@ import type { BranchList, CreatedWorktree, CreateWorktreeOptions, CreateWorktree
 import type { CopyIgnoredSettings, CopyPreviewResult } from './worktree-settings';
 import type { BrowserBounds, BrowserFindOptions, BrowserState } from './browser';
 import type { Automation, AutomationList, AutomationRun, AutomationRunState, HttpMethod, TokenCount } from './automations';
+import type { PromptTemplate, PromptTemplateList } from './prompt-templates';
 import type { HttpResponse } from './automation-templates';
 import type { Plan, PlanExploreRequest, PlanExploreResult } from './plans';
 import type { GroupReviewAnswer, GroupReviewRequest, PrGroup } from './pr-groups';
@@ -537,6 +538,18 @@ export interface ShipWardenApi {
         /** Called when a file in the automations folder changes, also from another app. */
         onChanged(listener: () => void): () => void;
     };
+    prompts: {
+        /** The prompt templates in ~/.shipwarden/prompts, and the files that ShipWarden could not read. */
+        list(): Promise<PromptTemplateList>;
+        /** Writes the template to its file. With `previousId`, the template had another ID before, and its old file goes away. */
+        save(template: PromptTemplate, previousId?: string): Promise<PromptTemplate>;
+        /** Moves the file of the template to the Trash. */
+        remove(id: string): Promise<void>;
+        /** Shows the file of the template, or the folder without an ID, in Finder. */
+        reveal(id?: string): void;
+        /** Called when a file in the prompts folder changes, also from another app. */
+        onChanged(listener: () => void): () => void;
+    };
     notes: {
         /** The folder of the notes, ~/.shipwarden/notes. */
         folder(): Promise<string>;
@@ -877,6 +890,11 @@ export const IpcChannels = {
     automationsClearHistory: 'automations:clearHistory',
     automationsHttp: 'automations:http',
     automationsChanged: 'automations:changed',
+    promptsList: 'prompts:list',
+    promptsSave: 'prompts:save',
+    promptsRemove: 'prompts:remove',
+    promptsReveal: 'prompts:reveal',
+    promptsChanged: 'prompts:changed',
     notesFolder: 'notes:folder',
     notesList: 'notes:list',
     notesFolders: 'notes:folders',
