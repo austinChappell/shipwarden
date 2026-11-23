@@ -93,6 +93,15 @@ describe('removeWorktreeDialog', () => {
         expect(dialog.message.endsWith('The teardown script of the repository runs first.')).toBe(true);
         expect(dialog.confirmLabel).toBe('Remove and delete branch');
     });
+
+    it('tells that a force removal loses the uncommitted changes', () => {
+        const dialog = removeWorktreeDialog('feature', 'feature', false, true);
+        expect(dialog.title).toBe('Force remove the worktree "feature"?');
+        expect(dialog.message).toContain('These changes are lost.');
+        expect(dialog.message).toContain('also when it has commits that are not merged');
+        expect(dialog.message).not.toContain('Uncommitted changes stop the removal.');
+        expect(dialog.confirmLabel).toBe('Force remove and delete branch');
+    });
 });
 
 describe('teardownFailure', () => {
@@ -139,7 +148,8 @@ describe('worktreeMenuItems', () => {
             'Snooze',
             '-',
             'remove',
-            'removeBranch'
+            'removeBranch',
+            'forceRemoveBranch'
         ]);
     });
 
@@ -153,9 +163,10 @@ describe('worktreeMenuItems', () => {
     it('disables the removal of the main worktree and of a worktree without a branch', () => {
         const main = worktreeMenuItems(worktree({ branch: 'main', isMain: true }), undefined, false, undefined, 0);
         // "Close Shells" is off too, because the worktree has no open shells.
-        expect(main.filter(item => 'enabled' in item && item.enabled === false)).toHaveLength(3);
+        expect(main.filter(item => 'enabled' in item && item.enabled === false)).toHaveLength(4);
         const detached = worktreeMenuItems(worktree({}), undefined, false, undefined, 0);
         expect(detached).toContainEqual({ id: 'removeBranch', label: 'Remove Worktree and Delete Branch…', enabled: false, danger: true });
+        expect(detached).toContainEqual({ id: 'forceRemoveBranch', label: 'Force Remove Worktree and Delete Branch…', enabled: false, danger: true });
     });
 
     it('offers a rebase onto the default branch only for a worktree with a branch', () => {

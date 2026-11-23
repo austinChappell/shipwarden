@@ -512,17 +512,20 @@ export function useWorktreeActions(options: Options) {
 
     /**
      * Removes a worktree. With `deleteBranch`, the local branch is deleted after the worktree. Git refuses a branch with
-     * commits that are not merged, so ShipWarden asks before it forces the delete. The remote branch stays.
+     * commits that are not merged, so ShipWarden asks before it forces the delete. The remote branch stays. With
+     * `force`, git removes the worktree also with uncommitted changes, untracked files or a lock, and git deletes the
+     * branch without a question, also with commits that are not merged.
      */
-    const removeWorktree = async (repoPath: string, worktree: Worktree, removeOptions: { deleteBranch?: boolean } = {}) => {
+    const removeWorktree = async (repoPath: string, worktree: Worktree, removeOptions: { deleteBranch?: boolean; force?: boolean } = {}) => {
         const name = appSettings.worktreeNames?.[worktree.path] ?? worktree.branch ?? worktree.path;
         const branch = removeOptions.deleteBranch ? worktree.branch : undefined;
+        const force = removeOptions.force === true;
         const hasTeardown = !!appSettings.repos[repoPath]?.worktrees?.teardownScript;
-        if (!(await confirmDialog({ ...removeWorktreeDialog(name, branch, hasTeardown), danger: true }))) {
+        if (!(await confirmDialog({ ...removeWorktreeDialog(name, branch, hasTeardown, force), danger: true }))) {
             return;
         }
         try {
-            const result = await api.worktrees.remove(repoPath, worktree.path);
+            const result = await api.worktrees.remove(repoPath, worktree.path, { force });
             if (result.teardownFailed) {
                 const { title, tail } = teardownFailure(result.teardownFailed);
                 if (
@@ -536,10 +539,13 @@ export function useWorktreeActions(options: Options) {
                 ) {
                     return;
                 }
-                await api.worktrees.remove(repoPath, worktree.path, { skipTeardown: true });
+                await api.worktrees.remove(repoPath, worktree.path, { skipTeardown: true, force });
             }
             await forgetWorktree(repoPath, worktree);
-            if (branch) {
+            if (branch && force) {
+                // The force removal also forces the branch delete. The dialog told that unmerged commits are lost.
+                await api.worktrees.deleteBranch(repoPath, branch, true);
+            } else if (branch) {
                 const deleted = await api.worktrees.deleteBranch(repoPath, branch);
                 if (
                     deleted.notMerged &&
@@ -666,6 +672,7 @@ export function useWorktreeActions(options: Options) {
         }
         if (choice === 'remove') await removeWorktree(repoPath, worktree);
         if (choice === 'removeBranch') await removeWorktree(repoPath, worktree, { deleteBranch: true });
+        if (choice === 'forceRemoveBranch') await removeWorktree(repoPath, worktree, { deleteBranch: true, force: true });
     };
 
     return {

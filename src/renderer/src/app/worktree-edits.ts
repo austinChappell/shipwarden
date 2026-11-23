@@ -56,16 +56,29 @@ export function withRepoScripts(repos: Record<string, RepoSettings>, repoPath: s
 /** True when two repositories are the same, on the same host. The compare ignores the case of the letters. */
 export { sameRepoRef } from '@shared/github';
 
-/** The text of the dialog that asks the user to agree to the removal of a worktree. */
-export function removeWorktreeDialog(name: string, branch: string | undefined, hasTeardown: boolean): { title: string; message: string; confirmLabel: string } {
+/**
+ * The text of the dialog that asks the user to agree to the removal of a worktree. With `force`, the dialog tells that
+ * the uncommitted changes and the unmerged commits of the branch are lost.
+ */
+export function removeWorktreeDialog(
+    name: string,
+    branch: string | undefined,
+    hasTeardown: boolean,
+    force = false
+): { title: string; message: string; confirmLabel: string } {
     const teardown = hasTeardown ? ' The teardown script of the repository runs first.' : '';
     const branchText = branch
-        ? `ShipWarden then pulls the newest changes of the branch that the worktree started from, and git deletes the local branch "${branch}". The remote branch stays.`
+        ? force
+            ? `Git then deletes the local branch "${branch}", also when it has commits that are not merged. These commits are lost, unless the remote branch has them.`
+            : `ShipWarden then pulls the newest changes of the branch that the worktree started from, and git deletes the local branch "${branch}". The remote branch stays.`
         : 'Git keeps the branch.';
+    const changes = force
+        ? 'Git removes the worktree also when it has uncommitted changes, untracked files or a lock. These changes are lost.'
+        : 'Uncommitted changes stop the removal.';
     return {
-        title: `Remove the worktree "${name}"?`,
-        message: `${branchText} Uncommitted changes stop the removal. The terminals, editors and running processes of this worktree stop.${teardown}`,
-        confirmLabel: branch ? 'Remove and delete branch' : 'Remove worktree'
+        title: force ? `Force remove the worktree "${name}"?` : `Remove the worktree "${name}"?`,
+        message: `${branchText} ${changes} The terminals, editors and running processes of this worktree stop.${teardown}`,
+        confirmLabel: force ? (branch ? 'Force remove and delete branch' : 'Force remove') : branch ? 'Remove and delete branch' : 'Remove worktree'
     };
 }
 
@@ -109,6 +122,12 @@ export function worktreeMenuItems(
         {
             id: 'removeBranch',
             label: worktree.branch ? `Remove Worktree and Delete Branch "${worktree.branch}"…` : 'Remove Worktree and Delete Branch…',
+            enabled: !worktree.isMain && !!worktree.branch,
+            danger: true
+        },
+        {
+            id: 'forceRemoveBranch',
+            label: worktree.branch ? `Force Remove Worktree and Delete Branch "${worktree.branch}"…` : 'Force Remove Worktree and Delete Branch…',
             enabled: !worktree.isMain && !!worktree.branch,
             danger: true
         }
