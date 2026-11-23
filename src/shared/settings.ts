@@ -98,10 +98,11 @@ export interface AppSettings {
     /** The ID of the agent that a repository without its own choice starts. */
     defaultAgentId: string;
     /**
-     * True to show a new agent tab as a chat. The chat needs the transcript of Claude Code. Other agents always show the
-     * terminal. Each tab can change between the chat and the terminal.
+     * True to show a new agent tab as a chat. The chat is experimental, so the default is off. The chat needs the
+     * transcript of Claude Code or Codex. Other agents always show the terminal. Each tab can change between the chat
+     * and the terminal. The old key "agentChat" had the default on, so ShipWarden ignores it.
      */
-    agentChat: boolean;
+    experimentalAgentChat: boolean;
     /**
      * True to run the ShipWarden MCP server. New Claude Code agents then get its tools (list_worktrees, get_overlaps,
      * ask_agent, get_task, and set_task_status). The default is on.
@@ -249,7 +250,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     appearance: DEFAULT_APPEARANCE,
     agents: [...DEFAULT_AGENTS],
     defaultAgentId: 'claude',
-    agentChat: true,
+    experimentalAgentChat: false,
     mcpServer: true,
     repos: {},
     network: { useSystemCertificates: false },
@@ -353,7 +354,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         appearance: normalizeAppearance(raw.appearance),
         agents,
         defaultAgentId,
-        agentChat: raw.agentChat !== false,
+        experimentalAgentChat: raw.experimentalAgentChat === true,
         mcpServer: raw.mcpServer !== false,
         repos: normalizeRepos(raw.repos, agents),
         network: normalizeNetwork(raw.network),

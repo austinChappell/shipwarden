@@ -30,7 +30,7 @@ export interface TabViewContext {
     terminalColorsKey: string;
     agents: AgentDefinition[];
     defaultAgentId: string;
-    /** The setting "agentChat": a new agent tab shows the chat. */
+    /** The setting "experimentalAgentChat": a new agent tab shows the chat. */
     agentChat: boolean;
     /** Returns the newest data of a pull request. */
     latestPullRequest: (pr: PullRequest) => PullRequest;

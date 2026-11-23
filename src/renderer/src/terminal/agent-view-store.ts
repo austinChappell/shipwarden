@@ -10,7 +10,7 @@ import type { TerminalSession } from '@shared/terminal';
  */
 export type AgentViewChoice = 'chat' | 'terminal' | 'answer';
 
-/** The view choices of the agent tabs, by session ID. A tab without a choice uses the setting "agentChat". */
+/** The view choices of the agent tabs, by session ID. A tab without a choice uses the setting "experimentalAgentChat". */
 class AgentViewStore {
     private choices: ReadonlyMap<string, AgentViewChoice> = new Map();
     private readonly listeners = new Set<() => void>();
@@ -39,12 +39,6 @@ export function useAgentViewChoices(): ReadonlyMap<string, AgentViewChoice> {
     return useSyncExternalStore(agentViewStore.subscribe, agentViewStore.getSnapshot);
 }
 
-/**
- * The chat of the agent tabs is not ready for users. While this is false, each agent tab shows the terminal, and
- * Settings › Agents does not show the chat setting. The chat code stays, so that work on it can continue.
- */
-export const AGENT_CHAT_ENABLED = false;
-
 type ChatSession = Pick<TerminalSession, 'isAgent' | 'exited' | 'agentState' | 'agentTranscript'>;
 
 /**
@@ -59,7 +53,7 @@ export function canShowChat(session: ChatSession, claude: boolean): boolean {
     return chatFormatOf(session.agentTranscript) !== undefined || (claude && session.agentState === 'starting');
 }
 
-/** Returns true when the tab shows the chat. `chatByDefault` is the setting "agentChat". */
+/** Returns true when the tab shows the chat. `chatByDefault` is the setting "experimentalAgentChat". */
 export function showsChat(session: ChatSession, choice: AgentViewChoice | undefined, chatByDefault: boolean, claude: boolean): boolean {
     if (!canShowChat(session, claude)) return false;
     // A question at the start (for example the folder trust question) comes before the first hook, in the state "starting".

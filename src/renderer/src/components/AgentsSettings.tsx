@@ -9,7 +9,6 @@ import { errorText } from '../util';
 import { Button, Chip, Combobox, IconButton, Input, Select, Switch, type ComboboxGroup } from './ui';
 import { hasModelChoice, useAgentModels } from '../app/agent-models-query';
 import { SettingsGroup, SettingsRow } from './settings-ui';
-import { AGENT_CHAT_ENABLED } from '../terminal/agent-view-store';
 import { DraftSettingsGroup } from './DraftSettings';
 import { McpSettingsGroup } from './McpSettings';
 import { LimitField } from '../automations/LimitField';
@@ -322,15 +321,26 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                     </div>
                 )}
             </SettingsGroup>
-            {AGENT_CHAT_ENABLED && (
-                <SettingsGroup title="Agent tabs" card>
-                    <SettingsRow
-                        label="Show agent tabs as a chat"
-                        description="A Claude Code tab shows its messages as a chat, with a prompt field at the bottom. The agent still runs in the terminal. Each tab can show the terminal at any time. Other agents always show the terminal."
-                        control={<Switch checked={settings.agentChat} title="Show agent tabs as a chat" onChange={agentChat => void save({ agentChat })} />}
-                    />
-                </SettingsGroup>
-            )}
+            <SettingsGroup title="Agent tabs" card>
+                <SettingsRow
+                    label={
+                        <>
+                            Show agent tabs as a chat{' '}
+                            <Chip tone="info" title="This feature is not complete. It can change or go away.">
+                                Experimental
+                            </Chip>
+                        </>
+                    }
+                    description="A Claude Code or Codex tab shows its messages as a chat, with a prompt field at the bottom. The agent still runs in the terminal. Each tab can show the terminal at any time. Other agents always show the terminal. The chat is experimental: some messages and tools can show incorrectly."
+                    control={
+                        <Switch
+                            checked={settings.experimentalAgentChat}
+                            title="Show agent tabs as a chat"
+                            onChange={experimentalAgentChat => void save({ experimentalAgentChat })}
+                        />
+                    }
+                />
+            </SettingsGroup>
             <SettingsGroup
                 title="Usage budget"
                 description="ShipWarden does not start new agents from the queue, plans, Compare agents, and the “Start an agent” automation action while the plan usage of Claude or Codex is at or above the budget. These starts wait and continue after the usage resets. Agents that work now continue. Other agents have no usage data, so the budget does not stop them."

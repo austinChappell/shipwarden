@@ -46,8 +46,9 @@ describe('suggestCodeFolder', () => {
 
 describe('normalizeSettings', () => {
     it('shows agent tabs as a chat by default', () => {
-        expect(normalizeSettings({}).agentChat).toBe(true);
-        expect(normalizeSettings({ agentChat: false }).agentChat).toBe(false);
+        expect(normalizeSettings({}).experimentalAgentChat).toBe(false);
+        expect(normalizeSettings({ agentChat: true }).experimentalAgentChat).toBe(false);
+        expect(normalizeSettings({ experimentalAgentChat: true }).experimentalAgentChat).toBe(true);
     });
 
     it('keeps the onboarding state and leaves a missing state missing', () => {
