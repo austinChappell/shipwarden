@@ -311,6 +311,10 @@ const api: ShipWardenApi = {
         removeDevice: id => ipcRenderer.invoke(IpcChannels.remoteRemoveDevice, id),
         onChanged: listener => subscribe<[]>(IpcChannels.remoteChanged, listener)
     },
+    snoozes: {
+        list: () => ipcRenderer.invoke(IpcChannels.snoozesList),
+        set: (key, snooze) => ipcRenderer.invoke(IpcChannels.snoozesSet, key, snooze)
+    },
     seen: {
         keys: () => ipcRenderer.invoke(IpcChannels.seenKeys),
         mark: keys => ipcRenderer.invoke(IpcChannels.seenMark, keys)

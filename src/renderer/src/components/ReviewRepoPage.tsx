@@ -25,6 +25,9 @@ import {
 import { optionalErrorText, timeAgo } from '../util';
 import { focusFirstItem, itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { seenStore, useIsSeen } from '../seen-store';
+import { snoozeStore, useSnoozeCheck } from '../snooze-store';
+import { openPullRequestActivity, type Snooze } from '@shared/snooze';
+import { chooseSnooze, SnoozeButton, snoozedTitle } from './SnoozeButton';
 import { overviewKeys, refreshRepo, useRepoEntry } from '../github/review-overview-store';
 import {
     Age,
@@ -142,8 +145,23 @@ function SinceReviewLine({ pr }: { pr: OpenPullRequest }) {
 /**
  * A row of an open pull request. A row is not a button, because it can have a button in it.
  * `onMarkSeen` shows the "Mark as seen" button. The row gets it when the activity after the review of the user shows the pull request.
+ * `snoozable` shows the Snooze button. The row gets it when the pull request needs the user. A snoozed row shows the end of the snooze.
  */
-function PrRow({ pr, group, onOpen, onMarkSeen }: { pr: OpenPullRequest; group: ReviewGroup; onOpen(): void; onMarkSeen?(): void }) {
+function PrRow({
+    pr,
+    group,
+    snooze,
+    snoozable,
+    onOpen,
+    onMarkSeen
+}: {
+    pr: OpenPullRequest;
+    group: ReviewGroup;
+    snooze?: Snooze;
+    snoozable: boolean;
+    onOpen(): void;
+    onMarkSeen?(): void;
+}) {
     const size = diffSize(pr.additions, pr.deletions);
     const waitingSince = pr.createdAt;
     return (
@@ -183,6 +201,7 @@ function PrRow({ pr, group, onOpen, onMarkSeen }: { pr: OpenPullRequest; group: 
                         )}
                     </span>
                 )}
+                {snooze && <span className="pr-row-meta pr-row-snoozed">{snoozedTitle(snooze)}</span>}
                 {pr.viewerDidAuthor && pr.actions.length > 0 && (
                     <span className="pr-row-meta">
                         {pr.actions.map(reason => (
@@ -208,6 +227,9 @@ function PrRow({ pr, group, onOpen, onMarkSeen }: { pr: OpenPullRequest; group: 
             </span>
             <span className="pr-row-comments">{pr.comments} cmt</span>
             <Age className="pr-row-age" date={waitingSince} />
+            <span className="pr-row-actions">
+                {(snoozable || snooze) && <SnoozeButton url={pr.url} name={`#${pr.number}`} activity={openPullRequestActivity(pr)} snooze={snooze} />}
+            </span>
         </div>
     );
 }
@@ -229,6 +251,7 @@ function MergedRow({ pr, onOpen }: { pr: PullRequestSummary; onOpen(): void }) {
                 </span>
             </span>
             <span className="pr-row-comments">{pr.comments} cmt</span>
+            <span />
             <span />
         </button>
     );
@@ -254,12 +277,20 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
     const listRef = useRef<HTMLDivElement>(null);
 
     const isSeen = useIsSeen();
+    const snoozeCheck = useSnoozeCheck();
+    const snoozeOf = (pr: OpenPullRequest) => snoozeCheck(pr.url, openPullRequestActivity(pr));
+    const [showSnoozed, setShowSnoozed] = useState(false);
     const prs = useMemo(() => (data?.pullRequests ?? []).filter(pr => matchesSearch(pr, query) && matchesFilters(pr, filters)), [data, query, filters]);
+    // A snoozed pull request leaves "Needs me" and goes to the Snoozed list. A snoozed pull request of the user stays in "Mine".
     const byGroup = useMemo(() => {
-        const result: Record<ReviewGroup, OpenPullRequest[]> = { new: [], 're-review': [], waiting: [], mine: [], other: [] };
-        for (const pr of sortPullRequests(prs, sort)) result[reviewGroup(pr, isSeen)].push(pr);
+        const result: Record<ReviewGroup | 'snoozed', OpenPullRequest[]> = { new: [], 're-review': [], waiting: [], mine: [], other: [], snoozed: [] };
+        for (const pr of sortPullRequests(prs, sort)) {
+            const group = reviewGroup(pr, isSeen);
+            const needs = group === 'new' || group === 're-review';
+            result[needs && snoozeCheck(pr.url, openPullRequestActivity(pr)) ? 'snoozed' : group].push(pr);
+        }
         return result;
-    }, [prs, sort, isSeen]);
+    }, [prs, sort, isSeen, snoozeCheck]);
     const sorted = useMemo(() => sortPullRequests(prs, sort), [prs, sort]);
     const needsCount = byGroup.new.length + byGroup['re-review'].length;
 
@@ -275,6 +306,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         setQuery('');
         setFilters(NO_PULL_REQUEST_FILTERS);
         setShowWaiting(false);
+        setShowSnoozed(false);
     }, [repo]);
 
     // The merged list comes from a GitHub search. It loads when the tab shows, after a short pause in typing.
@@ -342,6 +374,13 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
             a: () => {
                 const pr = focusedPr();
                 if (pr) onHandToAgent(pr.number);
+            },
+            s: () => {
+                const pr = focusedPr();
+                const row = pr && listRef.current?.querySelector(`[data-pr="${pr.number}"]`);
+                if (!pr || !row || !snoozable(pr)) return;
+                if (snoozeOf(pr)) snoozeStore.set(pr.url, null);
+                else void chooseSnooze(row, pr.url, openPullRequestActivity(pr));
             }
         },
         !hidden
@@ -355,6 +394,11 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         { id: 'merged', label: 'Recently merged' }
     ];
 
+    /** True when the pull request needs the user, so the user can snooze it. */
+    function snoozable(pr: OpenPullRequest): boolean {
+        const group = reviewGroup(pr, isSeen);
+        return group === 'new' || group === 're-review' || (group === 'mine' && pr.actions.length > 0);
+    }
     const rows = (list: OpenPullRequest[]) =>
         list.map(pr => {
             const group = reviewGroup(pr, isSeen);
@@ -365,6 +409,8 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                     key={pr.number}
                     pr={pr}
                     group={group}
+                    snooze={snoozable(pr) ? snoozeOf(pr) : undefined}
+                    snoozable={snoozable(pr)}
                     onOpen={() => onOpen(pr.number)}
                     onMarkSeen={seenable ? () => seenStore.mark([reviewActivitySeenKey(pr)]) : undefined}
                 />
@@ -514,6 +560,17 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                                     </Button>
                                 </p>
                             ))}
+                        {byGroup.snoozed.length > 0 &&
+                            (showSnoozed ? (
+                                section('Snoozed', byGroup.snoozed)
+                            ) : (
+                                <p className="review-waiting-note">
+                                    Snoozed: {pluralize(byGroup.snoozed.length, 'PR')} that show again after a set time or after new activity ·{' '}
+                                    <Button variant="link" onClick={() => setShowSnoozed(true)}>
+                                        show
+                                    </Button>
+                                </p>
+                            ))}
                     </>
                 )}
                 {data &&
@@ -549,6 +606,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                     { keys: ['↵'], label: 'open' },
                     ...(onCheckout ? [{ keys: ['c'], label: 'checkout worktree' }] : []),
                     { keys: ['a'], label: 'hand to agent' },
+                    { keys: ['s'], label: 'snooze' },
                     { keys: ['esc'], label: 'back' }
                 ]}
             />

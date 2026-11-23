@@ -2,6 +2,7 @@ import type { AgentModel } from './agent-models';
 import type { PairingOffer, RemoteStatus } from './remote';
 import type { DashboardPullRequests, PullRequestCommentItem } from './dashboard';
 import type { RepoPullRequests } from './review-queue';
+import type { Snooze, Snoozes } from './snooze';
 import type { NoteInfo } from './notes';
 import type { AppKeyAction, ShortcutAction } from './shortcuts';
 import type { WorkflowRun } from './pipelines';
@@ -654,6 +655,12 @@ export interface ShipWardenApi {
         /** Called when a phone pairs, connects or disconnects. */
         onChanged(listener: () => void): () => void;
     };
+    snoozes: {
+        /** The snoozes of pull requests that did not end, by key. */
+        list(): Promise<Snoozes>;
+        /** Sets the snooze of a pull request. Null removes the snooze. */
+        set(key: string, snooze: Snooze | null): Promise<void>;
+    };
     seen: {
         /** The keys of the comments that the user saw in ShipWarden. */
         keys(): Promise<string[]>;
@@ -997,6 +1004,8 @@ export const IpcChannels = {
     remoteCancelPairing: 'remote:cancelPairing',
     remoteRemoveDevice: 'remote:removeDevice',
     remoteChanged: 'remote:changed',
+    snoozesList: 'snoozes:list',
+    snoozesSet: 'snoozes:set',
     seenKeys: 'seen:keys',
     seenMark: 'seen:mark',
     tasksPlugins: 'tasks:plugins',

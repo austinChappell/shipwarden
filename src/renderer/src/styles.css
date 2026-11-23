@@ -8361,6 +8361,18 @@ button:focus-visible,
     flex: none;
 }
 
+/* The Snooze button shows when the pointer or the focus is on the row. */
+.dash-snooze {
+    flex: none;
+    opacity: 0;
+}
+
+.dash-row:hover .dash-snooze,
+.dash-row:focus-within .dash-snooze,
+.dash-snooze:focus-visible {
+    opacity: 1;
+}
+
 /* The comment cards. */
 .dash-group-head {
     background: color-mix(in srgb, var(--text) 3%, transparent);
@@ -12887,7 +12899,7 @@ button.pr-summary-cell:hover {
 
 .pr-row {
     display: grid;
-    grid-template-columns: 16px minmax(0, 1fr) 110px 150px 56px 40px;
+    grid-template-columns: 16px minmax(0, 1fr) 110px 150px 56px 40px 28px;
     align-items: start;
     gap: 12px;
     padding: 12px var(--gutter);
@@ -12965,6 +12977,27 @@ button.pr-summary-cell:hover {
     color: var(--muted);
 }
 
+/* The Snooze button shows when the pointer or the focus is on the row. The Unsnooze button of a snoozed row always shows. */
+.pr-row-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -4px;
+}
+
+.pr-row-actions .icon-button:not(.on) {
+    opacity: 0;
+}
+
+.pr-row:hover .pr-row-actions .icon-button,
+.pr-row:focus-within .pr-row-actions .icon-button,
+.pr-row-actions .icon-button:focus-visible {
+    opacity: 1;
+}
+
+.pr-row-snoozed {
+    color: var(--muted);
+}
+
 .pr-row-size {
     display: flex;
     flex-direction: column;
@@ -13022,7 +13055,7 @@ button.pr-summary-cell:hover {
     }
 
     .pr-row {
-        grid-template-columns: 16px minmax(0, 1fr) 96px 40px;
+        grid-template-columns: 16px minmax(0, 1fr) 96px 40px 28px;
     }
 
     .pr-row-size,

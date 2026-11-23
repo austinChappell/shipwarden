@@ -92,6 +92,9 @@ export type ReviewGroup = 'new' | 're-review' | 'waiting' | 'mine' | 'other';
 /** Tells if the viewer marked an item as seen, by its seen key. */
 export type IsSeen = (key: string) => boolean;
 
+/** Tells if the viewer snoozed a pull request (see `snooze.ts`). A snoozed pull request does not need the viewer now. */
+export type IsSnoozed = (pr: OpenPullRequest) => boolean;
+
 /** The fields that tell if a pull request changed after the last review of the viewer. */
 export type ReviewActivityFields = Pick<OpenPullRequest, 'url' | 'headRefOid' | 'viewerReview' | 'lastActivityAt'>;
 
@@ -222,10 +225,11 @@ export interface RepoReviewSummary {
     lastActivity?: string;
 }
 
-/** Without `isSeen`, no activity after a review counts as seen. */
-export function summarizeRepo(data: RepoPullRequests, isSeen?: IsSeen): RepoReviewSummary {
+/** Without `isSeen`, no activity after a review counts as seen. A snoozed pull request does not count. */
+export function summarizeRepo(data: RepoPullRequests, isSeen?: IsSeen, isSnoozed?: IsSnoozed): RepoReviewSummary {
     const summary: RepoReviewSummary = { toReview: 0, reReview: 0, yourPrs: 0, failing: 0, running: 0, passing: 0, openCount: data.openCount };
     for (const pr of data.pullRequests) {
+        if (isSnoozed?.(pr)) continue;
         const group = reviewGroup(pr, isSeen);
         if (group === 'new') summary.toReview++;
         else if (group === 're-review') summary.reReview++;
@@ -382,12 +386,12 @@ export interface QueueItem {
     createdAt: string;
 }
 
-/** Returns the review queue: the pull requests to review in all repositories, the oldest first. */
-export function reviewQueue(repos: Map<string, RepoPullRequests>, isSeen?: IsSeen): QueueItem[] {
+/** Returns the review queue: the pull requests to review in all repositories, the oldest first. Snoozed pull requests are not in it. */
+export function reviewQueue(repos: Map<string, RepoPullRequests>, isSeen?: IsSeen, isSnoozed?: IsSnoozed): QueueItem[] {
     const items: QueueItem[] = [];
     for (const [repo, data] of repos) {
         for (const pr of data.pullRequests) {
-            if (needsReview(pr, isSeen)) items.push({ repo, number: pr.number, createdAt: pr.createdAt });
+            if (needsReview(pr, isSeen) && !isSnoozed?.(pr)) items.push({ repo, number: pr.number, createdAt: pr.createdAt });
         }
     }
     return items.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.repo.localeCompare(b.repo) || a.number - b.number);

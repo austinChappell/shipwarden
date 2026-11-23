@@ -50,6 +50,7 @@ import { GitWorktreeService } from './worktrees/git-worktree-service';
 import { ProjectWorktrees } from './worktrees/project-worktrees';
 import { SettingsStore } from './settings-store';
 import { SeenStore } from './seen-store';
+import { SnoozeStore } from './snooze-store';
 import { AnswersStore, CodeAnswersStore } from './answers-store';
 import { ReviewCheckouts } from './review/review-checkouts';
 import { ReviewProviders } from './review-providers';
@@ -298,6 +299,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const usage = new UsageService(`ShipWarden/${app.getVersion()}`, list => window.send(IpcChannels.usageChanged, list));
     const settings = new SettingsStore(join(userData, 'settings.json'));
     const seen = new SeenStore(join(userData, 'seen.json'));
+    const snoozes = new SnoozeStore(join(userData, 'snoozes.json'));
     const answers = new AnswersStore(join(userData, 'agent-answers.json'));
     /** The local copies of pull requests for go to definition and the file explorer in the Review view. */
     const reviewCheckouts = new ReviewCheckouts({
@@ -589,6 +591,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         usage,
         settings,
         seen,
+        snoozes,
         answers,
         reviewCheckouts,
         codeAnswers,

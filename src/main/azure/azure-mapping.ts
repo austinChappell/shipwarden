@@ -703,7 +703,8 @@ export function reviewRequestItemOf(repo: AzureRepoRef, pr: AzPullRequest): Revi
         url: pullRequestUrl(repo, pr.pullRequestId),
         author: loginOf(pr.createdBy),
         updatedAt: pr.creationDate,
-        createdAt: pr.creationDate
+        createdAt: pr.creationDate,
+        headSha: pr.lastMergeSourceCommit?.commitId
     };
 }
 

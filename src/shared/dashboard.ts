@@ -17,6 +17,10 @@ export interface ReviewRequestItem {
     author: string | null;
     updatedAt: string;
     createdAt: string;
+    /** The head commit. A snooze "until new activity" compares it. */
+    headSha?: string;
+    /** The time of the newest comment or review from another person. Comments from bots and from the user do not count. */
+    lastActivityAt?: string;
     /** Set when the item shows because of new activity after the review of the user, and not because of a request. */
     activity?: ReviewActivity;
 }
@@ -55,6 +59,8 @@ export interface MyPullRequestItem {
     mergeQueueRequired?: boolean;
     /** The number of review threads that are not resolved. */
     unresolvedThreads?: number;
+    /** The time of the newest comment or review from another person. Comments from bots and from the user do not count. */
+    lastActivityAt?: string;
 }
 
 /** A comment or a review on a pull request, from another person. */

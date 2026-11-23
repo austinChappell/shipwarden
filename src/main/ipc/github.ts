@@ -14,11 +14,12 @@ import type {
     ReviewEvent
 } from '@shared/github';
 import type { ReviewProviderChange, ReviewProviderKind } from '@shared/review-providers';
+import type { Snooze } from '@shared/snooze';
 import type { Services } from '../services';
 import { isWebUrl, newPullRequestOf, onlyStrings, optionalString, repoRefOf } from './args';
 
 /** Registers the IPC handlers of the pull requests, the pipelines and the review providers (GitHub and Azure DevOps). */
-export function registerGitHubIpc({ reviewProviders, seen, stats }: Pick<Services, 'reviewProviders' | 'seen' | 'stats'>): void {
+export function registerGitHubIpc({ reviewProviders, seen, snoozes, stats }: Pick<Services, 'reviewProviders' | 'seen' | 'snoozes' | 'stats'>): void {
     // Each call goes to the provider of its target: Azure DevOps for a worktree with an Azure Repos remote or for an
     // Azure reference, else GitHub.
     const host = (target: RepoTarget) => reviewProviders.for(target);
@@ -111,6 +112,11 @@ export function registerGitHubIpc({ reviewProviders, seen, stats }: Pick<Service
     ipcMain.handle(IpcChannels.githubDashboardComments, () => reviewProviders.dashboardComments());
     ipcMain.handle(IpcChannels.seenKeys, () => seen.keys());
     ipcMain.handle(IpcChannels.seenMark, (_event, keys: unknown) => seen.mark(onlyStrings(keys)));
+    ipcMain.handle(IpcChannels.snoozesList, () => snoozes.list());
+    ipcMain.handle(IpcChannels.snoozesSet, (_event, key: unknown, snooze: unknown) =>
+        // The store checks the shape of the snooze and ignores bad data.
+        snoozes.set(String(key), snooze === null ? null : (snooze as Snooze))
+    );
     ipcMain.handle(IpcChannels.githubRepoPullRequests, (_event, repo: RepoRef) => reviewProviders.repoPullRequests(repoRefOf(repo)));
     ipcMain.handle(IpcChannels.githubPullRequests, (_event, repo: RepoRef, filter: PullRequestFilter, query?: string) =>
         reviewProviders.pullRequests(repoRefOf(repo), filter, optionalString(query))
