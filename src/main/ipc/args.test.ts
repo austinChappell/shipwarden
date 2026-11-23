@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { HookSettingsPaths } from '@shared/agents';
 import {
+    approvalTargetOf,
     changed,
     DEFAULT_LOG_LIMIT,
     FETCH_INTERVAL_MS,
@@ -163,5 +164,27 @@ describe('changed', () => {
         expect(changed({ a: 1 }, { a: 1 })).toBe(false);
         expect(changed({ a: 1 }, { a: 2 })).toBe(true);
         expect(changed(undefined, {})).toBe(true);
+    });
+});
+
+describe('approvalTargetOf', () => {
+    it('keeps the typed fields of a GitHub and an Azure DevOps target', () => {
+        expect(approvalTargetOf({ kind: 'github', repo: { owner: 'acme', name: 'api' }, runId: 9, environmentIds: [1, 'x', 2], extra: true })).toEqual({
+            kind: 'github',
+            repo: { owner: 'acme', name: 'api' },
+            runId: 9,
+            environmentIds: [1, 2]
+        });
+        expect(approvalTargetOf({ kind: 'azure', organization: 'contoso', project: 'Web', approvalIds: ['a', 3] })).toEqual({
+            kind: 'azure',
+            organization: 'contoso',
+            project: 'Web',
+            approvalIds: ['a']
+        });
+    });
+
+    it('refuses an unknown kind and a GitHub target without a run ID', () => {
+        expect(() => approvalTargetOf({ kind: 'gitlab' })).toThrow('The approval target is not valid.');
+        expect(() => approvalTargetOf({ kind: 'github', runId: 'x' })).toThrow('The run ID is not valid.');
     });
 });

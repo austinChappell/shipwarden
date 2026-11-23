@@ -8,6 +8,7 @@ import {
     taskSeenKey,
     type CommentFilter,
     type DashboardPullRequests,
+    type PipelineApprovalItem,
     type PullRequestCommentItem,
     type ReviewRequestItem,
     type TaskCommentItem
@@ -29,6 +30,8 @@ export interface DashboardState {
     pullRequestsError?: string;
     prComments?: PullRequestCommentItem[];
     prCommentsError?: string;
+    /** The pipeline runs that wait for the approval of the user. */
+    approvals?: PipelineApprovalItem[];
     tasks: TaskActivity[];
     loading: boolean;
     updatedAt?: number;
@@ -40,6 +43,7 @@ export interface DashboardNews {
     myPullRequests: DashboardPullRequests['myPullRequests'];
     prComments: PullRequestCommentItem[];
     taskComments: { connectionId: string; comment: TaskCommentItem }[];
+    approvals: PipelineApprovalItem[];
 }
 
 interface Scope {
@@ -54,6 +58,7 @@ interface Scope {
 export const dashboardKeys = {
     pullRequests: (reviewKey: string | null) => [...keyRoots.dashboard, 'pullRequests', reviewKey] as const,
     comments: (reviewKey: string | null) => [...keyRoots.dashboard, 'comments', reviewKey] as const,
+    approvals: (reviewKey: string | null) => [...keyRoots.dashboard, 'approvals', reviewKey] as const,
     tasks: [...keyRoots.dashboard, 'tasks'] as const
 };
 
@@ -86,6 +91,13 @@ function commentsQuery(reviewKey: string | null) {
             seenStore.mark(prComments.filter(isMergedApproval).map(item => gitHubSeenKey(item.id)));
             return prComments;
         }
+    };
+}
+
+function approvalsQuery(reviewKey: string | null) {
+    return {
+        queryKey: dashboardKeys.approvals(reviewKey),
+        queryFn: (): Promise<PipelineApprovalItem[]> => window.shipwarden.github.dashboardApprovals()
     };
 }
 
@@ -145,8 +157,9 @@ function useDashboardData(scope: Scope | undefined): DashboardState {
     const reviewKey = scope?.reviewKey ?? null;
     const pullRequests = useQuery({ ...dashboardPullRequestsQuery(reviewKey), enabled });
     const comments = useQuery({ ...commentsQuery(reviewKey), enabled });
+    const approvals = useQuery({ ...approvalsQuery(reviewKey), enabled });
     const tasks = useQuery({ ...tasksQuery, enabled });
-    const queries = [pullRequests, comments, tasks];
+    const queries = [pullRequests, comments, approvals, tasks];
     // The Dashboard is up to date when each part has a result: data or an error.
     const settled = queries.every(query => query.status !== 'pending');
     const updatedAt = settled ? Math.max(...queries.map(query => Math.max(query.dataUpdatedAt, query.errorUpdatedAt))) : undefined;
@@ -155,6 +168,7 @@ function useDashboardData(scope: Scope | undefined): DashboardState {
         pullRequestsError: optionalErrorText(pullRequests.error),
         prComments: comments.data,
         prCommentsError: optionalErrorText(comments.error),
+        approvals: approvals.data,
         tasks: tasks.data ?? [],
         loading: queries.some(query => query.isFetching),
         updatedAt: updatedAt || undefined
@@ -162,7 +176,7 @@ function useDashboardData(scope: Scope | undefined): DashboardState {
 }
 
 /** The keys of the items of the Dashboard. An item with a changed reason (a new CI failure) gets a new key. */
-function newsItems(pullRequests: DashboardPullRequests, prComments: PullRequestCommentItem[], tasks: TaskActivity[]) {
+function newsItems(pullRequests: DashboardPullRequests, prComments: PullRequestCommentItem[], tasks: TaskActivity[], approvals: PipelineApprovalItem[]) {
     return {
         // New activity after a review gives a new key. Thus the item is news again.
         reviewRequests: unseenReviewRequests(pullRequests.reviewRequests).map(item => ({
@@ -176,7 +190,8 @@ function newsItems(pullRequests: DashboardPullRequests, prComments: PullRequestC
                 key: `t:${source.connectionId}:${comment.id}`,
                 item: { connectionId: source.connectionId, comment }
             }))
-        )
+        ),
+        approvals: approvals.map(item => ({ key: `a:${item.id}`, item }))
     };
 }
 
@@ -188,10 +203,11 @@ export function findDashboardNews(
     known: Set<string> | undefined,
     pullRequests: DashboardPullRequests,
     prComments: PullRequestCommentItem[],
-    tasks: TaskActivity[]
+    tasks: TaskActivity[],
+    approvals: PipelineApprovalItem[] = []
 ): { known: Set<string>; news?: DashboardNews } {
-    const items = newsItems(pullRequests, prComments, tasks);
-    const keys = [...items.reviewRequests, ...items.myPullRequests, ...items.prComments, ...items.taskComments].map(entry => entry.key);
+    const items = newsItems(pullRequests, prComments, tasks, approvals);
+    const keys = [...items.reviewRequests, ...items.myPullRequests, ...items.prComments, ...items.taskComments, ...items.approvals].map(entry => entry.key);
     const all = new Set([...(known ?? []), ...keys]);
     if (!known) return { known: all };
     const fresh = <T>(list: { key: string; item: T }[]) => list.filter(entry => !known.has(entry.key)).map(entry => entry.item);
@@ -199,9 +215,10 @@ export function findDashboardNews(
         reviewRequests: fresh(items.reviewRequests),
         myPullRequests: fresh(items.myPullRequests),
         prComments: fresh(items.prComments),
-        taskComments: fresh(items.taskComments)
+        taskComments: fresh(items.taskComments),
+        approvals: fresh(items.approvals)
     };
-    const count = news.reviewRequests.length + news.myPullRequests.length + news.prComments.length + news.taskComments.length;
+    const count = news.reviewRequests.length + news.myPullRequests.length + news.prComments.length + news.taskComments.length + news.approvals.length;
     return { known: all, news: count > 0 ? news : undefined };
 }
 
@@ -228,11 +245,11 @@ export function useDashboardLoader(ready: boolean, reviewKey: string | null | un
     // The keys of all items of the earlier refreshes. Other organizations: their items are not news.
     const known = useRef<{ scopeId: string; keys?: Set<string> }>({ scopeId });
     if (known.current.scopeId !== scopeId) known.current = { scopeId };
-    const { pullRequests, prComments, tasks, loading, updatedAt } = state;
+    const { pullRequests, prComments, tasks, approvals, loading, updatedAt } = state;
     // biome-ignore lint/correctness/useExhaustiveDependencies: A new update time or the end of a load is a new refresh. The data comes from the same render.
     useEffect(() => {
         if (loading || !updatedAt || !pullRequests || !prComments) return;
-        const result = findDashboardNews(known.current.keys, pullRequests, prComments, tasks);
+        const result = findDashboardNews(known.current.keys, pullRequests, prComments, tasks, approvals ?? []);
         known.current.keys = result.known;
         const news = result.news;
         if (news) newsListeners.forEach(listener => listener(news));
@@ -249,7 +266,10 @@ export function refreshDashboard(): Promise<void> {
     return queryClient.refetchQueries({ queryKey: keyRoots.dashboard, type: 'active' });
 }
 
-/** The number of items that need the user: review requests, reviewed pull requests with unseen activity, own pull requests to act on, and unseen comments. */
+/**
+ * The number of items that need the user: review requests, reviewed pull requests with unseen activity, own pull requests
+ * to act on, pipeline runs to approve, and unseen comments.
+ */
 export function useDashboardCount(filter: CommentFilter): number {
     const state = useDashboard();
     useSeenVersion();
@@ -262,7 +282,7 @@ export function useDashboardCount(filter: CommentFilter): number {
         0
     );
     const reviews = unseenReviewRequests(state.pullRequests?.reviewRequests ?? []).length;
-    return reviews + (state.pullRequests?.myPullRequests.length ?? 0) + prComments + taskComments;
+    return reviews + (state.pullRequests?.myPullRequests.length ?? 0) + (state.approvals?.length ?? 0) + prComments + taskComments;
 }
 
 /** A pull request by its repository and number. */
@@ -299,4 +319,9 @@ export function applyMergedToDashboard(merged: PullRequestRef[]): void {
         seenStore.mark(items.filter(isMergedApproval).map(item => gitHubSeenKey(item.id)));
         return items;
     });
+}
+
+/** Removes an approved pipeline run from the cached Dashboard data. No request goes to the providers. */
+export function applyApprovedToDashboard(id: string): void {
+    queryClient.setQueriesData<PipelineApprovalItem[]>({ queryKey: [...keyRoots.dashboard, 'approvals'] }, data => data?.filter(item => item.id !== id));
 }

@@ -16,7 +16,7 @@ import type {
 import type { ReviewProviderChange, ReviewProviderKind } from '@shared/review-providers';
 import type { Snooze } from '@shared/snooze';
 import type { Services } from '../services';
-import { isWebUrl, newPullRequestOf, onlyStrings, optionalString, repoRefOf } from './args';
+import { approvalTargetOf, isWebUrl, newPullRequestOf, onlyStrings, optionalString, repoRefOf } from './args';
 
 /** Registers the IPC handlers of the pull requests, the pipelines and the review providers (GitHub and Azure DevOps). */
 export function registerGitHubIpc({ reviewProviders, seen, snoozes, stats }: Pick<Services, 'reviewProviders' | 'seen' | 'snoozes' | 'stats'>): void {
@@ -110,6 +110,8 @@ export function registerGitHubIpc({ reviewProviders, seen, snoozes, stats }: Pic
     ipcMain.handle(IpcChannels.githubRepoOf, (_event, root: string) => reviewProviders.repoFor(String(root)).catch(() => null));
     ipcMain.handle(IpcChannels.githubDashboardPullRequests, () => reviewProviders.dashboardPullRequests());
     ipcMain.handle(IpcChannels.githubDashboardComments, () => reviewProviders.dashboardComments());
+    ipcMain.handle(IpcChannels.githubDashboardApprovals, () => reviewProviders.dashboardApprovals());
+    ipcMain.handle(IpcChannels.githubApprovePipeline, (_event, target) => reviewProviders.approvePipeline(approvalTargetOf(target)));
     ipcMain.handle(IpcChannels.seenKeys, () => seen.keys());
     ipcMain.handle(IpcChannels.seenMark, (_event, keys: unknown) => seen.mark(onlyStrings(keys)));
     ipcMain.handle(IpcChannels.snoozesList, () => snoozes.list());

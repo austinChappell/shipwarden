@@ -97,6 +97,50 @@ export interface DashboardPullRequests {
     myPullRequests: MyPullRequestItem[];
 }
 
+/** The data that the provider needs to approve a pipeline run. */
+export type PipelineApprovalTarget =
+    | {
+          kind: 'github';
+          repo: RepoRef;
+          runId: number;
+          /** The environments that the user can approve. */
+          environmentIds: number[];
+      }
+    | {
+          kind: 'azure';
+          organization: string;
+          project: string;
+          /** The approvals of the run that wait for the user. A run can wait at more than one stage. */
+          approvalIds: string[];
+      };
+
+/**
+ * A pipeline run that waits for the approval of the user. Examples: a GitHub Actions deployment to an environment with
+ * required reviewers, or an Azure Pipelines stage with an approval check.
+ */
+export interface PipelineApprovalItem {
+    /** A key that is unique across providers and repositories. */
+    id: string;
+    /** The short name of the place of the run: the GitHub repository or the Azure DevOps project. */
+    source: string;
+    /** The full name of the place of the run, for the tooltip. */
+    sourceTitle: string;
+    /** The name of the workflow or pipeline. */
+    workflow: string;
+    /** The title of the run, for example the commit message or the pull request title. */
+    title: string;
+    /** The environments that wait for the approval. Azure DevOps does not give them, so the list can be empty. */
+    environments: string[];
+    branch?: string;
+    /** The person who started the run. */
+    actor?: string;
+    /** The page of the run, where the user can also approve or reject it. */
+    url: string;
+    /** The time that the run started. */
+    createdAt: string;
+    target: PipelineApprovalTarget;
+}
+
 /** A comment on a task, from another person. A task plugin returns it from "activity/list". */
 export interface TaskCommentItem {
     id: string;

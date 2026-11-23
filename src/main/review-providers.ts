@@ -2,7 +2,7 @@ import { execFile } from 'child_process';
 import { randomUUID } from 'crypto';
 import { azureRepoOf, azureRepoRef, parseAzureRemote } from '@shared/azure-devops';
 import { bitbucketRepoOf, bitbucketRepoRef, parseBitbucketRemote } from '@shared/bitbucket';
-import type { DashboardPullRequests, PullRequestCommentItem } from '@shared/dashboard';
+import type { DashboardPullRequests, PipelineApprovalItem, PipelineApprovalTarget, PullRequestCommentItem } from '@shared/dashboard';
 import { gitlabHostOf, gitlabRepoOf, gitlabRepoRef, normalizeGitLabUrl, parseGitLabRemote, topGroupOf } from '@shared/gitlab';
 import {
     parseGitHubRemote,
@@ -392,6 +392,60 @@ export class ReviewProviders {
     async dashboardComments(): Promise<PullRequestCommentItem[]> {
         const results = await this.eachGitHub((service, provider) => service.dashboardComments(provider.scope ?? 'all'));
         return [...new Map(results.flat().map(item => [item.id, item])).values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
+
+    /**
+     * Returns the pipeline runs that wait for the approval of the user: in the GitHub repositories of the projects, and
+     * in the Azure DevOps organizations of the providers. GitHub has no search for these runs, so the Dashboard reads only
+     * the GitHub repositories of the projects. A repository or an organization that fails gives no items and no error.
+     */
+    async dashboardApprovals(): Promise<PipelineApprovalItem[]> {
+        const [github, azure] = await Promise.all([
+            this.githubApprovals(),
+            this.eachProvider(
+                async (): Promise<PipelineApprovalItem[]> => [],
+                async (host, provider) => host.dashboardApprovals(provider.scope, await this.projectOrganizations()).catch(() => [])
+            ).catch((): PipelineApprovalItem[][] => [])
+        ]);
+        const unique = new Map([...github, ...azure.flat()].map(item => [item.id, item]));
+        return [...unique.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    }
+
+    /** Approves a pipeline run, with the provider of its repository or organization. */
+    async approvePipeline(target: PipelineApprovalTarget): Promise<void> {
+        if (target.kind === 'github') {
+            const runtime = await this.runtimeFor(target.repo);
+            if (runtime.kind !== 'github') throw new Error(`${target.repo.owner}/${target.repo.name} is not a GitHub repository.`);
+            return runtime.service.approveDeployments(target.repo, target.runId, target.environmentIds);
+        }
+        const provider = pickProvider(await this.providers(), 'azure', target.organization);
+        if (!provider) {
+            throw new Error('No Azure DevOps provider is on. Add one in Settings › Code review.');
+        }
+        return ((await this.runtime(provider)) as AzureRuntime).host.approvePipeline(target.organization, target.project, target.approvalIds);
+    }
+
+    /** Returns the runs that wait for the approval of the user, in the GitHub repositories of the projects. */
+    private async githubApprovals(): Promise<PipelineApprovalItem[]> {
+        const roots = (await this.options.projectRepos?.().catch((): string[] => [])) ?? [];
+        const repos = new Map<string, RepoRef>();
+        await Promise.all(
+            roots.map(async root => {
+                const repo = await this.repoFor(root).catch(() => null);
+                if (repo && !repo.host) repos.set(repoId(repo).toLowerCase(), repo);
+            })
+        );
+        const lists = await Promise.all(
+            [...repos.values()].map(async repo => {
+                try {
+                    const runtime = await this.runtimeFor(repo);
+                    return runtime.kind === 'github' ? await runtime.service.pendingApprovals(repo) : [];
+                } catch {
+                    return [];
+                }
+            })
+        );
+        return lists.flat();
     }
 
     /** Returns a GitHub token for public requests, for example the update check. Undefined when there is none. */

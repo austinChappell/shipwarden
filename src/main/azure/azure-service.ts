@@ -15,7 +15,7 @@ import {
     voteForEvent,
     type AzureRepoRef
 } from '@shared/azure-devops';
-import type { DashboardPullRequests, MyPullRequestItem, ReviewRequestItem } from '@shared/dashboard';
+import type { DashboardPullRequests, MyPullRequestItem, PipelineApprovalItem, ReviewRequestItem } from '@shared/dashboard';
 import {
     type CommitFiles,
     cleanActionsLog,
@@ -141,6 +141,18 @@ function matchesQuery(pr: AzPullRequest, query: string | undefined): boolean {
     const text = query?.trim();
     if (!text) return true;
     return matchesSearch({ number: pr.pullRequestId, title: pr.title, author: loginOf(pr.createdBy), headRefName: fromRefName(pr.sourceRefName) }, text);
+}
+
+/** The version of the approvals API. It is a preview API in Azure DevOps 7.1. */
+const APPROVALS_API_VERSION = '7.1-preview.1';
+
+/** An approval of a pipeline stage. Azure DevOps returns it from "pipelines/approvals". */
+interface AzApproval {
+    id: string;
+    status: string;
+    createdOn?: string;
+    /** The pipeline and its run. The owner is the run (the build). */
+    pipeline?: { id?: number | string; name?: string; owner?: { id: number; name?: string; _links?: { web?: { href: string } } } };
 }
 
 /** A repository with its ID and default branch from Azure DevOps. */
@@ -386,6 +398,71 @@ export class AzureDevOpsService implements SourceHost {
             reviewRequests: results.flatMap(result => result.reviewRequests),
             myPullRequests: results.flatMap(result => result.myPullRequests)
         };
+    }
+
+    /**
+     * Returns the pipeline runs that wait for the approval of the user, for the Dashboard. Azure DevOps lists the
+     * approvals by project, so this sends a request for each project. A run that waits at more than one stage is one item.
+     * A project that fails gives no items.
+     */
+    async dashboardApprovals(scope: string[] | undefined, known: readonly string[] = []): Promise<PipelineApprovalItem[]> {
+        const organizations = await this.organizationsFor(scope, known);
+        const results = await eachOrganization(organizations, async organization => {
+            const [viewer, projects] = await Promise.all([this.viewer(organization), this.projects(organization)]);
+            const lists = await mapLimit(projects, PARALLEL, project => this.projectApprovals(organization, project, viewer.id).catch(() => []));
+            return lists.flat();
+        });
+        return results.flat();
+    }
+
+    /** Returns the runs of a project that wait for the approval of the user. Each run needs one more request for its details. */
+    private async projectApprovals(organization: string, project: string, viewerId: string): Promise<PipelineApprovalItem[]> {
+        const projectUrl = `${azureOrgUrl({ organization })}/${encodeURIComponent(project)}`;
+        const data = await this.client.request<AzList<AzApproval>>(
+            'GET',
+            `${projectUrl}/_apis/pipelines/approvals?state=pending&userIds=${encodeURIComponent(viewerId)}&api-version=${APPROVALS_API_VERSION}`
+        );
+        // A run can wait at more than one stage. Each stage has its own approval.
+        const runs = new Map<string, AzApproval[]>();
+        for (const approval of data.value.filter(item => item.status === 'pending')) {
+            const key = approval.pipeline?.owner ? String(approval.pipeline.owner.id) : `approval:${approval.id}`;
+            runs.set(key, [...(runs.get(key) ?? []), approval]);
+        }
+        return Promise.all(
+            [...runs.values()].map(async approvals => {
+                const first = approvals[0];
+                const owner = first.pipeline?.owner;
+                const build = owner
+                    ? await this.client.request<AzBuild>('GET', `${projectUrl}/_apis/build/builds/${owner.id}`).catch(() => undefined)
+                    : undefined;
+                const createdAt = approvals.map(item => item.createdOn ?? '').sort()[0] || build?.queueTime || new Date().toISOString();
+                return {
+                    id: `azure:${organization}/${project}:${owner?.id ?? first.id}`,
+                    source: project,
+                    sourceTitle: `${organization}/${project}`,
+                    workflow: build?.definition.name ?? first.pipeline?.name ?? 'Pipeline',
+                    title: build?.triggerInfo?.['ci.message'] || build?.buildNumber || owner?.name || first.pipeline?.name || 'Pipeline run',
+                    environments: [],
+                    branch: build ? fromRefName(build.sourceBranch) || undefined : undefined,
+                    actor: build?.requestedFor?.displayName,
+                    url:
+                        build?._links?.web?.href ??
+                        owner?._links?.web?.href ??
+                        (owner ? `${projectUrl}/_build/results?buildId=${owner.id}` : `${projectUrl}/_build`),
+                    createdAt,
+                    target: { kind: 'azure' as const, organization, project, approvalIds: approvals.map(item => item.id) }
+                };
+            })
+        );
+    }
+
+    /** Approves the approvals of a pipeline run. The run then continues at those stages. */
+    async approvePipeline(organization: string, project: string, approvalIds: string[]): Promise<void> {
+        await this.client.request(
+            'PATCH',
+            `${azureOrgUrl({ organization })}/${encodeURIComponent(project)}/_apis/pipelines/approvals?api-version=${APPROVALS_API_VERSION}`,
+            approvalIds.map(approvalId => ({ approvalId, status: 'approved', comment: '' }))
+        );
     }
 
     private prApi(repo: ResolvedRepo, number: number): string {

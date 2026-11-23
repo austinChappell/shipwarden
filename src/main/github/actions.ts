@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { cleanActionsLog, type CheckRun, type JobProgress, type RepoRef, type Workflow } from '@shared/github';
+import type { PipelineApprovalItem } from '@shared/dashboard';
 import type { WorkflowRun } from '@shared/pipelines';
 import type { GitHubClient } from './github-client';
 import {
@@ -130,4 +131,58 @@ export async function rerunRun(client: GitHubClient, repo: RepoRef, runId: numbe
 /** Stops a run that is in progress. */
 export async function cancelRun(client: GitHubClient, repo: RepoRef, runId: number): Promise<void> {
     await client.rest('POST', `/repos/${repo.owner}/${repo.name}/actions/runs/${runId}/cancel`);
+}
+
+/** A deployment of a run that waits for a review. GitHub returns it from "pending_deployments". */
+interface RestPendingDeployment {
+    environment: { id: number; name?: string };
+    current_user_can_approve: boolean;
+}
+
+/** The largest number of waiting runs of a repository that the Dashboard reads. Each run needs one more request. */
+const WAITING_RUNS_LIMIT = 10;
+
+/**
+ * Returns the runs of a repository that wait for the approval of the user: deployments to environments with required
+ * reviewers, where the user is one of the reviewers. A repository without a waiting run costs one request.
+ */
+export async function fetchPendingApprovals(client: GitHubClient, repo: RepoRef): Promise<PipelineApprovalItem[]> {
+    const base = `/repos/${repo.owner}/${repo.name}/actions/runs`;
+    const data = await client.rest<{ workflow_runs: RestWorkflowRun[] }>('GET', `${base}?status=waiting&per_page=${WAITING_RUNS_LIMIT}`);
+    const items = await Promise.all(
+        data.workflow_runs.map(async (run): Promise<PipelineApprovalItem | undefined> => {
+            const pending = await client.rest<RestPendingDeployment[]>('GET', `${base}/${run.id}/pending_deployments`);
+            const approvable = pending.filter(item => item.current_user_can_approve);
+            if (approvable.length === 0) return undefined;
+            return {
+                id: `github:${repo.owner}/${repo.name}:${run.id}`,
+                source: repo.name,
+                sourceTitle: `${repo.owner}/${repo.name}`,
+                workflow: run.name ?? 'Workflow',
+                title: run.display_title ?? run.name ?? `Run ${run.run_number}`,
+                environments: approvable.map(item => item.environment.name ?? String(item.environment.id)),
+                branch: run.head_branch ?? undefined,
+                actor: (run.triggering_actor ?? run.actor)?.login,
+                url: run.html_url,
+                createdAt: run.created_at,
+                target: {
+                    kind: 'github',
+                    repo: { owner: repo.owner, name: repo.name },
+                    runId: run.id,
+                    environmentIds: approvable.map(item => item.environment.id)
+                }
+            };
+        })
+    );
+    return items.filter((item): item is PipelineApprovalItem => !!item);
+}
+
+/** Approves the deployments of a waiting run to the environments. The run then continues. */
+export async function approveDeployments(client: GitHubClient, repo: RepoRef, runId: number, environmentIds: number[]): Promise<void> {
+    // GitHub needs the comment field. An empty comment is valid.
+    await client.rest('POST', `/repos/${repo.owner}/${repo.name}/actions/runs/${runId}/pending_deployments`, {
+        environment_ids: environmentIds,
+        state: 'approved',
+        comment: ''
+    });
 }

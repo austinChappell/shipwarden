@@ -1,6 +1,6 @@
 import type { AgentModel } from './agent-models';
 import type { PairingOffer, RemoteStatus } from './remote';
-import type { DashboardPullRequests, PullRequestCommentItem } from './dashboard';
+import type { DashboardPullRequests, PipelineApprovalItem, PipelineApprovalTarget, PullRequestCommentItem } from './dashboard';
 import type { RepoPullRequests } from './review-queue';
 import type { Snooze, Snoozes } from './snooze';
 import type { NoteInfo } from './notes';
@@ -418,6 +418,10 @@ export interface ShipWardenApi {
         dashboardPullRequests(): Promise<DashboardPullRequests>;
         /** The new comments on pull requests for the Dashboard, from all GitHub providers that are on. */
         dashboardComments(): Promise<PullRequestCommentItem[]>;
+        /** The pipeline runs that wait for the approval of the user: GitHub Actions deployments and Azure Pipelines stages. */
+        dashboardApprovals(): Promise<PipelineApprovalItem[]>;
+        /** Approves a pipeline run that waits for the user. */
+        approvePipeline(target: PipelineApprovalTarget): Promise<void>;
         /** Opens a web page (http or https) in the default browser. */
         openInBrowser(url: string): void;
     };
@@ -904,6 +908,8 @@ export const IpcChannels = {
     githubDashboardPullRequests: 'github:dashboardPullRequests',
     githubRepoPullRequests: 'github:repoPullRequests',
     githubDashboardComments: 'github:dashboardComments',
+    githubDashboardApprovals: 'github:dashboardApprovals',
+    githubApprovePipeline: 'github:approvePipeline',
     githubCreatePullRequest: 'github:createPullRequest',
     githubSetPullRequestInto: 'github:setPullRequestInto',
     reviewProvidersList: 'reviewProviders:list',
