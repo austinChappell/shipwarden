@@ -6,7 +6,7 @@ import { isSnoozeActive, nextSnoozeEnd, openPullRequestActivity, snoozeKey, type
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
 /**
- * The snoozes of pull requests. The main process keeps them in a file. This store keeps a copy, so that the views can
+ * The snoozes of pull requests and pipeline runs. The main process keeps them in a file. This store keeps a copy, so that the views can
  * update at once. When a timed snooze ends, the store tells the views, so the pull request shows again.
  */
 class SnoozeStore {
@@ -34,9 +34,8 @@ class SnoozeStore {
         return this.snoozes[key];
     }
 
-    /** Sets the snooze of a pull request. Null removes the snooze. */
-    set(url: string, snooze: Snooze | null): void {
-        const key = snoozeKey(url);
+    /** Sets the snooze of a key (see `snoozeKey` and `pipelineSnoozeKey`). Null removes the snooze. */
+    set(key: string, snooze: Snooze | null): void {
         const next = { ...this.snoozes };
         if (snooze) next[key] = snooze;
         else delete next[key];
@@ -73,11 +72,11 @@ class SnoozeStore {
 
 export const snoozeStore = new SnoozeStore();
 
-/** Returns the snooze that hides the pull request now, or undefined. */
-export type SnoozeCheck = (url: string, activity: PullRequestActivity) => Snooze | undefined;
+/** Returns the snooze of the key that hides the item now, or undefined. */
+export type SnoozeCheck = (key: string, activity: PullRequestActivity) => Snooze | undefined;
 
 /**
- * Returns a function that gives the active snooze of a pull request. The function changes when a snooze changes or
+ * Returns a function that gives the active snooze of a key. The function changes when a snooze changes or
  * ends, so that memos that use it update. The hook loads the snoozes when they are not loaded.
  */
 export function useSnoozeCheck(): SnoozeCheck {
@@ -87,8 +86,8 @@ export function useSnoozeCheck(): SnoozeCheck {
     }, []);
     // biome-ignore lint/correctness/useExhaustiveDependencies: The version changes when a snooze changes or ends. A new function then makes the memos update.
     return useMemo(
-        () => (url: string, activity: PullRequestActivity) => {
-            const snooze = snoozeStore.get(snoozeKey(url));
+        () => (key: string, activity: PullRequestActivity) => {
+            const snooze = snoozeStore.get(key);
             return isSnoozeActive(snooze, activity, Date.now()) ? snooze : undefined;
         },
         [version]
@@ -98,5 +97,5 @@ export function useSnoozeCheck(): SnoozeCheck {
 /** Returns a function that tells if a pull request of the Review view is snoozed now. It changes with the snoozes. */
 export function useIsSnoozed(): IsSnoozed {
     const check = useSnoozeCheck();
-    return useMemo(() => pr => !!check(pr.url, openPullRequestActivity(pr)), [check]);
+    return useMemo(() => pr => !!check(snoozeKey(pr.url), openPullRequestActivity(pr)), [check]);
 }
