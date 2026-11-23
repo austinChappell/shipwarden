@@ -137,11 +137,19 @@ export class GitHubService {
                       `/repos/${repo.owner}/${repo.name}/pulls?state=all&sort=updated&direction=desc&head=${encodeURIComponent(`${target.headOwner}:${branch}`)}`
                   );
         const pullRequest = found.length > 0 ? await this.pullRequest(repo, found[0].number) : null;
+        // The branches are always on "origin", also for a fork. The local check sends no request to GitHub.
+        const pushed =
+            branch !== 'HEAD' &&
+            (await git(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`]).then(
+                () => true,
+                () => false
+            ));
         return {
             repo,
             branch,
             sha: pullRequest?.state === 'OPEN' ? pullRequest.headRefOid : localSha,
             pullRequest,
+            pushed,
             ...(target.fork ? { fork: target.fork } : {})
         };
     }

@@ -67,6 +67,23 @@ describe('createPullRequest', () => {
         ]);
     });
 
+    it('tells the user to push the branch when GitHub cannot find the head', async () => {
+        const { client } = fakeClient(() => {
+            throw new GitHubError('GitHub returned 422.', 422, [{ resource: 'PullRequest', field: 'head', code: 'invalid' }]);
+        });
+        await expect(createPullRequest(client, repo, 'feature', { title: 'T', body: '', base: 'main', draft: true })).rejects.toThrow(
+            'GitHub cannot find the branch "feature". Push the branch to GitHub before you create a pull request.'
+        );
+    });
+
+    it('gives other 422 errors to the caller unchanged', async () => {
+        const error = new GitHubError('GitHub returned 422. No commits between main and feature', 422);
+        const { client } = fakeClient(() => {
+            throw error;
+        });
+        await expect(createPullRequest(client, repo, 'feature', { title: 'T', body: '', base: 'main', draft: false })).rejects.toBe(error);
+    });
+
     it('uses the base of the request without a request for the default branch', async () => {
         const { client, calls } = fakeClient(() => ({ number: 13 }));
         await createPullRequest(client, repo, 'feature', { title: 'T', body: '', base: 'release', draft: false });

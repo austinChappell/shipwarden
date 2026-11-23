@@ -38,13 +38,29 @@ interface CachedResponse {
     headers: [string, string][];
 }
 
+/** One item of the "errors" list of a GitHub error response. A 422 item often has a field and a code, but no message. */
+export interface GitHubErrorItem {
+    resource?: string;
+    field?: string;
+    code?: string;
+    message?: string;
+}
+
 export class GitHubError extends Error {
     constructor(
         message: string,
-        readonly status: number
+        readonly status: number,
+        /** The "errors" list of the response. It tells why GitHub refused a request with a 422 status. */
+        readonly errors: readonly GitHubErrorItem[] = []
     ) {
         super(message);
     }
+}
+
+/** Returns the text of an error item: its message, else its field and code (for example "head: invalid"). */
+export function errorItemText(item: GitHubErrorItem): string {
+    if (item.message) return item.message;
+    return [item.field, item.code].filter(Boolean).join(': ');
 }
 
 /** GitHub stopped the requests because of a rate limit. The client sends no requests before `retryAt`. */
@@ -275,9 +291,12 @@ export class GitHubClient {
             }
         } else {
             let detail = '';
+            let errors: GitHubErrorItem[] = [];
             try {
-                const error = (await response.json()) as { message?: string; errors?: { message?: string }[] };
-                detail = [error.message, ...(error.errors ?? []).map(item => item.message)].filter(Boolean).join(' ');
+                const error = (await response.json()) as { message?: string; errors?: GitHubErrorItem[] };
+                errors = Array.isArray(error.errors) ? error.errors : [];
+                const items = errors.map(errorItemText).filter(Boolean);
+                detail = [error.message, items.length > 0 ? `(${items.join(', ')})` : ''].filter(Boolean).join(' ');
             } catch {
                 // The error response has no JSON body.
             }
@@ -290,7 +309,7 @@ export class GitHubClient {
                     throw new GitHubRateLimitError(retryAt);
                 }
             }
-            throw new GitHubError(`GitHub returned ${response.status} for ${method} ${url.replace(API, '')}. ${detail}`.trim(), response.status);
+            throw new GitHubError(`GitHub returned ${response.status} for ${method} ${url.replace(API, '')}. ${detail}`.trim(), response.status, errors);
         }
         return response;
     }

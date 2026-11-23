@@ -51,6 +51,8 @@ export function CreatePullRequest({
     const host = hostLabel(status.host);
     const webUrl = status.createUrl ?? githubCompareUrl(status);
     const { fork } = status;
+    // A pull request needs the branch on the remote. Undefined means that the host does not check, so the button stays on.
+    const unpushed = status.pushed === false;
 
     const create = async () => {
         if (typeof target !== 'string' || !title.trim()) return;
@@ -71,7 +73,16 @@ export function CreatePullRequest({
         <div className="panel-message pr-create">
             <div className="pr-create-head">
                 <p>
-                    No pull request for <code>{status.branch}</code>. Push the branch{fork ? ` to ${repoName(fork.origin)}` : ''} before you create one.
+                    {unpushed ? (
+                        <>
+                            The branch <code>{status.branch}</code> is not on {fork ? repoName(fork.origin) : 'the remote'}. Push the branch, then refresh to
+                            create a pull request.
+                        </>
+                    ) : (
+                        <>
+                            No pull request for <code>{status.branch}</code>. Push the branch{fork ? ` to ${repoName(fork.origin)}` : ''} before you create one.
+                        </>
+                    )}
                 </p>
                 <RefreshButton size="sm" label="Check for a pull request" refreshing={loading} onRefresh={onRefresh} />
             </div>
@@ -109,7 +120,7 @@ export function CreatePullRequest({
                     </div>
                     {(error ?? draftError) && <div className="form-error">{error ?? draftError}</div>}
                     <div className="row-buttons">
-                        <Button variant="primary" icon={<GitPullRequest {...ICON} />} disabled={busy || !title.trim()} onClick={create}>
+                        <Button variant="primary" icon={<GitPullRequest {...ICON} />} disabled={busy || unpushed || !title.trim()} onClick={create}>
                             Create pull request
                         </Button>
                         <Button iconEnd={<ExternalLink {...ICON} />} onClick={event => openLink(webUrl, event)}>
