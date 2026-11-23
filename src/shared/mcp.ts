@@ -45,9 +45,38 @@ export function writeToolLabel(tool: McpWriteTool): string {
 }
 
 /**
+ * The environment variable with the MCP token of an agent session. Codex and opencode read the token from it, so the
+ * token is not in the command line.
+ */
+export const MCP_TOKEN_ENV = 'SHIPWARDEN_MCP_TOKEN';
+
+/**
  * Returns the MCP config that Claude Code gets with --mcp-config. The server uses the Streamable HTTP transport.
  * The token in the header identifies the session and its worktree.
  */
 export function mcpConfig(url: string, token: string): { mcpServers: Record<string, { type: 'http'; url: string; headers: Record<string, string> }> } {
     return { mcpServers: { [MCP_SERVER_NAME]: { type: 'http', url, headers: { Authorization: `Bearer ${token}` } } } };
+}
+
+/**
+ * Returns the Gemini CLI settings of an agent session: the hook settings of ShipWarden and the ShipWarden MCP server.
+ * Gemini CLI gets the file as its system defaults file, in place of the hook settings file.
+ * Gemini CLI merges `mcpServers` of all settings files by the server name, so the user's own servers stay. A server of
+ * the user with the name "shipwarden" has priority over this one.
+ * `httpUrl` selects the Streamable HTTP transport.
+ */
+export function geminiMcpSettings(hookSettings: unknown, url: string, token: string): Record<string, unknown> {
+    const settings: Record<string, unknown> =
+        hookSettings && typeof hookSettings === 'object' && !Array.isArray(hookSettings) ? { ...(hookSettings as Record<string, unknown>) } : {};
+    const servers = settings.mcpServers && typeof settings.mcpServers === 'object' && !Array.isArray(settings.mcpServers) ? settings.mcpServers : {};
+    settings.mcpServers = { ...servers, [MCP_SERVER_NAME]: { httpUrl: url, headers: { Authorization: `Bearer ${token}` } } };
+    return settings;
+}
+
+/**
+ * Returns the `mcp` value of the inline opencode config. opencode replaces `{env:NAME}` with the value of the
+ * environment variable, so the token comes from the environment of the session.
+ */
+export function opencodeMcpServers(url: string): Record<string, unknown> {
+    return { [MCP_SERVER_NAME]: { type: 'remote', url, enabled: true, headers: { Authorization: `Bearer {env:${MCP_TOKEN_ENV}}` } } };
 }

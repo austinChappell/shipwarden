@@ -20,11 +20,25 @@ describe('McpTokens', () => {
         expect(await tokens.worktreeOf(issued.token)).toBe('/w/a');
         expect(await tokens.worktreeOf('wrong')).toBeUndefined();
         expect(await tokens.worktreeOf('')).toBeUndefined();
-        const config = JSON.parse(readFileSync(issued.configFile, 'utf8'));
+        expect(issued.url).toBe('http://127.0.0.1:4000/mcp');
+        const configFile = issued.configFile!;
+        const config = JSON.parse(readFileSync(configFile, 'utf8'));
         expect(config.mcpServers.shipwarden).toEqual({ type: 'http', url: 'http://127.0.0.1:4000/mcp', headers: { Authorization: `Bearer ${issued.token}` } });
-        expect(statSync(issued.configFile).mode & 0o777).toBe(0o600);
+        expect(statSync(configFile).mode & 0o777).toBe(0o600);
         // The token file keeps only the hash.
         expect(readFileSync(join(folder, 'tokens.json'), 'utf8')).not.toContain(issued.token);
+    });
+
+    it('writes the config file of the agent, or no file', async () => {
+        const { tokens } = setup();
+        const own = await tokens.issue('/w/a', 'http://x/mcp', (url, token) => ({ url, token }));
+        expect(JSON.parse(readFileSync(own.configFile!, 'utf8'))).toEqual({ url: 'http://x/mcp', token: own.token });
+        const none = await tokens.issue('/w/a', 'http://x/mcp', () => undefined);
+        expect(none.configFile).toBeUndefined();
+        expect(await tokens.worktreeOf(none.token)).toBe('/w/a');
+        await tokens.bindSession(none.id, 'session-1');
+        await tokens.revokeSession('session-1');
+        expect(await tokens.worktreeOf(none.token)).toBeUndefined();
     });
 
     it('gives each session its own token', async () => {
@@ -43,7 +57,7 @@ describe('McpTokens', () => {
         expect(await tokens.worktreeOf(issued.token)).toBe('/w/a');
         await tokens.revokeSession('session-1');
         expect(await tokens.worktreeOf(issued.token)).toBeUndefined();
-        expect(existsSync(issued.configFile)).toBe(false);
+        expect(existsSync(issued.configFile!)).toBe(false);
     });
 
     it('rejects and prunes a token that is older than the maximum age', async () => {
@@ -53,7 +67,7 @@ describe('McpTokens', () => {
         now += TOKEN_MAX_AGE_MS + 1;
         expect(await tokens.worktreeOf(issued.token)).toBeUndefined();
         await tokens.prune();
-        expect(existsSync(issued.configFile)).toBe(false);
+        expect(existsSync(issued.configFile!)).toBe(false);
     });
 
     it('keeps the tokens and the port for the next app run', async () => {

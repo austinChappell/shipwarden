@@ -1,3 +1,5 @@
+import { MCP_SERVER_NAME, MCP_TOKEN_ENV, opencodeMcpServers } from './mcp';
+
 /**
  * The state of an agent in a terminal session.
  * - starting: the process started, but the agent did not report yet.
@@ -411,9 +413,11 @@ export function shellQuote(value: string): string {
  * Returns the inline opencode config (the OPENCODE_CONFIG_CONTENT variable) that loads ShipWarden's plugin.
  * opencode adds the plugins of all config files together, so the user's own plugins and settings stay the same.
  * `pluginPath` is the absolute path of the plugin file.
+ * With `mcpUrl`, the config also adds the ShipWarden MCP server. opencode merges `mcp` of all config files by the
+ * server name, so the user's own MCP servers stay.
  */
-export function opencodeHookConfig(pluginPath: string): string {
-    return JSON.stringify({ plugin: [`file://${encodeURI(pluginPath)}`] });
+export function opencodeHookConfig(pluginPath: string, mcpUrl?: string): string {
+    return JSON.stringify({ plugin: [`file://${encodeURI(pluginPath)}`], ...(mcpUrl ? { mcp: opencodeMcpServers(mcpUrl) } : {}) });
 }
 
 /**
@@ -459,6 +463,18 @@ export function codexHookArgs(scriptPath: string): string {
 }
 
 /**
+ * Returns the Codex options that add the ShipWarden MCP server, quoted for a POSIX shell.
+ * Each option sets one key of `mcp_servers.shipwarden`, so the MCP servers of the user's config.toml stay.
+ * Codex reads the token from the environment variable of the session, so the token is not in the command line.
+ */
+export function codexMcpArgs(url: string): string {
+    const prefix = `mcp_servers.${MCP_SERVER_NAME}`;
+    return [`${prefix}.url=${tomlString(url)}`, `${prefix}.bearer_token_env_var=${tomlString(MCP_TOKEN_ENV)}`]
+        .map(value => `-c ${shellQuote(value)}`)
+        .join(' ');
+}
+
+/**
  * Returns the agent that wrote a transcript ("transcript_path" of the hooks), from the file name.
  * Codex names its session files `rollout-<time>-<id>.jsonl`. Claude Code names its files `<session ID>.jsonl`.
  * Only a Claude Code transcript has the chat, the pins, and the resume of a session.
@@ -493,20 +509,39 @@ export interface HookSettingsPaths {
     opencode: string;
 }
 
+/** The ShipWarden MCP server of an agent session. */
+export interface AgentMcpServer {
+    /** The URL of the MCP endpoint. */
+    url: string;
+    /**
+     * The private config file of the session. Claude Code gets it with --mcp-config. Gemini CLI gets it as its system
+     * defaults file, in place of the hook settings file. Codex and opencode get no file. They read the token from the
+     * environment of the session (MCP_TOKEN_ENV).
+     */
+    configFile?: string;
+}
+
 /**
  * Adds ShipWarden's hook settings to an agent command when the agent is Claude Code, Codex, Gemini CLI or opencode.
  * Other agents keep their command, and ShipWarden shows no detailed state for them.
+ * With `mcp`, the command also gets the ShipWarden MCP server. The user's own MCP servers stay.
+ * With `opencodeStandalone`, an opencode command gets --standalone, so opencode 2 reads the config of the tab. See
+ * `OpencodeVersions`. A command with --standalone or --server keeps its options.
  */
-export function withAgentHooks(command: string, paths: HookSettingsPaths): string {
+export function withAgentHooks(command: string, paths: HookSettingsPaths, mcp?: AgentMcpServer, opencodeStandalone = false): string {
     switch (hookAgentOf(command)) {
-        case 'claude':
-            return `${command.trim()} --settings ${shellQuote(paths.claude)}`;
+        case 'claude': {
+            const mcpConfig = mcp?.configFile ? ` --mcp-config ${shellQuote(mcp.configFile)}` : '';
+            return `${command.trim()} --settings ${shellQuote(paths.claude)}${mcpConfig}`;
+        }
         case 'codex':
-            return `${command.trim()} ${codexHookArgs(paths.codex)}`;
+            return `${command.trim()} ${codexHookArgs(paths.codex)}${mcp ? ` ${codexMcpArgs(mcp.url)}` : ''}`;
         case 'gemini':
-            return `GEMINI_CLI_SYSTEM_DEFAULTS_PATH=${shellQuote(paths.gemini)} ${command.trim()}`;
-        case 'opencode':
-            return `OPENCODE_CONFIG_CONTENT=${shellQuote(opencodeHookConfig(paths.opencode))} ${command.trim()}`;
+            return `GEMINI_CLI_SYSTEM_DEFAULTS_PATH=${shellQuote(mcp?.configFile ?? paths.gemini)} ${command.trim()}`;
+        case 'opencode': {
+            const standalone = opencodeStandalone && !/(^|\s)--(standalone|server)(\s|=|$)/.test(command) ? ' --standalone' : '';
+            return `OPENCODE_CONFIG_CONTENT=${shellQuote(opencodeHookConfig(paths.opencode, mcp?.url))} ${command.trim()}${standalone}`;
+        }
         default:
             return command;
     }

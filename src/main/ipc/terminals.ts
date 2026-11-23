@@ -1,5 +1,6 @@
 import { clipboard, ClipboardItem, ipcMain, nativeImage } from 'electron';
 import { CTRL_V } from '@shared/shortcuts';
+import { MCP_TOKEN_ENV } from '@shared/mcp';
 import { IpcChannels } from '@shared/api';
 import type { CreateTerminalOptions } from '@shared/terminal';
 import { shellIntegrationEnv } from '../agents/shell-integration';
@@ -24,6 +25,7 @@ type TerminalIpcDependencies = Pick<
     | 'shellIntegration'
     | 'transcriptIndex'
     | 'mcp'
+    | 'opencodeVersions'
 >;
 
 /** Registers the IPC handlers of the terminal sessions and the processes of the worktrees. */
@@ -32,15 +34,22 @@ export function registerTerminalIpc(deps: TerminalIpcDependencies): void {
     ipcMain.handle(IpcChannels.terminalsSettings, () => loadGhosttySettings());
     ipcMain.handle(IpcChannels.terminalsList, deps.terminalSessions);
     ipcMain.handle(IpcChannels.terminalsCreate, async (_event, options: CreateTerminalOptions) => {
-        // A Claude Code agent tab gets the MCP server, with a token for its worktree. A failure only leaves out the server.
+        // An agent tab gets the MCP server, with a token for its worktree. A failure only leaves out the server.
         const issued = options.isAgent
             ? await deps.mcp.issue(options.command, options.worktreePath).catch(error => {
                   console.warn(`[mcp] No MCP config for the new agent: ${error instanceof Error ? error.message : String(error)}`);
                   return undefined;
               })
             : undefined;
-        const { command, reportsAgentState } = terminalCommand(options, deps.hookPaths, issued?.configFile);
-        const env = { ...process.env, ...shellIntegrationEnv(process.env, deps.shellIntegration) };
+        const mcp = issued ? { url: issued.url, configFile: issued.configFile } : undefined;
+        const standalone = options.isAgent ? await deps.opencodeVersions.needsStandalone(options.command).catch(() => false) : false;
+        const { command, reportsAgentState } = terminalCommand(options, deps.hookPaths, mcp, standalone);
+        // Codex and opencode read the token from the environment, so the token is not in the command line.
+        const env = {
+            ...process.env,
+            ...shellIntegrationEnv(process.env, deps.shellIntegration),
+            ...(issued ? { [MCP_TOKEN_ENV]: issued.token } : {})
+        };
         const session = await terminals.create({ ...options, command, reportsAgentState }, env);
         if (issued) void deps.mcp.bindSession(issued.id, session.id).catch(() => undefined);
         void shellAgents.poll();

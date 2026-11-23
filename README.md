@@ -251,8 +251,8 @@ project. Bitbucket Cloud has no API for images in comments, so **Add to PR** doe
 ### ShipWarden MCP server
 
 Agents can ask ShipWarden and each other for help, without an automation in the middle. ShipWarden runs a local MCP
-server on 127.0.0.1. Each new Claude Code agent tab gets it with `--mcp-config`. Your own MCP servers stay. The tools
-act on the worktree of the agent:
+server on 127.0.0.1. Each new agent tab of Claude Code, Codex, Gemini CLI, or opencode gets it at start. ShipWarden does
+not change your config files, and your own MCP servers stay. The tools act on the worktree of the agent:
 
 | Tool | What it does | Approval |
 | --- | --- | --- |
@@ -265,7 +265,7 @@ act on the worktree of the agent:
 The first call of a write tool in a worktree shows a dialog. **Allow** applies to that tool in that worktree until you
 revoke it in Settings › Agents › MCP server. Without an answer in 2 minutes, the tool call fails with a clear error.
 Each agent session has its own token. A request without the token gets 401. Turn the server off in Settings › Agents.
-Codex, Gemini CLI, and opencode do not get the server yet. See [docs/mcp-server.md](docs/mcp-server.md).
+See [docs/mcp-server.md](docs/mcp-server.md) for the options that each agent gets.
 
 The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
 send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label,

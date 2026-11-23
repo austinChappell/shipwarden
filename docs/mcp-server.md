@@ -5,12 +5,25 @@ for help, without an automation in the middle.
 
 ## How agents get it
 
-- Each new Claude Code agent tab gets the server at start. ShipWarden adds `--mcp-config <file>` to the command. The
-  file is private (mode 0600) and holds the URL and the token of the session.
-- Your own MCP servers stay. ShipWarden does not add `--strict-mcp-config`.
-- In Claude Code, the tools show as `mcp__shipwarden__<tool>`. Run `/mcp` in the agent to see the server.
+Each new agent tab of Claude Code, Codex, Gemini CLI, or opencode gets the server at start. ShipWarden does not change
+your config files, and your own MCP servers stay.
+
+| Agent | How the agent gets the server | Where the token is |
+| --- | --- | --- |
+| Claude Code | `--mcp-config <file>`. ShipWarden does not add `--strict-mcp-config`. | In the file |
+| Codex | `-c mcp_servers.shipwarden.url=…` and `-c mcp_servers.shipwarden.bearer_token_env_var=SHIPWARDEN_MCP_TOKEN`. Each option sets one key, so the servers of your `config.toml` stay. | In the environment of the tab |
+| Gemini CLI | A copy of ShipWarden's hook settings file with `mcpServers.shipwarden`, in `GEMINI_CLI_SYSTEM_DEFAULTS_PATH`. Gemini CLI merges the servers of all settings files by name. | In the file |
+| opencode | `mcp.shipwarden` in the inline config (`OPENCODE_CONFIG_CONTENT`) that also loads the state plugin. The header is `Bearer {env:SHIPWARDEN_MCP_TOKEN}`. | In the environment of the tab |
+
+- Each file is private (mode 0600) and holds the URL and the token of the session. ShipWarden removes the file when the
+  token ends.
+- The token is never in the command line. Codex and opencode read it from the `SHIPWARDEN_MCP_TOKEN` variable of the tab.
+- opencode 2 connects to a shared background service by default. That service does not read the config of the tab, so
+  ShipWarden adds `--standalone` for opencode 2 and later. ShipWarden runs `opencode --version` to find the version. A
+  command with `--standalone` or `--server` keeps its options.
+- A server of your own with the name `shipwarden` has priority in Gemini CLI and opencode.
+- In Claude Code, the tools show as `mcp__shipwarden__<tool>`. Run `/mcp` in Claude Code or Codex to see the server.
 - An agent that you type in a shell tab (`claude`) does not get the server. Start it from the Agent button.
-- Codex, Gemini CLI, and opencode do not get the server yet.
 
 ## Tools
 
@@ -58,5 +71,6 @@ reach it again after an app restart.
 
 ## Future work
 
-- Codex, Gemini CLI, and opencode: add the server when their per-session MCP configuration is simple and stable.
 - Agents in shell tabs: give them a token through the shell integration.
+- opencode in a shell tab: the `opencode` function of the shell integration does not add `--standalone`, so opencode 2
+  does not load the state plugin there.

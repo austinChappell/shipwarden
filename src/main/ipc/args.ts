@@ -1,5 +1,4 @@
-import { withMcpConfig } from '@shared/agent-programs';
-import { hookAgentOf, withAgentHooks, type HookSettingsPaths } from '@shared/agents';
+import { hookAgentOf, withAgentHooks, type AgentMcpServer, type HookSettingsPaths } from '@shared/agents';
 import type { BrowserBounds } from '@shared/browser';
 import type { PipelineApprovalTarget } from '@shared/dashboard';
 import { sameRepoRef, type NewPullRequest, type RepoRef } from '@shared/github';
@@ -82,17 +81,18 @@ export function fetchMaxAge(force: unknown): number {
  * An agent command gets the hook settings. Only an agent that got the hooks reports its state.
  * Codex runs ShipWarden's hooks only after the user trusts them in Codex (/hooks). Until its first hook event, a Codex
  * agent has no state, so the Agents view shows "working" from its terminal output, as for an agent without hooks.
- * With `mcpConfigPath`, an agent command also gets the ShipWarden MCP server, when the agent supports it.
+ * With `mcp`, an agent command also gets the ShipWarden MCP server. With `opencodeStandalone`, an opencode agent gets
+ * --standalone (opencode 2).
  */
 export function terminalCommand(
     options: Pick<CreateTerminalOptions, 'command' | 'isAgent'>,
     paths: HookSettingsPaths,
-    mcpConfigPath?: string
+    mcp?: AgentMcpServer,
+    opencodeStandalone = false
 ): { command?: string; reportsAgentState: boolean } {
-    const hooked = options.isAgent && options.command ? withAgentHooks(options.command, paths) : options.command;
-    const command = hooked && options.isAgent && mcpConfigPath ? withMcpConfig(hooked, mcpConfigPath) : hooked;
+    const command = options.isAgent && options.command ? withAgentHooks(options.command, paths, mcp, opencodeStandalone) : options.command;
     const trusted = !options.command || hookAgentOf(options.command) !== 'codex';
-    return { command, reportsAgentState: !!options.isAgent && hooked !== options.command && trusted };
+    return { command, reportsAgentState: !!options.isAgent && command !== options.command && trusted };
 }
 
 /** Returns true when the JSON text of two values is different. */

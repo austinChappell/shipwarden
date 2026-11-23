@@ -153,14 +153,22 @@ describe('terminalCommand', () => {
     it('gives no agent state to an agent without hooks', () => {
         expect(terminalCommand({ command: 'aider', isAgent: true }, paths)).toEqual({ command: 'aider', reportsAgentState: false });
     });
+    const mcp = { url: 'http://127.0.0.1:4000/mcp', configFile: '/data/mcp/a.json' };
     it('adds the MCP config to a Claude Code agent after the hook settings', () => {
-        const result = terminalCommand({ command: 'claude', isAgent: true }, paths, '/data/mcp/a.json');
+        const result = terminalCommand({ command: 'claude', isAgent: true }, paths, mcp);
         expect(result.command).toBe(`claude --settings '/data/claude-hooks.json' --mcp-config '/data/mcp/a.json'`);
         expect(result.reportsAgentState).toBe(true);
     });
-    it('does not add the MCP config to a shell or to an agent without MCP support', () => {
-        expect(terminalCommand({ command: 'claude', isAgent: false }, paths, '/data/mcp/a.json').command).toBe('claude');
-        expect(terminalCommand({ command: 'codex', isAgent: true }, paths, '/data/mcp/a.json').command).not.toContain('--mcp-config');
+    it('adds the MCP server to Codex, Gemini CLI, and opencode agents', () => {
+        expect(terminalCommand({ command: 'codex', isAgent: true }, paths, { url: mcp.url }).command).toContain(
+            `-c 'mcp_servers.shipwarden.url="http://127.0.0.1:4000/mcp"'`
+        );
+        expect(terminalCommand({ command: 'gemini', isAgent: true }, paths, mcp).command).toBe(`GEMINI_CLI_SYSTEM_DEFAULTS_PATH='/data/mcp/a.json' gemini`);
+        expect(terminalCommand({ command: 'opencode', isAgent: true }, paths, { url: mcp.url }).command).toContain('"mcp":{"shipwarden"');
+    });
+    it('does not add the MCP server to a shell or to an agent without hooks', () => {
+        expect(terminalCommand({ command: 'claude', isAgent: false }, paths, mcp).command).toBe('claude');
+        expect(terminalCommand({ command: 'aider', isAgent: true }, paths, mcp).command).toBe('aider');
     });
     it('gives Codex the hooks, but no "starting" state, because Codex runs the hooks only after a trust', () => {
         const result = terminalCommand({ command: 'codex', isAgent: true }, paths);
