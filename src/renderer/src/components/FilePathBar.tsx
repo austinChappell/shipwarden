@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState, type MouseEvent } from 'react';
-import { Check, ChevronRight, Copy, FolderOpen, GitCommitHorizontal, History, ListTree } from 'lucide-react';
+import { Check, ChevronRight, Copy, FolderOpen, GitCommitHorizontal, History, ListTree, SquareArrowOutUpRight } from 'lucide-react';
 import { toggleBlame, useBlameVisible } from '../editor/blame-visible';
+import { openInEditorLabel, openInExternalEditor, useExternalEditor } from '../files/external-editor';
 import { copyFilePath, onFilePathCopied } from '../files/file-path-copy';
 import { errorText } from '../util';
 import { showContextMenu, type ContextMenuItem } from './ContextMenu';
@@ -26,12 +27,14 @@ const COPIED_MS = 1500;
 
 /**
  * The bar at the top of a file tab. It shows the relative path of the file, with the folders in a muted color.
- * The buttons show the git blame (⌥⌘B) and the git history of the file, copy the relative path (⇧⌘C), show the file in the file explorer (⇧⌘E) and show the file in Finder (⌥⌘R).
+ * The buttons show the git blame (⌥⌘B) and the git history of the file, copy the relative path (⇧⌘C), show the file in the file explorer (⇧⌘E), show the file in Finder (⌥⌘R)
+ * and open the file in the external editor at the cursor line (⌥⌘O).
  * A right click on the bar opens a menu with the same actions and "Copy path".
  */
 export function FilePathBar({ root, path, onError, onRevealInExplorer, canBlame, historyShown, onToggleHistory }: Props) {
     const [copied, setCopied] = useState(false);
     const blameVisible = useBlameVisible();
+    const editorLabel = openInEditorLabel(useExternalEditor());
     const parts = path.split('/');
     const name = parts.pop() ?? path;
     const absolute = `${root}/${path}`;
@@ -52,6 +55,7 @@ export function FilePathBar({ root, path, onError, onRevealInExplorer, canBlame,
 
     const copy = (text: string) => void copyFilePath(root, path, text).catch(error => onError(errorText(error)));
     const revealInFinder = () => void window.shipwarden.files.reveal(root, path).catch(error => onError(errorText(error)));
+    const openInEditor = () => void openInExternalEditor(root, path).catch(error => onError(errorText(error)));
 
     const openMenu = async (event: MouseEvent) => {
         event.preventDefault();
@@ -60,7 +64,8 @@ export function FilePathBar({ root, path, onError, onRevealInExplorer, canBlame,
             { id: 'copy-path', label: 'Copy path' },
             { type: 'separator' },
             ...(onRevealInExplorer ? [{ id: 'reveal-explorer', label: 'Reveal in file explorer' }] : []),
-            { id: 'reveal-finder', label: 'Reveal in Finder' }
+            { id: 'reveal-finder', label: 'Reveal in Finder' },
+            { id: 'open-editor', label: editorLabel }
         ];
         switch (await showContextMenu(items)) {
             case 'copy-relative-path':
@@ -74,6 +79,9 @@ export function FilePathBar({ root, path, onError, onRevealInExplorer, canBlame,
                 break;
             case 'reveal-finder':
                 revealInFinder();
+                break;
+            case 'open-editor':
+                openInEditor();
                 break;
         }
     };
@@ -124,6 +132,7 @@ export function FilePathBar({ root, path, onError, onRevealInExplorer, canBlame,
                     <IconButton size="sm" label="Reveal in file explorer (⇧⌘E)" icon={<ListTree size={14} strokeWidth={1.6} />} onClick={onRevealInExplorer} />
                 )}
                 <IconButton size="sm" label="Reveal in Finder (⌥⌘R)" icon={<FolderOpen size={14} strokeWidth={1.6} />} onClick={revealInFinder} />
+                <IconButton size="sm" label={`${editorLabel} (⌥⌘O)`} icon={<SquareArrowOutUpRight size={14} strokeWidth={1.6} />} onClick={openInEditor} />
             </span>
         </div>
     );

@@ -120,6 +120,10 @@ const api: ShipWardenApi = {
         deleteRemoteBranch: (repoPath, name) => ipcRenderer.invoke(IpcChannels.worktreesDeleteRemoteBranch, repoPath, name),
         pullBranch: (repoPath, branch) => ipcRenderer.invoke(IpcChannels.worktreesPullBranch, repoPath, branch)
     },
+    editors: {
+        list: () => ipcRenderer.invoke(IpcChannels.editorsList),
+        open: (root, file, line) => ipcRenderer.invoke(IpcChannels.editorsOpen, root, file, line)
+    },
     files: {
         listDirectory: (root, directory) => ipcRenderer.invoke(IpcChannels.filesListDirectory, root, directory),
         listFiles: root => ipcRenderer.invoke(IpcChannels.filesListFiles, root),

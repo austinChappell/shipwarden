@@ -14,6 +14,7 @@ import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } fr
 import { requestExplorerFocus } from './files/explorer-focus';
 import { focusedSelection } from './files/focused-selection';
 import { copyFilePath } from './files/file-path-copy';
+import { openInExternalEditor } from './files/external-editor';
 import { copyPageLink, currentPageLink } from './app/page-link';
 import { setPullRequestOpener } from './pull-request-links';
 import { dialogOpen, promptDialog } from './components/ConfirmDialog';
@@ -889,6 +890,14 @@ export function App() {
             if (!workspacePath || !file) return;
             const done = action === 'copyFilePath' ? copyFilePath(workspacePath, file, file) : api.files.reveal(workspacePath, file);
             await done.catch(err => setError(errorText(err)));
+            return;
+        }
+        if (action === 'openInEditor') {
+            // The file of the active tab at its cursor line. Without a file, the selected worktree.
+            const file = mainView === 'worktree' || terminalView ? tabs.activeFile : undefined;
+            const root = file ? workspacePath : mainView === 'worktree' ? selectedPath : undefined;
+            if (!root) return;
+            await openInExternalEditor(root, file).catch(err => setError(errorText(err)));
             return;
         }
         if (action === 'newWorktree') {

@@ -8,6 +8,7 @@ import { treeKeyAction, type TreeRow } from '../files/tree-nav';
 import { ErrorBanner } from './ErrorBanner';
 import { confirmDialog } from './ConfirmDialog';
 import { showContextMenu, type ContextMenuItem } from './ContextMenu';
+import { fetchExternalEditor, openInEditorLabel, openInExternalEditor } from '../files/external-editor';
 import { pluralize } from '@shared/format';
 import { Count, IconButton, Input, inputClass, RefreshButton, SkeletonRows } from './ui';
 
@@ -558,7 +559,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title, onMoved, onD
                 { id: 'copy-relative-path', label: 'Copy relative path' }
             );
         }
-        items.push({ id: 'reveal', label: 'Reveal in Finder' });
+        items.push({ id: 'reveal', label: 'Reveal in Finder' }, { id: 'open-editor', label: openInEditorLabel(await fetchExternalEditor()) });
         const choice = await showContextMenu(items, anchor);
         switch (choice) {
             case 'new-file':
@@ -579,6 +580,10 @@ export function FileExplorer({ root, activePath, onOpenFile, title, onMoved, onD
                 break;
             case 'reveal':
                 api.reveal(root, path ?? '').catch(err => setError(errorText(err)));
+                break;
+            case 'open-editor':
+                // A folder row opens the worktree only. The editors take one folder for each window.
+                openInExternalEditor(root, path && !rowByPath(path)?.isDirectory ? path : undefined).catch(err => setError(errorText(err)));
                 break;
         }
     };

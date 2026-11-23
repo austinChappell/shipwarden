@@ -30,6 +30,7 @@ import { MobileSettings } from './MobileSettings';
 import { NotificationSettings } from './NotificationSettings';
 import { WorktreeSettings } from './WorktreeSettings';
 import { AppearanceSettings } from './AppearanceSettings';
+import { EditorSettings } from './EditorSettings';
 import { RepoSettingsPage } from './RepoSettingsPage';
 import { TaskManagersSettings } from './TaskManagersSettings';
 import { SettingsGroup, SettingsRow } from './settings-ui';
@@ -256,6 +257,7 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
                                 onChange={appearance => onSave({ appearance }).catch(err => setStatus(errorText(err)))}
                             />
                         )}
+                        {current.id === 'appearance' && <EditorSettings onChange={externalEditor => onSave({ externalEditor })} onError={setStatus} />}
                         {current.id === 'appearance' && (
                             <SettingsGroup title="Tips" description="Tips show the features of ShipWarden that are easy to miss." card>
                                 <SettingsRow

@@ -64,6 +64,7 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
                 { type: 'separator' },
                 { label: 'Copy File Path or Link', accelerator: 'Shift+Command+C', click: sendShortcut('copyFilePath') },
                 { label: 'Reveal File in Finder', accelerator: 'Alt+Command+R', click: sendShortcut('revealFileInFinder') },
+                { label: 'Open in Editor', accelerator: 'Alt+Command+O', click: sendShortcut('openInEditor') },
                 { type: 'separator' },
                 { label: 'Close Pane', accelerator: 'Command+W', click: sendShortcut('close') },
                 { role: 'close', label: 'Close Window', accelerator: 'Shift+Command+W' }

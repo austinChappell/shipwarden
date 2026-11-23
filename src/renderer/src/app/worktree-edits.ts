@@ -88,14 +88,18 @@ export function teardownFailure(failure: NonNullable<RemoveWorktreeResult['teard
     return { title: `The teardown script ${reason}.`, tail: failure.output.split('\n').slice(-15).join('\n') };
 }
 
-/** Returns the items of the context menu of a worktree in the sidebar. `shells` is the number of open shell tabs of the worktree. */
+/**
+ * Returns the items of the context menu of a worktree in the sidebar. `shells` is the number of open shell tabs of the
+ * worktree. `editorLabel` is the label of the item that opens the worktree in the external editor.
+ */
 export function worktreeMenuItems(
     worktree: Worktree,
     taskKey: string | undefined,
     hasTask: boolean,
     hidden: HiddenWorktree | undefined,
     now: number,
-    shells = 0
+    shells = 0,
+    editorLabel = 'Open in Editor'
 ): ContextMenuItem[] {
     const snoozeOptions = Object.keys(SNOOZE_LABELS) as SnoozeOption[];
     return [
@@ -107,6 +111,7 @@ export function worktreeMenuItems(
               ]
             : [{ id: 'linkTask', label: 'Link to Task…' }]),
         { type: 'separator' as const },
+        { id: 'openInEditor', label: editorLabel },
         { id: 'rename', label: 'Rename…' },
         { id: 'rebase', label: 'Rebase onto Default Branch…', enabled: !!worktree.branch },
         { id: 'closeShells', label: shells > 0 ? `Close ${shells} ${shells === 1 ? 'Shell' : 'Shells'}…` : 'Close Shells', enabled: shells > 0 },

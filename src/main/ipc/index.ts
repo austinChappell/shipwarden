@@ -5,6 +5,7 @@ import { registerAskIpc } from './ask';
 import { registerAutomationIpc } from './automations';
 import { registerBrowserIpc } from './browser';
 import { registerCodeIpc } from './code';
+import { registerEditorIpc } from './editors';
 import { registerFileIpc } from './files';
 import { registerGitIpc } from './git';
 import { registerGitHubIpc } from './github';
@@ -31,6 +32,7 @@ export function registerIpc(services: Services, runAppKey: (action: AppKeyAction
     registerProjectIpc(services);
     registerWorktreeIpc(services);
     registerFileIpc(services);
+    registerEditorIpc(services);
     registerGitHubIpc(services);
     registerBrowserIpc(services);
     registerTaskIpc(services);

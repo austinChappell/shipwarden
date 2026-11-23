@@ -30,6 +30,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'view', view: 'agents', label: 'Open Agents' }
     },
     {
+        id: 'openInEditor',
+        title: 'Open a worktree in your editor',
+        body: 'Right-click a worktree and click "Open in" with the name of your editor, or press ⌥⌘O. A file tab opens the file at its cursor line. ShipWarden finds VS Code, Cursor, Windsurf, Zed, and the JetBrains IDEs.',
+        action: { kind: 'settings', section: 'appearance', label: 'Select the editor' }
+    },
+    {
         id: 'branchesPage',
         title: 'Clean up old branches',
         body: 'Click the branch icon of a repository in the sidebar. The Branches page checks out, deletes, and fetches local and remote branches. It also deletes all merged local branches in one step.'
