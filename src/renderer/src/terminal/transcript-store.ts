@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { addTranscriptLines, type ChatItem } from '@shared/agent-chat';
+import { addTranscriptLines, type ChatItem, chatFormatOf } from '@shared/agent-chat';
 
 /** The chat of one transcript file. */
 export interface TranscriptState {
@@ -25,7 +25,7 @@ const EMPTY: TranscriptState = { items: [], truncated: false, loading: true };
 const NO_FILE: TranscriptState = { items: [], truncated: false, loading: false };
 
 /**
- * The chat items of the Claude Code transcripts. The store keeps the items of each file and reads only the new end
+ * The chat items of the agent transcripts (Claude Code transcripts and Codex session files). The store keeps the items of each file and reads only the new end
  * of a file at the next refresh. A tab that opens again thus shows its chat at once.
  */
 class TranscriptStore {
@@ -57,7 +57,7 @@ class TranscriptStore {
                     current.offset = chunk.offset;
                     if (chunk.lines.length > 0 || current.state.loading || current.state.error) {
                         current.state = {
-                            items: chunk.lines.length > 0 ? addTranscriptLines(current.state.items, chunk.lines) : current.state.items,
+                            items: chunk.lines.length > 0 ? addTranscriptLines(current.state.items, chunk.lines, chatFormatOf(file)) : current.state.items,
                             truncated: first ? chunk.truncated : current.state.truncated,
                             loading: false
                         };
@@ -138,7 +138,7 @@ export function useTranscript(file: string, live: boolean, version: unknown): Tr
         if (!file || !watchFailed) return;
         const refresh = () => void transcriptStore.refresh(file);
         if (!live) {
-            // Claude Code can write the last answer after the turn ends. One more read gets it.
+            // The agent can write the last answer after the turn ends. One more read gets it.
             const timer = setTimeout(refresh, FALLBACK_POLL_MS);
             return () => clearTimeout(timer);
         }

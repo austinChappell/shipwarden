@@ -8,7 +8,7 @@ import { loadGhosttySettings } from '../terminal/ghostty-loader';
 import type { Services } from '../services';
 import { onlyStrings, terminalCommand } from './args';
 import { ScreenMirror } from '../remote/screen-mirror';
-import { readTranscript } from '../agents/transcript-reader';
+import { chatTranscriptRoots, readTranscript } from '../agents/transcript-reader';
 import { TranscriptWatcher } from '../agents/transcript-watcher';
 
 type TerminalIpcDependencies = Pick<
@@ -73,7 +73,7 @@ export function registerTerminalIpc(deps: TerminalIpcDependencies): void {
         }
     });
     ipcMain.handle(IpcChannels.terminalsReadTranscript, (_event, file: unknown, offset: unknown) =>
-        readTranscript(String(file), typeof offset === 'number' && Number.isFinite(offset) ? offset : -1)
+        readTranscript(String(file), typeof offset === 'number' && Number.isFinite(offset) ? offset : -1, chatTranscriptRoots())
     );
     // The watches of the chats. Each window has its own page, so each page has its own list of watches. A reload or a
     // close of a page ends its chats without a stop, so these events stop the watches of that page only.
@@ -81,7 +81,7 @@ export function registerTerminalIpc(deps: TerminalIpcDependencies): void {
     const transcripts = new TranscriptWatcher(file => {
         deps.window.send(IpcChannels.terminalsTranscriptChanged, file);
         deps.transcriptIndex.update(file);
-    });
+    }, chatTranscriptRoots());
     const pageWatches = new Map<Electron.WebContents, string[]>();
     const stopPageWatches = (page: Electron.WebContents) => {
         pageWatches.get(page)?.forEach(file => transcripts.stop(file));

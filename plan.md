@@ -102,6 +102,9 @@ shell, and `terminalCommand`.
 
 **Goal:** Give Codex agents the same chat view as Claude Code.
 
+**Status:** Done in branch `1.2-codex-chat`. The chat is still behind `AGENT_CHAT_ENABLED`. A Codex prompt keeps its
+image marks, because the images are temporary files that the page cannot show.
+
 **Design:**
 
 - Make the chat model in `src/shared/agent-chat.ts` independent of the agent. Add one adapter for each transcript

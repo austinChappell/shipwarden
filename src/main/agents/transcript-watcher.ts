@@ -3,7 +3,7 @@ import * as path from 'path';
 import { claudeDataRoots } from '../automations/token-counter';
 import { transcriptPath } from './transcript-reader';
 
-/** The time to collect the change events of one write. Claude Code writes several lines at a time. */
+/** The time to collect the change events of one write. An agent writes several lines at a time. */
 const DEBOUNCE_MS = 50;
 
 interface Watch {
@@ -19,9 +19,9 @@ function isMissing(err: unknown): boolean {
 }
 
 /**
- * Watches Claude Code transcripts, so that the chat of an agent tab shows a new message at once.
+ * Watches agent transcripts, so that the chat of an agent tab shows a new message at once.
  * The watch is on the folder of the file, because Claude Code makes the file only at the first prompt.
- * Claude Code also makes the folder of a new project only at the first prompt. Until then, the watch is on the parent
+ * Claude Code also makes the folder of a new project only at the first prompt. Codex makes a new day folder too. Until then, the watch is on the parent
  * folder. When the folder of the file comes, the watch moves to it.
  */
 export class TranscriptWatcher {

@@ -18,8 +18,8 @@ describe('readTranscript', () => {
     });
 
     it('refuses a file outside the Claude Code data folders', async () => {
-        await expect(readTranscript(path.join(os.tmpdir(), 'x.jsonl'), -1, [root])).rejects.toThrow('Claude Code data folder');
-        await expect(readTranscript(path.join(root, 'x.json'), -1, [root])).rejects.toThrow('Claude Code data folder');
+        await expect(readTranscript(path.join(os.tmpdir(), 'x.jsonl'), -1, [root])).rejects.toThrow('agent data folder');
+        await expect(readTranscript(path.join(root, 'x.json'), -1, [root])).rejects.toThrow('agent data folder');
     });
 
     it('gives no lines for a missing file', async () => {

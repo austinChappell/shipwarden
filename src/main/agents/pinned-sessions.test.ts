@@ -74,7 +74,7 @@ describe('PinnedSessions', () => {
 
     it('refuses a transcript outside the Claude Code folder', async () => {
         const { pins } = create(async () => 'Name');
-        await expect(pins.pin({ transcript: path.join(dir, `${ID}.jsonl`), cwd: '/w/app' })).rejects.toThrow(/Claude Code data folder/);
+        await expect(pins.pin({ transcript: path.join(dir, `${ID}.jsonl`), cwd: '/w/app' })).rejects.toThrow(/agent data folder/);
     });
 
     it('copies the transcript into the folder of another worktree for a resume', async () => {

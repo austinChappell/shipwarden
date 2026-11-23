@@ -12,6 +12,12 @@ describe('agent tab view', () => {
         expect(canShowChat({ ...agent, agentState: 'exited' }, true)).toBe(false);
     });
 
+    it('shows the chat of a Codex tab when it has its session file', () => {
+        const codex = { ...agent, agentTranscript: '/home/.codex/sessions/2026/11/23/rollout-2026-11-23T10-00-00-abc.jsonl' };
+        expect(canShowChat(codex, false)).toBe(true);
+        expect(canShowChat({ ...codex, agentTranscript: '/home/.gemini/tmp/chat.json' }, false)).toBe(false);
+    });
+
     it('shows the chat of a Claude Code tab from its start, before the transcript', () => {
         const starting = { ...agent, agentState: 'starting' as const, agentTranscript: undefined };
         expect(canShowChat(starting, true)).toBe(true);

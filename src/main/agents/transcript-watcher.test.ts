@@ -43,7 +43,7 @@ describe('TranscriptWatcher', () => {
     });
 
     it('refuses a file outside the Claude Code data folders', () => {
-        expect(() => watcher.start(path.join(os.tmpdir(), 'x.jsonl'))).toThrow('Claude Code data folder');
+        expect(() => watcher.start(path.join(os.tmpdir(), 'x.jsonl'))).toThrow('agent data folder');
     });
 
     it('reports a change of the file, also when the file is made after the start', async () => {
