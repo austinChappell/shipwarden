@@ -8,6 +8,7 @@ import { keyRoots, queryClient } from '../query-client';
 import { changedPullRequest } from './pull-request-cache';
 import { optionalErrorText } from '../util';
 import { useIsSeen } from '../seen-store';
+import { useIsSnoozed } from '../snooze-store';
 import { reviewKeys } from './review-store';
 
 /** The number of repository requests at the same time. More can trigger the secondary rate limit of GitHub. */
@@ -264,13 +265,14 @@ export function refreshReviewOverview(): Promise<void> {
 export function useReviewQueue(): QueueItem[] {
     const repos = useRepoEntries(useScope()?.reviewKey);
     const isSeen = useIsSeen();
+    const isSnoozed = useIsSnoozed();
     return useMemo(() => {
         const loaded = new Map<string, RepoPullRequests>();
         for (const entry of Object.values(repos)) {
             if (entry.data) loaded.set(entry.id, entry.data);
         }
-        return reviewQueue(loaded, isSeen);
-    }, [repos, isSeen]);
+        return reviewQueue(loaded, isSeen, isSnoozed);
+    }, [repos, isSeen, isSnoozed]);
 }
 
 /** A pull request of the review queue, with its data. */

@@ -182,6 +182,18 @@ describe('summarizeRepo', () => {
         expect(summary).toMatchObject({ toReview: 1, reReview: 1, yourPrs: 1, oldest: '2026-10-30T00:00:00Z', failing: 1, openCount: 5 });
         expect(summary.lastActivity).toBe('2026-11-08T00:00:00Z');
     });
+
+    it('does not count the snoozed pull requests', () => {
+        const data: RepoPullRequests = {
+            viewer: 'me',
+            openCount: 2,
+            pullRequests: [pr({ number: 1, reviewRequested: true }), pr({ number: 3, viewerDidAuthor: true, actions: ['conflicts'] })]
+        };
+        const none = summarizeRepo(data, undefined, () => true);
+        expect(none).toMatchObject({ toReview: 0, yourPrs: 0 });
+        expect(none.oldest).toBeUndefined();
+        expect(summarizeRepo(data, undefined, item => item.number === 3)).toMatchObject({ toReview: 1, yourPrs: 0 });
+    });
 });
 
 describe('sortPullRequests', () => {
@@ -228,6 +240,13 @@ describe('reviewQueue', () => {
             ['o/b', { viewer: 'me', openCount: 1, pullRequests: [pr({ number: 7, reviewRequested: true, createdAt: '2026-11-01T00:00:00Z' })] }]
         ]);
         expect(reviewQueue(repos).map(item => `${item.repo}#${item.number}`)).toEqual(['o/b#7', 'o/a#1']);
+    });
+
+    it('leaves out the snoozed pull requests', () => {
+        const repos = new Map<string, RepoPullRequests>([
+            ['o/a', { viewer: 'me', openCount: 2, pullRequests: [pr({ number: 1, reviewRequested: true }), pr({ number: 2, reviewRequested: true })] }]
+        ]);
+        expect(reviewQueue(repos, undefined, item => item.number === 1).map(item => item.number)).toEqual([2]);
     });
 });
 

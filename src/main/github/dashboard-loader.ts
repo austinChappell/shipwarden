@@ -47,14 +47,17 @@ function dashboardRepo(pr: Pick<DashboardPr, 'repository'>): RepoRef {
     return { owner: pr.repository.owner.login, name: pr.repository.name };
 }
 
-/** The last review of the user and the newest comments and reviews. Only the search for the reviewed pull requests asks for them. */
-const DASHBOARD_ACTIVITY_FIELDS = `
-  viewerLatestReview { state submittedAt commit { oid } }
+/** The newest comments and reviews. A snooze "until new activity" compares the time of the newest one. */
+const DASHBOARD_COMMENT_TIME_FIELDS = `
   comments(last: 10) { nodes { createdAt author { __typename login } } }
   reviews(last: 10) { nodes { submittedAt author { __typename login } } }`;
 
+/** The last review of the user and the newest comments and reviews. Only the search for the reviewed pull requests asks for them. */
+const DASHBOARD_ACTIVITY_FIELDS = `
+  viewerLatestReview { state submittedAt commit { oid } }${DASHBOARD_COMMENT_TIME_FIELDS}`;
+
 /** The unresolved review threads of the user's pull requests. Only the search for the user's pull requests asks for them. */
-const DASHBOARD_THREAD_FIELDS = 'reviewThreads(first: 100) { nodes { isResolved } }';
+const DASHBOARD_THREAD_FIELDS = `reviewThreads(first: 100) { nodes { isResolved } } ${DASHBOARD_COMMENT_TIME_FIELDS}`;
 
 function dashboardSearch(first: number, fields: string): string {
     return `query($q: String!) { viewer { login } search(query: $q, type: ISSUE, first: ${first}) { nodes { ... on PullRequest { ${fields} } } } }`;
@@ -96,6 +99,14 @@ interface DashboardPr {
 /** A pull request of a comment search. It has only the fields of `DASHBOARD_COMMENT_SEARCH_FIELDS`. */
 type DashboardCommentPr = Pick<DashboardPr, 'id' | 'number' | 'title' | 'url' | 'state' | 'updatedAt' | 'repository'>;
 
+/** The time of the newest comment or review from another person. Undefined when the search did not ask for the comments. */
+function lastActivityOfPr(pr: DashboardPr, viewer: string): string | undefined {
+    return lastActivityOf(viewer, [
+        ...(pr.comments?.nodes ?? []).map(item => ({ at: item.createdAt, author: item.author })),
+        ...(pr.reviews?.nodes ?? []).map(item => ({ at: item.submittedAt, author: item.author }))
+    ]);
+}
+
 /** Returns the new activity after the last review of the viewer, or undefined when the pull request has none. */
 function reviewActivity(pr: DashboardPr, viewer: string): ReviewActivity | undefined {
     const review = pr.viewerLatestReview;
@@ -104,10 +115,7 @@ function reviewActivity(pr: DashboardPr, viewer: string): ReviewActivity | undef
         url: pr.url,
         headRefOid: pr.headRefOid,
         viewerReview: { state: review.state, submittedAt: review.submittedAt, commitOid: review.commit?.oid ?? null },
-        lastActivityAt: lastActivityOf(viewer, [
-            ...(pr.comments?.nodes ?? []).map(item => ({ at: item.createdAt, author: item.author })),
-            ...(pr.reviews?.nodes ?? []).map(item => ({ at: item.submittedAt, author: item.author }))
-        ])
+        lastActivityAt: lastActivityOfPr(pr, viewer)
     };
     if (!hasActivityAfterReview(fields)) return undefined;
     const reviewedAt = Date.parse(review.submittedAt);
@@ -139,28 +147,30 @@ export class DashboardLoader {
     async dashboardPullRequests(owners: string[] | 'all' | undefined): Promise<DashboardPullRequests> {
         const scope = `${ownerQualifiers(owners)} archived:false is:pr`.trim();
         const [review, mine, reviewed] = await Promise.all([
-            this.dashboardSearch(`${scope} is:open draft:false review-requested:@me sort:updated-desc`, 100),
+            this.dashboardSearch(`${scope} is:open draft:false review-requested:@me sort:updated-desc`, 100, DASHBOARD_COMMENT_TIME_FIELDS),
             this.dashboardSearch(`${scope} is:open author:@me sort:updated-desc`, MY_PULL_REQUESTS_LIMIT, DASHBOARD_THREAD_FIELDS),
             this.dashboardSearch(`${scope} is:open draft:false reviewed-by:@me -author:@me sort:updated-desc`, 50, DASHBOARD_ACTIVITY_FIELDS)
         ]);
-        const item = (pr: DashboardPr): ReviewRequestItem => ({
+        const item = (pr: DashboardPr, viewer: string): ReviewRequestItem => ({
             repo: dashboardRepo(pr),
             number: pr.number,
             title: pr.title,
             url: pr.url,
             author: pr.author?.login ?? null,
             updatedAt: pr.updatedAt,
-            createdAt: pr.createdAt
+            createdAt: pr.createdAt,
+            headSha: pr.headRefOid,
+            lastActivityAt: lastActivityOfPr(pr, viewer)
         });
         // A request from GitHub comes first. A reviewed pull request shows only when it has new activity after the review.
         const requested = new Set(review.prs.map(pr => pr.id));
         const active = reviewed.prs.flatMap(pr => {
             if (requested.has(pr.id)) return [];
             const activity = reviewActivity(pr, reviewed.viewer);
-            return activity ? [{ ...item(pr), activity }] : [];
+            return activity ? [{ ...item(pr, reviewed.viewer), activity }] : [];
         });
         return {
-            reviewRequests: [...review.prs.map(item), ...active],
+            reviewRequests: [...review.prs.map(pr => item(pr, review.viewer)), ...active],
             myPullRequests: mine.prs
                 .map(pr => ({
                     id: pr.id,
@@ -174,7 +184,8 @@ export class DashboardLoader {
                     headSha: pr.headRefOid,
                     mergeMethod: pr.repository.viewerDefaultMergeMethod?.toLowerCase() as MergeMethod | undefined,
                     mergeQueueRequired: pr.isMergeQueueEnabled,
-                    unresolvedThreads: pr.reviewThreads?.nodes.filter(thread => !thread.isResolved).length
+                    unresolvedThreads: pr.reviewThreads?.nodes.filter(thread => !thread.isResolved).length,
+                    lastActivityAt: lastActivityOfPr(pr, mine.viewer)
                 }))
                 .filter(pr => pr.reasons.length > 0)
         };

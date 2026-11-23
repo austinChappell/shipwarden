@@ -645,7 +645,8 @@ export function reviewRequestItemOf(repo: GitLabRepoRef, mr: GlMergeRequest): Re
         url: mr.web_url,
         author: mr.author.username,
         updatedAt: mr.updated_at,
-        createdAt: mr.created_at
+        createdAt: mr.created_at,
+        headSha: mr.sha ?? undefined
     };
 }
 

@@ -25,6 +25,9 @@ import type { RepoRef } from '@shared/github';
 import { refreshDashboard, unseenReviewRequests, useDashboard } from '../dashboard-store';
 import { applyMerged, applyQueued } from '../github/review-overview-store';
 import { seenStore, useSeenVersion } from '../seen-store';
+import { useSnoozeCheck } from '../snooze-store';
+import { myItemActivity, reviewItemActivity, type PullRequestActivity, type Snooze } from '@shared/snooze';
+import { SnoozeButton, snoozedTitle } from './SnoozeButton';
 import { errorText, timeAgo } from '../util';
 import { openLink } from '../links';
 import type { ClickModifiers } from '@shared/browser';
@@ -189,6 +192,7 @@ function PrRow({ pr, onOpen, badges, action }: { pr: MyPullRequestItem; onOpen()
             </span>
             <Age className="dash-age" date={pr.updatedAt} />
             {action}
+            <SnoozeButton className="dash-snooze" url={pr.url} name={`${pr.repo.name} #${pr.number}`} activity={myItemActivity(pr)} />
         </div>
     );
 }
@@ -240,7 +244,62 @@ function ReviewRow({ pr, indented, showAuthor, onOpen }: { pr: ReviewRequestItem
                     }}
                 />
             )}
+            <SnoozeButton className="dash-snooze" url={pr.url} name={`${pr.repo.name} #${pr.number}`} activity={reviewItemActivity(pr)} />
         </div>
+    );
+}
+
+/** A pull request that the user snoozed, for the Snoozed card. */
+interface SnoozedItem {
+    url: string;
+    title: string;
+    repo: RepoRef;
+    number: number;
+    snooze: Snooze;
+    activity: PullRequestActivity;
+    onOpen(): void;
+}
+
+/**
+ * The snoozed pull requests of a column. The card is closed by default, like the stale card. A snoozed pull request
+ * shows again in its list when the snooze ends, or at once after a click on its Unsnooze button.
+ */
+function SnoozedCard({ id, items }: { id: string; items: SnoozedItem[] }) {
+    const [open, setOpen] = useState(false);
+    if (items.length === 0) return null;
+    return (
+        <Card as="section" id={id} className={`dash-pr-card dash-stale${open ? ' open' : ''}`}>
+            <div className="card-header">
+                <button className="dash-stale-toggle" aria-expanded={open} onClick={() => setOpen(value => !value)}>
+                    <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
+                    <h3 className="card-title">Snoozed</h3>
+                    <Count value={items.length} label={pluralize(items.length, 'pull request')} />
+                    <span className="dash-hint">They show again after a set time or after new activity</span>
+                </button>
+            </div>
+            {open && (
+                <div className="dash-card-rows">
+                    {items.map(item => (
+                        <div
+                            key={item.url}
+                            className="dash-row"
+                            role="button"
+                            tabIndex={0}
+                            data-nav-item
+                            onClick={item.onOpen}
+                            onKeyDown={itemKeys(item.onOpen)}
+                        >
+                            <Title title={item.title} empty="" />
+                            <span className="dash-chips">
+                                <span className="dash-hint">{snoozedTitle(item.snooze)}</span>
+                                <RepoChip repo={item.repo} number={item.number} />
+                            </span>
+                            <SnoozeButton url={item.url} name={`${item.repo.name} #${item.number}`} activity={item.activity} snooze={item.snooze} />
+                        </div>
+                    ))}
+                </div>
+            )}
+        </Card>
     );
 }
 
@@ -420,7 +479,13 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
         .filter(({ source, comment }) => visible(taskSeenKey(source.connectionId, comment.id)))
         .filter(({ comment }) => !taskQuery || `${comment.taskKey ?? ''} ${comment.taskTitle} ${comment.author ?? ''}`.toLowerCase().includes(taskQuery));
 
-    const all = useMemo(() => bucketMyPullRequests(pullRequests?.myPullRequests ?? []), [pullRequests]);
+    // A snoozed pull request leaves its list and its count. It goes to the Snoozed card of its column.
+    const snoozeCheck = useSnoozeCheck();
+    const myPullRequests = useMemo(
+        () => (pullRequests?.myPullRequests ?? []).map(pr => ({ pr, activity: myItemActivity(pr), snooze: snoozeCheck(pr.url, myItemActivity(pr)) })),
+        [pullRequests, snoozeCheck]
+    );
+    const all = useMemo(() => bucketMyPullRequests(myPullRequests.filter(item => !item.snooze).map(item => item.pr)), [myPullRequests]);
     const matches = (pr: MyPullRequestItem) => matchesDashboardQuery(pr, query);
     const buckets = {
         ready: all.ready.filter(matches),
@@ -428,7 +493,21 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
         blocked: all.blocked.filter(matches),
         stale: all.stale.filter(matches)
     };
-    const reviewRequests = unseenReviewRequests(pullRequests?.reviewRequests ?? []);
+    const reviewItems = unseenReviewRequests(pullRequests?.reviewRequests ?? []).map(pr => ({
+        pr,
+        activity: reviewItemActivity(pr),
+        snooze: snoozeCheck(pr.url, reviewItemActivity(pr))
+    }));
+    const reviewRequests = reviewItems.filter(item => !item.snooze).map(item => item.pr);
+    const snoozedItem = (
+        item: { pr: MyPullRequestItem | ReviewRequestItem; activity: PullRequestActivity; snooze?: Snooze },
+        onOpen: () => void
+    ): SnoozedItem[] =>
+        item.snooze && matchesDashboardQuery(item.pr, query)
+            ? [{ url: item.pr.url, title: item.pr.title, repo: item.pr.repo, number: item.pr.number, snooze: item.snooze, activity: item.activity, onOpen }]
+            : [];
+    const snoozedMine = myPullRequests.flatMap(item => snoozedItem(item, () => openMine(item.pr)));
+    const snoozedReviews = reviewItems.flatMap(item => snoozedItem(item, () => onOpenPullRequest(item.pr.repo, item.pr.number, 'files')));
     const shownReviews = reviewRequests.filter(pr => matchesDashboardQuery(pr, query));
     const reviewGroups = groupReviewRequests(shownReviews, reviewSort);
 
@@ -522,7 +601,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
     const conflictCount = all.blocked.filter(pr => pr.reasons.includes('conflicts')).length;
     const oldestChange = all.changes[all.changes.length - 1];
     const loaded = !!pullRequests;
-    const yourCount = pullRequests?.myPullRequests.length ?? 0;
+    const yourCount = myPullRequests.filter(item => !item.snooze).length;
     const shownYourCount = buckets.ready.length + buckets.changes.length + buckets.blocked.length + buckets.stale.length;
     const stalePreview = buckets.stale.slice(0, 4).map(pr => parsePullRequestTitle(pr.title).text);
     const oldestStale = buckets.stale[0];
@@ -749,6 +828,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                     )}
                                 </Card>
                             )}
+                            <SnoozedCard id="dash-snoozed-mine" items={snoozedMine} />
                         </div>
 
                         <div className="dash-column">
@@ -804,6 +884,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                     ))}
                                 </div>
                             </Card>
+                            <SnoozedCard id="dash-snoozed-reviews" items={snoozedReviews} />
 
                             {!commentsLoaded && !state.prCommentsError && (
                                 <Card>
