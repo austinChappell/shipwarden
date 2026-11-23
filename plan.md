@@ -1,9 +1,44 @@
 # ShipWarden improvement plan
 
-This plan lists the next features for ShipWarden. It does not include ports and services for each worktree.
+This plan closes the gaps between ShipWarden and two similar apps: Orca (stablyai/orca) and T3 Code (pingdotgg/t3code).
+The comparison uses their READMEs, their websites, and their release notes of 23 Nov 2026. We did not read all of their
+docs, so a few gaps can be smaller than they look here.
 
-The features are in 5 phases. Each phase can ship alone. Each feature has a goal, a design, the files to change, the
+The features are in 6 phases. Each phase can ship alone. Each feature has a goal, a design, the files to change, the
 tests, and the open questions. File paths are the best start point today. They can change during the work.
+
+## Comparison
+
+### Where ShipWarden is ahead
+
+- Seven task trackers through an open plugin protocol: GitHub Issues, Linear, ClickUp, Jira, Azure Boards, Trello, and
+  local tasks. Orca and T3 Code mainly have GitHub and Linear issues. Orca also has a Jira drawer.
+- A full PR review view with LSP code navigation, agent reviews at three strictness levels, PR groups, and screenshots
+  of the branch and the base.
+- Pipelines: workflow runs, `workflow_dispatch` with inputs, and pipeline approvals.
+- Overlap detection between worktrees, Compare agents, agent stats, and usage budgets.
+
+### Gaps
+
+| Gap | Orca | T3 Code | ShipWarden today |
+|---|---|---|---|
+| Platforms | macOS, Windows, and Linux | macOS, Windows, Linux, and web | macOS on Apple silicon only |
+| Mobile | iOS and Android, push | iOS and Android, push | iPhone beta on the LAN, no push, cannot start agents |
+| Remote and headless | SSH worktrees, paired servers, and cloud VMs | SSH hosts, Tailscale, a relay, and a background service | Automations and the queue run only while the app is open |
+| Agents | 27 named agents | About 10 agents and any ACP agent | 4 agents and custom agents. Full support for Claude Code only |
+| Chat UI | Native chat for many agents | Chat for all providers, model change during a thread | Chat view for Claude Code only |
+| MCP for agents | Not compared | PR tools, `watch_pull_request` | 5 tools, Claude Code only |
+| CLI | `orca` CLI | `t3` CLI | No CLI |
+| Browser for agents | Design Mode, profiles, emulators, computer use | Shared headless Chrome tabs | The browser is for the user and for screenshots only |
+| Multi-agent work | Coordinator and workers, Bots with memory | Workflows (Labs) | Plans, Compare, and `ask_agent` |
+| Slack | Bots in Slack | Not compared | Webhooks only |
+| Code hosts | Adds Gitea | Adds Forgejo and Gitea | No Gitea or Forgejo |
+| Stacked PRs | Not compared | Merge and rebase a stack | Plans stack PRs, but no stack actions |
+| Customization | Plugin catalog (themes, panels) | Configurable keybindings | No keybinding remapping, task plugins only |
+| External editors | Not compared | Not compared | No "Open in VS Code, Cursor, Zed, or JetBrains" |
+| Input | Voice dictation | Voice input, Word, PDF, and spreadsheet attachments | No voice input. Images only |
+| Languages | About 8 | About 8 | English only |
+| Accounts | Switch Codex accounts without a logout | Not compared | One account for each agent |
 
 ## Rules for all phases
 
@@ -13,318 +48,320 @@ tests, and the open questions. File paths are the best start point today. They c
 - Write the UI text and the docs in Simplified Technical English. Update the README and `docs/` in the same PR.
 - Add each new feature to the tips list (`src/shared/tips.ts`) when it is easy to miss.
 
-## Phase 1: Know what the agents do
+## Phase 1: All agents get the same support
 
-### 1.1 Agent stats
+Codex is the second most used agent, and it gets the least support. This phase has the best gain for each hour of work.
 
-**Goal:** Show data that helps you choose agents and models.
+### 1.1 Codex state and tokens
+
+**Goal:** Show the state, the waiting reason, and the token count of a Codex agent, as for Claude Code.
+
+**Status:** In PR #248.
 
 **Design:**
 
-- Add a Stats view to the sidebar. It shows the last 7, 30, or 90 days.
-- The view shows these numbers for each agent and each model:
-  - Tokens for each merged PR.
-  - The median time from "Start in worktree" to merge.
-  - The part of the time that agents spend in "needs input" and in "blocked on CI".
-  - The CI failure rate of the first push.
-  - The wins in Compare agents ("Keep this one").
-- Collect the data from sources that exist now: the Claude Code transcripts, the agent states, the PR summaries, and
-  `agent-compare.json`.
-- Store one small event log in the app data folder (`agent-stats.jsonl`). Write one line at each state change, merge,
-  and compare result. Do not read the full transcripts again for each view.
-- Use local data only. The view sends no API requests.
+- Codex 0.170 has hooks with the Claude Code event names and fields. ShipWarden uses its hook server for Codex too.
+  It does not parse the session files for the state.
+- Give Codex 7 hooks with `-c hooks.<event>=[…]` options at start. Each hook runs
+  `sh <app data>/codex-hook.sh <event>`, and the script sends the event to the hook server. Do not change the user's
+  `~/.codex` files.
+- Map the events to the agent states:
+  - `SessionStart` is "idle". `UserPromptSubmit` is "working" and a new turn, so the checkpoints work.
+  - `PreToolUse` is "working" with the tool text. A `request_user_input` tool call is "waiting" for a question.
+  - `PermissionRequest` is "waiting" for a permission. `PostToolUse` shows that the user answered.
+  - `Stop` is "done". `Interrupt` is "idle".
+  - Do not listen to `SessionEnd`. Codex also sends it after 30 minutes without work, while the agent still runs.
+- Codex runs a hook only after the user trusts the exact hook definition in `/hooks`, under "Session flags". The
+  definition contains only the script path and the event, so a change of the script needs no new trust. Do not use
+  `--dangerously-bypass-hook-trust`, because it also runs the untrusted hooks of the user.
+- A Codex tab starts without a state, not with "starting". Until the first hook event, it shows "working" from its
+  terminal output, as an agent without hooks does.
+- Count the tokens from the session file that `transcript_path` names. Each `token_count` event has the total of the
+  session. Each larger total is one response with the change. The input tokens include the cache reads, so the count
+  is the input minus the cache reads, plus the output.
+- Add a `codex` function to the zsh and bash integration, so a `codex` that the user types in a shell tab gets the same
+  hooks.
+- Pins, resume, and the chat accept only Claude Code transcripts (`transcriptAgentOf`).
 
-**Files:**
+**Files:** `src/shared/agents.ts`, `src/main/agents/hook-files.ts`, `src/main/agents/shell-integration.ts`,
+`src/main/automations/token-counter.ts`, `src/main/ipc/args.ts`, and the renderer files that read the transcript.
 
-- New: `src/main/stats/stats-store.ts`, `src/shared/stats.ts`, a Stats view in `src/renderer/src/`.
-- Read from: `src/main/agents/transcript-watcher.ts`, `src/shared/agent-tokens.ts`, `src/shared/agent-overview.ts`,
-  `src/main/compare/compare-store.ts`.
-
-**Tests:** Unit tests for the math in `src/shared/stats.ts` (medians, rates, and empty data). A store test for the
-append and the read of the log.
+**Tests:** The event mapping, the TOML and shell quoting, the Codex token counter, the `codex` function in a real bash
+shell, and `terminalCommand`.
 
 **Open questions:**
 
-- Codex and the other agents give no token count. Show "No data" for them, or hide the token columns?
-- Keep the log for all time, or remove the lines older than 90 days?
+- Which tool name do the hooks send: the outer `exec` tool or the inner tool, for example `exec_command`?
+  `describeTool` handles both. Check it in the app.
+- Can ShipWarden find out that the hooks are not trusted yet, and show a hint in the agent tab? Codex keeps the trust
+  in `[hooks.state]` of `config.toml`, but the key and the hash of "Session flags" hooks are not documented.
+- `transcript_path` is "not a stable interface", as the Codex docs say. A new session file format gives no token
+  count. It does not change the state.
 
-### 1.2 Search across all transcripts
+### 1.2 Chat view for Codex
 
-**Goal:** Answer questions such as "Which agent changed `auth.ts` last week, and why?"
+**Goal:** Give Codex agents the same chat view as Claude Code.
 
 **Design:**
 
-- Add a search field to the Agents view, with a filter for the repository, the agent, and the dates.
-- Index the Claude Code transcripts that ShipWarden already watches. Index the user prompts, the agent text, and the
-  file paths of the tool calls.
-- Use SQLite FTS5 in the main process. Store the index in the app data folder. Update it from the transcript watcher.
-- A result opens the session. A pinned session can resume in any worktree, as it does today.
+- Make the chat model in `src/shared/agent-chat.ts` independent of the agent. Add one adapter for each transcript
+  format: Claude Code first, then the Codex session files. The Codex hooks of 1.1 give their path.
+- Keep the current behavior: the chat view types into the terminal underneath.
+- Add Gemini CLI and opencode adapters later, when their transcripts are easy to read.
+
+**Files:** `src/shared/agent-chat.ts`, `src/renderer/src/components/ChatView.tsx`, and the new adapters.
+
+**Tests:** Adapter tests with fixture transcripts. The current Claude Code chat tests must pass with no change.
+
+### 1.3 MCP server for all agents
+
+**Goal:** Give the ShipWarden MCP tools to Codex, Gemini CLI, and opencode.
+
+**Design:**
+
+- Codex: pass the server with `-c mcp_servers.shipwarden...` at start. Do not change the user's `config.toml`.
+- Gemini CLI: add the server to the settings file that ShipWarden already writes for the hooks.
+- opencode: add the server to the config that the ShipWarden plugin uses.
+- Use the same token for each session and the same approval UI as for Claude Code.
+
+**Files:** `src/shared/agent-programs.ts`, `src/main/agents/gemini-settings.ts`, `src/main/agents/opencode-plugin.ts`,
+`src/main/mcp/mcp-host.ts`, `docs/mcp-server.md`.
+
+**Tests:** Unit tests for the start arguments and the settings of each agent. A test that the user's own MCP servers
+stay.
+
+### 1.4 Switch accounts
+
+**Goal:** Use a second Claude or Codex account when the first account reaches its limit.
+
+**Design:**
+
+- Settings › Agents gets a list of accounts for each agent. Each account has its own config folder
+  (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`).
+- A new agent uses the selected account. The usage budget can select the next account instead of waiting.
+
+**Open questions:** Do the plan terms of Claude and OpenAI permit this use? Check before we build it.
+
+## Phase 2: Work without the app window
+
+### 2.1 Headless automations and queue
+
+**Goal:** Run automations and the task queue while the app is closed.
+
+**Design:**
+
+- Move the automation engine and the queue scheduler from the renderer to a shared module. The background helper
+  (`src/main/helper/`) runs it when the app is closed. The main process runs it when the app is open.
+- Only one process runs the engine at a time. Use a lock file in the app data folder.
+- Schedule triggers and CI triggers work in the helper. Triggers that need the UI (manual buttons) do not.
+- Agents already stay alive in the PTY host, so the helper can start agents through it.
 
 **Files:**
 
-- New: `src/main/agents/transcript-index.ts`.
-- Change: `src/main/agents/transcript-watcher.ts`, `src/main/agents/transcript-reader.ts`, the Agents view.
+- Change: `src/renderer/src/automations/`, `src/renderer/src/queue/`, `src/main/queue/queue-store.ts`,
+  `src/main/helper/main.ts`, `src/shared/automations.ts`, `src/shared/task-queue.ts`.
 
-**Tests:** Index and search tests with fixture transcripts. A test that a changed transcript updates only its new lines.
+**Tests:** Engine tests that run without the renderer. Lock tests: two processes, a stale lock, and a crash.
 
 **Open questions:**
 
-- Is `better-sqlite3` acceptable as a native dependency, or is a pure JS index better for the build?
-- Index the tool output too? It gives better results, but the index gets much larger.
+- The helper has no TanStack Query cache. How does it get the PR and CI data with few API calls? Share one poller with
+  the main process?
+- Do approval gates wait for the app, or does the phone answer them?
 
-### 1.3 Explain why an agent is idle
+### 2.2 Start agents from the phone
 
-**Goal:** Tell the user why an agent does not work.
-
-**Design:**
-
-- Add a reason to each idle state in the Agents view. Examples: "Waiting for a permission prompt", "Waiting for CI",
-  "The process stopped", and "Waiting for your reply".
-- Get the reasons from the hook events (`src/main/agents/hook-server.ts`), the PTY host, and the CI state.
-- Show the reason in a tooltip on the state chip and in the iPhone app.
-
-**Files:** `src/shared/agent-overview.ts`, `src/main/agents/hook-server.ts`, `src/shared/remote.ts`.
-
-**Tests:** Unit tests that map each hook event and process state to its reason.
-
-## Phase 2: Control the work
-
-### 2.1 Task queue with a limit
-
-**Goal:** Give a backlog to ShipWarden and let it run the tasks overnight.
+**Goal:** Start an agent on a task or a new worktree from the iPhone app.
 
 **Design:**
 
-- Add "Add to queue" next to "Start in worktree" on a task.
-- The queue has a limit, for example "Run at most 3 agents". When an agent finishes, the next task starts.
-- "Finished" means the agent opened a PR, or it was idle for a set time with no PR. The setting selects which.
-- The queue has its own page with drag to change the order, as plan steps do.
-- Each queue item uses the branch template and the agent of the task. A failed start goes to the end with its error.
+- Add `startAgent` to the remote API: repository, task or prompt, agent, and model.
+- Use the same start code as "Start in worktree". Check the usage budget.
+- The phone shows the new agent at once from the response. It does not reload the list.
 
-**Files:**
+**Files:** `src/shared/remote.ts`, `src/main/remote/remote-server.ts`, `src/main/helper/remote-control.ts`, and the
+`ios/` app.
 
-- New: `src/main/queue/queue-store.ts`, `src/shared/task-queue.ts`, a Queue page.
-- Reuse: the start code of "Start in worktree" and the concurrency limit code of automations (`maxRunning`).
+**Tests:** Remote contract tests for the new call. A test that a device without the permission cannot start agents.
 
-**Tests:** Unit tests for the scheduler: the limit, the order, a failure, and a restart of the app with a full queue.
+### 2.3 Push notifications to the phone
 
-**Open questions:**
-
-- Is the queue global, or one queue for each project?
-- Can an automation add a task to the queue? (A new `queueTask` action.)
-
-### 2.2 Usage budgets
-
-**Goal:** Stop new agents before the plan usage runs out.
+**Goal:** Tell the user on the phone when an agent needs input, also when the phone app is closed.
 
 **Design:**
 
-- Add a budget to Settings › Agents. Example: "Do not start new agents above 80% of the 5-hour limit".
-- The queue, plans, Compare agents, and the `startAgent` action check the budget before they start an agent.
-- A blocked start waits and shows "Waiting for usage to reset" with the reset time. It does not fail.
-- Add a `usage.threshold` automation trigger, so a user can send a notification or a message.
+- Apple push needs a server with the APNs key. ShipWarden has no server today.
+- Option A: a small relay that sends only the push payload ("Agent needs input" and the worktree name). It does not
+  store or see the agent text.
+- Option B: use a push service that the user selects (for example ntfy) through an automation. This works today with
+  the `http` action, but the text cannot open the app.
 
-**Files:** `src/main/usage/usage-service.ts`, `src/shared/usage.ts`, `src/shared/automations.ts`, and the start paths.
+**Open questions:** Do we want to run a relay? Pick A or B before any work starts.
 
-**Tests:** Unit tests for the budget check at, below, and above the limit, and with no usage data.
+### 2.4 Remote worktrees on SSH hosts
 
-**Open questions:** Should a budget also pause the agents that run now, or only block new agents?
-
-### 2.3 Checkpoints and rewind
-
-**Goal:** Undo one bad agent turn and keep the good turns before it.
+**Goal:** Run agents on a different machine, for example a large Linux server.
 
 **Design:**
 
-- At the start of each agent turn (the `UserPromptSubmit` hook), save the worktree state with `git stash create`. Save
-  the commit in a hidden ref: `refs/shipwarden/checkpoints/<session>/<turn>`. This includes the uncommitted files and
-  does not change the index or the files.
-- Save the new files that git does not track too. `git stash create` does not include them, so use a temporary index
-  (`GIT_INDEX_FILE`) and `git add -A`.
-- Show the turns of a session in a list, each with its prompt and its changed files.
-- "Rewind to before this prompt" shows the diff first. Then it restores the files. Commits that the agent made after
-  the checkpoint stay on the branch, and ShipWarden asks before it resets them.
-- Remove the checkpoint refs when the worktree goes away, and after 7 days.
+- A repository can have an SSH host. ShipWarden copies a small runtime to the host. The runtime runs the PTY host,
+  the git commands, and the hook server there.
+- The app talks to the runtime through the SSH connection. Use the same protocol as the PTY host today.
+- File views, diffs, and the LSP use the remote runtime.
 
-**Files:**
+**Files:** New `src/main/remote-hosts/`. Change `src/main/pty-host/`, `src/main/worktrees/`, `src/main/git/`, and
+`src/main/files/`.
 
-- New: `src/main/git/checkpoints.ts`, `src/shared/checkpoints.ts`.
-- Change: `src/main/agents/hook-server.ts`, `src/main/worktrees/git-worktree-service.ts` (clean up on remove).
+**Open questions:** This is the largest feature in the plan. Make a design doc first. The pty host uses launchd today,
+so a Linux host needs a different service manager.
 
-**Tests:** Git tests in a temporary repository: tracked changes, new files, deleted files, binary files, and a rewind
-past a commit.
+## Phase 3: Tools for agents and scripts
 
-**Open questions:**
+### 3.1 ShipWarden CLI
 
-- Claude Code has its own rewind. Should ShipWarden tell the agent about the rewind, so its context agrees with the
-  files?
-- Other agents have no turn hook. Use the `agent.done` event for them?
-
-## Phase 3: Integrations
-
-### 3.1 GitLab review provider
-
-**Goal:** Support teams that use GitLab, on gitlab.com and on self-hosted servers.
+**Goal:** Let agents, scripts, and users control ShipWarden from a terminal.
 
 **Design:**
 
-- Add a `gitlab` provider kind next to GitHub and Azure DevOps. Map merge requests, discussions, approvals, and
-  pipelines to the shared review types.
-- Map GitLab pipeline jobs to the checks panel, with logs, retry, and "send to agent".
-- Use a personal access token, or the `glab` CLI login. This is the same pattern as the GitHub provider.
+- Add a `shipwarden` command. It talks to the running app or the helper through a local socket with a token.
+- First commands:
+  - `shipwarden status --json`
+  - `shipwarden worktree list|create|remove`
+  - `shipwarden agent start|send|wait`
+  - `shipwarden task get|status`
+  - `shipwarden automation run`
+- Settings › Agents gets "Install the shipwarden command". It adds a link in `/usr/local/bin` or `~/.local/bin`.
+- Write tools use the same approval rules as the MCP server.
 
-**Files:**
+**Files:** New `src/cli/` and a build entry in `electron.vite.config.ts`. Reuse `src/main/mcp/tools.ts` for the
+actions.
 
-- New: `src/main/gitlab/` (client, mapping, service), following `src/main/azure/`.
-- Change: `src/main/review-providers.ts`, `src/shared/review-providers.ts`, Settings › Code review.
+**Tests:** Command tests with a fake socket. A test that a request without a token fails.
 
-**Tests:** Mapping tests with recorded API fixtures, as the Azure tests do.
+**Open questions:** Ship a skill file for the CLI, as Orca does?
 
-### 3.2 Bitbucket review provider
+### 3.2 More MCP tools
 
-Do this after GitLab, with the same design. Bitbucket Cloud first. Bitbucket Data Center only when users ask for it.
-
-### 3.3 Jira task plugin
-
-**Goal:** Ship a built-in Jira plugin, because Jira is the most common tracker.
+**Goal:** Let agents act on PRs and the browser without the user.
 
 **Design:**
 
-- Add `plugins/jira/` with the ShipWarden Task Protocol. Follow `plugins/linear/` and `plugins/clickup/`.
-- Support Jira Cloud with an API token first. Map the issue types, the statuses, the sprints, and the components to
-  task fields and filters.
-- Convert the Atlassian Document Format of the descriptions to Markdown.
+- PR tools: `create_pull_request`, `update_pull_request`, `reply_to_comment`, and `get_checks`. They use the review
+  provider of the repository, so they work on all code hosts.
+- `watch_pull_request`: the agent gets a message when a check fails, a conflict occurs, or a review comment arrives.
+  Reuse the `ci.failed`, `pr.conflict`, and `pr.comment` events of automations.
+- Browser tools: `open_page`, `screenshot`, `click`, `type`, and `read_page`, on the browser tab of the worktree.
+- Each write tool needs approval the first time.
 
-**Files:** `plugins/jira/`, `plugins/package.json`, and the plugin list in the README.
+**Files:** `src/main/mcp/tools.ts`, `src/main/browser/browser-views.ts`, `src/shared/automation-events.ts`,
+`docs/mcp-server.md`.
 
-**Tests:** Add Jira to `plugins/plugins.test.js`. Add mapping tests for the ADF to Markdown conversion.
+**Tests:** Tool tests with a fake service layer, as the current tools have.
 
-### 3.4 Trigger when an agent needs input
+### 3.3 Element picker in the browser
 
-Automations already have `notify`, `http`, and `postMessage`, so a Slack webhook works today. The gap is the trigger.
+**Goal:** Send a page element to an agent.
 
-- Add an `agent.needsInput` trigger. It occurs when an agent waits for a permission or asks a question.
-- Add an optional `idleFor` field, so the automation runs only after the agent waits a few minutes.
-- Add an example template: "Post to a Slack webhook when an agent waits for 10 minutes".
+**Design:** A "Pick element" button in the browser tab. Click an element to send its HTML, its styles, its selector,
+and a screenshot to the agent of the worktree.
 
-**Files:** `src/shared/automations.ts`, `src/shared/automation-events.ts`, `src/shared/automation-templates.ts`,
-`docs/automations.md`.
+**Files:** `src/main/browser/browser-views.ts`, `src/renderer/src/components/BrowserView.tsx`.
 
 ## Phase 4: Agents work together
 
-### 4.1 ShipWarden MCP server
+### 4.1 Coordinator and workers
 
-**Goal:** Let agents ask ShipWarden and each other for help, without automations in the middle.
-
-**Design:**
-
-- Run a local MCP server in the main process. Listen on 127.0.0.1 with a token for each session, as the hook server
-  does.
-- Add it to each agent at start. Claude Code gets it with `--mcp-config`. Add the other agents when they support MCP.
-- First tools:
-  - `list_worktrees`: the worktrees, their branches, their tasks, and their PR states.
-  - `get_overlaps`: the files that other worktrees also change.
-  - `ask_agent`: send a question to the agent of a different worktree and wait for the answer. Reuse
-    `src/main/agents/ask-agent.ts`.
-  - `get_task`: the task of this worktree, with the comments.
-  - `set_task_status`: move the task of this worktree.
-- Each write tool needs approval the first time, with the same approval UI as automations.
-
-**Files:** New `src/main/mcp/`. Change the agent start code in `src/main/agents/` and `src/shared/agent-programs.ts`.
-
-**Tests:** Tool tests with a fake service layer. A test that a request with no token or a wrong token fails.
-
-**Open questions:** Which tools need approval each time, and which only one time?
-
-### 4.2 Stacked PRs for plans
-
-**Goal:** Let plan steps build on each other.
+**Goal:** Give a large task to one agent. It splits the work and starts worker agents.
 
 **Design:**
 
-- Add a "Stack the steps" setting to plans. Each step then branches from the branch of the step before it, and its PR
-  targets that branch.
-- When a lower PR merges, rebase the next branch onto the default branch and change the PR base. Send conflicts to the
-  agent of that worktree.
-- The PR group shows the stack in order, with the state of each PR.
+- Add the MCP tools `start_worker`, `list_workers`, and `wait_for_worker` for a coordinator agent.
+- Each worker gets its own worktree and its own task. Its result (PR link and summary) goes back to the coordinator.
+- Reuse plans for the data model. A coordinator run is a plan with steps that the agent makes.
+- Tell the coordinator when a worker stops or waits for 10 minutes.
+- Check the usage budget and the queue limit for each worker.
 
-**Files:** `src/shared/plans.ts`, `src/main/plans/plan-store.ts`, `src/shared/plan-group-order.ts`,
-`src/main/github/pull-requests.ts`, and the Azure equivalent.
+**Files:** `src/main/mcp/tools.ts`, `src/shared/plans.ts`, `src/main/plans/plan-store.ts`, `src/shared/ask-agent.ts`.
 
-**Tests:** Unit tests for the branch and base order. Git tests for the rebase after a merge.
+**Open questions:** Can a worker start workers? Set a depth limit of 1 at first.
 
-**Open questions:** Support squash merges in the stack? A squash merge needs `git rebase --onto` with the old base.
+### 4.2 Native Slack integration
 
-## Phase 5: Better reviews
-
-### 5.1 Rebase onto the default branch with conflict help
-
-**Goal:** Fix merge conflicts in the app.
+**Goal:** Get agent questions in Slack and answer them there.
 
 **Design:**
 
-- Add "Rebase onto main" to the worktree menu and the PR panel.
-- When the rebase stops on a conflict, show the files. "Send to agent" gives the agent the conflict, the commits of
-  both sides, and the overlap data.
-- "Abort" runs `git rebase --abort`. ShipWarden never force-pushes without a question.
+- A Slack app with a bot token. Settings get a Slack section.
+- `agent.needsInput` posts the question in a thread. A reply in the thread goes to the agent.
+- A message that mentions the app starts an agent on a repository.
+- This needs the headless engine of 2.1, or it works only while the app is open.
 
-**Files:** `src/main/git/git-changes-service.ts`, the Changes tab, and a new `pr.conflict` template.
+**Open questions:** Socket Mode removes the need for a public URL. Is that enough for teams?
 
-**Tests:** Git tests for a clean rebase, a conflict, and an abort.
+## Phase 5: Small gaps
 
-### 5.2 Screenshots of visual changes
+### 5.1 Open in an external editor
 
-**Goal:** Show the visual result of a frontend PR in the review.
+Add "Open in editor" to the worktree menu and the file views. Detect VS Code, Cursor, Zed, and JetBrains IDEs. The user
+selects one in Settings › Appearance.
 
-**Design:**
+### 5.2 Gitea and Forgejo
 
-- The repository settings get a preview URL and a list of pages to capture.
-- "Capture screenshots" opens each page in the browser pane for the branch and for the default branch. Then it saves
-  both images.
-- The review shows the images side by side. "Add to PR" uploads them in a PR comment.
-- Without ports for each worktree, the user starts the dev server. ShipWarden captures one worktree at a time.
+Add a `gitea` provider kind. Forgejo uses the same API. Follow `src/main/bitbucket/`. Map PRs, reviews, comments, and
+Actions runs.
 
-**Files:** `src/main/browser/browser-views.ts`, `src/shared/browser.ts`, the repository settings, and the review panel.
+### 5.3 Stack actions
 
-**Open questions:** Where do the uploaded images live for Azure DevOps?
+Add "Rebase stack" and "Merge stack" to a plan PR group. Reuse the restack code of plans
+(`src/main/plans/plan-store.ts`).
 
-### 5.3 Prompt templates
+### 5.4 Keybinding remapping
 
-**Goal:** Send repeated prompts quickly.
+Add a Keyboard section to Settings. Store the user bindings in `~/.shipwarden/keybindings.json`. Show conflicts. The
+current keys in `src/shared/shortcuts.ts` stay as the defaults.
 
-**Design:**
+### 5.5 Voice input
 
-- Save prompts with variables, for example "Write tests for {{file}}" or "Fix the lint errors in {{branch}}".
-- Use the same variables as automations. Each template can have a keyboard shortcut.
-- Open the list from the terminal of an agent and from the command palette.
-- Store each template as a file in `~/.shipwarden/prompts`, so users can share them, as with automations.
+Add a dictation key in the agent prompt and the chat view. Use the macOS speech recognition, so no audio leaves the
+Mac.
 
-**Files:** New `src/main/prompts/`, `src/shared/prompt-templates.ts`. Reuse the variable code of automations.
+### 5.6 Document attachments
+
+Let the chat view take PDF, Word, and spreadsheet files. Convert them to text or images before they go to the agent.
 
 ## Later
 
-- **Linux and Intel Mac builds.** Do this only when users ask for it. The PTY host uses launchd today
-  (`src/main/pty-host`), so Linux needs a different way to keep the agents alive after a force quit.
-- **Bitbucket Data Center**, if users ask for it after 3.2.
+- **Linux, Windows, and Intel Mac builds.** Do this when users ask for it. The PTY host and the helper use launchd today
+  (`src/main/pty-host`, `src/main/helper/launch-agent.ts`). Linux and Windows need a different way to keep agents
+  alive.
+- **Android app**, after the iPhone app leaves beta.
+- **Translations of the UI.** Move the UI text to message files first.
+- **A plugin catalog** for themes and panels, after the task plugin protocol is stable.
+- **Agents with memory** (as Orca Bots): a named agent with a memory file that takes jobs from Slack, trackers, and
+  schedules. Do this after 2.1, 4.1, and 4.2.
+- **Cloud worktrees** on a hosted VM, after 2.4.
+- **Bitbucket Data Center**, if users ask for it.
 
 ## Order
 
 | Order | Feature | Size | Why this order |
 |---|---|---|---|
-| 1 | 1.3 Explain why an agent is idle | S | Small, and it helps at once |
-| 2 | 3.4 Trigger when an agent needs input | S | Small, and it uses code that exists |
-| 3 | 2.1 Task queue | M | The largest gain for each hour of work |
-| 4 | 2.2 Usage budgets | S | The queue needs it to run overnight safely |
-| 5 | 1.1 Agent stats | M | Needs a few weeks of data, so start the log early |
-| 6 | 2.3 Checkpoints and rewind | M | |
-| 7 | 1.2 Transcript search | M | |
-| 8 | 3.3 Jira plugin | M | |
-| 9 | 5.3 Prompt templates | S | |
-| 10 | 5.1 Rebase with conflict help | M | |
-| 11 | 4.1 ShipWarden MCP server | L | |
-| 12 | 3.1 GitLab provider | L | |
-| 13 | 4.2 Stacked PRs for plans | L | Easier after 5.1 |
-| 14 | 5.2 Screenshots | M | |
-| 15 | 3.2 Bitbucket provider | L | |
-
-Start the event log of 1.1 in the first PR, even before the Stats view exists. Then the view has data when it ships.
+| 1 | 1.1 Codex state and tokens | M | Codex users see this gap first. In PR #248 |
+| 2 | 1.3 MCP server for all agents | S | Small, and it uses code that exists |
+| 3 | 1.2 Chat view for Codex | M | Needs 1.1 |
+| 4 | 5.1 Open in an external editor | S | Small, and many users ask for it |
+| 5 | 3.2 More MCP tools | M | Agents can fix their own PRs |
+| 6 | 3.1 ShipWarden CLI | M | Reuses the MCP tools |
+| 7 | 2.1 Headless automations and queue | L | The queue can run all night with the app closed |
+| 8 | 2.2 Start agents from the phone | S | |
+| 9 | 2.3 Push notifications | M | Decide on the relay first |
+| 10 | 4.1 Coordinator and workers | L | Needs 3.2 |
+| 11 | 4.2 Native Slack integration | M | Needs 2.1 |
+| 12 | 3.3 Element picker | S | |
+| 13 | 5.3 Stack actions | S | |
+| 14 | 5.2 Gitea and Forgejo | M | |
+| 15 | 5.4 Keybinding remapping | M | |
+| 16 | 5.5 Voice input | S | |
+| 17 | 5.6 Document attachments | S | |
+| 18 | 1.4 Switch accounts | M | Check the plan terms first |
+| 19 | 2.4 Remote worktrees on SSH hosts | XL | Design doc first |

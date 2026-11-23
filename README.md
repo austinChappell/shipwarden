@@ -53,9 +53,13 @@ repository access token.
 The Agents view (⌥⌘2) shows all running agents in one list. Each row shows the state of the agent
 (needs input, blocked on CI, working or done), the time since its last output, and its pull request
 with the CI state. Click a row to open the agent's terminal. The header shows the plan usage of
-Claude and Codex. For Claude Code, each row also shows the tokens of the agent session, and the
+Claude and Codex. For Claude Code and Codex, each row also shows the tokens of the agent session, and the
 header shows the tokens of the running agents since midnight. ShipWarden reads these counts from
-the Claude Code transcripts. Codex and the other agents show no token count.
+the Claude Code transcripts and the Codex session files. The other agents show no token count.
+
+Codex reports its state through hooks, as Claude Code does. Codex runs a hook only after you trust it. Start Codex in
+ShipWarden one time, type `/hooks`, and trust the 7 ShipWarden hooks under "Session flags". Until then, ShipWarden
+shows a Codex agent as "working" while its terminal prints output.
 
 Move the pointer over the state of an agent to see why it does not work. Examples are "Waiting for a permission
 prompt", "The agent is asking a question", "Waiting for your reply", "Waiting for CI", and "The process stopped". The
@@ -118,8 +122,8 @@ and one row for each agent or each model. The view shows:
 - The part of the pull requests whose first push failed CI.
 - The wins in Compare agents ("Keep this one"), for example "2 of 5".
 
-A number that the log cannot give shows "No data". Only Claude Code gives a token count. Agents without hooks, for
-example Codex, give no states, so their time does not count. Only the merges in ShipWarden count. A merge without a
+A number that the log cannot give shows "No data". Only Claude Code and Codex give a token count. Agents without
+hooks give no states, so their time does not count. Codex sends hooks only after you trust them. Only the merges in ShipWarden count. A merge without a
 "Start in worktree" line measures the time from the first agent state in the worktree.
 
 ShipWarden writes a small event log for the stats to `agent-stats.jsonl` in the app data folder. It adds one line at
@@ -184,8 +188,8 @@ A checkpoint lets you undo one bad agent turn and keep the good turns before it.
 When an agent gets a prompt, ShipWarden saves all the files of the worktree as a hidden git commit: the tracked files
 with their uncommitted changes and the new files that .gitignore does not ignore. The save does not change your index,
 your files, or your stash list. When nothing changed since the last checkpoint, ShipWarden skips it. Claude Code,
-Gemini CLI, and opencode tell ShipWarden about each prompt through their hooks. Agents without a turn hook, for example
-Codex, get a checkpoint when their terminal output stops for 15 seconds. That checkpoint is the state after the turn.
+Gemini CLI, opencode, and Codex tell ShipWarden about each prompt through their hooks. Agents without a turn hook, for
+example Codex before you trust its hooks, get a checkpoint when their terminal output stops for 15 seconds. That checkpoint is the state after the turn.
 ShipWarden saves checkpoints only while it is open.
 
 1. Open the **Checkpoints** tab in the right panel of a worktree. It lists the turns of each agent session, with the

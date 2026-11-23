@@ -133,7 +133,12 @@ describe('fetchMaxAge', () => {
 });
 
 describe('terminalCommand', () => {
-    const paths: HookSettingsPaths = { claude: '/data/claude-hooks.json', gemini: '/data/gemini-hooks.json', opencode: '/data/opencode/plugin.js' };
+    const paths: HookSettingsPaths = {
+        claude: '/data/claude-hooks.json',
+        codex: '/data/codex-hook.sh',
+        gemini: '/data/gemini-hooks.json',
+        opencode: '/data/opencode/plugin.js'
+    };
 
     it('adds the hook settings to an agent command', () => {
         const result = terminalCommand({ command: 'claude', isAgent: true }, paths);
@@ -155,7 +160,13 @@ describe('terminalCommand', () => {
     });
     it('does not add the MCP config to a shell or to an agent without MCP support', () => {
         expect(terminalCommand({ command: 'claude', isAgent: false }, paths, '/data/mcp/a.json').command).toBe('claude');
-        expect(terminalCommand({ command: 'codex', isAgent: true }, paths, '/data/mcp/a.json').command).toBe('codex');
+        expect(terminalCommand({ command: 'codex', isAgent: true }, paths, '/data/mcp/a.json').command).not.toContain('--mcp-config');
+    });
+    it('gives Codex the hooks, but no "starting" state, because Codex runs the hooks only after a trust', () => {
+        const result = terminalCommand({ command: 'codex', isAgent: true }, paths);
+        expect(result.command).toContain(`-c 'hooks.Stop=`);
+        expect(result.command).toContain('/data/codex-hook.sh');
+        expect(result.reportsAgentState).toBe(false);
     });
 });
 

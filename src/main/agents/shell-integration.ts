@@ -14,6 +14,9 @@ import { basename, dirname, join } from 'path';
  * The file also adds an `opencode` function. The function starts opencode with an inline config that loads
  * ShipWarden's plugin (OPENCODE_CONFIG_CONTENT). It does not replace an `opencode` function of the user, and it does
  * not replace an OPENCODE_CONFIG_CONTENT value of the user.
+ * The file also adds a `codex` function. The function starts Codex with ShipWarden's hooks (the `-c` options in
+ * SHIPWARDEN_CODEX_HOOK_ARGS). ShipWarden quotes the options, so `eval` reads them as separate words. It does not
+ * replace a `codex` function of the user.
  * Only an interactive shell gets the function. Scripts and the shells of agent tools do not get it.
  */
 export const ZSHENV = `# ShipWarden shell integration. ShipWarden writes this file. Do not edit it.
@@ -56,6 +59,15 @@ if [[ -o interactive ]]; then
                 fi
             }
         fi
+        if (( ! $+functions[codex] )); then
+            codex() {
+                if [[ -n "\${SHIPWARDEN_CODEX_HOOK_ARGS-}" ]]; then
+                    eval "command codex $SHIPWARDEN_CODEX_HOOK_ARGS \\"\\$@\\""
+                else
+                    command codex "$@"
+                fi
+            }
+        fi
     }
     precmd_functions+=(_shipwarden_setup)
 fi
@@ -64,8 +76,8 @@ fi
 /**
  * The startup file of a bash tab. ShipWarden starts bash with `--init-file <this file>`, so bash reads it in place of
  * ~/.bashrc. Such a shell is not a login shell, so the file reads the login files as `bash -l` does: /etc/profile, then
- * the first of ~/.bash_profile, ~/.bash_login and ~/.profile. Then it adds the `claude`, `gemini` and `opencode`
- * functions of ZSHENV. A function of the user stays. The `function` keyword stops a user alias from changing the name.
+ * the first of ~/.bash_profile, ~/.bash_login and ~/.profile. Then it adds the `claude`, `gemini`, `opencode` and
+ * `codex` functions of ZSHENV. A function of the user stays. The `function` keyword stops a user alias from changing the name.
  */
 export const BASH_INIT = `# ShipWarden shell integration. ShipWarden writes this file. Do not edit it.
 if [ -r /etc/profile ]; then
@@ -105,6 +117,15 @@ if ! declare -F opencode >/dev/null; then
         fi
     }
 fi
+if ! declare -F codex >/dev/null; then
+    function codex {
+        if [[ -n "\${SHIPWARDEN_CODEX_HOOK_ARGS-}" ]]; then
+            eval "command codex $SHIPWARDEN_CODEX_HOOK_ARGS \\"\\$@\\""
+        else
+            command codex "$@"
+        fi
+    }
+fi
 `;
 
 /** Writes ShipWarden's zsh folder. Returns the path of the folder. */
@@ -128,6 +149,8 @@ export interface ShellIntegration {
     geminiHookSettingsPath?: string;
     /** The inline config that `opencode` gets in OPENCODE_CONFIG_CONTENT, or undefined when the plugin was not written. */
     opencodeConfigContent?: string;
+    /** The quoted `-c` options that give `codex` ShipWarden's hooks, or undefined when the hook script was not written. */
+    codexHookArgs?: string;
     /** ShipWarden's zsh folder, or undefined when it was not written. */
     zshFolder?: string;
     /** The startup file of bash tabs, or undefined when it was not written. */
@@ -146,6 +169,9 @@ export function shellIntegrationEnv(env: NodeJS.ProcessEnv, integration: ShellIn
     }
     if (integration.opencodeConfigContent) {
         result.SHIPWARDEN_OPENCODE_CONFIG_CONTENT = integration.opencodeConfigContent;
+    }
+    if (integration.codexHookArgs) {
+        result.SHIPWARDEN_CODEX_HOOK_ARGS = integration.codexHookArgs;
     }
     const shell = env.SHELL || '/bin/zsh';
     if (integration.bashInitFile && basename(shell) === 'bash') {

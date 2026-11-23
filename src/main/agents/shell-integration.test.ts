@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } 
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { codexHookArgs } from '@shared/agents';
 import { shellIntegrationEnv, writeBashIntegration, ZSHENV } from './shell-integration';
 
 const integration = { hookSettingsPath: '/data/claude-hooks.json', zshFolder: '/data/shell-integration/zsh' };
@@ -83,15 +84,18 @@ describe('bash shell integration', () => {
             // A claude program that prints its arguments.
             writeFileSync(join(bin, 'claude'), '#!/bin/sh\necho "args: $*"\n');
             chmodSync(join(bin, 'claude'), 0o755);
+            // A codex program that prints each argument on its own line.
+            writeFileSync(join(bin, 'codex'), '#!/bin/sh\nfor a in "$@"; do printf "[%s]\\n" "$a"; done\n');
+            chmodSync(join(bin, 'codex'), 0o755);
             init = writeBashIntegration(join(folder, 'shell-integration', 'init.bash'));
         });
 
         afterEach(() => rmSync(folder, { recursive: true, force: true }));
 
-        function run(script: string): string {
+        function run(script: string, env: Record<string, string> = {}): string {
             // A pipe is not a terminal, so bash needs -i to read the startup file.
             return execFileSync('/bin/bash', ['--init-file', init, '-i', '-c', script], {
-                env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, SHIPWARDEN_HOOK_SETTINGS: settings },
+                env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, SHIPWARDEN_HOOK_SETTINGS: settings, ...env },
                 encoding: 'utf8',
                 stdio: ['ignore', 'pipe', 'ignore']
             });
@@ -105,11 +109,40 @@ describe('bash shell integration', () => {
             expect(output).toContain('args: --settings mine.json\n');
         });
 
+        it('adds the Codex hook options to codex as separate arguments', () => {
+            const script = join(folder, "it's here", 'codex-hook.sh');
+            const output = run('codex --model gpt-6-sol "fix the bug"', { SHIPWARDEN_CODEX_HOOK_ARGS: codexHookArgs(script) });
+            const args = output.trim().split('\n');
+            // The options come first, so a subcommand of the user (for example `codex resume`) also gets them.
+            expect(args[0]).toBe('[-c]');
+            expect(args[1]).toBe(
+                `[hooks.SessionStart=[{hooks=[{type="command",command="sh '${folder}/it'\\\\''s here/codex-hook.sh' SessionStart",timeout=5}]}]]`
+            );
+            expect(args.filter(arg => arg === '[-c]')).toHaveLength(7);
+            expect(args.slice(-3)).toEqual(['[--model]', '[gpt-6-sol]', '[fix the bug]']);
+        });
+
+        it('starts codex without options when the hook options are not set', () => {
+            expect(run('codex hi')).toBe('[hi]\n');
+        });
+
         it('keeps a claude function and a claude alias of the user', () => {
             writeFileSync(join(home, '.bash_profile'), 'function claude { echo mine; }\n');
             expect(run('claude hi')).toContain('mine');
             writeFileSync(join(home, '.bash_profile'), "shopt -s expand_aliases\nalias claude='echo alias'\n");
             expect(run('claude hi')).toContain('alias hi');
         });
+    });
+});
+
+describe('codex shell integration', () => {
+    it('gives each terminal the Codex hook options', () => {
+        const env = shellIntegrationEnv({ SHELL: '/bin/bash' }, { ...integration, codexHookArgs: "-c 'hooks.Stop=[]'" });
+        expect(env.SHIPWARDEN_CODEX_HOOK_ARGS).toBe("-c 'hooks.Stop=[]'");
+    });
+
+    it('adds a codex function that keeps a codex function of the user', () => {
+        expect(ZSHENV).toContain('if (( ! $+functions[codex] )); then');
+        expect(ZSHENV).toContain('eval "command codex $SHIPWARDEN_CODEX_HOOK_ARGS \\"\\$@\\""');
     });
 });

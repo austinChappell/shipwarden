@@ -368,7 +368,7 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                             label="Tokens each day"
                             description={
                                 overTokens ??
-                                `All automations together, from midnight. Today: ${formatTokens(usedToday)} tokens. Input, output and cache writes count. Cache reads do not count. Only Claude Code reports tokens.`
+                                `All automations together, from midnight. Today: ${formatTokens(usedToday)} tokens. Input, output and cache writes count. Cache reads do not count. Only Claude Code and Codex report tokens.`
                             }
                             control={
                                 <LimitField

@@ -372,7 +372,7 @@ export function AgentsView({
                 title="Agents"
                 meta={
                     today.tokens > 0 ? (
-                        <span title={`The tokens of the running agents since midnight. ${tokensTitle(today)} Only Claude Code reports tokens.`}>
+                        <span title={`The tokens of the running agents since midnight. ${tokensTitle(today)} Only Claude Code and Codex report tokens.`}>
                             {agents.length} running · {tokensText(today)} today
                         </span>
                     ) : (

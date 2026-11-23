@@ -129,8 +129,8 @@ export function StatsView() {
 
                         <ul className="stats-notes">
                             <li>Each number is a median or a part of the time. “No data” shows when the log cannot give the number.</li>
-                            <li>Only Claude Code gives a token count. Codex and the other agents show “No data” for tokens.</li>
-                            <li>Agents without hooks, for example Codex, give no states. Their time does not count.</li>
+                            <li>Only Claude Code and Codex give a token count. The other agents show “No data” for tokens.</li>
+                            <li>Agents without hooks give no states. Their time does not count. Codex sends hooks only after you trust them in Codex.</li>
                             <li>Only the merges in ShipWarden count. The log keeps the data of the last 90 days.</li>
                         </ul>
                     </div>

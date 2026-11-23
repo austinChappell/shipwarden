@@ -24,6 +24,12 @@ export interface Tip {
 /** The tips of the corner notice. The notice shows one tip at random (see `pickTip`). */
 export const NOTICE_TIPS: readonly Tip[] = [
     {
+        id: 'codexHooks',
+        title: 'See the state of Codex agents',
+        body: 'Start Codex in ShipWarden, type /hooks, and trust the ShipWarden hooks under "Session flags". The Agents view then shows when Codex needs input, and how many tokens it used.',
+        action: { kind: 'view', view: 'agents', label: 'Open Agents' }
+    },
+    {
         id: 'branchesPage',
         title: 'Clean up old branches',
         body: 'Click the branch icon of a repository in the sidebar. The Branches page checks out, deletes, and fetches local and remote branches. It also deletes all merged local branches in one step.'

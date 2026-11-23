@@ -87,7 +87,7 @@ shows the result.
                    │ JSON-RPC on <app data>/pty-host-v1-<build ID>.sock
 ┌──────────────────┴──────── PTY host (detached process) ──────────┐
 │ TerminalManager    node-pty sessions + output buffers            │
-│ HookServer         agent state from Claude Code hooks (HTTP)     │
+│ HookServer         agent state from the agent hooks (HTTP)       │
 └──────────────────┬───────────────────────────────────────────────┘
                    │ the same JSON-RPC socket (a second client)
 ┌──────────────────┴──── Background helper (launch agent, optional) ┐
@@ -251,22 +251,34 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   session (a session with a `parentID`) does not end the turn. opencode sends no SessionEnd. The process scan shows when it stops.
 - The worktree list shows the state of the agent that needs the user most. A macOS notification appears when an agent
   needs input or is done, unless the user looks at that agent.
-- Other agents (for example Codex) run without hooks and show no detailed state.
+- Codex gets its hooks with `-c hooks.<event>=[…]` options (`codexHookArgs` in `src/shared/agents.ts`). Each hook runs
+  `sh <app data>/codex-hook.sh <event>`, and the script sends the event to the hook server. Codex uses the Claude Code
+  event names and fields. ShipWarden listens to SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest
+  ("waiting" for a permission), PostToolUse (the user answered), Stop, and Interrupt ("idle"). A PreToolUse of
+  `request_user_input` is "waiting" for a question. ShipWarden does not listen to SessionEnd, because Codex also sends it
+  after 30 minutes without work.
+- Codex runs a hook only after the user trusts the exact hook definition in `/hooks`. Codex shows ShipWarden's hooks
+  under "Session flags". The definition contains only the script path and the event, so a change of the script needs no
+  new trust. ShipWarden does not use `--dangerously-bypass-hook-trust`, because it also runs the untrusted hooks of the
+  user. A Codex agent tab starts without a state, not with "starting". Until the first hook event, it shows "working"
+  from its terminal output, as an agent without hooks does.
+- Other agents run without hooks and show no detailed state.
 - Each terminal gets the hook variables, also a shell tab. A zsh shell gets `ZDOTDIR=<app data>/shell-integration/zsh`.
   That `.zshenv` sets `ZDOTDIR` back to the user's value and reads the user's startup files. Before the first prompt,
   it adds a `claude` function that adds `--settings <hooks file>`, and a `gemini` function that sets
   `GEMINI_CLI_SYSTEM_DEFAULTS_PATH`, and an `opencode` function that sets `OPENCODE_CONFIG_CONTENT` (each only when the user
-  did not set the variable). Thus `claude`, `gemini` or `opencode` typed in a shell tab reports its state.
+  did not set the variable), and a `codex` function that adds the `-c` options of `SHIPWARDEN_CODEX_HOOK_ARGS`. Thus
+  `claude`, `gemini`, `opencode` or `codex` typed in a shell tab reports its state.
   The shell tab then shows in the Agents view while the agent runs (`runsAgent`).
 - A bash shell gets `SHIPWARDEN_BASH_INIT=<app data>/shell-integration/init.bash`, and the terminal manager starts it with
   `--init-file` and that file in place of `-l`. Such a shell is not a login shell, so the file reads `/etc/profile` and the
-  first of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, as `bash -l` does. Then it adds the same three functions.
+  first of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, as `bash -l` does. Then it adds the same four functions.
   Other shells start as plain login shells.
 - The main process finds agents in shell tabs itself (`ShellAgents`). Each 2 seconds it reads the process table and
   finds `claude`, `codex`, `gemini` and `opencode` processes below the shell of each tab. Only a process in the foreground
   process group of the tab's terminal counts (`pgid` = `tpgid`), so an agent that the user stopped with Ctrl+Z or started
   in the background does not count. The session then gets `agentProgram`.
-  Thus Codex, which has no hooks, shows too, and the tab leaves the Agents view when the agent process stops. A session of a
+  Thus Codex before the user trusts its hooks shows too, and the tab leaves the Agents view when the agent process stops. A session of a
   Yardmaster host has no shell PID, so it gets no agent program.
 - Each state change carries a message and a time. PreToolUse gives a description of the tool call for people
   (`describeTool`, for example "Editing App.tsx" or "Running npm test"). UserPromptSubmit gives a one-line summary of
@@ -280,13 +292,14 @@ The main process connects to the helper socket when the helper runs (see "Backgr
   - The hook states "waiting", "working" and "starting" stay as they are.
   - "done" becomes "Blocked on CI" while the checks of the pull request run or after they fail. Else it stays "done".
   - "idle" (ready, no prompt) becomes "Needs input", or "Blocked on CI" as above.
-  - An agent without hooks (for example Codex) is "working" while its terminal sent output in the last 10 seconds.
+  - An agent without hooks (or Codex before its first hook event) is "working" while its terminal sent output in the
+    last 10 seconds.
     Else it is "Blocked on CI" as above, or "Quiet".
 - `idleReason` in the same file tells why an agent does not work. The state chip shows it as a tooltip, and the phone
   API sends it as `RemoteAgent.reason`. The order of the checks is the same as in `overviewState`:
   - A "waiting" agent gets the reason of its hook notification (`waitKindOf` in `src/shared/agents.ts`):
-    "permission_prompt" (Claude Code, opencode) and "ToolPermission" (Gemini CLI) give "Waiting for a permission
-    prompt". "elicitation_dialog" (Claude Code) and "question" (opencode) give "The agent is asking a question". Other
+    "permission_prompt" (Claude Code, opencode), "ToolPermission" (Gemini CLI), and the PermissionRequest hook (Codex)
+    give "Waiting for a permission prompt". "elicitation_dialog" (Claude Code) and "question" (opencode) give "The agent is asking a question". Other
     types give "Waiting for your input". The PTY host keeps the value in `TerminalSession.agentWaitFor`.
   - "Blocked on CI" gives "Waiting for CI" or "CI failed. Waiting for your reply".
   - "idle" gives "Waiting for your first prompt", and "done" gives "Waiting for your reply".
@@ -504,7 +517,8 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - Repository settings (the settings button of a repository in the sidebar, or Settings > Repositories): a display name
   (empty means the folder name), a default agent (else the global default) and a color marker. The main process keeps
   them by repository path in `settings.json`. A removed agent goes out of the repository settings.
-- ShipWarden adds its hooks only to Claude Code, Gemini CLI and opencode. Only an agent with hooks starts with the state "starting".
+- ShipWarden adds its hooks only to Claude Code, Codex, Gemini CLI and opencode. Only an agent with hooks starts with the
+  state "starting". Codex starts without a state, because its hooks run only after the user trusts them.
   Another agent has no state, and the worktree list shows only that it runs.
 - A new installation gets Claude Code, Codex, Gemini CLI and opencode. The page offers a "Built-in" button for each default
   agent that the list does not have, so an older installation can add Gemini CLI or opencode with one click.
@@ -750,12 +764,16 @@ The user guide and the file format are in [automations.md](automations.md).
   `startInNewWorktree`, `removeWorktreeQuietly` and `moveTaskToStatus`. They show no dialog and no banner, and they do
   not change the selected worktree. `promptAgent` reads the screen of an agent that the page does not show from the
   main process (`terminals.screenText`, a headless terminal from the replay), so it can wait for a folder trust dialog.
-- **Tokens.** `agentStateFromHook` keeps `transcript_path` of the Claude Code hooks, and the PTY host sends it with each
+- **Tokens.** `agentStateFromHook` keeps `transcript_path` of the Claude Code and Codex hooks, and the PTY host sends it with each
   agent state (`agentTranscript`). A run that sends a prompt records its turn (`turn`: session, start, end). The engine
   counts the tokens of the turn with `automations.countTokens`, at each tick and at the end of the turn.
   `TokenCounter` (main process) reads only the new end of a transcript, takes one usage for each message ID (Claude
   Code writes one line for each content block), and adds `<session>/subagents/*.jsonl`. It reads only files in
-  ~/.claude or `CLAUDE_CONFIG_DIR`. `countedTokens` counts input, cache writes and output, not cache reads. "Ask an agent"
+  ~/.claude or `CLAUDE_CONFIG_DIR`, and Codex session files (`rollout-*.jsonl`) in ~/.codex or `CODEX_HOME`. Codex writes
+  the total of the session in each `token_count` event, so each larger total is one response with the change
+  (`addCodexResponses`). Its input tokens include the cache reads, so the count is input minus cache reads, plus output.
+  `transcriptAgentOf` tells the two kinds apart by the file name. Only a Claude Code transcript gets the chat, the pins
+  and the resume. `countedTokens` counts input, cache writes and output, not cache reads. "Ask an agent"
   runs use `claude -p --output-format json`. `tokenLimitReached` checks the limit of the automation and the limit of all
   automations (`settings.automations.dailyTokens`) before a run, and before a held run continues.
 - **Notifications.** The event "Automations" in Settings › Notifications: a run waits for approval, or a run failed.
