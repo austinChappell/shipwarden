@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { transcriptAgentOf } from '@shared/agents';
 import { pinOfTranscript, type PinnedSession, type PinRequest } from '@shared/pinned-sessions';
 import type { AgentDefinition } from '@shared/settings';
 import type { TerminalSession } from '@shared/terminal';
@@ -33,7 +34,7 @@ export function pinOfSession(pins: readonly PinnedSession[], session: Pick<Termi
 
 /** Returns true when ShipWarden can pin the session. Only a Claude Code session has a transcript that a resume can use. */
 export function canPin(session: Pick<TerminalSession, 'agentTranscript' | 'exited'>): boolean {
-    return !!session.agentTranscript;
+    return transcriptAgentOf(session.agentTranscript) === 'claude';
 }
 
 /** Returns the data of a new pin for a terminal session. An agent tab has the name of its agent as its title. */
@@ -42,7 +43,7 @@ export function pinRequest(
     agents: readonly AgentDefinition[],
     place: { repoPath?: string; branch?: string } = {}
 ): PinRequest | undefined {
-    if (!session.agentTranscript) return undefined;
+    if (!session.agentTranscript || transcriptAgentOf(session.agentTranscript) !== 'claude') return undefined;
     const agent = session.isAgent ? agents.find(item => item.name === session.title) : undefined;
     return {
         transcript: session.agentTranscript,

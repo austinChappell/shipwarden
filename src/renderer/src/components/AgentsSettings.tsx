@@ -46,11 +46,13 @@ function CommandCheckLine({ command }: { command: string }) {
     const hooks =
         agent === 'claude'
             ? ' ShipWarden shows its state from Claude Code hooks.'
-            : agent === 'gemini'
-              ? ' ShipWarden shows its state from Gemini CLI hooks.'
-              : agent === 'opencode'
-                ? ' ShipWarden shows its state from an opencode plugin.'
-                : ' ShipWarden shows only that it runs.';
+            : agent === 'codex'
+              ? ' ShipWarden shows its state from Codex hooks. Trust the hooks one time in Codex: type /hooks.'
+              : agent === 'gemini'
+                ? ' ShipWarden shows its state from Gemini CLI hooks.'
+                : agent === 'opencode'
+                  ? ' ShipWarden shows its state from an opencode plugin.'
+                  : ' ShipWarden shows only that it runs.';
     return check.path ? (
         <span className="settings-check ok">
             <CircleCheck size={13} strokeWidth={2} /> {check.path}.{hooks}

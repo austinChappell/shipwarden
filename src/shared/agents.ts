@@ -43,6 +43,15 @@ export const GEMINI_HOOK_EVENTS = ['SessionStart', 'BeforeAgent', 'BeforeTool', 
 export type GeminiHookEvent = (typeof GEMINI_HOOK_EVENTS)[number];
 
 /**
+ * The Codex hook events that ShipWarden listens to. Codex uses the Claude Code names and fields.
+ * PermissionRequest occurs before an approval prompt. PostToolUse shows that the user answered the prompt.
+ * Interrupt occurs when the user stops a turn.
+ * ShipWarden does not listen to SessionEnd: Codex also sends it after 30 minutes without work, while the agent still runs.
+ */
+export const CODEX_HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop', 'Interrupt'] as const;
+export type CodexHookEvent = (typeof CODEX_HOOK_EVENTS)[number];
+
+/**
  * What a waiting agent waits for. The notification of the hooks tells it.
  * - permission: the agent asks for a permission, for example to run a command.
  * - question: the agent asks the user a question.
@@ -64,8 +73,8 @@ export interface AgentStateChange {
     /** A summary of the prompt that the agent works on. Only a prompt event sets it. */
     prompt?: string;
     /**
-     * The path of the transcript file of a Claude Code session ("transcript_path" of the hooks). The automations count
-     * the tokens of their runs from it.
+     * The path of the transcript file of a Claude Code or Codex session ("transcript_path" of the hooks). The automations
+     * count the tokens of their runs from it. `transcriptAgentOf` tells which agent wrote it.
      */
     transcript?: string;
     /** True when the agent got a new prompt, so a new turn starts. The app saves a checkpoint of the files then. */
@@ -188,6 +197,28 @@ export function describeTool(tool: string, input: Record<string, unknown> = {}):
             return 'Updating its to-do list';
         case 'question':
             return 'Asking a question';
+        // The built-in tools of Codex. The command of a shell tool is "cmd" or "command" (a text or a list of words).
+        case 'exec_command':
+        case 'shell':
+        case 'local_shell':
+        case 'unified_exec': {
+            const command = Array.isArray(input.command) ? input.command.map(String).join(' ') : (text(input.cmd) ?? text(input.command));
+            return `Running ${oneLine(command ?? 'a command', 60)}`;
+        }
+        case 'exec':
+        case 'js':
+            return 'Running code';
+        case 'update_plan':
+            return 'Updating its plan';
+        case 'view_image':
+            return 'Looking at an image';
+        case 'web_search':
+            return text(input.query) ? `Searching the web for "${oneLine(text(input.query)!, 40)}"` : 'Searching the web';
+        case 'request_user_input':
+        case 'request_user_input_async':
+            return 'Asking a question';
+        case 'sleep':
+            return 'Waiting';
         default: {
             // Claude Code MCP tools are "mcp__<server>__<tool>".
             const mcp = /^mcp__(.+?)__(.+)$/.exec(tool);
@@ -206,8 +237,11 @@ function toolChange(payload: Record<string, unknown>): AgentStateChange {
     };
 }
 
+/** The Codex tools that ask the user a question. The agent waits for the answer. */
+const CODEX_QUESTION_TOOLS = new Set(['request_user_input', 'request_user_input_async']);
+
 /**
- * Converts a Claude Code or Gemini CLI hook event to an agent state.
+ * Converts a Claude Code, Gemini CLI, or Codex hook event to an agent state.
  * `current` is the state before the event. Returns undefined for an event that does not change the state.
  */
 export function agentStateFromHook(event: string, payload: Record<string, unknown>, current?: AgentState): AgentStateChange | undefined {
@@ -257,11 +291,26 @@ function stateChangeOf(event: string, payload: Record<string, unknown>, current?
         }
         case 'PreToolUse':
         case 'BeforeTool':
+            // Codex asks the user a question with a tool. The agent waits until the user answers.
+            if (CODEX_QUESTION_TOOLS.has(String(payload.tool_name))) {
+                return { state: 'waiting', waitFor: 'question', message: 'The agent is asking a question.' };
+            }
             // A tool call after a permission prompt means that the user answered, so the agent works again.
             return toolChange(payload);
         case 'AfterTool':
+        case 'PostToolUse':
             // Gemini CLI can send BeforeTool before its permission prompt. AfterTool then shows that the user answered.
+            // Codex sends PostToolUse after the user answered a permission prompt or a question.
             return toolChange(payload);
+        case 'PermissionRequest': {
+            // Codex sends PermissionRequest before it asks for an approval. The tool input can have a description.
+            const input = (payload.tool_input && typeof payload.tool_input === 'object' ? payload.tool_input : {}) as Record<string, unknown>;
+            const action = text(input.description) ?? describeTool(String(payload.tool_name ?? 'a tool'), input);
+            return { state: 'waiting', waitFor: 'permission', message: `Waiting for approval: ${oneLine(action, 70)}` };
+        }
+        case 'Interrupt':
+            // The user stopped the turn in Codex. The agent waits for the next prompt, but it did not finish the work.
+            return { state: 'idle', message: 'You stopped the turn.' };
         case 'Notification': {
             const type = payload.notification_type;
             // Claude Code sends "idle_prompt" about 60 seconds after a turn ends. It is not a question, so "done" stays.
@@ -367,20 +416,77 @@ export function opencodeHookConfig(pluginPath: string): string {
     return JSON.stringify({ plugin: [`file://${encodeURI(pluginPath)}`] });
 }
 
+/**
+ * Returns the shell script that the Codex hooks run. The first argument is the hook event.
+ * The script sends the event JSON (on stdin) to ShipWarden's hook server, as the hooks of Claude Code do.
+ * Codex runs a hook only after the user trusts the exact hook definition. The definition is only "sh <script> <event>",
+ * so a change of this script does not need a new trust.
+ */
+export function codexHookScript(): string {
+    return [
+        '#!/bin/sh',
+        '# ShipWarden sends the Codex hook events to its hook server. ShipWarden writes this file at each start.',
+        hookCommand('$1', false),
+        ''
+    ].join('\n');
+}
+
+/** Puts a value in a TOML basic string. */
+function tomlString(value: string): string {
+    return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Returns the Codex config overrides (the values of `-c`) that add ShipWarden's hooks. `scriptPath` is the hook script.
+ * Codex adds these hooks to the hooks of the user's files. The /hooks screen of Codex shows them as "Session flags".
+ */
+export function codexHookOverrides(scriptPath: string): string[] {
+    return CODEX_HOOK_EVENTS.map(event => {
+        const command = tomlString(`sh ${shellQuote(scriptPath)} ${event}`);
+        return `hooks.${event}=[{hooks=[{type="command",command=${command},timeout=5}]}]`;
+    });
+}
+
+/**
+ * Returns the Codex options that add ShipWarden's hooks, quoted for a POSIX shell: `-c '<override>' -c '<override>' …`.
+ * A `codex` command in an agent tab and a `codex` that the user types in a shell tab get the same options. Then Codex
+ * sees the same hook definitions, and one trust is enough for both.
+ */
+export function codexHookArgs(scriptPath: string): string {
+    return codexHookOverrides(scriptPath)
+        .map(value => `-c ${shellQuote(value)}`)
+        .join(' ');
+}
+
+/**
+ * Returns the agent that wrote a transcript ("transcript_path" of the hooks), from the file name.
+ * Codex names its session files `rollout-<time>-<id>.jsonl`. Claude Code names its files `<session ID>.jsonl`.
+ * Only a Claude Code transcript has the chat, the pins, and the resume of a session.
+ */
+export function transcriptAgentOf(file: string | undefined): 'claude' | 'codex' | undefined {
+    const name = file?.split('/').pop() ?? '';
+    if (!name.endsWith('.jsonl')) return undefined;
+    return name.startsWith('rollout-') ? 'codex' : 'claude';
+}
+
 /** The agents that report their state through hooks. */
-export type HookAgent = 'claude' | 'gemini' | 'opencode';
+export type HookAgent = 'claude' | 'codex' | 'gemini' | 'opencode';
+
+const HOOK_AGENTS: readonly HookAgent[] = ['claude', 'codex', 'gemini', 'opencode'];
 
 /** Returns the agent of a command if ShipWarden can give it hooks. Returns undefined for other agents. */
 export function hookAgentOf(command: string): HookAgent | undefined {
     const program = command.trim().split(/\s+/)[0];
     const name = program.slice(program.lastIndexOf('/') + 1);
-    return name === 'claude' || name === 'gemini' || name === 'opencode' ? name : undefined;
+    return (HOOK_AGENTS as readonly string[]).includes(name) ? (name as HookAgent) : undefined;
 }
 
 /** The hook settings files of the agents. */
 export interface HookSettingsPaths {
     /** The file that Claude Code gets with --settings. */
     claude: string;
+    /** The script that the Codex hooks run. Codex gets the hooks with -c. */
+    codex: string;
     /** The file that Gemini CLI gets in GEMINI_CLI_SYSTEM_DEFAULTS_PATH. */
     gemini: string;
     /** The opencode plugin file. opencode gets it in OPENCODE_CONFIG_CONTENT. */
@@ -388,13 +494,15 @@ export interface HookSettingsPaths {
 }
 
 /**
- * Adds ShipWarden's hook settings to an agent command when the agent is Claude Code, Gemini CLI or opencode.
+ * Adds ShipWarden's hook settings to an agent command when the agent is Claude Code, Codex, Gemini CLI or opencode.
  * Other agents keep their command, and ShipWarden shows no detailed state for them.
  */
 export function withAgentHooks(command: string, paths: HookSettingsPaths): string {
     switch (hookAgentOf(command)) {
         case 'claude':
             return `${command.trim()} --settings ${shellQuote(paths.claude)}`;
+        case 'codex':
+            return `${command.trim()} ${codexHookArgs(paths.codex)}`;
         case 'gemini':
             return `GEMINI_CLI_SYSTEM_DEFAULTS_PATH=${shellQuote(paths.gemini)} ${command.trim()}`;
         case 'opencode':

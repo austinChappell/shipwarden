@@ -1683,7 +1683,7 @@ export interface AutomationRun {
     sessionId?: string;
     /** The note with the answer of a "runHeadless" action. */
     noteName?: string;
-    /** The tokens that the run used. Only Claude Code reports them. See `countedTokens`. */
+    /** The tokens that the run used. Only Claude Code and Codex report them. See `countedTokens`. */
     tokens?: number;
     /** The tokens that the run read from the prompt cache. The history shows them. The limits do not count them. */
     cacheReads?: number;

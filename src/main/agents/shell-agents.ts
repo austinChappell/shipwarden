@@ -22,7 +22,8 @@ export interface ShellAgentsDeps {
  * Finds the agents that the user starts in a shell tab, for example with `claude` or `codex`.
  * Each 2 seconds, it reads the process table and finds the agent processes below the shell of each tab.
  * Only an agent in the foreground of the tab's terminal counts.
- * Codex has no hooks, so this is the only way to find it. A Claude Code agent also reports its state through the hooks.
+ * Codex sends hooks only after the user trusts them, so this can be the only way to find it. Claude Code, Codex,
+ * Gemini CLI, and opencode also report their state through the hooks.
  * A session of a host without the shell PID (a Yardmaster host) gets no agent program.
  */
 export class ShellAgents {

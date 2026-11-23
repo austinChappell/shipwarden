@@ -87,7 +87,7 @@ import { loadPromptTemplates } from './prompts/prompt-queries';
 import type { ShortcutAction, ViewAction } from '@shared/shortcuts';
 import { lspBridge } from './lsp/bridge';
 import { agentStateStore, withAgentStore } from './terminal/agent-state-store';
-import { pinOfSession, pinRequest, pinSession, unpinSession, usePinnedSessions } from './terminal/pinned-sessions';
+import { canPin, pinOfSession, pinRequest, pinSession, unpinSession, usePinnedSessions } from './terminal/pinned-sessions';
 import { sessionIdOf, type PinnedSession, type ResumePlan } from '@shared/pinned-sessions';
 import type { RecentSession } from '@shared/recent-sessions';
 import { markRecentSessionResumed } from './terminal/recent-sessions';
@@ -386,9 +386,10 @@ export function App() {
         const count = tabs.stripItems.length;
         const session = item.group ? undefined : withAgentStore(sessions).find(entry => `t:${entry.id}` === item.key);
         const pin = session?.agentTranscript ? pinOfSession(pins, session) : undefined;
-        const pinItems: ContextMenuItem[] = session?.agentTranscript
-            ? [pin ? { id: 'unpin', label: `Unpin “${pin.name}”` } : { id: 'pin', label: 'Pin session' }, { type: 'separator' }]
-            : [];
+        const pinItems: ContextMenuItem[] =
+            session && canPin(session)
+                ? [pin ? { id: 'unpin', label: `Unpin “${pin.name}”` } : { id: 'pin', label: 'Pin session' }, { type: 'separator' }]
+                : [];
         const closeItems: ContextMenuItem[] = [
             { id: 'close', label: 'Close' },
             { id: 'others', label: 'Close other tabs', enabled: count > 1 },

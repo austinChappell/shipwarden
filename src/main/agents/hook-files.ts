@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { writeFileSync } from 'fs';
-import { claudeHookSettings, opencodeHookConfig, type HookSettingsPaths } from '@shared/agents';
+import { claudeHookSettings, codexHookArgs, codexHookScript, opencodeHookConfig, type HookSettingsPaths } from '@shared/agents';
 import { writeGeminiHookSettings } from './gemini-settings';
 import { writeOpencodePlugin } from './opencode-plugin';
 import { writeBashIntegration, writeZshIntegration, type ShellIntegration } from './shell-integration';
@@ -9,10 +9,12 @@ import { writeBashIntegration, writeZshIntegration, type ShellIntegration } from
  * The hook settings files of the agents. They are the same for each session.
  * Claude Code gets its file with --settings. Gemini CLI gets its file in GEMINI_CLI_SYSTEM_DEFAULTS_PATH.
  * opencode gets an inline config in OPENCODE_CONFIG_CONTENT that loads the plugin file.
+ * Codex gets its hooks with -c options. Each hook runs the Codex hook script.
  */
 export function hookSettingsPaths(userData: string): HookSettingsPaths {
     return {
         claude: join(userData, 'claude-hooks.json'),
+        codex: join(userData, 'codex-hook.sh'),
         gemini: join(userData, 'gemini-hooks.json'),
         opencode: join(userData, 'opencode', 'shipwarden-agent-state.js')
     };
@@ -25,7 +27,7 @@ function messageOf(error: unknown): string {
 
 /**
  * Writes the hook settings files and the shell integration into `shellFolder`: the `zsh` folder and `init.bash`.
- * It adds the opencode config, the zsh folder and the bash file to `shellIntegration`. A file that fails gives a warning only.
+ * It adds the opencode config, the Codex options, the zsh folder and the bash file to `shellIntegration`. A file that fails gives a warning only.
  */
 export function writeAgentHookFiles(paths: HookSettingsPaths, shellIntegration: ShellIntegration, shellFolder: string): void {
     try {
@@ -46,6 +48,13 @@ export function writeAgentHookFiles(paths: HookSettingsPaths, shellIntegration: 
     } catch (error) {
         // Without the plugin, opencode still runs. ShipWarden then shows no state for it.
         console.warn(`[agents] The opencode plugin was not written: ${messageOf(error)}`);
+    }
+    try {
+        writeFileSync(paths.codex, codexHookScript());
+        shellIntegration.codexHookArgs = codexHookArgs(paths.codex);
+    } catch (error) {
+        // Without the script, the Codex hooks fail, and Codex still runs. ShipWarden then shows no state for it.
+        console.warn(`[agents] The Codex hook script was not written: ${messageOf(error)}`);
     }
     try {
         shellIntegration.zshFolder = writeZshIntegration(join(shellFolder, 'zsh'));

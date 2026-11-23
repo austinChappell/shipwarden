@@ -50,7 +50,7 @@ export interface StatsStateEvent extends StatsEventBase, StatsAgent {
     reason?: IdleReason;
     /** The transcript file of a Claude Code session. */
     transcript?: string;
-    /** All the tokens of the session up to this event. Only Claude Code sessions have a count. */
+    /** All the tokens of the session up to this event. Only Claude Code and Codex sessions have a count. */
     tokens?: number;
 }
 

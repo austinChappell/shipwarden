@@ -824,7 +824,7 @@ export class AutomationEngine {
     }
 
     /**
-     * Counts the tokens of the turn of a run in the transcript of its session. Only Claude Code sessions have a transcript.
+     * Counts the tokens of the turn of a run in the transcript of its session. Only Claude Code and Codex sessions have a transcript.
      * A count after the end of the turn is the last one.
      */
     private async countTurn(run: AutomationRun): Promise<void> {

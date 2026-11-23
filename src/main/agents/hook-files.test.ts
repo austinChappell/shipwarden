@@ -6,7 +6,8 @@ describe('hookSettingsPaths', () => {
         expect(hookSettingsPaths('/data')).toEqual({
             claude: '/data/claude-hooks.json',
             gemini: '/data/gemini-hooks.json',
-            opencode: '/data/opencode/shipwarden-agent-state.js'
+            opencode: '/data/opencode/shipwarden-agent-state.js',
+            codex: '/data/codex-hook.sh'
         });
     });
 });

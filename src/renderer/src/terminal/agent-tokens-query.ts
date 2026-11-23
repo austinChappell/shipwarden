@@ -16,7 +16,7 @@ type TokensByTranscript = Record<string, AgentTokens>;
 const EMPTY: TokensByTranscript = {};
 
 /**
- * The tokens of each agent session, by transcript path. Only Claude Code writes a transcript with token data.
+ * The tokens of each agent session, by transcript path. Only Claude Code and Codex write a transcript with token data.
  * A change of an agent state reads the transcripts again, because the agent wrote a new response.
  */
 export function useAgentTokens(sessions: readonly TerminalSession[]): TokensByTranscript {

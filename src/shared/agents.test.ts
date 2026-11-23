@@ -5,6 +5,10 @@ import {
     describeTool,
     oneLine,
     claudeHookSettings,
+    CODEX_HOOK_EVENTS,
+    codexHookArgs,
+    codexHookOverrides,
+    codexHookScript,
     GEMINI_HOOK_EVENTS,
     GEMINI_HOOK_NAME,
     geminiHookSettings,
@@ -12,6 +16,7 @@ import {
     hookAgentOf,
     opencodeHookConfig,
     shellQuote,
+    transcriptAgentOf,
     withAgentHooks,
     worktreeAgentState
 } from './agents';
@@ -42,7 +47,50 @@ describe('agentStateFromHook', () => {
         });
         expect(agentStateFromHook('Stop', { transcript_path: '/tmp/x.txt' })).toEqual({ state: 'done' });
         expect(agentStateFromHook('SessionEnd', { reason: 'other' })).toEqual({ state: 'exited' });
-        expect(agentStateFromHook('PostToolUse', {})).toBeUndefined();
+        expect(agentStateFromHook('PreCompact', {})).toBeUndefined();
+    });
+
+    it('maps the Codex hook events to agent states', () => {
+        expect(agentStateFromHook('PreToolUse', { tool_name: 'exec_command', tool_input: { cmd: 'npm test' } })).toEqual({
+            state: 'working',
+            message: 'Running npm test'
+        });
+        expect(
+            agentStateFromHook('PermissionRequest', { tool_name: 'exec_command', tool_input: { cmd: 'rm -rf dist', description: 'Remove the build' } })
+        ).toEqual({
+            state: 'waiting',
+            waitFor: 'permission',
+            message: 'Waiting for approval: Remove the build'
+        });
+        expect(agentStateFromHook('PermissionRequest', { tool_name: 'exec_command', tool_input: { cmd: 'rm -rf dist' } })).toEqual({
+            state: 'waiting',
+            waitFor: 'permission',
+            message: 'Waiting for approval: Running rm -rf dist'
+        });
+        expect(agentStateFromHook('PreToolUse', { tool_name: 'request_user_input', tool_input: {} })).toEqual({
+            state: 'waiting',
+            waitFor: 'question',
+            message: 'The agent is asking a question.'
+        });
+        expect(agentStateFromHook('PostToolUse', { tool_name: 'apply_patch', tool_input: {} }, 'waiting')).toEqual({
+            state: 'working',
+            message: 'Editing files'
+        });
+        expect(agentStateFromHook('Interrupt', { turn_id: 't1' }, 'working')).toEqual({ state: 'idle', message: 'You stopped the turn.' });
+        expect(
+            agentStateFromHook('Stop', {
+                last_assistant_message: 'Done.',
+                transcript_path: '/u/.codex/sessions/2026/11/23/rollout-2026-11-23T15-29-48-01a2.jsonl',
+                model: 'gpt-6-sol'
+            })
+        ).toEqual({
+            state: 'done',
+            message: 'Done.',
+            transcript: '/u/.codex/sessions/2026/11/23/rollout-2026-11-23T15-29-48-01a2.jsonl',
+            model: 'gpt-6-sol'
+        });
+        // Codex can send a null transcript path.
+        expect(agentStateFromHook('Stop', { transcript_path: null })).toEqual({ state: 'done' });
     });
 
     it('maps the Gemini CLI hook events to agent states', () => {
@@ -190,7 +238,8 @@ describe('withAgentHooks', () => {
     const paths = {
         claude: '/Users/me/Library/Application Support/shipwarden/claude-hooks.json',
         gemini: '/Users/me/Library/Application Support/shipwarden/gemini-hooks.json',
-        opencode: '/Users/me/Library/Application Support/shipwarden/opencode/shipwarden-agent-state.js'
+        opencode: '/Users/me/Library/Application Support/shipwarden/opencode/shipwarden-agent-state.js',
+        codex: '/Users/me/Library/Application Support/shipwarden/codex-hook.sh'
     };
 
     it('adds the settings to Claude Code and quotes the path', () => {
@@ -214,8 +263,15 @@ describe('withAgentHooks', () => {
         expect(hookAgentOf('/Users/me/.opencode/bin/opencode')).toBe('opencode');
     });
 
+    it('gives Codex the hooks as -c options', () => {
+        const args = codexHookArgs(paths.codex);
+        expect(withAgentHooks('codex --model gpt-6-sol', paths)).toBe(`codex --model gpt-6-sol ${args}`);
+        expect(withAgentHooks('/opt/bin/codex', paths)).toBe(`/opt/bin/codex ${args}`);
+        expect(args.split(' -c ').length).toBe(CODEX_HOOK_EVENTS.length);
+        expect(hookAgentOf('codex resume --last')).toBe('codex');
+    });
+
     it('keeps the command of other agents', () => {
-        expect(withAgentHooks('codex', paths)).toBe('codex');
         expect(withAgentHooks('gemini-helper', paths)).toBe('gemini-helper');
         expect(hookAgentOf('aider --yes')).toBeUndefined();
         expect(hookAgentOf('/usr/local/bin/gemini')).toBe('gemini');
@@ -264,5 +320,42 @@ describe('describeTool', () => {
     it('keeps long text on one short line', () => {
         expect(oneLine('a\n  b', 80)).toBe('a b');
         expect(oneLine('x'.repeat(100), 10)).toBe('xxxxxxxxx…');
+    });
+});
+
+describe('Codex hooks', () => {
+    it('gives one TOML override for each event, with the script and the event', () => {
+        const overrides = codexHookOverrides('/data/codex-hook.sh');
+        expect(overrides.map(item => item.split('=')[0])).toEqual(CODEX_HOOK_EVENTS.map(event => `hooks.${event}`));
+        expect(overrides[0]).toBe(`hooks.SessionStart=[{hooks=[{type="command",command="sh '/data/codex-hook.sh' SessionStart",timeout=5}]}]`);
+    });
+
+    it('escapes quotes and backslashes for TOML and for the shell', () => {
+        const [override] = codexHookOverrides(String.raw`/data/it's "x"\y/codex-hook.sh`);
+        expect(override).toBe(
+            String.raw`hooks.SessionStart=[{hooks=[{type="command",command="sh '/data/it'\\''s \"x\"\\y/codex-hook.sh' SessionStart",timeout=5}]}]`
+        );
+    });
+
+    it('gives the same options to each command, so one trust is enough', () => {
+        expect(codexHookArgs('/data/codex-hook.sh')).toBe(codexHookArgs('/data/codex-hook.sh'));
+        expect(codexHookArgs('/data/codex-hook.sh').startsWith(`-c 'hooks.SessionStart=`)).toBe(true);
+    });
+
+    it('sends the event of the first argument to the hook server', () => {
+        const script = codexHookScript();
+        expect(script.startsWith('#!/bin/sh\n')).toBe(true);
+        expect(script).toContain('/hook/${SHIPWARDEN_SESSION_ID:-$YARDMASTER_SESSION_ID}/$1"');
+        expect(script).toContain('--unix-socket "$SHIPWARDEN_HOOK_SOCKET"');
+        expect(script).toContain('|| true');
+    });
+});
+
+describe('transcriptAgentOf', () => {
+    it('tells a Codex session file from a Claude Code transcript', () => {
+        expect(transcriptAgentOf('/u/.codex/sessions/2026/11/23/rollout-2026-11-23T15-29-48-01a2.jsonl')).toBe('codex');
+        expect(transcriptAgentOf('/u/.claude/projects/p/4f0c3b6e-1d2a-4c55-9a77-0d1f2e3a4b5c.jsonl')).toBe('claude');
+        expect(transcriptAgentOf('/tmp/notes.txt')).toBeUndefined();
+        expect(transcriptAgentOf(undefined)).toBeUndefined();
     });
 });
