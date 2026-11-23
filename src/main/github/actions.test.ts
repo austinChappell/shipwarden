@@ -256,11 +256,11 @@ describe('fetchRunJobs', () => {
 });
 
 describe('fetchPendingApprovals', () => {
-    const run = (id: number, title: string) => ({
+    const run = (id: number, title: string, workflowId = 7) => ({
         id,
         name: 'Deploy',
         display_title: title,
-        workflow_id: 7,
+        workflow_id: workflowId,
         run_number: id,
         head_branch: 'main',
         head_sha: 'abc',
@@ -276,7 +276,9 @@ describe('fetchPendingApprovals', () => {
 
     it('returns the waiting runs with the environments that the user can approve', async () => {
         const { client, calls } = fakeClient(call => {
-            if (call.path.endsWith('status=waiting&per_page=10')) return { workflow_runs: [run(1, 'Release 1.2'), run(2, 'Release 1.3')] };
+            if (call.path.endsWith('status=waiting&per_page=10')) return { workflow_runs: [run(1, 'Release 1.2'), run(2, 'Release 1.3', 8)] };
+            if (call.path.includes('/workflows/7/')) return { workflow_runs: [run(1, 'Release 1.2')] };
+            if (call.path.includes('/workflows/8/')) return { workflow_runs: [run(2, 'Release 1.3', 8)] };
             if (call.path.includes('/runs/1/')) {
                 return [
                     { environment: { id: 11, name: 'production' }, current_user_can_approve: true },
@@ -288,6 +290,8 @@ describe('fetchPendingApprovals', () => {
         const items = await fetchPendingApprovals(client, repo);
         expect(calls.map(call => call.path)).toEqual([
             '/repos/acme/api/actions/runs?status=waiting&per_page=10',
+            '/repos/acme/api/actions/workflows/7/runs?per_page=1',
+            '/repos/acme/api/actions/workflows/8/runs?per_page=1',
             '/repos/acme/api/actions/runs/1/pending_deployments',
             '/repos/acme/api/actions/runs/2/pending_deployments'
         ]);
@@ -306,6 +310,27 @@ describe('fetchPendingApprovals', () => {
                 target: { kind: 'github', repo, runId: 1, environmentIds: [11] }
             }
         ]);
+    });
+
+    it('returns only the newest waiting run of a workflow', async () => {
+        const { client, calls } = fakeClient(call => {
+            if (call.path.endsWith('status=waiting&per_page=10')) return { workflow_runs: [run(3, 'Release 1.4'), run(1, 'Release 1.2')] };
+            if (call.path.includes('/workflows/')) return { workflow_runs: [run(3, 'Release 1.4')] };
+            return [{ environment: { id: 11, name: 'production' }, current_user_can_approve: true }];
+        });
+        const items = await fetchPendingApprovals(client, repo);
+        expect(items.map(item => item.target)).toEqual([{ kind: 'github', repo, runId: 3, environmentIds: [11] }]);
+        expect(calls.some(call => call.path.includes('/runs/1/'))).toBe(false);
+    });
+
+    it('returns no run when a newer run of the workflow does not wait', async () => {
+        const { client, calls } = fakeClient(call => {
+            if (call.path.endsWith('status=waiting&per_page=10')) return { workflow_runs: [run(1, 'Release 1.2')] };
+            if (call.path.includes('/workflows/')) return { workflow_runs: [{ ...run(5, 'Release 1.5'), status: 'in_progress' }] };
+            return [{ environment: { id: 11, name: 'production' }, current_user_can_approve: true }];
+        });
+        expect(await fetchPendingApprovals(client, repo)).toEqual([]);
+        expect(calls.some(call => call.path.includes('pending_deployments'))).toBe(false);
     });
 
     it('sends one request when no run is waiting', async () => {

@@ -202,30 +202,34 @@ describe('withApiVersion', () => {
 });
 
 describe('pipeline approvals', () => {
-    it('returns one item for each run that waits for the viewer, with the details of the build', async () => {
-        const approval = (id: string, buildId: number) => ({
-            id,
-            status: 'pending',
-            createdOn: `2026-11-20T10:0${buildId}:00Z`,
-            pipeline: { id: 4, name: 'Release', owner: { id: buildId, name: `2026112${buildId}.1` } }
-        });
+    const approval = (id: string, buildId: number, pipelineId = buildId) => ({
+        id,
+        status: 'pending',
+        createdOn: `2026-11-20T10:0${buildId}:00Z`,
+        pipeline: { id: pipelineId, name: 'Release', owner: { id: buildId, name: `2026112${buildId}.1` } }
+    });
+    const build = (id: number, definition: number) => ({
+        id,
+        buildNumber: `2026112${id}.1`,
+        status: 'inProgress',
+        sourceBranch: 'refs/heads/main',
+        sourceVersion: 'abc',
+        definition: { id: definition, name: 'Release' },
+        requestedFor: { id: 'u1', displayName: 'Ann Lee' },
+        triggerInfo: { 'ci.message': 'Ship the cart' },
+        _links: { web: { href: `https://dev.azure.com/contoso/Web/_build/results?buildId=${id}` } }
+    });
+
+    it('returns one item for each run that waits for the viewer, with the details of the latest build', async () => {
         const { calls, service } = recordCalls({
             '/_apis/projects?': { value: [{ name: 'Web', state: 'wellFormed' }] },
             '/pipelines/approvals?': { value: [approval('a1', 7), approval('a2', 7), approval('a3', 8), { ...approval('a4', 9), status: 'approved' }] },
-            '/build/builds/7': {
-                id: 7,
-                buildNumber: '20261127.1',
-                status: 'inProgress',
-                sourceBranch: 'refs/heads/main',
-                sourceVersion: 'abc',
-                definition: { id: 4, name: 'Release' },
-                requestedFor: { id: 'u1', displayName: 'Ann Lee' },
-                triggerInfo: { 'ci.message': 'Ship the cart' },
-                _links: { web: { href: 'https://dev.azure.com/contoso/Web/_build/results?buildId=7' } }
-            }
+            'builds?definitions=7&': { value: [build(7, 7)] }
         });
         const items = await service.dashboardApprovals(['contoso']);
-        expect(calls.map(([, url]) => url)).toContain(`${PROJECT}/pipelines/approvals?state=pending&userIds=${VIEWER}&api-version=7.1-preview.1`);
+        const urls = calls.map(([, url]) => url);
+        expect(urls).toContain(`${PROJECT}/pipelines/approvals?state=pending&userIds=${VIEWER}&api-version=7.1-preview.1`);
+        expect(urls).toContain(`${PROJECT}/build/builds?definitions=7&queryOrder=queueTimeDescending&$top=1`);
         expect(items).toHaveLength(2);
         expect(items[0]).toMatchObject({
             id: 'azure:contoso/Web:7',
@@ -237,8 +241,20 @@ describe('pipeline approvals', () => {
             url: 'https://dev.azure.com/contoso/Web/_build/results?buildId=7',
             target: { kind: 'azure', organization: 'contoso', project: 'Web', approvalIds: ['a1', 'a2'] }
         });
-        // The build of run 8 gave no answer, so the item uses the run name and the default web page.
+        // The builds of pipeline 8 gave no answer, so the item uses the run name and the default web page.
         expect(items[1]).toMatchObject({ title: '20261128.1', url: 'https://dev.azure.com/contoso/Web/_build/results?buildId=8' });
+    });
+
+    it('returns only the latest run of a pipeline', async () => {
+        const { service } = recordCalls({
+            '/_apis/projects?': { value: [{ name: 'Web', state: 'wellFormed' }] },
+            // Runs 6 and 7 of pipeline 4 wait. Run 5 of pipeline 2 waits, but its pipeline has the newer run 9.
+            '/pipelines/approvals?': { value: [approval('a1', 6, 4), approval('a2', 7, 4), approval('a3', 5, 2)] },
+            'builds?definitions=4&': { value: [build(7, 4)] },
+            'builds?definitions=2&': { value: [build(9, 2)] }
+        });
+        const items = await service.dashboardApprovals(['contoso']);
+        expect(items.map(item => item.target)).toEqual([{ kind: 'azure', organization: 'contoso', project: 'Web', approvalIds: ['a2'] }]);
     });
 
     it('approves all approvals of a run in one request', async () => {

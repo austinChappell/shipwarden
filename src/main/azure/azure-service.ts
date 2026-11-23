@@ -415,7 +415,11 @@ export class AzureDevOpsService implements SourceHost {
         return results.flat();
     }
 
-    /** Returns the runs of a project that wait for the approval of the user. Each run needs one more request for its details. */
+    /**
+     * Returns the runs of a project that wait for the approval of the user. Only the latest run of a pipeline counts.
+     * When a newer run of the pipeline exists, the older run gives no item. Each run needs one more request: the latest
+     * build of its pipeline, which also gives the details of the run.
+     */
     private async projectApprovals(organization: string, project: string, viewerId: string): Promise<PipelineApprovalItem[]> {
         const projectUrl = `${azureOrgUrl({ organization })}/${encodeURIComponent(project)}`;
         const data = await this.client.request<AzList<AzApproval>>(
@@ -428,13 +432,21 @@ export class AzureDevOpsService implements SourceHost {
             const key = approval.pipeline?.owner ? String(approval.pipeline.owner.id) : `approval:${approval.id}`;
             runs.set(key, [...(runs.get(key) ?? []), approval]);
         }
-        return Promise.all(
-            [...runs.values()].map(async approvals => {
+        // Keep the newest waiting run of each pipeline. A larger build ID is a newer run.
+        const latest = new Map<string, AzApproval[]>();
+        for (const [key, approvals] of runs) {
+            const pipelineId = approvals[0].pipeline?.id;
+            const pipelineKey = pipelineId !== undefined ? `pipeline:${pipelineId}` : key;
+            const kept = latest.get(pipelineKey);
+            if (!kept || (approvals[0].pipeline?.owner?.id ?? 0) > (kept[0].pipeline?.owner?.id ?? 0)) latest.set(pipelineKey, approvals);
+        }
+        const items = await Promise.all(
+            [...latest.values()].map(async (approvals): Promise<PipelineApprovalItem | undefined> => {
                 const first = approvals[0];
                 const owner = first.pipeline?.owner;
-                const build = owner
-                    ? await this.client.request<AzBuild>('GET', `${projectUrl}/_apis/build/builds/${owner.id}`).catch(() => undefined)
-                    : undefined;
+                const build = owner ? await this.latestBuild(projectUrl, first.pipeline?.id, owner.id) : undefined;
+                // A newer run of the pipeline replaces this run, so the approval of this run is not necessary.
+                if (owner && build && build.id !== owner.id) return undefined;
                 const createdAt = approvals.map(item => item.createdOn ?? '').sort()[0] || build?.queueTime || new Date().toISOString();
                 return {
                     id: `azure:${organization}/${project}:${owner?.id ?? first.id}`,
@@ -454,6 +466,24 @@ export class AzureDevOpsService implements SourceHost {
                 };
             })
         );
+        return items.filter((item): item is PipelineApprovalItem => !!item);
+    }
+
+    /**
+     * Returns the latest build of a pipeline. Without the pipeline ID, or when that request fails, it returns the build of
+     * the run. It returns undefined when both requests fail.
+     */
+    private async latestBuild(projectUrl: string, pipelineId: number | string | undefined, buildId: number): Promise<AzBuild | undefined> {
+        if (pipelineId !== undefined) {
+            const list = await this.client
+                .request<AzList<AzBuild>>(
+                    'GET',
+                    `${projectUrl}/_apis/build/builds?definitions=${encodeURIComponent(String(pipelineId))}&queryOrder=queueTimeDescending&$top=1`
+                )
+                .catch(() => undefined);
+            if (list?.value?.[0]) return list.value[0];
+        }
+        return this.client.request<AzBuild>('GET', `${projectUrl}/_apis/build/builds/${buildId}`).catch(() => undefined);
     }
 
     /** Approves the approvals of a pipeline run. The run then continues at those stages. */
