@@ -9275,6 +9275,12 @@ body.resizing-column * {
     overflow-wrap: anywhere;
 }
 
+/* The chip of a run that waits for the approval of the user. It sits at the end of the row. */
+.pipeline-run-approval {
+    flex: none;
+    margin-left: auto;
+}
+
 .pipeline-detail {
     flex: 1;
     min-width: 280px;
@@ -11587,6 +11593,11 @@ button.gg-ref:hover {
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* The Approve button of a run that waits for the user. It shows also without hover. */
+.pp-approve {
+    flex: none;
 }
 
 .pp-run-actions {

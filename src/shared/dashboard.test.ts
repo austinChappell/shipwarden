@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     ageLevel,
+    approvalOfRun,
     bucketMyPullRequests,
     groupReviewRequests,
     isHiddenComment,
@@ -15,7 +16,8 @@ import {
     parsePullRequestTitle,
     ruleRegex,
     shortAge,
-    type MyPullRequestItem
+    type MyPullRequestItem,
+    type PipelineApprovalItem
 } from './dashboard';
 
 describe('myPullRequestReasons', () => {
@@ -242,5 +244,34 @@ describe('groupReviewRequests', () => {
         expect(groups).toHaveLength(1);
         expect(groups[0].items.map(entry => entry.createdAt)).toEqual(['2026-05-01', '2026-05-02', '2026-05-03', '2026-05-04']);
         expect(groupReviewRequests([], 'oldest')).toEqual([]);
+    });
+});
+
+describe('approvalOfRun', () => {
+    const item = (id: string): PipelineApprovalItem => ({
+        id,
+        source: 'app',
+        sourceTitle: 'octo/app',
+        workflow: 'Deploy',
+        title: 'Fix the login',
+        environments: [],
+        url: 'https://example.test/run',
+        createdAt: '2026-11-23T10:00:00Z',
+        target: { kind: 'azure', organization: 'contoso', project: 'Web', approvalIds: [] }
+    });
+    const items = [item('github:Octo/App:42'), item('azure:contoso/Web:7')];
+
+    it('finds the approval of a GitHub run, with a different case of the repository', () => {
+        expect(approvalOfRun(items, { owner: 'octo', name: 'app' }, 42)?.id).toBe('github:Octo/App:42');
+    });
+
+    it('finds the approval of an Azure DevOps build', () => {
+        expect(approvalOfRun(items, { owner: 'contoso/Web', name: 'site', host: 'azure' }, 7)?.id).toBe('azure:contoso/Web:7');
+    });
+
+    it('returns undefined for another run, another host, or no items', () => {
+        expect(approvalOfRun(items, { owner: 'octo', name: 'app' }, 43)).toBeUndefined();
+        expect(approvalOfRun(items, { owner: 'octo', name: 'app', host: 'gitlab' }, 42)).toBeUndefined();
+        expect(approvalOfRun(undefined, { owner: 'octo', name: 'app' }, 42)).toBeUndefined();
     });
 });
