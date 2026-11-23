@@ -16,6 +16,7 @@ export type MainView =
     | 'stats'
     | 'terminal'
     | 'graph'
+    | 'branches'
     | 'settings'
     | 'welcome';
 
@@ -33,15 +34,20 @@ export const VIEW_OF_ACTION: Record<ViewAction, 'dashboard' | 'agents' | 'tasks'
     viewAutomations: 'automations'
 };
 
+/** True for a page of one repository: the commit graph or the branch list. The layout does not keep its repository. */
+export function isRepoView(view: MainView): view is 'graph' | 'branches' {
+    return view === 'graph' || view === 'branches';
+}
+
 /**
  * Returns the view that the saved layout keeps. The settings page saves the view below it.
- * The graph page is not saved, because its repository is not in the layout. The worktree view goes in its place.
+ * The graph page and the branches page are not saved, because their repository is not in the layout. The worktree view goes in their place.
  * The welcome page is not saved. The onboarding state decides if it shows at the start. The Dashboard goes in its place.
  */
-export function viewToSave(mainView: MainView, viewBeforeSettings: ContentView): Exclude<ContentView, 'graph' | 'welcome'> {
+export function viewToSave(mainView: MainView, viewBeforeSettings: ContentView): Exclude<ContentView, 'graph' | 'branches' | 'welcome'> {
     const view = mainView === 'settings' ? viewBeforeSettings : mainView;
     if (view === 'welcome') return 'dashboard';
-    return view === 'graph' ? 'worktree' : view;
+    return isRepoView(view) ? 'worktree' : view;
 }
 
 /**
@@ -55,10 +61,10 @@ export function startView(saved: MainView | undefined, selectedPath: string | un
 
 /**
  * Returns the view after a switch to another project. The current view stays.
- * The graph page shows a repository of the old project. Thus the worktree view of the new project goes in its place.
+ * The graph page and the branches page show a repository of the old project. Thus the worktree view of the new project goes in their place.
  */
 export function viewAfterProjectSwitch(view: MainView): MainView {
-    return view === 'graph' ? 'worktree' : view;
+    return isRepoView(view) ? 'worktree' : view;
 }
 
 /**
@@ -75,7 +81,7 @@ export function navLocationOf(
     if (mainView === 'settings') return { view: mainView, page: route.page };
     if (mainView === 'worktree') return selectedPath ? { view: mainView, worktree: selectedPath, tab: activeTab, query: route.query } : undefined;
     if (mainView === 'terminal') return selectedPath ? { view: mainView, worktree: selectedPath, tab: activeTab } : { view: mainView };
-    if (mainView === 'graph') return { view: mainView, repo: graphRepo };
+    if (isRepoView(mainView)) return { view: mainView, repo: graphRepo };
     return { view: mainView, page: route.page, query: route.query };
 }
 
@@ -84,7 +90,7 @@ export function navLocationOf(
  * does not exist now. `tabsOf` returns the tab keys of a worktree. An entry of the Terminal view is not valid when its tab closed.
  */
 export function isNavValid(location: NavLocation, repos: readonly string[], worktreePaths: readonly string[], tabsOf: (worktree: string) => string[]): boolean {
-    if (location.view === 'graph') return !!location.repo && repos.includes(location.repo);
+    if (location.view === 'graph' || location.view === 'branches') return !!location.repo && repos.includes(location.repo);
     if (location.view === 'terminal') return !location.tab || !location.worktree || tabsOf(location.worktree).includes(location.tab);
     if (location.view !== 'worktree') return true;
     if (!location.worktree || !worktreePaths.includes(location.worktree)) return false;

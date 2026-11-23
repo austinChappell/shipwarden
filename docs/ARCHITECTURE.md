@@ -520,7 +520,7 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - Keys, as in Ghostty (`shortcutAction`): ⌘T a new shell tab, ⌘W close the focused pane (the tab when it has one
   pane; a running agent asks first), ⌘D and ⇧⌘D a new shell pane at the right of or below the focused pane, ⌥⌘ and an
   arrow key move the focus to the pane at that side. ⇧⌘W closes the window. ⌘N opens the New worktree dialog for the repository on the screen: the
-  commit graph, else the selected worktree, else the first repository. ⇧⌘E moves the focus to the file explorer. It
+  commit graph or the branches page, else the selected worktree, else the first repository. ⇧⌘E moves the focus to the file explorer. It
   shows the right panel and the Files tab when necessary. ⌘B shows or hides the sidebar, and ⇧⌘B moves the focus to
   it. The sidebar shows first when necessary. In the sidebar, Up and Down move between the items, Enter or Space opens
   an item, Left and Right collapse and expand a repository, and ⇧F10 opens the context menu of a worktree.

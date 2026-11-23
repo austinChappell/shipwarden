@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FolderGit2, GitGraph, LoaderCircle } from 'lucide-react';
+import { FolderGit2, GitBranch, GitGraph, LoaderCircle } from 'lucide-react';
 import { layoutGraph, type GraphLog, type GraphRef, type GraphRow, type GraphScope } from '@shared/git-graph';
 import type { Worktree } from '@shared/worktrees';
 import { formatAgo, pluralize } from '@shared/format';
@@ -29,6 +29,8 @@ interface Props {
     worktrees: Worktree[];
     onNewWorktree(start: GraphWorktreeStart): void;
     onOpenWorktree(worktree: Worktree): void;
+    /** Opens the branches page of the repository. */
+    onOpenBranches(): void;
 }
 
 function readScope(): GraphScope {
@@ -121,7 +123,7 @@ function RefChip({ gitRef, worktree, onCheckout, onOpenWorktree }: RefChipProps)
  * The commit graph of a repository on a full page, like `git log --graph`. The user can start a new worktree from a
  * commit, check out a remote branch in a new worktree, or open the worktree of a local branch.
  */
-export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenWorktree }: Props) {
+export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenWorktree, onOpenBranches }: Props) {
     const [scope, setScope] = useState<GraphScope>(readScope);
     const [limit, setLimit] = useState(PAGE);
     const [log, setLog] = useState<GraphLog>();
@@ -196,7 +198,12 @@ export function GitGraphView({ repo, repoName, worktrees, onNewWorktree, onOpenW
                         ))}
                     </ButtonGroup>
                 }
-                actions={<RefreshButton size="lg" refreshing={loading} onRefresh={reload} />}
+                actions={
+                    <>
+                        <IconButton size="lg" icon={<GitBranch size={16} strokeWidth={1.7} />} label="Branches" onClick={onOpenBranches} />
+                        <RefreshButton size="lg" refreshing={loading} onRefresh={reload} />
+                    </>
+                }
             />
             {error && <div className="form-error pp-error">{error}</div>}
             {!log && !error && <SkeletonRows count={8} label="Loading the history" />}

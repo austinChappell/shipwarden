@@ -449,7 +449,8 @@
     border-left: 0;
 }
 
-.button-group[role="radiogroup"] > .button:not(:disabled):hover {
+/* The selected option keeps its raised fill on hover. */
+.button-group[role="radiogroup"] > .button:not(:disabled, [aria-checked="true"], .selected):hover {
     background: transparent;
     color: var(--text-strong);
 }

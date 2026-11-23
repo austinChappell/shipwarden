@@ -11,6 +11,11 @@ describe('viewToSave', () => {
         expect(viewToSave('settings', 'graph')).toBe('worktree');
     });
 
+    it('saves the worktree view in place of the branches page', () => {
+        expect(viewToSave('branches', 'dashboard')).toBe('worktree');
+        expect(viewToSave('settings', 'branches')).toBe('worktree');
+    });
+
     it('saves the Dashboard in place of the welcome page', () => {
         expect(viewToSave('welcome', 'review')).toBe('dashboard');
         expect(viewToSave('settings', 'welcome')).toBe('dashboard');
@@ -33,6 +38,7 @@ describe('navLocationOf', () => {
 
     it('gives the repository of the graph page', () => {
         expect(navLocationOf('graph', '/w', 't:1', '/repo')).toEqual({ view: 'graph', repo: '/repo' });
+        expect(navLocationOf('branches', '/w', 't:1', '/repo')).toEqual({ view: 'branches', repo: '/repo' });
     });
 
     it('gives the view, its page and its query for other views', () => {
@@ -68,6 +74,11 @@ describe('isNavValid', () => {
         expect(isNavValid({ view: 'graph' }, ['/repo'], [], tabsOf)).toBe(false);
     });
 
+    it('accepts a branches entry only for a repository of the project', () => {
+        expect(isNavValid({ view: 'branches', repo: '/repo' }, ['/repo'], [], tabsOf)).toBe(true);
+        expect(isNavValid({ view: 'branches', repo: '/gone' }, ['/repo'], [], tabsOf)).toBe(false);
+    });
+
     it('accepts a worktree entry only when the worktree and the tab exist', () => {
         expect(isNavValid({ view: 'worktree', worktree: '/w', tab: 'f:a.ts' }, [], ['/w'], tabsOf)).toBe(true);
         expect(isNavValid({ view: 'worktree', worktree: '/w' }, [], ['/w'], tabsOf)).toBe(true);
@@ -95,6 +106,7 @@ describe('viewAfterProjectSwitch', () => {
 
     it('shows the worktree view in place of the graph of the old project', () => {
         expect(viewAfterProjectSwitch('graph')).toBe('worktree');
+        expect(viewAfterProjectSwitch('branches')).toBe('worktree');
     });
 });
 

@@ -11,6 +11,7 @@ import {
     FolderMinus,
     FolderDown,
     FolderPlus,
+    GitBranch,
     GitGraph,
     GripVertical,
     GitPullRequest,
@@ -155,6 +156,10 @@ interface Props {
     graphRepo?: string;
     /** Opens the commit graph of a repository on a full page. */
     onOpenGraph(repo: string): void;
+    /** The repository whose branch list shows. Undefined when the branches page does not show. */
+    branchesRepo?: string;
+    /** Opens the local and remote branches of a repository on a full page. */
+    onOpenBranches(repo: string): void;
     /** The name of a repository: its name from the repository settings, else its folder name. */
     repoLabel(repo: string): string;
     repoColor(repo: string): RepoColor | undefined;
@@ -618,6 +623,17 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                     onClick={event => {
                         event.stopPropagation();
                         parent.onOpenGraph(repo);
+                    }}
+                />
+                <IconButton
+                    size="sm"
+                    className="repo-action"
+                    active={parent.branchesRepo === repo}
+                    icon={<GitBranch size={14} strokeWidth={1.6} />}
+                    label="Branches"
+                    onClick={event => {
+                        event.stopPropagation();
+                        parent.onOpenBranches(repo);
                     }}
                 />
                 <IconButton

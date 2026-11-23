@@ -13,7 +13,7 @@ export interface NavLocation {
     worktree?: string;
     /** The active tab of the worktree. In a split tab, this is the focused pane. Only for the worktree view. */
     tab?: string;
-    /** The repository of the commit graph. Only for the commit graph view. */
+    /** The repository of the page. Only for the commit graph view and the branches view. */
     repo?: string;
     /** The page in the view, for example one pull request in the Review view. Undefined is the entry page of the view. */
     page?: string;

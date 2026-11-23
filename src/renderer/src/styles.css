@@ -11035,6 +11035,360 @@ button.gg-ref:hover {
     margin: 12px auto 0;
 }
 
+/* The Branches page: the local and remote branches of a repository */
+.branches-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    font-size: 13px;
+    container-type: inline-size;
+}
+
+.br-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px var(--gutter) 24px;
+}
+
+.br-group-space {
+    flex: 1;
+}
+
+/* The filter chips and the group picker */
+.br-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.br-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* A filter chip is a toggle (docs/design, board 2): a 999 radius pill. The selected chip gets the selected fill. */
+.br-filter {
+    height: 28px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.br-filter:hover {
+    background: var(--hover);
+}
+
+.br-filter.warning {
+    border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+    color: var(--warning);
+}
+
+.br-filter[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    background: var(--selected);
+    color: var(--text-strong);
+}
+
+.br-toolbar-label {
+    color: var(--muted);
+}
+
+.br-error {
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+/* The card of the default branch, above the table */
+.br-default,
+.br-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    background: var(--card);
+}
+
+.br-default > * {
+    flex: none;
+}
+
+.br-default > .br-commit {
+    flex: 1;
+    min-width: 0;
+}
+
+.br-default-icon {
+    color: var(--accent);
+}
+
+/* The notice about branches whose remote branch is gone. It uses the warning hue, because it shows a state. */
+.br-notice {
+    border-color: color-mix(in srgb, var(--warning) 40%, var(--border));
+    background: color-mix(in srgb, var(--warning) 6%, var(--card));
+    color: var(--text-strong);
+}
+
+.br-notice > svg {
+    flex: none;
+    color: var(--warning);
+}
+
+/* The table: one grid for the head and each row, so the columns line up. */
+.br-table {
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    background: var(--card);
+    padding: 0 8px 8px;
+}
+
+.br-row {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 2.2fr) 112px minmax(0, 3fr) 132px 44px 150px;
+    align-items: center;
+    gap: 12px;
+    min-height: 40px;
+    padding: 0 8px;
+    border-radius: var(--control-radius);
+}
+
+.br-row:not(.br-head):hover,
+.br-row:not(.br-head):focus-visible {
+    background: var(--hover);
+    outline: none;
+}
+
+.br-head {
+    min-height: 40px;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* The column titles have one look. The cell rules below do not change them. */
+.br-head > span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.br-cell-icon {
+    display: flex;
+    justify-content: center;
+}
+
+.br-icon.tree {
+    color: var(--info);
+}
+
+.br-icon.main {
+    color: var(--accent);
+}
+
+.br-icon.none {
+    color: var(--muted);
+}
+
+.br-cell-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.br-cell-name > .chip {
+    flex: none;
+}
+
+.br-step {
+    flex: none;
+    width: 20px;
+    color: var(--muted);
+    text-align: right;
+}
+
+.br-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-strong);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.br-cell-ticket {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.br-cell-commit {
+    min-width: 0;
+}
+
+.br-commit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+/*
+ * The type of a commit: a small mono tag. It is not a status, so it has no status hue. The tag has one width, so the
+ * subjects line up. An empty tag keeps the space.
+ */
+.br-type {
+    flex: none;
+    box-sizing: border-box;
+    width: 68px;
+    overflow: hidden;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--raised);
+    color: var(--muted);
+    font-size: 11px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.br-type:empty {
+    background: transparent;
+}
+
+/* The Remote or Local column: one chip that truncates, and the ahead and behind counts. */
+.br-cell-remote {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.br-tracked {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.br-cell-remote .chip {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.br-subject {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.br-track {
+    color: var(--info);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.br-cell-age {
+    text-align: right;
+}
+
+.br-fresh {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+/* The actions show when the pointer is on the row, when the row has the focus, or while an action of the row runs. */
+.br-cell-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    opacity: 0;
+}
+
+.br-row:hover .br-cell-actions,
+.br-row:focus-within .br-cell-actions,
+.br-row.busy .br-cell-actions {
+    opacity: 1;
+}
+
+/* A group: a header with the prefix, then its rows. */
+.br-group + .br-group {
+    border-top: 1px solid var(--border);
+}
+
+.br-group-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 8px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.br-group-head:hover .br-group-name {
+    text-decoration: underline;
+}
+
+.br-group-name {
+    color: var(--text-strong);
+    font-weight: 600;
+}
+
+.br-group-meta.warning {
+    color: var(--warning);
+}
+
+/* A narrow page hides the ticket first, then the remote column, so the name and the subject keep room. */
+@container (max-width: 980px) {
+    .br-row {
+        grid-template-columns: 24px minmax(0, 2fr) minmax(0, 3fr) 132px 44px 150px;
+    }
+
+    .br-cell-ticket {
+        display: none;
+    }
+}
+
+@container (max-width: 760px) {
+    .br-row {
+        grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) 44px 150px;
+    }
+
+    .br-cell-remote {
+        display: none;
+    }
+}
+
 /* The Pipelines tab of the right panel: the runs of the repository of the worktree */
 .pipelines-panel {
     display: flex;

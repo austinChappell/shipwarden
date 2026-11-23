@@ -112,6 +112,8 @@ export const keyRoots = {
     recentSessions: ['recentSessions'],
     /** The search across all Claude Code transcripts. Local data: the main process keeps the index on this Mac. */
     transcriptSearch: ['transcriptSearch'],
+    /** The local and remote branches of each repository, for the Branches page. Git runs on this Mac. Only a refresh fetches the remotes. */
+    repoBranches: ['repoBranches'],
     /** The changes of a worktree branch since its base, and the file versions. Local data: git runs on this Mac. */
     branchDiff: ['branchDiff'],
     /** The PATH check of each agent command. Local data: no request goes to a service. */

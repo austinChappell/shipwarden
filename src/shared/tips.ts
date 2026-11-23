@@ -24,6 +24,11 @@ export interface Tip {
 /** The tips of the corner notice. The notice shows one tip at random (see `pickTip`). */
 export const NOTICE_TIPS: readonly Tip[] = [
     {
+        id: 'branchesPage',
+        title: 'Clean up old branches',
+        body: 'Click the branch icon of a repository in the sidebar. The Branches page checks out, deletes, and fetches local and remote branches. It also deletes all merged local branches in one step.'
+    },
+    {
         id: 'bitbucketProvider',
         title: 'Review Bitbucket pull requests',
         body: 'Add a Bitbucket provider for Bitbucket Cloud. Pull requests, threads, approvals, and pipeline steps then show in ShipWarden, as GitHub pull requests do.',
