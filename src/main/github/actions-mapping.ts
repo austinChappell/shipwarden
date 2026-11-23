@@ -56,6 +56,8 @@ export interface RestWorkflowRun {
     name: string | null;
     display_title?: string;
     workflow_id: number;
+    /** The file of the workflow, for example ".github/workflows/deploy.yml". */
+    path?: string;
     run_number: number;
     head_branch: string | null;
     head_sha: string;

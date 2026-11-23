@@ -118,6 +118,14 @@ export type PipelineApprovalTarget =
  * A pipeline run that waits for the approval of the user. Examples: a GitHub Actions deployment to an environment with
  * required reviewers, or an Azure Pipelines stage with an approval check.
  */
+/** A workflow (GitHub) or a pipeline (Azure DevOps). */
+export interface PipelineRef {
+    /** A key that is unique across providers and repositories. All runs of one pipeline have the same key. */
+    id: string;
+    /** The page of the pipeline, with its runs. */
+    url: string;
+}
+
 export interface PipelineApprovalItem {
     /** A key that is unique across providers and repositories. */
     id: string;
@@ -125,6 +133,8 @@ export interface PipelineApprovalItem {
     source: string;
     /** The full name of the place of the run, for the tooltip. */
     sourceTitle: string;
+    /** The workflow or pipeline of the run. Undefined when the provider does not give it. A snooze of the pipeline uses it. */
+    pipeline?: PipelineRef;
     /** The name of the workflow or pipeline. */
     workflow: string;
     /** The title of the run, for example the commit message or the pull request title. */

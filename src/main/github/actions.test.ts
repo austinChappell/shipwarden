@@ -12,6 +12,7 @@ import {
     fetchJobLog,
     fetchJobProgress,
     fetchPendingApprovals,
+    workflowPageUrl,
     fetchRunJobs,
     fetchWorkflowRuns,
     fetchWorkflows,
@@ -255,6 +256,18 @@ describe('fetchRunJobs', () => {
     });
 });
 
+describe('workflowPageUrl', () => {
+    it('links to the page of the workflow file, or to the Actions page without a file', () => {
+        const html_url = 'https://github.example.com/acme/api/actions/runs/42';
+        expect(workflowPageUrl({ html_url, path: '.github/workflows/deploy.yml' })).toBe('https://github.example.com/acme/api/actions/workflows/deploy.yml');
+        expect(workflowPageUrl({ html_url, path: '.github/workflows/deploy.yml@refs/heads/main' })).toBe(
+            'https://github.example.com/acme/api/actions/workflows/deploy.yml'
+        );
+        expect(workflowPageUrl({ html_url, path: 'dynamic/pages/pages-build-deployment' })).toBe('https://github.example.com/acme/api/actions');
+        expect(workflowPageUrl({ html_url })).toBe('https://github.example.com/acme/api/actions');
+    });
+});
+
 describe('fetchPendingApprovals', () => {
     const run = (id: number, title: string, workflowId = 7) => ({
         id,
@@ -298,6 +311,7 @@ describe('fetchPendingApprovals', () => {
         expect(items).toEqual([
             {
                 id: 'github:acme/api:1',
+                pipeline: { id: 'github:acme/api:workflow:7', url: 'https://github.com/acme/api/actions' },
                 source: 'api',
                 sourceTitle: 'acme/api',
                 workflow: 'Deploy',

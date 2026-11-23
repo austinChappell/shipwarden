@@ -164,6 +164,7 @@ export async function fetchPendingApprovals(client: GitHubClient, repo: RepoRef)
             if (approvable.length === 0) return undefined;
             return {
                 id: `github:${repo.owner}/${repo.name}:${run.id}`,
+                pipeline: { id: `github:${repo.owner}/${repo.name}:workflow:${run.workflow_id}`, url: workflowPageUrl(run) },
                 source: repo.name,
                 sourceTitle: `${repo.owner}/${repo.name}`,
                 workflow: run.name ?? 'Workflow',
@@ -183,6 +184,15 @@ export async function fetchPendingApprovals(client: GitHubClient, repo: RepoRef)
         })
     );
     return items.filter((item): item is PipelineApprovalItem => !!item);
+}
+
+/**
+ * Returns the page of the workflow of the run, with all its runs. Without a workflow file, it returns the Actions page of
+ * the repository. The URL comes from the page of the run, so it also works on GitHub Enterprise.
+ */
+export function workflowPageUrl(run: Pick<RestWorkflowRun, 'html_url' | 'path'>): string {
+    const file = run.path?.startsWith('.github/workflows/') ? run.path.slice('.github/workflows/'.length).split('@')[0] : undefined;
+    return run.html_url.replace(/\/runs\/\d+.*$/, file ? `/workflows/${encodeURIComponent(file)}` : '');
 }
 
 /** Returns true when no newer run of the workflow of the run exists. When the request fails, it returns true. */

@@ -26,18 +26,21 @@ import type { RepoRef } from '@shared/github';
 import { applyApprovedToDashboard, refreshDashboard, unseenReviewRequests, useDashboard } from '../dashboard-store';
 import { applyMerged, applyQueued } from '../github/review-overview-store';
 import { seenStore, useSeenVersion } from '../seen-store';
-import { useSnoozeCheck } from '../snooze-store';
+import { snoozeStore, useSnoozeCheck } from '../snooze-store';
 import {
+    isPipelineSnoozeKey,
     myItemActivity,
     pipelineRunActivity,
     pipelineSnoozeKey,
     reviewItemActivity,
+    runSnoozeKey,
+    snoozedPipelineOf,
     snoozeKey,
     type PullRequestActivity,
     type Snooze,
     type SnoozeSubject
 } from '@shared/snooze';
-import { SnoozeButton, snoozedTitle } from './SnoozeButton';
+import { SnoozeButton, snoozedTitle, type PipelineSnoozeTarget } from './SnoozeButton';
 import { errorText, timeAgo } from '../util';
 import { openLink } from '../links';
 import type { ClickModifiers } from '@shared/browser';
@@ -259,17 +262,23 @@ function ReviewRow({ pr, indented, showAuthor, onOpen }: { pr: ReviewRequestItem
     );
 }
 
+/** True when each word of the query is in one of the texts. */
+function matchesWords(texts: string[], query: string): boolean {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const haystack = texts.join(' ').toLowerCase();
+    return words.every(word => haystack.includes(word));
+}
+
 /** True when each word of the query is in the title, the workflow, the repository or project, the branch, the actor, or an environment. */
 function matchesApproval(item: PipelineApprovalItem, query: string): boolean {
-    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const haystack = [item.title, item.workflow, item.sourceTitle, item.branch ?? '', item.actor ?? '', ...item.environments].join(' ').toLowerCase();
-    return words.every(word => haystack.includes(word));
+    return matchesWords([item.title, item.workflow, item.sourceTitle, item.branch ?? '', item.actor ?? '', ...item.environments], query);
 }
 
 /**
  * The pipeline runs that wait for the approval of the user. The card shows only when there is a run.
  * "Approve" approves the run after the user confirms. A click on the row opens the run in the browser, for example to reject it.
  * The Snooze button hides a run for a time, or until the run waits at a different stage. The run then goes to the Snoozed card.
+ * The Snooze menu can also hide all runs of the pipeline, also the runs in the future.
  */
 function ApprovalCard({ items }: { items: PipelineApprovalItem[] }) {
     const approveMutation = useMutation({
@@ -339,7 +348,8 @@ function ApprovalCard({ items }: { items: PipelineApprovalItem[] }) {
                             <Age className="dash-age" date={item.createdAt} />
                             <SnoozeButton
                                 className="dash-snooze"
-                                snoozeKey={pipelineSnoozeKey(item.id)}
+                                snoozeKey={runSnoozeKey(item.id)}
+                                pipeline={pipelineTarget(item)}
                                 name={`${item.workflow}: ${item.title}`}
                                 activity={pipelineRunActivity(item)}
                                 subject="pipeline-run"
@@ -363,9 +373,15 @@ function ApprovalCard({ items }: { items: PipelineApprovalItem[] }) {
     );
 }
 
-/** A pull request or a pipeline run that the user snoozed, for the Snoozed card. */
+/** The pipeline of a run for the Snooze menu. Undefined when the provider does not give the pipeline. */
+function pipelineTarget(item: PipelineApprovalItem): PipelineSnoozeTarget | undefined {
+    const pipeline = snoozedPipelineOf(item);
+    return item.pipeline && pipeline ? { key: pipelineSnoozeKey(item.pipeline.id), pipeline } : undefined;
+}
+
+/** A pull request, a pipeline run, or a pipeline that the user snoozed, for the Snoozed card. */
 interface SnoozedItem {
-    /** The key of the snooze (see `snoozeKey` and `pipelineSnoozeKey`). */
+    /** The key of the snooze (see `snoozeKey`, `runSnoozeKey`, and `pipelineSnoozeKey`). */
     key: string;
     title: string;
     /** The name for a screen reader, for example "app #12". */
@@ -373,16 +389,21 @@ interface SnoozedItem {
     /** The chip of the place: the repository and number of a pull request, or the source of a run. */
     chip: ReactNode;
     subject: SnoozeSubject;
+    /** A short note after the snooze text, for example "A run is waiting". */
+    note?: string;
     snooze: Snooze;
     activity: PullRequestActivity;
     onOpen(click?: ClickModifiers): void;
 }
 
-/** The count label of the Snoozed card: "pull request" or "pipeline run" when all items are of one kind, or "item". */
+/** The count label of the Snoozed card for each subject. */
+const SNOOZED_NOUNS: Record<SnoozeSubject, string> = { 'pull-request': 'pull request', 'pipeline-run': 'pipeline run', pipeline: 'pipeline' };
+
+/** The count label of the Snoozed card: the noun of the subject when all items are of one kind, or "item". */
 function snoozedNoun(items: SnoozedItem[]): string {
-    if (items.every(item => item.subject === 'pull-request')) return 'pull request';
-    if (items.every(item => item.subject === 'pipeline-run')) return 'pipeline run';
-    return 'item';
+    const subjects = new Set(items.map(item => item.subject));
+    const [subject] = subjects;
+    return subjects.size === 1 && subject ? SNOOZED_NOUNS[subject] : 'item';
 }
 
 /**
@@ -399,7 +420,7 @@ function SnoozedCard({ id, items }: { id: string; items: SnoozedItem[] }) {
                     <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
                     <h3 className="card-title">Snoozed</h3>
                     <Count value={items.length} label={pluralize(items.length, snoozedNoun(items))} />
-                    <span className="dash-hint">They show again after a set time or after new activity</span>
+                    <span className="dash-hint">They show again after a set time, after new activity, or when you unsnooze them</span>
                 </button>
             </div>
             {open && (
@@ -416,7 +437,10 @@ function SnoozedCard({ id, items }: { id: string; items: SnoozedItem[] }) {
                         >
                             <Title title={item.title} empty="" />
                             <span className="dash-chips">
-                                <span className="dash-hint">{snoozedTitle(item.snooze, item.subject)}</span>
+                                <span className="dash-hint">
+                                    {snoozedTitle(item.snooze, item.subject)}
+                                    {item.note ? ` · ${item.note}` : ''}
+                                </span>
                                 {item.chip}
                             </span>
                             <SnoozeButton snoozeKey={item.key} name={item.name} activity={item.activity} snooze={item.snooze} subject={item.subject} />
@@ -646,14 +670,20 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
     // A snoozed pipeline run leaves the approval card. It goes to the Snoozed card of the right column.
     const approvalItems = (state.approvals ?? []).map(item => {
         const activity = pipelineRunActivity(item);
-        return { item, activity, snooze: snoozeCheck(pipelineSnoozeKey(item.id), activity) };
+        const pipelineKey = item.pipeline && pipelineSnoozeKey(item.pipeline.id);
+        return { item, activity, pipelineKey, snooze: snoozeCheck(runSnoozeKey(item.id), activity) };
     });
-    const shownApprovals = approvalItems.filter(entry => !entry.snooze && matchesApproval(entry.item, query)).map(entry => entry.item);
-    const snoozedApprovals = approvalItems.flatMap(({ item, activity, snooze }): SnoozedItem[] =>
-        snooze && matchesApproval(item, query)
+    // A snooze of a pipeline hides all runs of the pipeline. The Snoozed card shows the pipeline, also when no run waits,
+    // so that the user can unsnooze it. The pipeline of a waiting run gives the details that an older snooze does not have.
+    const pipelineSnoozed = (key: string | undefined) => !!key && !!snoozeCheck(key, {});
+    const shownApprovals = approvalItems
+        .filter(entry => !entry.snooze && !pipelineSnoozed(entry.pipelineKey) && matchesApproval(entry.item, query))
+        .map(entry => entry.item);
+    const snoozedRuns = approvalItems.flatMap(({ item, activity, pipelineKey, snooze }): SnoozedItem[] =>
+        snooze && !pipelineSnoozed(pipelineKey) && matchesApproval(item, query)
             ? [
                   {
-                      key: pipelineSnoozeKey(item.id),
+                      key: runSnoozeKey(item.id),
                       title: item.title,
                       name: `${item.workflow}: ${item.title}`,
                       chip: (
@@ -669,10 +699,37 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
               ]
             : []
     );
+    const snoozedPipelines = Object.keys(snoozeStore.all())
+        .filter(isPipelineSnoozeKey)
+        .flatMap((key): SnoozedItem[] => {
+            const snooze = snoozeCheck(key, {});
+            if (!snooze) return [];
+            const waiting = approvalItems.find(entry => entry.pipelineKey === key)?.item;
+            const pipeline = snooze.pipeline ?? (waiting && snoozedPipelineOf(waiting));
+            if (!pipeline || !matchesWords([pipeline.name, pipeline.sourceTitle], query)) return [];
+            return [
+                {
+                    key,
+                    title: `All runs of ${pipeline.name}`,
+                    name: pipeline.name,
+                    chip: (
+                        <Chip mono title={pipeline.sourceTitle}>
+                            {pipeline.source}
+                        </Chip>
+                    ),
+                    subject: 'pipeline',
+                    note: waiting ? 'A run is waiting' : undefined,
+                    snooze,
+                    activity: {},
+                    onOpen: click => openUrl(pipeline.url, click)
+                }
+            ];
+        });
     const snoozedMine = myPullRequests.flatMap(item => snoozedItem(item, () => openMine(item.pr)));
     const snoozedReviews = [
         ...reviewItems.flatMap(item => snoozedItem(item, () => onOpenPullRequest(item.pr.repo, item.pr.number, 'files'))),
-        ...snoozedApprovals
+        ...snoozedRuns,
+        ...snoozedPipelines
     ];
     const shownReviews = reviewRequests.filter(pr => matchesDashboardQuery(pr, query));
     const reviewGroups = groupReviewRequests(shownReviews, reviewSort);

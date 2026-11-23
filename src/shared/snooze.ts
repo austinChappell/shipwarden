@@ -5,6 +5,7 @@ import type { OpenPullRequest } from './review-queue';
  * A snooze hides a pull request from the lists of work that needs the user ("Needs me", the Dashboard, and the
  * review queue). A snooze ends at a time, or when the pull request has new activity. A snooze also hides a pipeline
  * run that waits for the approval of the user. That snooze ends at a time, or when the run waits at a different stage.
+ * A snooze of a pipeline hides all runs of the pipeline, also the runs in the future. It ends at a time, or it has no end.
  */
 
 /**
@@ -59,7 +60,7 @@ export function pipelineRunActivity(item: PipelineApprovalItem): PullRequestActi
     return { needs: [...ids].sort().join(',') };
 }
 
-/** A snooze of one pull request or one pipeline run. */
+/** A snooze of one pull request, one pipeline run, or one pipeline. */
 export interface Snooze {
     /** The time of the snooze, in milliseconds since 1970. */
     at: number;
@@ -67,6 +68,39 @@ export interface Snooze {
     until?: number;
     /** The state of the pull request at the time of a snooze "until new activity". */
     activity?: PullRequestActivity;
+    /** True for a snooze with no end. Only the user can remove it. */
+    forever?: true;
+    /** The pipeline of a snooze of a pipeline. The Snoozed card shows it also when no run of the pipeline waits. */
+    pipeline?: SnoozedPipeline;
+}
+
+/** The pipeline of a snooze of a pipeline, as the Snoozed card shows it. */
+export interface SnoozedPipeline {
+    /** The name of the workflow or pipeline. */
+    name: string;
+    /** The short name of the place: the GitHub repository or the Azure DevOps project. */
+    source: string;
+    /** The full name of the place, for the tooltip. */
+    sourceTitle: string;
+    /** The page of the pipeline. */
+    url: string;
+}
+
+/** The longest text of a field of a snoozed pipeline. */
+const MAX_PIPELINE_TEXT = 2000;
+
+/** True when the value has the shape of a snoozed pipeline. */
+function isSnoozedPipeline(value: unknown): value is SnoozedPipeline {
+    if (!value || typeof value !== 'object') return false;
+    const pipeline = value as SnoozedPipeline;
+    return (['name', 'source', 'sourceTitle', 'url'] as const).every(
+        field => typeof pipeline[field] === 'string' && pipeline[field].length <= MAX_PIPELINE_TEXT
+    );
+}
+
+/** The pipeline of a waiting run, for a snooze of the pipeline. Undefined when the provider does not give the pipeline. */
+export function snoozedPipelineOf(item: PipelineApprovalItem): SnoozedPipeline | undefined {
+    return item.pipeline && { name: item.workflow, source: item.source, sourceTitle: item.sourceTitle, url: item.pipeline.url };
 }
 
 /** The snoozes by key (see `snoozeKey`). */
@@ -81,8 +115,21 @@ export function snoozeKey(url: string): string {
 }
 
 /** The key of the snooze of a pipeline run. The ID identifies the run in all providers. */
-export function pipelineSnoozeKey(id: string): string {
+export function runSnoozeKey(id: string): string {
     return `run:${id}`;
+}
+
+/** The prefix of the key of the snooze of a pipeline. */
+const PIPELINE_KEY_PREFIX = 'pipeline:';
+
+/** The key of the snooze of a pipeline. It hides all runs of the pipeline (see `PipelineRef.id`). */
+export function pipelineSnoozeKey(pipelineId: string): string {
+    return `${PIPELINE_KEY_PREFIX}${pipelineId}`;
+}
+
+/** True when the key is the key of the snooze of a pipeline. */
+export function isPipelineSnoozeKey(key: string): boolean {
+    return key.startsWith(PIPELINE_KEY_PREFIX);
 }
 
 /** True when the value has the shape of a snooze. The main process checks the data from the renderer with it. */
@@ -96,12 +143,15 @@ export function isSnooze(value: unknown): value is Snooze {
         const fields = ['head', 'lastActivityAt', 'updatedAt', 'needs'] as const;
         if (fields.some(field => snooze.activity![field] !== undefined && typeof snooze.activity![field] !== 'string')) return false;
     }
-    // A snooze has one end: a time or new activity.
-    return (snooze.until === undefined) !== (snooze.activity === undefined);
+    if (snooze.forever !== undefined && snooze.forever !== true) return false;
+    if (snooze.pipeline !== undefined && !isSnoozedPipeline(snooze.pipeline)) return false;
+    // A snooze has one end: a time, new activity, or no end.
+    return [snooze.until, snooze.activity, snooze.forever].filter(end => end !== undefined).length === 1;
 }
 
-/** True when the store can remove the snooze: its time ended, or it is older than the keep time. */
+/** True when the store can remove the snooze: its time ended, or it is older than the keep time. A snooze with no end stays. */
 export function isSnoozeOld(snooze: Snooze, now: number): boolean {
+    if (snooze.forever) return false;
     if (snooze.until !== undefined) return snooze.until <= now;
     return now - snooze.at > SNOOZE_KEEP_MS;
 }
@@ -122,24 +172,35 @@ export function hasNewActivity(saved: PullRequestActivity, current: PullRequestA
 /** True when the snooze hides the pull request now. */
 export function isSnoozeActive(snooze: Snooze | undefined, current: PullRequestActivity, now: number): boolean {
     if (!snooze) return false;
+    if (snooze.forever) return true;
     if (snooze.until !== undefined) return now < snooze.until;
     return !!snooze.activity && !hasNewActivity(snooze.activity, current);
 }
 
 /** The choices of the Snooze menu. */
-export type SnoozeChoice = 'activity' | 'hour' | 'hours' | 'tomorrow' | 'week';
+export type SnoozeChoice = 'activity' | 'hour' | 'hours' | 'tomorrow' | 'week' | 'forever';
 
 /** The thing that a snooze hides. The text of the "activity" choice changes with it. */
-export type SnoozeSubject = 'pull-request' | 'pipeline-run';
+export type SnoozeSubject = 'pull-request' | 'pipeline-run' | 'pipeline';
 
-/** The text of the end of a snooze "until new activity", by subject. */
+/** The text of the end of a snooze "until new activity", by subject. A pipeline has no activity. */
 const UNTIL_ACTIVITY: Record<SnoozeSubject, string> = {
     'pull-request': 'until new activity',
-    'pipeline-run': 'until the run changes'
+    'pipeline-run': 'until the run changes',
+    pipeline: 'until the pipeline changes'
 };
 
-/** Returns the choices of the Snooze menu for the subject. */
+/** The text of the end of a snooze with no end. */
+const FOREVER_TEXT = 'until you unsnooze it';
+
+/**
+ * Returns the choices of the Snooze menu for the subject. A pipeline has the timed choices and "Until I unsnooze it",
+ * because it has no activity. The other subjects do not have "Until I unsnooze it".
+ */
 export function snoozeChoices(subject: SnoozeSubject): { id: SnoozeChoice; label: string }[] {
+    if (subject === 'pipeline') {
+        return [...SNOOZE_CHOICES.filter(choice => choice.id !== 'activity'), { id: 'forever', label: 'Until I unsnooze it' }];
+    }
     const activity = UNTIL_ACTIVITY[subject];
     return SNOOZE_CHOICES.map(choice => (choice.id === 'activity' ? { ...choice, label: activity.charAt(0).toUpperCase() + activity.slice(1) } : choice));
 }
@@ -155,11 +216,12 @@ export const SNOOZE_CHOICES: { id: SnoozeChoice; label: string }[] = [
 /** The hour of the morning when a snooze until tomorrow or until next week ends. */
 const MORNING_HOUR = 9;
 
-/** Returns the end of a timed choice: 9:00 tomorrow, or 9:00 on the next Monday. Returns undefined for "activity". */
+/** Returns the end of a timed choice: 9:00 tomorrow, or 9:00 on the next Monday. Returns undefined for "activity" and "forever". */
 export function snoozeEnd(choice: SnoozeChoice, now: Date): number | undefined {
     const morning = (days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, MORNING_HOUR).getTime();
     switch (choice) {
         case 'activity':
+        case 'forever':
             return undefined;
         case 'hour':
             return now.getTime() + 3600_000;
@@ -173,14 +235,20 @@ export function snoozeEnd(choice: SnoozeChoice, now: Date): number | undefined {
     }
 }
 
-/** Makes the snooze of a choice. */
-export function makeSnooze(choice: SnoozeChoice, activity: PullRequestActivity, now: Date): Snooze {
+/** Makes the snooze of a choice. A snooze of a pipeline also keeps the pipeline. */
+export function makeSnooze(choice: SnoozeChoice, activity: PullRequestActivity, now: Date, pipeline?: SnoozedPipeline): Snooze {
+    const extra = pipeline ? { pipeline } : {};
+    if (choice === 'forever') return { at: now.getTime(), forever: true, ...extra };
     const until = snoozeEnd(choice, now);
-    return until === undefined ? { at: now.getTime(), activity } : { at: now.getTime(), until };
+    return until === undefined ? { at: now.getTime(), activity, ...extra } : { at: now.getTime(), until, ...extra };
 }
 
-/** The text of the end of a snooze, for example "until new activity", "until 3:45 PM", or "until tomorrow at 9:00 AM". */
+/**
+ * The text of the end of a snooze, for example "until new activity", "until 3:45 PM", "until tomorrow at 9:00 AM", or
+ * "until you unsnooze it".
+ */
 export function snoozeText(snooze: Snooze, now: Date, locale?: string, subject: SnoozeSubject = 'pull-request'): string {
+    if (snooze.forever) return FOREVER_TEXT;
     if (snooze.until === undefined) return UNTIL_ACTIVITY[subject];
     const end = new Date(snooze.until);
     const time = end.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });

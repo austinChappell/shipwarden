@@ -9,6 +9,7 @@ import type { TerminalSession } from '@shared/terminal';
 import type { Worktree } from '@shared/worktrees';
 import { onDashboardNews, type DashboardNews } from '../dashboard-store';
 import { seenStore } from '../seen-store';
+import { isPipelineSnoozed, snoozeStore } from '../snooze-store';
 import { agentNotice, ciNotice, dashboardNotice, type Notice } from './notices';
 
 const api = window.shipwarden;
@@ -83,20 +84,23 @@ export function useNotifications(options: Options) {
             news.taskComments.filter(
                 ({ connectionId, comment }) => !isHiddenComment(comment.author, comment.body, filter) && !seenStore.has(taskSeenKey(connectionId, comment.id))
             ).length;
+        const approvals = news.approvals.filter(item => !isPipelineSnoozed(item));
         const notice = dashboardNotice({
             reviewRequests: news.reviewRequests.length,
             myPullRequests: news.myPullRequests.length,
             comments,
-            approvals: news.approvals.length,
-            firstTitle: news.approvals[0]
-                ? `${news.approvals[0].workflow}: ${news.approvals[0].title}`
-                : (news.reviewRequests[0]?.title ?? news.myPullRequests[0]?.title)
+            approvals: approvals.length,
+            firstTitle: approvals[0] ? `${approvals[0].workflow}: ${approvals[0].title}` : (news.reviewRequests[0]?.title ?? news.myPullRequests[0]?.title)
         });
         if (notice) notify(notice);
     };
     const dashboardNewsRef = useRef(dashboardNews);
     dashboardNewsRef.current = dashboardNews;
-    useEffect(() => onDashboardNews(news => dashboardNewsRef.current(news)), []);
+    useEffect(() => {
+        // The notifications read the snoozes of pipelines.
+        void snoozeStore.load();
+        return onDashboardNews(news => dashboardNewsRef.current(news));
+    }, []);
 
     return notifyAgent;
 }
