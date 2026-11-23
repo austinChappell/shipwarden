@@ -11276,8 +11276,10 @@ button.gg-ref:hover {
     word-break: break-all;
 }
 
+/* The text goes below the QR code when the card is too narrow for both in one row. */
 .pairing {
     display: flex;
+    flex-wrap: wrap;
     gap: 18px;
     align-items: flex-start;
     padding: 14px;
@@ -11299,12 +11301,18 @@ button.gg-ref:hover {
     height: 100%;
 }
 
+/* The App Store code is smaller. It is not the main action of the page. */
+.pairing-qr.app-store-qr {
+    width: 132px;
+    height: 132px;
+}
+
 .pairing-qr.expired {
     opacity: 0.25;
 }
 
 .pairing-text {
-    flex: 1;
+    flex: 1 1 260px;
     min-width: 0;
     color: var(--text);
     font-size: 13px;

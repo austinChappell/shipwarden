@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { CircleCheck, Copy, FlaskConical, Smartphone, TriangleAlert } from 'lucide-react';
+import { CircleCheck, Copy, Smartphone, TriangleAlert } from 'lucide-react';
 import type { PairingOffer, RemoteStatus } from '@shared/remote';
 import type { AppSettings } from '@shared/settings';
 import { errorText } from '../util';
@@ -16,19 +16,44 @@ interface Props {
 
 const api = window.shipwarden.remote;
 
+/** The App Store page of the ShipWarden iPhone app. */
+const APP_STORE_URL = 'https://apps.apple.com/us/app/shipwarden/id6832160464';
+
 function since(time: number | undefined): string {
     if (!time) return 'never';
     return formatAgo(new Date(time).toISOString());
 }
 
+/** Shows a QR code for a link. The code is dark on a light background in each theme, so the camera can read it. */
+function QrCode({ value, className }: { value: string; className?: string }) {
+    const [svg, setSvg] = useState('');
+    useEffect(() => {
+        void QRCode.toString(value, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' }).then(setSvg);
+    }, [value]);
+    // biome-ignore lint/security/noDangerouslySetInnerHtml: the qrcode library makes this SVG from the link.
+    return <div className={className ? `pairing-qr ${className}` : 'pairing-qr'} dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
+/** Shows the QR code of the App Store page, so the user can install the iPhone app. */
+function AppStoreCode() {
+    return (
+        <div className="pairing">
+            <QrCode value={APP_STORE_URL} className="app-store-qr" />
+            <div className="pairing-text">
+                <ol>
+                    <li>Scan this code with the Camera app on your iPhone.</li>
+                    <li>Install the ShipWarden app from the App Store.</li>
+                    <li>Select “Pair a phone” below and scan the pairing code with the app.</li>
+                </ol>
+            </div>
+        </div>
+    );
+}
+
 /** Shows the pairing QR code, and the time until the code stops. */
 function PairingCode({ offer, onRenew, onClose }: { offer: PairingOffer; onRenew(): void; onClose(): void }) {
-    const [svg, setSvg] = useState('');
     const [now, setNow] = useState(Date.now());
     const [copied, setCopied] = useState(false);
-    useEffect(() => {
-        void QRCode.toString(offer.link, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' }).then(setSvg);
-    }, [offer.link]);
     useEffect(() => {
         const timer = setInterval(() => setNow(Date.now()), 1000);
         return () => clearInterval(timer);
@@ -41,9 +66,7 @@ function PairingCode({ offer, onRenew, onClose }: { offer: PairingOffer; onRenew
     };
     return (
         <div className="pairing">
-            {/* A QR code needs dark modules on a light background in each theme, so the camera can read it. */}
-            {/* biome-ignore lint/security/noDangerouslySetInnerHtml: the qrcode library makes this SVG from the pairing link. */}
-            <div className={`pairing-qr${left === 0 ? ' expired' : ''}`} dangerouslySetInnerHTML={{ __html: svg }} />
+            <QrCode value={offer.link} className={left === 0 ? 'expired' : undefined} />
             <div className="pairing-text">
                 <ol>
                     <li>Open the ShipWarden app on your iPhone.</li>
@@ -182,13 +205,9 @@ export function MobileSettings({ settings, onSave }: Props) {
     const connected = new Set(status?.connected ?? []);
     return (
         <>
-            <div className="settings-banner" role="note">
-                <FlaskConical size={16} strokeWidth={1.8} />
-                <div className="settings-banner-text">
-                    <strong>The iPhone app is in beta.</strong>
-                    <span>It is in App Store review now, so it is not in the App Store yet.</span>
-                </div>
-            </div>
+            <SettingsGroup title="Get the iPhone app" description="The ShipWarden iPhone app is in the App Store." card>
+                <AppStoreCode />
+            </SettingsGroup>
             <SettingsGroup
                 title="Phone connection"
                 description={
