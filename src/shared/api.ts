@@ -283,8 +283,11 @@ export interface ShipWardenApi {
         onProgress(listener: (progressId: string, progress: CreateWorktreeProgress) => void): () => void;
         /** The branches that a new worktree can start from, and the default start point (after a fetch of origin). */
         branches(repoPath: string): Promise<BranchList>;
-        /** Runs the teardown script of the repository (unless `skipTeardown`), then removes the worktree. */
-        remove(repoPath: string, worktreePath: string, options?: { skipTeardown?: boolean }): Promise<RemoveWorktreeResult>;
+        /**
+         * Runs the teardown script of the repository (unless `skipTeardown`), then removes the worktree. With `force`,
+         * git removes the worktree also with uncommitted changes or a lock. The uncommitted changes are lost.
+         */
+        remove(repoPath: string, worktreePath: string, options?: { skipTeardown?: boolean; force?: boolean }): Promise<RemoveWorktreeResult>;
         /** The git-ignored files and folders of the main worktree that the copy settings copy now, and the large ones in them. */
         previewCopy(repoPath: string, copy: CopyIgnoredSettings): Promise<CopyPreviewResult>;
         /**

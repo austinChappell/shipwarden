@@ -45,10 +45,11 @@ export function registerWorktreeIpc({ worktrees, settings, reviewCheckouts, proc
     });
     ipcMain.handle(
         IpcChannels.worktreesRemove,
-        async (_event, repoPath: string, worktreePath: string, options?: { skipTeardown?: boolean }): Promise<RemoveWorktreeResult> => {
+        async (_event, repoPath: string, worktreePath: string, options?: { skipTeardown?: boolean; force?: boolean }): Promise<RemoveWorktreeResult> => {
             const config = await worktreeSettingsFor(repoPath);
+            const force = options?.force === true;
             // Git does not remove a worktree with changes. Check first, so the teardown and the process stop do not occur for nothing.
-            if (await worktrees.uncommittedChanges(worktreePath)) {
+            if (!force && (await worktrees.uncommittedChanges(worktreePath))) {
                 throw new Error('The worktree has uncommitted changes. Commit or remove them first.');
             }
             if (config.teardownScript && !options?.skipTeardown) {
@@ -70,7 +71,7 @@ export function registerWorktreeIpc({ worktrees, settings, reviewCheckouts, proc
             await terminals.killWorktree(worktreePath);
             await lsp.stopRoot(worktreePath);
             await processes.terminate(pids).catch(error => console.error('[processes] Cannot stop the processes of a worktree:', error));
-            await worktrees.remove(repoPath, worktreePath);
+            await worktrees.remove(repoPath, worktreePath, force);
             return { removed: true };
         }
     );

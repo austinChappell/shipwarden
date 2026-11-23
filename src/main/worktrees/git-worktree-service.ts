@@ -163,7 +163,10 @@ export class GitWorktreeService {
         return { local, remote, remotes, ...(defaultBase ? { defaultBase } : {}) };
     }
 
-    /** Removes a worktree. This function does not remove the main worktree. */
+    /**
+     * Removes a worktree. This function does not remove the main worktree. With `force`, git removes the worktree also
+     * with uncommitted changes, untracked files or a lock. Two "--force" flags are necessary for a locked worktree.
+     */
     async remove(repoPath: string, worktreePath: string, force?: boolean): Promise<void> {
         const worktree = await this.find(repoPath, worktreePath);
         if (!worktree) {
@@ -172,7 +175,7 @@ export class GitWorktreeService {
         if (worktree.isMain) {
             throw new Error('ShipWarden does not remove the main worktree.');
         }
-        await this.git(repoPath, ['worktree', 'remove', ...(force ? ['--force'] : []), worktree.path]);
+        await this.git(repoPath, ['worktree', 'remove', ...(force ? ['--force', '--force'] : []), worktree.path]);
         // The checkpoint refs of the agent turns are of no use without the worktree. A failed cleanup does not stop the remove.
         await removeWorktreeCheckpoints(repoPath, worktree.path).catch(error =>
             console.warn(`[checkpoints] The checkpoints of ${worktree.path} were not removed: ${errorMessage(error)}`)

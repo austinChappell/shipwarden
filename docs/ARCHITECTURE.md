@@ -975,9 +975,12 @@ so that the mobile app and a CLI can use the same plugins.
   the Tasks view with the task manager of the task and the task in the details (`openTask`), also when the task is
   in another collection.
 - `linkMatchesTask` matches a link by the task ID, or by the URL for links of older plugin versions.
-- The right-click menu of a worktree (a native menu, `app.contextMenu`) has "Open Task", "Remove Worktree…" and
-  "Remove Worktree and Delete Branch…". The branch delete uses `git branch -d`. For a branch that is not merged,
-  ShipWarden asks before `git branch -D`. The remote branch stays.
+- The right-click menu of a worktree (a native menu, `app.contextMenu`) has "Open Task", "Remove Worktree…",
+  "Remove Worktree and Delete Branch…" and "Force Remove Worktree and Delete Branch…". The branch delete uses
+  `git branch -d`. For a branch that is not merged, ShipWarden asks before `git branch -D`. The remote branch stays.
+- The force removal skips the check for uncommitted changes and runs `git worktree remove --force --force`. Git then
+  removes a worktree with uncommitted changes, untracked files or a lock. Then it deletes the branch with
+  `git branch -D` and asks no second question. The changes and the unmerged commits are lost, so the dialog says so.
 
 #### Start status
 
