@@ -19,6 +19,12 @@ const CLEAR_ALL = '\x1b[H\x1b[2J\x1b[3J';
  */
 const TRAILING_FIT_MS = 80;
 
+/**
+ * The time in milliseconds that the PTY keeps one column less for the redraw after a replay. See sendSize().
+ * The program must see two different widths, so this value must be larger than the resize debounce of the program.
+ */
+const REDRAW_NUDGE_MS = 150;
+
 interface Entry {
     session: TerminalSession;
     terminal: Terminal;
@@ -43,6 +49,8 @@ interface Entry {
     ptySize?: { cols: number; rows: number };
     /** Removes the OSC 8 links from the output of this session. See hyperlinks.ts. */
     links: HyperlinkFilter;
+    /** True when the program must draw its screen again after the replay. See sendSize(). */
+    redrawAfterReplay: boolean;
 }
 
 /** A terminal that the pool makes now. */
@@ -267,6 +275,22 @@ export class TerminalPool {
             return;
         }
         const { cols, rows } = entry.terminal;
+        // The replay contains output for all the earlier sizes of the PTY, for example from a split pane or the agent
+        // drawer. Thus a new terminal can show a broken screen. A program draws its full screen again only when it gets
+        // SIGWINCH, and the kernel sends SIGWINCH only when the size changes. Thus the pool sends one column less, and
+        // after REDRAW_NUDGE_MS the correct size. Each change of the width makes the program draw its screen again.
+        if (entry.redrawAfterReplay && cols > 2) {
+            entry.redrawAfterReplay = false;
+            entry.ptySize = { cols: cols - 1, rows };
+            this.api.resize(entry.session.id, cols - 1, rows);
+            setTimeout(() => {
+                // The session can close, or the colors can change and make a new terminal, before the timer runs.
+                if (this.entries.get(entry.session.id) === entry) {
+                    this.sendSize(entry);
+                }
+            }, REDRAW_NUDGE_MS);
+            return;
+        }
         if (entry.ptySize?.cols !== cols || entry.ptySize?.rows !== rows) {
             entry.ptySize = { cols, rows };
             this.api.resize(entry.session.id, cols, rows);
@@ -345,7 +369,8 @@ export class TerminalPool {
             shownSeq: -1,
             pending: [],
             bindings: [],
-            links: new HyperlinkFilter()
+            links: new HyperlinkFilter(),
+            redrawAfterReplay: false
         };
         this.entries.set(session.id, entry);
         this.hosts.set(host, terminal);
@@ -426,6 +451,7 @@ export class TerminalPool {
             replaying = false;
         }
         entry.shownSeq = replay.seq;
+        entry.redrawAfterReplay = replay.data.length > 0 && !entry.session.exited;
         for (const [data, seq] of entry.pending) {
             if (seq > entry.shownSeq) {
                 entry.shownSeq = seq;
