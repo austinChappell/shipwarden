@@ -38,6 +38,8 @@ export type MyPullRequestReason = 'changes-requested' | 'ci-failing' | 'conflict
 
 /** An open pull request of the user that needs an action from the user. */
 export interface MyPullRequestItem {
+    /** The node ID of a GitHub pull request. The merge queue needs it. */
+    id?: string;
     repo: RepoRef;
     number: number;
     title: string;
@@ -49,6 +51,8 @@ export interface MyPullRequestItem {
     headSha?: string;
     /** The merge method that the user used last in the repository. */
     mergeMethod?: MergeMethod;
+    /** True when the base branch needs a merge queue. Then "Merge" adds the pull request to the queue. */
+    mergeQueueRequired?: boolean;
     /** The number of review threads that are not resolved. */
     unresolvedThreads?: number;
 }
@@ -105,6 +109,8 @@ export interface PullRequestActionState {
     reviewDecision: string | null;
     mergeable: string;
     checks: string | null;
+    /** True when the pull request is in a merge queue. Then it waits for GitHub, not for the user. */
+    isInMergeQueue?: boolean;
 }
 
 /**
@@ -117,7 +123,8 @@ export function myPullRequestReasons(pr: PullRequestActionState): MyPullRequestR
     if (pr.checks === 'FAILURE' || pr.checks === 'ERROR') reasons.push('ci-failing');
     if (pr.mergeable === 'CONFLICTING') reasons.push('conflicts');
     const checksOk = pr.checks === null || pr.checks === 'SUCCESS';
-    if (!pr.isDraft && pr.reviewDecision === 'APPROVED' && checksOk && pr.mergeable === 'MERGEABLE' && reasons.length === 0) {
+    const ready = !pr.isDraft && !pr.isInMergeQueue && pr.reviewDecision === 'APPROVED' && checksOk && pr.mergeable === 'MERGEABLE';
+    if (ready && reasons.length === 0) {
         reasons.push('ready-to-merge');
     }
     return reasons;

@@ -81,6 +81,8 @@ export function graphQlPullRequest(pr: Partial<RawPullRequest> = {}, repository:
                 viewerCanEnableAutoMerge: true,
                 viewerCanDisableAutoMerge: false,
                 autoMergeRequest: null,
+                isMergeQueueEnabled: false,
+                mergeQueueEntry: null,
                 assignees: { nodes: [] },
                 labels: { nodes: [] },
                 reviewRequests: { nodes: [] },

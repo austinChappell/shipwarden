@@ -668,6 +668,8 @@ export class AzureDevOpsService implements SourceHost {
                     await this.client.request('PATCH', base, { autoCompleteSetBy: { id: NO_IDENTITY } });
                 }
                 return;
+            case 'mergeQueue':
+                throw new AzureError('Azure DevOps has no merge queue.', 0);
             case 'assignee':
                 throw new AzureError('Azure DevOps pull requests have no assignees.', 0);
             case 'reviewer': {

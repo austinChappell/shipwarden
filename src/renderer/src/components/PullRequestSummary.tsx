@@ -42,6 +42,7 @@ function mergeState(pr: PullRequest, checks: CheckCounts | undefined): { text: s
     if (pr.state === 'MERGED') return { text: 'Merged', tone: 'merged' };
     if (pr.state === 'CLOSED') return { text: 'Closed', tone: 'fail' };
     if (pr.isDraft) return { text: 'Draft', tone: 'muted' };
+    if (pr.mergeQueueEntry) return { text: 'In the merge queue', tone: 'ok' };
     if (pr.autoMerge) return { text: 'Auto-merge is on', tone: 'ok' };
     if (pr.mergeable === 'CONFLICTING') return { text: 'Merge conflicts', tone: 'fail' };
     if (checks && checks.failed > 0) return { text: 'Blocked by checks', tone: 'fail' };

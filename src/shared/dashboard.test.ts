@@ -39,6 +39,10 @@ describe('myPullRequestReasons', () => {
         expect(myPullRequestReasons({ ...base, reviewDecision: 'APPROVED', checks: null })).toEqual(['ready-to-merge']);
         expect(myPullRequestReasons({ ...base, reviewDecision: 'APPROVED', isDraft: true })).toEqual([]);
     });
+
+    it('does not show a pull request in the merge queue as ready to merge', () => {
+        expect(myPullRequestReasons({ ...base, reviewDecision: 'APPROVED', isInMergeQueue: true })).toEqual([]);
+    });
 });
 
 describe('newComments', () => {

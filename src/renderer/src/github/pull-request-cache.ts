@@ -96,12 +96,12 @@ export function decisionAfterReview(current: ReviewDecision, event: ReviewEvent)
 
 /** Returns the pull request after a merge. */
 export function mergedPullRequest(pr: PullRequest): PullRequest {
-    return { ...pr, state: 'MERGED', autoMerge: null, viewerCanEnableAutoMerge: false, viewerCanDisableAutoMerge: false };
+    return { ...pr, state: 'MERGED', autoMerge: null, mergeQueueEntry: null, viewerCanEnableAutoMerge: false, viewerCanDisableAutoMerge: false };
 }
 
 /**
  * Returns the pull request after a change. `knownLabels` gives the color of a new label.
- * `viewer` is the user that turns on auto-merge.
+ * `viewer` is the user that turns on auto-merge or adds the pull request to the merge queue.
  */
 export function changedPullRequest(pr: PullRequest, change: PullRequestChange, knownLabels: GitHubLabel[] = [], viewer?: GitHubUser | null): PullRequest {
     switch (change.kind) {
@@ -115,6 +115,9 @@ export function changedPullRequest(pr: PullRequest, change: PullRequestChange, k
             return { ...pr, isDraft: change.draft };
         case 'autoMerge':
             return { ...pr, autoMerge: change.method ? { method: change.method, enabledBy: viewer?.login ?? null } : null };
+        case 'mergeQueue':
+            // The next load gives the place in the queue.
+            return { ...pr, mergeQueueEntry: change.add ? { position: null, state: 'QUEUED', enqueuedBy: viewer?.login ?? null } : null };
         case 'assignee':
         case 'reviewer':
         case 'label':

@@ -32,6 +32,7 @@ import { startRebase } from '../git/rebase-actions';
 import { bannerChecks, failedCheckNames, failedChecksTitle } from '../github/check-summary';
 import {
     autoMergeConfirm,
+    canEnqueueNow,
     descriptionChange,
     draftConfirm,
     hasConflicts,
@@ -39,6 +40,7 @@ import {
     mergeConfirmTitle,
     MERGE_LABELS,
     reviewText,
+    mergeQueueConfirm,
     selectMergeMethod,
     stateConfirm
 } from '../github/merge-state';
@@ -239,6 +241,19 @@ export function PullRequestPanel({
         }
     };
 
+    /**
+     * "Merge when ready" on a base branch with a merge queue. When all the requirements pass, the pull request goes into the queue now.
+     * Else auto-merge turns on, and GitHub adds the pull request to the queue later. The queue sets the merge method.
+     */
+    const setMergeQueue = async (add: boolean) => {
+        if (!(await confirmDialog(mergeQueueConfirm(pr, add)))) return;
+        if (!add || canEnqueueNow(pr)) {
+            change({ kind: 'mergeQueue', pullRequestId: pr.id, add, headSha: pr.headRefOid });
+        } else {
+            change({ kind: 'autoMerge', pullRequestId: pr.id, method: method ?? pr.defaultMergeMethod, headSha: pr.headRefOid });
+        }
+    };
+
     const saveDescription = (title: string, text: string) =>
         run(async () => {
             await changePullRequest(target, pr, descriptionChange(pr, title, text));
@@ -276,6 +291,7 @@ export function PullRequestPanel({
             onSelectMethod={setMergeMethod}
             onMerge={merge}
             onAutoMerge={setAutoMerge}
+            onMergeQueue={add => void setMergeQueue(add)}
             onDraft={setDraft}
             onMoreActions={button => void moreActions(button)}
         />

@@ -255,6 +255,10 @@ function describe(event: TimelineEvent, pr: PullRequest): { icon: LucideIcon; to
             return { icon: GitMerge, text: 'turned on auto-merge' };
         case 'autoMergeDisabled':
             return { icon: GitMerge, text: 'turned off auto-merge' };
+        case 'addedToMergeQueue':
+            return { icon: GitMerge, text: 'added this pull request to the merge queue' };
+        case 'removedFromMergeQueue':
+            return { icon: GitMerge, text: 'removed this pull request from the merge queue' };
         case 'renamed':
             return {
                 icon: Pencil,

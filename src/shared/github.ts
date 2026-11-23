@@ -460,6 +460,13 @@ export interface PullRequest {
     viewerCanEnableAutoMerge: boolean;
     /** True when the user can turn off auto-merge. */
     viewerCanDisableAutoMerge: boolean;
+    /**
+     * True when the base branch needs a merge queue. Then the user cannot merge the pull request directly.
+     * The user adds it to the queue, and GitHub merges it. Undefined means false.
+     */
+    mergeQueueRequired?: boolean;
+    /** The place of the pull request in the merge queue. Null or undefined when the pull request is not in the queue. */
+    mergeQueueEntry?: MergeQueueEntry | null;
     /** True when the user can merge the pull request. This needs write access or more. Branch rules can still block the merge. */
     viewerCanMerge: boolean;
     /** The host of the pull request. Undefined means GitHub. */
@@ -482,7 +489,18 @@ export type TimelineEvent = { id: string; createdAt: string; actor: string | nul
     | { kind: 'assigned' | 'unassigned'; user: string }
     | { kind: 'labeled' | 'unlabeled'; label: GitHubLabel }
     | { kind: 'reviewRequested' | 'reviewRequestRemoved'; reviewer: string }
-    | { kind: 'closed' | 'reopened' | 'readyForReview' | 'convertToDraft' | 'autoMergeEnabled' | 'autoMergeDisabled' | 'headRefRestored' }
+    | {
+          kind:
+              | 'closed'
+              | 'reopened'
+              | 'readyForReview'
+              | 'convertToDraft'
+              | 'autoMergeEnabled'
+              | 'autoMergeDisabled'
+              | 'addedToMergeQueue'
+              | 'removedFromMergeQueue'
+              | 'headRefRestored';
+      }
     | { kind: 'merged'; commit: string | null; commitUrl: string | null; base: string }
     | { kind: 'renamed'; from: string; to: string }
     | { kind: 'forcePushed'; before: string | null; after: string | null }
@@ -497,6 +515,16 @@ export interface AutoMerge {
     method: MergeMethod;
     /** The login of the user that turned on auto-merge. */
     enabledBy: string | null;
+}
+
+/** A pull request in the merge queue of its base branch. */
+export interface MergeQueueEntry {
+    /** The place in the queue. 1 is the next to merge. Null when not known yet. */
+    position: number | null;
+    /** The state of the entry. GitHub merges the pull request when the state is MERGEABLE. */
+    state: 'QUEUED' | 'AWAITING_CHECKS' | 'MERGEABLE' | 'UNMERGEABLE' | 'LOCKED';
+    /** The login of the user that added the pull request to the queue. */
+    enqueuedBy: string | null;
 }
 
 /** A label of a pull request. `color` is a hex color without "#". */
@@ -538,6 +566,8 @@ export type PullRequestChange =
     | { kind: 'draft'; pullRequestId: string; draft: boolean }
     /** `pullRequestId` is the node ID. A method turns on auto-merge. Null turns it off. `headSha` stops the merge if the branch changes. */
     | { kind: 'autoMerge'; pullRequestId: string; method: MergeMethod | null; headSha: string }
+    /** `pullRequestId` is the node ID. True adds the pull request to the merge queue. False removes it. `headSha` stops the add if the branch changes. */
+    | { kind: 'mergeQueue'; pullRequestId: string; add: boolean; headSha: string }
     | { kind: 'assignee'; login: string; add: boolean }
     | { kind: 'reviewer'; reviewer: RequestedReviewer; add: boolean }
     | { kind: 'label'; name: string; add: boolean }

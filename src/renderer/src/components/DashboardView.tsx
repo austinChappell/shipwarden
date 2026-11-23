@@ -23,18 +23,22 @@ import {
 import { pluralize } from '@shared/format';
 import type { RepoRef } from '@shared/github';
 import { refreshDashboard, unseenReviewRequests, useDashboard } from '../dashboard-store';
-import { applyMerged } from '../github/review-overview-store';
+import { applyMerged, applyQueued } from '../github/review-overview-store';
 import { seenStore, useSeenVersion } from '../seen-store';
 import { errorText, timeAgo } from '../util';
 import { openLink } from '../links';
 import type { ClickModifiers } from '@shared/browser';
 import { Markdown } from './Markdown';
 import { MERGE_LABELS } from './MergeButton';
+
 import { confirmDialog } from './ConfirmDialog';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
 import { InlineTip } from './Tips';
 import { Age, Button, ButtonGroup, Card, CardHeader, Chip, Count, FilterField, IconButton, PageHeader, RefreshButton, SkeletonRows } from './ui';
+
+/** The note for a pull request whose base branch needs a merge queue. */
+const MERGE_QUEUE_NOTE = 'A pull request with a merge queue goes into the queue. GitHub merges it when the checks of the queue pass.';
 
 export type ReviewTabRequest = 'overview' | 'checks' | 'files';
 
@@ -450,23 +454,35 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
 
     /**
      * Merges the pull requests one after the other. GitHub refuses a merge after a new push.
-     * The cached lists then drop the merged pull requests. No list loads again.
+     * A pull request with a merge queue goes into the queue. The pull requests in this list passed all the requirements.
+     * The cached lists then drop the merged and the queued pull requests. No list loads again.
      */
     const mergeMutation = useMutation({
         mutationFn: async (prs: MyPullRequestItem[]) => {
             const merged: MyPullRequestItem[] = [];
+            const queued: (MyPullRequestItem & { id: string; headSha: string })[] = [];
             const errors: string[] = [];
             for (const pr of prs) {
                 try {
-                    await window.shipwarden.github.merge(pr.repo, pr.number, pr.headSha!, pr.mergeMethod ?? 'merge');
-                    merged.push(pr);
+                    const headSha = pr.headSha!;
+                    if (pr.mergeQueueRequired && pr.id) {
+                        const id = pr.id;
+                        await window.shipwarden.github.changePullRequest(pr.repo, pr.number, { kind: 'mergeQueue', pullRequestId: id, add: true, headSha });
+                        queued.push({ ...pr, id, headSha });
+                    } else {
+                        await window.shipwarden.github.merge(pr.repo, pr.number, headSha, pr.mergeMethod ?? 'merge');
+                        merged.push(pr);
+                    }
                 } catch (error) {
                     errors.push(`${pr.repo.name} #${pr.number}: ${errorText(error)}`);
                 }
             }
-            return { merged, errors };
+            return { merged, queued, errors };
         },
-        onSuccess: ({ merged }) => applyMerged(merged)
+        onSuccess: ({ merged, queued }) => {
+            applyMerged(merged);
+            applyQueued(queued);
+        }
     });
     const merging = mergeMutation.isPending;
     const mergeErrors = mergeMutation.data?.errors;
@@ -478,11 +494,13 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
         if (ready.length === 0) return;
         const ok = await confirmDialog({
             title: ready.length === 1 ? `Merge "${parsePullRequestTitle(ready[0].title).text}"?` : `Merge ${ready.length} pull requests?`,
-            message:
+            message: [
                 ready.length === 1
                     ? `${ready[0].repo.owner}/${ready[0].repo.name} #${ready[0].number}`
                     : ready.map(pr => `${pr.repo.name} #${pr.number}: ${parsePullRequestTitle(pr.title).text}`).join('\n'),
-            confirmLabel: 'Merge'
+                ...(ready.some(pr => pr.mergeQueueRequired) ? [MERGE_QUEUE_NOTE] : [])
+            ].join('\n\n'),
+            confirmLabel: ready.every(pr => pr.mergeQueueRequired) ? 'Merge when ready' : 'Merge'
         });
         if (!ok) return;
         mergeMutation.mutate(ready);
@@ -640,13 +658,13 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                                     variant="accent"
                                                     className="dash-row-action"
                                                     disabled={merging || !pr.headSha}
-                                                    title={pr.mergeMethod ? MERGE_LABELS[pr.mergeMethod] : undefined}
+                                                    title={pr.mergeQueueRequired ? MERGE_QUEUE_NOTE : pr.mergeMethod ? MERGE_LABELS[pr.mergeMethod] : undefined}
                                                     onClick={event => {
                                                         event.stopPropagation();
                                                         void merge([pr]);
                                                     }}
                                                 >
-                                                    Merge
+                                                    {pr.mergeQueueRequired ? 'Merge when ready' : 'Merge'}
                                                 </Button>
                                             }
                                         />

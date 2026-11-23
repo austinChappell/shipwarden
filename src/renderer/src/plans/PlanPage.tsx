@@ -106,7 +106,9 @@ import { planPullRequests, syncPlanGroup, usePlanGroup } from './plan-group';
 import {
     addPullRequestStep,
     canPromptStep,
+    loadStepForMerge,
     mergeStep,
+    stepMergeConfirm,
     moveStepInRepo,
     promptPlanAgents,
     pushRestackedStep,
@@ -1958,15 +1960,13 @@ function PlanRun({ plan, project, repoLabel, repoColor, onOpenWorktree, onClosed
     const runDetail = withPr.length > 0 ? `${opened}/${withPr.length} PRs opened` : undefined;
     const next = mergeable[0];
 
-    const merge = async (index: number) => {
-        const step = plan.steps[index];
-        const ok = await confirmDialog({
-            title: `Merge #${step.pr?.number}?`,
-            message: `"${step.title}" merges into ${step.pr?.base ?? 'its base branch'} with the default merge method of the repository.`,
-            confirmLabel: 'Merge'
+    /** Loads the pull request first. The question then tells whether the step merges now or goes into a merge queue. */
+    const merge = (index: number) =>
+        act(async () => {
+            const step = plan.steps[index];
+            const pr = await loadStepForMerge(step);
+            if (await confirmDialog(stepMergeConfirm(step, pr))) await mergeStep(step, pr);
         });
-        if (ok) await act(() => mergeStep(step));
-    };
     // The plan runner keeps the index of the step that runs. Thus the order changes only when no step runs.
     const canReorder = plan.status !== 'running' && !plan.steps.some(step => step.status === 'running');
     const rowProps = { plan, progress, repoLabel, onOpenWorktree, act, onMerge: merge };

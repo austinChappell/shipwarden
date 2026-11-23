@@ -9,6 +9,7 @@ import {
     type MergedPullRequest,
     type GitHubUser,
     type MergeMethod,
+    type MergeQueueEntry,
     type PullRequest,
     type PullRequestCommit,
     type PullRequestSummary,
@@ -39,6 +40,8 @@ query($owner: String!, $name: String!, $number: Int!) {
       baseRefName headRefName isCrossRepository baseRefOid headRefOid additions deletions changedFiles createdAt viewerDidAuthor viewerCanUpdate
       viewerCanEnableAutoMerge viewerCanDisableAutoMerge
       autoMergeRequest { mergeMethod enabledBy { login } }
+      isMergeQueueEnabled
+      mergeQueueEntry { position state enqueuer { login } }
       assignees(first: 20) { nodes { login avatarUrl } }
       labels(first: 50) { nodes { name color description } }
       reviewRequests(first: 30) {
@@ -106,7 +109,11 @@ export interface GraphQlPullRequest {
                   | 'viewerCanManage'
                   | 'viewerCanMerge'
                   | 'autoMerge'
+                  | 'mergeQueueRequired'
+                  | 'mergeQueueEntry'
               > & {
+                  isMergeQueueEnabled: boolean;
+                  mergeQueueEntry: { position: number | null; state: MergeQueueEntry['state']; enqueuer: { login: string } | null } | null;
                   autoMergeRequest: { mergeMethod: 'MERGE' | 'SQUASH' | 'REBASE'; enabledBy: { login: string } | null } | null;
                   bodyHTML: string;
                   assignees: { nodes: GitHubUser[] };
@@ -160,7 +167,19 @@ export function mapPullRequest(data: GraphQlPullRequest, repo: RepoRef, number: 
     if (!pr) {
         throw new Error(`Pull request #${number} does not exist in ${repo.owner}/${repo.name}.`);
     }
-    const { commits, headCommit, bodyHTML, comments: issueComments, assignees, labels, reviewRequests, autoMergeRequest, ...rest } = pr;
+    const {
+        commits,
+        headCommit,
+        bodyHTML,
+        comments: issueComments,
+        assignees,
+        labels,
+        reviewRequests,
+        autoMergeRequest,
+        isMergeQueueEnabled,
+        mergeQueueEntry,
+        ...rest
+    } = pr;
     // Images of private repositories need the signed URLs from the HTML that GitHub rendered.
     const html = [
         bodyHTML,
@@ -210,8 +229,13 @@ export function mapPullRequest(data: GraphQlPullRequest, repo: RepoRef, number: 
         autoMerge: autoMergeRequest
             ? { method: autoMergeRequest.mergeMethod.toLowerCase() as MergeMethod, enabledBy: autoMergeRequest.enabledBy?.login ?? null }
             : null,
-        viewerCanEnableAutoMerge: data.repository.autoMergeAllowed && pr.viewerCanEnableAutoMerge,
+        // With a merge queue, auto-merge adds the pull request to the queue. GitHub allows it also when the repository does not allow auto-merge.
+        viewerCanEnableAutoMerge: (data.repository.autoMergeAllowed || isMergeQueueEnabled) && pr.viewerCanEnableAutoMerge,
         viewerCanDisableAutoMerge: pr.viewerCanDisableAutoMerge,
+        mergeQueueRequired: isMergeQueueEnabled,
+        mergeQueueEntry: mergeQueueEntry
+            ? { position: mergeQueueEntry.position, state: mergeQueueEntry.state, enqueuedBy: mergeQueueEntry.enqueuer?.login ?? null }
+            : null,
         timeline
     };
 }
