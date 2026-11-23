@@ -102,7 +102,7 @@ shell, and `terminalCommand`.
 
 **Goal:** Give Codex agents the same chat view as Claude Code.
 
-**Status:** Done in branch `1.2-codex-chat`. The chat is still behind `AGENT_CHAT_ENABLED`. A Codex prompt keeps its
+**Status:** Done in branch `1.2-codex-chat`. The chat is an experimental opt-in setting (`experimentalAgentChat`). A Codex prompt keeps its
 image marks, because the images are temporary files that the page cannot show.
 
 **Design:**

@@ -1040,7 +1040,7 @@ export function App() {
             terminalSettings,
             terminalColorsKey,
             agents: appSettings.agents,
-            agentChat: appSettings.agentChat,
+            agentChat: appSettings.experimentalAgentChat,
             defaultAgentId: agentForRepo(appSettings, workspacePath && project.repoOfWorktree(workspacePath)).id,
             latestPullRequest,
             refreshGitHub: github.refresh,

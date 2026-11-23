@@ -362,8 +362,10 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 
 ### Agent chat
 
-The chat shows an agent tab as messages instead of a terminal. It is behind `AGENT_CHAT_ENABLED`
-(`agent-view-store.ts`), which is false while the chat is not ready for users.
+The chat shows an agent tab as messages instead of a terminal. The chat is experimental. The user turns it on in
+Settings › Agents ("Show agent tabs as a chat", setting `experimentalAgentChat`). The default is off. While it is off,
+each agent tab shows the terminal and has no "Show chat" control. The old key `agentChat` had the default on, so
+ShipWarden ignores it.
 
 - **Model and adapters.** `shared/agent-chat-model.ts` has the chat items (user, agent, and tool) and `ChatBuilder`. The
   model does not depend on the agent. One adapter for each transcript format makes the items:

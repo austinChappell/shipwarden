@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { agentStateStore, withAgentStore } from '../terminal/agent-state-store';
-import { AGENT_CHAT_ENABLED, agentViewStore, canShowChat, showsChat, useAgentViewChoices } from '../terminal/agent-view-store';
+import { agentViewStore, canShowChat, showsChat, useAgentViewChoices } from '../terminal/agent-view-store';
 import { ChatView } from './ChatView';
 import { TerminalView } from './TerminalView';
 
@@ -11,7 +11,7 @@ interface Props {
     /** The key of the terminal view. A new key opens the terminal again, for example after a change of the colors. */
     terminalKey: string;
     focused: boolean;
-    /** The setting "agentChat". */
+    /** The setting "experimentalAgentChat". While it is off, each agent tab shows the terminal. */
     chatByDefault: boolean;
     /** True when the command of the tab starts Claude Code. */
     claude: boolean;
@@ -26,7 +26,7 @@ export function AgentTabView({ session: base, settings, terminalKey, focused, ch
     const update = useSyncExternalStore(agentStateStore.subscribe, () => agentStateStore.getSnapshot().get(base.id));
     const choices = useAgentViewChoices();
     const session = update ? withAgentStore([base], new Map([[base.id, update]]), new Map())[0] : base;
-    if (AGENT_CHAT_ENABLED && showsChat(session, choices.get(session.id), chatByDefault, claude)) {
+    if (chatByDefault && showsChat(session, choices.get(session.id), chatByDefault, claude)) {
         return <ChatView session={session} focused={focused} />;
     }
     return (
@@ -35,7 +35,7 @@ export function AgentTabView({ session: base, settings, terminalKey, focused, ch
             session={base}
             settings={settings}
             focused={focused}
-            onShowChat={AGENT_CHAT_ENABLED && canShowChat(session, claude) ? () => agentViewStore.set(session.id, 'chat') : undefined}
+            onShowChat={chatByDefault && canShowChat(session, claude) ? () => agentViewStore.set(session.id, 'chat') : undefined}
         />
     );
 }
