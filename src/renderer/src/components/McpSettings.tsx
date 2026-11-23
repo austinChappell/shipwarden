@@ -30,7 +30,7 @@ export function McpSettingsGroup({ settings, onSave }: { settings: AppSettings; 
     return (
         <SettingsGroup
             title="MCP server"
-            description="ShipWarden runs a local MCP server. A new Claude Code agent tab gets its tools: list_worktrees, get_overlaps, ask_agent, get_task, and set_task_status. The tools act on the worktree of the agent. Your own MCP servers stay. Other agents do not get the server yet."
+            description="ShipWarden runs a local MCP server. A new agent tab of Claude Code, Codex, Gemini CLI, or opencode gets its tools: list_worktrees, get_overlaps, ask_agent, get_task, and set_task_status. The tools act on the worktree of the agent. Your own MCP servers stay."
             card
         >
             <SettingsRow

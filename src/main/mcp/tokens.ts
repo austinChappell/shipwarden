@@ -12,8 +12,8 @@ interface TokenEntry {
     createdAt: number;
     /** The terminal session of the agent. The token ends when the session exits. */
     sessionId?: string;
-    /** The MCP config file of the session. It has the token, so it goes away with the token. */
-    configFile: string;
+    /** The MCP config file of the session, if the agent gets a file. It has the token, so it goes away with the token. */
+    configFile?: string;
 }
 
 interface TokenFile {
@@ -27,9 +27,14 @@ export interface IssuedToken {
     /** The hash of the token. `bindSession` uses it. */
     id: string;
     token: string;
-    /** The MCP config file for --mcp-config. */
-    configFile: string;
+    /** The URL of the MCP endpoint. */
+    url: string;
+    /** The private MCP config file of the session, or undefined when the agent gets no file. */
+    configFile?: string;
 }
+
+/** Returns the content of the MCP config file of a session, or undefined for no file. */
+export type McpConfigContent = (url: string, token: string) => unknown;
 
 function hashOf(token: string): string {
     return createHash('sha256').update(token).digest('hex');
@@ -51,15 +56,24 @@ export class McpTokens {
         this.store = new JsonStore<TokenFile>(file, () => ({ tokens: {} }));
     }
 
-    /** Makes a token for a worktree and writes the MCP config file of the session. Only the user can read the file. */
-    async issue(worktree: string, url: string): Promise<IssuedToken> {
+    /**
+     * Makes a token for a worktree and writes the MCP config file of the session. Only the user can read the file.
+     * `content` gives the content of the file. The default is the config of Claude Code. When `content` gives undefined,
+     * the session gets no file.
+     */
+    async issue(worktree: string, url: string, content: McpConfigContent = mcpConfig): Promise<IssuedToken> {
         const token = randomBytes(32).toString('base64url');
         const id = hashOf(token);
-        await fs.mkdir(this.configFolder, { recursive: true, mode: 0o700 });
-        const configFile = join(this.configFolder, `${id.slice(0, 32)}.json`);
-        await fs.writeFile(configFile, JSON.stringify(mcpConfig(url, token), null, 2), { mode: 0o600 });
-        await this.store.update(file => ({ ...file, tokens: { ...this.tokens(file), [id]: { worktree, createdAt: this.now(), configFile } } }));
-        return { id, token, configFile };
+        const config = content(url, token);
+        let configFile: string | undefined;
+        if (config !== undefined) {
+            await fs.mkdir(this.configFolder, { recursive: true, mode: 0o700 });
+            configFile = join(this.configFolder, `${id.slice(0, 32)}.json`);
+            await fs.writeFile(configFile, JSON.stringify(config, null, 2), { mode: 0o600 });
+        }
+        const entry: TokenEntry = { worktree, createdAt: this.now(), ...(configFile ? { configFile } : {}) };
+        await this.store.update(file => ({ ...file, tokens: { ...this.tokens(file), [id]: entry } }));
+        return { id, token, url, configFile };
     }
 
     /** Returns the worktree of a token, or undefined for an unknown or old token. */
@@ -119,6 +133,6 @@ export class McpTokens {
             );
             return removed.length > 0 ? { ...file, tokens: kept } : undefined;
         });
-        await Promise.all(removed.map(entry => fs.rm(entry.configFile, { force: true }).catch(() => undefined)));
+        await Promise.all(removed.map(entry => (entry.configFile ? fs.rm(entry.configFile, { force: true }).catch(() => undefined) : undefined)));
     }
 }

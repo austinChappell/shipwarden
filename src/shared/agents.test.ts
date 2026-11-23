@@ -9,6 +9,7 @@ import {
     codexHookArgs,
     codexHookOverrides,
     codexHookScript,
+    codexMcpArgs,
     GEMINI_HOOK_EVENTS,
     GEMINI_HOOK_NAME,
     geminiHookSettings,
@@ -271,8 +272,37 @@ describe('withAgentHooks', () => {
         expect(hookAgentOf('codex resume --last')).toBe('codex');
     });
 
+    it("adds the ShipWarden MCP server to each agent, and the user's own servers stay", () => {
+        const url = 'http://127.0.0.1:4000/mcp';
+        // Claude Code adds --mcp-config to the servers of the user. ShipWarden does not add --strict-mcp-config.
+        const claude = withAgentHooks('claude', paths, { url, configFile: '/data/mcp/a.json' });
+        expect(claude).toBe(`claude --settings '${paths.claude}' --mcp-config '/data/mcp/a.json'`);
+        expect(claude).not.toContain('strict');
+        // Codex gets one -c option for each key of mcp_servers.shipwarden, not a new mcp_servers table.
+        expect(codexMcpArgs(url)).toBe(`-c 'mcp_servers.shipwarden.url="${url}"' -c 'mcp_servers.shipwarden.bearer_token_env_var="SHIPWARDEN_MCP_TOKEN"'`);
+        expect(withAgentHooks('codex', paths, { url })).toBe(`codex ${codexHookArgs(paths.codex)} ${codexMcpArgs(url)}`);
+        // Gemini CLI gets the config file of the session in place of the hook settings file.
+        expect(withAgentHooks('gemini', paths, { url, configFile: '/data/mcp/a.json' })).toBe(`GEMINI_CLI_SYSTEM_DEFAULTS_PATH='/data/mcp/a.json' gemini`);
+        expect(withAgentHooks('gemini', paths, { url })).toBe(`GEMINI_CLI_SYSTEM_DEFAULTS_PATH='${paths.gemini}' gemini`);
+        // opencode reads the token from the environment. The command line has no token.
+        expect(JSON.parse(opencodeHookConfig(paths.opencode, url))).toEqual({
+            plugin: [`file://${encodeURI(paths.opencode)}`],
+            mcp: { shipwarden: { type: 'remote', url, enabled: true, headers: { Authorization: 'Bearer {env:SHIPWARDEN_MCP_TOKEN}' } } }
+        });
+        expect(withAgentHooks('opencode', paths, { url })).toBe(`OPENCODE_CONFIG_CONTENT=${shellQuote(opencodeHookConfig(paths.opencode, url))} opencode`);
+    });
+
+    it('gives opencode --standalone when it needs it, and keeps a --standalone or --server of the user', () => {
+        const config = shellQuote(opencodeHookConfig(paths.opencode));
+        expect(withAgentHooks('opencode --model x', paths, undefined, true)).toBe(`OPENCODE_CONFIG_CONTENT=${config} opencode --model x --standalone`);
+        expect(withAgentHooks('opencode --standalone', paths, undefined, true)).toBe(`OPENCODE_CONFIG_CONTENT=${config} opencode --standalone`);
+        expect(withAgentHooks('opencode --server=http://h:1', paths, undefined, true)).toBe(`OPENCODE_CONFIG_CONTENT=${config} opencode --server=http://h:1`);
+        expect(withAgentHooks('claude', paths, undefined, true)).toBe(`claude --settings '${paths.claude}'`);
+    });
+
     it('keeps the command of other agents', () => {
         expect(withAgentHooks('gemini-helper', paths)).toBe('gemini-helper');
+        expect(withAgentHooks('aider', paths, { url: 'http://x/mcp', configFile: '/a.json' })).toBe('aider');
         expect(hookAgentOf('aider --yes')).toBeUndefined();
         expect(hookAgentOf('/usr/local/bin/gemini')).toBe('gemini');
     });

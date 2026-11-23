@@ -117,6 +117,10 @@ shell, and `terminalCommand`.
 
 **Goal:** Give the ShipWarden MCP tools to Codex, Gemini CLI, and opencode.
 
+**Status:** Done in branch `1.3-mcp-all-agents`. Codex and opencode read the token from the environment of the tab.
+opencode 2 gets `--standalone`, because its shared background service ignores the config of the tab. Gemini CLI was
+not tested live.
+
 **Design:**
 
 - Codex: pass the server with `-c mcp_servers.shipwarden...` at start. Do not change the user's `config.toml`.

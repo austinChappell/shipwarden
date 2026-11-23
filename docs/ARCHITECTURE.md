@@ -841,10 +841,19 @@ The user guide and the file format are in [automations.md](automations.md).
   `ping`, `tools/list`, and `tools/call`. It has no dependency on the MCP SDK.
 - **Tokens.** `McpTokens` (`tokens.ts`) makes a random token for each agent tab at `terminals:create`. The token
   identifies the worktree of the tab. `mcp-tokens.json` keeps only the SHA-256 hashes and the port, so the agents in the
-  PTY host keep their access after an app restart. The token goes in a private MCP config file
-  (`<userData>/mcp/<id>.json`, mode 0600), and Claude Code gets the file with `--mcp-config`
-  (`withMcpConfig` in `src/shared/agent-programs.ts`). No `--strict-mcp-config`, so the servers of the user stay. A
-  token ends when its terminal exits, or after 30 days. No token or a wrong token gets 401.
+  PTY host keep their access after an app restart. `McpHost.issue` selects the config of the agent, and
+  `withAgentHooks` (`src/shared/agents.ts`) adds it to the command:
+  - Claude Code: a private MCP config file (`<userData>/mcp/<id>.json`, mode 0600) with `--mcp-config`. No
+    `--strict-mcp-config`, so the servers of the user stay.
+  - Gemini CLI: a private copy of the hook settings file with `mcpServers.shipwarden` (`geminiMcpSettings`). It replaces
+    the hook settings file in `GEMINI_CLI_SYSTEM_DEFAULTS_PATH` for that session.
+  - Codex: `-c mcp_servers.shipwarden.url=…` and `-c mcp_servers.shipwarden.bearer_token_env_var=…` (`codexMcpArgs`).
+  - opencode: `mcp.shipwarden` in `OPENCODE_CONFIG_CONTENT` (`opencodeHookConfig`), with `{env:SHIPWARDEN_MCP_TOKEN}`
+    in the header. opencode 2 also gets `--standalone` (`OpencodeVersions` in `src/main/agents/opencode-version.ts`),
+    because its shared background service does not read the config of the tab.
+  Codex and opencode get no file. `terminals:create` puts the token in `SHIPWARDEN_MCP_TOKEN` of the tab, so the token
+  is not in the command line. A token ends when its terminal exits, or after 30 days. The config file goes away with
+  the token. No token or a wrong token gets 401.
 - **Tools.** `tools.ts` has the five tools and uses a `McpToolService` interface. `services.ts` gives the real
   services: the phone snapshot (`RemoteSnapshotBuilder`) for `list_worktrees`, `GitChangesService.worktreeFiles` and
   `findOverlaps` for `get_overlaps`, `AskAgentRunner` for `ask_agent`, and the task plugins for `get_task` and

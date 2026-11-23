@@ -9,6 +9,7 @@ import type { ShellIntegration } from './agents/shell-integration';
 import { ShellAgents } from './agents/shell-agents';
 import { AskAgentRunner } from './agents/ask-agent';
 import { hookSettingsPaths } from './agents/hook-files';
+import { OpencodeVersions } from './agents/opencode-version';
 import type { MainWindow } from './app/main-window';
 import { ConfirmDialogs } from './app/confirm';
 import { FileService } from './files/file-service';
@@ -508,12 +509,13 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const confirm = new ConfirmDialogs(() => window.get());
 
     /**
-     * The ShipWarden MCP server (Settings › Agents). Claude Code agents get it at start. The tools act on the worktree of
+     * The ShipWarden MCP server (Settings › Agents). Claude Code, Codex, Gemini CLI, and opencode agents get it at start. The tools act on the worktree of
      * the agent's token. The write tools ask the user the first time in each worktree, in the dialog of the page.
      */
     const mcp = new McpHost({
         userData,
         version: app.getVersion(),
+        geminiHookSettingsPath: hookSettingsPaths(userData).gemini,
         askUser: ({ worktree, tool, summary }, signal) =>
             confirm.ask(
                 {
@@ -565,6 +567,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const hookPaths = hookSettingsPaths(userData);
     /** The shell setup that adds the hook settings to a `claude`, `gemini` or `opencode` that the user types in a shell tab. */
     const shellIntegration: ShellIntegration = { hookSettingsPath: hookPaths.claude, geminiHookSettingsPath: hookPaths.gemini };
+    const opencodeVersions = new OpencodeVersions(shellReady);
 
     return {
         window,
@@ -619,6 +622,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         mcp,
         hookPaths,
         shellIntegration,
+        opencodeVersions,
         setupChecks
     };
 }
