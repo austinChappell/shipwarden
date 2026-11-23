@@ -31,6 +31,16 @@ export async function changePullRequest(client: GitHubClient, repo: RepoRef, num
                 });
             }
             return;
+        case 'mergeQueue':
+            if (change.add) {
+                await client.graphql(
+                    'mutation($id: ID!, $head: GitObjectID!) { enqueuePullRequest(input: { pullRequestId: $id, expectedHeadOid: $head }) { mergeQueueEntry { id } } }',
+                    { id: change.pullRequestId, head: change.headSha }
+                );
+            } else {
+                await client.graphql('mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { mergeQueueEntry { id } } }', { id: change.pullRequestId });
+            }
+            return;
         case 'assignee':
             await client.rest(change.add ? 'POST' : 'DELETE', `${base}/issues/${number}/assignees`, { assignees: [change.login] });
             return;

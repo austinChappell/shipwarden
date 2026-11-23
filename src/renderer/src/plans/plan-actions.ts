@@ -1,4 +1,12 @@
-import { repoLabel as repoRefLabel, sameRepoRef, type MergedPullRequest, type PullRequest, type RepoRef, type RepoTarget } from '@shared/github';
+import {
+    repoLabel as repoRefLabel,
+    sameRepoRef,
+    type MergedPullRequest,
+    type PullRequest,
+    type PullRequestChange,
+    type RepoRef,
+    type RepoTarget
+} from '@shared/github';
 import { MAX_GROUP_PULL_REQUESTS, parsePullRequestLink, prKey } from '@shared/pr-groups';
 import { batchPrompt, type BatchPullRequest } from '@shared/batch-prompt';
 import { MAX_TITLE_LENGTH, newStep, type Plan, type PlanStep } from '@shared/plans';
@@ -7,7 +15,8 @@ import { checkLine, checksPrompt } from '../app/agent-text';
 import { confirmForcePush } from '../git/rebase-actions';
 import { threadComments, threadPlace } from '../github/agent-prompts';
 import { isFailedConclusion } from '../github/ci-queries';
-import { mergePullRequest } from '../github/pull-request-mutations';
+import { canEnqueueNow } from '../github/merge-state';
+import { changePullRequest, mergePullRequest } from '../github/pull-request-mutations';
 import { pullRequestQuery } from '../github/review-store';
 import { keyRoots, queryClient } from '../query-client';
 import { errorText } from '../util';
@@ -35,14 +44,48 @@ async function loadPullRequest(step: PlanStep): Promise<PullRequest> {
     return api.github.pullRequest(targetOf(step), step.pr.number);
 }
 
-/**
- * Merges the pull request of a step with the default merge method of the repository. The merged list of the
- * repository gets the branch at once, so that the page shows the step as merged before the next load.
- */
-export async function mergeStep(step: PlanStep): Promise<void> {
+/** Loads the pull request of a step for a merge. It throws an error when the user cannot merge it now. */
+export async function loadStepForMerge(step: PlanStep): Promise<PullRequest> {
     const pr = await loadPullRequest(step);
     if (pr.state !== 'OPEN') throw new Error(`Pull request #${pr.number} is not open anymore.`);
     if (!pr.viewerCanMerge) throw new Error(`You cannot merge pull request #${pr.number}. Ask for write access to the repository.`);
+    if (pr.mergeQueueEntry) throw new Error(`Pull request #${pr.number} is already in the merge queue.`);
+    if (pr.mergeQueueRequired && pr.autoMerge) throw new Error(`Auto-merge is already on for pull request #${pr.number}.`);
+    return pr;
+}
+
+/** The question and the button text before the merge of a step. */
+export function stepMergeConfirm(step: PlanStep, pr: PullRequest): { title: string; message: string; confirmLabel: string } {
+    if (!pr.mergeQueueRequired) {
+        return {
+            title: `Merge #${pr.number}?`,
+            message: `"${step.title}" merges into ${pr.baseRefName} with the default merge method of the repository.`,
+            confirmLabel: 'Merge'
+        };
+    }
+    return {
+        title: `Merge #${pr.number} when ready?`,
+        message: canEnqueueNow(pr)
+            ? `"${step.title}" goes into the merge queue of ${pr.baseRefName}. GitHub merges it when the checks of the queue pass.`
+            : `GitHub adds "${step.title}" to the merge queue of ${pr.baseRefName} when all the requirements pass.`,
+        confirmLabel: 'Merge when ready'
+    };
+}
+
+/**
+ * Merges the pull request of a step with the default merge method of the repository. The merged list of the
+ * repository gets the branch at once, so that the page shows the step as merged before the next load.
+ * When the base branch needs a merge queue, the pull request goes into the queue, or auto-merge turns on.
+ * GitHub merges it later, and the step shows as merged after a load.
+ */
+export async function mergeStep(step: PlanStep, pr: PullRequest): Promise<void> {
+    if (pr.mergeQueueRequired) {
+        const change: PullRequestChange = canEnqueueNow(pr)
+            ? { kind: 'mergeQueue', pullRequestId: pr.id, add: true, headSha: pr.headRefOid }
+            : { kind: 'autoMerge', pullRequestId: pr.id, method: pr.defaultMergeMethod, headSha: pr.headRefOid };
+        await changePullRequest(targetOf(step), pr, change);
+        return;
+    }
     await mergePullRequest(targetOf(step), pr, pr.defaultMergeMethod, parsePullRequestLink(pr.url)?.repo);
     if (step.repo && step.branch) {
         const branch = step.branch;

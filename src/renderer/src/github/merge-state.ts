@@ -77,7 +77,7 @@ export function selectMergeMethod(pr: PullRequest, chosen: MergeMethod | undefin
 
 /** True when the user can do a merge action on the pull request. Then the panel shows the merge card. */
 export function canActOnMerge(pr: PullRequest): boolean {
-    return !!(pr.autoMerge || pr.viewerCanMerge || pr.viewerCanEnableAutoMerge || pr.viewerCanUpdate);
+    return !!(pr.autoMerge || pr.mergeQueueEntry || pr.viewerCanMerge || pr.viewerCanEnableAutoMerge || pr.viewerCanUpdate);
 }
 
 /** True when the panel shows a footer: the review and merge cards, or the button that reopens the pull request. */
@@ -131,6 +131,47 @@ export function autoMergeConfirm(pr: PullRequest, method: MergeMethod | null): {
         };
     }
     return { title: `Turn off auto-merge for pull request #${pr.number}?`, confirmLabel: 'Disable auto-merge' };
+}
+
+/**
+ * Returns the reason that the "Merge when ready" button is disabled, or undefined when the user can click it.
+ * Pending checks and reviews do not disable it. Then the button turns on auto-merge, and GitHub adds the pull request to the queue later.
+ */
+export function mergeWhenReadyBlocker(pr: PullRequest): string | undefined {
+    if (pr.state !== 'OPEN') return 'The pull request is not open.';
+    if (pr.isDraft) return 'The pull request is a draft.';
+    if (pr.mergeable === 'CONFLICTING') return 'The branch has conflicts with the base branch.';
+    return undefined;
+}
+
+/**
+ * True when "Merge when ready" adds the pull request to the merge queue now.
+ * False when it turns on auto-merge, because one or more requirements did not pass yet.
+ */
+export function canEnqueueNow(pr: PullRequest): boolean {
+    return !mergeBlocker(pr);
+}
+
+/** The question and the button text before the user adds a pull request to the merge queue or removes it. */
+export function mergeQueueConfirm(pr: PullRequest, add: boolean): { title: string; confirmLabel: string } {
+    if (!add) return { title: `Remove pull request #${pr.number} from the merge queue?`, confirmLabel: 'Remove from queue' };
+    return {
+        title: canEnqueueNow(pr)
+            ? `Add pull request #${pr.number} to the merge queue of ${pr.baseRefName}? GitHub merges it when the checks of the queue pass.`
+            : `Merge pull request #${pr.number} when it is ready? GitHub adds it to the merge queue of ${pr.baseRefName} when all the requirements pass.`,
+        confirmLabel: 'Merge when ready'
+    };
+}
+
+/** The text that tells the user where the pull request is in the merge queue. */
+export function mergeQueueText(pr: PullRequest): string {
+    const entry = pr.mergeQueueEntry;
+    if (!entry) return '';
+    const by = entry.enqueuedBy ? ` (${entry.enqueuedBy})` : '';
+    const place = entry.position ? `, position ${entry.position}` : '';
+    if (entry.state === 'UNMERGEABLE') return `In the merge queue${place}${by}. The pull request cannot merge.`;
+    if (entry.state === 'AWAITING_CHECKS') return `In the merge queue${place}${by}. Waiting for the checks of the queue.`;
+    return `In the merge queue${place}${by}. GitHub merges the pull request when the checks of the queue pass.`;
 }
 
 /** The question and the button text before the user closes or reopens a pull request. */

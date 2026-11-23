@@ -149,4 +149,18 @@ describe('changePullRequest with GraphQL', () => {
         expect(calls[0].path).toContain('disablePullRequestAutoMerge');
         expect(calls[0].body).toEqual({ id: 'PR1' });
     });
+
+    it('adds the pull request to the merge queue with the head commit', async () => {
+        const { client, calls } = fakeClient();
+        await changePullRequest(client, repo, 7, { kind: 'mergeQueue', pullRequestId: 'PR1', add: true, headSha: 'head1' });
+        expect(calls[0].path).toContain('enqueuePullRequest');
+        expect(calls[0].body).toEqual({ id: 'PR1', head: 'head1' });
+    });
+
+    it('removes the pull request from the merge queue', async () => {
+        const { client, calls } = fakeClient();
+        await changePullRequest(client, repo, 7, { kind: 'mergeQueue', pullRequestId: 'PR1', add: false, headSha: 'head1' });
+        expect(calls[0].path).toContain('dequeuePullRequest');
+        expect(calls[0].body).toEqual({ id: 'PR1' });
+    });
 });

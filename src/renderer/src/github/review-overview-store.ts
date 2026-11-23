@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { notifyManager, useQueries, useQuery, type Query } from '@tanstack/react-query';
 import { repoId, parseRepoId, type GitHubRepoInfo, type PullRequest, type RepoRef } from '@shared/github';
+import type { DashboardPullRequests } from '@shared/dashboard';
 import { reviewQueue, type OpenPullRequest, type QueueItem, type RepoPullRequests } from '@shared/review-queue';
-import { applyMergedToDashboard, dashboardPullRequestsQuery, type PullRequestRef } from '../dashboard-store';
+import { applyMergedToDashboard, dashboardPullRequestsQuery, withoutMergedPullRequests, type PullRequestRef } from '../dashboard-store';
 import { keyRoots, queryClient } from '../query-client';
+import { changedPullRequest } from './pull-request-cache';
 import { optionalErrorText } from '../util';
 import { useIsSeen } from '../seen-store';
 import { reviewKeys } from './review-store';
@@ -314,5 +316,23 @@ export function applyMerged(merged: PullRequestRef[]): void {
         queryClient.setQueriesData<RepoPullRequests>({ queryKey: overviewKeys.openOf(id) }, data => data && withoutOpenPullRequest(data, number));
         queryClient.setQueryData<PullRequest>(reviewKeys.pullRequest(repo, number), pr => pr && asMerged(pr));
         void queryClient.invalidateQueries({ queryKey: overviewKeys.mergedOf(id) });
+    }
+}
+
+/**
+ * Updates the cached data after the Dashboard added pull requests to a merge queue. The Dashboard does not show them
+ * anymore, because they wait for GitHub. The pull requests stay open until GitHub merges them. No request goes to GitHub.
+ */
+export function applyQueued(queued: (PullRequestRef & { id: string; headSha: string })[]): void {
+    if (queued.length === 0) return;
+    queryClient.setQueriesData<DashboardPullRequests>(
+        { queryKey: [...keyRoots.dashboard, 'pullRequests'] },
+        data => data && withoutMergedPullRequests(data, queued)
+    );
+    for (const { repo, number, id, headSha } of queued) {
+        queryClient.setQueryData<PullRequest>(
+            reviewKeys.pullRequest(repo, number),
+            pr => pr && changedPullRequest(pr, { kind: 'mergeQueue', pullRequestId: id, add: true, headSha })
+        );
     }
 }

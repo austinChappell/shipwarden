@@ -15,7 +15,7 @@ import type { GitHubClient } from './github-client';
 const DASHBOARD_COMMENT_FIELDS = 'id url createdAt bodyText bodyHTML author { __typename login }';
 
 const DASHBOARD_SUMMARY_FIELDS = `
-  id number title url state isDraft updatedAt createdAt reviewDecision mergeable headRefOid
+  id number title url state isDraft updatedAt createdAt reviewDecision mergeable headRefOid isMergeQueueEnabled isInMergeQueue
   repository { name owner { login } viewerDefaultMergeMethod }
   author { login }
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
@@ -82,6 +82,8 @@ interface DashboardPr {
     reviewDecision: string | null;
     mergeable: string;
     headRefOid: string;
+    isMergeQueueEnabled: boolean;
+    isInMergeQueue: boolean;
     repository: { name: string; owner: { login: string }; viewerDefaultMergeMethod?: 'MERGE' | 'SQUASH' | 'REBASE' };
     author: { login: string } | null;
     commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
@@ -161,6 +163,7 @@ export class DashboardLoader {
             reviewRequests: [...review.prs.map(item), ...active],
             myPullRequests: mine.prs
                 .map(pr => ({
+                    id: pr.id,
                     repo: dashboardRepo(pr),
                     number: pr.number,
                     title: pr.title,
@@ -170,6 +173,7 @@ export class DashboardLoader {
                     reasons: myPullRequestReasons({ ...pr, checks: pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null }),
                     headSha: pr.headRefOid,
                     mergeMethod: pr.repository.viewerDefaultMergeMethod?.toLowerCase() as MergeMethod | undefined,
+                    mergeQueueRequired: pr.isMergeQueueEnabled,
                     unresolvedThreads: pr.reviewThreads?.nodes.filter(thread => !thread.isResolved).length
                 }))
                 .filter(pr => pr.reasons.length > 0)

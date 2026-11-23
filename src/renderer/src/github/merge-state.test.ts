@@ -13,6 +13,10 @@ import {
     mergeButtonState,
     mergeCardTitle,
     mergeConfirmTitle,
+    mergeQueueConfirm,
+    mergeQueueText,
+    mergeWhenReadyBlocker,
+    canEnqueueNow,
     reviewText,
     selectMergeMethod,
     shownReviewDecision,
@@ -245,5 +249,39 @@ describe('descriptionChange', () => {
     it('sends only the fields that changed', () => {
         expect(descriptionChange(pr(), 'Fix login', 'New text')).toEqual({ kind: 'details', title: undefined, body: 'New text' });
         expect(descriptionChange(pr(), 'New title', 'Text')).toEqual({ kind: 'details', title: 'New title', body: undefined });
+    });
+});
+
+describe('merge queue', () => {
+    it('adds the pull request to the queue only when nothing blocks the merge', () => {
+        expect(canEnqueueNow(pr())).toBe(true);
+        expect(canEnqueueNow(pr({ mergeStateStatus: 'BLOCKED' }))).toBe(false);
+    });
+
+    it('lets the user click "Merge when ready" while checks and reviews are pending', () => {
+        expect(mergeWhenReadyBlocker(pr({ mergeStateStatus: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED' }))).toBeUndefined();
+        expect(mergeWhenReadyBlocker(pr({ isDraft: true }))).toBe('The pull request is a draft.');
+        expect(mergeWhenReadyBlocker(pr({ mergeable: 'CONFLICTING' }))).toBe('The branch has conflicts with the base branch.');
+    });
+
+    it('tells whether the pull request goes into the queue now or later', () => {
+        expect(mergeQueueConfirm(pr(), true).title).toBe('Add pull request #7 to the merge queue of main? GitHub merges it when the checks of the queue pass.');
+        expect(mergeQueueConfirm(pr({ mergeStateStatus: 'BLOCKED' }), true).title).toBe(
+            'Merge pull request #7 when it is ready? GitHub adds it to the merge queue of main when all the requirements pass.'
+        );
+        expect(mergeQueueConfirm(pr(), false)).toEqual({ title: 'Remove pull request #7 from the merge queue?', confirmLabel: 'Remove from queue' });
+    });
+
+    it('gives the place in the queue when GitHub knows it', () => {
+        expect(mergeQueueText(pr({ mergeQueueEntry: { position: 2, state: 'QUEUED', enqueuedBy: 'ana' } }))).toBe(
+            'In the merge queue, position 2 (ana). GitHub merges the pull request when the checks of the queue pass.'
+        );
+        expect(mergeQueueText(pr({ mergeQueueEntry: { position: null, state: 'AWAITING_CHECKS', enqueuedBy: null } }))).toBe(
+            'In the merge queue. Waiting for the checks of the queue.'
+        );
+    });
+
+    it('shows the merge card for a pull request in the queue', () => {
+        expect(canActOnMerge(pr({ viewerCanMerge: false, mergeQueueEntry: { position: 1, state: 'QUEUED', enqueuedBy: null } }))).toBe(true);
     });
 });

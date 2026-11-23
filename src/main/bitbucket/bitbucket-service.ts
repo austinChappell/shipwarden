@@ -606,6 +606,8 @@ export class BitbucketService implements SourceHost {
                 return;
             case 'autoMerge':
                 throw new BitbucketError('Bitbucket Cloud has no API for auto-merge.', 0);
+            case 'mergeQueue':
+                throw new BitbucketError('Bitbucket Cloud has no merge queue.', 0);
             case 'assignee':
                 throw new BitbucketError('Bitbucket pull requests have no assignees.', 0);
             case 'label':

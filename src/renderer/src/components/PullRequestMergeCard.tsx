@@ -1,7 +1,16 @@
 import { Circle, CircleCheck, CircleX, Ellipsis, GitMerge, GitPullRequest } from 'lucide-react';
 import type { MergeMethod, PullRequest } from '@shared/github';
 import type { CheckCounts } from '../github/use-check-counts';
-import { autoMergeButtonText, canActOnMerge, MERGE_LABELS, mergeBlocker, mergeButtonState, mergeCardTitle } from '../github/merge-state';
+import {
+    autoMergeButtonText,
+    canActOnMerge,
+    MERGE_LABELS,
+    mergeBlocker,
+    mergeButtonState,
+    mergeCardTitle,
+    mergeQueueText,
+    mergeWhenReadyBlocker
+} from '../github/merge-state';
 import { MergeButton } from './MergeButton';
 import { Button, Card, CardBody, CardHeader, IconButton } from './ui';
 import { mergeConditions } from './PullRequestSummary';
@@ -19,13 +28,27 @@ interface Props {
     onSelectMethod(method: MergeMethod): void;
     onMerge(): void;
     onAutoMerge(on: boolean): void;
+    /** True: "Merge when ready" on a base branch with a merge queue. False: removes the pull request from the queue. */
+    onMergeQueue(add: boolean): void;
     onDraft(draft: boolean): void;
     /** Opens the menu with the actions that the user seldom needs. */
     onMoreActions(button: Element): void;
 }
 
 /** The card with the merge actions. The Overview tab shows it in the side column, with the merge checklist. */
-export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSelectMethod, onMerge, onAutoMerge, onDraft, onMoreActions }: Props) {
+export function PullRequestMergeCard({
+    pr,
+    overview,
+    checks,
+    busy,
+    method,
+    onSelectMethod,
+    onMerge,
+    onAutoMerge,
+    onMergeQueue,
+    onDraft,
+    onMoreActions
+}: Props) {
     const blocker = mergeBlocker(pr);
     const moreButton = pr.viewerCanUpdate && (
         <IconButton
@@ -41,7 +64,51 @@ export function PullRequestMergeCard({ pr, overview, checks, busy, method, onSel
     const button = method && mergeButtonState(pr, method, overview, busy);
     /** The overview page shows the merge actions as large buttons. */
     const size = overview ? 'lg' : undefined;
-    const mergeActions = pr.autoMerge ? (
+    const queueBlocker = mergeWhenReadyBlocker(pr);
+    const mergeActions = pr.mergeQueueEntry ? (
+        <>
+            <div className="panel-note">{mergeQueueText(pr)}</div>
+            {pr.viewerCanMerge && (
+                <div className="merge-row">
+                    <Button size={size} disabled={busy} onClick={() => onMergeQueue(false)}>
+                        Remove from queue
+                    </Button>
+                </div>
+            )}
+        </>
+    ) : pr.mergeQueueRequired && pr.autoMerge ? (
+        <>
+            <div className="panel-note">
+                Auto-merge is on{pr.autoMerge.enabledBy ? ` (${pr.autoMerge.enabledBy})` : ''}. GitHub adds the pull request to the merge queue when all the
+                requirements pass.
+            </div>
+            {pr.viewerCanDisableAutoMerge && (
+                <div className="merge-row">
+                    <Button size={size} disabled={busy} onClick={() => onAutoMerge(false)}>
+                        Disable auto-merge
+                    </Button>
+                </div>
+            )}
+        </>
+    ) : pr.mergeQueueRequired ? (
+        pr.viewerCanMerge && (
+            <>
+                {!overview && queueBlocker && <div className="panel-note">{queueBlocker}</div>}
+                <div className="merge-row">
+                    <Button
+                        variant="accent"
+                        size={size}
+                        icon={<GitMerge size={14} strokeWidth={1.8} />}
+                        disabled={busy || !!queueBlocker}
+                        title={queueBlocker}
+                        onClick={() => onMergeQueue(true)}
+                    >
+                        Merge when ready
+                    </Button>
+                </div>
+            </>
+        )
+    ) : pr.autoMerge ? (
         <>
             <div className="panel-note">
                 Auto-merge is on{pr.autoMerge.enabledBy ? ` (${pr.autoMerge.enabledBy})` : ''}. GitHub merges the pull request with "

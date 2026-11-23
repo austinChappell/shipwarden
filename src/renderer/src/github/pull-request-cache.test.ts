@@ -182,6 +182,12 @@ describe('pull request changes', () => {
         );
     });
 
+    it('adds the pull request to the merge queue and removes it', () => {
+        const queued = changedPullRequest(makePr(), { kind: 'mergeQueue', pullRequestId: 'PR_7', add: true, headSha: 'head1' }, [], { login: 'me' });
+        expect(queued.mergeQueueEntry).toEqual({ position: null, state: 'QUEUED', enqueuedBy: 'me' });
+        expect(changedPullRequest(queued, { kind: 'mergeQueue', pullRequestId: 'PR_7', add: false, headSha: 'head1' }).mergeQueueEntry).toBeNull();
+    });
+
     it('applies a label with its known color', () => {
         const pr = changedPullRequest(makePr(), { kind: 'label', name: 'bug', add: true }, [{ name: 'bug', color: 'ff0000' }]);
         expect(pr.labels).toEqual([{ name: 'bug', color: 'ff0000' }]);

@@ -12,7 +12,8 @@ query($owner: String!, $name: String!, $number: Int!) {
         ASSIGNED_EVENT, UNASSIGNED_EVENT, LABELED_EVENT, UNLABELED_EVENT, REVIEW_REQUESTED_EVENT, REVIEW_REQUEST_REMOVED_EVENT,
         CLOSED_EVENT, REOPENED_EVENT, MERGED_EVENT, READY_FOR_REVIEW_EVENT, CONVERT_TO_DRAFT_EVENT, RENAMED_TITLE_EVENT,
         HEAD_REF_FORCE_PUSHED_EVENT, HEAD_REF_DELETED_EVENT, HEAD_REF_RESTORED_EVENT, BASE_REF_CHANGED_EVENT,
-        AUTO_MERGE_ENABLED_EVENT, AUTO_MERGE_DISABLED_EVENT, REVIEW_DISMISSED_EVENT, CROSS_REFERENCED_EVENT
+        AUTO_MERGE_ENABLED_EVENT, AUTO_MERGE_DISABLED_EVENT, ADDED_TO_MERGE_QUEUE_EVENT, REMOVED_FROM_MERGE_QUEUE_EVENT,
+        REVIEW_DISMISSED_EVENT, CROSS_REFERENCED_EVENT
       ]) {
         nodes {
           __typename
@@ -35,6 +36,8 @@ query($owner: String!, $name: String!, $number: Int!) {
           ... on BaseRefChangedEvent { createdAt actor { login } previousRefName currentRefName }
           ... on AutoMergeEnabledEvent { createdAt actor { login } }
           ... on AutoMergeDisabledEvent { createdAt actor { login } }
+          ... on AddedToMergeQueueEvent { createdAt actor { login } }
+          ... on RemovedFromMergeQueueEvent { createdAt actor { login } }
           ... on ReviewDismissedEvent { createdAt actor { login } dismissalMessage review { author { login } } }
           ... on CrossReferencedEvent {
             createdAt actor { login }
@@ -80,6 +83,8 @@ const SIMPLE_KINDS: Record<string, TimelineEvent['kind']> = {
     ConvertToDraftEvent: 'convertToDraft',
     AutoMergeEnabledEvent: 'autoMergeEnabled',
     AutoMergeDisabledEvent: 'autoMergeDisabled',
+    AddedToMergeQueueEvent: 'addedToMergeQueue',
+    RemovedFromMergeQueueEvent: 'removedFromMergeQueue',
     HeadRefRestoredEvent: 'headRefRestored'
 };
 

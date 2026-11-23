@@ -563,6 +563,8 @@ export class GitLabService implements SourceHost {
                     await this.client.request('POST', `${base}/cancel_merge_when_pipeline_succeeds`);
                 }
                 return;
+            case 'mergeQueue':
+                throw new GitLabError('ShipWarden does not support the GitLab merge train.', 0);
             case 'assignee':
             case 'reviewer': {
                 const login = change.kind === 'assignee' ? change.login : change.reviewer.login;

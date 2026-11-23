@@ -88,6 +88,22 @@ describe('mapPullRequest', () => {
         expect(pr.autoMerge).toEqual({ method: 'rebase', enabledBy: null });
     });
 
+    it('gives the merge queue and the place of the pull request in it', () => {
+        const pr = mapPullRequest(
+            graphQlPullRequest(
+                { isMergeQueueEnabled: true, mergeQueueEntry: { position: 3, state: 'QUEUED', enqueuer: { login: 'ana' } } },
+                { autoMergeAllowed: false }
+            ),
+            repo,
+            7,
+            undefined
+        );
+        expect(pr.mergeQueueRequired).toBe(true);
+        expect(pr.mergeQueueEntry).toEqual({ position: 3, state: 'QUEUED', enqueuedBy: 'ana' });
+        // With a merge queue, auto-merge adds the pull request to the queue, also when the repository does not allow auto-merge.
+        expect(pr.viewerCanEnableAutoMerge).toBe(true);
+    });
+
     it('finds the viewer in the requested users but not in the requested teams', () => {
         const asUser = graphQlPullRequest({ reviewRequests: { nodes: [{ requestedReviewer: { __typename: 'User', login: 'me' } }] } });
         const asTeam = graphQlPullRequest({ reviewRequests: { nodes: [{ requestedReviewer: { __typename: 'Team', slug: 'me', name: 'Me' } }] } });
