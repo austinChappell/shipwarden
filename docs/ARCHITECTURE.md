@@ -1078,7 +1078,8 @@ Done:
   `externalEditor` keeps the app path. `editors.open(root, file, line)` gets only a worktree and a relative file, and
   the main process selects the app, so the page cannot start other programs. VS Code and its forks get
   `<cli> <worktree> --goto <file>:<line>`, Zed gets `<cli> <worktree> <file>:<line>`, and a JetBrains IDE gets
-  `open -na <app> --args --line <line> <file>`. Without the CLI in the app, the command is `open -a <app> <path>`.
+  `open -na <app> --args <worktree> --line <line> <file>`. A file tab of the Terminal view has the home folder as its
+  root. `ProjectWorktrees.locate` then finds the deepest project worktree that contains the file. Without the CLI in the app, the command is `open -a <app> <path>`.
   The command runs without the `ELECTRON_*` variables and `VSCODE_IPC_HOOK_CLI`. The line comes from the saved cursor
   position of the file (`editor-positions.ts`).
 - File viewers (`FileView`). The main process tells the kind of a file (`files.info`): from the extension, else from

@@ -14,7 +14,7 @@ import { isPanelTab, readPanelTab, RightPanel, writePanelTab, type PanelTab } fr
 import { requestExplorerFocus } from './files/explorer-focus';
 import { focusedSelection } from './files/focused-selection';
 import { copyFilePath } from './files/file-path-copy';
-import { openInExternalEditor } from './files/external-editor';
+import { editorListQuery, openInExternalEditor } from './files/external-editor';
 import { copyPageLink, currentPageLink } from './app/page-link';
 import { setPullRequestOpener } from './pull-request-links';
 import { dialogOpen, promptDialog } from './components/ConfirmDialog';
@@ -226,6 +226,8 @@ export function App() {
     /** The home folder. The Terminal view keeps its tabs under it, as the worktree view keeps the tabs of a worktree under its path. */
     const homeFolder = useQuery({ queryKey: keyRoots.appInfo, queryFn: () => api.app.info(), staleTime: Number.POSITIVE_INFINITY }).data?.homeFolder;
     const terminalView = mainView === 'terminal';
+    // The context menus read the editor name from the cache, so the list loads at start.
+    useQuery(editorListQuery);
     /** The folder of the tabs on the screen: the home folder in the Terminal view, else the selected worktree. */
     const workspacePath = terminalView ? homeFolder : selectedPath;
     /** The home folder as a worktree, so the Terminal view can use the actions of the worktree view. It has no repository. */

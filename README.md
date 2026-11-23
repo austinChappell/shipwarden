@@ -261,7 +261,8 @@ Studio) in `/Applications` and `~/Applications`.
 
 Select the editor in Settings › Appearance › External editor. Without a selection, ShipWarden uses the first editor of
 the list above. VS Code, its forks, and Zed open the worktree and the file in one window. A JetBrains IDE opens the
-file in the project that contains it.
+worktree as a project, and then the file in it. A file tab of the Terminal view opens the worktree that contains the
+file.
 
 ### ShipWarden MCP server
 

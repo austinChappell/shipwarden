@@ -73,7 +73,7 @@ describe('editorCommand', () => {
         expect(editorCommand(webstorm, { folder }, false)).toEqual({ command: 'open', args: ['-na', webstorm.appPath, '--args', '/w'] });
         expect(editorCommand(webstorm, { folder, file, line: 7 }, false)).toEqual({
             command: 'open',
-            args: ['-na', webstorm.appPath, '--args', '--line', '7', '/w/src/a.ts']
+            args: ['-na', webstorm.appPath, '--args', '/w', '--line', '7', '/w/src/a.ts']
         });
     });
 

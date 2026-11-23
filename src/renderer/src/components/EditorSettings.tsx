@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { NO_EDITOR_TEXT } from '@shared/editors';
+import { errorText } from '../util';
 import { editorListQuery, setSelectedEditor } from '../files/external-editor';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { Select } from './ui';
@@ -19,7 +21,7 @@ export function EditorSettings({ onChange, onError }: Props) {
     const select = (appPath: string) =>
         onChange(appPath).then(
             () => setSelectedEditor(appPath),
-            error => onError(error instanceof Error ? error.message : String(error))
+            error => onError(errorText(error))
         );
 
     return (
@@ -29,7 +31,7 @@ export function EditorSettings({ onChange, onError }: Props) {
                 description={
                     isPending || editors.length > 0
                         ? 'The editor for "Open in editor" (⌥⌘O) in the worktree menu, the file tabs, and the file explorer. A file opens at its cursor line.'
-                        : 'ShipWarden found no editor. Install VS Code, Cursor, Windsurf, Zed, or a JetBrains IDE in /Applications or ~/Applications.'
+                        : NO_EDITOR_TEXT
                 }
                 control={
                     <Select

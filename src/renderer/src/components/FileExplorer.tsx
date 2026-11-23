@@ -8,7 +8,7 @@ import { treeKeyAction, type TreeRow } from '../files/tree-nav';
 import { ErrorBanner } from './ErrorBanner';
 import { confirmDialog } from './ConfirmDialog';
 import { showContextMenu, type ContextMenuItem } from './ContextMenu';
-import { fetchExternalEditor, openInEditorLabel, openInExternalEditor } from '../files/external-editor';
+import { cachedExternalEditor, openInEditorLabel, openInExternalEditor } from '../files/external-editor';
 import { pluralize } from '@shared/format';
 import { Count, IconButton, Input, inputClass, RefreshButton, SkeletonRows } from './ui';
 
@@ -559,7 +559,7 @@ export function FileExplorer({ root, activePath, onOpenFile, title, onMoved, onD
                 { id: 'copy-relative-path', label: 'Copy relative path' }
             );
         }
-        items.push({ id: 'reveal', label: 'Reveal in Finder' }, { id: 'open-editor', label: openInEditorLabel(await fetchExternalEditor()) });
+        items.push({ id: 'reveal', label: 'Reveal in Finder' }, { id: 'open-editor', label: openInEditorLabel(cachedExternalEditor()) });
         const choice = await showContextMenu(items, anchor);
         switch (choice) {
             case 'new-file':

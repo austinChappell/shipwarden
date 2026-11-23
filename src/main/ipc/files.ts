@@ -15,7 +15,8 @@ export function registerFileIpc({ files, fileWatcher, projectWorktrees }: Pick<S
     // Like files.read, info does not need a known worktree. The editor also opens files of other roots.
     ipcMain.handle(IpcChannels.filesInfo, (_event, root: string, file: string) => files.info(String(root), String(file)));
     ipcMain.handle(IpcChannels.filesReveal, async (_event, root: string, file: string) => {
-        shell.showItemInFolder(resolveInside(await projectWorktrees.check(root), String(file)));
+        // A file tab of the Terminal view has the home folder as its root. The file must be in a worktree of a project.
+        shell.showItemInFolder((await projectWorktrees.locate(root, file)).absolute);
     });
     ipcMain.handle(IpcChannels.filesOpenInDefaultApp, async (_event, root: string, file: string) => {
         const absolute = resolveInside(await projectWorktrees.check(root), String(file));

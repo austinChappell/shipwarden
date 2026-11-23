@@ -20,9 +20,13 @@ export function useExternalEditor(): ExternalEditor | undefined {
     return selectedOf(useQuery(editorListQuery).data);
 }
 
-/** The same editor, for code that is not a component, for example a context menu. */
-export async function fetchExternalEditor(): Promise<ExternalEditor | undefined> {
-    return selectedOf(await queryClient.fetchQuery(editorListQuery).catch(() => undefined));
+/**
+ * The same editor from the cache, for code that is not a component, for example a context menu. The menu does not
+ * wait for the folders to be read. A stale list loads again in the background for the next menu.
+ */
+export function cachedExternalEditor(): ExternalEditor | undefined {
+    void queryClient.prefetchQuery(editorListQuery);
+    return selectedOf(queryClient.getQueryData<EditorList>(keyRoots.editors));
 }
 
 /** The label of the menu item and the button, for example "Open in Zed". */

@@ -71,6 +71,9 @@ export function selectedEditor(editors: readonly ExternalEditor[], appPath: stri
     return editors.find(editor => editor.appPath === appPath) ?? editors[0];
 }
 
+/** The message when no editor is installed. Settings and the error of "Open in editor" show the same text. */
+export const NO_EDITOR_TEXT = 'ShipWarden found no editor. Install VS Code, Cursor, Windsurf, Zed, or a JetBrains IDE in /Applications or ~/Applications.';
+
 /** The installed editors and the editor that "Open in editor" uses now. */
 export interface EditorList {
     editors: ExternalEditor[];
@@ -95,14 +98,15 @@ export interface EditorCommand {
 /**
  * Returns the command that opens the target in the editor. `hasCli` tells if the command line program of the editor
  * exists. Without it, the command uses `open -a`, and the editor ignores the line.
- * VS Code and Zed open the folder and the file in one window. A JetBrains IDE opens the file in the project that
- * contains it.
+ * VS Code and Zed open the folder and the file in one window. A JetBrains IDE opens the folder as a project, and
+ * then the file in it.
  */
 export function editorCommand(editor: ExternalEditor, target: EditorTarget, hasCli: boolean): EditorCommand {
     const line = target.line && target.line > 0 ? Math.floor(target.line) : undefined;
     const fileAt = target.file && line ? `${target.file}:${line}` : target.file;
     if (editor.kind === 'jetbrains') {
-        const args = target.file ? [...(line ? ['--line', String(line)] : []), target.file] : [target.folder];
+        // The folder comes first, so the IDE opens the worktree as a project and not the file alone in LightEdit mode.
+        const args = target.file ? [target.folder, ...(line ? ['--line', String(line)] : []), target.file] : [target.folder];
         return { command: 'open', args: ['-na', editor.appPath, '--args', ...args] };
     }
     if (!editor.cli || !hasCli) {

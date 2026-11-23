@@ -59,6 +59,11 @@ describe('openInEditor', () => {
         await expect(openInEditor(editor, { folder: dir })).rejects.toThrow('no such window');
     });
 
+    it('names the signal when a signal stops the command', async () => {
+        const editor = await fakeZed('kill -9 $$');
+        await expect(openInEditor(editor, { folder: dir })).rejects.toThrow('"cli" stopped with the signal SIGKILL.');
+    });
+
     it('removes the Electron variables from the environment', async () => {
         const out = path.join(dir, 'env.txt');
         const editor = await fakeZed(`echo "[$ELECTRON_RUN_AS_NODE][$VSCODE_IPC_HOOK_CLI]" > '${out}'`);
