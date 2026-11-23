@@ -18,7 +18,7 @@ interface Props {
 }
 
 /**
- * Shows a terminal tab: the chat or the terminal. Only an agent tab of Claude Code can show the chat.
+ * Shows a terminal tab: the chat or the terminal. Only an agent tab of Claude Code or Codex can show the chat.
  * The view reads the newest agent state from the store, so a state change renders only this view and not the app.
  */
 export function AgentTabView({ session: base, settings, terminalKey, focused, chatByDefault, claude }: Props) {

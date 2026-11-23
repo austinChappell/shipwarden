@@ -74,6 +74,6 @@ describe('RecentSessions', () => {
         const destination = await recent.prepareResume(source, '/w/other');
         expect(destination).toBe(path.join(root, 'projects', '-w-other', `${ID_A}.jsonl`));
         expect(await fs.readFile(destination, 'utf8')).toBe(await fs.readFile(source, 'utf8'));
-        await expect(recent.prepareResume(path.join(dir, 'outside.jsonl'), '/w/other')).rejects.toThrow('not in the Claude Code data folder');
+        await expect(recent.prepareResume(path.join(dir, 'outside.jsonl'), '/w/other')).rejects.toThrow('not in an agent data folder');
     });
 });

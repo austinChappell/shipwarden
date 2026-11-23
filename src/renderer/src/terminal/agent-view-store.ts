@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { transcriptAgentOf } from '@shared/agents';
+import { chatFormatOf } from '@shared/agent-chat';
 import type { TerminalSession } from '@shared/terminal';
 
 /**
@@ -48,14 +48,15 @@ export const AGENT_CHAT_ENABLED = false;
 type ChatSession = Pick<TerminalSession, 'isAgent' | 'exited' | 'agentState' | 'agentTranscript'>;
 
 /**
- * Returns true when the session can show the chat: an agent tab that runs Claude Code. `claude` is true when the
- * command of the tab starts Claude Code. Such a tab shows the chat from its start, before Claude Code reports its
- * transcript. A tab with a transcript runs Claude Code too. Other agents do not write a transcript that ShipWarden can
- * read, so they always show the terminal. Codex writes a session file, but the chat cannot read it yet.
+ * Returns true when the session can show the chat: an agent tab with a transcript that the chat can read (Claude Code
+ * or Codex, see `chatFormatOf`). `claude` is true when the command of the tab starts Claude Code. Such a tab shows the
+ * chat from its start, before Claude Code reports its transcript. A Codex tab shows the terminal until its first hook
+ * event gives the path of its session file. Other agents do not write a transcript that ShipWarden can read, so they
+ * always show the terminal.
  */
 export function canShowChat(session: ChatSession, claude: boolean): boolean {
     if (!session.isAgent || session.exited || session.agentState === 'exited') return false;
-    return transcriptAgentOf(session.agentTranscript) === 'claude' || (claude && session.agentState === 'starting');
+    return chatFormatOf(session.agentTranscript) !== undefined || (claude && session.agentState === 'starting');
 }
 
 /** Returns true when the tab shows the chat. `chatByDefault` is the setting "agentChat". */

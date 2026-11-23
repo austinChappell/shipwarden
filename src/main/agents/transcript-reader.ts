@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { TranscriptChunk } from '@shared/agent-chat';
-import { claudeDataRoots } from '../automations/token-counter';
+import { claudeDataRoots, codexDataRoots } from '../automations/token-counter';
 
 /** The first read of a transcript reads at most this many bytes from the end of the file. */
 export const FIRST_READ_BYTES = 2 * 1024 * 1024;
@@ -9,22 +9,27 @@ export const FIRST_READ_BYTES = 2 * 1024 * 1024;
 /** A later read reads at most this many bytes. The next read gets the rest. */
 const MAX_READ_BYTES = 4 * 1024 * 1024;
 
+/** The data folders of the transcripts that the chat reads: the Claude Code folders and the Codex folder. */
+export function chatTranscriptRoots(): string[] {
+    return [...claudeDataRoots(), ...codexDataRoots()];
+}
+
 /**
- * Returns the absolute path of a transcript. Throws an error when the file is not a `.jsonl` file in a Claude Code
- * data folder.
+ * Returns the absolute path of a transcript. Throws an error when the file is not a `.jsonl` file in one of `roots`.
+ * The default roots are the Claude Code data folders.
  */
 export function transcriptPath(file: string, roots: readonly string[] = claudeDataRoots()): string {
     const resolved = path.resolve(file);
     if (!resolved.endsWith('.jsonl') || !roots.some(root => resolved.startsWith(`${root}${path.sep}`))) {
-        throw new Error('The transcript is not in the Claude Code data folder.');
+        throw new Error('The transcript is not in an agent data folder.');
     }
     return resolved;
 }
 
 /**
- * Reads the complete lines of a Claude Code transcript after `offset`.
- * - Only a `.jsonl` file in a Claude Code data folder can be read.
- * - A missing file gives no lines. Claude Code makes the file at the first prompt.
+ * Reads the complete lines of a transcript after `offset`.
+ * - Only a `.jsonl` file in one of `roots` can be read. The default roots are the Claude Code data folders.
+ * - A missing file gives no lines. The agent can make the file at the first prompt.
  * - An offset of -1 is the first read. It reads only the end of a long file.
  * - An incomplete last line stays for the next read.
  * - A read reads at most `maxBytes` bytes. The next read gets the rest.

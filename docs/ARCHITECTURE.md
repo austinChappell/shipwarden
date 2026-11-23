@@ -360,6 +360,32 @@ The main process connects to the helper socket when the helper runs (see "Backgr
 - The worktree list also shows the open PR of each branch and its combined CI state. One GraphQL request for all
   open PRs runs every 60 seconds and when the window gets focus.
 
+### Agent chat
+
+The chat shows an agent tab as messages instead of a terminal. It is behind `AGENT_CHAT_ENABLED`
+(`agent-view-store.ts`), which is false while the chat is not ready for users.
+
+- **Model and adapters.** `shared/agent-chat-model.ts` has the chat items (user, agent, and tool) and `ChatBuilder`. The
+  model does not depend on the agent. One adapter for each transcript format makes the items:
+  `agent-chat-claude.ts` reads Claude Code transcripts, and `agent-chat-codex.ts` reads Codex session files.
+  `addTranscriptLines(items, lines, format)` (`shared/agent-chat.ts`) selects the adapter. `chatFormatOf` finds the
+  format from the file name (`transcriptAgentOf`).
+- **Codex.** The adapter reads only the `item_completed` events of the session file: `UserMessage`, `AgentMessage`,
+  `CommandExecution`, `FileChange`, `McpToolCall`, `Extension` (web search), and `ImageView`. It ignores the response
+  items, the reasoning, and the token counts. Codex writes an item when it is complete, so a tool call shows with its
+  result. The "Working" line shows the running tool from the hooks. A command gets its summary from the parts that
+  Codex parsed (`parsed_cmd`: read, search, or list files). A prompt keeps its image marks ("[Image #1]"), because
+  Codex keeps the images as temporary files that the page cannot show. The subagents of Codex (for example the
+  approval reviewer) write their own session files, so their items do not show.
+- **Transcript path.** The hooks of Claude Code and Codex send `transcript_path` with each event (see Agent state). A
+  Claude Code tab shows the chat from its start. A Codex tab shows the terminal until its first hook event.
+- **Reads.** `readTranscript` and `TranscriptWatcher` (main process) accept files in the Claude Code folders and the
+  Codex folder (`chatTranscriptRoots`). The pins, the resume, and the transcript search still accept only Claude Code
+  transcripts.
+- **Prompts.** A prompt from the chat goes to the terminal as a bracketed paste and Enter. An image goes on the clipboard
+  first, and Ctrl+V makes the agent read it. Claude Code and Codex both show the "[Image #1]" mark, so the chat knows
+  when the agent has the image. The Escape key stops the turn of both agents.
+
 ### Pinned sessions
 
 - The user pins a Claude Code session to resume it later, from any project. The pin button is on the row of the agent in
@@ -772,8 +798,8 @@ The user guide and the file format are in [automations.md](automations.md).
   ~/.claude or `CLAUDE_CONFIG_DIR`, and Codex session files (`rollout-*.jsonl`) in ~/.codex or `CODEX_HOME`. Codex writes
   the total of the session in each `token_count` event, so each larger total is one response with the change
   (`addCodexResponses`). Its input tokens include the cache reads, so the count is input minus cache reads, plus output.
-  `transcriptAgentOf` tells the two kinds apart by the file name. Only a Claude Code transcript gets the chat, the pins
-  and the resume. `countedTokens` counts input, cache writes and output, not cache reads. "Ask an agent"
+  `transcriptAgentOf` tells the two kinds apart by the file name. Both kinds get the chat. Only a Claude Code transcript
+  gets the pins and the resume. `countedTokens` counts input, cache writes and output, not cache reads. "Ask an agent"
   runs use `claude -p --output-format json`. `tokenLimitReached` checks the limit of the automation and the limit of all
   automations (`settings.automations.dailyTokens`) before a run, and before a held run continues.
 - **Notifications.** The event "Automations" in Settings › Notifications: a run waits for approval, or a run failed.

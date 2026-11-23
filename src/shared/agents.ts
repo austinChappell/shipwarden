@@ -477,7 +477,7 @@ export function codexMcpArgs(url: string): string {
 /**
  * Returns the agent that wrote a transcript ("transcript_path" of the hooks), from the file name.
  * Codex names its session files `rollout-<time>-<id>.jsonl`. Claude Code names its files `<session ID>.jsonl`.
- * Only a Claude Code transcript has the chat, the pins, and the resume of a session.
+ * The chat reads both kinds. Only a Claude Code transcript has the pins and the resume of a session.
  */
 export function transcriptAgentOf(file: string | undefined): 'claude' | 'codex' | undefined {
     const name = file?.split('/').pop() ?? '';

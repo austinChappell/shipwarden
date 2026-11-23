@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { ArrowUp, CircleAlert, CircleCheck, LoaderCircle, MessagesSquare, Square, SquareTerminal, X } from 'lucide-react';
-import type { ChatItem, ChatToolItem } from '@shared/agent-chat';
+import { CHAT_AGENT_NAMES, type ChatItem, type ChatToolItem, chatFormatOf } from '@shared/agent-chat';
 import { isImageOnlyPaste } from '@shared/shortcuts';
 import type { TerminalSession } from '@shared/terminal';
 import { bracketedPaste, countImageMarks, showsAgentDialog } from '../app/agent-text';
@@ -19,7 +19,7 @@ const api = window.shipwarden;
 /** The time between the paste of a prompt and the Enter key. The agent must get the paste first. */
 const SUBMIT_DELAY_MS = 200;
 
-/** The maximum time that Claude Code can take to read an image from the clipboard and show its mark. */
+/** The maximum time that the agent can take to read an image from the clipboard and show its mark. */
 const IMAGE_READ_TIMEOUT_MS = 5000;
 
 /** How often the chat checks the screen for the mark of a new image. */
@@ -28,10 +28,11 @@ const IMAGE_CHECK_MS = 150;
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Gives an image to Claude Code: the image goes on the clipboard, and Ctrl+V makes Claude Code read it. Returns when
- * Claude Code shows the mark of the image ("[Image #1]") in its prompt. Throws an error when the mark does not come.
+ * Gives an image to the agent: the image goes on the clipboard, and Ctrl+V makes the agent read it. Returns when the
+ * agent shows the mark of the image ("[Image #1]") in its prompt. Claude Code and Codex show the same mark. Throws an
+ * error when the mark does not come. `agent` is the agent name for the error.
  */
-async function giveImage(sessionId: string, dataUrl: string): Promise<void> {
+async function giveImage(sessionId: string, dataUrl: string, agent: string): Promise<void> {
     const marks = async () => countImageMarks((await screenTextOf(sessionId)) ?? '');
     const before = await marks();
     await api.terminals.pasteImage(sessionId, dataUrl);
@@ -40,7 +41,7 @@ async function giveImage(sessionId: string, dataUrl: string): Promise<void> {
         await delay(IMAGE_CHECK_MS);
         if ((await marks()) > before) return;
     }
-    throw new Error('Claude Code did not take the image.');
+    throw new Error(`${agent} did not take the image.`);
 }
 
 /** After this time in the state "starting", the chat tells the user that the terminal can show a problem. */
@@ -156,11 +157,14 @@ function doneText(items: readonly ChatItem[], endedAt?: number): string | undefi
 }
 
 /**
- * Shows an agent tab as a chat. The chat comes from the Claude Code transcript. The agent still runs in its terminal:
- * a prompt from the chat goes to the terminal, and the user can show the terminal at any time.
+ * Shows an agent tab as a chat. The chat comes from the transcript of the agent (a Claude Code transcript or a Codex
+ * session file). The agent still runs in its terminal: a prompt from the chat goes to the terminal, and the user can
+ * show the terminal at any time.
  */
 export function ChatView({ session, focused = true }: Props) {
     const file = session.agentTranscript ?? '';
+    // A tab without a transcript is a Claude Code tab that is starting (see `canShowChat`).
+    const agentName = CHAT_AGENT_NAMES[chatFormatOf(file) ?? 'claude'];
     const state = session.agentState;
     const starting = state === 'starting';
     const working = state === 'working';
@@ -172,7 +176,7 @@ export function ChatView({ session, focused = true }: Props) {
     const blocked = waiting || starting;
     const [pending, setPending] = useState<{ text: string; images: string[]; users: number }>();
     /**
-     * The images that the user pasted for the next prompt, as data URLs. Claude Code gets them when the user sends the
+     * The images that the user pasted for the next prompt, as data URLs. The agent gets them when the user sends the
      * prompt, so the user can remove an image before that. The previews use data URLs, because the content security
      * policy of the page blocks blob URLs.
      */
@@ -239,14 +243,14 @@ export function ChatView({ session, focused = true }: Props) {
         setDraft('');
         stick.current = true;
         try {
-            for (const image of sent) await giveImage(id, image);
+            for (const image of sent) await giveImage(id, image, agentName);
             if (text) {
                 api.terminals.write(id, bracketedPaste(text));
                 await delay(SUBMIT_DELAY_MS);
             }
             api.terminals.write(id, '\r');
         } catch (err) {
-            // The prompt of Claude Code can have some of the images now. The terminal shows them.
+            // The prompt of the agent can have some of the images now. The terminal shows them.
             setPending(undefined);
             setImages(sent);
             setDraft(current => current || text);
@@ -279,12 +283,13 @@ export function ChatView({ session, focused = true }: Props) {
         }
     };
 
-    // Claude Code stops its turn at the Escape key.
+    // Claude Code and Codex stop the turn at the Escape key.
     const stop = () => api.terminals.write(session.id, '\x1b');
 
     const groups = groupItems(transcript.items);
     const empty = !transcript.loading && transcript.items.length === 0 && !pending;
-    const done = state === 'idle' && !pending ? doneText(transcript.items, session.agentStateAt) : undefined;
+    // Codex stays "done" after a turn. Claude Code changes from "done" to "idle" after a time.
+    const done = (state === 'idle' || state === 'done') && !pending ? doneText(transcript.items, session.agentStateAt) : undefined;
 
     return (
         <div className="chat-view">
@@ -298,7 +303,7 @@ export function ChatView({ session, focused = true }: Props) {
                 }}
             >
                 {empty && starting ? (
-                    <EmptyState icon={LoaderCircle} title="Starting Claude Code">
+                    <EmptyState icon={LoaderCircle} title={`Starting ${agentName}`}>
                         You can write a prompt now. You can send it when the agent is ready.
                     </EmptyState>
                 ) : empty ? (
@@ -348,7 +353,7 @@ export function ChatView({ session, focused = true }: Props) {
                 <div className="chat-waiting" role="alert">
                     <CircleAlert size={14} strokeWidth={1.8} className="chat-waiting-icon" />
                     <span className="chat-waiting-text">
-                        {startQuestion ? 'Claude Code is asking a question before it starts.' : (session.agentMessage ?? 'The agent needs your input.')}
+                        {startQuestion ? `${agentName} is asking a question before it starts.` : (session.agentMessage ?? 'The agent needs your input.')}
                     </span>
                     <Button
                         size="sm"
@@ -363,7 +368,7 @@ export function ChatView({ session, focused = true }: Props) {
             {starting && slowStart && !waiting && (
                 <div className="chat-waiting" role="status">
                     <CircleAlert size={14} strokeWidth={1.8} className="chat-waiting-icon" />
-                    <span className="chat-waiting-text">Claude Code did not start yet. The terminal can show the cause.</span>
+                    <span className="chat-waiting-text">{agentName} did not start yet. The terminal can show the cause.</span>
                     <Button size="sm" icon={<SquareTerminal size={13} strokeWidth={1.8} />} onClick={() => agentViewStore.set(session.id, 'terminal')}>
                         Show terminal
                     </Button>
@@ -413,7 +418,7 @@ export function ChatView({ session, focused = true }: Props) {
                         waiting
                             ? 'Answer the agent in the terminal first.'
                             : starting
-                              ? 'Claude Code is starting…'
+                              ? `${agentName} is starting…`
                               : 'Write a prompt. Press Shift+Enter for a new line.'
                     }
                     aria-label="Prompt"
