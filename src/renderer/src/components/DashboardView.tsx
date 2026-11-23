@@ -27,7 +27,16 @@ import { applyApprovedToDashboard, refreshDashboard, unseenReviewRequests, useDa
 import { applyMerged, applyQueued } from '../github/review-overview-store';
 import { seenStore, useSeenVersion } from '../seen-store';
 import { useSnoozeCheck } from '../snooze-store';
-import { myItemActivity, reviewItemActivity, type PullRequestActivity, type Snooze } from '@shared/snooze';
+import {
+    myItemActivity,
+    pipelineRunActivity,
+    pipelineSnoozeKey,
+    reviewItemActivity,
+    snoozeKey,
+    type PullRequestActivity,
+    type Snooze,
+    type SnoozeSubject
+} from '@shared/snooze';
 import { SnoozeButton, snoozedTitle } from './SnoozeButton';
 import { errorText, timeAgo } from '../util';
 import { openLink } from '../links';
@@ -193,7 +202,7 @@ function PrRow({ pr, onOpen, badges, action }: { pr: MyPullRequestItem; onOpen()
             </span>
             <Age className="dash-age" date={pr.updatedAt} />
             {action}
-            <SnoozeButton className="dash-snooze" url={pr.url} name={`${pr.repo.name} #${pr.number}`} activity={myItemActivity(pr)} />
+            <SnoozeButton className="dash-snooze" snoozeKey={snoozeKey(pr.url)} name={`${pr.repo.name} #${pr.number}`} activity={myItemActivity(pr)} />
         </div>
     );
 }
@@ -245,7 +254,7 @@ function ReviewRow({ pr, indented, showAuthor, onOpen }: { pr: ReviewRequestItem
                     }}
                 />
             )}
-            <SnoozeButton className="dash-snooze" url={pr.url} name={`${pr.repo.name} #${pr.number}`} activity={reviewItemActivity(pr)} />
+            <SnoozeButton className="dash-snooze" snoozeKey={snoozeKey(pr.url)} name={`${pr.repo.name} #${pr.number}`} activity={reviewItemActivity(pr)} />
         </div>
     );
 }
@@ -260,6 +269,7 @@ function matchesApproval(item: PipelineApprovalItem, query: string): boolean {
 /**
  * The pipeline runs that wait for the approval of the user. The card shows only when there is a run.
  * "Approve" approves the run after the user confirms. A click on the row opens the run in the browser, for example to reject it.
+ * The Snooze button hides a run for a time, or until the run waits at a different stage. The run then goes to the Snoozed card.
  */
 function ApprovalCard({ items }: { items: PipelineApprovalItem[] }) {
     const approveMutation = useMutation({
@@ -324,9 +334,16 @@ function ApprovalCard({ items }: { items: PipelineApprovalItem[] }) {
                                 <Chip mono title={`${item.sourceTitle}${item.branch ? ` · ${item.branch}` : ''}`}>
                                     {item.source}
                                 </Chip>
+                                {item.actor && <span className="dash-person">{item.actor}</span>}
                             </span>
-                            {item.actor && <span className="dash-person">{item.actor}</span>}
                             <Age className="dash-age" date={item.createdAt} />
+                            <SnoozeButton
+                                className="dash-snooze"
+                                snoozeKey={pipelineSnoozeKey(item.id)}
+                                name={`${item.workflow}: ${item.title}`}
+                                activity={pipelineRunActivity(item)}
+                                subject="pipeline-run"
+                            />
                             <Button
                                 variant="success"
                                 className="dash-row-action"
@@ -346,20 +363,31 @@ function ApprovalCard({ items }: { items: PipelineApprovalItem[] }) {
     );
 }
 
-/** A pull request that the user snoozed, for the Snoozed card. */
+/** A pull request or a pipeline run that the user snoozed, for the Snoozed card. */
 interface SnoozedItem {
-    url: string;
+    /** The key of the snooze (see `snoozeKey` and `pipelineSnoozeKey`). */
+    key: string;
     title: string;
-    repo: RepoRef;
-    number: number;
+    /** The name for a screen reader, for example "app #12". */
+    name: string;
+    /** The chip of the place: the repository and number of a pull request, or the source of a run. */
+    chip: ReactNode;
+    subject: SnoozeSubject;
     snooze: Snooze;
     activity: PullRequestActivity;
-    onOpen(): void;
+    onOpen(click?: ClickModifiers): void;
+}
+
+/** The count label of the Snoozed card: "pull request" or "pipeline run" when all items are of one kind, or "item". */
+function snoozedNoun(items: SnoozedItem[]): string {
+    if (items.every(item => item.subject === 'pull-request')) return 'pull request';
+    if (items.every(item => item.subject === 'pipeline-run')) return 'pipeline run';
+    return 'item';
 }
 
 /**
- * The snoozed pull requests of a column. The card is closed by default, like the stale card. A snoozed pull request
- * shows again in its list when the snooze ends, or at once after a click on its Unsnooze button.
+ * The snoozed items of a column. The card is closed by default, like the stale card. A snoozed item shows again in its
+ * list when the snooze ends, or at once after a click on its Unsnooze button.
  */
 function SnoozedCard({ id, items }: { id: string; items: SnoozedItem[] }) {
     const [open, setOpen] = useState(false);
@@ -370,7 +398,7 @@ function SnoozedCard({ id, items }: { id: string; items: SnoozedItem[] }) {
                 <button className="dash-stale-toggle" aria-expanded={open} onClick={() => setOpen(value => !value)}>
                     <ChevronRight size={14} strokeWidth={1.8} className={`group-chevron${open ? ' open' : ''}`} />
                     <h3 className="card-title">Snoozed</h3>
-                    <Count value={items.length} label={pluralize(items.length, 'pull request')} />
+                    <Count value={items.length} label={pluralize(items.length, snoozedNoun(items))} />
                     <span className="dash-hint">They show again after a set time or after new activity</span>
                 </button>
             </div>
@@ -378,20 +406,20 @@ function SnoozedCard({ id, items }: { id: string; items: SnoozedItem[] }) {
                 <div className="dash-card-rows">
                     {items.map(item => (
                         <div
-                            key={item.url}
+                            key={item.key}
                             className="dash-row"
                             role="button"
                             tabIndex={0}
                             data-nav-item
-                            onClick={item.onOpen}
-                            onKeyDown={itemKeys(item.onOpen)}
+                            onClick={event => item.onOpen(event)}
+                            onKeyDown={itemKeys(() => item.onOpen())}
                         >
                             <Title title={item.title} empty="" />
                             <span className="dash-chips">
-                                <span className="dash-hint">{snoozedTitle(item.snooze)}</span>
-                                <RepoChip repo={item.repo} number={item.number} />
+                                <span className="dash-hint">{snoozedTitle(item.snooze, item.subject)}</span>
+                                {item.chip}
                             </span>
-                            <SnoozeButton url={item.url} name={`${item.repo.name} #${item.number}`} activity={item.activity} snooze={item.snooze} />
+                            <SnoozeButton snoozeKey={item.key} name={item.name} activity={item.activity} snooze={item.snooze} subject={item.subject} />
                         </div>
                     ))}
                 </div>
@@ -579,7 +607,8 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
     // A snoozed pull request leaves its list and its count. It goes to the Snoozed card of its column.
     const snoozeCheck = useSnoozeCheck();
     const myPullRequests = useMemo(
-        () => (pullRequests?.myPullRequests ?? []).map(pr => ({ pr, activity: myItemActivity(pr), snooze: snoozeCheck(pr.url, myItemActivity(pr)) })),
+        () =>
+            (pullRequests?.myPullRequests ?? []).map(pr => ({ pr, activity: myItemActivity(pr), snooze: snoozeCheck(snoozeKey(pr.url), myItemActivity(pr)) })),
         [pullRequests, snoozeCheck]
     );
     const all = useMemo(() => bucketMyPullRequests(myPullRequests.filter(item => !item.snooze).map(item => item.pr)), [myPullRequests]);
@@ -593,7 +622,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
     const reviewItems = unseenReviewRequests(pullRequests?.reviewRequests ?? []).map(pr => ({
         pr,
         activity: reviewItemActivity(pr),
-        snooze: snoozeCheck(pr.url, reviewItemActivity(pr))
+        snooze: snoozeCheck(snoozeKey(pr.url), reviewItemActivity(pr))
     }));
     const reviewRequests = reviewItems.filter(item => !item.snooze).map(item => item.pr);
     const snoozedItem = (
@@ -601,10 +630,50 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
         onOpen: () => void
     ): SnoozedItem[] =>
         item.snooze && matchesDashboardQuery(item.pr, query)
-            ? [{ url: item.pr.url, title: item.pr.title, repo: item.pr.repo, number: item.pr.number, snooze: item.snooze, activity: item.activity, onOpen }]
+            ? [
+                  {
+                      key: snoozeKey(item.pr.url),
+                      title: item.pr.title,
+                      name: `${item.pr.repo.name} #${item.pr.number}`,
+                      chip: <RepoChip repo={item.pr.repo} number={item.pr.number} />,
+                      subject: 'pull-request' as const,
+                      snooze: item.snooze,
+                      activity: item.activity,
+                      onOpen
+                  }
+              ]
             : [];
+    // A snoozed pipeline run leaves the approval card. It goes to the Snoozed card of the right column.
+    const approvalItems = (state.approvals ?? []).map(item => {
+        const activity = pipelineRunActivity(item);
+        return { item, activity, snooze: snoozeCheck(pipelineSnoozeKey(item.id), activity) };
+    });
+    const shownApprovals = approvalItems.filter(entry => !entry.snooze && matchesApproval(entry.item, query)).map(entry => entry.item);
+    const snoozedApprovals = approvalItems.flatMap(({ item, activity, snooze }): SnoozedItem[] =>
+        snooze && matchesApproval(item, query)
+            ? [
+                  {
+                      key: pipelineSnoozeKey(item.id),
+                      title: item.title,
+                      name: `${item.workflow}: ${item.title}`,
+                      chip: (
+                          <Chip mono title={`${item.sourceTitle}${item.branch ? ` · ${item.branch}` : ''}`}>
+                              {item.source}
+                          </Chip>
+                      ),
+                      subject: 'pipeline-run',
+                      snooze,
+                      activity,
+                      onOpen: click => openUrl(item.url, click)
+                  }
+              ]
+            : []
+    );
     const snoozedMine = myPullRequests.flatMap(item => snoozedItem(item, () => openMine(item.pr)));
-    const snoozedReviews = reviewItems.flatMap(item => snoozedItem(item, () => onOpenPullRequest(item.pr.repo, item.pr.number, 'files')));
+    const snoozedReviews = [
+        ...reviewItems.flatMap(item => snoozedItem(item, () => onOpenPullRequest(item.pr.repo, item.pr.number, 'files'))),
+        ...snoozedApprovals
+    ];
     const shownReviews = reviewRequests.filter(pr => matchesDashboardQuery(pr, query));
     const reviewGroups = groupReviewRequests(shownReviews, reviewSort);
 
@@ -981,7 +1050,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                     ))}
                                 </div>
                             </Card>
-                            <ApprovalCard items={(state.approvals ?? []).filter(item => matchesApproval(item, query))} />
+                            <ApprovalCard items={shownApprovals} />
                             <SnoozedCard id="dash-snoozed-reviews" items={snoozedReviews} />
 
                             {!commentsLoaded && !state.prCommentsError && (

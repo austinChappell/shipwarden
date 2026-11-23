@@ -26,7 +26,7 @@ import { optionalErrorText, timeAgo } from '../util';
 import { focusFirstItem, itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { seenStore, useIsSeen } from '../seen-store';
 import { snoozeStore, useSnoozeCheck } from '../snooze-store';
-import { openPullRequestActivity, type Snooze } from '@shared/snooze';
+import { openPullRequestActivity, snoozeKey, type Snooze } from '@shared/snooze';
 import { chooseSnooze, SnoozeButton, snoozedTitle } from './SnoozeButton';
 import { overviewKeys, refreshRepo, useRepoEntry } from '../github/review-overview-store';
 import {
@@ -228,7 +228,9 @@ function PrRow({
             <span className="pr-row-comments">{pr.comments} cmt</span>
             <Age className="pr-row-age" date={waitingSince} />
             <span className="pr-row-actions">
-                {(snoozable || snooze) && <SnoozeButton url={pr.url} name={`#${pr.number}`} activity={openPullRequestActivity(pr)} snooze={snooze} />}
+                {(snoozable || snooze) && (
+                    <SnoozeButton snoozeKey={snoozeKey(pr.url)} name={`#${pr.number}`} activity={openPullRequestActivity(pr)} snooze={snooze} />
+                )}
             </span>
         </div>
     );
@@ -278,7 +280,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
 
     const isSeen = useIsSeen();
     const snoozeCheck = useSnoozeCheck();
-    const snoozeOf = (pr: OpenPullRequest) => snoozeCheck(pr.url, openPullRequestActivity(pr));
+    const snoozeOf = (pr: OpenPullRequest) => snoozeCheck(snoozeKey(pr.url), openPullRequestActivity(pr));
     const [showSnoozed, setShowSnoozed] = useState(false);
     const prs = useMemo(() => (data?.pullRequests ?? []).filter(pr => matchesSearch(pr, query) && matchesFilters(pr, filters)), [data, query, filters]);
     // A snoozed pull request leaves "Needs me" and goes to the Snoozed list. A snoozed pull request of the user stays in "Mine".
@@ -287,7 +289,7 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
         for (const pr of sortPullRequests(prs, sort)) {
             const group = reviewGroup(pr, isSeen);
             const needs = group === 'new' || group === 're-review';
-            result[needs && snoozeCheck(pr.url, openPullRequestActivity(pr)) ? 'snoozed' : group].push(pr);
+            result[needs && snoozeCheck(snoozeKey(pr.url), openPullRequestActivity(pr)) ? 'snoozed' : group].push(pr);
         }
         return result;
     }, [prs, sort, isSeen, snoozeCheck]);
@@ -379,8 +381,8 @@ export function ReviewRepoPage({ repo, repoRef, groups, focusNumber, hidden, onS
                 const pr = focusedPr();
                 const row = pr && listRef.current?.querySelector(`[data-pr="${pr.number}"]`);
                 if (!pr || !row || !snoozable(pr)) return;
-                if (snoozeOf(pr)) snoozeStore.set(pr.url, null);
-                else void chooseSnooze(row, pr.url, openPullRequestActivity(pr));
+                if (snoozeOf(pr)) snoozeStore.set(snoozeKey(pr.url), null);
+                else void chooseSnooze(row, snoozeKey(pr.url), openPullRequestActivity(pr));
             }
         },
         !hidden

@@ -7,11 +7,16 @@ import {
     makeSnooze,
     nextSnoozeEnd,
     openPullRequestActivity,
+    pipelineRunActivity,
+    pipelineSnoozeKey,
+    snoozeChoices,
+    snoozeKey,
     SNOOZE_KEEP_MS,
     snoozeEnd,
     snoozeText,
     type PullRequestActivity
 } from './snooze';
+import type { PipelineApprovalItem } from './dashboard';
 import type { OpenPullRequest } from './review-queue';
 
 const base: PullRequestActivity = { head: 'a1', lastActivityAt: '2026-11-20T10:00:00Z', updatedAt: '2026-11-20T10:00:00Z', needs: 'review' };
@@ -162,5 +167,40 @@ describe('openPullRequestActivity', () => {
         expect(openPullRequestActivity(pr).needs).toBe('review');
         expect(openPullRequestActivity({ ...pr, reviewRequested: false }).needs).toBe('');
         expect(openPullRequestActivity({ ...pr, viewerDidAuthor: true, actions: ['conflicts', 'ci-failing'] }).needs).toBe('ci-failing,conflicts');
+    });
+});
+
+describe('pipeline run snoozes', () => {
+    const run: PipelineApprovalItem = {
+        id: 'github:o/app:7',
+        source: 'app',
+        sourceTitle: 'o/app',
+        workflow: 'Deploy',
+        title: 'Release',
+        environments: ['staging'],
+        url: 'https://github.com/o/app/actions/runs/7',
+        createdAt: '2026-11-20T10:00:00Z',
+        target: { kind: 'github', repo: { owner: 'o', name: 'app' }, runId: 7, environmentIds: [20, 3] }
+    };
+
+    it('uses a key that does not match the key of a pull request', () => {
+        expect(pipelineSnoozeKey(run.id)).toBe('run:github:o/app:7');
+        expect(pipelineSnoozeKey(run.id)).not.toBe(snoozeKey(run.url));
+    });
+
+    it('ends a snooze "until the run changes" when the run waits at a different stage', () => {
+        const snooze = makeSnooze('activity', pipelineRunActivity(run), new Date(0));
+        expect(isSnooze(snooze)).toBe(true);
+        expect(isSnoozeActive(snooze, pipelineRunActivity({ ...run, target: { ...run.target, environmentIds: [3, 20] } as typeof run.target }), 1)).toBe(true);
+        expect(isSnoozeActive(snooze, pipelineRunActivity({ ...run, target: { ...run.target, environmentIds: [21] } as typeof run.target }), 1)).toBe(false);
+        const azure = pipelineRunActivity({ ...run, target: { kind: 'azure', organization: 'org', project: 'p', approvalIds: ['b', 'a'] } });
+        expect(azure.needs).toBe('a,b');
+    });
+
+    it('names the "activity" choice and its text for the subject', () => {
+        expect(snoozeChoices('pull-request')[0].label).toBe('Until new activity');
+        expect(snoozeChoices('pipeline-run')[0].label).toBe('Until the run changes');
+        expect(snoozeChoices('pipeline-run').slice(1)).toEqual(snoozeChoices('pull-request').slice(1));
+        expect(snoozeText({ at: 0, activity: {} }, new Date(0), undefined, 'pipeline-run')).toBe('until the run changes');
     });
 });

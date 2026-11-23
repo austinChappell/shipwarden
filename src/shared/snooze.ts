@@ -1,9 +1,10 @@
-import type { MyPullRequestItem, ReviewRequestItem } from './dashboard';
+import type { MyPullRequestItem, PipelineApprovalItem, ReviewRequestItem } from './dashboard';
 import type { OpenPullRequest } from './review-queue';
 
 /**
  * A snooze hides a pull request from the lists of work that needs the user ("Needs me", the Dashboard, and the
- * review queue). A snooze ends at a time, or when the pull request has new activity.
+ * review queue). A snooze ends at a time, or when the pull request has new activity. A snooze also hides a pipeline
+ * run that waits for the approval of the user. That snooze ends at a time, or when the run waits at a different stage.
  */
 
 /**
@@ -49,7 +50,16 @@ export function myItemActivity(item: MyPullRequestItem): PullRequestActivity {
     return { head: item.headSha || undefined, lastActivityAt: item.lastActivityAt, updatedAt: item.updatedAt, needs: authorNeeds(item.reasons) };
 }
 
-/** A snooze of one pull request. */
+/**
+ * The activity state of a pipeline run that waits for the approval of the user. The approvals change when the run
+ * waits at a different stage. A new run of the pipeline has a different key, so it shows on the Dashboard.
+ */
+export function pipelineRunActivity(item: PipelineApprovalItem): PullRequestActivity {
+    const ids = item.target.kind === 'github' ? item.target.environmentIds.map(String) : item.target.approvalIds;
+    return { needs: [...ids].sort().join(',') };
+}
+
+/** A snooze of one pull request or one pipeline run. */
 export interface Snooze {
     /** The time of the snooze, in milliseconds since 1970. */
     at: number;
@@ -68,6 +78,11 @@ export const SNOOZE_KEEP_MS = 90 * 24 * 3600 * 1000;
 /** The key of the snooze of a pull request. The URL identifies the pull request in all providers. */
 export function snoozeKey(url: string): string {
     return `pr:${url}`;
+}
+
+/** The key of the snooze of a pipeline run. The ID identifies the run in all providers. */
+export function pipelineSnoozeKey(id: string): string {
+    return `run:${id}`;
 }
 
 /** True when the value has the shape of a snooze. The main process checks the data from the renderer with it. */
@@ -114,6 +129,21 @@ export function isSnoozeActive(snooze: Snooze | undefined, current: PullRequestA
 /** The choices of the Snooze menu. */
 export type SnoozeChoice = 'activity' | 'hour' | 'hours' | 'tomorrow' | 'week';
 
+/** The thing that a snooze hides. The text of the "activity" choice changes with it. */
+export type SnoozeSubject = 'pull-request' | 'pipeline-run';
+
+/** The text of the end of a snooze "until new activity", by subject. */
+const UNTIL_ACTIVITY: Record<SnoozeSubject, string> = {
+    'pull-request': 'until new activity',
+    'pipeline-run': 'until the run changes'
+};
+
+/** Returns the choices of the Snooze menu for the subject. */
+export function snoozeChoices(subject: SnoozeSubject): { id: SnoozeChoice; label: string }[] {
+    const activity = UNTIL_ACTIVITY[subject];
+    return SNOOZE_CHOICES.map(choice => (choice.id === 'activity' ? { ...choice, label: activity.charAt(0).toUpperCase() + activity.slice(1) } : choice));
+}
+
 export const SNOOZE_CHOICES: { id: SnoozeChoice; label: string }[] = [
     { id: 'activity', label: 'Until new activity' },
     { id: 'hour', label: 'For 1 hour' },
@@ -150,8 +180,8 @@ export function makeSnooze(choice: SnoozeChoice, activity: PullRequestActivity, 
 }
 
 /** The text of the end of a snooze, for example "until new activity", "until 3:45 PM", or "until tomorrow at 9:00 AM". */
-export function snoozeText(snooze: Snooze, now: Date, locale?: string): string {
-    if (snooze.until === undefined) return 'until new activity';
+export function snoozeText(snooze: Snooze, now: Date, locale?: string, subject: SnoozeSubject = 'pull-request'): string {
+    if (snooze.until === undefined) return UNTIL_ACTIVITY[subject];
     const end = new Date(snooze.until);
     const time = end.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
     const day = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
