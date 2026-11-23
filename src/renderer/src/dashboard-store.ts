@@ -16,6 +16,8 @@ import {
 import { repoId, type RepoRef } from '@shared/github';
 import { keyRoots, queryClient } from './query-client';
 import { seenStore, useSeenVersion } from './seen-store';
+import { useSnoozeCheck } from './snooze-store';
+import { myItemActivity, pipelineRunActivity, pipelineSnoozeKey, reviewItemActivity, runSnoozeKey, snoozeKey } from '@shared/snooze';
 import { errorText, optionalErrorText } from './util';
 
 export interface TaskActivity {
@@ -268,7 +270,7 @@ export function refreshDashboard(): Promise<void> {
 
 /**
  * The number of items that need the user: review requests, reviewed pull requests with unseen activity, own pull requests
- * to act on, pipeline runs to approve, and unseen comments.
+ * to act on, pipeline runs to approve, and unseen comments. Snoozed items do not count.
  */
 export function useDashboardCount(filter: CommentFilter): number {
     const state = useDashboard();
@@ -281,8 +283,17 @@ export function useDashboardCount(filter: CommentFilter): number {
                 .length ?? 0),
         0
     );
-    const reviews = unseenReviewRequests(state.pullRequests?.reviewRequests ?? []).length;
-    return reviews + (state.pullRequests?.myPullRequests.length ?? 0) + (state.approvals?.length ?? 0) + prComments + taskComments;
+    // A snoozed item leaves the Dashboard lists, so it does not count.
+    const snoozeCheck = useSnoozeCheck();
+    const reviews = unseenReviewRequests(state.pullRequests?.reviewRequests ?? []).filter(
+        item => !snoozeCheck(snoozeKey(item.url), reviewItemActivity(item))
+    ).length;
+    const mine = state.pullRequests?.myPullRequests.filter(item => !snoozeCheck(snoozeKey(item.url), myItemActivity(item))).length ?? 0;
+    const approvals =
+        state.approvals?.filter(
+            item => !snoozeCheck(runSnoozeKey(item.id), pipelineRunActivity(item)) && !(item.pipeline && snoozeCheck(pipelineSnoozeKey(item.pipeline.id), {}))
+        ).length ?? 0;
+    return reviews + mine + approvals + prComments + taskComments;
 }
 
 /** A pull request by its repository and number. */
