@@ -151,6 +151,22 @@ export interface PipelineApprovalItem {
     target: PipelineApprovalTarget;
 }
 
+/**
+ * Returns the key of a pipeline run in the approval items (see `PipelineApprovalItem.id`). GitHub and Azure DevOps
+ * give approvals. Other hosts return undefined.
+ */
+export function pipelineRunApprovalId(repo: RepoRef, runId: number): string | undefined {
+    if (repo.host === 'azure') return `azure:${repo.owner}:${runId}`;
+    if (repo.host === undefined || repo.host === 'github') return `github:${repo.owner}/${repo.name}:${runId}`;
+    return undefined;
+}
+
+/** Returns the approval item of a pipeline run. Undefined when the run does not wait for the approval of the user. */
+export function approvalOfRun(items: readonly PipelineApprovalItem[] | undefined, repo: RepoRef, runId: number): PipelineApprovalItem | undefined {
+    const id = pipelineRunApprovalId(repo, runId)?.toLowerCase();
+    return id ? items?.find(item => item.id.toLowerCase() === id) : undefined;
+}
+
 /** A comment on a task, from another person. A task plugin returns it from "activity/list". */
 export interface TaskCommentItem {
     id: string;

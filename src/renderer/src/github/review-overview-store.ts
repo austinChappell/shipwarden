@@ -84,7 +84,7 @@ function catalogQuery(reviewKey: string | null) {
 }
 
 /** Finds the GitHub or Azure Repos repository of a local repository, from its "origin" remote. Null: no such remote. */
-function repoOfQuery(path: string) {
+export function repoOfQuery(path: string) {
     return {
         queryKey: overviewKeys.repoOf(path),
         queryFn: (): Promise<RepoRef | null> => window.shipwarden.github.repoOf(path).catch(() => null)

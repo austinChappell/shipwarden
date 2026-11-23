@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, ListTree, LoaderCircle, Play, RotateCw, ScrollText, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
+import { Check, ExternalLink, ListTree, LoaderCircle, Play, RotateCw, ScrollText, Square, Workflow as WorkflowIcon, X } from 'lucide-react';
 import { EmptyState } from './EmptyState';
 import {
     hostHasPipelines,
@@ -17,9 +17,10 @@ import {
     type Workflow
 } from '@shared/github';
 import type { NavQuery, ViewRoute } from '@shared/nav-history';
+import { approvalOfRun } from '@shared/dashboard';
 import { dispatchInputs, runIsActive, type WorkflowInput, type WorkflowRun } from '@shared/pipelines';
 import { formatAgo } from '@shared/format';
-import { formatDuration, optionalErrorText } from '../util';
+import { errorText, formatDuration, optionalErrorText } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { LogView } from './LogView';
 import { Age, Button, Chip, type ChipTone, Combobox, IconButton, Input, PageHeader, RefreshButton, Select, SkeletonRows, Switch } from './ui';
@@ -29,6 +30,8 @@ import { useModal } from './use-modal';
 import { openLink } from '../links';
 import { moveListFocus } from '../keyboard/list-nav';
 import { repoGroups } from '../github/repo-choices';
+import { useDashboard } from '../dashboard-store';
+import { useApprovePipeline } from '../github/pipeline-approval';
 import { branchesQuery, ciActions, repositoriesQuery, runJobsQuery, sortWorkflows, useCiAction, workflowRunsQuery, workflowsQuery } from '../github/ci-queries';
 
 const REPO_KEY = 'shipwarden.pipelinesRepo';
@@ -283,12 +286,17 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
     const job: CheckRun | undefined = jobs?.find(item => item.id === jobId);
 
     const action = useCiAction();
+    // The runs that wait for the approval of the user. The Dashboard loads them for the whole app.
+    const { approvals } = useDashboard();
+    const approval = useApprovePipeline();
+    const selectedApproval = selectedRun && repoRef ? approvalOfRun(approvals, repoRef, selectedRun.id) : undefined;
     const error = optionalErrorText(reposQuery.error ?? branchesResult.error ?? workflowsResult.error ?? runsQuery.error);
     const actionError = optionalErrorText(action.error ?? jobsQuery.error);
 
     const selectRun = (id: number | undefined) => {
         setQuery({ run: id?.toString(), job: undefined });
         action.reset();
+        approval.reset();
     };
     const selectRepo = (value: string) => {
         writeRepo(value);
@@ -450,6 +458,11 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                     {item.status === 'completed' && item.startedAt && <> · {formatDuration(item.startedAt, item.updatedAt)}</>}
                                 </span>
                             </span>
+                            {repoRef && approvalOfRun(approvals, repoRef, item.id) && (
+                                <Chip tone="warning" className="pipeline-run-approval">
+                                    Needs your approval
+                                </Chip>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -474,6 +487,27 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                     {selectedRun.actor && <> · {selectedRun.actor}</>} · <code>{selectedRun.headSha.slice(0, 7)}</code>
                                 </div>
                                 <div className="row-buttons pipeline-actions">
+                                    {selectedApproval && (
+                                        <Button
+                                            variant="success"
+                                            icon={
+                                                approval.approvingId === selectedApproval.id ? (
+                                                    <LoaderCircle size={12} className="spin" />
+                                                ) : (
+                                                    <Check size={12} strokeWidth={2} />
+                                                )
+                                            }
+                                            disabled={approval.approvingId !== undefined}
+                                            title={
+                                                selectedApproval.environments.length
+                                                    ? `Approve the deployment to ${selectedApproval.environments.join(', ')}`
+                                                    : 'Approve the waiting stage'
+                                            }
+                                            onClick={() => void approval.approve(selectedApproval)}
+                                        >
+                                            {approval.approvingId === selectedApproval.id ? 'Approving…' : 'Approve'}
+                                        </Button>
+                                    )}
                                     {runIsActive(selectedRun) && (
                                         <Button
                                             variant="danger"
@@ -516,6 +550,7 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                     </Button>
                                 </div>
                                 {actionError && <div className="form-error">{actionError}</div>}
+                                {approval.error && <div className="form-error">{errorText(approval.error)}</div>}
                             </div>
                             <div className="pipeline-jobs" onKeyDown={moveListFocus}>
                                 {!jobs && <SkeletonRows count={3} label="Loading jobs" />}

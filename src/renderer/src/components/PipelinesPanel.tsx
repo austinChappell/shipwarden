@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, ExternalLink, LoaderCircle, Play, RotateCw, Square } from 'lucide-react';
+import { Check, ChevronRight, ExternalLink, LoaderCircle, Play, RotateCw, Square } from 'lucide-react';
 import type { CheckRun, Workflow } from '@shared/github';
+import { approvalOfRun, type PipelineApprovalItem } from '@shared/dashboard';
 import { runIsActive, type WorkflowRun } from '@shared/pipelines';
-import { formatDuration, optionalErrorText, timeAgo } from '../util';
+import { errorText, formatDuration, optionalErrorText, timeAgo } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { LogView } from './LogView';
 import { Button, IconButton, RefreshButton } from './ui';
@@ -11,6 +12,9 @@ import { confirmDialog } from './ConfirmDialog';
 import { RunDialog, RunIcon } from './PipelinesView';
 import { openLink } from '../links';
 import { moveListFocus } from '../keyboard/list-nav';
+import { useDashboard } from '../dashboard-store';
+import { useApprovePipeline } from '../github/pipeline-approval';
+import { repoOfQuery } from '../github/review-overview-store';
 import { branchesQuery, ciActions, runJobsQuery, useCiAction, workflowRunsQuery, workflowsQuery } from '../github/ci-queries';
 
 /** The time between two reads of the runs and the jobs while a run or a job waits or runs. */
@@ -25,19 +29,27 @@ interface Props {
     onSendLogToAgent?(job: CheckRun): void;
 }
 
-/** One run: a row that opens its jobs, with Cancel or Run again, and a link to GitHub. */
+/**
+ * One run: a row that opens its jobs, with Cancel or Run again, and a link to GitHub.
+ * A run that waits for the approval of the user also has an Approve button. That button always shows.
+ */
 function RunRow({
     root,
     run,
     ownBranch,
+    approvalItem,
     onOpenLog
 }: {
     root: string;
     run: WorkflowRun;
     /** True when the run is of the branch of the worktree. Its branch name shows as a tag. */
     ownBranch: boolean;
+    /** The approval that waits for the user. Undefined when the run does not wait for the user. */
+    approvalItem?: PipelineApprovalItem;
     onOpenLog(job: CheckRun): void;
 }) {
+    const approval = useApprovePipeline();
+    const approving = !!approvalItem && approval.approvingId === approvalItem.id;
     const [open, setOpen] = useState(false);
     const active = runIsActive(run);
     // The jobs load when the row opens.
@@ -78,6 +90,24 @@ function RunRow({
                         </span>
                     </span>
                 </button>
+                {approvalItem && (
+                    <Button
+                        size="sm"
+                        variant="success"
+                        className="pp-approve"
+                        icon={approving ? <LoaderCircle size={12} className="spin" /> : <Check size={12} strokeWidth={2} />}
+                        disabled={approving}
+                        title={
+                            approvalItem.environments.length ? `Approve the deployment to ${approvalItem.environments.join(', ')}` : 'Approve the waiting stage'
+                        }
+                        onClick={event => {
+                            event.stopPropagation();
+                            void approval.approve(approvalItem);
+                        }}
+                    >
+                        {approving ? 'Approving…' : 'Approve'}
+                    </Button>
+                )}
                 <span className="pp-run-actions" onClick={event => event.stopPropagation()}>
                     {active ? (
                         <IconButton
@@ -102,6 +132,7 @@ function RunRow({
                     />
                 </span>
             </div>
+            {approval.error && <div className="form-error pp-error">{errorText(approval.error)}</div>}
             {open && (
                 <div className="pp-jobs">
                     {error && <div className="form-error">{error}</div>}
@@ -139,6 +170,9 @@ export function PipelinesPanel({ root, branch, onSendLogToAgent }: Props) {
     const [showWorkflows, setShowWorkflows] = useState(false);
     const runsQuery = useQuery(workflowRunsQuery(root, undefined, POLL_ACTIVE_MS));
     const runs = runsQuery.data;
+    // The runs that wait for the approval of the user. The Dashboard loads them for the whole app.
+    const repo = useQuery(repoOfQuery(root)).data;
+    const { approvals } = useDashboard();
 
     // The workflows of the branch of the worktree: its workflow files can differ from the default branch. A branch
     // that is not on GitHub yet has no files there, so then the workflows of the default branch show.
@@ -214,7 +248,14 @@ export function PipelinesPanel({ root, branch, onSendLogToAgent }: Props) {
                 )}
                 {runs?.length === 0 && <div className="panel-note pp-note">The repository has no workflow runs.</div>}
                 {runs?.map(run => (
-                    <RunRow key={run.id} root={root} run={run} ownBranch={!!branch && run.branch === branch} onOpenLog={setLogJob} />
+                    <RunRow
+                        key={run.id}
+                        root={root}
+                        run={run}
+                        ownBranch={!!branch && run.branch === branch}
+                        approvalItem={repo ? approvalOfRun(approvals, repo, run.id) : undefined}
+                        onOpenLog={setLogJob}
+                    />
                 ))}
             </div>
 

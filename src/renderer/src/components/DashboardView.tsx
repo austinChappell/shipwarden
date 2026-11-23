@@ -23,7 +23,7 @@ import {
 } from '@shared/dashboard';
 import { pluralize } from '@shared/format';
 import type { RepoRef } from '@shared/github';
-import { applyApprovedToDashboard, refreshDashboard, unseenReviewRequests, useDashboard } from '../dashboard-store';
+import { refreshDashboard, unseenReviewRequests, useDashboard } from '../dashboard-store';
 import { applyMerged, applyQueued } from '../github/review-overview-store';
 import { seenStore, useSeenVersion } from '../seen-store';
 import { snoozeStore, useSnoozeCheck } from '../snooze-store';
@@ -48,6 +48,7 @@ import { Markdown } from './Markdown';
 import { MERGE_LABELS } from './MergeButton';
 
 import { confirmDialog } from './ConfirmDialog';
+import { useApprovePipeline } from '../github/pipeline-approval';
 import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { radioGroupKeys } from './keyboard';
 import { InlineTip } from './Tips';
@@ -281,24 +282,8 @@ function matchesApproval(item: PipelineApprovalItem, query: string): boolean {
  * The Snooze menu can also hide all runs of the pipeline, also the runs in the future.
  */
 function ApprovalCard({ items }: { items: PipelineApprovalItem[] }) {
-    const approveMutation = useMutation({
-        mutationFn: (item: PipelineApprovalItem) => window.shipwarden.github.approvePipeline(item.target),
-        onSuccess: (_data, item) => applyApprovedToDashboard(item.id)
-    });
+    const { approve, approvingId: approving, error: approveError, last: lastApproved } = useApprovePipeline();
     if (items.length === 0) return null;
-    const approving = approveMutation.isPending ? approveMutation.variables?.id : undefined;
-
-    const approve = async (item: PipelineApprovalItem) => {
-        const where = item.environments.length
-            ? `The run continues to ${new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(item.environments)}.`
-            : 'The run continues to the next stage.';
-        const ok = await confirmDialog({
-            title: `Approve "${item.title}"?`,
-            message: [`${item.sourceTitle} · ${item.workflow}${item.branch ? ` · ${item.branch}` : ''}`, where].join('\n\n'),
-            confirmLabel: 'Approve'
-        });
-        if (ok) approveMutation.mutate(item);
-    };
 
     return (
         <Card as="section" id="dash-approvals" className="dash-approval-card">
@@ -313,9 +298,9 @@ function ApprovalCard({ items }: { items: PipelineApprovalItem[] }) {
                 }
             />
             <div className="dash-card-rows">
-                {approveMutation.error && (
+                {approveError && (
                     <div className="form-error dash-card-error">
-                        {approveMutation.variables?.title}: {errorText(approveMutation.error)}
+                        {lastApproved?.title}: {errorText(approveError)}
                     </div>
                 )}
                 {items.map(item => {
