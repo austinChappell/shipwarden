@@ -144,13 +144,21 @@ const WAITING_RUNS_LIMIT = 10;
 
 /**
  * Returns the runs of a repository that wait for the approval of the user: deployments to environments with required
- * reviewers, where the user is one of the reviewers. A repository without a waiting run costs one request.
+ * reviewers, where the user is one of the reviewers. Only the latest run of a workflow counts. When a newer run of the
+ * workflow exists, the older run gives no item. A repository without a waiting run costs one request.
  */
 export async function fetchPendingApprovals(client: GitHubClient, repo: RepoRef): Promise<PipelineApprovalItem[]> {
     const base = `/repos/${repo.owner}/${repo.name}/actions/runs`;
     const data = await client.rest<{ workflow_runs: RestWorkflowRun[] }>('GET', `${base}?status=waiting&per_page=${WAITING_RUNS_LIMIT}`);
+    // Keep the newest waiting run of each workflow. A larger run ID is a newer run.
+    const newest = new Map<number, RestWorkflowRun>();
+    for (const run of data.workflow_runs) {
+        const kept = newest.get(run.workflow_id);
+        if (!kept || run.id > kept.id) newest.set(run.workflow_id, run);
+    }
     const items = await Promise.all(
-        data.workflow_runs.map(async (run): Promise<PipelineApprovalItem | undefined> => {
+        [...newest.values()].map(async (run): Promise<PipelineApprovalItem | undefined> => {
+            if (!(await isLatestRun(client, repo, run))) return undefined;
             const pending = await client.rest<RestPendingDeployment[]>('GET', `${base}/${run.id}/pending_deployments`);
             const approvable = pending.filter(item => item.current_user_can_approve);
             if (approvable.length === 0) return undefined;
@@ -175,6 +183,15 @@ export async function fetchPendingApprovals(client: GitHubClient, repo: RepoRef)
         })
     );
     return items.filter((item): item is PipelineApprovalItem => !!item);
+}
+
+/** Returns true when no newer run of the workflow of the run exists. When the request fails, it returns true. */
+async function isLatestRun(client: GitHubClient, repo: RepoRef, run: RestWorkflowRun): Promise<boolean> {
+    const data = await client
+        .rest<{ workflow_runs: RestWorkflowRun[] }>('GET', `/repos/${repo.owner}/${repo.name}/actions/workflows/${run.workflow_id}/runs?per_page=1`)
+        .catch(() => undefined);
+    const latest = data?.workflow_runs?.[0];
+    return !latest || latest.id <= run.id;
 }
 
 /** Approves the deployments of a waiting run to the environments. The run then continues. */
