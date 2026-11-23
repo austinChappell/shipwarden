@@ -223,6 +223,115 @@ describe('GitWorktreeService', () => {
         expect(await service.deleteBranch(repo, 'feat/work', true)).toEqual({ deleted: true });
         expect(git(repo, 'branch', '--list', 'feat/*').trim()).toBe('');
     });
+    describe('the Branches page', () => {
+        const commit = (cwd: string, message: string) =>
+            git(cwd, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-q', '--allow-empty', '-m', message);
+        let origin: string;
+
+        beforeEach(() => {
+            origin = path.join(tmp, 'origin.git');
+            git(tmp, 'clone', '-q', '--bare', repo, origin);
+            git(repo, 'remote', 'add', 'origin', origin);
+            git(repo, 'fetch', '-q', 'origin');
+            git(repo, 'remote', 'set-head', 'origin', 'main');
+            git(repo, 'branch', '-u', 'origin/main', 'main');
+        });
+
+        it('lists the branches with their worktree, upstream, and default branch', async () => {
+            const worktree = await service.create({ repoPath: repo, branch: 'feat/tree' });
+            git(repo, 'branch', 'feat/plain');
+            commit(repo, 'ahead');
+            const details = await service.branchDetails(repo);
+            expect(details.defaultBranch).toBe('main');
+            expect(details.mainWorktree).toBe(repo);
+            const byName = new Map(details.local.map(branch => [branch.name, branch]));
+            expect(byName.get('main')).toMatchObject({ worktree: repo, upstream: 'origin/main', ahead: 1, subject: 'ahead' });
+            expect(byName.get('feat/tree')?.worktree).toBe(worktree.path);
+            expect(byName.get('feat/plain')?.worktree).toBeUndefined();
+            expect(details.remote.map(branch => branch.name)).toEqual(['origin/main']);
+            expect(details.remote[0]).toMatchObject({ remote: 'origin', branch: 'main' });
+        });
+
+        it('fetches and prunes the remote branches on request', async () => {
+            git(repo, 'push', '-q', 'origin', 'main:feat/remote');
+            git(repo, 'fetch', '-q', 'origin');
+            git(origin, 'branch', '-D', 'feat/remote');
+            expect((await service.branchDetails(repo)).remote.map(branch => branch.name).sort()).toEqual(['origin/feat/remote', 'origin/main']);
+            const fetched = await service.branchDetails(repo, true);
+            expect(fetched.fetchError).toBeUndefined();
+            expect(fetched.remote.map(branch => branch.name)).toEqual(['origin/main']);
+        });
+
+        it('checks out a local branch and a remote branch in the main worktree', async () => {
+            git(repo, 'branch', 'feat/local');
+            await service.checkoutBranch(repo, 'feat/local', 'local');
+            expect(git(repo, 'branch', '--show-current').trim()).toBe('feat/local');
+
+            git(repo, 'push', '-q', 'origin', 'main:feat/remote');
+            git(repo, 'fetch', '-q', 'origin');
+            await service.checkoutBranch(repo, 'origin/feat/remote', 'remote');
+            expect(git(repo, 'branch', '--show-current').trim()).toBe('feat/remote');
+            expect(git(repo, 'rev-parse', '--abbrev-ref', 'feat/remote@{upstream}').trim()).toBe('origin/feat/remote');
+
+            git(repo, 'checkout', '-q', 'main');
+            await service.checkoutBranch(repo, 'origin/feat/remote', 'remote');
+            expect(git(repo, 'branch', '--show-current').trim()).toBe('feat/remote');
+        });
+
+        it('refuses a remote checkout when a local branch of the same name tracks a different branch', async () => {
+            git(repo, 'push', '-q', 'origin', 'main:feat/x');
+            git(repo, 'fetch', '-q', 'origin');
+            git(repo, 'branch', '--no-track', 'feat/x');
+            await expect(service.checkoutBranch(repo, 'origin/feat/x', 'remote')).rejects.toThrow(/does not track/);
+        });
+
+        it('deletes merged branches, keeps the others, and reports the failures', async () => {
+            git(repo, 'branch', 'feat/merged');
+            const work = await service.create({ repoPath: repo, branch: 'feat/work' });
+            commit(work.path, 'work');
+            await service.remove(repo, work.path);
+            const busy = await service.create({ repoPath: repo, branch: 'feat/busy' });
+
+            const result = await service.deleteBranches(repo, ['feat/merged', 'feat/work', 'feat/busy']);
+            expect(result.deleted).toEqual(['feat/merged']);
+            expect(result.notMerged).toEqual(['feat/work']);
+            expect(result.failed.map(item => item.branch)).toEqual(['feat/busy']);
+
+            expect((await service.deleteBranches(repo, ['feat/work'], true)).deleted).toEqual(['feat/work']);
+            expect(git(repo, 'branch', '--format=%(refname:short)', '--list', 'feat/*').trim()).toBe('feat/busy');
+            await service.remove(repo, busy.path);
+        });
+
+        it('deletes a branch that the default branch of origin contains, also when HEAD does not', async () => {
+            git(repo, 'checkout', '-q', '-b', 'feat/done');
+            commit(repo, 'done');
+            git(repo, 'push', '-q', 'origin', 'feat/done:main');
+            git(repo, 'checkout', '-q', '-b', 'other', 'HEAD~1');
+            expect(await service.deleteBranches(repo, ['feat/done'])).toEqual({ deleted: ['feat/done'], notMerged: [], failed: [] });
+        });
+
+        it('pulls the default branch with a fast-forward', async () => {
+            const other = path.join(tmp, 'other');
+            git(tmp, 'clone', '-q', origin, other);
+            commit(other, 'new on origin');
+            git(other, 'push', '-q', 'origin', 'main');
+            await service.pullBranch(repo, 'main');
+            expect(git(repo, 'log', '-1', '--format=%s').trim()).toBe('new on origin');
+        });
+
+        it('deletes a remote branch, and a remote branch that the remote does not have now', async () => {
+            git(repo, 'push', '-q', 'origin', 'main:feat/a', 'main:feat/b');
+            git(repo, 'fetch', '-q', 'origin');
+            await service.deleteRemoteBranch(repo, 'origin/feat/a');
+            expect(git(origin, 'branch', '--list', 'feat/a').trim()).toBe('');
+            expect(git(repo, 'branch', '-r', '--list', 'origin/feat/a').trim()).toBe('');
+
+            git(origin, 'branch', '-D', 'feat/b');
+            await service.deleteRemoteBranch(repo, 'origin/feat/b');
+            expect(git(repo, 'branch', '-r', '--list', 'origin/feat/b').trim()).toBe('');
+        });
+    });
+
     describe('pulls the start branch before it deletes a branch', () => {
         let origin: string;
         let other: string;

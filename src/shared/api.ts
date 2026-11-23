@@ -64,6 +64,7 @@ import type { WorktreeProcesses } from './processes';
 import type { CreateTerminalOptions, TerminalReplay, TerminalSession, TerminalSettings } from './terminal';
 import type { FileBlame, FileHistory } from './git-blame';
 import type { GraphLog, GraphScope } from './git-graph';
+import type { BranchDetails, DeleteBranchesResult } from './branches';
 import type { BranchList, CreatedWorktree, CreateWorktreeOptions, CreateWorktreeProgress, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings, CopyPreviewResult } from './worktree-settings';
 import type { BrowserBounds, BrowserFindOptions, BrowserState } from './browser';
@@ -291,6 +292,19 @@ export interface ShipWardenApi {
          * commit of a merged pull request. A branch that points at this commit is deleted also after a squash merge.
          */
         deleteBranch(repoPath: string, branch: string, force?: boolean, mergedHead?: string): Promise<{ deleted: boolean; notMerged?: boolean }>;
+        /**
+         * The local and remote branches of a repository for the Branches page. With `fetch`, ShipWarden first fetches
+         * all remotes and removes the remote branches that do not exist now.
+         */
+        branchDetails(repoPath: string, fetch?: boolean): Promise<BranchDetails>;
+        /** Checks out a local branch or a remote branch in the main worktree. Returns the new branch list, without a fetch. */
+        checkoutBranch(repoPath: string, name: string, kind: 'local' | 'remote'): Promise<BranchDetails>;
+        /** Deletes local branches. Without `force`, a branch with commits that are not merged stays. */
+        deleteBranches(repoPath: string, branches: string[], force?: boolean): Promise<DeleteBranchesResult>;
+        /** Deletes a branch on its remote, for example "origin/feature". */
+        deleteRemoteBranch(repoPath: string, name: string): Promise<void>;
+        /** Fetches the upstream branch of a local branch and fast-forwards the local branch. Returns the new branch list, without a fetch of the other remotes. */
+        pullBranch(repoPath: string, branch: string): Promise<BranchDetails>;
         /** The default folder of new worktrees, ~/.shipwarden/worktrees. */
         defaultFolder(): Promise<string>;
         /** Opens a folder dialog. Returns the folder, or undefined when the user cancels. */
@@ -824,6 +838,11 @@ export const IpcChannels = {
     worktreesDefaultFolder: 'worktrees:defaultFolder',
     worktreesDeleteBranch: 'worktrees:deleteBranch',
     worktreesChooseFolder: 'worktrees:chooseFolder',
+    worktreesBranchDetails: 'worktrees:branchDetails',
+    worktreesCheckoutBranch: 'worktrees:checkoutBranch',
+    worktreesDeleteBranches: 'worktrees:deleteBranches',
+    worktreesDeleteRemoteBranch: 'worktrees:deleteRemoteBranch',
+    worktreesPullBranch: 'worktrees:pullBranch',
     filesListDirectory: 'files:listDirectory',
     filesListFiles: 'files:listFiles',
     filesSearch: 'files:search',

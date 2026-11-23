@@ -202,6 +202,32 @@ rewind** to send a short note to its terminal. Stop the agent before you rewind.
 The checkpoints are refs under `refs/shipwarden/checkpoints/` in the repository. ShipWarden removes them when it removes
 the worktree, and removes the checkpoints older than 7 days at start.
 
+### Branches
+
+The Branches page lists the local and the remote branches of a repository in a table. To open it, put the pointer on a
+repository in the sidebar and click the branch icon. The commit graph page also has a link to it.
+
+- The table groups the branches by prefix. The branches of a plan (`plan/<plan>/<step>-<name>`) show their step
+  number, and the group shows how many steps merged. A prefix with only one branch goes into **Other**. Set **Group
+  by** to **None** for one flat list.
+- Each row shows the ticket, the type and subject of the last commit, the remote state, and the age. The ticket comes
+  from the plan step or the task link of the worktree, else from a key in the branch name or the commit subject.
+- The remote state is the commits ahead and behind (↑3 ↓2), **local only**, or **remote deleted** after the remote
+  branch is gone. A folder icon marks a branch that a worktree has checked out.
+- The chips show only some branches: **Has worktree**, **Diverged** (ahead or behind), **Local only**, **Remote
+  deleted**, and **Older than 7d**. The filter field matches the name, the ticket, and the commit subject.
+- The default branch has its own card at the top. When it is behind its remote branch, **Pull** fetches and
+  fast-forwards it.
+- When some remote branches are gone, a notice shows. **Review and clean up** selects the **Remote deleted** chip.
+- **Check out** checks out the branch in the main folder of the repository. For a remote branch, git makes the local
+  branch and sets the remote branch as its upstream. **Open** goes to the worktree of the branch.
+- The trash icon deletes a branch. A local branch with commits that are not merged into the default branch stays until
+  you agree again. A remote branch always asks first, because the delete changes the remote for all people.
+- **Delete all** deletes all the shown local branches, except the default branch and the branches that are checked
+  out. With a chip or a filter, the button deletes only the shown branches. The remote branches stay.
+- The refresh button fetches all remotes and removes the remote branches that do not exist now. The page does not
+  fetch at other times.
+
 ### Screenshots of visual changes
 
 The Screenshots tab of a worktree shows the visual result of a frontend change. It captures each page for the branch

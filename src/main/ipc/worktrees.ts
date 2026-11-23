@@ -81,6 +81,23 @@ export function registerWorktreeIpc({ worktrees, settings, reviewCheckouts, proc
     ipcMain.handle(IpcChannels.worktreesDeleteBranch, (_event, repoPath: string, branch: string, force?: boolean, mergedHead?: string) =>
         worktrees.deleteBranch(String(repoPath), String(branch), force === true, typeof mergedHead === 'string' && mergedHead ? mergedHead : undefined)
     );
+    ipcMain.handle(IpcChannels.worktreesBranchDetails, (_event, repoPath: string, fetch?: boolean) =>
+        worktrees.branchDetails(String(repoPath), fetch === true)
+    );
+    ipcMain.handle(IpcChannels.worktreesCheckoutBranch, async (_event, repoPath: string, name: string, kind: string) => {
+        await worktrees.checkoutBranch(String(repoPath), String(name), kind === 'remote' ? 'remote' : 'local');
+        return worktrees.branchDetails(String(repoPath));
+    });
+    ipcMain.handle(IpcChannels.worktreesDeleteBranches, (_event, repoPath: string, branches: unknown, force?: boolean) =>
+        worktrees.deleteBranches(String(repoPath), Array.isArray(branches) ? branches.map(String) : [], force === true)
+    );
+    ipcMain.handle(IpcChannels.worktreesDeleteRemoteBranch, (_event, repoPath: string, name: string) =>
+        worktrees.deleteRemoteBranch(String(repoPath), String(name))
+    );
+    ipcMain.handle(IpcChannels.worktreesPullBranch, async (_event, repoPath: string, branch: string) => {
+        await worktrees.pullBranch(String(repoPath), String(branch));
+        return worktrees.branchDetails(String(repoPath));
+    });
     ipcMain.handle(IpcChannels.worktreesChooseFolder, async (_event, title?: unknown) => {
         const result = await showOpenDialog(window.get(), {
             title: typeof title === 'string' && title ? title : 'Choose a Folder for Worktrees',

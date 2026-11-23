@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { BRANCH_REF_FORMAT, parseBranchRefs, remoteOf, type BranchDetails, type DeleteBranchesResult, type LocalBranch } from '@shared/branches';
 import type { BranchList, CreateWorktreeOptions, Worktree } from '@shared/worktrees';
 import {
     foldersToExpand,
@@ -17,6 +18,8 @@ import { branchToFolderName, parseWorktreePorcelain } from './porcelain';
 
 /** The time limit for "git fetch" before a new worktree. Without network, git uses HEAD. */
 const FETCH_TIMEOUT_MS = 20_000;
+/** The time limit for a fetch of all remotes and for a push that deletes a remote branch. */
+const REMOTE_TIMEOUT_MS = 60_000;
 
 function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
@@ -208,6 +211,174 @@ export class GitWorktreeService {
             return { deleted: true };
         }
         return { deleted: false, notMerged: true };
+    }
+
+    /**
+     * Returns the local and remote branches of the repository for the Branches page, the newest commit first. With
+     * `fetch`, ShipWarden first fetches all remotes and removes the remote branches that do not exist now. A failed
+     * fetch does not stop the list. The result then has `fetchError`.
+     */
+    async branchDetails(repoPath: string, fetch = false): Promise<BranchDetails> {
+        const main = (await this.list(repoPath)).find(worktree => worktree.isMain);
+        const root = main?.path ?? repoPath;
+        let fetchError: string | undefined;
+        if (fetch) {
+            try {
+                await this.git(root, ['fetch', '--all', '--prune', '--quiet'], REMOTE_TIMEOUT_MS);
+            } catch (error) {
+                fetchError = errorMessage(error);
+            }
+        }
+        const remotes = await this.remoteNames(root);
+        const output = await this.git(root, ['for-each-ref', '--sort=-committerdate', `--format=${BRANCH_REF_FORMAT}`, 'refs/heads', 'refs/remotes']);
+        const { local, remote } = parseBranchRefs(output, remotes);
+        const defaultBranch = await this.localDefaultBranch(root, local);
+        return {
+            mainWorktree: root,
+            local: local.map(branch => (branch.worktree ? { ...branch, worktree: path.resolve(branch.worktree) } : branch)),
+            remote,
+            ...(defaultBranch ? { defaultBranch } : {}),
+            ...(fetchError ? { fetchError } : {})
+        };
+    }
+
+    /**
+     * Checks out a branch in the main worktree. A remote branch, for example "origin/feature", checks out its local
+     * branch "feature". When the local branch does not exist, git makes it and sets the remote branch as its upstream.
+     * Git refuses a checkout that changes uncommitted changes, and a branch that a different worktree has checked out.
+     */
+    async checkoutBranch(repoPath: string, name: string, kind: 'local' | 'remote'): Promise<void> {
+        const main = (await this.list(repoPath)).find(worktree => worktree.isMain);
+        const root = main?.path ?? repoPath;
+        if (kind === 'local') {
+            await this.git(root, ['checkout', '--quiet', name, '--']);
+            return;
+        }
+        const remote = remoteOf(name, await this.remoteNames(root));
+        if (!remote) throw new Error(`"${name}" is not a branch of a remote.`);
+        const local = name.slice(remote.length + 1);
+        if (!(await this.branchExists(root, local))) {
+            await this.git(root, ['checkout', '--quiet', '--track', name]);
+            return;
+        }
+        const upstream = await this.upstreamOf(root, local);
+        if (upstream !== name) {
+            throw new Error(`The local branch "${local}" exists and does not track "${name}". Check out the local branch, or rename it first.`);
+        }
+        await this.git(root, ['checkout', '--quiet', local, '--']);
+    }
+
+    /**
+     * Fetches the upstream branch of a local branch and fast-forwards the local branch to it. When a worktree has the
+     * branch checked out, the merge runs in that worktree. Git refuses a merge that is not a fast-forward, and a merge
+     * that changes uncommitted changes.
+     */
+    async pullBranch(repoPath: string, branch: string): Promise<void> {
+        const main = (await this.list(repoPath)).find(worktree => worktree.isMain);
+        const root = main?.path ?? repoPath;
+        const upstream = await this.upstreamOf(root, branch);
+        if (!upstream) throw new Error(`The branch "${branch}" does not track a remote branch.`);
+        const remote = remoteOf(upstream, await this.remoteNames(root));
+        if (remote) await this.git(root, ['fetch', '--quiet', remote], REMOTE_TIMEOUT_MS);
+        await this.fastForward(root, branch, upstream);
+    }
+
+    /**
+     * Deletes local branches. Without `force`, git refuses a branch with commits that are not merged. ShipWarden first
+     * fetches "origin" one time. Then a branch that the default branch of "origin" or the local default branch contains
+     * is merged, also when HEAD does not contain it. The result lists the deleted branches, the branches that are not
+     * merged, and the other failures. This function deletes only local branches. The remote branches stay.
+     */
+    async deleteBranches(repoPath: string, branches: readonly string[], force = false): Promise<DeleteBranchesResult> {
+        const main = (await this.list(repoPath)).find(worktree => worktree.isMain);
+        const root = main?.path ?? repoPath;
+        const result: DeleteBranchesResult = { deleted: [], notMerged: [], failed: [] };
+        let bases: string[] | undefined;
+        for (const branch of branches) {
+            try {
+                await this.git(root, ['branch', force ? '-D' : '-d', '--', branch]);
+                result.deleted.push(branch);
+                continue;
+            } catch (error) {
+                if (force || !/not fully merged/i.test(errorMessage(error))) {
+                    result.failed.push({ branch, error: errorMessage(error) });
+                    continue;
+                }
+            }
+            // The fetch occurs only when a branch needs it, and only one time.
+            bases ??= await this.mergeBases(root);
+            let merged = false;
+            for (const base of bases) {
+                if (await this.isAncestor(root, branch, base)) {
+                    merged = true;
+                    break;
+                }
+            }
+            if (!merged) {
+                result.notMerged.push(branch);
+                continue;
+            }
+            try {
+                await this.git(root, ['branch', '-D', '--', branch]);
+                result.deleted.push(branch);
+            } catch (error) {
+                result.failed.push({ branch, error: errorMessage(error) });
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Deletes a branch on its remote, for example "origin/feature". When the remote does not have the branch now,
+     * ShipWarden deletes only the local copy of the remote branch.
+     */
+    async deleteRemoteBranch(repoPath: string, name: string): Promise<void> {
+        const main = (await this.list(repoPath)).find(worktree => worktree.isMain);
+        const root = main?.path ?? repoPath;
+        const remote = remoteOf(name, await this.remoteNames(root));
+        if (!remote) throw new Error(`"${name}" is not a branch of a remote.`);
+        const branch = name.slice(remote.length + 1);
+        try {
+            await this.git(root, ['push', '--quiet', remote, '--delete', branch], REMOTE_TIMEOUT_MS);
+        } catch (error) {
+            if (!/remote ref does not exist/i.test(errorMessage(error))) throw error;
+            await this.git(root, ['branch', '--quiet', '-d', '-r', '--', name]);
+        }
+    }
+
+    /** The names of the remotes of the repository, for example "origin". */
+    protected async remoteNames(repoPath: string): Promise<string[]> {
+        return (await this.git(repoPath, ['remote']))
+            .split('\n')
+            .map(name => name.trim())
+            .filter(Boolean);
+    }
+
+    /**
+     * Returns the local name of the default branch, without a fetch. It is the branch that "origin/HEAD" points to.
+     * Without "origin/HEAD", it is "main" or "master" when one of them exists. `local` is the list of the local
+     * branches, when the caller has it. Without `local`, ShipWarden asks git.
+     */
+    protected async localDefaultBranch(repoPath: string, local?: readonly LocalBranch[]): Promise<string | undefined> {
+        try {
+            const head = (await this.git(repoPath, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'])).trim();
+            if (head.startsWith('origin/')) return head.slice('origin/'.length);
+        } catch {
+            // origin/HEAD is not set. Try the usual names.
+        }
+        for (const name of ['main', 'master']) {
+            if (local ? local.some(branch => branch.name === name) : await this.branchExists(repoPath, name)) return name;
+        }
+        return undefined;
+    }
+
+    /** The branches that a merged branch is in: the default branch of "origin" after a fetch, and the local default branch. */
+    protected async mergeBases(repoPath: string): Promise<string[]> {
+        const remoteBase = await this.remoteDefaultBranch(repoPath);
+        const bases = remoteBase ? [remoteBase] : [];
+        const localBase = remoteBase ? remoteBase.slice('origin/'.length) : await this.localDefaultBranch(repoPath);
+        if (localBase && (await this.branchExists(repoPath, localBase))) bases.push(localBase);
+        return bases;
     }
 
     /**

@@ -113,7 +113,12 @@ const api: ShipWardenApi = {
         previewCopy: (repoPath, copy) => ipcRenderer.invoke(IpcChannels.worktreesPreviewCopy, repoPath, copy),
         defaultFolder: () => ipcRenderer.invoke(IpcChannels.worktreesDefaultFolder),
         deleteBranch: (repoPath, branch, force, mergedHead) => ipcRenderer.invoke(IpcChannels.worktreesDeleteBranch, repoPath, branch, force, mergedHead),
-        chooseFolder: title => ipcRenderer.invoke(IpcChannels.worktreesChooseFolder, title)
+        chooseFolder: title => ipcRenderer.invoke(IpcChannels.worktreesChooseFolder, title),
+        branchDetails: (repoPath, fetch) => ipcRenderer.invoke(IpcChannels.worktreesBranchDetails, repoPath, fetch),
+        checkoutBranch: (repoPath, name, kind) => ipcRenderer.invoke(IpcChannels.worktreesCheckoutBranch, repoPath, name, kind),
+        deleteBranches: (repoPath, branches, force) => ipcRenderer.invoke(IpcChannels.worktreesDeleteBranches, repoPath, branches, force),
+        deleteRemoteBranch: (repoPath, name) => ipcRenderer.invoke(IpcChannels.worktreesDeleteRemoteBranch, repoPath, name),
+        pullBranch: (repoPath, branch) => ipcRenderer.invoke(IpcChannels.worktreesPullBranch, repoPath, branch)
     },
     files: {
         listDirectory: (root, directory) => ipcRenderer.invoke(IpcChannels.filesListDirectory, root, directory),

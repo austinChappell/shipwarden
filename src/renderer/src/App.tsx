@@ -23,6 +23,7 @@ import { newPlan } from '@shared/plans';
 import { noteNameError, uniqueNoteName } from '@shared/notes';
 import { NewWorktreeDialog } from './components/NewWorktreeDialog';
 import { LinkTaskDialog } from './components/LinkTaskDialog';
+import { BranchesView } from './components/BranchesView';
 import { GitGraphView } from './components/GitGraphView';
 import { TasksView } from './components/TasksView';
 import { Sidebar } from './components/Sidebar';
@@ -122,7 +123,7 @@ import { useTaskLinks } from './app/task-links';
 import { NavigationContext, type Navigator } from './app/navigation';
 import { RelatedLinks } from './components/RelatedLinks';
 import { useWorktreeActions, type NewWorktreeTarget } from './app/use-worktree-actions';
-import { isNavValid, navLocationOf, VIEW_OF_ACTION, type ContentView, type MainView } from './app/views';
+import { isNavValid, isRepoView, navLocationOf, VIEW_OF_ACTION, type ContentView, type MainView } from './app/views';
 
 /** The command that starts an agent. A setting will replace this value. */
 const EXPLORER_STORAGE_KEY = 'shipwarden.explorerOpen';
@@ -817,14 +818,14 @@ export function App() {
         const view = location.view as MainView;
         // The entry has the page and the selections. An old open request must not change them when the view opens.
         setTaskOpen(undefined);
-        if (view !== 'graph') setRoute(view, { page: location.page, query: location.query });
+        if (!isRepoView(view)) setRoute(view, { page: location.page, query: location.query });
         if (view === 'worktree' && isPanelTab(location.query?.panel)) setLastPanelTab(location.query.panel);
         if (location.view === 'worktree' && location.worktree) {
             setSelectedPath(location.worktree);
             if (location.tab) activate(location.worktree, location.tab);
         }
         if (location.view === 'terminal' && location.worktree && location.tab) activate(location.worktree, location.tab);
-        if (location.view === 'graph') setGraphRepo(location.repo);
+        if (isRepoView(view)) setGraphRepo(location.repo);
         setMainView(view);
         return true;
     };
@@ -890,8 +891,8 @@ export function App() {
             return;
         }
         if (action === 'newWorktree') {
-            // The repository on the screen: the commit graph, else the selected worktree, else the first repository.
-            const repo = (mainView === 'graph' ? graphRepo : undefined) ?? selectedRepo ?? repos[0];
+            // The repository on the screen: the commit graph or the branches page, else the selected worktree, else the first repository.
+            const repo = (isRepoView(mainView) ? graphRepo : undefined) ?? selectedRepo ?? repos[0];
             if (repo) setNewWorktree({ repo });
             return;
         }
@@ -1106,6 +1107,11 @@ export function App() {
                                         setGraphRepo(repo);
                                         setMainView('graph');
                                     }}
+                                    branchesRepo={mainView === 'branches' ? graphRepo : undefined}
+                                    onOpenBranches={repo => {
+                                        setGraphRepo(repo);
+                                        setMainView('branches');
+                                    }}
                                     repoLabel={repoLabel}
                                     repoColor={repo => appSettings.repos[repo]?.color}
                                     onOpenTasks={() => enterView('tasks')}
@@ -1257,6 +1263,21 @@ export function App() {
                                         worktrees={worktreesByRepo[graphRepo] ?? []}
                                         onNewWorktree={start => setNewWorktree({ repo: graphRepo, start })}
                                         onOpenWorktree={worktree => showWorktree(worktree.path)}
+                                        onOpenBranches={() => setMainView('branches')}
+                                    />
+                                </main>
+                            )}
+                            {mainView === 'branches' && graphRepo && (
+                                <main className="workspace">
+                                    <BranchesView
+                                        key={graphRepo}
+                                        repo={worktreesByRepo[graphRepo]?.find(worktree => worktree.isMain)?.path ?? graphRepo}
+                                        repoName={repoLabel(graphRepo)}
+                                        worktrees={worktreesByRepo[graphRepo] ?? []}
+                                        onNewWorktree={start => setNewWorktree({ repo: graphRepo, start })}
+                                        onOpenWorktree={worktree => showWorktree(worktree.path)}
+                                        onOpenGraph={() => setMainView('graph')}
+                                        onWorktreesChanged={() => void project.refreshWorktrees(graphRepo)}
                                     />
                                 </main>
                             )}
