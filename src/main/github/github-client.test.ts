@@ -39,6 +39,20 @@ describe('GitHubClient', () => {
         expect(fetch).toHaveBeenCalledTimes(3);
     });
 
+    it('keeps the error items of a 422 and shows the field and code of an item without a message', async () => {
+        const errors = [{ resource: 'PullRequest', field: 'head', code: 'invalid' }, { message: 'Other reason' }];
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply(422, { message: 'Validation Failed', errors })));
+        const error = await client()
+            .rest('POST', '/repos/a/b/pulls', {})
+            .catch((err: unknown) => err);
+        expect(error).toBeInstanceOf(GitHubError);
+        expect(error).toMatchObject({
+            status: 422,
+            errors,
+            message: 'GitHub returned 422 for POST /repos/a/b/pulls. Validation Failed (head: invalid, Other reason)'
+        });
+    });
+
     it('does not try a POST request again', async () => {
         const fetch = vi.fn().mockResolvedValue(reply(502));
         vi.stubGlobal('fetch', fetch);

@@ -66,14 +66,22 @@ export async function fetchPullRequest(client: GitHubClient, repo: RepoRef, numb
  */
 export async function createPullRequest(client: GitHubClient, repo: RepoRef, head: string, request: NewPullRequest): Promise<number> {
     const base = request.base || (await client.rest<{ default_branch: string }>('GET', `/repos/${repo.owner}/${repo.name}`)).default_branch;
-    const created = await client.rest<{ number: number }>('POST', `/repos/${repo.owner}/${repo.name}/pulls`, {
-        title: request.title,
-        body: request.body,
-        head,
-        base,
-        draft: request.draft
-    });
-    return created.number;
+    try {
+        const created = await client.rest<{ number: number }>('POST', `/repos/${repo.owner}/${repo.name}/pulls`, {
+            title: request.title,
+            body: request.body,
+            head,
+            base,
+            draft: request.draft
+        });
+        return created.number;
+    } catch (err) {
+        // GitHub gives "head: invalid" when the branch is not on GitHub. The default text does not tell the user what to do.
+        if (err instanceof GitHubError && err.status === 422 && err.errors.some(item => item.field === 'head' && item.code === 'invalid')) {
+            throw new GitHubError(`GitHub cannot find the branch "${head}". Push the branch to GitHub before you create a pull request.`, 422, err.errors);
+        }
+        throw err;
+    }
 }
 
 /** Returns the search string for the pull requests of the user in a repository, the newest update first. */

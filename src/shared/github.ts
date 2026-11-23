@@ -721,6 +721,11 @@ export interface BranchStatus {
     createUrl?: string;
     /** Set when the "origin" remote is a fork on GitHub. `repo` is then the repository that gets the pull requests. */
     fork?: ForkTarget;
+    /**
+     * False when the "origin" remote has no copy of the branch, so a pull request cannot start from it. The check uses the
+     * remote-tracking branch of the last fetch or push. Undefined means that the host does not check.
+     */
+    pushed?: boolean;
 }
 
 /** The repository that gets the pull requests of a fork: the parent repository or the fork. */
