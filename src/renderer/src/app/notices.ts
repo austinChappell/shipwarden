@@ -34,14 +34,17 @@ export interface DashboardCounts {
     reviewRequests: number;
     myPullRequests: number;
     comments: number;
-    /** The title of the first new pull request, when there is one. */
+    /** The number of new pipeline runs that wait for the approval of the user. */
+    approvals?: number;
+    /** The title of the first new pipeline run or pull request, when there is one. */
     firstTitle?: string;
 }
 
 /** Returns the notification for new Dashboard items. Returns undefined when no item is new. */
 export function dashboardNotice(counts: DashboardCounts): Notice | undefined {
-    const { reviewRequests, myPullRequests, comments } = counts;
+    const { reviewRequests, myPullRequests, comments, approvals } = counts;
     const parts = [
+        approvals ? `${approvals} pipeline run${approvals === 1 ? '' : 's'} to approve` : '',
         reviewRequests ? `${reviewRequests} pull request${reviewRequests === 1 ? '' : 's'} to review` : '',
         myPullRequests ? `${myPullRequests} of your pull requests need${myPullRequests === 1 ? 's' : ''} you` : '',
         comments ? `${comments} new comment${comments === 1 ? '' : 's'}` : ''

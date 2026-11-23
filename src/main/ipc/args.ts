@@ -1,6 +1,7 @@
 import { withMcpConfig } from '@shared/agent-programs';
 import { withAgentHooks, type HookSettingsPaths } from '@shared/agents';
 import type { BrowserBounds } from '@shared/browser';
+import type { PipelineApprovalTarget } from '@shared/dashboard';
 import { sameRepoRef, type NewPullRequest, type RepoRef } from '@shared/github';
 import type { CreateTerminalOptions } from '@shared/terminal';
 
@@ -94,4 +95,23 @@ export function terminalCommand(
 /** Returns true when the JSON text of two values is different. */
 export function changed(before: unknown, after: unknown): boolean {
     return JSON.stringify(before) !== JSON.stringify(after);
+}
+
+/** Returns the approve target of a pipeline run with typed fields. Throws an error for an unknown kind. */
+export function approvalTargetOf(target: Partial<Record<string, unknown>> | undefined): PipelineApprovalTarget {
+    if (target?.kind === 'github') {
+        const runId = Number(target.runId);
+        if (!Number.isInteger(runId)) throw new Error('The run ID is not valid.');
+        const environmentIds = Array.isArray(target.environmentIds) ? target.environmentIds.map(Number).filter(Number.isInteger) : [];
+        return { kind: 'github', repo: repoRefOf(target.repo as Partial<RepoRef> | undefined), runId, environmentIds };
+    }
+    if (target?.kind === 'azure') {
+        return {
+            kind: 'azure',
+            organization: String(target.organization ?? ''),
+            project: String(target.project ?? ''),
+            approvalIds: onlyStrings(target.approvalIds)
+        };
+    }
+    throw new Error('The approval target is not valid.');
 }

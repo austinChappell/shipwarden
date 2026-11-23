@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DashboardPullRequests, MyPullRequestItem, PullRequestCommentItem, ReviewRequestItem } from '@shared/dashboard';
+import type { DashboardPullRequests, MyPullRequestItem, PipelineApprovalItem, PullRequestCommentItem, ReviewRequestItem } from '@shared/dashboard';
 import { findDashboardNews, withMergedComments, withoutMergedPullRequests, type TaskActivity } from './dashboard-store';
 
 const repo = { owner: 'acme', name: 'app' };
@@ -37,6 +37,24 @@ describe('findDashboardNews', () => {
         expect(second.news?.myPullRequests.map(item => item.number)).toEqual([2]);
         expect(second.news?.prComments.map(item => item.id)).toEqual(['b']);
         expect(second.news?.taskComments.map(item => item.comment.id)).toEqual(['t1']);
+    });
+
+    it('gives the pipeline runs that are new to approve', () => {
+        const approval = (id: string): PipelineApprovalItem => ({
+            id,
+            source: 'app',
+            sourceTitle: 'acme/app',
+            workflow: 'Deploy',
+            title: id,
+            environments: ['production'],
+            url: '',
+            createdAt: '',
+            target: { kind: 'github', repo, runId: 1, environmentIds: [1] }
+        });
+        const data: DashboardPullRequests = { reviewRequests: [], myPullRequests: [] };
+        const first = findDashboardNews(undefined, data, [], [], [approval('a')]);
+        const second = findDashboardNews(first.known, data, [], [], [approval('a'), approval('b')]);
+        expect(second.news?.approvals.map(item => item.id)).toEqual(['b']);
     });
 
     it('gives no news when nothing is new, and ignores approvals of merged pull requests', () => {

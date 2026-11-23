@@ -48,6 +48,12 @@ describe('dashboardNotice', () => {
         );
     });
 
+    it('puts the pipeline runs to approve first', () => {
+        expect(dashboardNotice({ reviewRequests: 1, myPullRequests: 0, comments: 0, approvals: 2 })?.title).toBe(
+            'Dashboard: 2 pipeline runs to approve, 1 pull request to review'
+        );
+    });
+
     it('shows the first title, else a default text', () => {
         expect(dashboardNotice({ reviewRequests: 1, myPullRequests: 0, comments: 0, firstTitle: 'Fix the build' })?.body).toBe('Fix the build');
         expect(dashboardNotice({ reviewRequests: 0, myPullRequests: 0, comments: 2 })?.body).toBe('Open the Dashboard to see them.');

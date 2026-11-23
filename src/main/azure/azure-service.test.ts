@@ -200,3 +200,59 @@ describe('withApiVersion', () => {
         expect(withApiVersion('https://dev.azure.com/a/_apis/connectionData')).toBe('https://dev.azure.com/a/_apis/connectionData');
     });
 });
+
+describe('pipeline approvals', () => {
+    it('returns one item for each run that waits for the viewer, with the details of the build', async () => {
+        const approval = (id: string, buildId: number) => ({
+            id,
+            status: 'pending',
+            createdOn: `2026-11-20T10:0${buildId}:00Z`,
+            pipeline: { id: 4, name: 'Release', owner: { id: buildId, name: `2026112${buildId}.1` } }
+        });
+        const { calls, service } = recordCalls({
+            '/_apis/projects?': { value: [{ name: 'Web', state: 'wellFormed' }] },
+            '/pipelines/approvals?': { value: [approval('a1', 7), approval('a2', 7), approval('a3', 8), { ...approval('a4', 9), status: 'approved' }] },
+            '/build/builds/7': {
+                id: 7,
+                buildNumber: '20261127.1',
+                status: 'inProgress',
+                sourceBranch: 'refs/heads/main',
+                sourceVersion: 'abc',
+                definition: { id: 4, name: 'Release' },
+                requestedFor: { id: 'u1', displayName: 'Ann Lee' },
+                triggerInfo: { 'ci.message': 'Ship the cart' },
+                _links: { web: { href: 'https://dev.azure.com/contoso/Web/_build/results?buildId=7' } }
+            }
+        });
+        const items = await service.dashboardApprovals(['contoso']);
+        expect(calls.map(([, url]) => url)).toContain(`${PROJECT}/pipelines/approvals?state=pending&userIds=${VIEWER}&api-version=7.1-preview.1`);
+        expect(items).toHaveLength(2);
+        expect(items[0]).toMatchObject({
+            id: 'azure:contoso/Web:7',
+            source: 'Web',
+            title: 'Ship the cart',
+            workflow: 'Release',
+            branch: 'main',
+            actor: 'Ann Lee',
+            url: 'https://dev.azure.com/contoso/Web/_build/results?buildId=7',
+            target: { kind: 'azure', organization: 'contoso', project: 'Web', approvalIds: ['a1', 'a2'] }
+        });
+        // The build of run 8 gave no answer, so the item uses the run name and the default web page.
+        expect(items[1]).toMatchObject({ title: '20261128.1', url: 'https://dev.azure.com/contoso/Web/_build/results?buildId=8' });
+    });
+
+    it('approves all approvals of a run in one request', async () => {
+        const { changes, service } = recordCalls();
+        await service.approvePipeline('contoso', 'Web', ['a1', 'a2']);
+        expect(changes()).toEqual([
+            [
+                'PATCH',
+                `${PROJECT}/pipelines/approvals?api-version=7.1-preview.1`,
+                [
+                    { approvalId: 'a1', status: 'approved', comment: '' },
+                    { approvalId: 'a2', status: 'approved', comment: '' }
+                ]
+            ]
+        ]);
+    });
+});

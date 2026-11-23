@@ -87,7 +87,10 @@ export function useNotifications(options: Options) {
             reviewRequests: news.reviewRequests.length,
             myPullRequests: news.myPullRequests.length,
             comments,
-            firstTitle: news.reviewRequests[0]?.title ?? news.myPullRequests[0]?.title
+            approvals: news.approvals.length,
+            firstTitle: news.approvals[0]
+                ? `${news.approvals[0].workflow}: ${news.approvals[0].title}`
+                : (news.reviewRequests[0]?.title ?? news.myPullRequests[0]?.title)
         });
         if (notice) notify(notice);
     };

@@ -5,11 +5,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GitHubError } from './github-client';
 import { fakeClient, type FakeCall } from './fake-client';
 import {
+    approveDeployments,
     cancelRun,
     dispatchWorkflow,
     fetchChecks,
     fetchJobLog,
     fetchJobProgress,
+    fetchPendingApprovals,
     fetchRunJobs,
     fetchWorkflowRuns,
     fetchWorkflows,
@@ -249,6 +251,81 @@ describe('fetchRunJobs', () => {
         expect(calls[0].path).toBe('/repos/acme/api/actions/runs/900/jobs?filter=latest');
         expect(jobs).toEqual([
             { id: 8, name: 'build', status: 'completed', conclusion: 'failure', startedAt: null, completedAt: null, url: 'h', runId: 900, isActions: true }
+        ]);
+    });
+});
+
+describe('fetchPendingApprovals', () => {
+    const run = (id: number, title: string) => ({
+        id,
+        name: 'Deploy',
+        display_title: title,
+        workflow_id: 7,
+        run_number: id,
+        head_branch: 'main',
+        head_sha: 'abc',
+        event: 'push',
+        status: 'waiting',
+        conclusion: null,
+        actor: { login: 'sam' },
+        triggering_actor: { login: 'lee' },
+        created_at: '2026-11-20T10:00:00Z',
+        updated_at: '2026-11-20T10:00:00Z',
+        html_url: `https://github.com/acme/api/actions/runs/${id}`
+    });
+
+    it('returns the waiting runs with the environments that the user can approve', async () => {
+        const { client, calls } = fakeClient(call => {
+            if (call.path.endsWith('status=waiting&per_page=10')) return { workflow_runs: [run(1, 'Release 1.2'), run(2, 'Release 1.3')] };
+            if (call.path.includes('/runs/1/')) {
+                return [
+                    { environment: { id: 11, name: 'production' }, current_user_can_approve: true },
+                    { environment: { id: 12, name: 'staging' }, current_user_can_approve: false }
+                ];
+            }
+            return [{ environment: { id: 11, name: 'production' }, current_user_can_approve: false }];
+        });
+        const items = await fetchPendingApprovals(client, repo);
+        expect(calls.map(call => call.path)).toEqual([
+            '/repos/acme/api/actions/runs?status=waiting&per_page=10',
+            '/repos/acme/api/actions/runs/1/pending_deployments',
+            '/repos/acme/api/actions/runs/2/pending_deployments'
+        ]);
+        expect(items).toEqual([
+            {
+                id: 'github:acme/api:1',
+                source: 'api',
+                sourceTitle: 'acme/api',
+                workflow: 'Deploy',
+                title: 'Release 1.2',
+                environments: ['production'],
+                branch: 'main',
+                actor: 'lee',
+                url: 'https://github.com/acme/api/actions/runs/1',
+                createdAt: '2026-11-20T10:00:00Z',
+                target: { kind: 'github', repo, runId: 1, environmentIds: [11] }
+            }
+        ]);
+    });
+
+    it('sends one request when no run is waiting', async () => {
+        const { client, calls } = fakeClient(() => ({ workflow_runs: [] }));
+        expect(await fetchPendingApprovals(client, repo)).toEqual([]);
+        expect(calls).toHaveLength(1);
+    });
+});
+
+describe('approveDeployments', () => {
+    it('approves the environments of the run with an empty comment', async () => {
+        const { client, calls } = fakeClient();
+        await approveDeployments(client, repo, 900, [11, 12]);
+        expect(calls).toEqual([
+            {
+                kind: 'rest',
+                method: 'POST',
+                path: '/repos/acme/api/actions/runs/900/pending_deployments',
+                body: { environment_ids: [11, 12], state: 'approved', comment: '' }
+            }
         ]);
     });
 });

@@ -25,7 +25,7 @@ import type {
     JobProgress,
     CommitFiles
 } from '@shared/github';
-import type { DashboardPullRequests, PullRequestCommentItem } from '@shared/dashboard';
+import type { DashboardPullRequests, PipelineApprovalItem, PullRequestCommentItem } from '@shared/dashboard';
 import type { WorkflowRun } from '@shared/pipelines';
 import type { RepoPullRequests } from '@shared/review-queue';
 import type { GitHubClient } from './github-client';
@@ -237,6 +237,16 @@ export class GitHubService {
      */
     async dashboardComments(owners: string[] | 'all' | undefined): Promise<PullRequestCommentItem[]> {
         return this.dashboard.dashboardComments(owners);
+    }
+
+    /** Returns the runs of a repository that wait for the approval of the user, for the Dashboard. */
+    async pendingApprovals(repo: RepoRef): Promise<PipelineApprovalItem[]> {
+        return actions.fetchPendingApprovals(this.client, repo);
+    }
+
+    /** Approves the deployments of a waiting run to the environments. */
+    async approveDeployments(repo: RepoRef, runId: number, environmentIds: number[]): Promise<void> {
+        return actions.approveDeployments(this.client, repo, runId, environmentIds);
     }
 
     /** Returns the user and the organizations of the token, for the organization choice of the Review view. */

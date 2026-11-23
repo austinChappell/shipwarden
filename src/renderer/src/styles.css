@@ -8184,6 +8184,7 @@ button:focus-visible,
 }
 
 .dash-pr-card .dash-row + .dash-row,
+.dash-approval-card .dash-row + .dash-row,
 .dash-group + .dash-group {
     border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }

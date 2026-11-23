@@ -16,13 +16,14 @@ import {
     type CommentFilter,
     type ReviewSort,
     type MyPullRequestItem,
+    type PipelineApprovalItem,
     type PullRequestCommentItem,
     type ReviewRequestItem,
     type TaskCommentItem
 } from '@shared/dashboard';
 import { pluralize } from '@shared/format';
 import type { RepoRef } from '@shared/github';
-import { refreshDashboard, unseenReviewRequests, useDashboard } from '../dashboard-store';
+import { applyApprovedToDashboard, refreshDashboard, unseenReviewRequests, useDashboard } from '../dashboard-store';
 import { applyMerged, applyQueued } from '../github/review-overview-store';
 import { seenStore, useSeenVersion } from '../seen-store';
 import { useSnoozeCheck } from '../snooze-store';
@@ -246,6 +247,102 @@ function ReviewRow({ pr, indented, showAuthor, onOpen }: { pr: ReviewRequestItem
             )}
             <SnoozeButton className="dash-snooze" url={pr.url} name={`${pr.repo.name} #${pr.number}`} activity={reviewItemActivity(pr)} />
         </div>
+    );
+}
+
+/** True when each word of the query is in the title, the workflow, the repository or project, the branch, the actor, or an environment. */
+function matchesApproval(item: PipelineApprovalItem, query: string): boolean {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const haystack = [item.title, item.workflow, item.sourceTitle, item.branch ?? '', item.actor ?? '', ...item.environments].join(' ').toLowerCase();
+    return words.every(word => haystack.includes(word));
+}
+
+/**
+ * The pipeline runs that wait for the approval of the user. The card shows only when there is a run.
+ * "Approve" approves the run after the user confirms. A click on the row opens the run in the browser, for example to reject it.
+ */
+function ApprovalCard({ items }: { items: PipelineApprovalItem[] }) {
+    const approveMutation = useMutation({
+        mutationFn: (item: PipelineApprovalItem) => window.shipwarden.github.approvePipeline(item.target),
+        onSuccess: (_data, item) => applyApprovedToDashboard(item.id)
+    });
+    if (items.length === 0) return null;
+    const approving = approveMutation.isPending ? approveMutation.variables?.id : undefined;
+
+    const approve = async (item: PipelineApprovalItem) => {
+        const where = item.environments.length
+            ? `The run continues to ${new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(item.environments)}.`
+            : 'The run continues to the next stage.';
+        const ok = await confirmDialog({
+            title: `Approve "${item.title}"?`,
+            message: [`${item.sourceTitle} · ${item.workflow}${item.branch ? ` · ${item.branch}` : ''}`, where].join('\n\n'),
+            confirmLabel: 'Approve'
+        });
+        if (ok) approveMutation.mutate(item);
+    };
+
+    return (
+        <Card as="section" id="dash-approvals" className="dash-approval-card">
+            <CardHeader
+                icon={<span className="dash-dot review" />}
+                title="Waiting on your approval"
+                meta={
+                    <>
+                        <Count value={items.length} label={pluralize(items.length, 'pipeline run')} />
+                        <span className="dash-hint">Deployments that need your approval</span>
+                    </>
+                }
+            />
+            <div className="dash-card-rows">
+                {approveMutation.error && (
+                    <div className="form-error dash-card-error">
+                        {approveMutation.variables?.title}: {errorText(approveMutation.error)}
+                    </div>
+                )}
+                {items.map(item => {
+                    const open = (click?: ClickModifiers) => openUrl(item.url, click);
+                    return (
+                        <div
+                            key={item.id}
+                            className="dash-row"
+                            role="button"
+                            tabIndex={0}
+                            data-nav-item
+                            title="Open the run in the browser"
+                            onClick={event => open(event)}
+                            onKeyDown={itemKeys(() => open())}
+                        >
+                            <span className="dash-title" title={`${item.workflow}: ${item.title}`}>
+                                {item.title}
+                            </span>
+                            <span className="dash-chips">
+                                {item.environments.map(environment => (
+                                    <Chip key={environment} tone="info">
+                                        {environment}
+                                    </Chip>
+                                ))}
+                                <Chip mono title={`${item.sourceTitle}${item.branch ? ` · ${item.branch}` : ''}`}>
+                                    {item.source}
+                                </Chip>
+                            </span>
+                            {item.actor && <span className="dash-person">{item.actor}</span>}
+                            <Age className="dash-age" date={item.createdAt} />
+                            <Button
+                                variant="success"
+                                className="dash-row-action"
+                                disabled={approving !== undefined}
+                                onClick={event => {
+                                    event.stopPropagation();
+                                    void approve(item);
+                                }}
+                            >
+                                {approving === item.id ? 'Approving…' : 'Approve'}
+                            </Button>
+                        </div>
+                    );
+                })}
+            </div>
+        </Card>
     );
 }
 
@@ -884,6 +981,7 @@ export function DashboardView({ reviewKey, onOpenReviewSettings, checklist, onOp
                                     ))}
                                 </div>
                             </Card>
+                            <ApprovalCard items={(state.approvals ?? []).filter(item => matchesApproval(item, query))} />
                             <SnoozedCard id="dash-snoozed-reviews" items={snoozedReviews} />
 
                             {!commentsLoaded && !state.prCommentsError && (
