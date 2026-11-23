@@ -8,7 +8,10 @@ import {
     nextSnoozeEnd,
     openPullRequestActivity,
     pipelineRunActivity,
+    isPipelineSnoozeKey,
     pipelineSnoozeKey,
+    snoozedPipelineOf,
+    runSnoozeKey,
     snoozeChoices,
     snoozeKey,
     SNOOZE_KEEP_MS,
@@ -184,8 +187,8 @@ describe('pipeline run snoozes', () => {
     };
 
     it('uses a key that does not match the key of a pull request', () => {
-        expect(pipelineSnoozeKey(run.id)).toBe('run:github:o/app:7');
-        expect(pipelineSnoozeKey(run.id)).not.toBe(snoozeKey(run.url));
+        expect(runSnoozeKey(run.id)).toBe('run:github:o/app:7');
+        expect(runSnoozeKey(run.id)).not.toBe(snoozeKey(run.url));
     });
 
     it('ends a snooze "until the run changes" when the run waits at a different stage', () => {
@@ -195,6 +198,50 @@ describe('pipeline run snoozes', () => {
         expect(isSnoozeActive(snooze, pipelineRunActivity({ ...run, target: { ...run.target, environmentIds: [21] } as typeof run.target }), 1)).toBe(false);
         const azure = pipelineRunActivity({ ...run, target: { kind: 'azure', organization: 'org', project: 'p', approvalIds: ['b', 'a'] } });
         expect(azure.needs).toBe('a,b');
+    });
+
+    it('uses a pipeline key that does not match the key of a run', () => {
+        expect(pipelineSnoozeKey('github:o/app:workflow:5')).toBe('pipeline:github:o/app:workflow:5');
+        expect(pipelineSnoozeKey(run.id)).not.toBe(runSnoozeKey(run.id));
+    });
+
+    it('offers the timed choices and "Until I unsnooze it" for a pipeline', () => {
+        const ids = snoozeChoices('pipeline').map(choice => choice.id);
+        expect(ids).toEqual(['hour', 'hours', 'tomorrow', 'week', 'forever']);
+        expect(snoozeChoices('pull-request').map(choice => choice.id)).not.toContain('forever');
+        expect(snoozeChoices('pipeline-run').map(choice => choice.id)).not.toContain('forever');
+    });
+
+    it('keeps a snooze with no end until the user removes it', () => {
+        const snooze = makeSnooze('forever', {}, new Date(0));
+        expect(snooze).toEqual({ at: 0, forever: true });
+        expect(isSnooze(snooze)).toBe(true);
+        expect(isSnoozeActive(snooze, {}, SNOOZE_KEEP_MS * 10)).toBe(true);
+        expect(isSnoozeOld(snooze, SNOOZE_KEEP_MS * 10)).toBe(false);
+        expect(nextSnoozeEnd({ a: snooze }, 1)).toBeUndefined();
+        expect(snoozeText(snooze, new Date(0), undefined, 'pipeline')).toBe('until you unsnooze it');
+    });
+
+    it('keeps the pipeline in a snooze of a pipeline, so the Snoozed card can show it without a waiting run', () => {
+        const pipeline = snoozedPipelineOf({
+            ...run,
+            pipeline: { id: 'github:o/app:workflow:5', url: 'https://github.com/o/app/actions/workflows/deploy.yml' }
+        });
+        expect(pipeline).toEqual({ name: 'Deploy', source: 'app', sourceTitle: 'o/app', url: 'https://github.com/o/app/actions/workflows/deploy.yml' });
+        expect(snoozedPipelineOf(run)).toBeUndefined();
+        const snooze = makeSnooze('forever', {}, new Date(0), pipeline);
+        expect(snooze).toEqual({ at: 0, forever: true, pipeline });
+        expect(isSnooze(snooze)).toBe(true);
+        expect(makeSnooze('hour', {}, new Date(0), pipeline)).toEqual({ at: 0, until: 3600_000, pipeline });
+        expect(isSnooze({ ...snooze, pipeline: { name: 'Deploy' } })).toBe(false);
+        expect(isPipelineSnoozeKey(pipelineSnoozeKey('x'))).toBe(true);
+        expect(isPipelineSnoozeKey(runSnoozeKey('x'))).toBe(false);
+    });
+
+    it('refuses a snooze with no end and a second end', () => {
+        expect(isSnooze({ at: 1, forever: true, until: 2 })).toBe(false);
+        expect(isSnooze({ at: 1, forever: true, activity: {} })).toBe(false);
+        expect(isSnooze({ at: 1, forever: false })).toBe(false);
     });
 
     it('names the "activity" choice and its text for the subject', () => {

@@ -233,6 +233,7 @@ describe('pipeline approvals', () => {
         expect(items).toHaveLength(2);
         expect(items[0]).toMatchObject({
             id: 'azure:contoso/Web:7',
+            pipeline: { id: 'azure:contoso/Web:pipeline:7', url: 'https://dev.azure.com/contoso/Web/_build?definitionId=7' },
             source: 'Web',
             title: 'Ship the cart',
             workflow: 'Release',

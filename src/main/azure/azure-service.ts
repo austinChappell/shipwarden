@@ -450,6 +450,13 @@ export class AzureDevOpsService implements SourceHost {
                 const createdAt = approvals.map(item => item.createdOn ?? '').sort()[0] || build?.queueTime || new Date().toISOString();
                 return {
                     id: `azure:${organization}/${project}:${owner?.id ?? first.id}`,
+                    pipeline:
+                        first.pipeline?.id !== undefined
+                            ? {
+                                  id: `azure:${organization}/${project}:pipeline:${first.pipeline.id}`,
+                                  url: `${projectUrl}/_build?definitionId=${encodeURIComponent(String(first.pipeline.id))}`
+                              }
+                            : undefined,
                     source: project,
                     sourceTitle: `${organization}/${project}`,
                     workflow: build?.definition.name ?? first.pipeline?.name ?? 'Pipeline',
