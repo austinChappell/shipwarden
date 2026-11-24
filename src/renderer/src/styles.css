@@ -5589,6 +5589,17 @@ button:focus-visible,
     margin: 0;
 }
 
+/* Settings › Agents › Command line: the field of the alias name and its switch, in one line. */
+.cli-alias-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cli-alias-control input {
+    width: 96px;
+}
+
 /* Settings › Agents › MCP server: the approved tools of each worktree. The Revoke button is at the right. */
 .mcp-approvals {
     display: flex;

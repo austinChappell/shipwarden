@@ -15,6 +15,13 @@ The link goes to `ShipWarden.app/Contents/Resources/bin/shipwarden`. That script
 (`ELECTRON_RUN_AS_NODE`), so you do not need Node. An update of the app also updates the command. **Remove** removes the
 link.
 
+### The short name
+
+Install also adds a second link with a short name, `sw` by default, next to the `shipwarden` link. Then `sw status`
+does the same as `shipwarden status`. In Settings › Agents › Command line, the **Short name** row changes the name or
+turns it off. ShipWarden changes the link at once. When a file with that name exists and it is not a link of ShipWarden,
+ShipWarden keeps the file, and the setting tells you to choose another name. **Remove** removes both links.
+
 In a development checkout, run `npm run build`, then run `bin/shipwarden`. It uses the Electron of `node_modules`.
 
 ## Commands

@@ -19,7 +19,19 @@ export const NETWORK_TEST_HOSTS = [
 
 type SettingsIpcDependencies = Pick<
     Services,
-    'settings' | 'certificates' | 'tasks' | 'remote' | 'window' | 'shellReady' | 'networkReady' | 'updates' | 'usage' | 'setupChecks' | 'askRunner' | 'mcp'
+    | 'settings'
+    | 'certificates'
+    | 'tasks'
+    | 'remote'
+    | 'window'
+    | 'shellReady'
+    | 'networkReady'
+    | 'updates'
+    | 'usage'
+    | 'setupChecks'
+    | 'askRunner'
+    | 'mcp'
+    | 'cliInstaller'
 >;
 
 /** Registers the IPC handlers of the settings, the setup checks, the network certificates, the updates and the plan usage. */
@@ -41,6 +53,10 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
         }
         if (before.mcpServer !== next.mcpServer) {
             await deps.mcp.apply(next.mcpServer);
+        }
+        if (changed(before.cliAlias, next.cliAlias)) {
+            // A problem with the link does not stop the change of the setting. Settings › Agents shows the state of the links.
+            await deps.cliInstaller.sync().catch(error => console.warn('ShipWarden did not change the alias link.', error));
         }
         return next;
     });
