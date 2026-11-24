@@ -39,7 +39,7 @@ import type {
 import type { ReviewProviderChange, ReviewProviderInfo, ReviewProviderKind, ReviewTokenSource } from './review-providers';
 import type { LspInstallState, LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, Task, TaskLink, TaskScope, TaskSource } from './tasks';
-import type { McpApprovals } from './mcp';
+import type { AgentPullRequestChange, McpApprovals, McpWatch } from './mcp';
 import type { AgentUpdate } from './agents';
 import type { TranscriptChunk } from './agent-chat';
 import type { AgentProgram } from './agent-programs';
@@ -724,6 +724,14 @@ export interface ShipWardenApi {
         revoke(worktree: string): Promise<McpApprovals>;
         /** Gets all approvals after each change. */
         onApprovalsChanged(listener: (approvals: McpApprovals) => void): () => void;
+        /** The watches of watch_pull_request. */
+        watches(): Promise<McpWatch[]>;
+        /** Ends a watch. */
+        unwatch(id: string): Promise<void>;
+        /** Gets all watches after each change. */
+        onWatchesChanged(listener: (watches: McpWatch[]) => void): () => void;
+        /** A pull request tool changed a pull request. The page patches its cache. */
+        onPullRequestChanged(listener: (change: AgentPullRequestChange) => void): () => void;
     };
     review: {
         /** Returns the local copy of a pull request, and if a copy needs a clone of the repository first. */
@@ -761,8 +769,8 @@ export interface ShipWardenApi {
     };
     /** The in-app browser. Each browser tab has a view in the main process. */
     browser: {
-        /** Makes the view of a browser tab and loads the address. */
-        create(id: string, url: string): void;
+        /** Makes the view of a browser tab of a worktree and loads the address. */
+        create(id: string, url: string, worktree?: string): void;
         /** Shows the view at a place in the window (CSS pixels), or hides it with null. */
         setBounds(id: string, bounds: BrowserBounds | null): void;
         /** Loads an address. The main process refuses all schemes except http and https. */
@@ -777,6 +785,8 @@ export interface ShipWardenApi {
         destroy(id: string): void;
         state(id: string): Promise<BrowserState | undefined>;
         onState(listener: (state: BrowserState) => void): () => void;
+        /** An MCP tool asked for a browser tab of a worktree. The page opens one and does not select it. */
+        onAgentOpen(listener: (url: string, worktree: string) => void): () => void;
         /** A page asked for a new window. The page of the app opens a new browser tab for it. */
         onOpenTab(listener: (url: string, openerId: string) => void): () => void;
         /** A browser view got the keyboard focus. */
@@ -976,6 +986,10 @@ export const IpcChannels = {
     mcpApprovals: 'mcp:approvals',
     mcpRevoke: 'mcp:revoke',
     mcpApprovalsChanged: 'mcp:approvalsChanged',
+    mcpWatches: 'mcp:watches',
+    mcpUnwatch: 'mcp:unwatch',
+    mcpWatchesChanged: 'mcp:watchesChanged',
+    mcpPullRequestChanged: 'mcp:pullRequestChanged',
     queueGet: 'queue:get',
     queueSave: 'queue:save',
     automationsList: 'automations:list',
@@ -1100,6 +1114,7 @@ export const IpcChannels = {
     browserState: 'browser:state',
     browserStateChanged: 'browser:stateChanged',
     browserOpenTab: 'browser:openTab',
+    browserAgentOpen: 'browser:agentOpen',
     browserFocused: 'browser:focused',
     browserFocusAddress: 'browser:focusAddress',
     browserFind: 'browser:find',

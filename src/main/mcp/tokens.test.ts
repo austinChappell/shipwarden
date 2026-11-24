@@ -37,6 +37,8 @@ describe('McpTokens', () => {
         expect(none.configFile).toBeUndefined();
         expect(await tokens.worktreeOf(none.token)).toBe('/w/a');
         await tokens.bindSession(none.id, 'session-1');
+        expect(await tokens.identify(none.token)).toEqual({ worktree: '/w/a', sessionId: 'session-1' });
+        expect(await tokens.identify(own.token)).toEqual({ worktree: '/w/a' });
         await tokens.revokeSession('session-1');
         expect(await tokens.worktreeOf(none.token)).toBeUndefined();
     });

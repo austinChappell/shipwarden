@@ -147,7 +147,7 @@ stay.
   (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`).
 - A new agent uses the selected account. The usage budget can select the next account instead of waiting.
 
-**Open questions:** Do the plan terms of Claude and OpenAI permit this use? Check before we build it.
+**Open questions:** Do the plan terms of Claude and OpenAI permit this use? Check before we build it. Answer: let's skip this one
 
 ## Phase 2: Work without the app window
 
@@ -173,8 +173,8 @@ stay.
 **Open questions:**
 
 - The helper has no TanStack Query cache. How does it get the PR and CI data with few API calls? Share one poller with
-  the main process?
-- Do approval gates wait for the app, or does the phone answer them?
+  the main process? - We can share one poller with the main process.
+- Do approval gates wait for the app, or does the phone answer them? - It would be great if the phone could answer them.
 
 ### 2.2 Start agents from the phone
 
@@ -203,7 +203,7 @@ stay.
 - Option B: use a push service that the user selects (for example ntfy) through an automation. This works today with
   the `http` action, but the text cannot open the app.
 
-**Open questions:** Do we want to run a relay? Pick A or B before any work starts.
+**Open questions:** Do we want to run a relay? Pick A or B before any work starts. - Answer: Option A
 
 ### 2.4 Remote worktrees on SSH hosts
 
@@ -245,11 +245,17 @@ actions.
 
 **Tests:** Command tests with a fake socket. A test that a request without a token fails.
 
-**Open questions:** Ship a skill file for the CLI, as Orca does?
+**Open questions:** Ship a skill file for the CLI, as Orca does? - Answer: that would be great if we can.
 
 ### 3.2 More MCP tools
 
 **Goal:** Let agents act on PRs and the browser without the user.
+
+**Status:** Done in branch `3.2-more-mcp-tools`. The server has 11 new tools. `get_pull_request` is new, because
+`reply_to_comment` needs the comment IDs. `watch_pull_request` needs no approval, because its messages go only to the
+agent that called it. `read_page` and `screenshot` need no approval. A browser tab that never showed has no size, so its
+screenshot loads the address again in a hidden window. `pr.comment` watches work on GitHub only, because the Dashboard
+reads comments from GitHub only. Not tested live in the app.
 
 **Design:**
 
@@ -290,7 +296,7 @@ and a screenshot to the agent of the worktree.
 
 **Files:** `src/main/mcp/tools.ts`, `src/shared/plans.ts`, `src/main/plans/plan-store.ts`, `src/shared/ask-agent.ts`.
 
-**Open questions:** Can a worker start workers? Set a depth limit of 1 at first.
+**Open questions:** Can a worker start workers? Set a depth limit of 1 at first. - Answer: Yes
 
 ### 4.2 Native Slack integration
 
@@ -303,7 +309,7 @@ and a screenshot to the agent of the worktree.
 - A message that mentions the app starts an agent on a repository.
 - This needs the headless engine of 2.1, or it works only while the app is open.
 
-**Open questions:** Socket Mode removes the need for a public URL. Is that enough for teams?
+**Open questions:** Socket Mode removes the need for a public URL. Is that enough for teams? - Answer: I think so
 
 ## Phase 5: Small gaps
 
@@ -354,8 +360,8 @@ Let the chat view take PDF, Word, and spreadsheet files. Convert them to text or
 
 ## Order
 
-| Order | Feature | Size | Why this order |
-|---|---|---|---|
+| Status | Order | Feature | Size | Why this order |
+|---|---|---|---|---|
 | 1 | 1.1 Codex state and tokens | M | Codex users see this gap first. In PR #248 |
 | 2 | 1.3 MCP server for all agents | S | Small, and it uses code that exists |
 | 3 | 1.2 Chat view for Codex | M | Needs 1.1 |

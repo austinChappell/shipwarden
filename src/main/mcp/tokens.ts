@@ -78,10 +78,15 @@ export class McpTokens {
 
     /** Returns the worktree of a token, or undefined for an unknown or old token. */
     async worktreeOf(token: string): Promise<string | undefined> {
+        return (await this.identify(token))?.worktree;
+    }
+
+    /** Returns the worktree and the terminal session of a token, or undefined for an unknown or old token. */
+    async identify(token: string): Promise<{ worktree: string; sessionId?: string } | undefined> {
         if (!token) return undefined;
         const entry = this.tokens(await this.store.get())[hashOf(token)];
         if (!entry || this.now() - entry.createdAt > TOKEN_MAX_AGE_MS) return undefined;
-        return entry.worktree;
+        return { worktree: entry.worktree, ...(entry.sessionId ? { sessionId: entry.sessionId } : {}) };
     }
 
     /** Connects a token to the terminal session of its agent. */

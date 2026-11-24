@@ -73,6 +73,8 @@ import { outputActivity } from '../terminal/output-activity';
 import { addRunToCache, automationRunsQuery, cachedRunState, patchRunState, replaceRunInCache } from './automation-queries';
 import { chatConnectionOf } from './chat-queries';
 import { queueTask } from '../queue/queue-queries';
+import type { McpWatch } from '@shared/mcp';
+import { PullRequestWatcher } from './pr-watcher';
 
 const api = window.shipwarden;
 
@@ -147,6 +149,8 @@ export interface EngineContext {
     summaries: Record<string, Record<string, BranchSummary>>;
     links: Record<string, TaskLink>;
     actions: EngineActions;
+    /** The watches of the MCP tool watch_pull_request. */
+    watches: McpWatch[];
 }
 
 function errorText(error: unknown): string {
@@ -198,12 +202,22 @@ export class AutomationEngine {
     private heldTimer: ReturnType<typeof setTimeout> | undefined;
     /** The usage of the last `checkUsage`. A new list from the main process starts a new check. */
     private lastUsage: readonly ProviderUsage[] | undefined;
+    /** Sends the events of the watched pull requests to their agents (the MCP tool watch_pull_request). */
+    private readonly watcher = new PullRequestWatcher({
+        send: async (watch, message) => {
+            const actions = this.context?.actions;
+            if (!actions) throw new Error('The automation engine is not ready.');
+            await actions.promptAgent({ path: watch.worktree }, message, { sessionId: watch.sessionId });
+        },
+        end: watch => api.mcp.unwatch(watch.id)
+    });
     /** The timers of the "agent.needsInput" automations, one wait for each waiting agent. */
     private readonly needsInput = new NeedsInputTimers((wait, idleFor) => this.onNeedsInput(wait, idleFor));
 
     /** Gives the engine the newest state of the app. */
     setContext(context: EngineContext): void {
         this.context = context;
+        this.watcher.setWatches(context.watches);
         const now = Date.now();
         for (const automation of context.automations) {
             const active = automation.status !== 'off';
@@ -273,16 +287,19 @@ export class AutomationEngine {
         if (!context) return;
         const now = Date.now();
         const ciRules = this.active('ci.failed');
+        const watchCi = ciRules.length > 0 || this.watcher.wants('ci.failed');
         const watchMerges = this.active('pr.merged').length > 0 || context.removeMergedWorktrees;
+        const watchClosed = this.watcher.active();
         for (const [repo, after] of Object.entries(summaries)) {
             const before = previous[repo];
             if (!before || before === after) continue;
-            if (ciRules.length > 0) {
+            if (watchCi) {
                 for (const event of ciFailedEvents(repo, before, after, context.places, now)) this.dispatch(event);
             }
-            if (watchMerges) {
+            if (watchMerges || watchClosed) {
                 for (const closed of closedPullRequests(repo, before, after, context.places)) {
-                    void this.checkMerged(repo, closed.branch, closed.summary, closed.place as EnginePlace);
+                    if (watchMerges) void this.checkMerged(repo, closed.branch, closed.summary, closed.place as EnginePlace);
+                    this.watcher.onClosed(closed.place.worktree.path, closed.summary.number);
                 }
             }
         }
@@ -378,8 +395,8 @@ export class AutomationEngine {
     async onDashboardNews(news: DashboardNews): Promise<void> {
         const context = this.ready;
         if (!context) return;
-        const wantComments = this.active('pr.comment').length > 0 && news.prComments.length > 0;
-        const wantConflicts = this.active('pr.conflict').length > 0 && news.myPullRequests.length > 0;
+        const wantComments = (this.active('pr.comment').length > 0 || this.watcher.wants('pr.comment')) && news.prComments.length > 0;
+        const wantConflicts = (this.active('pr.conflict').length > 0 || this.watcher.wants('pr.conflict')) && news.myPullRequests.length > 0;
         if (!wantComments && !wantConflicts) return;
         // The GitHub repository of each watched folder. The cache keeps it for the session.
         const remotes: Record<string, RepoRef | null> = {};
@@ -575,6 +592,7 @@ export class AutomationEngine {
         for (const automation of only ?? this.context?.automations ?? []) {
             if (automationMatches(automation, event)) void this.fire(automation, event);
         }
+        if (!only) this.watcher.onEvent(event);
     }
 
     private async fire(automation: Automation, event: AutomationEvent): Promise<void> {

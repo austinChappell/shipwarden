@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MCP_WRITE_TOOLS, writeToolLabel, type McpApprovals } from '@shared/mcp';
+import { writeToolLabel, type McpApprovals } from '@shared/mcp';
 import type { AppSettings } from '@shared/settings';
 import { keyRoots } from '../query-client';
 import { errorText } from '../util';
@@ -40,7 +40,7 @@ export function McpSettingsGroup({ settings, onSave }: { settings: AppSettings; 
             />
             <SettingsRow
                 label="Approved tools"
-                description={`${MCP_WRITE_TOOLS.join(' and ')} ask you the first time in each worktree. Allow applies to the tool in that worktree until you revoke it. The read tools need no approval.`}
+                description="The write tools ask you the first time in each worktree: they create and change pull requests, reply to comments, control the browser, change the task, and ask other agents. Allow applies to the tool in that worktree until you revoke it. The read tools need no approval."
             >
                 {entries.length === 0 ? (
                     <div className="settings-row-description">No worktree has approved tools.</div>
