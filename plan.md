@@ -203,7 +203,7 @@ stay.
 - Option B: use a push service that the user selects (for example ntfy) through an automation. This works today with
   the `http` action, but the text cannot open the app.
 
-**Open questions:** Do we want to run a relay? Pick A or B before any work starts.
+**Open questions:** Do we want to run a relay? Pick A or B before any work starts. - Answer: Option A
 
 ### 2.4 Remote worktrees on SSH hosts
 
