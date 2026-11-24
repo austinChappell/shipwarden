@@ -147,7 +147,7 @@ stay.
   (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`).
 - A new agent uses the selected account. The usage budget can select the next account instead of waiting.
 
-**Open questions:** Do the plan terms of Claude and OpenAI permit this use? Check before we build it.
+**Open questions:** Do the plan terms of Claude and OpenAI permit this use? Check before we build it. Answer: let's skip this one
 
 ## Phase 2: Work without the app window
 
@@ -173,8 +173,8 @@ stay.
 **Open questions:**
 
 - The helper has no TanStack Query cache. How does it get the PR and CI data with few API calls? Share one poller with
-  the main process?
-- Do approval gates wait for the app, or does the phone answer them?
+  the main process? - We can share one poller with the main process.
+- Do approval gates wait for the app, or does the phone answer them? - It would be great if the phone could answer them.
 
 ### 2.2 Start agents from the phone
 
@@ -245,7 +245,7 @@ actions.
 
 **Tests:** Command tests with a fake socket. A test that a request without a token fails.
 
-**Open questions:** Ship a skill file for the CLI, as Orca does?
+**Open questions:** Ship a skill file for the CLI, as Orca does? - Answer: that would be great if we can.
 
 ### 3.2 More MCP tools
 
@@ -290,7 +290,7 @@ and a screenshot to the agent of the worktree.
 
 **Files:** `src/main/mcp/tools.ts`, `src/shared/plans.ts`, `src/main/plans/plan-store.ts`, `src/shared/ask-agent.ts`.
 
-**Open questions:** Can a worker start workers? Set a depth limit of 1 at first.
+**Open questions:** Can a worker start workers? Set a depth limit of 1 at first. - Answer: Yes
 
 ### 4.2 Native Slack integration
 
@@ -303,7 +303,7 @@ and a screenshot to the agent of the worktree.
 - A message that mentions the app starts an agent on a repository.
 - This needs the headless engine of 2.1, or it works only while the app is open.
 
-**Open questions:** Socket Mode removes the need for a public URL. Is that enough for teams?
+**Open questions:** Socket Mode removes the need for a public URL. Is that enough for teams? - Answer: I think so
 
 ## Phase 5: Small gaps
 
