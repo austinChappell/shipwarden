@@ -10,6 +10,7 @@ import type { ProviderUsage } from '@shared/usage';
 import type { BrowserState } from '@shared/browser';
 import type { HelpAction } from '@shared/onboarding';
 import type { AgentPullRequestChange, McpApprovals, McpWatch } from '@shared/mcp';
+import type { CliPageRequest } from '@shared/cli';
 import type { Task } from '@shared/tasks';
 import type { CreateWorktreeProgress } from '@shared/worktrees';
 import type { PinnedSession } from '@shared/pinned-sessions';
@@ -353,6 +354,13 @@ const api: ShipWardenApi = {
         unwatch: id => ipcRenderer.invoke(IpcChannels.mcpUnwatch, id),
         onWatchesChanged: listener => subscribe<[McpWatch[]]>(IpcChannels.mcpWatchesChanged, listener),
         onPullRequestChanged: listener => subscribe<[AgentPullRequestChange]>(IpcChannels.mcpPullRequestChanged, listener)
+    },
+    cli: {
+        installState: () => ipcRenderer.invoke(IpcChannels.cliInstallState),
+        install: () => ipcRenderer.invoke(IpcChannels.cliInstall),
+        remove: () => ipcRenderer.invoke(IpcChannels.cliRemove),
+        onPageRequest: listener => subscribe<[number, CliPageRequest]>(IpcChannels.cliPageRequest, listener),
+        answer: (id, result, error) => ipcRenderer.send(IpcChannels.cliPageAnswer, id, result, error)
     },
     review: {
         checkoutStatus: (repo, number) => ipcRenderer.invoke(IpcChannels.reviewCheckoutStatus, repo, number),

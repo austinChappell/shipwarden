@@ -38,17 +38,31 @@ export const MCP_WRITE_TOOLS = [
     'type'
 ] as const;
 
+/**
+ * The commands of the `shipwarden` CLI that change something or start an agent. They use the same approvals as the
+ * write tools. "task status" uses the approval of set_task_status.
+ */
+export const CLI_WRITE_ACTIONS = ['cli_worktree_create', 'cli_worktree_remove', 'cli_agent_start', 'cli_agent_send', 'cli_automation_run'] as const;
+
 export type McpReadTool = (typeof MCP_READ_TOOLS)[number];
 export type McpWriteTool = (typeof MCP_WRITE_TOOLS)[number];
 export type McpToolName = McpReadTool | McpWriteTool;
+export type CliWriteAction = (typeof CLI_WRITE_ACTIONS)[number];
+/** A write tool of the MCP server or a write command of the CLI. Each one needs approval the first time. */
+export type ApprovalTool = McpWriteTool | CliWriteAction;
 
 /** Returns true when the tool needs approval. */
 export function isWriteTool(name: string): name is McpWriteTool {
     return (MCP_WRITE_TOOLS as readonly string[]).includes(name);
 }
 
-/** The approved write tools of each worktree, by the worktree path. */
-export type McpApprovals = Record<string, McpWriteTool[]>;
+/** Returns true for a write command of the CLI. */
+export function isCliWriteAction(name: string): name is CliWriteAction {
+    return (CLI_WRITE_ACTIONS as readonly string[]).includes(name);
+}
+
+/** The approved write tools and CLI commands of each worktree, by the worktree path. */
+export type McpApprovals = Record<string, ApprovalTool[]>;
 
 /** Returns valid approvals. A wrong value gives an empty object. Unknown tools and duplicates go away. */
 export function normalizeApprovals(value: unknown): McpApprovals {
@@ -56,13 +70,13 @@ export function normalizeApprovals(value: unknown): McpApprovals {
     const result: McpApprovals = {};
     for (const [worktree, tools] of Object.entries(value as Record<string, unknown>)) {
         if (!worktree.startsWith('/') || !Array.isArray(tools)) continue;
-        const valid = [...new Set(tools.filter((tool): tool is McpWriteTool => typeof tool === 'string' && isWriteTool(tool)))];
+        const valid = [...new Set(tools.filter((tool): tool is ApprovalTool => typeof tool === 'string' && (isWriteTool(tool) || isCliWriteAction(tool))))];
         if (valid.length > 0) result[worktree] = valid.sort();
     }
     return result;
 }
 
-const WRITE_TOOL_LABELS: Record<McpWriteTool, string> = {
+const WRITE_TOOL_LABELS: Record<ApprovalTool, string> = {
     ask_agent: 'Ask the agent of another worktree',
     set_task_status: 'Change the status of the task',
     create_pull_request: 'Create a pull request',
@@ -70,11 +84,16 @@ const WRITE_TOOL_LABELS: Record<McpWriteTool, string> = {
     reply_to_comment: 'Reply to a review comment',
     open_page: 'Open a page in the browser',
     click: 'Click in the browser',
-    type: 'Type in the browser'
+    type: 'Type in the browser',
+    cli_worktree_create: 'Create a worktree (CLI)',
+    cli_worktree_remove: 'Remove a worktree (CLI)',
+    cli_agent_start: 'Start an agent (CLI)',
+    cli_agent_send: 'Send a prompt to an agent (CLI)',
+    cli_automation_run: 'Run an automation (CLI)'
 };
 
-/** The label of a write tool for the approval dialog and Settings › Agents. */
-export function writeToolLabel(tool: McpWriteTool): string {
+/** The label of a write tool or a CLI command for the approval dialog and Settings › Agents. */
+export function writeToolLabel(tool: ApprovalTool): string {
     return WRITE_TOOL_LABELS[tool];
 }
 

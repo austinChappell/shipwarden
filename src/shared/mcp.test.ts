@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { geminiMcpSettings, isWriteTool, mcpConfig, normalizeApprovals, opencodeMcpServers } from './mcp';
+import { geminiMcpSettings, isCliWriteAction, isWriteTool, mcpConfig, normalizeApprovals, opencodeMcpServers } from './mcp';
 
 describe('normalizeApprovals', () => {
     it('keeps the known write tools of absolute worktree paths', () => {
@@ -12,6 +12,11 @@ describe('normalizeApprovals', () => {
             })
         ).toEqual({ '/w/a': ['ask_agent', 'set_task_status'] });
     });
+    it('keeps the write commands of the CLI', () => {
+        expect(normalizeApprovals({ '/w/a': ['cli_worktree_create', 'cli_unknown', 'set_task_status'] })).toEqual({
+            '/w/a': ['cli_worktree_create', 'set_task_status']
+        });
+    });
     it('gives an empty object for a wrong value', () => {
         expect(normalizeApprovals(undefined)).toEqual({});
         expect(normalizeApprovals([])).toEqual({});
@@ -23,6 +28,11 @@ describe('isWriteTool', () => {
         expect(isWriteTool('ask_agent')).toBe(true);
         expect(isWriteTool('set_task_status')).toBe(true);
         expect(isWriteTool('get_task')).toBe(false);
+        expect(isWriteTool('cli_agent_send')).toBe(false);
+    });
+    it('knows the write commands of the CLI', () => {
+        expect(isCliWriteAction('cli_agent_send')).toBe(true);
+        expect(isCliWriteAction('ask_agent')).toBe(false);
     });
 });
 

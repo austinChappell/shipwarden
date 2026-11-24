@@ -103,6 +103,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         body: 'An agent can open a page in the browser tab of its worktree, read it, click, type, and take a screenshot. You see the same tab. For example, tell the agent: "Open localhost:3000 and check the sign-up form."'
     },
     {
+        id: 'cliCommand',
+        title: 'Control ShipWarden from a terminal',
+        body: 'Install the shipwarden command in Settings › Agents. Scripts and agents can then create worktrees, start agents, send prompts, wait for a turn, move tasks, and run automations. Run "shipwarden skill install" to teach Claude Code the command.',
+        action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
+    },
+    {
         id: 'checkpoints',
         title: 'Undo one bad agent turn',
         body: 'ShipWarden saves the files of the worktree when an agent gets a prompt. Open the Checkpoints tab in the right panel of a worktree, and select "Rewind" on a turn. The diff shows first.'

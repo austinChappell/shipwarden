@@ -93,6 +93,10 @@
     ],
     "extraResources": [
       {
+        "from": "bin",
+        "to": "bin"
+      },
+      {
         "from": "plugins",
         "to": "plugins",
         "filter": [

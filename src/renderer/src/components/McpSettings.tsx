@@ -40,7 +40,7 @@ export function McpSettingsGroup({ settings, onSave }: { settings: AppSettings; 
             />
             <SettingsRow
                 label="Approved tools"
-                description="The write tools ask you the first time in each worktree: they create and change pull requests, reply to comments, control the browser, change the task, and ask other agents. Allow applies to the tool in that worktree until you revoke it. The read tools need no approval."
+                description="The write tools ask you the first time in each worktree: they create and change pull requests, reply to comments, control the browser, change the task, and ask other agents. The write commands of the shipwarden command use the same approvals. Allow applies to the tool in that worktree until you revoke it. The read tools need no approval."
             >
                 {entries.length === 0 ? (
                     <div className="settings-row-description">No worktree has approved tools.</div>

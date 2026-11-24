@@ -108,6 +108,8 @@ task. Link a task to the worktree in ShipWarden first."
 - Without an answer in 2 minutes, the dialog closes and the tool call fails with this error: "The user did not approve
   ask_agent in 2 minutes. Tell the user that ShipWarden is waiting for approval, then call the tool again."
 - Settings › Agents › MCP server lists the worktrees with approved tools. **Revoke** removes the approvals of a worktree.
+- The `shipwarden` CLI uses the same approvals for its write commands. The list shows them with "(CLI)". See
+  [cli.md](cli.md).
 
 ## Security
 

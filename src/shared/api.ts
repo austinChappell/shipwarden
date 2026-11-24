@@ -40,6 +40,7 @@ import type { ReviewProviderChange, ReviewProviderInfo, ReviewProviderKind, Revi
 import type { LspInstallState, LspMissingServer, LspServerInfo, LspServerMessage } from './lsp';
 import type { ConnectionChange, ConnectionInfo, PluginInfo, Task, TaskLink, TaskScope, TaskSource } from './tasks';
 import type { AgentPullRequestChange, McpApprovals, McpWatch } from './mcp';
+import type { CliInstallState, CliPageRequest, CliPageResult } from './cli';
 import type { AgentUpdate } from './agents';
 import type { TranscriptChunk } from './agent-chat';
 import type { AgentProgram } from './agent-programs';
@@ -733,6 +734,17 @@ export interface ShipWardenApi {
         /** A pull request tool changed a pull request. The page patches its cache. */
         onPullRequestChanged(listener: (change: AgentPullRequestChange) => void): () => void;
     };
+    cli: {
+        /** The state of the `shipwarden` link. */
+        installState(): Promise<CliInstallState>;
+        /** Adds the link in /usr/local/bin or ~/.local/bin. Returns the new state. */
+        install(): Promise<CliInstallState>;
+        /** Removes the link. Returns the new state. */
+        remove(): Promise<CliInstallState>;
+        /** A command of the CLI that the page runs. The page answers with `answer`. */
+        onPageRequest(listener: (id: number, request: CliPageRequest) => void): () => void;
+        answer(id: number, result: CliPageResult | undefined, error?: string): void;
+    };
     review: {
         /** Returns the local copy of a pull request, and if a copy needs a clone of the repository first. */
         checkoutStatus(repo: RepoRef, number: number): Promise<ReviewCheckoutStatus>;
@@ -990,6 +1002,11 @@ export const IpcChannels = {
     mcpUnwatch: 'mcp:unwatch',
     mcpWatchesChanged: 'mcp:watchesChanged',
     mcpPullRequestChanged: 'mcp:pullRequestChanged',
+    cliPageRequest: 'cli:pageRequest',
+    cliPageAnswer: 'cli:pageAnswer',
+    cliInstallState: 'cli:installState',
+    cliInstall: 'cli:install',
+    cliRemove: 'cli:remove',
     queueGet: 'queue:get',
     queueSave: 'queue:save',
     automationsList: 'automations:list',

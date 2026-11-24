@@ -228,6 +228,14 @@ so a Linux host needs a different service manager.
 
 **Goal:** Let agents, scripts, and users control ShipWarden from a terminal.
 
+**Status:** Done in branch `3.1-shipwarden-cli`. The CLI talks to the app main process through a Unix socket (mode 0600)
+and a token in `~/.shipwarden/cli.json`. The helper does not run the socket yet. `CliServer` and `CliActions` use no
+Electron API, so the helper can run them after 2.1. The commands for agent tabs, worktrees, and automations run in the
+page with the code of the automations, so the window must be open. `--wait` waits for the turn of a prompt. The write
+commands use the MCP approval store, with the worktree (or the repository) as the key. The agent skill is
+`skills/shipwarden/SKILL.md`, and `shipwarden skill install` installs it. `automation run` cannot run a task
+automation. Not tested live in the app or in a packaged build.
+
 **Design:**
 
 - Add a `shipwarden` command. It talks to the running app or the helper through a local socket with a token.

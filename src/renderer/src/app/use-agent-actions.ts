@@ -246,16 +246,20 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
      * - With `mode`, a new session starts in that permission mode. A running Claude Code session changes to the mode
      *   before the prompt. Other running agents cannot change their mode, so the run fails.
      * - Without `mode`, a new session starts in the default mode of the agent (Settings › Agents).
+     * - With `newSession`, a new session starts also when an agent runs in the worktree (the `shipwarden agent start`
+     *   command). An empty prompt then only starts the agent.
      * Returns the session that got the prompt.
      */
     const promptAgent = async (
         worktree: Pick<Worktree, 'path'>,
         prompt: string,
-        target: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode } = {}
+        target: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode; newSession?: boolean } = {}
     ): Promise<TerminalSession> => {
-        let session = target.sessionId
-            ? sessions.find(item => item.id === target.sessionId && !item.exited)
-            : sessions.find(item => item.worktreePath === worktree.path && item.isAgent && !item.exited);
+        let session = target.newSession
+            ? undefined
+            : target.sessionId
+              ? sessions.find(item => item.id === target.sessionId && !item.exited)
+              : sessions.find(item => item.worktreePath === worktree.path && item.isAgent && !item.exited);
         if (target.sessionId && !session) {
             throw new Error('The agent tab closed.');
         }
@@ -282,6 +286,7 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
             session = created;
             await waitForQuietOutput(created.id);
         }
+        if (!prompt) return session;
         const id = session.id;
         if (!(await waitForNoDialog(id, () => undefined))) {
             throw new Error(

@@ -111,6 +111,8 @@ export const keyRoots = {
     /** The approvals of the MCP write tools in each worktree. Local data: the main process sends each change. */
     mcpApprovals: ['mcpApprovals'],
     mcpWatches: ['mcpWatches'],
+    /** The state of the `shipwarden` link. Local data: the main process reads the link on this Mac. */
+    cliInstall: ['cliInstall'],
     /** The Claude Code sessions of the last 3 days. Local data: the main process reads the transcripts on this Mac. */
     recentSessions: ['recentSessions'],
     /** The search across all Claude Code transcripts. Local data: the main process keeps the index on this Mac. */

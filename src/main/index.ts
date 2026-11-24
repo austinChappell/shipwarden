@@ -234,6 +234,7 @@ app.whenReady().then(async () => {
     services.transcriptIndex.start();
     void services.settings.get().then(settings => services.mcp.apply(settings.mcpServer));
     void services.mcp.prune().catch(() => undefined);
+    void services.cli.start().catch(error => console.warn(`[cli] The CLI server did not start: ${error instanceof Error ? error.message : String(error)}`));
     void services.pruneOldCheckpoints().catch(error => console.warn('[checkpoints] The cleanup failed:', error));
     protocol.handle(
         FILE_SCHEME,
@@ -286,4 +287,5 @@ app.on('before-quit', () => {
     services.tasks.stopAll();
     services.askRunner.cancelAll();
     services.mcp.stop();
+    services.cli.stop();
 });
