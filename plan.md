@@ -353,6 +353,15 @@ read-only page. Not tested live in the app.
 
 **Goal:** Get agent questions in Slack and answer them there.
 
+**Status:** Done in branch `4.2-slack`. A Slack app of the user with Socket Mode (the global `WebSocket` of Node, no
+Slack SDK) connects to one channel. After an agent waits for 10 seconds, ShipWarden posts the question in the thread of
+its session. A reply in the thread goes to the agent (one digit is a key press, other text is a paste and Enter). A
+mention "@ShipWarden <repository> <prompt>" starts an agent with `RemoteStarter` and answers in the thread. The
+repository is the folder name or the display name. Only the Slack member IDs on the allow list of Settings › Slack can
+start or answer agents (empty by default). The connection runs in the process that holds the automation lock. The
+tokens are in the login keychain (the `security` tool), because the helper cannot read `safeStorage`. The app manifest
+is in `docs/slack.md`. Not tested live with Slack, in the app, or in the helper.
+
 **Design:**
 
 - A Slack app with a bot token. Settings get a Slack section.

@@ -8594,6 +8594,11 @@ button:focus-visible,
     color: var(--text);
 }
 
+/* Settings > Slack */
+.slack-channel-picker {
+    width: 240px;
+}
+
 /* Settings > Network */
 .ca-file-row {
     display: flex;

@@ -21,6 +21,7 @@ import { registerProjectIpc } from './projects';
 import { registerQueueIpc } from './queue';
 import { registerRemoteIpc } from './remote';
 import { registerSettingsIpc } from './settings';
+import { registerSlackIpc } from './slack';
 import { registerStatsIpc } from './stats';
 import { registerCheckpointsIpc } from './checkpoints';
 import { registerScreenshotsIpc } from './screenshots';
@@ -55,6 +56,7 @@ export function registerIpc(services: Services, runAppKey: (action: AppKeyAction
     registerScreenshotsIpc(services);
     registerPinIpc(services);
     registerRemoteIpc(services);
+    registerSlackIpc(services);
     registerGitIpc(services);
     registerAppIpc({ ...services, runAppKey });
 }
