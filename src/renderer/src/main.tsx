@@ -14,6 +14,7 @@ import { ToastHost } from './components/Toast';
 import { applyLastPalette } from './theme/appearance';
 import { outputActivity } from './terminal/output-activity';
 import { appKeyAction } from '@shared/shortcuts';
+import { currentKeymap, recordingKeys, startKeybindings } from './keyboard/keymap';
 import { queryClient } from './query-client';
 import { patchCachedTask } from './components/tasks/use-task-list';
 import { applyAgentPullRequestChange } from './github/pull-request-mutations';
@@ -39,21 +40,28 @@ applyLastPalette();
 // Record the time of the last output of each terminal from the start. The Agents view shows it.
 outputActivity.start(window.shipwarden.terminals);
 
-// The app keys (⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U, ⌘H and ⇧⌘N), in the capture phase, before a terminal takes them. The main process normally
+// The keybindings of the user. The key handlers below read them from the cache.
+startKeybindings();
+
+// The app keys (⌘Q, ⇧⌥⌘Q, ⌘, ⇧⌘U, ⌘H and ⇧⌘N, or the keys of the user), in the capture phase, before a terminal takes them. The main process normally
 // reads these keys first (before-input-event). This is the second way, when it does not.
 window.addEventListener(
     'keydown',
     event => {
-        const action = appKeyAction({
-            type: 'keyDown',
-            meta: event.metaKey,
-            shift: event.shiftKey,
-            control: event.ctrlKey,
-            alt: event.altKey,
-            key: event.key,
-            code: event.code
-        });
-        if (action) {
+        const action = appKeyAction(
+            {
+                type: 'keyDown',
+                meta: event.metaKey,
+                shift: event.shiftKey,
+                control: event.ctrlKey,
+                alt: event.altKey,
+                key: event.key,
+                code: event.code
+            },
+            currentKeymap()
+        );
+        // Settings › Keyboard records a key. Only ⌘Q and ⌘H still work.
+        if (action && (!recordingKeys() || action === 'quit' || action === 'hide')) {
             event.preventDefault();
             event.stopPropagation();
             window.shipwarden.app.runKey(action);

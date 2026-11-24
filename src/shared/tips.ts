@@ -24,6 +24,12 @@ export interface Tip {
 /** The tips of the corner notice. The notice shows one tip at random (see `pickTip`). */
 export const NOTICE_TIPS: readonly Tip[] = [
     {
+        id: 'keybindings',
+        title: 'Change the keyboard shortcuts',
+        body: 'Open Settings › Keyboard, click "Record" next to a command, and press the new keys. ShipWarden keeps your keys in ~/.shipwarden/keybindings.json, so you can also change the file.',
+        action: { kind: 'settings', section: 'keyboard', label: 'Open Settings › Keyboard' }
+    },
+    {
         id: 'giteaProvider',
         title: 'Review Gitea and Forgejo pull requests',
         body: 'Add a "Gitea or Forgejo" provider in Settings › Code review. ShipWarden finds the server in the remotes of your projects. Pull requests, reviews, threads, and Gitea Actions runs then show in ShipWarden.',

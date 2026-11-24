@@ -17445,6 +17445,61 @@ body.resizing-rows * {
     color: var(--muted);
 }
 
+/* Settings › Keyboard: the commands and their keys. */
+.filter-field.keyboard-filter {
+    width: 100%;
+}
+
+.keyboard-row-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.keyboard-keys {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.keyboard-no-key {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.keyboard-recorder {
+    width: 140px;
+}
+
+.keyboard-changed {
+    margin-left: 8px;
+}
+
+.keyboard-warning {
+    color: var(--warning);
+}
+
+.keyboard-pending {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.keyboard-pending-buttons {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.keyboard-problem {
+    font-weight: 400;
+    user-select: text;
+}
+
 /* The dialog that asks for the values of the variables of a prompt template. */
 .prompt-fill-body {
     display: flex;

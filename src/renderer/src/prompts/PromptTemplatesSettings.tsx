@@ -7,6 +7,7 @@ import { EmptyState } from '../components/EmptyState';
 import { SettingsGroup, SettingsRow } from '../components/settings-ui';
 import { Button, Checkbox, Field, Input, TextArea } from '../components/ui';
 import { KeyField } from '../keyboard/KeyField';
+import { useKeymap } from '../keyboard/keymap';
 import { errorText } from '../util';
 import { removePromptTemplate, savePromptTemplate, usePromptTemplates } from './prompt-queries';
 
@@ -171,7 +172,8 @@ function TemplateForm({ draft: initial, templates, terminalKeybinds, onClose }: 
     const [draft, setDraft] = useState(initial);
     const [error, setError] = useState<string>();
     const [saving, setSaving] = useState(false);
-    const conflict = draft.shortcut ? shortcutConflict(draft.shortcut, templates, draft.previousId, terminalKeybinds) : undefined;
+    const keymap = useKeymap();
+    const conflict = draft.shortcut ? shortcutConflict(draft.shortcut, templates, draft.previousId, terminalKeybinds, keymap) : undefined;
     const variables = promptVariables();
 
     const save = async () => {
@@ -273,7 +275,8 @@ function TemplateKeyWarning({
     templates: readonly PromptTemplate[];
     terminalKeybinds: readonly TextKeybind[];
 }) {
-    const conflict = template.shortcut ? shortcutConflict(template.shortcut, templates, template.id, terminalKeybinds) : undefined;
+    const keymap = useKeymap();
+    const conflict = template.shortcut ? shortcutConflict(template.shortcut, templates, template.id, terminalKeybinds, keymap) : undefined;
     if (!conflict) return null;
     return <div className="form-error">{conflict} Select a different shortcut.</div>;
 }

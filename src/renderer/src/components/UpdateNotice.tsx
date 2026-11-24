@@ -10,6 +10,7 @@ import { useModal } from './use-modal';
 import { CornerNotice } from './CornerNotice';
 import { keyRoots } from '../query-client';
 import { Button, IconButton, useRefreshSpin } from './ui';
+import { useKeyLabel } from '../keyboard/keymap';
 
 const DISMISS_KEY = 'shipwarden.updateDismissed';
 
@@ -227,6 +228,7 @@ export function UpdateNotice() {
 /** The update rows of Settings › About: the status, "Check for updates", the release notes and the install. */
 export function UpdateSettings() {
     const state = useUpdateState();
+    const keyLabel = useKeyLabel('checkForUpdates');
     const [notes, setNotes] = useState(false);
     const [error, setError] = useState<string>();
     const checking = useRefreshSpin(state?.status === 'checking');
@@ -272,11 +274,11 @@ export function UpdateSettings() {
                 <Button
                     icon={<RefreshCw size={13} strokeWidth={1.8} className={checking ? 'spin' : ''} />}
                     disabled={state.status === 'checking' || state.status === 'downloading' || state.status === 'installing'}
-                    title="Check for updates (⇧⌘U)"
+                    title={keyLabel ? `Check for updates (${keyLabel})` : 'Check for updates'}
                     onClick={() => void check()}
                 >
                     Check for updates
-                    <kbd className="field-key">⇧⌘U</kbd>
+                    {keyLabel && <kbd className="field-key">{keyLabel}</kbd>}
                 </Button>
             </div>
             {error && <div className="form-error">{error}</div>}

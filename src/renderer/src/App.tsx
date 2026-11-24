@@ -126,6 +126,7 @@ import { NavigationContext, type Navigator } from './app/navigation';
 import { RelatedLinks } from './components/RelatedLinks';
 import { useWorktreeActions, type NewWorktreeTarget } from './app/use-worktree-actions';
 import { isNavValid, isRepoView, navLocationOf, VIEW_OF_ACTION, type ContentView, type MainView } from './app/views';
+import { useKeyText } from './keyboard/keymap';
 
 /** The command that starts an agent. A setting will replace this value. */
 const EXPLORER_STORAGE_KEY = 'shipwarden.explorerOpen';
@@ -143,6 +144,7 @@ function renderedWidth(selector: string): number {
 
 export function App() {
     const [sessions, setSessions] = useState<TerminalSession[]>([]);
+    const keyText = useKeyText();
     // The note box in the editor is outside this React tree. It reads the sessions from the store.
     useEffect(() => sessionListStore.set(sessions), [sessions]);
     const [settings, setSettings] = useState<TerminalSettings>();
@@ -1556,7 +1558,7 @@ export function App() {
                                                 }
                                                 hint={
                                                     <>
-                                                        Press <kbd>⌘T</kbd> for a shell tab.
+                                                        Press <kbd>{keyText('⌘T')}</kbd> for a shell tab.
                                                     </>
                                                 }
                                             >
@@ -1611,7 +1613,8 @@ export function App() {
                                                     }
                                                     hint={
                                                         <>
-                                                            Press <kbd>⌘T</kbd> for a shell tab. Press <kbd>⌘N</kbd> for a new worktree.
+                                                            Press <kbd>{keyText('⌘T')}</kbd> for a shell tab. Press <kbd>{keyText('⌘N')}</kbd> for a new
+                                                            worktree.
                                                         </>
                                                     }
                                                 >
@@ -1636,7 +1639,7 @@ export function App() {
                                                     }
                                                     hint={
                                                         <>
-                                                            Press <kbd>⌘N</kbd> for a new worktree.
+                                                            Press <kbd>{keyText('⌘N')}</kbd> for a new worktree.
                                                         </>
                                                     }
                                                 >
@@ -1755,7 +1758,7 @@ export function App() {
                                 <IconButton
                                     className="panel-toggle"
                                     icon={<PanelRight size={16} strokeWidth={1.5} />}
-                                    label={explorerOpen ? 'Hide the right panel (⌘E)' : 'Show the right panel (⌘E)'}
+                                    label={keyText(explorerOpen ? 'Hide the right panel (⌘E)' : 'Show the right panel (⌘E)')}
                                     aria-pressed={explorerOpen}
                                     onClick={toggleExplorer}
                                 />

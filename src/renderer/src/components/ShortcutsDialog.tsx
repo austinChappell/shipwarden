@@ -3,6 +3,7 @@ import { Keyboard, X } from 'lucide-react';
 import { keyParts, SHORTCUT_GROUPS, shortcutRows } from '@shared/shortcuts';
 import { IconButton, SearchInput } from './ui';
 import { useModal } from './use-modal';
+import { useKeymap } from '../keyboard/keymap';
 
 /** A key combination as key caps, for example ⇧ ⌘ D. A screen reader reads the text, for example "⇧⌘D". */
 function Keys({ keys }: { keys: string }) {
@@ -20,15 +21,16 @@ function Keys({ keys }: { keys: string }) {
 }
 
 /**
- * The Keyboard Shortcuts dialog (Help › Keyboard Shortcuts). The list comes from `src/shared/shortcuts.ts`, so it
- * shows the keys that the app uses.
+ * The Keyboard Shortcuts dialog (Help › Keyboard Shortcuts). The list comes from `src/shared/shortcuts.ts` and the
+ * keybindings of the user, so it shows the keys that the app uses.
  */
 export function ShortcutsDialog({ onClose }: { onClose(): void }) {
     const dialog = useRef<HTMLDivElement>(null);
     useModal(dialog);
     const [query, setQuery] = useState('');
     const text = query.trim().toLowerCase();
-    const shortcuts = shortcutRows().filter(
+    const keymap = useKeymap();
+    const shortcuts = shortcutRows(keymap).filter(
         item => !text || item.label.toLowerCase().includes(text) || item.keys.some(keys => keys.toLowerCase().includes(text))
     );
 
@@ -75,6 +77,7 @@ export function ShortcutsDialog({ onClose }: { onClose(): void }) {
                                         <div key={item.label} className="shortcut-row">
                                             <dt>{item.label}</dt>
                                             <dd>
+                                                {item.keys.length === 0 && <span className="shortcut-or">No key</span>}
                                                 {item.keys.map((keys, index) => (
                                                     <span key={keys} className="shortcut-choice">
                                                         {index > 0 && <span className="shortcut-or">{item.range ? 'to' : 'or'}</span>}

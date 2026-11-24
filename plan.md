@@ -417,6 +417,16 @@ Add "Rebase stack" and "Merge stack" to a plan PR group. Reuse the restack code 
 
 ### 5.4 Keybinding remapping
 
+**Status:** Done in branch `5.4-keybindings`. Settings › Keyboard lists 49 commands with a search field, "Record",
+"Reset", and "Reset all". The file `~/.shipwarden/keybindings.json` maps a command ID to an accelerator
+("CmdOrCtrl+Shift+K"), a list of accelerators, or null. ShipWarden reads and watches it, and ignores a bad entry with a
+warning. A recorded key of another command asks first, and "Replace" moves the key. A conflict from a file edit shows
+on both rows, and the first command of the list gets the key. The keys of macOS and the Edit menu are blocked. The find,
+zoom, and terminal control keys get a warning. The key handlers, the menu accelerators (the menu is built again),
+Monaco, the terminal, the palette, the Keyboard Shortcuts page, the tooltips, the tips, and the tour follow the
+keymap. ⌘Q, ⌘H, ⌃V, and the browser keys stay fixed. Unit tests cover the parse, the merge, the conflicts, the formats,
+the store, and the menu. Not tested live.
+
 Add a Keyboard section to Settings. Store the user bindings in `~/.shipwarden/keybindings.json`. Show conflicts. The
 current keys in `src/shared/shortcuts.ts` stay as the defaults.
 

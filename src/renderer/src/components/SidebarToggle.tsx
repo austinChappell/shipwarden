@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import { PanelLeft } from 'lucide-react';
 import { IconButton } from './ui';
+import { useKeyText } from '../keyboard/keymap';
 
 export interface SidebarState {
     collapsed: boolean;
@@ -16,10 +17,11 @@ export const SidebarContext = createContext<SidebarState>({ collapsed: false, to
  */
 export function SidebarToggle() {
     const { collapsed, toggle } = useContext(SidebarContext);
+    const keyText = useKeyText();
     return (
         <IconButton
             icon={<PanelLeft size={16} strokeWidth={1.5} />}
-            label={collapsed ? 'Show the sidebar (⌘B)' : 'Hide the sidebar (⌘B)'}
+            label={keyText(collapsed ? 'Show the sidebar (⌘B)' : 'Hide the sidebar (⌘B)')}
             aria-pressed={!collapsed}
             onClick={toggle}
         />

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { DiffSide, PullRequest, PullRequestFile, RepoTarget } from '@shared/github';
 import { monaco } from '../editor/monaco';
+import { addKeyedAction } from '../editor/monaco-keys';
 import { gitHubSeenKey } from '@shared/dashboard';
 import { reviewStore, useReviewState } from '../github/review-store';
 import { replyToThread, setThreadResolved } from '../github/pull-request-mutations';
@@ -225,11 +226,11 @@ export function DiffView({ target, pr, file, revealLine, revealNonce, onSendToAg
                 );
             });
             editor.onMouseLeave(() => hoverDecorations.get(editor)!.clear());
-            // ⇧⌘M starts a comment from the keyboard. The comment goes on the line of the cursor, or on the last selected line.
-            editor.addAction({
+            // The comment key (by default ⇧⌘M) starts a comment from the keyboard. The comment goes on the line of the
+            // cursor, or on the last selected line.
+            addKeyedAction(editor, 'comment', {
                 id: 'shipwarden.comment',
                 label: 'Comment on Line or Selection',
-                keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyM],
                 contextMenuGroupId: 'navigation',
                 contextMenuOrder: 0,
                 run: () => {

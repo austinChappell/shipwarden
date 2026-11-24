@@ -1,6 +1,7 @@
 import { CheckCircle2, Circle, ListChecks, X } from 'lucide-react';
 import { CHECKLIST_STEPS, checklistDoneCount, type ChecklistStepId } from '@shared/checklist';
 import { Button, Card, CardBody, CardHeader, IconButton } from './ui';
+import { useKeyText } from '../keyboard/keymap';
 
 interface Props {
     checklist: Record<string, boolean> | undefined;
@@ -16,6 +17,7 @@ interface Props {
  */
 export function ChecklistCard({ checklist, actionOf, onClose }: Props) {
     const done = checklistDoneCount(checklist);
+    const keyText = useKeyText();
     const all = done === CHECKLIST_STEPS.length;
     const title = all ? 'You are ready' : 'Get started with ShipWarden';
     return (
@@ -55,7 +57,7 @@ export function ChecklistCard({ checklist, actionOf, onClose }: Props) {
                                 )}
                                 <div className="checklist-text">
                                     <span className="checklist-label">{step.label}</span>
-                                    {!stepDone && <span className="checklist-detail">{step.detail}</span>}
+                                    {!stepDone && <span className="checklist-detail">{keyText(step.detail)}</span>}
                                 </div>
                                 {action && (
                                     <Button className="checklist-action" onClick={action.run}>

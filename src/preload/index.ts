@@ -17,6 +17,7 @@ import type { Plan } from '@shared/plans';
 import type { CreateWorktreeProgress } from '@shared/worktrees';
 import type { PinnedSession } from '@shared/pinned-sessions';
 import type { ScreenshotProgress } from '@shared/screenshots';
+import type { KeybindingsState } from '@shared/keybindings';
 
 function subscribe<Args extends unknown[]>(channel: string, listener: (...args: Args) => void): () => void {
     const handler = (_event: IpcRendererEvent, ...args: unknown[]) => listener(...(args as Args));
@@ -290,6 +291,14 @@ const api: ShipWardenApi = {
         remove: id => ipcRenderer.invoke(IpcChannels.promptsRemove, id),
         reveal: id => ipcRenderer.send(IpcChannels.promptsReveal, id),
         onChanged: listener => subscribe<[]>(IpcChannels.promptsChanged, listener)
+    },
+    keybindings: {
+        get: () => ipcRenderer.invoke(IpcChannels.keybindingsGet),
+        update: changes => ipcRenderer.invoke(IpcChannels.keybindingsUpdate, changes),
+        resetAll: () => ipcRenderer.invoke(IpcChannels.keybindingsResetAll),
+        reveal: () => ipcRenderer.send(IpcChannels.keybindingsReveal),
+        record: on => ipcRenderer.send(IpcChannels.keybindingsRecord, on),
+        onChanged: listener => subscribe<[KeybindingsState]>(IpcChannels.keybindingsChanged, listener)
     },
     notes: {
         folder: () => ipcRenderer.invoke(IpcChannels.notesFolder),

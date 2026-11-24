@@ -329,7 +329,7 @@ describe('the Keyboard Shortcuts page', () => {
     });
 
     it('lists the terminal and diff keys that their functions accept', () => {
-        expect(OTHER_KEY_INFO.clear.keys.every(keys => isClearKey(asEvent(keys)))).toBe(true);
+        expect(OTHER_KEY_INFO.clearTerminal.keys.every(keys => isClearKey(asEvent(keys)))).toBe(true);
         expect(OTHER_KEY_INFO.pasteImage.keys.every(keys => isCtrlV(asEvent(keys)))).toBe(true);
         expect(OTHER_KEY_INFO.comment.keys.every(keys => isCommentKey(asEvent(keys)))).toBe(true);
         expect(OTHER_KEY_INFO.openWorktree.keys.every(keys => pullRequestKeyAction(asEvent(keys)) === 'openWorktree')).toBe(true);

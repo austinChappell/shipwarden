@@ -7,6 +7,7 @@ import { codeQuestions, useCodeQuestions } from '../editor/code-questions';
 import { documents } from '../editor/documents';
 import { clampPosition, editorPositions } from '../editor/editor-positions';
 import { monaco } from '../editor/monaco';
+import { addKeyedAction } from '../editor/monaco-keys';
 import {
     addReviewZone,
     ComposerZone,
@@ -134,10 +135,10 @@ export function EditorView({
             const at = line ?? selection?.positionLineNumber;
             return at ? { startLine: at, line: at } : undefined;
         };
-        editor.addAction({
+        // The keys come from the keymap (by default ⇧⌘A and ⌥⌘B), so Settings › Keyboard can change them.
+        addKeyedAction(editor, 'askAgent', {
             id: 'shipwarden.askAgent',
             label: 'Ask Agent About These Lines',
-            keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyA],
             contextMenuGroupId: 'navigation',
             contextMenuOrder: 0,
             run: () => setAsking(rangeAt())
@@ -153,10 +154,9 @@ export function EditorView({
                 setAsking(range && { ...range, note: true });
             }
         });
-        editor.addAction({
+        addKeyedAction(editor, 'toggleBlame', {
             id: 'shipwarden.toggleBlame',
             label: 'Show or Hide Git Blame',
-            keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyB],
             contextMenuGroupId: '9_git',
             contextMenuOrder: 0,
             run: () => toggleBlame()

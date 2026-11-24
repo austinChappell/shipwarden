@@ -92,6 +92,8 @@ export const keyRoots = {
     editors: ['editors'],
     /** The prompt template files. Local data: no request goes to a service. */
     prompts: ['prompts'],
+    /** The keybindings file of the user. Local data: no request goes to a service. */
+    keybindings: ['keybindings'],
     /** The app version, the data folder and the login name. Local data: no request goes to a service. */
     appInfo: ['appInfo'],
     /** The plans of the projects. Local data: no request goes to a service. */

@@ -75,6 +75,7 @@ import type { BrowserBounds, BrowserFindOptions, BrowserState } from './browser'
 import type { ElementPick } from './element-pick';
 import type { Automation, AutomationList, AutomationRun, AutomationRunState, HttpMethod, TokenCount } from './automations';
 import type { PromptTemplate, PromptTemplateList } from './prompt-templates';
+import type { KeybindingChange, KeybindingsState } from './keybindings';
 import type { HttpResponse } from './automation-templates';
 import type { Plan, PlanExploreRequest, PlanExploreResult } from './plans';
 import type { GroupReviewAnswer, GroupReviewRequest, PrGroup } from './pr-groups';
@@ -636,6 +637,20 @@ export interface ShipWardenApi {
         /** Called when a file in the prompts folder changes, also from another app. */
         onChanged(listener: () => void): () => void;
     };
+    keybindings: {
+        /** The keybindings of the user in ~/.shipwarden/keybindings.json, and the entries that ShipWarden ignored. */
+        get(): Promise<KeybindingsState>;
+        /** Writes the changes to the file and returns the new state. Fails when the file is not a valid JSON object. */
+        update(changes: KeybindingChange[]): Promise<KeybindingsState>;
+        /** Gives all commands their default keys. This also replaces a file that is not valid. */
+        resetAll(): Promise<KeybindingsState>;
+        /** Shows the file in Finder, or opens its folder when the file does not exist. */
+        reveal(): void;
+        /** Starts or stops the record mode of this window. In record mode, the main process does not run the shortcuts, except ⌘Q and ⌘H. */
+        record(on: boolean): void;
+        /** Called with the new state when the file changes, also from another app. */
+        onChanged(listener: (state: KeybindingsState) => void): () => void;
+    };
     notes: {
         /** The folder of the notes, ~/.shipwarden/notes. */
         folder(): Promise<string>;
@@ -1072,6 +1087,12 @@ export const IpcChannels = {
     promptsRemove: 'prompts:remove',
     promptsReveal: 'prompts:reveal',
     promptsChanged: 'prompts:changed',
+    keybindingsGet: 'keybindings:get',
+    keybindingsUpdate: 'keybindings:update',
+    keybindingsResetAll: 'keybindings:resetAll',
+    keybindingsReveal: 'keybindings:reveal',
+    keybindingsRecord: 'keybindings:record',
+    keybindingsChanged: 'keybindings:changed',
     notesFolder: 'notes:folder',
     notesList: 'notes:list',
     notesFolders: 'notes:folders',

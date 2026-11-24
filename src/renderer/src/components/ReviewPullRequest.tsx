@@ -39,7 +39,7 @@ import { AGENT_REVIEW_TITLE, CLEAR_AGENT_REVIEW_TITLE } from './PullRequestRevie
 import { strictnessTitle } from './review-strictness-menu';
 import { Button, ButtonGroup, Count, IconButton, RefreshButton, SplitButton, type SplitMenuItem } from './ui';
 import { EmptyState } from './EmptyState';
-import { pullRequestKeyAction } from '@shared/shortcuts';
+import { keyLabel, pullRequestKeyAction } from '@shared/shortcuts';
 import { copyPageLink, usePageLink } from '../app/page-link';
 import { HelmLoader } from './HelmLoader';
 import { FileExplorer } from './FileExplorer';
@@ -55,6 +55,7 @@ import { AddToPlanDialog } from './AddToPlanDialog';
 import { RelatedLinks } from './RelatedLinks';
 import { isFindShortcut, openLogFind } from './log-find';
 import { findRequest as makeFindRequest, type FindRequest } from './selected-text';
+import { currentKeymap, useKeymap } from '../keyboard/keymap';
 
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
 
@@ -356,7 +357,8 @@ export function ReviewPullRequest({
 
     // ⌘F searches the changed files when no CI log owns ⌘F. The capture phase gets the key before a comment box can stop it.
     // The selected text of the page goes into the search field.
-    // The listener also runs ⌘O and ⇧⌘O of the header.
+    const keymap = useKeymap();
+    // The listener also runs ⌘O and ⇧⌘O of the header (or the keys of the user).
     // biome-ignore lint/correctness/useExhaustiveDependencies: The listener attaches one time. selectTab uses only state setters and a ref, so the first copy is correct.
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
@@ -368,7 +370,7 @@ export function ReviewPullRequest({
                 return;
             }
             // ⌘O opens the worktree of the head branch. ⇧⌘O opens the pull request on GitHub.
-            const action = pullRequestKeyAction(event);
+            const action = pullRequestKeyAction(event, currentKeymap());
             const run = action && headerKeys.current[action];
             if (run) {
                 event.preventDefault();
@@ -465,7 +467,7 @@ export function ReviewPullRequest({
     const worktreeAction: HeaderAction | undefined = onNewWorktree && {
         label: branchWorktree ? 'Open worktree' : 'New worktree',
         icon: <FolderGit2 size={14} strokeWidth={1.6} />,
-        shortcut: '⌘O',
+        shortcut: keyLabel(keymap, 'openWorktree'),
         title: branchWorktree
             ? `Open the worktree ${branchWorktree.path}`
             : pr.isCrossRepository
@@ -509,7 +511,7 @@ export function ReviewPullRequest({
     const hostAction: HeaderAction = {
         label: 'Open on GitHub',
         icon: <ExternalLink size={14} strokeWidth={1.6} />,
-        shortcut: '⇧⌘O',
+        shortcut: keyLabel(keymap, 'openOnHost'),
         onSelect: openOnHost
     };
     // Without a clone, the main button adds the repository to a project. Else it opens the worktree.
@@ -522,7 +524,7 @@ export function ReviewPullRequest({
         {
             label: 'Copy PR link',
             icon: <Link size={14} strokeWidth={1.6} />,
-            shortcut: '⇧⌘C',
+            shortcut: keyLabel(keymap, 'copyFilePath'),
             onSelect: () => void copyPageLink({ url: pr.url, kind: 'PR' }).catch(() => undefined)
         },
         ...(onOpenGroup
@@ -573,7 +575,7 @@ export function ReviewPullRequest({
                                 size="sm"
                                 className="review-pr-host-link"
                                 icon={<ExternalLink size={14} strokeWidth={1.6} />}
-                                label="Open on GitHub (⇧⌘O)"
+                                label={`Open on GitHub${keyLabel(keymap, 'openOnHost') ? ` (${keyLabel(keymap, 'openOnHost')})` : ''}`}
                                 onClick={event => openLink(pr.url, event)}
                             />
                         </h2>

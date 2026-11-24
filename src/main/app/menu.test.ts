@@ -1,20 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import type { MenuItemConstructorOptions } from 'electron';
-import { SHORTCUT_INFO, type ShortcutAction } from '@shared/shortcuts';
+import { formatChord, parseChord } from '@shared/key-chords';
+import { keymapOf } from '@shared/keybindings';
+import { DEFAULT_KEYMAP, SHORTCUT_INFO, type Keymap, type ShortcutAction } from '@shared/shortcuts';
 import { menuTemplate, PROJECT_URL } from './menu';
 
 /** Returns the menu template and the actions that its items called. */
-function recordActions() {
+function recordActions(keymap: Keymap = DEFAULT_KEYMAP) {
     const calls: string[] = [];
-    const template = menuTemplate({
-        openSettings: () => calls.push('settings'),
-        checkForUpdates: () => calls.push('updates'),
-        quitAndStopSessions: () => calls.push('quitAndStop'),
-        newWindow: () => calls.push('newWindow'),
-        sendShortcut: (action: ShortcutAction) => calls.push(`shortcut:${action}`),
-        help: action => calls.push(`help:${action}`),
-        openUrl: url => calls.push(`url:${url}`)
-    });
+    const template = menuTemplate(
+        {
+            openSettings: () => calls.push('settings'),
+            checkForUpdates: () => calls.push('updates'),
+            quitAndStopSessions: () => calls.push('quitAndStop'),
+            newWindow: () => calls.push('newWindow'),
+            sendShortcut: (action: ShortcutAction) => calls.push(`shortcut:${action}`),
+            help: action => calls.push(`help:${action}`),
+            openUrl: url => calls.push(`url:${url}`)
+        },
+        keymap
+    );
     return { calls, template };
 }
 
@@ -55,11 +60,11 @@ describe('menuTemplate', () => {
         click(item(template, 'Check for Updates…'));
         click(item(template, 'Quit and Stop All Agents…'));
         expect(calls).toEqual(['settings', 'updates', 'quitAndStop']);
-        expect(item(template, 'Check for Updates…').accelerator).toBe('Shift+Command+U');
+        expect(item(template, 'Check for Updates…').accelerator).toBe('CmdOrCtrl+Shift+U');
         click(item(template, 'New Window'));
         expect(calls).toContain('newWindow');
-        expect(item(template, 'New Window').accelerator).toBe('Shift+Command+N');
-        expect(item(template, 'Quit and Stop All Agents…').accelerator).toBe('Shift+Alt+Command+Q');
+        expect(item(template, 'New Window').accelerator).toBe('CmdOrCtrl+Shift+N');
+        expect(item(template, 'Quit and Stop All Agents…').accelerator).toBe('CmdOrCtrl+Alt+Shift+Q');
     });
 
     it('sends the shortcut of a workspace item to the page', () => {
@@ -83,19 +88,17 @@ describe('menuTemplate', () => {
     it('has a tab item for each digit, and ⌘9 selects the last tab', () => {
         const { calls, template } = recordActions();
         const tabs = item(template, 'Select Tab').submenu as MenuItemConstructorOptions[];
-        expect(tabs.map(entry => entry.accelerator)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9].map(digit => `Command+${digit}`));
+        expect(tabs.map(entry => entry.accelerator)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9].map(digit => `CmdOrCtrl+${digit}`));
         tabs.forEach(click);
         expect(calls).toEqual([...[1, 2, 3, 4, 5, 6, 7, 8].map(digit => `shortcut:selectTab${digit}`), 'shortcut:selectLastTab']);
     });
 
     it('shows the same keys as the Keyboard Shortcuts page', () => {
-        // "Shift+Alt+Command+D" becomes "⇧⌥⌘D", the order of the page.
+        // "CmdOrCtrl+Alt+Shift+D" becomes "⌥⇧⌘D", the order of the page.
         const symbols = (accelerator: string) => {
-            const parts = accelerator.split('+');
-            const key = parts.pop() ?? '';
-            const names: Record<string, string> = { Left: '←', Right: '→', Up: '↑', Down: '↓' };
-            const has = (name: string) => parts.includes(name);
-            return `${has('Control') ? '⌃' : ''}${has('Alt') ? '⌥' : ''}${has('Shift') ? '⇧' : ''}${has('Command') || has('CommandOrControl') ? '⌘' : ''}${names[key] ?? key}`;
+            const chord = parseChord(accelerator);
+            if (!chord) throw new Error(`"${accelerator}" is not an accelerator.`);
+            return formatChord(chord);
         };
         const { calls, template } = recordActions();
         let checked = 0;
@@ -109,5 +112,12 @@ describe('menuTemplate', () => {
             checked++;
         }
         expect(checked).toBeGreaterThan(20);
+    });
+
+    it('takes the keys of the keymap, and leaves out the key of a command without a key', () => {
+        const { template } = recordActions(keymapOf({ commandPalette: ['CmdOrCtrl+Shift+K'], newTab: [] }));
+        expect(item(template, 'Command Palette…').accelerator).toBe('CmdOrCtrl+Shift+K');
+        expect(item(template, 'New Shell Tab').accelerator).toBeUndefined();
+        expect(item(template, 'Split Right').accelerator).toBe('CmdOrCtrl+D');
     });
 });

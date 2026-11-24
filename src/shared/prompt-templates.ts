@@ -12,7 +12,7 @@ import { renderTemplate, templateVariables } from './automation-templates';
 import { eventVariables, slugId, triggerVariables, type VariableInfo } from './automations';
 import type { BranchSummary } from './github';
 import { findKeybind } from './keybinds';
-import { allShortcuts, appKeyAction, parseKeys, shortcutAction, type ParsedKeys } from './shortcuts';
+import { allShortcuts, appKeyAction, DEFAULT_KEYMAP, parseKeys, shortcutAction, type Keymap, type ParsedKeys } from './shortcuts';
 import type { TaskLink } from './tasks';
 import type { TextKeybind } from './terminal';
 
@@ -219,19 +219,21 @@ export function templateForKey(templates: readonly PromptTemplate[], event: KeyE
 /**
  * Returns a message when the shortcut is already a key of ShipWarden, of macOS, of a terminal keybind, or of another
  * template. Returns undefined when the shortcut is free. `selfId` is the ID of the template that has the shortcut.
+ * `keymap` has the keys of ShipWarden with the keybindings of the user.
  */
 export function shortcutConflict(
     shortcut: string,
     templates: readonly PromptTemplate[],
     selfId: string | undefined,
-    terminalKeybinds: readonly TextKeybind[] = []
+    terminalKeybinds: readonly TextKeybind[] = [],
+    keymap: Keymap = DEFAULT_KEYMAP
 ): string | undefined {
     const keys = parseShortcut(shortcut);
     if (!keys) return `"${shortcut}" is not a valid shortcut. Use a key with ⌘, ⌃, or ⌥.`;
     const input = { type: 'keyDown', meta: keys.meta, shift: keys.shift, control: keys.control, alt: keys.alt, key: keys.key, code: keys.code };
-    const listed = allShortcuts().find(info => info.keys.some(text => sameParsed(text, keys)));
+    const listed = allShortcuts(keymap).find(info => info.keys.some(text => sameParsed(text, keys)));
     if (listed) return `${shortcut} is already the key of "${listed.label}".`;
-    if (shortcutAction(input) || appKeyAction(input)) return `${shortcut} is already a key of ShipWarden.`;
+    if (shortcutAction(input, keymap) || appKeyAction(input, keymap)) return `${shortcut} is already a key of ShipWarden.`;
     const system = SYSTEM_KEYS.find(item => sameParsed(item.keys, keys));
     if (system) return `${shortcut} is already the key of "${system.label}".`;
     const press = { key: keys.key, shiftKey: keys.shift, ctrlKey: keys.control, altKey: keys.alt, metaKey: keys.meta };
