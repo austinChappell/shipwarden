@@ -320,6 +320,7 @@ const api: ShipWardenApi = {
         cancelPairing: () => ipcRenderer.invoke(IpcChannels.remoteCancelPairing),
         removeDevice: id => ipcRenderer.invoke(IpcChannels.remoteRemoveDevice, id),
         setDevicePermissions: (id, permissions) => ipcRenderer.invoke(IpcChannels.remoteSetDevicePermissions, id, permissions),
+        testPush: () => ipcRenderer.invoke(IpcChannels.remoteTestPush),
         onChanged: listener => subscribe<[]>(IpcChannels.remoteChanged, listener)
     },
     snoozes: {

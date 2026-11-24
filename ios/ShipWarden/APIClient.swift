@@ -191,6 +191,25 @@ final class APIClient: @unchecked Sendable {
         return try await send(request, as: RemoteStartResult.self)
     }
 
+    /// The push settings of the Mac. A Mac with an older ShipWarden has none, so the answer is nil.
+    func pushConfig() async throws -> RemotePushConfig? {
+        do {
+            return try await send(try request("/v1/push/config"), as: RemotePushConfig.self)
+        } catch APIError.server(404, _) {
+            return nil
+        }
+    }
+
+    /// Gives the ticket of the push relay to the Mac. The Mac then can send notifications to this phone.
+    func registerPush(_ registration: RemotePushRegistration) async throws {
+        _ = try await send(try request("/v1/push/register", method: "POST", body: registration), as: Empty.self)
+    }
+
+    /// Tells the Mac to send no more notifications to this phone.
+    func unregisterPush() async throws {
+        _ = try await send(try request("/v1/push/register", method: "DELETE"), as: Empty.self)
+    }
+
     /// Opens an event stream. The stream ends when the connection closes.
     func events(_ path: String) -> AsyncThrowingStream<ServerEvent, Error> {
         AsyncThrowingStream { continuation in

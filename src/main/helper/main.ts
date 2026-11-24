@@ -28,6 +28,7 @@ import { LEGACY_NAMES } from '../legacy-migration';
 import { ProcessService } from '../processes/process-service';
 import { buildSocketPath, ptyHostSocketFolder, ptyHostSocketPath } from '../pty-host/protocol';
 import { hostBuildId, PtyHostClient } from '../pty-host/pty-host-client';
+import { approvalMessage, PushSender } from '../push/push-notifier';
 import { RemoteDevices } from '../remote/remote-devices';
 import { HttpError, localHosts, RemoteServer } from '../remote/remote-server';
 import { RemoteSnapshotBuilder } from '../remote/remote-snapshot';
@@ -86,7 +87,10 @@ const terminals = new PtyHostClient({
             shellAgents.forget(id);
             remote.terminalExited(id);
         },
-        agentState: () => remote.agentsChanged()
+        agentState: (id, update) => {
+            remote.agentsChanged();
+            remote.agentState(id, update.state);
+        }
     }
 });
 
@@ -97,7 +101,10 @@ const shellAgents = new ShellAgents({
     sessions: () => (terminals.isConnected() ? terminals.list() : Promise.resolve([])),
     hostPids: () => terminals.hostPids(),
     processTable: () => processes.table(),
-    onState: () => remote.agentsChanged(),
+    onState: (id, update) => {
+        remote.agentsChanged();
+        remote.agentState(id, update.state);
+    },
     onProgram: () => remote.agentsChanged()
 });
 
@@ -189,6 +196,17 @@ function notify(title: string, body: string): void {
     });
 }
 
+/**
+ * Sends push notifications through the push relay (Settings › Mobile): "Agent needs input" while the helper runs the
+ * phone server, and the approvals while the helper runs the automations.
+ */
+const push = new PushSender({
+    settings: async () => (await readSettings()).remote,
+    devices: () => new RemoteDevices(join(userData, 'remote-devices.json')),
+    ready: networkReady,
+    log: message => log(`[push] ${message}`)
+});
+
 const automations = new HelperAutomations({
     userData,
     automationsFolder: join(homedir(), '.shipwarden', 'automations'),
@@ -213,6 +231,7 @@ const automations = new HelperAutomations({
     },
     http: request => sendHttpRequest(request, networkReady),
     notify,
+    onPending: run => void push.send(approvalMessage(run)).catch(() => undefined),
     log: message => log(`[automations] ${message}`)
 });
 
@@ -324,6 +343,7 @@ const remote: RemoteServer = new RemoteServer({
     devices: new RemoteDevices(join(userData, 'remote-devices.json')),
     identity: () => ensureTlsIdentity(userData),
     hosts: () => localHosts(localHostName),
+    push,
     backend: {
         macName: () => computerName,
         version,

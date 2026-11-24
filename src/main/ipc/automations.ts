@@ -2,6 +2,7 @@ import { writeFile, readFile } from 'fs/promises';
 import { clipboard, dialog, ipcMain, shell } from 'electron';
 import { IpcChannels } from '@shared/api';
 import { isAutomationId, type AutomationRun } from '@shared/automations';
+import { approvalMessage } from '../push/push-notifier';
 import type { Services } from '../services';
 import type { RunChange } from '../automations/automation-store';
 import { TokenCounter } from '../automations/token-counter';
@@ -17,8 +18,9 @@ export function registerAutomationIpc({
     automations,
     window,
     networkReady,
-    engineOwnership
-}: Pick<Services, 'automations' | 'window' | 'networkReady' | 'engineOwnership'>): void {
+    engineOwnership,
+    push
+}: Pick<Services, 'automations' | 'window' | 'networkReady' | 'engineOwnership' | 'push'>): void {
     ipcMain.handle(IpcChannels.automationsList, () => automations.list());
     ipcMain.handle(IpcChannels.automationsSave, (_event, automation: unknown, previousId: unknown) => automations.save(automation, optionalString(previousId)));
     ipcMain.handle(IpcChannels.automationsRemove, (_event, id: unknown) => automations.remove(String(id)));
@@ -67,7 +69,12 @@ export function registerAutomationIpc({
         tokens.count(String(transcript), Number(from), typeof to === 'number' ? to : undefined)
     );
     ipcMain.handle(IpcChannels.automationsRuns, () => automations.runState());
-    ipcMain.handle(IpcChannels.automationsClaim, (_event, run: AutomationRun) => automations.claim(run));
+    ipcMain.handle(IpcChannels.automationsClaim, async (_event, run: AutomationRun) => {
+        const claimed = await automations.claim(run);
+        // A run that waits for approval tells the phones. The page runs the engine, so only this process sends it.
+        if (claimed?.status === 'pending') void push.send(approvalMessage(claimed)).catch(() => undefined);
+        return claimed;
+    });
     ipcMain.handle(IpcChannels.automationsUpdateRun, (_event, id: unknown, change: RunChange) => automations.updateRun(String(id), runChangeOf(change)));
     ipcMain.handle(IpcChannels.automationsSeed, (_event, automationId: unknown, keys: unknown, scope: unknown) =>
         automations.seed(String(automationId), onlyStrings(keys), typeof scope === 'string' ? scope : undefined)

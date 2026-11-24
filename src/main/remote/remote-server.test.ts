@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parsePairingLink, type RemoteAgent, type RemoteSnapshot, type ScreenSnapshot } from '@shared/remote';
+import { DEFAULT_REMOTE_SETTINGS, parsePairingLink, type RemoteAgent, type RemoteSnapshot, type ScreenSnapshot } from '@shared/remote';
 import type { TerminalSession } from '@shared/terminal';
 import { RemoteDevices } from './remote-devices';
 import { HttpError, RemoteServer } from './remote-server';
@@ -106,7 +106,7 @@ describe('RemoteServer', () => {
                 onStatusChanged: () => undefined
             }
         });
-        await server.apply({ enabled: true, port: 0, keepRunning: false });
+        await server.apply({ ...DEFAULT_REMOTE_SETTINGS, enabled: true, port: 0 });
     });
 
     afterAll(async () => {
@@ -198,6 +198,17 @@ describe('RemoteServer', () => {
         expect((await send('POST', '/v1/agents/start', { token, body: start })).status).toBe(403);
         expect(starts).toHaveLength(1);
         await expect(server.setDevicePermissions('unknown', { canStartAgents: true })).rejects.toThrow('not paired');
+
+        // The phone registers for push notifications only when the Mac sends them.
+        expect(JSON.parse((await send('GET', '/v1/push/config', { token })).body)).toEqual({ enabled: false });
+        await server.apply({ ...DEFAULT_REMOTE_SETTINGS, enabled: true, port: 0, notifications: true, relayUrl: 'https://relay.example.com' });
+        expect(JSON.parse((await send('GET', '/v1/push/config', { token })).body)).toEqual({ enabled: true, relayUrl: 'https://relay.example.com' });
+        const registration = { relayUrl: 'https://relay.example.com', ticket: `v1.${'t'.repeat(40)}`, key: 'k'.repeat(43) };
+        expect((await send('POST', '/v1/push/register', { token, body: { ...registration, key: 'bad' } })).status).toBe(400);
+        expect((await send('POST', '/v1/push/register', { token, body: registration })).status).toBe(200);
+        expect((await server.status()).devices[0].notifications).toBe(true);
+        expect((await send('DELETE', '/v1/push/register', { token })).status).toBe(200);
+        expect((await server.status()).devices[0].notifications).toBeUndefined();
 
         // A removed phone loses access at once.
         await server.removeDevice(device.id);

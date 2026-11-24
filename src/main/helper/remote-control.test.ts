@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { RemoteSettings, RemoteStatus } from '@shared/remote';
+import { DEFAULT_REMOTE_SETTINGS, type RemoteSettings, type RemoteStatus } from '@shared/remote';
 import type { HelperConnection } from './helper-link';
 import { HELPER_PROTOCOL } from './protocol';
 import { RemoteControl, remoteOwner, type LocalRemote } from './remote-control';
 
-const ON: RemoteSettings = { enabled: true, port: 7429, keepRunning: true };
-const OFF: RemoteSettings = { enabled: true, port: 7429, keepRunning: false };
+const ON: RemoteSettings = { ...DEFAULT_REMOTE_SETTINGS, enabled: true, port: 7429, keepRunning: true };
+const OFF: RemoteSettings = { ...DEFAULT_REMOTE_SETTINGS, enabled: true, port: 7429, keepRunning: false };
 
 function status(running: boolean): RemoteStatus {
     return { enabled: true, running, port: 7429, hosts: [], devices: [], connected: [] };
@@ -25,6 +25,7 @@ function fakeLocal(events: string[]): LocalRemote {
         removeDevice: vi.fn(async () => undefined),
         setDevicePermissions: vi.fn(async () => undefined),
         agentsChanged: vi.fn(),
+        agentState: vi.fn(),
         terminalData: vi.fn(),
         terminalResized: vi.fn(),
         terminalExited: vi.fn(),

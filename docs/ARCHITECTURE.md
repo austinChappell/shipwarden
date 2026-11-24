@@ -26,6 +26,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-20 | Stacked plan steps restack with `git rebase --onto <new base> <old base>` for regular and squash merges. The old base is the newest of two commits that the branch contains: the parent tip when the step started (`PlanStep.stackBase`) and the head of the merged pull request. The plan runner sees a merge in the cached pull request data and sends no request. ShipWarden does not push a clean rebase without a question. On a conflict, the agent of the worktree resolves, continues, tests, and pushes with `--force-with-lease`. | One code path works for both merge methods. A squash merge has no commit of the parent branch, so a usual rebase replays the parent commits and has conflicts. The cache already has the merged pull requests of the plan page and of the "Remove merged worktrees" sweep, so a new poll is not necessary. The agent push is the same as "Rebase with agent". |
 | 2026-11-23 | The `shipwarden` CLI sends one JSON line to a Unix socket of the main process and gets one JSON line back. A token in `~/.shipwarden/cli.json` (mode 0600) guards each request. The commands that act on agent tabs, worktrees, and automations run in the page, as for the automations. | A Unix socket with mode 0600 needs no port and no TLS. The page owns the agent tabs and the automation engine, so the CLI reuses that code. `CliServer` and `CliActions` use no Electron API, so the background helper can run the socket later (plan 2.1). |
 | 2026-11-23 | The background helper runs the schedule and CI automations and the task queue while no window is open (setting "Run while ShipWarden is closed", off by default). A lock file in the app data folder (`automation-engine.lock`) lets one process run them at a time. The app has priority: a window asks the helper for the lock with a handover file. The page engine and the helper engine share the decisions in `src/shared/automation-engine.ts`. A run with an action that needs the page waits for the app. | The page engine uses the TanStack Query cache, the task plugins, and the agent tabs, so a full move to Node is a large rewrite. The triggers that need only a timer and the branch summaries cover the "overnight" use. The lock stops two writers of the run file and the queue file. A file lock needs no connection between the processes, and a crash frees it (dead process or old heartbeat). |
+| 2026-11-23 | Push notifications go through a small relay (`relay/`, Node, no database). The phone registers its APNs device token with the relay and gets a ticket (the token, encrypted with the secret of the relay) and a push key (an HMAC of the ticket). The phone gives both to its Mac. The Mac signs each push with the push key. The relay makes the notification text from a fixed kind and a worktree name. | Apple sends notifications only from a server with the APNs key of the app. A stateless relay needs no account and no database. The Mac never sees a device token, so it can push only to the phones that gave it a ticket. The relay never sees agent text. |
 | 2026-11-20 | "Rebase onto" runs `git rebase` in the main process (`GitChangesService.rebase`), not in an agent. The status reads the rebase folder of git (`rebase-merge` or `rebase-apply`) on each poll, so a rebase from a terminal shows the same state. The push after a rebase uses `--force-with-lease=<branch>:<commit>` with the commit of the upstream at the start of the rebase. | The user sees each conflict and decides. "Rebase with agent" (Review page) stays for a rebase without the user. A lease from the start of the rebase keeps commits that someone pushed during the rebase, also after a background fetch. |
 
 ## The old name (Yardmaster)
@@ -1553,8 +1554,28 @@ finds a difference: the unit tests write sample JSON from the TypeScript types t
   It connects again after a failure (1 s, then up to 15 s) and when it comes to the foreground. The token is in the
   keychain (`AfterFirstUnlockThisDeviceOnly`). The system Camera opens pairing links through the `shipwarden` URL
   scheme.
-- **Limits.** There are no push notifications, because iOS stops the connections of an app in the background, and
-  push needs a server.
+- **Push notifications.** iOS stops the connections of an app in the background, so the phone gets a push notification
+  through the push relay (`relay/`, see [relay/README.md](../relay/README.md)). Settings › Mobile has the switch "Send
+  push notifications" (`settings.remote.notifications`, off by default) and the relay address
+  (`settings.remote.relayUrl`). The default address is the placeholder `DEFAULT_PUSH_RELAY_URL`
+  (`https://shipwarden-relay.invalid`), and ShipWarden sends nothing to it (`activeRelayUrl`).
+  - `GET /v1/push/config`: `RemotePushConfig`, `{ enabled, relayUrl }`. The phone registers only when `enabled` is true.
+  - `POST /v1/push/register`: `RemotePushRegistration` (`relayUrl`, `ticket`, `key`). The phone got the ticket and the
+    push key from the relay (`POST /v1/register` of the relay) with its device token. `remote-devices.json` keeps them
+    with the device. The Mac never gets the device token. `DELETE /v1/push/register` removes them, for example when the
+    user does not allow notifications on the phone.
+  - **Agent needs input.** `NeedsInputPush` (`src/main/push/push-notifier.ts`) watches the agent states in the process
+    that runs the phone server (the app or the helper), so a phone gets each notification one time. An agent that
+    waits for 10 seconds (`NEEDS_INPUT_DELAY_MS`) sends one notification for each wait. A different state ends the wait.
+  - **Approvals.** The process that runs the automations sends "Automation is waiting for approval" for a new pending
+    run: the app in the `automations:claim` handler, the helper through `HeadlessEngine.onPending`.
+  - **Sender.** `PushSender` reads the settings and `remote-devices.json` for each notification, because the app and the
+    helper both write the file. It sends to each phone with a ticket of the current relay (`relay-client.ts`). The
+    request waits for the trusted certificates of Settings › Network (`networkReady`). A `410` answer of the relay
+    removes the ticket of the phone. "Send test" in Settings › Mobile sends the kind `test` (`remote:testPush`).
+  - **Payload.** The relay makes the title from the kind. The notification has the folder name of the worktree, the
+    kind, and the agent ID or the run ID. A tap on "Agent needs input" opens the agent. A tap on an approval opens the
+    Agents tab, which shows the pending runs at the top.
 
 #### Background helper
 
@@ -1594,5 +1615,7 @@ default) runs the phone server in a background helper. The page asks before it t
   `RemoteDevices` file and TLS identity in the app data folder. The helper socket is a Unix socket with mode 0600,
   like the PTY host socket. Only processes of the user can connect.
 - **Logs.** The helper writes to `<app data>/helper.log`.
+- **Push.** While the helper runs the phone server, it sends "Agent needs input". While it runs the automations, it
+  sends the approvals. See "Push notifications" in [Mobile](#mobile-goal-5).
 - **Next steps.** Pull requests and approvals while the app is closed (the helper needs the review providers and the
-  tokens without Electron `safeStorage`). The CLI socket in the helper. Push notifications.
+  tokens without Electron `safeStorage`). The CLI socket in the helper.

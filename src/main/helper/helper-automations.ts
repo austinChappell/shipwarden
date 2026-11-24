@@ -3,6 +3,7 @@ import type { AutomationHttpRequest } from '@shared/automation-engine';
 import type { WorktreePlace } from '@shared/automation-events';
 import type { HttpResponse } from '@shared/automation-templates';
 import type { BranchSummary, CheckRun } from '@shared/github';
+import type { AutomationRun } from '@shared/automations';
 import type { AppSettings } from '@shared/settings';
 import { AutomationStore } from '../automations/automation-store';
 import { EngineLock, EngineLockKeeper, engineLockPath } from '../automations/engine-lock';
@@ -31,6 +32,8 @@ export interface HelperAutomationsOptions {
     };
     http(request: AutomationHttpRequest): Promise<HttpResponse>;
     notify(title: string, body: string): void;
+    /** A new run waits for the approval of the user. */
+    onPending?(run: AutomationRun): void;
     log(message: string): void;
 }
 
@@ -106,6 +109,7 @@ export class HelperAutomations {
                 saveLog: (worktree, jobId) => options.github.saveJobLog(worktree, jobId)
             },
             notify: options.notify,
+            onPending: options.onPending,
             log: options.log
         });
         const queue = new HeadlessQueue({

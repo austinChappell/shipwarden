@@ -58,6 +58,7 @@ import { AnswersStore, CodeAnswersStore } from './answers-store';
 import { ReviewCheckouts } from './review/review-checkouts';
 import { ReviewProviders } from './review-providers';
 import { UsageService } from './usage/usage-service';
+import { PushSender } from './push/push-notifier';
 import { RemoteDevices } from './remote/remote-devices';
 import { HttpError, localHosts, RemoteServer } from './remote/remote-server';
 import { RemoteSnapshotBuilder } from './remote/remote-snapshot';
@@ -268,6 +269,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 void pinnedSessions.track(update.transcript).catch(() => undefined);
                 transcriptIndex.update(update.transcript);
                 remote.agentsChanged();
+                remote.agentState(id, update.state);
             }
         }
     });
@@ -297,6 +299,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             window.send(IpcChannels.terminalsAgentState, id, update);
             stats.agentState(id, update);
             remote.agentsChanged();
+            remote.agentState(id, update.state);
         },
         onProgram: (id, program) => {
             window.send(IpcChannels.terminalsAgentProgram, id, program ?? null);
@@ -440,12 +443,24 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         taskLinks: () => tasks.allLinks()
     });
 
+    /**
+     * Sends push notifications to the paired phones through the push relay (Settings › Mobile). The phone server sends
+     * "Agent needs input" while this process runs it. The approvals go out from the process that runs the automations.
+     */
+    const push = new PushSender({
+        settings: async () => (await settings.get()).remote,
+        devices: () => new RemoteDevices(join(userData, 'remote-devices.json')),
+        ready: networkReady,
+        log: message => console.warn(`[push] ${message}`)
+    });
+
     /** The HTTPS server for the phone app in this process. Each call makes a new server, which reads the paired phones again. */
     const createLocalRemote = () =>
         new RemoteServer({
             devices: new RemoteDevices(join(userData, 'remote-devices.json')),
             identity: () => ensureTlsIdentity(userData),
             hosts: () => localHosts(localHostName),
+            push,
             backend: {
                 macName: () => computerName,
                 version: app.getVersion(),
@@ -735,6 +750,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         ptyHostLog,
         terminalSizes,
         remote,
+        push,
         projectWorktrees,
         screenshots,
         askRunner,

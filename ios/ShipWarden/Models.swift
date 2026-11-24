@@ -269,6 +269,19 @@ struct APIErrorBody: Decodable {
     let error: String
 }
 
+/// The answer to `GET /v1/push/config`. The app registers with the push relay only when `enabled` is true.
+struct RemotePushConfig: Codable, Equatable {
+    let enabled: Bool
+    let relayUrl: String?
+}
+
+/// The body of `POST /v1/push/register`: the ticket and the push key from the push relay. The Mac never gets the device token.
+struct RemotePushRegistration: Codable, Equatable {
+    let relayUrl: String
+    let ticket: String
+    let key: String
+}
+
 /// The content of a pairing QR code.
 struct PairingLink: Equatable {
     let name: String

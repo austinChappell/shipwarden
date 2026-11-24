@@ -1,3 +1,4 @@
+import type { AgentState } from '@shared/agents';
 import type { PairingOffer, RemoteDevicePermissions, RemoteSettings, RemoteStatus } from '@shared/remote';
 import type { HelperConnection } from './helper-link';
 import { HELPER_PROTOCOL } from './protocol';
@@ -11,6 +12,8 @@ export interface LocalRemote {
     removeDevice(id: string): Promise<void>;
     setDevicePermissions(id: string, permissions: RemoteDevicePermissions): Promise<void>;
     agentsChanged(): void;
+    /** A new state of an agent. The server sends a push notification when an agent waits for input. */
+    agentState(id: string, state: AgentState | undefined): void;
     terminalData(id: string, data: string, seq: number): void;
     terminalResized(id: string, cols: number, rows: number): void;
     terminalExited(id: string): void;
@@ -143,6 +146,11 @@ export class RemoteControl {
     // The helper gets the terminal events from the PTY host itself. Only the server of the app needs them here.
     agentsChanged(): void {
         this.local?.agentsChanged();
+    }
+
+    /** The helper sends the push notifications while it runs the server. */
+    agentState(id: string, state: AgentState | undefined): void {
+        this.local?.agentState(id, state);
     }
 
     terminalData(id: string, data: string, seq: number): void {

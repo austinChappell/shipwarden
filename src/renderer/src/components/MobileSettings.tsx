@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { CircleCheck, Copy, Smartphone, TriangleAlert } from 'lucide-react';
-import type { PairingOffer, RemoteStatus } from '@shared/remote';
+import { BellRing, CircleCheck, Copy, LoaderCircle, Smartphone, TriangleAlert } from 'lucide-react';
+import { cleanRelayUrl, DEFAULT_PUSH_RELAY_URL, type PairingOffer, type RemoteStatus } from '@shared/remote';
 import type { AppSettings } from '@shared/settings';
 import { errorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
@@ -106,6 +106,9 @@ export function MobileSettings({ settings, onSave }: Props) {
     const [error, setError] = useState<string>();
     const [saving, setSaving] = useState(false);
     const [paired, setPaired] = useState<string>();
+    const [relayUrl, setRelayUrl] = useState(remote.relayUrl === DEFAULT_PUSH_RELAY_URL ? '' : remote.relayUrl);
+    const [pushTest, setPushTest] = useState<{ ok: boolean; text: string }>();
+    const [testingPush, setTestingPush] = useState(false);
     const deviceCount = useRef<number | undefined>(undefined);
 
     const load = useCallback(() => {
@@ -133,6 +136,7 @@ export function MobileSettings({ settings, onSave }: Props) {
         };
     }, [load]);
     useEffect(() => setPort(String(remote.port)), [remote.port]);
+    useEffect(() => setRelayUrl(remote.relayUrl === DEFAULT_PUSH_RELAY_URL ? '' : remote.relayUrl), [remote.relayUrl]);
     // The pairing code stops when the page closes.
     useEffect(() => () => void api.cancelPairing(), []);
 
@@ -170,6 +174,31 @@ export function MobileSettings({ settings, onSave }: Props) {
             return;
         }
         if (value !== remote.port) void save({ port: value });
+    };
+    const commitRelayUrl = () => {
+        const text = relayUrl.trim();
+        const next = text ? cleanRelayUrl(text) : DEFAULT_PUSH_RELAY_URL;
+        if (!next) {
+            setError('Type the address of the relay with https://, for example https://relay.example.com.');
+            return;
+        }
+        setPushTest(undefined);
+        if (next !== remote.relayUrl) void save({ relayUrl: next });
+    };
+    const testPush = async () => {
+        setPushTest(undefined);
+        setTestingPush(true);
+        try {
+            const count = await api.testPush();
+            setPushTest({
+                ok: true,
+                text: count === 1 ? 'The relay sent the notification to 1 phone.' : `The relay sent the notification to ${count} phones.`
+            });
+        } catch (err) {
+            setPushTest({ ok: false, text: errorText(err) });
+        } finally {
+            setTestingPush(false);
+        }
     };
     const pair = async () => {
         setError(undefined);
@@ -311,6 +340,66 @@ export function MobileSettings({ settings, onSave }: Props) {
             </SettingsGroup>
 
             <SettingsGroup
+                title="Push notifications"
+                description={
+                    <>
+                        The phone gets a notification when an agent needs input for 10 seconds, or when an automation is waiting for approval. A tap opens the
+                        agent. The notification goes through a small push relay to Apple. It has only the worktree name and IDs, and no agent text. The relay
+                        stores nothing. Deploy your relay with the steps in <code>relay/README.md</code> of the ShipWarden repository.
+                    </>
+                }
+                card
+            >
+                <SettingsRow
+                    label="Send push notifications"
+                    description="The phone asks for permission the next time that it connects."
+                    control={
+                        <Switch
+                            checked={remote.notifications}
+                            title={remote.notifications ? 'On' : 'Off'}
+                            disabled={saving}
+                            onChange={notifications => void save({ notifications })}
+                        />
+                    }
+                />
+                <SettingsRow label="Relay address" description="The HTTPS address of your push relay. Empty: ShipWarden sends no notifications.">
+                    <Input
+                        mono
+                        value={relayUrl}
+                        placeholder="https://relay.example.com"
+                        spellCheck={false}
+                        onChange={event => setRelayUrl(event.target.value)}
+                        onBlur={commitRelayUrl}
+                        onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+                    />
+                </SettingsRow>
+                <SettingsRow
+                    label="Test the notifications"
+                    description="Sends a test notification to each phone that allowed notifications."
+                    control={
+                        <Button
+                            icon={testingPush ? <LoaderCircle size={13} className="spin" /> : <BellRing size={13} />}
+                            disabled={testingPush || !remote.notifications}
+                            onClick={() => void testPush()}
+                        >
+                            Send test
+                        </Button>
+                    }
+                >
+                    {pushTest &&
+                        (pushTest.ok ? (
+                            <div className="panel-note">
+                                <CircleCheck size={12} strokeWidth={2} className="ok-icon" /> {pushTest.text}
+                            </div>
+                        ) : (
+                            <div className="form-error">
+                                <TriangleAlert size={12} /> {pushTest.text}
+                            </div>
+                        ))}
+                </SettingsRow>
+            </SettingsGroup>
+
+            <SettingsGroup
                 title="Paired phones"
                 actions={
                     <Button variant="primary" icon={<Smartphone size={13} />} disabled={!status?.running} onClick={() => void pair()}>
@@ -340,6 +429,7 @@ export function MobileSettings({ settings, onSave }: Props) {
                         <span className="connection-meta">
                             {connected.has(device.id) ? 'Connected now' : `Last seen ${since(device.lastSeenAt)}`} · paired{' '}
                             {new Date(device.pairedAt).toLocaleDateString()}
+                            {device.notifications && ' · notifications on'}
                         </span>
                         <span className="device-permission">
                             Start agents

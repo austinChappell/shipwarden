@@ -121,6 +121,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'settings', section: 'mobile', label: 'Open Mobile' }
     },
     {
+        id: 'phonePush',
+        title: 'Get a notification on your phone',
+        body: 'Deploy the push relay (relay/README.md), then turn on "Send push notifications" in Settings › Mobile and type the relay address. Your phone then tells you when an agent needs input, also when the app on the phone is closed.',
+        action: { kind: 'settings', section: 'mobile', label: 'Open Mobile' }
+    },
+    {
         id: 'checkpoints',
         title: 'Undo one bad agent turn',
         body: 'ShipWarden saves the files of the worktree when an agent gets a prompt. Open the Checkpoints tab in the right panel of a worktree, and select "Rewind" on a turn. The diff shows first.'

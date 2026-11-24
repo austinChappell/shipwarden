@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
     resolve: { alias: { '@shared': resolve('src/shared') } },
     test: {
-        include: ['src/**/*.test.ts', 'plugins/**/*.test.js'],
+        include: ['src/**/*.test.ts', 'plugins/**/*.test.js', 'relay/**/*.test.ts'],
         environment: 'node'
     }
 });
