@@ -11,7 +11,7 @@ import { MAX_GROUP_PULL_REQUESTS, parsePullRequestLink, prKey } from '@shared/pr
 import { batchPrompt, type BatchPullRequest } from '@shared/batch-prompt';
 import { MAX_TITLE_LENGTH, newStep, type Plan, type PlanStep } from '@shared/plans';
 import type { BatchSendResult } from '../github/pr-group-agents';
-import { checkLine, checksPrompt } from '../app/agent-text';
+import { checkLine, checksPrompt } from '@shared/agent-text';
 import { confirmForcePush } from '../git/rebase-actions';
 import { threadComments, threadPlace } from '../github/agent-prompts';
 import { isFailedConclusion } from '../github/ci-queries';

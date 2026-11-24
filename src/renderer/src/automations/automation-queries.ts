@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { EMPTY_RUN_STATE, firedKey, type Automation, type AutomationList, type AutomationRun, type AutomationRunState } from '@shared/automations';
+import { taskLinksKey } from '../app/task-links';
 import { keyRoots, queryClient } from '../query-client';
 
 const api = window.shipwarden.automations;
@@ -8,7 +9,8 @@ const api = window.shipwarden.automations;
 /** The query keys of the automations. The data is local: the files in ~/.shipwarden/automations and the run file. */
 export const automationKeys = {
     list: [...keyRoots.automations, 'list'] as const,
-    runs: [...keyRoots.automations, 'runs'] as const
+    runs: [...keyRoots.automations, 'runs'] as const,
+    engineOwned: [...keyRoots.automations, 'engineOwned'] as const
 };
 
 /** The query of the automation files. The data changes only when a file changes, and the main process tells the page. */
@@ -91,4 +93,30 @@ export function replaceRunInCache(run: AutomationRun): void {
 /** Changes the cached run state with a function. */
 export function patchRunState(change: (state: AutomationRunState) => AutomationRunState): void {
     queryClient.setQueryData<AutomationRunState>(automationKeys.runs, state => change(state ?? EMPTY_RUN_STATE));
+}
+
+/**
+ * True while this app holds the automation lock. Only then do the engine and the queue runner of the page run. While
+ * no window is open, the background helper can hold the lock and change the run file, the queue, and the task links.
+ * Thus a new lock reads these local files again before the engine starts.
+ */
+export function useEngineOwned(): boolean {
+    useEffect(() => {
+        const unsubscribe = api.onEngineChanged(owned => {
+            if (!owned) {
+                queryClient.setQueryData(automationKeys.engineOwned, false);
+                return;
+            }
+            void Promise.all([
+                queryClient.refetchQueries({ queryKey: automationKeys.runs }),
+                queryClient.refetchQueries({ queryKey: keyRoots.queue }),
+                queryClient.refetchQueries({ queryKey: taskLinksKey })
+            ]).finally(() => queryClient.setQueryData(automationKeys.engineOwned, true));
+        });
+        // The main process can get the lock while the page loads, before this listener exists. Ask one time more.
+        void queryClient.refetchQueries({ queryKey: automationKeys.engineOwned });
+        return unsubscribe;
+    }, []);
+    const query = useQuery({ queryKey: automationKeys.engineOwned, queryFn: () => api.engineOwned(), staleTime: Number.POSITIVE_INFINITY });
+    return query.data === true;
 }

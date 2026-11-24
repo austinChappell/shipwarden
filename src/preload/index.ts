@@ -276,7 +276,10 @@ const api: ShipWardenApi = {
         setScheduleRun: (automationId, at) => ipcRenderer.invoke(IpcChannels.automationsSetScheduleRun, automationId, at),
         clearHistory: () => ipcRenderer.invoke(IpcChannels.automationsClearHistory),
         http: request => ipcRenderer.invoke(IpcChannels.automationsHttp, request),
-        onChanged: listener => subscribe<[]>(IpcChannels.automationsChanged, listener)
+        onChanged: listener => subscribe<[]>(IpcChannels.automationsChanged, listener),
+        engineOwned: () => ipcRenderer.invoke(IpcChannels.automationsEngineOwned),
+        onEngineChanged: listener => subscribe<[boolean]>(IpcChannels.automationsEngineChanged, listener),
+        onAnswerRun: listener => subscribe<[string, boolean]>(IpcChannels.automationsAnswerRun, listener)
     },
     prompts: {
         list: () => ipcRenderer.invoke(IpcChannels.promptsList),

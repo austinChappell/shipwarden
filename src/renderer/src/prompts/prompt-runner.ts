@@ -1,6 +1,6 @@
 import { fillPrompt, missingVariables, promptValues, type PromptContext, type PromptTemplate } from '@shared/prompt-templates';
 import type { TerminalSession } from '@shared/terminal';
-import { bracketedPaste, showsAgentDialog } from '../app/agent-text';
+import { bracketedPaste, showsAgentDialog } from '@shared/agent-text';
 import { screenTextOf } from '../app/use-agent-actions';
 import { terminalPool } from '../terminal/terminal-pool';
 import { fillPromptDialog } from './PromptFillDialog';

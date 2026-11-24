@@ -1,0 +1,19 @@
+{
+  "runs": [
+    {
+      "id": "mi4x2k-a1b2c3",
+      "automationName": "Fix CI",
+      "label": "#7 Fix the login page",
+      "trigger": "ci.failed",
+      "worktreePath": "/Users/ana/.shipwarden/worktrees/api/fix-login",
+      "createdAt": 1767225600000
+    },
+    {
+      "id": "mi4x2k-d4e5f6",
+      "automationName": "Nightly deps",
+      "label": "2026-01-01 09:00",
+      "trigger": "schedule",
+      "createdAt": 1767225500000
+    }
+  ]
+}

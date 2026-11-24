@@ -165,6 +165,20 @@ final class APIClient: @unchecked Sendable {
         _ = try await send(try request("/v1/pull-requests/approve", method: "POST", body: Body(worktreePath: worktreePath, number: number, headSha: headSha, body: body)), as: Empty.self)
     }
 
+    /// The automation runs that are waiting for approval. A Mac with an older ShipWarden has none.
+    func pendingRuns() async throws -> [RemoteAutomationRun] {
+        do {
+            return try await send(try request("/v1/automations/pending"), as: RemotePendingRuns.self).runs
+        } catch APIError.server(404, _) {
+            return []
+        }
+    }
+
+    /// Approves or skips an automation run that is waiting for approval.
+    func answerRun(id: String, approve: Bool) async throws {
+        _ = try await send(try request("/v1/automations/runs/\(id)/\(approve ? "approve" : "skip")", method: "POST"), as: Empty.self)
+    }
+
     /// Opens an event stream. The stream ends when the connection closes.
     func events(_ path: String) -> AsyncThrowingStream<ServerEvent, Error> {
         AsyncThrowingStream { continuation in

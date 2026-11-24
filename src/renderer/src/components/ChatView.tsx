@@ -3,7 +3,7 @@ import { ArrowUp, CircleAlert, CircleCheck, LoaderCircle, MessagesSquare, Square
 import { CHAT_AGENT_NAMES, type ChatItem, type ChatToolItem, chatFormatOf } from '@shared/agent-chat';
 import { isImageOnlyPaste } from '@shared/shortcuts';
 import type { TerminalSession } from '@shared/terminal';
-import { bracketedPaste, countImageMarks, showsAgentDialog } from '../app/agent-text';
+import { bracketedPaste, countImageMarks, showsAgentDialog } from '@shared/agent-text';
 import { errorText, formatDuration } from '../util';
 import { screenTextOf } from '../app/use-agent-actions';
 import { agentViewStore } from '../terminal/agent-view-store';

@@ -224,6 +224,27 @@ export interface RemotePairResponse {
     mac: { name: string; version: string };
 }
 
+/**
+ * A run of an automation that is waiting for the approval of the user. `GET /v1/automations/pending` gives the list.
+ * The phone answers with `POST /v1/automations/runs/<id>/approve` or `/skip`.
+ */
+export interface RemoteAutomationRun {
+    id: string;
+    automationName: string;
+    /** The event of the run, for example "#12 Fix the login page" or "2026-11-23 09:00". */
+    label: string;
+    /** The trigger of the automation, for example "ci.failed" or "schedule". */
+    trigger: string;
+    worktreePath?: string;
+    /** The time of the run in milliseconds since 1970. */
+    createdAt: number;
+}
+
+/** The answer to `GET /v1/automations/pending`. The newest run comes first. */
+export interface RemotePendingRuns {
+    runs: RemoteAutomationRun[];
+}
+
 /** The body of each answer with an error status. */
 export interface RemoteErrorBody {
     error: string;

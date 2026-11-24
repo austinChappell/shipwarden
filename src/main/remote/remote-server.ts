@@ -7,9 +7,11 @@ import {
     REMOTE_PROTOCOL,
     type PairingOffer,
     type RemoteAgent,
+    type RemoteAutomationRun,
     type RemoteDevice,
     type RemoteErrorBody,
     type RemoteInput,
+    type RemotePendingRuns,
     type RemotePairResponse,
     type RemoteSettings,
     type RemoteSnapshot,
@@ -32,6 +34,13 @@ export interface RemoteBackend {
     replay(id: string): Promise<TerminalReplay>;
     write(id: string, data: string): void;
     approvePullRequest(worktreePath: string, number: number, headSha: string, body: string): Promise<void>;
+    /** The automation runs that are waiting for approval. */
+    pendingRuns(): Promise<RemoteAutomationRun[]>;
+    /**
+     * Approves (`approve` true) or skips a run that is waiting for approval. Throws an `HttpError` when the run is not
+     * waiting anymore, or when no process can run it now.
+     */
+    answerRun(id: string, approve: boolean): Promise<void>;
     /** Tells the settings page that the devices or the connections changed. */
     onStatusChanged(): void;
 }
@@ -311,6 +320,14 @@ export class RemoteServer {
                     throw new HttpError(400, 'The request needs a worktree, a pull request number and a head commit.');
                 }
                 await this.options.backend.approvePullRequest(body.worktreePath, body.number, body.headSha, typeof body.body === 'string' ? body.body : '');
+                return sendJson(response, 200, {});
+            }
+            if (request.method === 'GET' && path === '/v1/automations/pending') {
+                return sendJson(response, 200, { runs: await this.options.backend.pendingRuns() } satisfies RemotePendingRuns);
+            }
+            const answer = /^\/v1\/automations\/runs\/([\w-]+)\/(approve|skip)$/.exec(path);
+            if (request.method === 'POST' && answer) {
+                await this.options.backend.answerRun(answer[1], answer[2] === 'approve');
                 return sendJson(response, 200, {});
             }
             throw new HttpError(404, 'This address does not exist.');

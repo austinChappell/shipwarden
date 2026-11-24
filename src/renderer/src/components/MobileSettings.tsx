@@ -242,7 +242,7 @@ export function MobileSettings({ settings, onSave }: Props) {
                 </SettingsRow>
                 <SettingsRow
                     label="Keep agents and phone access running when ShipWarden is closed"
-                    description="A background helper runs the phone connection. macOS starts it at login and lists it in System Settings › General › Login Items. The agents always continue to run when ShipWarden quits."
+                    description="A background helper runs the phone connection, and the automations when you turn that on in Automations. macOS starts it at login and lists it in System Settings › General › Login Items. The agents always continue to run when ShipWarden quits."
                     control={
                         <Switch
                             checked={remote.keepRunning}

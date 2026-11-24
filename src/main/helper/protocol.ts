@@ -52,6 +52,8 @@ export const AppMethods = {
     /** The full phone snapshot, with the pull requests. Only the app can read GitHub and Azure DevOps. */
     snapshot: 'snapshot',
     approvePullRequest: 'approvePullRequest',
+    /** Approves or skips an automation run for the phone. The page of the app runs the engine while a window is open. */
+    answerRun: 'answerRun',
     /** Notification: the devices or the phone connections changed. */
     statusChanged: 'statusChanged'
 } as const;
@@ -61,4 +63,9 @@ export interface ApproveParams {
     number: number;
     headSha: string;
     body: string;
+}
+
+export interface AnswerRunParams {
+    id: string;
+    approve: boolean;
 }

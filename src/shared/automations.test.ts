@@ -631,11 +631,12 @@ describe('tokens', () => {
 
 describe('settings and descriptions', () => {
     it('normalizes the automation settings', () => {
-        expect(normalizeAutomationSettings(undefined)).toEqual({ paused: false, pauseAtUsage: 90, dailyTokens: null });
-        expect(normalizeAutomationSettings({ paused: true, pauseAtUsage: 72.4, dailyTokens: 12 })).toEqual({
+        expect(normalizeAutomationSettings(undefined)).toEqual({ paused: false, pauseAtUsage: 90, dailyTokens: null, runWhenClosed: false });
+        expect(normalizeAutomationSettings({ paused: true, pauseAtUsage: 72.4, dailyTokens: 12, runWhenClosed: true })).toEqual({
             paused: true,
             pauseAtUsage: 72,
-            dailyTokens: 1000
+            dailyTokens: 1000,
+            runWhenClosed: true
         });
         expect(normalizeAutomationSettings({ pauseAtUsage: 500 }).pauseAtUsage).toBe(100);
         expect(normalizeAutomationSettings({ pauseAtUsage: 1 }).pauseAtUsage).toBe(5);

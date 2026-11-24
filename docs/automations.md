@@ -6,7 +6,8 @@ worktree, send the failed checks to the agent of that worktree.
 An automation can also be manual. Then it is a button in the view of a worktree, a pull request or a task. See
 [Manual automations](#manual-automations).
 
-Automations run only while ShipWarden is open. Open the Automations view with ⌥⌘7.
+Automations run while ShipWarden is open. Schedules and CI failures can also run while it is closed. See
+[While ShipWarden is closed](#while-shipwarden-is-closed). Open the Automations view with ⌥⌘7.
 
 ## Files
 
@@ -449,10 +450,35 @@ a dry run only. A manual run does not count for `maxRunsPerTarget`. Its tokens c
 - A new automation starts as a dry run. A dry run records what the automation would do, and does nothing.
 - A new `task.new` automation records the tasks that match when it starts. Only later tasks start agents. A collection
   that you add later does the same.
-- A schedule time that passes while ShipWarden is closed does not run later.
+- A schedule time that passes while ShipWarden is closed does not run later. Turn on "Run while ShipWarden is closed"
+  to run it at its time.
 - The Automations view can pause all automations. Automations also pause while the plan usage of Claude or Codex is at
   or above a limit: a whole number from 5% to 100% (90% by default). "No limit" turns the check off, for example
   when you use the API and have no plan.
+
+## While ShipWarden is closed
+
+The switch "Run while ShipWarden is closed" in the Automations view lets the background helper run automations while
+no ShipWarden window is open. The helper runs only when Settings › Mobile has "Keep agents and phone access running
+when ShipWarden is closed" on.
+
+- Only one process runs the automations and the task queue at a time. When you open a window, the app takes over in a
+  few seconds. When you close the last window, the helper takes over.
+- The helper runs the `schedule` and `ci.failed` triggers. Other triggers wait for the app. A schedule time that
+  passed while neither process ran does not run later.
+- The helper runs the actions "Start an agent", "Send to the agent", "Show a notification", "Send an HTTP request",
+  "If", and "Stop". A run with another action, or with a `{{task.*}}` variable, waits with the text "Waiting for
+  ShipWarden to open." The app runs it when you open a window.
+- The helper also runs the task queue. It does not move a task to its start status, and it makes the branch name
+  without the agent (the `{taskShortDescription}` variable comes from the title).
+- The agents start in the PTY host, so they show in the app when you open it. They do not get the ShipWarden MCP
+  server. While the app is closed, the helper sees only the output of an agent, not its hook state.
+- A run that asks for approval waits. You can approve or skip it on the iPhone, in the Agents tab. The phone shows
+  the runs that are waiting for approval also while the app is open.
+- The helper reads GitHub with `GITHUB_TOKEN` or the GitHub CLI (`gh auth login`). It cannot read a token that you
+  saved in Settings › Code review. Only GitHub repositories give CI failures in the helper.
+- The helper does not check the plan usage limit or the usage budget, because it has no usage data. The token limits
+  apply. The tokens of a turn count when the app opens.
 
 ## Tokens
 

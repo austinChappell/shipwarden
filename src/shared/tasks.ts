@@ -730,3 +730,8 @@ export function assigneeOptions(tasks: readonly Task[], people: readonly TaskPer
     }
     return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }
+
+/** The link of a new worktree to the task that it works on. */
+export function taskLinkOf(task: Pick<Task, 'id' | 'key' | 'title' | 'url'>, connectionId: string, pluginId: string): TaskLink {
+    return { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
+}

@@ -40,6 +40,8 @@ final class AppModel {
     private(set) var pairing: Pairing?
     private(set) var snapshot: RemoteSnapshot?
     private(set) var agents: [RemoteAgent] = []
+    /// The automation runs on the Mac that are waiting for approval.
+    private(set) var pendingRuns: [RemoteAutomationRun] = []
     private(set) var connection: ConnectionState = .disconnected
     /// A pairing link from the Camera app or a QR scan. The pairing screen shows it.
     var pendingLink: PairingLink?
@@ -152,6 +154,7 @@ final class AppModel {
         guard demo == nil, let client else { return }
         do {
             apply(try await client.state())
+            pendingRuns = try await client.pendingRuns()
         } catch {
             connection = .failed(error.localizedDescription)
         }
@@ -174,6 +177,7 @@ final class AppModel {
         self.client = client
         do {
             apply(try await client.state())
+            pendingRuns = (try? await client.pendingRuns()) ?? []
             connection = .connected
             for try await event in client.events("/v1/events") {
                 if event.name == "agents", let list = try? JSONDecoder().decode([RemoteAgent].self, from: event.data) {
@@ -264,6 +268,14 @@ final class AppModel {
         }
         try await client.approve(worktreePath: worktree.path, number: pullRequest.number, headSha: headSha, body: body)
         await refresh()
+    }
+
+    /// Approves (`approve` true) or skips an automation run. The run goes out of the list.
+    func answer(_ run: RemoteAutomationRun, approve: Bool) async throws {
+        guard demo == nil else { return }
+        guard let client else { throw APIError.noHost }
+        try await client.answerRun(id: run.id, approve: approve)
+        pendingRuns.removeAll { $0.id == run.id }
     }
 
     static var deviceName: String {

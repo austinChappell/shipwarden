@@ -24,6 +24,8 @@ import { loadLoginShellPath, loginShellCaFile } from './shell-env';
 import { TrustedCertificates } from './network/trusted-certificates';
 import { NotesService } from './notes/notes-service';
 import { AutomationStore } from './automations/automation-store';
+import { EngineLock, EngineLockKeeper, engineLockPath } from './automations/engine-lock';
+import { pendingRemoteRuns } from '@shared/automation-engine';
 import { PromptStore } from './prompts/prompt-store';
 import { PlanStore } from './plans/plan-store';
 import { PrGroupStore } from './pr-groups/pr-group-store';
@@ -57,7 +59,7 @@ import { ReviewCheckouts } from './review/review-checkouts';
 import { ReviewProviders } from './review-providers';
 import { UsageService } from './usage/usage-service';
 import { RemoteDevices } from './remote/remote-devices';
-import { localHosts, RemoteServer } from './remote/remote-server';
+import { HttpError, localHosts, RemoteServer } from './remote/remote-server';
 import { RemoteSnapshotBuilder } from './remote/remote-snapshot';
 import { ensureTlsIdentity } from './remote/tls-identity';
 import { connectHelper } from './helper/helper-link';
@@ -371,6 +373,36 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
 
     const notifyRemoteChanged = () => window.send(IpcChannels.remoteChanged);
 
+    /**
+     * The automation lock (see `EngineLock`). The app wants it while a window is open, because the page runs the
+     * automations and the task queue. While no window is open, the background helper can take it. The helper can change
+     * the run file, the queue file, and the task links, so the stores read their files again when the app gets the lock.
+     */
+    const engineOwnership = new EngineLockKeeper({
+        lock: new EngineLock({ file: engineLockPath(userData), owner: 'app' }),
+        wanted: () => window.all().length > 0,
+        onAcquire: async () => {
+            await Promise.all([automations.reloadRuns(), queue.reload(), tasks.reloadLinks()]);
+        },
+        onRelease: () => undefined,
+        onOwnedChanged: owned => window.send(IpcChannels.automationsEngineChanged, owned),
+        log: message => console.info(`[automations] ${message}`)
+    });
+
+    /** The automation runs that are waiting for approval, for the phone. */
+    const pendingRunsForPhone = async () => pendingRemoteRuns(await automations.runState());
+
+    /** Approves or skips a run for the phone. The page runs the engine, so the answer goes to the page. */
+    async function answerRunForPhone(id: string, approve: boolean): Promise<void> {
+        const page = window.get();
+        if (!engineOwnership.owns || !page || page.isDestroyed()) {
+            throw new HttpError(503, 'The ShipWarden window is closed. Open it on the Mac, then try again.');
+        }
+        const run = (await automations.runState()).runs.find(item => item.id === id);
+        if (run?.status !== 'pending') throw new HttpError(409, 'The run is not waiting for approval anymore.');
+        page.webContents.send(IpcChannels.automationsAnswerRun, id, approve);
+    }
+
     /** The HTTPS server for the phone app in this process. Each call makes a new server, which reads the paired phones again. */
     const createLocalRemote = () =>
         new RemoteServer({
@@ -386,6 +418,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 replay: id => terminals.replay(id),
                 write: (id, data) => terminals.write(id, data),
                 approvePullRequest: approveForPhone,
+                pendingRuns: pendingRunsForPhone,
+                answerRun: answerRunForPhone,
                 onStatusChanged: notifyRemoteChanged
             }
         });
@@ -408,6 +442,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 snapshot: () => remoteSnapshot.build(),
                 approvePullRequest: ({ worktreePath, number, headSha, body }) =>
                     approveForPhone(String(worktreePath), Number(number), String(headSha), String(body ?? '')),
+                answerRun: ({ id, approve }) => answerRunForPhone(String(id), approve === true),
                 statusChanged: notifyRemoteChanged
             }),
         agent: {
@@ -655,6 +690,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         notifications,
         notes,
         automations,
+        engineOwnership,
         prompts,
         ptyHostLog,
         terminalSizes,

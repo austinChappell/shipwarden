@@ -109,6 +109,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
     },
     {
+        id: 'automationsWhenClosed',
+        title: 'Run automations while ShipWarden is closed',
+        body: 'Turn on "Run while ShipWarden is closed" in Automations. The background helper then runs the schedules, the CI failures, and the task queue overnight. Approve the waiting runs on your iPhone.',
+        action: { kind: 'view', view: 'automations', label: 'Open Automations' }
+    },
+    {
         id: 'checkpoints',
         title: 'Undo one bad agent turn',
         body: 'ShipWarden saves the files of the worktree when an agent gets a prompt. Open the Checkpoints tab in the right panel of a worktree, and select "Rewind" on a turn. The diff shows first.'

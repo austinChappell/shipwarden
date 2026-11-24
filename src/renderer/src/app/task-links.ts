@@ -1,5 +1,5 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
-import { linkMatchesTask, type Task, type TaskLink } from '@shared/tasks';
+import { linkMatchesTask, type TaskLink } from '@shared/tasks';
 import { keyRoots } from '../query-client';
 import { withoutKey } from './tabs';
 
@@ -12,9 +12,7 @@ export function withTaskLink(links: Record<string, TaskLink>, worktreePath: stri
 }
 
 /** The link of a task, for one worktree. */
-export function taskLinkOf(task: Pick<Task, 'id' | 'key' | 'title' | 'url'>, connectionId: string, pluginId: string): TaskLink {
-    return { connectionId, pluginId, taskId: task.id, key: task.key, title: task.title, url: task.url };
-}
+export { taskLinkOf } from '@shared/tasks';
 
 /**
  * The worktrees other than `worktreePath` that have a link to the task of `link`. A task has one worktree, so a new

@@ -98,6 +98,11 @@ export class AutomationStore {
         return path.join(this.folder, `${id}.json`);
     }
 
+    /** Reads the run file again at the next call. The background helper can change it while it holds the engine lock. */
+    reloadRuns(): Promise<void> {
+        return this.runs.reload();
+    }
+
     async runState(): Promise<AutomationRunState> {
         return normalizeRunState(await this.runs.get());
     }
