@@ -2,12 +2,22 @@ import { chmodSync, mkdirSync, unlinkSync } from 'fs';
 import { connect, createServer, type Server, type Socket } from 'net';
 import { dirname } from 'path';
 import { createMessageConnection, SocketMessageReader, SocketMessageWriter, type MessageConnection } from 'vscode-jsonrpc/node';
-import { normalizeRemoteSettings, type RemoteSnapshot } from '@shared/remote';
+import { normalizeRemoteSettings, type RemoteSnapshot, type RemoteStartOptions, type RemoteStartResult } from '@shared/remote';
 import type { RemoteServer } from '../remote/remote-server';
-import { AppMethods, HELPER_PROTOCOL, HelperMethods, type AnswerRunParams, type ApproveParams, type HelperHello } from './protocol';
+import {
+    AppMethods,
+    HELPER_PROTOCOL,
+    HelperMethods,
+    type AnswerRunParams,
+    type ApproveParams,
+    type DevicePermissionsParams,
+    type HelperHello
+} from './protocol';
 
 /** The app does not answer a request in this time. The helper then uses its own data. */
 const APP_TIMEOUT_MS = 20_000;
+/** A start makes a worktree (with a fetch) and waits for the agent, so it can take a few minutes. */
+const APP_START_TIMEOUT_MS = 3 * 60_000;
 
 function socketIsLive(socketPath: string): Promise<boolean> {
     return new Promise(resolve => {
@@ -107,6 +117,23 @@ export class HelperServer {
         await withTimeout(app.sendRequest(AppMethods.answerRun, params), APP_TIMEOUT_MS);
     }
 
+    /** Asks the app for the choices of the start screen of the phone. Rejects when no app is connected. */
+    async appStartOptions(): Promise<RemoteStartOptions> {
+        const app = this.apps.at(-1);
+        if (!app) throw new Error('ShipWarden is not open.');
+        return withTimeout(app.sendRequest<RemoteStartOptions>(AppMethods.startOptions), APP_TIMEOUT_MS);
+    }
+
+    /**
+     * Asks the app to start an agent for the phone. The error of the app keeps its HTTP status as the code of a
+     * `ResponseError`. Rejects when no app is connected.
+     */
+    async appStartAgent(body: unknown): Promise<RemoteStartResult> {
+        const app = this.apps.at(-1);
+        if (!app) throw new Error('ShipWarden is not open.');
+        return withTimeout(app.sendRequest<RemoteStartResult>(AppMethods.startAgent, body), APP_START_TIMEOUT_MS);
+    }
+
     /** Tells the apps that the devices or the phone connections changed. */
     statusChanged(): void {
         for (const app of this.apps) void app.sendNotification(AppMethods.statusChanged).catch(() => undefined);
@@ -122,6 +149,9 @@ export class HelperServer {
         connection.onRequest(HelperMethods.startPairing, () => remote.startPairing());
         connection.onRequest(HelperMethods.cancelPairing, () => remote.cancelPairing());
         connection.onRequest(HelperMethods.removeDevice, (id: unknown) => remote.removeDevice(String(id)));
+        connection.onRequest(HelperMethods.setDevicePermissions, (params: DevicePermissionsParams) =>
+            remote.setDevicePermissions(String(params?.id), { canStartAgents: params?.permissions?.canStartAgents === true })
+        );
         connection.onNotification(HelperMethods.terminalResized, (id: unknown, cols: unknown, rows: unknown) => {
             if (Number(cols) > 0 && Number(rows) > 0) this.options.onResize(String(id), Number(cols), Number(rows));
         });

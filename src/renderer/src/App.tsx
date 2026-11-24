@@ -552,12 +552,14 @@ export function App() {
             moveTaskToStatus: worktreeActions.moveTaskToStatus
         }
     });
-    // The `shipwarden` CLI runs the commands for agent tabs, worktrees, and automations in this page.
+    // The `shipwarden` CLI runs the commands for agent tabs, worktrees, and automations in this page. The phone starts agents here too.
     useCliBridge({
         promptAgent: agents.promptAgent,
         prepareWorktree: agents.prepareWorktree,
         refreshWorktrees: project.refreshWorktrees,
-        removeWorktreeQuietly: worktreeActions.removeWorktreeQuietly
+        removeWorktreeQuietly: worktreeActions.removeWorktreeQuietly,
+        startTaskQuietly: worktreeActions.startTaskQuietly,
+        startInNewWorktree: worktreeActions.startInNewWorktree
     });
     const automationsCount = useAutomationRuns().state.runs.filter(run => run.status === 'pending').length;
 

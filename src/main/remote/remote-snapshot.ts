@@ -2,7 +2,7 @@ import { basename } from 'path';
 import { ciStateOf, idleReasonText } from '@shared/agent-overview';
 import type { BranchSummary } from '@shared/github';
 import type { ProjectsState } from '@shared/projects';
-import type { RemoteAgent, RemoteProject, RemoteSnapshot } from '@shared/remote';
+import type { RemoteAgent, RemoteProject, RemoteSnapshot, RemoteWorktree } from '@shared/remote';
 import { REPO_COLORS, repoDisplayName, type AppSettings } from '@shared/settings';
 import type { TaskLink } from '@shared/tasks';
 import { runsAgent, type TerminalSession } from '@shared/terminal';
@@ -49,6 +49,30 @@ export function agentOf(session: TerminalSession, checks?: string | null, now = 
     };
 }
 
+/** Converts a worktree to a worktree for the phone, with its task and its pull request. */
+export function remoteWorktreeOf(worktree: Worktree, settings: Pick<AppSettings, 'worktreeNames'>, link?: TaskLink, pr?: BranchSummary): RemoteWorktree {
+    return {
+        path: worktree.path,
+        branch: worktree.branch,
+        name: settings.worktreeNames?.[worktree.path] ?? worktree.branch ?? basename(worktree.path),
+        isMain: worktree.isMain,
+        ...(link ? { task: { title: link.title, key: link.key, url: link.url } } : {}),
+        ...(pr
+            ? {
+                  pullRequest: {
+                      number: pr.number,
+                      title: pr.title,
+                      url: pr.url,
+                      isDraft: pr.isDraft,
+                      reviewDecision: pr.reviewDecision,
+                      checks: pr.checks,
+                      headSha: pr.headSha
+                  }
+              }
+            : {})
+    };
+}
+
 /**
  * Makes the data of the phone's start screen: the projects with their repositories and worktrees, and the agents.
  * A repository that fails (for example a deleted folder) shows with no worktrees. GitHub errors show no pull requests.
@@ -82,30 +106,9 @@ export class RemoteSnapshotBuilder {
                             ...(color ? { color: REPO_COLORS[color] } : {}),
                             worktrees: worktrees
                                 .filter(worktree => !worktree.isBare)
-                                .map(worktree => {
-                                    const link = links[worktree.path];
-                                    const pr = worktree.branch ? pullRequests[worktree.branch] : undefined;
-                                    return {
-                                        path: worktree.path,
-                                        branch: worktree.branch,
-                                        name: settings.worktreeNames?.[worktree.path] ?? worktree.branch ?? basename(worktree.path),
-                                        isMain: worktree.isMain,
-                                        ...(link ? { task: { title: link.title, key: link.key, url: link.url } } : {}),
-                                        ...(pr
-                                            ? {
-                                                  pullRequest: {
-                                                      number: pr.number,
-                                                      title: pr.title,
-                                                      url: pr.url,
-                                                      isDraft: pr.isDraft,
-                                                      reviewDecision: pr.reviewDecision,
-                                                      checks: pr.checks,
-                                                      headSha: pr.headSha
-                                                  }
-                                              }
-                                            : {})
-                                    };
-                                })
+                                .map(worktree =>
+                                    remoteWorktreeOf(worktree, settings, links[worktree.path], worktree.branch ? pullRequests[worktree.branch] : undefined)
+                                )
                         }
                     ] as const;
                 })

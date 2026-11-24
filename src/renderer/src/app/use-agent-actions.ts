@@ -253,7 +253,7 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
     const promptAgent = async (
         worktree: Pick<Worktree, 'path'>,
         prompt: string,
-        target: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode; newSession?: boolean } = {}
+        target: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode; model?: string; newSession?: boolean } = {}
     ): Promise<TerminalSession> => {
         let session = target.newSession
             ? undefined
@@ -272,7 +272,9 @@ export function useAgentActions({ sessions, setSessions, appSettings, selectedPa
                 throw new Error(`The agent "${target.agentId}" is not in Settings › Agents.`);
             }
             // An automation has no banner. A model that is not available now does not stop the run: the agent uses its own setting.
-            const command = agentStartCommand((await withAvailableModel(definition)).agent, target.mode);
+            // A model of the target (for example from the phone) replaces the model of Settings › Agents.
+            const withModel = target.model ? { ...definition, model: target.model } : definition;
+            const command = agentStartCommand((await withAvailableModel(withModel)).agent, target.mode);
             const created = await api.terminals.create({
                 cwd: worktree.path,
                 worktreePath: worktree.path,

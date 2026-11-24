@@ -1,5 +1,5 @@
 import type { AgentModel } from './agent-models';
-import type { PairingOffer, RemoteStatus } from './remote';
+import type { PairingOffer, RemoteDevicePermissions, RemoteStatus } from './remote';
 import type { DashboardPullRequests, PipelineApprovalItem, PipelineApprovalTarget, PullRequestCommentItem } from './dashboard';
 import type { RepoPullRequests } from './review-queue';
 import type { Snooze, Snoozes } from './snooze';
@@ -680,6 +680,8 @@ export interface ShipWardenApi {
         cancelPairing(): Promise<void>;
         /** Removes a paired phone. Its token stops at once. */
         removeDevice(id: string): Promise<void>;
+        /** Changes the permissions of a paired phone, for example "Start agents". */
+        setDevicePermissions(id: string, permissions: RemoteDevicePermissions): Promise<void>;
         /** Called when a phone pairs, connects or disconnects. */
         onChanged(listener: () => void): () => void;
     };
@@ -1068,6 +1070,7 @@ export const IpcChannels = {
     remoteStartPairing: 'remote:startPairing',
     remoteCancelPairing: 'remote:cancelPairing',
     remoteRemoveDevice: 'remote:removeDevice',
+    remoteSetDevicePermissions: 'remote:setDevicePermissions',
     remoteChanged: 'remote:changed',
     snoozesList: 'snoozes:list',
     snoozesSet: 'snoozes:set',

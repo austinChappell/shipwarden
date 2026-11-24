@@ -101,7 +101,8 @@ struct RemoteRepo: Codable, Identifiable, Equatable {
     let path: String
     let name: String
     let color: String?
-    let worktrees: [RemoteWorktree]
+    /// A new worktree from a start on the phone goes into this list. The list does not load again.
+    var worktrees: [RemoteWorktree]
 
     var id: String { path }
 }
@@ -109,7 +110,7 @@ struct RemoteRepo: Codable, Identifiable, Equatable {
 struct RemoteProject: Codable, Identifiable, Equatable {
     let id: String
     let name: String
-    let repos: [RemoteRepo]
+    var repos: [RemoteRepo]
 }
 
 struct MacInfo: Codable, Equatable {
@@ -120,8 +121,77 @@ struct MacInfo: Codable, Equatable {
 struct RemoteSnapshot: Codable, Equatable {
     let `protocol`: Int
     let mac: MacInfo
-    let projects: [RemoteProject]
+    var projects: [RemoteProject]
     let agents: [RemoteAgent]
+}
+
+// MARK: Start an agent
+
+/// An agent of Settings › Agents on the Mac.
+struct RemoteAgentChoice: Codable, Identifiable, Equatable {
+    let id: String
+    let name: String
+    /// The model of Settings › Agents. Nil: the agent uses its own setting.
+    let model: String?
+    /// True when the phone can select a model (Claude Code or Codex).
+    let canSetModel: Bool
+    /// The reason when the usage budget stops this agent now.
+    let budgetWait: String?
+}
+
+/// A repository for a new worktree.
+struct RemoteRepoChoice: Codable, Identifiable, Equatable {
+    let path: String
+    let name: String
+    let projectName: String
+    /// The agent of the repository on the Mac.
+    let agentId: String
+
+    var id: String { path }
+}
+
+/// A task of a task manager.
+struct RemoteTaskChoice: Codable, Identifiable, Equatable {
+    let connectionId: String
+    let id: String
+    let title: String
+    let key: String?
+    let url: String?
+    let status: String?
+}
+
+/// The answer of GET /v1/start/options.
+struct RemoteStartOptions: Codable, Equatable {
+    let repos: [RemoteRepoChoice]
+    let agents: [RemoteAgentChoice]
+    let tasks: [RemoteTaskChoice]
+    /// Why the list has no tasks.
+    let tasksNote: String?
+}
+
+struct RemoteStartTask: Codable, Equatable {
+    let connectionId: String
+    let id: String
+}
+
+/// The body of POST /v1/agents/start. Give a task or a prompt, not both.
+struct RemoteStartRequest: Codable, Equatable {
+    var repoPath: String
+    var task: RemoteStartTask?
+    var prompt: String?
+    /// Nil: the Mac makes the branch from the task or the prompt.
+    var branch: String?
+    /// Nil: the agent of the repository.
+    var agentId: String?
+    /// Nil: the model of Settings › Agents.
+    var model: String?
+}
+
+/// The answer of POST /v1/agents/start. The app adds the agent and the worktree to its lists.
+struct RemoteStartResult: Codable, Equatable {
+    let repoPath: String
+    let worktree: RemoteWorktree
+    let agent: RemoteAgent
 }
 
 /// A color of the terminal: an index in the 256-color palette, or an RGB value.

@@ -9,11 +9,12 @@ import { automationEngine } from '../automations/engine';
 import { branchSummariesQuery } from '../github/use-branch-status';
 import { queryClient } from '../query-client';
 import { errorText } from '../util';
+import { phoneStart, phoneTasks, type PhoneStartActions } from './phone-start';
 
 const api = window.shipwarden;
 
-/** The functions of the app that the CLI commands use. App gives them at each render. */
-export interface CliBridgeActions {
+/** The functions of the app that the CLI commands and the starts from the phone use. App gives them at each render. */
+export interface CliBridgeActions extends Pick<PhoneStartActions, 'startTaskQuietly' | 'startInNewWorktree'> {
     promptAgent(
         worktree: Pick<Worktree, 'path'>,
         prompt: string,
@@ -38,7 +39,11 @@ function started(session: TerminalSession, worktreePath: string, message: string
  * Runs a command of the `shipwarden` CLI in the page. The main process checked the values and the approval. The
  * commands use the same code as the automations, so the sidebar, the tabs, and the caches update as for a click.
  */
-export async function runCliRequest(request: CliPageRequest, actions: CliBridgeActions): Promise<CliPageResult> {
+export async function runCliRequest(
+    request: CliPageRequest,
+    actions: CliBridgeActions,
+    latest: () => CliBridgeActions = () => actions
+): Promise<CliPageResult> {
     switch (request.action) {
         case 'worktree.create': {
             const worktree = await api.worktrees.create({
@@ -80,6 +85,10 @@ export async function runCliRequest(request: CliPageRequest, actions: CliBridgeA
         }
         case 'automation.run':
             return runAutomation(request);
+        case 'phone.tasks':
+            return phoneTasks();
+        case 'phone.start':
+            return phoneStart(request, latest);
     }
 }
 
@@ -126,7 +135,7 @@ export function useCliBridge(actions: CliBridgeActions): void {
     useEffect(
         () =>
             api.cli.onPageRequest((id, request) => {
-                runCliRequest(request, current.current).then(
+                runCliRequest(request, current.current, () => current.current).then(
                     result => api.cli.answer(id, result),
                     error => api.cli.answer(id, undefined, errorText(error))
                 );

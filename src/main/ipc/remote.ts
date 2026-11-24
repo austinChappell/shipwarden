@@ -8,4 +8,7 @@ export function registerRemoteIpc({ remote }: Pick<Services, 'remote'>): void {
     ipcMain.handle(IpcChannels.remoteStartPairing, () => remote.startPairing());
     ipcMain.handle(IpcChannels.remoteCancelPairing, () => remote.cancelPairing());
     ipcMain.handle(IpcChannels.remoteRemoveDevice, (_event, id: string) => remote.removeDevice(String(id)));
+    ipcMain.handle(IpcChannels.remoteSetDevicePermissions, (_event, id: string, permissions: { canStartAgents?: unknown } | undefined) =>
+        remote.setDevicePermissions(String(id), { canStartAgents: permissions?.canStartAgents === true })
+    );
 }

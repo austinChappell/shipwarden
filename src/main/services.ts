@@ -74,11 +74,13 @@ import { SetupChecks } from './setup-checks';
 import { McpHost } from './mcp/mcp-host';
 import { worktreesFromSnapshot } from './mcp/worktree-list';
 import { isCliWriteAction, writeToolLabel } from '@shared/mcp';
-import { CLI_NAME } from '@shared/cli';
+import { CLI_NAME, type CliPageRequest, type CliPageResult } from '@shared/cli';
 import { CliActions } from './cli/cli-actions';
 import { CliHost } from './cli/cli-host';
 import { CliInstaller } from './cli/cli-install';
 import { CliPageBridge } from './cli/page-bridge';
+import { CliError } from './cli/cli-server';
+import { RemoteStarter } from './remote/remote-start';
 import { cliConfigPath, cliSocketPath } from './cli/paths';
 import { AgentBrowser } from './browser/agent-browser';
 import { findOverlaps } from '@shared/worktree-overlap';
@@ -403,6 +405,41 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         page.webContents.send(IpcChannels.automationsAnswerRun, id, approve);
     }
 
+    /** The bridge to the page. The `shipwarden` CLI and the phone use it for the work that the page owns. */
+    const cliPage = new CliPageBridge(() => window.get());
+
+    /** Sends a request of the phone to the page. A page error becomes an HTTP error for the phone. 503: no window is open. */
+    async function pageForPhone(request: CliPageRequest): Promise<CliPageResult> {
+        try {
+            return await cliPage.request(request, new AbortController().signal);
+        } catch (error) {
+            if (!(error instanceof CliError)) throw error;
+            throw new HttpError(error.code === 'noWindow' ? 503 : error.code === 'timeout' ? 504 : 409, error.message);
+        }
+    }
+
+    /**
+     * Starts agents for the phone with the start code of "Start in worktree" in the page. The main process checks the
+     * values and the usage budget first.
+     */
+    const phoneStarter = new RemoteStarter({
+        settings: () => settings.get(),
+        projects: async () => (await projects.get()).projects,
+        usage: async () => usage.get(),
+        tasks: async () => {
+            const result = await pageForPhone({ action: 'phone.tasks' });
+            return { tasks: result.tasks ?? [], ...(result.tasksNote ? { note: result.tasksNote } : {}) };
+        },
+        start: async start => {
+            const result = await pageForPhone({ action: 'phone.start', ...start });
+            if (!result.sessionId || !result.worktreePath) throw new HttpError(500, 'The ShipWarden window did not send the new agent.');
+            return { sessionId: result.sessionId, worktreePath: result.worktreePath };
+        },
+        sessions: terminalSessions,
+        worktrees: repo => worktrees.list(repo),
+        taskLinks: () => tasks.allLinks()
+    });
+
     /** The HTTPS server for the phone app in this process. Each call makes a new server, which reads the paired phones again. */
     const createLocalRemote = () =>
         new RemoteServer({
@@ -420,6 +457,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 approvePullRequest: approveForPhone,
                 pendingRuns: pendingRunsForPhone,
                 answerRun: answerRunForPhone,
+                startOptions: () => phoneStarter.options(),
+                startAgent: body => phoneStarter.start(body),
                 onStatusChanged: notifyRemoteChanged
             }
         });
@@ -443,6 +482,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 approvePullRequest: ({ worktreePath, number, headSha, body }) =>
                     approveForPhone(String(worktreePath), Number(number), String(headSha), String(body ?? '')),
                 answerRun: ({ id, approve }) => answerRunForPhone(String(id), approve === true),
+                startOptions: () => phoneStarter.options(),
+                startAgent: body => phoneStarter.start(body),
                 statusChanged: notifyRemoteChanged
             }),
         agent: {
@@ -625,7 +666,6 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
      * approvals. The commands that act on agent tabs, the worktree list, and the automations go to the page.
      * `CliServer` uses no Electron API, so the background helper can run it later.
      */
-    const cliPage = new CliPageBridge(() => window.get());
     const cli = new CliHost({
         socketPath: cliSocketPath(userData),
         configPath: cliConfigPath(os.homedir(), process.env, separateDataFolder ? userData : undefined),

@@ -9,12 +9,15 @@ import {
     type RemoteAgent,
     type RemoteAutomationRun,
     type RemoteDevice,
+    type RemoteDevicePermissions,
     type RemoteErrorBody,
     type RemoteInput,
     type RemotePendingRuns,
     type RemotePairResponse,
     type RemoteSettings,
     type RemoteSnapshot,
+    type RemoteStartOptions,
+    type RemoteStartResult,
     type RemoteStatus
 } from '@shared/remote';
 import { runsAgent, type TerminalReplay, type TerminalSession } from '@shared/terminal';
@@ -41,6 +44,13 @@ export interface RemoteBackend {
      * waiting anymore, or when no process can run it now.
      */
     answerRun(id: string, approve: boolean): Promise<void>;
+    /** The choices of the start screen of the phone: the repositories, the agents, and the tasks. */
+    startOptions(): Promise<RemoteStartOptions>;
+    /**
+     * Makes a worktree and starts an agent in it (the body is a `RemoteStartRequest`). Throws an `HttpError` for a
+     * value that is not valid, a usage budget that stops the agent, or a start that failed.
+     */
+    startAgent(body: unknown): Promise<RemoteStartResult>;
     /** Tells the settings page that the devices or the connections changed. */
     onStatusChanged(): void;
 }
@@ -174,6 +184,14 @@ export class RemoteServer {
 
     cancelPairing(): void {
         this.options.devices.cancelPairing();
+    }
+
+    /** Changes the permissions of a paired phone. */
+    async setDevicePermissions(id: string, permissions: RemoteDevicePermissions): Promise<void> {
+        if (!(await this.options.devices.setPermissions(id, permissions))) {
+            throw new Error('The phone is not paired anymore.');
+        }
+        this.options.backend.onStatusChanged();
     }
 
     /** Removes a phone and closes its connections. */
@@ -330,6 +348,17 @@ export class RemoteServer {
                 await this.options.backend.answerRun(answer[1], answer[2] === 'approve');
                 return sendJson(response, 200, {});
             }
+            if (request.method === 'GET' && path === '/v1/start/options') {
+                requireStartPermission(device);
+                return sendJson(response, 200, await this.options.backend.startOptions());
+            }
+            if (request.method === 'POST' && path === '/v1/agents/start') {
+                requireStartPermission(device);
+                const result = await this.options.backend.startAgent(await readJson(request));
+                // The phone that started the agent shows it from the answer. The other phones get the new list.
+                this.agentsChanged();
+                return sendJson(response, 200, result);
+            }
             throw new HttpError(404, 'This address does not exist.');
         } catch (error) {
             if (response.headersSent) {
@@ -484,6 +513,13 @@ export class RemoteServer {
 
     private sendEvent(response: ServerResponse, event: string, data: unknown): void {
         response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    }
+}
+
+/** Throws a 403 error when the user did not let the phone start agents. */
+function requireStartPermission(device: RemoteDevice): void {
+    if (!device.canStartAgents) {
+        throw new HttpError(403, 'This phone cannot start agents. On the Mac, turn on "Start agents" for this phone in ShipWarden › Settings › Mobile.');
     }
 }
 

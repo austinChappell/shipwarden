@@ -190,6 +190,17 @@ the helper yet. Not tested live in the app, in the helper, or on the phone.
 
 **Goal:** Start an agent on a task or a new worktree from the iPhone app.
 
+**Status:** Done in branch `2.2-phone-start-agents`. The phone calls `GET /v1/start/options` and `POST /v1/agents/start`
+(repository, a task or a prompt, agent, model, and an optional branch). Each start makes a new worktree. A paired phone
+needs the new permission "Start agents" (Settings › Mobile, off for each phone by default). Without it, both routes
+answer 403. `RemoteStarter` checks the repository, the agent, and the usage budget in the main process (or the helper).
+While a window is open, the page starts the agent with the start code of "Start in worktree" (`startTaskQuietly` and
+`startInNewWorktree`, with a new model option). While the app is closed, the helper uses `HelperAgents` and its own
+`UsageService`. A task start needs the app: the tasks come from the cached list that the Tasks view selected last. The
+answer comes when the agent session runs, and the prompt goes in after that. The phone adds the agent and the worktree
+from the answer and opens the agent. The phone has a model text field, not a model list. Not tested live in the app,
+in the helper, or on the phone.
+
 **Design:**
 
 - Add `startAgent` to the remote API: repository, task or prompt, agent, and model.

@@ -105,7 +105,7 @@ interface Options {
     promptAgent: (
         worktree: Pick<Worktree, 'path'>,
         prompt: string,
-        target?: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode }
+        target?: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode; model?: string }
     ) => Promise<TerminalSession>;
     prepareWorktree: (repoPath: string, worktree: CreatedWorktree) => Promise<void>;
     /** Shows the worktree with the Changes tab of the right panel. */
@@ -211,7 +211,8 @@ export function useWorktreeActions(options: Options) {
 
     /**
      * Starts work on a task for an automation: the same steps as `startTask`, but the selected worktree and the view do
-     * not change. `prompt` replaces the default task prompt. Returns the new worktree and the agent session.
+     * not change. `prompt` replaces the default task prompt. `model` replaces the model of the agent, and `branchName`
+     * replaces the branch from the branch template. Returns the new worktree and the agent session.
      */
     const startTaskQuietly = async (
         task: Task,
@@ -220,13 +221,15 @@ export function useWorktreeActions(options: Options) {
         repoPath: string,
         prompt: (branch: string) => string,
         agentId?: string,
-        mode?: AgentMode
+        mode?: AgentMode,
+        model?: string,
+        branchName?: string
     ): Promise<{ worktree: CreatedWorktree; session: TerminalSession }> => {
-        const { branch } = await suggestTaskBranch(task, repoPath);
+        const branch = branchName ?? (await suggestTaskBranch(task, repoPath)).branch;
         const agentName = (agentId ? appSettings.agents.find(agent => agent.id === agentId) : undefined)?.name ?? agentForRepo(appSettings, repoPath).name;
         const worktree = await createTaskWorktree(task, connectionId, pluginId, repoPath, branch, agentName);
         void moveTaskToStartStatus(task, connectionId);
-        const session = await options.promptAgent(worktree, prompt(branch), { agentId, repoPath, mode });
+        const session = await options.promptAgent(worktree, prompt(branch), { agentId, repoPath, mode, ...(model ? { model } : {}) });
         return { worktree, session };
     };
 
@@ -321,12 +324,13 @@ export function useWorktreeActions(options: Options) {
         branch: string,
         prompt: string,
         agentId?: string,
-        mode?: AgentMode
+        mode?: AgentMode,
+        model?: string
     ): Promise<{ worktree: CreatedWorktree; session: TerminalSession }> => {
         const worktree = await api.worktrees.create({ repoPath, branch });
         await options.prepareWorktree(repoPath, worktree);
         await refreshWorktrees(repoPath);
-        const session = await options.promptAgent(worktree, prompt, { agentId, repoPath, mode });
+        const session = await options.promptAgent(worktree, prompt, { agentId, repoPath, mode, ...(model ? { model } : {}) });
         return { worktree, session };
     };
 

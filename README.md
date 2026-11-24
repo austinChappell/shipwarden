@@ -22,7 +22,7 @@ safely on its course. This app does the same job for coding agents.
 4. **GitHub Actions.** You can see check runs, read logs, run workflows
    again and send a failed job back to an agent.
 5. **Mobile app (beta).** An iPhone app shows agent status and lets you
-   approve or reply to an agent.
+   approve or reply to an agent, or start a new agent on a task or a prompt.
 
 ## Status
 
@@ -341,6 +341,11 @@ agents and their terminal screens, the worktrees with their pull requests and CI
 can reply to an agent, answer its questions, approve a pull request, and approve or skip an automation run that is
 waiting for approval. Turn it on in
 Settings › Mobile and pair the phone with the QR code. See [ios/README.md](ios/README.md).
+
+The phone can also start an agent in a new worktree, on a task or a prompt, with the agent and the model that you
+select. A new phone cannot do this. Turn on **Start agents** for the phone in Settings › Mobile. The start uses the
+same code as "Start in worktree" and the usage budget of Settings › Agents. While ShipWarden is closed, the background
+helper starts the agent from a prompt. A start on a task needs the app.
 
 > The iPhone app is in beta. It is in App Store review now, so it is not in the App Store yet. Until
 > Apple approves it, build it from source with Xcode. See [ios/README.md](ios/README.md).

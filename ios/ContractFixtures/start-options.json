@@ -1,0 +1,40 @@
+{
+  "repos": [
+    {
+      "path": "/Users/ana/api",
+      "name": "api",
+      "projectName": "Work",
+      "agentId": "claude"
+    }
+  ],
+  "agents": [
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "model": "sonnet",
+      "canSetModel": true,
+      "budgetWait": "Waiting for usage to reset. Claude (5h) is at 85%, and the budget is 80%. It resets at 2:30 PM."
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini CLI",
+      "canSetModel": false
+    }
+  ],
+  "tasks": [
+    {
+      "connectionId": "clickup-1",
+      "id": "86b2x",
+      "title": "Fix the login page",
+      "key": "ENG-12",
+      "url": "https://example.com/t/12",
+      "status": "To do"
+    },
+    {
+      "connectionId": "clickup-1",
+      "id": "86b2y",
+      "title": "Add dark mode"
+    }
+  ],
+  "tasksNote": "Open ShipWarden on the Mac to start an agent on a task."
+}

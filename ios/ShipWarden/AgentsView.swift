@@ -5,6 +5,9 @@ struct AgentsView: View {
     @Environment(AppModel.self) private var model
     @State private var showExited = false
     @State private var answerError: String?
+    @State private var showStart = false
+    /// The agent that the start screen started. The app opens it.
+    @State private var startedAgent: String?
 
     private var visibleAgents: [RemoteAgent] {
         model.sortedAgents.filter { showExited || !$0.exited }
@@ -37,7 +40,7 @@ struct AgentsView: View {
                 ContentUnavailableView(
                     "No agents",
                     systemImage: "sparkles",
-                    description: Text("Agents that you start in ShipWarden on the Mac show here.")
+                    description: Text("Agents that you start in ShipWarden on the Mac show here. Tap + to start an agent.")
                 )
             }
         }
@@ -50,8 +53,24 @@ struct AgentsView: View {
         .navigationDestination(for: String.self) { id in
             AgentDetailView(agentId: id)
         }
+        .navigationDestination(item: $startedAgent) { id in
+            AgentDetailView(agentId: id)
+        }
+        .sheet(isPresented: $showStart) {
+            StartAgentView { agent in startedAgent = agent.id }
+        }
         .refreshable { await model.refresh() }
         .toolbar {
+            if model.demo == nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showStart = true
+                    } label: {
+                        Label("Start an agent", systemImage: "plus")
+                    }
+                    .disabled(model.connection != .connected)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Toggle("Show ended agents", isOn: $showExited)
