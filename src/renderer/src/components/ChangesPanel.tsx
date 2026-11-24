@@ -28,6 +28,7 @@ import { DraftButton } from './DraftButton';
 import { OverlapNote } from './OverlapChip';
 import { useWorktreeOverlap } from '../git/overlap-query';
 import { afterRebase, confirmForcePush, conflictPromptFor } from '../git/rebase-actions';
+import { branchPushed } from '../github/pull-request-mutations';
 
 interface Props {
     worktree: string;
@@ -190,6 +191,7 @@ export function ChangesPanel({
     const push = () =>
         act('push', async () => {
             await api.push(worktree);
+            void branchPushed(worktree);
             setNotice('Pushed the branch.');
             setTimeout(() => setNotice(undefined), 6000);
         });
