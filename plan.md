@@ -354,24 +354,24 @@ Let the chat view take PDF, Word, and spreadsheet files. Convert them to text or
 
 ## Order
 
-| Order | Feature | Size | Why this order |
-|---|---|---|---|
-| 1 | 1.1 Codex state and tokens | M | Codex users see this gap first. In PR #248 |
-| 2 | 1.3 MCP server for all agents | S | Small, and it uses code that exists |
-| 3 | 1.2 Chat view for Codex | M | Needs 1.1 |
-| 4 | 5.1 Open in an external editor | S | Small, and many users ask for it |
-| 5 | 3.2 More MCP tools | M | Agents can fix their own PRs |
-| 6 | 3.1 ShipWarden CLI | M | Reuses the MCP tools |
-| 7 | 2.1 Headless automations and queue | L | The queue can run all night with the app closed |
-| 8 | 2.2 Start agents from the phone | S | |
-| 9 | 2.3 Push notifications | M | Decide on the relay first |
-| 10 | 4.1 Coordinator and workers | L | Needs 3.2 |
-| 11 | 4.2 Native Slack integration | M | Needs 2.1 |
-| 12 | 3.3 Element picker | S | |
-| 13 | 5.3 Stack actions | S | |
-| 14 | 5.2 Gitea and Forgejo | M | |
-| 15 | 5.4 Keybinding remapping | M | |
-| 16 | 5.5 Voice input | S | |
-| 17 | 5.6 Document attachments | S | |
-| 18 | 1.4 Switch accounts | M | Check the plan terms first |
-| 19 | 2.4 Remote worktrees on SSH hosts | XL | Design doc first |
+| Status | Order | Feature | Size | Why this order |
+|---|---|---|---|---|
+| Done | 1 | 1.1 Codex state and tokens | M | Codex users see this gap first. In PR #248 |
+| Done | 2 | 1.3 MCP server for all agents | S | Small, and it uses code that exists |
+| Done | 3 | 1.2 Chat view for Codex | M | Needs 1.1 |
+| Done | 4 | 5.1 Open in an external editor | S | Small, and many users ask for it |
+| In Progress | 5 | 3.2 More MCP tools | M | Agents can fix their own PRs |
+| No Started | 6 | 3.1 ShipWarden CLI | M | Reuses the MCP tools |
+| No Started | 7 | 2.1 Headless automations and queue | L | The queue can run all night with the app closed |
+| No Started | 8 | 2.2 Start agents from the phone | S | |
+| No Started | 9 | 2.3 Push notifications | M | Decide on the relay first |
+| No Started | 10 | 4.1 Coordinator and workers | L | Needs 3.2 |
+| No Started | 11 | 4.2 Native Slack integration | M | Needs 2.1 |
+| No Started | 12 | 3.3 Element picker | S | |
+| No Started | 13 | 5.3 Stack actions | S | |
+| No Started | 14 | 5.2 Gitea and Forgejo | M | |
+| No Started | 15 | 5.4 Keybinding remapping | M | |
+| No Started | 16 | 5.5 Voice input | S | |
+| No Started | 17 | 5.6 Document attachments | S | |
+| No Started | 18 | 1.4 Switch accounts | M | Check the plan terms first |
+| No Started | 19 | 2.4 Remote worktrees on SSH hosts | XL | Design doc first |
