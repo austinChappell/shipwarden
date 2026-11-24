@@ -13,7 +13,12 @@ import { onlyStrings, optionalString } from './args';
 const MAX_IMPORT_BYTES = 256 * 1024;
 
 /** Registers the IPC handlers of the automations and their runs, and starts to watch the automations folder. */
-export function registerAutomationIpc({ automations, window, networkReady }: Pick<Services, 'automations' | 'window' | 'networkReady'>): void {
+export function registerAutomationIpc({
+    automations,
+    window,
+    networkReady,
+    engineOwnership
+}: Pick<Services, 'automations' | 'window' | 'networkReady' | 'engineOwnership'>): void {
     ipcMain.handle(IpcChannels.automationsList, () => automations.list());
     ipcMain.handle(IpcChannels.automationsSave, (_event, automation: unknown, previousId: unknown) => automations.save(automation, optionalString(previousId)));
     ipcMain.handle(IpcChannels.automationsRemove, (_event, id: unknown) => automations.remove(String(id)));
@@ -72,6 +77,7 @@ export function registerAutomationIpc({ automations, window, networkReady }: Pic
     );
     ipcMain.handle(IpcChannels.automationsClearHistory, () => automations.clearHistory());
     ipcMain.handle(IpcChannels.automationsHttp, (_event, request: unknown) => sendHttpRequest(request, networkReady));
+    ipcMain.handle(IpcChannels.automationsEngineOwned, () => engineOwnership.owns);
     void automations
         .watch(() => window.send(IpcChannels.automationsChanged))
         .catch(error => console.warn(`[automations] The automations folder is not watched: ${error instanceof Error ? error.message : String(error)}`));

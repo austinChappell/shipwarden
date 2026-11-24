@@ -1,4 +1,4 @@
-import type { CheckRun } from '@shared/github';
+import type { CheckRun } from './github';
 
 /**
  * Text of agent dialogs that wait for a decision of the user, for example Claude Code's folder trust question.

@@ -12,7 +12,7 @@ import { branchSummariesQuery, summariesByRepo } from '../github/use-branch-stat
 import { keyRoots } from '../query-client';
 import { useOverlaps } from '../git/overlap-query';
 import { useUsage } from '../usage-query';
-import { useAutomationList, useAutomationRuns } from './automation-queries';
+import { useAutomationList, useAutomationRuns, useEngineOwned } from './automation-queries';
 import { automationEngine, type EngineActions, type EnginePlace } from './engine';
 
 /** The engine checks schedules, task collections and held runs at this interval. */
@@ -87,7 +87,9 @@ export function useAutomationEngine(options: Options): void {
     const extraSummaries = useQueries({ queries: extraRepos.map(branchSummariesQuery), combine });
     const summaries = useMemo(() => ({ ...extraSummaries, ...options.summaries }), [extraSummaries, options.summaries]);
 
-    const ready = options.settingsLoaded && listLoaded && runsLoaded;
+    // The background helper runs the automations while it holds the lock. The page runs them only with the lock.
+    const owned = useEngineOwned();
+    const ready = options.settingsLoaded && listLoaded && runsLoaded && owned;
     // The engine reads the newest state at each event. The state object is cheap, so it is new at each render.
     automationEngine.setContext({
         ready,
@@ -121,6 +123,18 @@ export function useAutomationEngine(options: Options): void {
     }, [ready, overlaps]);
 
     useEffect(() => onDashboardNews(news => void automationEngine.onDashboardNews(news)), []);
+
+    // The phone approves or skips a run that is waiting for approval. The main process sends the answer to one page.
+    useEffect(
+        () =>
+            window.shipwarden.automations.onAnswerRun((runId, approve) => {
+                const answer = approve ? automationEngine.approve(runId) : automationEngine.skip(runId);
+                void answer.catch(error =>
+                    console.warn(`[automations] The answer of the phone failed: ${error instanceof Error ? error.message : String(error)}`)
+                );
+            }),
+        []
+    );
 
     const hasTimers = active.some(automation => timerTrigger(automation));
     // biome-ignore lint/correctness/useExhaustiveDependencies: A new automation with a schedule or a task trigger starts a tick at once.

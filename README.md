@@ -162,8 +162,8 @@ The task queue runs a backlog while you sleep. It starts the tasks one after the
 
 Each task gets a new worktree from the branch template and the agent of its repository, the same as with
 "Start in worktree". A failed start goes to the end of the queue with its error, and waits one minute. After 3 failed
-starts, the task stops, and **Try again** puts it back. The queue runs only while ShipWarden is open. It continues after
-a restart of the app. The queue is in `task-queue.json` in the app data folder. The `queueTask` automation action adds
+starts, the task stops, and **Try again** puts it back. The queue runs while ShipWarden is open, and while it is closed
+when the Automations view has "Run while ShipWarden is closed" on. It continues after a restart of the app. The queue is in `task-queue.json` in the app data folder. The `queueTask` automation action adds
 the new tasks of a collection to the queue.
 
 ### Usage budget
@@ -313,7 +313,9 @@ shipwarden automation run nightly-review
 The commands that change something use the approvals of the MCP server. `--json` prints the result for scripts.
 `shipwarden skill install` gives Claude Code a skill file that explains the command. See [docs/cli.md](docs/cli.md).
 
-The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
+The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. With "Run while
+ShipWarden is closed", the background helper also runs the schedules, the CI failures, and the task queue while no
+window is open, and the iPhone app can approve the runs that are waiting for approval. For example:
 send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label,
 post to Slack when an agent waits for your input for 10 minutes, or remove the worktree after its pull request merges. Each automation is a JSON file in `~/.shipwarden/automations` that
 you can export and share. Runs can wait for your approval, and limits stop loops. See
@@ -336,7 +338,8 @@ Turn off the tips in the corner notice or in Settings › Appearance › Tips.
 
 The iPhone app (`ios/`) connects to ShipWarden on your Mac over your network. It shows the
 agents and their terminal screens, the worktrees with their pull requests and CI state. You
-can reply to an agent, answer its questions and approve a pull request. Turn it on in
+can reply to an agent, answer its questions, approve a pull request, and approve or skip an automation run that is
+waiting for approval. Turn it on in
 Settings › Mobile and pair the phone with the QR code. See [ios/README.md](ios/README.md).
 
 > The iPhone app is in beta. It is in App Store review now, so it is not in the App Store yet. Until

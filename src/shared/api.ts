@@ -610,6 +610,15 @@ export interface ShipWardenApi {
         http(request: { method: HttpMethod; url: string; headers: Record<string, string>; body?: string; timeoutSeconds?: number }): Promise<HttpResponse>;
         /** Called when a file in the automations folder changes, also from another app. */
         onChanged(listener: () => void): () => void;
+        /**
+         * True while this app holds the automation lock. Only the owner of the lock runs the automations and the task
+         * queue. The background helper holds it while no window is open.
+         */
+        engineOwned(): Promise<boolean>;
+        /** Called when this app gets or loses the automation lock. */
+        onEngineChanged(listener: (owned: boolean) => void): () => void;
+        /** Called when the phone approves (`approve` true) or skips a run that waits for approval. */
+        onAnswerRun(listener: (runId: string, approve: boolean) => void): () => void;
     };
     prompts: {
         /** The prompt templates in ~/.shipwarden/prompts, and the files that ShipWarden could not read. */
@@ -1027,6 +1036,9 @@ export const IpcChannels = {
     automationsClearHistory: 'automations:clearHistory',
     automationsHttp: 'automations:http',
     automationsChanged: 'automations:changed',
+    automationsEngineOwned: 'automations:engineOwned',
+    automationsEngineChanged: 'automations:engineChanged',
+    automationsAnswerRun: 'automations:answerRun',
     promptsList: 'prompts:list',
     promptsSave: 'prompts:save',
     promptsRemove: 'prompts:remove',

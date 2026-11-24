@@ -10,7 +10,7 @@ import { setupCommand } from '@shared/worktree-settings';
 import type { CreatedWorktree, Worktree } from '@shared/worktrees';
 import { terminalPool } from '../terminal/terminal-pool';
 import { withAvailableModel } from './agent-models-query';
-import { bracketedPaste, checkLine, checksPrompt, logPrompt, repoFolderName, showsAgentDialog } from './agent-text';
+import { bracketedPaste, checkLine, checksPrompt, logPrompt, repoFolderName, showsAgentDialog } from '@shared/agent-text';
 import type { TabKey } from './tabs';
 import { errorText } from './worktree-edits';
 

@@ -36,7 +36,8 @@ import { errorText } from '../util';
 import { AutomationEditor, STATUS_OPTIONS } from './AutomationEditor';
 import { LimitField } from './LimitField';
 import { patchRunState, removeAutomation, saveAutomation, useAutomationList, useAutomationRuns } from './automation-queries';
-import { automationEngine, describeActions } from './engine';
+import { describeActions } from '@shared/automation-engine';
+import { automationEngine } from './engine';
 import { pickManualRun } from './manual-run';
 import { InlineTip } from '../components/Tips';
 
@@ -325,8 +326,8 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
             <div className="automations-scroll">
                 <div className="settings-page automations-page">
                     <p className="settings-group-description automations-intro">
-                        Rules of the form "when this occurs, do that". They run while ShipWarden is open. Each automation is a JSON file in
-                        ~/.shipwarden/automations that you can export and share.
+                        Rules of the form "when this occurs, do that". They run while ShipWarden is open, and schedules and CI failures can also run while it is
+                        closed. Each automation is a JSON file in ~/.shipwarden/automations that you can export and share.
                     </p>
 
                     <InlineTip id="automations" />
@@ -342,6 +343,21 @@ export function AutomationsView({ settings, onSaveSettings, repos, repoLabel, on
                                     title={automationSettings.paused ? 'Paused' : 'On'}
                                     checked={!automationSettings.paused}
                                     onChange={on => void saveAutomationSettings({ paused: !on })}
+                                />
+                            }
+                        />
+                        <SettingsRow
+                            label="Run while ShipWarden is closed"
+                            description={
+                                automationSettings.runWhenClosed && !settings.remote.keepRunning
+                                    ? 'The background helper is off. Turn on "Keep agents and phone access running when ShipWarden is closed" in Settings › Mobile.'
+                                    : 'While no window is open, the background helper runs the schedule and CI automations and the task queue. Other triggers wait for the app. A run with an action that needs the app waits until you open ShipWarden.'
+                            }
+                            control={
+                                <Switch
+                                    title={automationSettings.runWhenClosed ? 'On' : 'Off'}
+                                    checked={automationSettings.runWhenClosed}
+                                    onChange={on => void saveAutomationSettings({ runWhenClosed: on })}
                                 />
                             }
                         />

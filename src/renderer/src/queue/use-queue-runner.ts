@@ -4,6 +4,7 @@ import type { BranchSummary } from '@shared/github';
 import type { TerminalSession } from '@shared/terminal';
 import { branchSummariesQuery, summariesByRepo } from '../github/use-branch-status';
 import { queueRunner, type QueueRunnerActions } from './queue-runner';
+import { useEngineOwned } from '../automations/automation-queries';
 import { useTaskQueue } from './queue-queries';
 
 /** The runner checks the running items at this interval. It finds the idle agents and the new pull requests. */
@@ -33,7 +34,9 @@ export function useQueueRunner(options: Options): void {
     const extraSummaries = useQueries({ queries: extraRepos.map(branchSummariesQuery), combine });
     const summaries = useMemo(() => ({ ...extraSummaries, ...options.summaries }), [extraSummaries, options.summaries]);
 
-    const ready = options.settingsLoaded && loaded;
+    // The background helper runs the queue while it holds the automation lock. The page runs it only with the lock.
+    const owned = useEngineOwned();
+    const ready = options.settingsLoaded && loaded && owned;
     // The runner reads the newest state at each round. The state object is cheap, so it is new at each render.
     queueRunner.setContext({ ready, sessions: options.sessions, summaries, actions: options.actions });
 

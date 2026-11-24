@@ -155,6 +155,16 @@ stay.
 
 **Goal:** Run automations and the task queue while the app is closed.
 
+**Status:** Done in branch `2.1-headless-engine`. A lock file (`automation-engine.lock`) lets one process run the
+engine: the app while a window is open, else the background helper when the new setting "Run while ShipWarden is
+closed" is on (off by default, and the helper needs the Settings › Mobile switch). The app asks for the lock with a
+handover file. The page engine stays in the page. The run decisions, the HTTP action, the {{checks}} variable, and the
+queue observation moved to `src/shared`. `HeadlessEngine` and `HeadlessQueue` run in the helper: schedule and CI
+triggers, and the actions "Start an agent", "Send to the agent", "Notify", "HTTP", "If", and "Stop". A run with another
+action waits for the app. The helper polls the branch summaries only while it holds the lock, with the GitHub CLI token.
+The phone lists the pending runs and approves or skips them (`/v1/automations/pending`). The CLI socket does not run in
+the helper yet. Not tested live in the app, in the helper, or on the phone.
+
 **Design:**
 
 - Move the automation engine and the queue scheduler from the renderer to a shared module. The background helper

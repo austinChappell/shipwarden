@@ -2,17 +2,27 @@
  * The entry point of the background helper.
  * A macOS launch agent starts it with Electron's Node runtime (ELECTRON_RUN_AS_NODE=1), at login and after a stop.
  * It runs the phone server while ShipWarden is closed. The agents stay in the PTY host.
+ * When the user turns on "Run while ShipWarden is closed", it also runs the schedule and CI automations and the task
+ * queue while no ShipWarden window is open (see `HelperAutomations`).
  * Arguments: <app data folder> <app version>.
  */
 import { execFile } from 'child_process';
 import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
-import { homedir, hostname } from 'os';
+import { homedir, hostname, userInfo } from 'os';
 import { dirname, join, relative, resolve, isAbsolute } from 'path';
+import { pendingRemoteRuns } from '@shared/automation-engine';
+import { normalizeRunState } from '@shared/automations';
 import { normalizeProjects } from '@shared/projects';
 import type { TaskLink } from '@shared/tasks';
 import type { TerminalSession } from '@shared/terminal';
+import { hookSettingsPaths } from '../agents/hook-files';
 import { ShellAgents } from '../agents/shell-agents';
+import { shellIntegrationEnv } from '../agents/shell-integration';
+import { sendHttpRequest } from '../automations/http-request';
+import { GitHubClient } from '../github/github-client';
+import { GitHubService } from '../github/github-service';
+import { TrustedCertificates } from '../network/trusted-certificates';
 import { LEGACY_NAMES } from '../legacy-migration';
 import { ProcessService } from '../processes/process-service';
 import { buildSocketPath, ptyHostSocketFolder, ptyHostSocketPath } from '../pty-host/protocol';
@@ -22,9 +32,12 @@ import { HttpError, localHosts, RemoteServer } from '../remote/remote-server';
 import { RemoteSnapshotBuilder } from '../remote/remote-snapshot';
 import { ensureTlsIdentity } from '../remote/tls-identity';
 import { SettingsStore } from '../settings-store';
-import { loadLoginShellPath } from '../shell-env';
+import { ScreenMirror } from '../remote/screen-mirror';
+import { loadLoginShellPath, loginShellCaFile } from '../shell-env';
 import { JsonStore } from '../tasks/json-store';
-import { GitWorktreeService } from '../worktrees/git-worktree-service';
+import { GitWorktreeService, worktreesRoot } from '../worktrees/git-worktree-service';
+import { HelperAgents } from './headless-agents';
+import { HelperAutomations } from './helper-automations';
 import { HelperServer } from './helper-server';
 import { helperSocketPath } from './protocol';
 
@@ -106,6 +119,127 @@ const ownSnapshot = new RemoteSnapshotBuilder({
     sessions
 });
 
+const settingsFile = join(userData, 'settings.json');
+const readSettings = () => new SettingsStore(settingsFile).get();
+const readProjects = async () =>
+    normalizeProjects(JSON.parse(await fs.readFile(join(userData, 'projects.json'), 'utf8').catch(() => '{}')), randomUUID).projects;
+
+/**
+ * The network requests of the automations use the extra CA certificates of Settings › Network, as in the app. They
+ * apply after the login shell PATH loads (in `main`).
+ */
+const certificates = new TrustedCertificates(join(userData, 'trusted-ca.pem'));
+let networkStarted: () => void = () => undefined;
+const networkReady = new Promise<void>(resolve => {
+    networkStarted = resolve;
+});
+/**
+ * GitHub for the CI automations. The token comes from GITHUB_TOKEN or the GitHub CLI. The saved tokens of
+ * Settings › Code review are encrypted with the keychain of the app, so the helper cannot read them.
+ */
+const github = new GitHubService(new GitHubClient({ ready: networkReady }));
+
+/** The text of the screen of a session, from the output of the PTY host. */
+async function screenText(id: string): Promise<string | undefined> {
+    const session = terminalSizes.get(id) ?? (await terminals.list()).find(item => item.id === id);
+    const mirror = new ScreenMirror(session?.cols ?? 120, session?.rows ?? 32);
+    try {
+        const replay = await terminals.replay(id);
+        await mirror.write(replay.data, replay.seq);
+        return mirror.screenText();
+    } catch {
+        return undefined;
+    } finally {
+        mirror.dispose();
+    }
+}
+
+const hookPaths = hookSettingsPaths(userData);
+const helperAgents = new HelperAgents({
+    terminals,
+    worktrees,
+    settings: readSettings,
+    hookPaths,
+    env: () => {
+        // launchd starts the helper with ELECTRON_RUN_AS_NODE. An agent must not get it: an Electron app in its shell would run as Node.
+        const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env;
+        return { ...env, ...shellIntegrationEnv(env, { hookSettingsPath: hookPaths.claude, geminiHookSettingsPath: hookPaths.gemini }) };
+    },
+    worktreesRoot: worktreesRoot(),
+    home: homedir(),
+    username: userInfo().username,
+    saveTaskLink: (path, link) =>
+        new JsonStore<Record<string, TaskLink>>(join(userData, 'task-links.json'), () => ({})).update(all => ({ ...all, [path]: link })).then(() => undefined),
+    screenText,
+    log: message => log(`[agents] ${message}`)
+});
+
+/** Shows a macOS notification when Settings › Notifications allows the "Automations" event. */
+function notify(title: string, body: string): void {
+    void readSettings().then(settings => {
+        const { enabled, events } = settings.notifications;
+        if (!enabled || !events.automation.enabled) return;
+        const script = `display notification ${JSON.stringify(body)} with title "ShipWarden" subtitle ${JSON.stringify(title)}`;
+        execFile('/usr/bin/osascript', ['-e', script], error => {
+            if (error) log(`The notification did not show: ${error.message}`);
+        });
+    });
+}
+
+const automations = new HelperAutomations({
+    userData,
+    automationsFolder: join(homedir(), '.shipwarden', 'automations'),
+    settings: readSettings,
+    places: async () => {
+        const repos = [...new Set((await readProjects()).flatMap(project => project.repos))];
+        const lists = await Promise.all(repos.map(async repo => (await worktrees.list(repo).catch(() => [])).map(worktree => ({ repo, worktree }))));
+        return lists.flat().filter(place => !inReviewFolder(place.worktree.path));
+    },
+    agents: helperAgents,
+    github: {
+        branchSummaries: root => github.branchSummaries(root),
+        checks: async (root, sha) => {
+            const repo = await github.repoFor(root);
+            return repo ? github.checks(repo, sha) : [];
+        },
+        saveJobLog: async (root, jobId) => {
+            const repo = await github.repoFor(root);
+            if (!repo) throw new Error('The worktree has no GitHub repository.');
+            return github.saveJobLog(repo, jobId);
+        }
+    },
+    http: request => sendHttpRequest(request, networkReady),
+    notify,
+    log: message => log(`[automations] ${message}`)
+});
+
+/** The pending runs come from the run file. The owner of the automation lock writes it, so each call reads it again. */
+async function pendingRuns() {
+    const text = await fs.readFile(join(userData, 'automation-runs.json'), 'utf8').catch(() => '{}');
+    try {
+        return pendingRemoteRuns(normalizeRunState(JSON.parse(text)));
+    } catch {
+        return [];
+    }
+}
+
+/** Approves or skips a run for the phone: in the helper when it runs the automations, else in the open app. */
+async function answerRun(id: string, approve: boolean): Promise<void> {
+    try {
+        if (await automations.answerRun(id, approve)) return;
+    } catch (error) {
+        throw new HttpError(409, error instanceof Error ? error.message : String(error));
+    }
+    if (!control.hasApp()) {
+        throw new HttpError(503, 'Open ShipWarden on the Mac, or turn on "Run while ShipWarden is closed" in Automations, to answer this run.');
+    }
+    try {
+        await control.appAnswerRun({ id, approve });
+    } catch (error) {
+        throw new HttpError(409, error instanceof Error ? error.message : String(error));
+    }
+}
+
 const remote: RemoteServer = new RemoteServer({
     devices: new RemoteDevices(join(userData, 'remote-devices.json')),
     identity: () => ensureTlsIdentity(userData),
@@ -130,6 +264,8 @@ const remote: RemoteServer = new RemoteServer({
             }
             await control.appApprove({ worktreePath, number, headSha, body });
         },
+        pendingRuns,
+        answerRun,
         onStatusChanged: () => control.statusChanged()
     }
 });
@@ -146,6 +282,7 @@ const control = new HelperServer({
 
 async function stop(code: number): Promise<never> {
     shellAgents.stop();
+    await automations.stop().catch(() => undefined);
     control.stop();
     await remote.stop().catch(() => undefined);
     // The PTY host and its sessions continue to run.
@@ -165,7 +302,12 @@ async function main(): Promise<void> {
     await control.start();
     log(`Listening on ${helperSocketPath(userData)} (pid ${process.pid}, version ${version}).`);
     shellAgents.start();
-    const settings = await new SettingsStore(join(userData, 'settings.json')).get();
+    const settings = await readSettings();
+    await certificates
+        .apply(settings.network, loginShellCaFile())
+        .catch(error => log(`The trusted certificates were not applied: ${error instanceof Error ? error.message : String(error)}`));
+    networkStarted();
+    automations.start();
     await remote.apply(settings.remote);
     const status = await remote.status();
     log(status.running ? `The phone server listens on port ${status.port}.` : `The phone server does not listen.${status.error ? ` ${status.error}` : ''}`);

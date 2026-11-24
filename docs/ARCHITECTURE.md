@@ -25,6 +25,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-19 | When "origin" is a fork on GitHub, the pull requests of its worktrees go to the parent, with "owner:branch" as the head. The choice of the repository is the `gh-resolved` setting of `gh repo set-default` in the git config. To select the parent, ShipWarden adds an "upstream" remote when no remote has the parent. | A fork exists to send pull requests to its parent, so this default needs no setup. gh in the agent terminals reads the same setting, so `gh pr create` and ShipWarden select the same repository. |
 | 2026-11-20 | Stacked plan steps restack with `git rebase --onto <new base> <old base>` for regular and squash merges. The old base is the newest of two commits that the branch contains: the parent tip when the step started (`PlanStep.stackBase`) and the head of the merged pull request. The plan runner sees a merge in the cached pull request data and sends no request. ShipWarden does not push a clean rebase without a question. On a conflict, the agent of the worktree resolves, continues, tests, and pushes with `--force-with-lease`. | One code path works for both merge methods. A squash merge has no commit of the parent branch, so a usual rebase replays the parent commits and has conflicts. The cache already has the merged pull requests of the plan page and of the "Remove merged worktrees" sweep, so a new poll is not necessary. The agent push is the same as "Rebase with agent". |
 | 2026-11-23 | The `shipwarden` CLI sends one JSON line to a Unix socket of the main process and gets one JSON line back. A token in `~/.shipwarden/cli.json` (mode 0600) guards each request. The commands that act on agent tabs, worktrees, and automations run in the page, as for the automations. | A Unix socket with mode 0600 needs no port and no TLS. The page owns the agent tabs and the automation engine, so the CLI reuses that code. `CliServer` and `CliActions` use no Electron API, so the background helper can run the socket later (plan 2.1). |
+| 2026-11-23 | The background helper runs the schedule and CI automations and the task queue while no window is open (setting "Run while ShipWarden is closed", off by default). A lock file in the app data folder (`automation-engine.lock`) lets one process run them at a time. The app has priority: a window asks the helper for the lock with a handover file. The page engine and the helper engine share the decisions in `src/shared/automation-engine.ts`. A run with an action that needs the page waits for the app. | The page engine uses the TanStack Query cache, the task plugins, and the agent tabs, so a full move to Node is a large rewrite. The triggers that need only a timer and the branch summaries cover the "overnight" use. The lock stops two writers of the run file and the queue file. A file lock needs no connection between the processes, and a crash frees it (dead process or old heartbeat). |
 | 2026-11-20 | "Rebase onto" runs `git rebase` in the main process (`GitChangesService.rebase`), not in an agent. The status reads the rebase folder of git (`rebase-merge` or `rebase-apply`) on each poll, so a rebase from a terminal shows the same state. The push after a rebase uses `--force-with-lease=<branch>:<commit>` with the commit of the upstream at the start of the rebase. | The user sees each conflict and decides. "Rebase with agent" (Review page) stays for a rebase without the user. A lease from the start of the rebase keeps commits that someone pushed during the rebase, also after a background fetch. |
 
 ## The old name (Yardmaster)
@@ -807,6 +808,41 @@ The user guide and the file format are in [automations.md](automations.md).
   automations (`settings.automations.dailyTokens`) before a run, and before a held run continues.
 - **Notifications.** The event "Automations" in Settings › Notifications: a run waits for approval, or a run failed.
   A click opens the Automations view. A `notify` action needs only the main switch.
+- **Shared decisions.** `src/shared/automation-engine.ts` has the parts that the page engine and the helper engine
+  share: `decideRun` (dry run, skip, pending, or run), `scheduleEvent`, `runHttpAction`, `checksVariable`,
+  `describeActions`, and `StopRun`. The queue runners share `observeQueueAgent` (`src/shared/task-queue.ts`).
+- **Lock.** `EngineLock` (`src/main/automations/engine-lock.ts`) is a file in the app data folder
+  (`automation-engine.lock`): the owner (`app` or `helper`), the process ID, a token, and a heartbeat. `tryAcquire` makes
+  the file with the `wx` flag, so only one process gets it. The owner writes a heartbeat every 5 seconds. A lock whose
+  process exited, or whose heartbeat is older than 30 seconds, is stale, and another process can take it. The removal of
+  a stale lock renames the file first and checks the token, so two processes cannot both take it. `EngineLockKeeper`
+  runs the checks. The app wants the lock while a window is open. It writes `automation-engine.lock.handover` when the
+  helper holds the lock. The helper sees the request at its next heartbeat, stops its engine (it waits for the actions
+  that run), and releases the lock. When the app gets the lock, the main process reads the run file, the queue file,
+  and the task links again, and the page loads them again before its engine and its queue runner start
+  (`useEngineOwned`). The page engine and the queue runner run only while the app holds the lock.
+- **Helper engine.** `HeadlessEngine` (`src/main/automations/headless-engine.ts`) runs in the background helper while it
+  holds the lock, when `settings.automations.runWhenClosed` is on. It uses no Electron API and no renderer code.
+  - Triggers: `schedule` (a timer every 30 seconds) and `ci.failed` (the branch summaries of `SummaryPoller`). The other
+    triggers need the page, the Dashboard data, or the agent hooks, so they do not run while the app is closed.
+  - Actions: `startAgent`, `sendToAgent`, `notify` (`osascript`), `http`, `if`, and `stop`. A run with another action,
+    or with the `{{task.*}}` variables, gets the status "held" with the text "Waiting for ShipWarden to open." The page
+    engine runs it when the app gets the lock (its held runs retry at each tick).
+  - Agents: `HelperAgents` (`src/main/helper/headless-agents.ts`) makes the worktree with `GitWorktreeService` and the
+    worktree settings, starts the setup script, and starts the agent in the PTY host with the agent hooks. The hooks
+    cannot reach the app while it is closed, so the helper sees the state of an agent from its output only
+    (`sessionBusy`). The agents of the helper do not get the ShipWarden MCP server. It does not answer an agent dialog.
+    It cannot change the mode of a running agent.
+  - Approvals: a pending run waits. The phone can approve or skip it (see "Mobile").
+  - Not in the helper: the usage limits (the helper has no usage data), the usage budget, `pr.merged`, the setting
+    "Remove merged worktrees", and the token counts of the turns. The page counts the tokens of a turn later.
+- **Poller.** `SummaryPoller` (`src/main/automations/summary-poller.ts`) loads the branch summaries in the helper once a
+  minute, only for the repositories with a worktree that a `ci.failed` rule watches, and for the repositories of the
+  running queue items in the "pull request" mode. While the app holds the lock, the page polls with TanStack Query and
+  the helper does not poll. So only one process polls at a time. The helper uses `GitHubService` with the token of
+  `GITHUB_TOKEN` or the GitHub CLI and the trusted certificates of Settings › Network. The saved tokens of
+  Settings › Code review use Electron `safeStorage`, so the helper cannot read them. Only GitHub repositories give CI
+  events in the helper.
 
 ### Task queue
 
@@ -825,7 +861,8 @@ The user guide and the file format are in [automations.md](automations.md).
 - **Failures.** A failed start goes to the end of the queue with its error and waits `RETRY_DELAY_MS`. After
   `MAX_START_ATTEMPTS`, the item gets the status "failed".
 - **Store.** `QueueStore` (main process) keeps `task-queue.json` in the app data folder (`queue:get`, `queue:save`). The
-  page is the only writer. `changeQueue` (`src/renderer/src/queue/queue-queries.ts`) applies a scheduler function to the
+  page is the only writer while the app holds the automation lock. The background helper writes it while it holds the
+  lock. `changeQueue` (`src/renderer/src/queue/queue-queries.ts`) applies a scheduler function to the
   cached state, puts the result in the TanStack Query cache in the same step, and saves it.
 - **Runner.** `QueueRunner` (`src/renderer/src/queue/queue-runner.ts`) runs in the page, because the page owns the agent
   tabs. `useQueueRunner` gives it the sessions and the branch summaries at each render, and runs a round every 30
@@ -834,6 +871,11 @@ The user guide and the file format are in [automations.md](automations.md).
   of "Start in worktree". At the first round after a start of the app, `recoverQueue` puts a start that did not end at
   the end of the queue. Running items stay: their agents keep working in the PTY host.
 - **Automations.** The `queueTask` action calls `queueTask` with the task of the event and the name of the automation.
+- **Helper.** `HeadlessQueue` (`src/main/queue/headless-queue.ts`) runs the same scheduler in the background helper
+  while it holds the automation lock (see [Automations](#automations)). It starts an item with
+  `HelperAgents.startTask`: the task branch from the branch template (the `{taskShortDescription}` variable comes from
+  the title), the worktree, the task link in `task-links.json`, and the agent with the task prompt. It does not move the
+  task to its start status, and it does not check the usage budget.
 
 ### Checkpoints
 
@@ -945,8 +987,8 @@ The user guide is in [cli.md](cli.md).
 - **Link.** `CliInstaller` (`cli-install.ts`) adds a symbolic link to the launcher in `/usr/local/bin`, else in
   `~/.local/bin`. It replaces only a link that goes to a `bin/shipwarden` file, and it removes only its own link. The
   page reads the state with `cli:installState` and patches its cache after `cli:install` and `cli:remove`.
-- **Helper.** The background helper does not run the socket yet. When the helper runs the engine (plan 2.1), it can
-  run `CliServer` with its own `CliHandler`, and the app can stop its own server.
+- **Helper.** The background helper does not run the socket yet. It runs the automations while the app is closed (plan
+  2.1), but the CLI commands use the MCP tools and the page. A `CliHandler` of the helper is a later step.
 
 ### Repository scripts
 
@@ -1479,6 +1521,11 @@ finds a difference: the unit tests write sample JSON from the TypeScript types t
     in a shell.
   - `POST /v1/pull-requests/approve`: `{ worktreePath, number, headSha, body }`. The worktree must be in a project.
     The head SHA makes GitHub refuse the approval when the branch has newer commits.
+  - `GET /v1/automations/pending`: `{ runs }`, the automation runs that are waiting for approval (`pendingRemoteRuns`).
+    The process reads the run file.
+  - `POST /v1/automations/runs/<id>/approve` and `.../skip`: the answer goes to the owner of the automation lock. The
+    helper engine answers at once. The app sends it to the page (`automations:answerRun`). A run that is not pending
+    gets 409. Without a window and without the helper engine, the answer gets 503.
   - Each stream gets a comment every 15 seconds, so the phone finds a dead connection.
 - **Screen.** `ScreenMirror` runs the output of a session through a headless xterm.js (`@xterm/headless`): first the
   replay, then the live chunks with a larger sequence number. A snapshot has 150 lines of scrollback and the screen,
@@ -1521,10 +1568,13 @@ default) runs the phone server in a background helper. The page asks before it t
 - **Data.** While the app is open, the helper asks the app for the snapshot and for approvals, so the phone gets the
   pull requests. While the app is closed, the helper reads `projects.json`, `settings.json` and `task-links.json`
   again for each snapshot, and runs `git worktree list`. It shows no pull requests then, and an approval gets 503.
-  The helper makes no outbound network requests, so it does not need the trusted certificates of Settings › Network.
+- **Automations.** `HelperAutomations` (`src/main/helper/helper-automations.ts`) runs the automations and the task queue
+  while the helper holds the automation lock (see [Automations](#automations)). Only these requests go out: the
+  branch summaries and the checks of GitHub, and the HTTP actions. They use the trusted certificates of
+  Settings › Network, which the helper applies at its start.
 - **Security.** The pairing, the tokens, the certificate and the bind address do not change. The helper uses the same
   `RemoteDevices` file and TLS identity in the app data folder. The helper socket is a Unix socket with mode 0600,
   like the PTY host socket. Only processes of the user can connect.
 - **Logs.** The helper writes to `<app data>/helper.log`.
-- **Next steps.** Pull requests and approvals while the app is closed (the helper needs the review providers, the
-  tokens without Electron `safeStorage`, and the trusted certificates). Start agents from the phone. Push notifications.
+- **Next steps.** Pull requests and approvals while the app is closed (the helper needs the review providers and the
+  tokens without Electron `safeStorage`). The CLI socket in the helper. Start agents from the phone. Push notifications.

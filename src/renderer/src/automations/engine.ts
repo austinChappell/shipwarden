@@ -1,12 +1,9 @@
 import type { NotificationTarget } from '@shared/api';
 import type { AgentMode } from '@shared/agent-modes';
 import {
-    ACTION_TYPES,
     automationMatches,
     branchName,
-    conditionsAgree,
     flattenActions,
-    secretVariables,
     taskValues,
     usesVariable,
     dueScheduleSlot,
@@ -15,8 +12,6 @@ import {
     localDateTime,
     needsRepo,
     renderTemplate,
-    runsForTarget,
-    startOfDay,
     tokenLimitReached,
     taskMatchesTrigger,
     taskRepo,
@@ -27,11 +22,23 @@ import {
     type AutomationEvent,
     type AutomationRun,
     type AutomationSettings,
-    type RunStatus,
     type Trigger,
     type TriggerType
 } from '@shared/automations';
-import { conditionHolds, describeCondition, httpVariables } from '@shared/automation-templates';
+import { conditionHolds, describeCondition } from '@shared/automation-templates';
+import {
+    channelLabel,
+    checksVariable,
+    clipDetail,
+    decideRun,
+    describeActions,
+    HOLD_LIMIT_MS,
+    newRunId,
+    runHttpAction,
+    StopRun,
+    OPEN_RUN_STATES,
+    scheduleEvent
+} from '@shared/automation-engine';
 import {
     agentDoneEvent,
     agentNeedsInputEvent,
@@ -58,7 +65,6 @@ import type { TerminalSession } from '@shared/terminal';
 import { BUDGET_WAIT_PREFIX, type ProviderUsage } from '@shared/usage';
 import { budgetWait } from '../usage-budget';
 import type { Worktree } from '@shared/worktrees';
-import { checkLine } from '../app/agent-text';
 import { PEOPLE_STALE_MS } from '../components/tasks/use-assignee-filter';
 import { loadTaskList } from '../components/tasks/use-task-list';
 import { findFreshTask, taskQueryKeys, type CachedDetail } from '../components/tasks/task-view-logic';
@@ -80,23 +86,11 @@ const api = window.shipwarden;
 
 /** A "Task matches" automation reads its collection at most one time in this interval. The Dashboard uses the same interval. */
 export const TASK_POLL_MS = 5 * 60_000;
-/** A run that waits for a busy agent fails after this time. */
-const HOLD_LIMIT_MS = 12 * 3600_000;
 /** An agent without hooks is busy while its terminal printed output in this time. */
 const QUIET_MS = 10_000;
-/** The run history shows at most this much of an answer or an error. */
-const MAX_DETAIL = 4000;
-/** The text of a run that a limit stopped. The engine records it one time for each target. */
-const LIMIT_DETAIL = 'The automation reached its limit of runs for this target.';
-/** A word in the text of a run that the token limit stopped. The engine records it one time each day. */
-const TOKEN_LIMIT_MARK = 'tokens today';
-/** The check conclusions that count as a failure. */
-const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'error', 'action_required']);
 
 /** The setting "Remove merged worktrees" reads the merged pull requests of each repository at most one time in this interval. */
 export const MERGED_SWEEP_MS = 15 * 60_000;
-/** The run states that can still use the worktree of the run. */
-const OPEN_RUN_STATES: ReadonlySet<RunStatus> = new Set(['pending', 'held', 'running']);
 
 /** The actions that do not use the worktree of the event. The setting "Remove merged worktrees" does not wait for them. */
 const WORKTREE_FREE_ACTIONS: ReadonlySet<AutomationAction['type']> = new Set(['moveTask', 'notify', 'postMessage', 'queueTask']);
@@ -155,10 +149,6 @@ export interface EngineContext {
 
 function errorText(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
-}
-
-function clip(text: string): string {
-    return text.length > MAX_DETAIL ? `${text.slice(0, MAX_DETAIL)}…` : text;
 }
 
 /** A file name for a note: the characters that a note name does not accept become spaces. */
@@ -488,20 +478,7 @@ export class AutomationEngine {
             const at = slot.getTime();
             await api.automations.setScheduleRun(automation.id, at);
             patchRunState(state => ({ ...state, scheduleRuns: { ...state.scheduleRuns, [automation.id]: at } }));
-            const { time } = localDateTime(slot);
-            const repoPath = automation.binding.repos?.[0];
-            this.dispatch(
-                {
-                    trigger: 'schedule',
-                    key: `schedule:${automation.id}:${slot.toISOString()}`,
-                    target: `schedule:${automation.id}`,
-                    label: `${localDateTime(slot).date} ${time}`,
-                    at,
-                    time,
-                    ...(repoPath ? { repoPath, worktreePath: repoPath } : {})
-                },
-                [automation]
-            );
+            this.dispatch(scheduleEvent(automation, slot), [automation]);
         }
     }
 
@@ -597,61 +574,16 @@ export class AutomationEngine {
 
     private async fire(automation: Automation, event: AutomationEvent): Promise<void> {
         const context = this.ready;
-        if (!context || context.settings.paused) return;
-        const state = cachedRunState();
-        if (state.fired[firedKey(automation.id, event)] !== undefined) return;
-        // The conditions use the values of the event only. An event that does not agree starts no run and records nothing.
-        if (!conditionsAgree(automation, eventVariables(event))) return;
-        const now = Date.now();
-        const run = (status: RunStatus, detail?: string): AutomationRun => ({
-            id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-            automationId: automation.id,
-            automationName: automation.name,
-            status,
-            event,
-            createdAt: now,
-            updatedAt: now,
-            ...(detail ? { detail } : {}),
-            ...(event.worktreePath ? { worktreePath: event.worktreePath } : {}),
-            ...(event.sessionId ? { sessionId: event.sessionId } : {})
-        });
-        if (automation.status === 'dry-run') {
-            await this.claim(run('dry-run', `A dry run. The automation would: ${describeActions(automation.actions)}.`));
-            return;
+        if (!context) return;
+        const run = decideRun(automation, event, cachedRunState(), { settings: context.settings, usage: context.usage, now: Date.now() });
+        if (!run) return;
+        const claimed = await this.claim(run);
+        if (!claimed) return;
+        if (claimed.status === 'pending') {
+            this.notify(`${automation.name} is waiting for your approval`, event.label, { view: 'automations' });
+        } else if (claimed.status === 'running') {
+            await this.execute(claimed);
         }
-        const used = runsForTarget(state.runs, automation.id, event.target);
-        if (used >= automation.limits.maxRunsPerTarget) {
-            // Record the stop one time for each target, so the history shows why the automation does nothing.
-            const stopped = state.runs.some(item => item.automationId === automation.id && item.event.target === event.target && item.detail === LIMIT_DETAIL);
-            if (!stopped) await this.claim(run('skipped', LIMIT_DETAIL));
-            return;
-        }
-        // A "usage.threshold" run tells the user about the usage. The pause at plan usage must not stop it.
-        const overUsage =
-            automation.trigger.type === 'usage.threshold' ? undefined : planUsageReached(context.usage, automation, context.settings.pauseAtUsage);
-        if (overUsage) {
-            await this.claim(run('skipped', overUsage));
-            return;
-        }
-        const overTokens = tokenLimitReached(state.runs, automation, context.settings.dailyTokens, now);
-        if (overTokens) {
-            // Record the stop one time each day, so the history shows why the automation does nothing.
-            const today = startOfDay(now);
-            const stopped = state.runs.some(
-                item => item.automationId === automation.id && item.status === 'skipped' && item.createdAt >= today && item.detail?.includes(TOKEN_LIMIT_MARK)
-            );
-            if (!stopped) await this.claim(run('skipped', overTokens));
-            return;
-        }
-        if (automation.limits.approval === 'ask') {
-            const claimed = await this.claim(run('pending', 'Waiting for your approval.'));
-            if (claimed) {
-                this.notify(`${automation.name} waits for your approval`, event.label, { view: 'automations' });
-            }
-            return;
-        }
-        const claimed = await this.claim(run('running'));
-        if (claimed) await this.execute(claimed);
     }
 
     private async claim(run: AutomationRun): Promise<AutomationRun | null> {
@@ -685,7 +617,7 @@ export class AutomationEngine {
         const now = Date.now();
         const dryRun = automation.status === 'dry-run';
         const claimed = await this.claim({
-            id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+            id: newRunId(now),
             automationId: automation.id,
             automationName: automation.name,
             status: dryRun ? 'dry-run' : 'running',
@@ -805,7 +737,7 @@ export class AutomationEngine {
                 if (!(error instanceof StopRun)) throw error;
                 details.push(error.detail);
             }
-            await this.update(run.id, { status: 'done', detail: clip(details.filter(Boolean).join('\n')) });
+            await this.update(run.id, { status: 'done', detail: clipDetail(details.filter(Boolean).join('\n')) });
         } catch (error) {
             const automation = context.automations.find(item => item.id === run.automationId);
             // Keep the results of the actions that ran before the error.
@@ -867,7 +799,7 @@ export class AutomationEngine {
     }
 
     private async fail(run: AutomationRun, automation: Automation | undefined, detail: string): Promise<void> {
-        await this.update(run.id, { status: 'failed', detail: clip(detail) });
+        await this.update(run.id, { status: 'failed', detail: clipDetail(detail) });
         this.notify(`${automation?.name ?? run.automationName} failed`, detail, { view: 'automations' });
     }
 
@@ -899,11 +831,7 @@ export class AutomationEngine {
         const target = event.worktreePath;
         const sha = event.pr.headSha;
         const checks = await queryClient.fetchQuery({ queryKey: ciKeys.checks(target, sha), queryFn: () => api.github.checks(target, sha), staleTime: 0 });
-        const failed = checks.filter(check => FAILED_CONCLUSIONS.has(check.conclusion ?? ''));
-        const lines = await Promise.all(
-            failed.map(async check => checkLine(check, check.isActions ? await api.github.saveJobLog(target, check.id).catch(() => undefined) : undefined))
-        );
-        return { checks: lines.length > 0 ? lines.join('\n') : '(ShipWarden found no failed checks. Look at the checks of the pull request.)' };
+        return { checks: await checksVariable(checks, check => api.github.saveJobLog(target, check.id).catch(() => undefined)) };
     }
 
     /** Runs a list of actions in order. An "If" action runs one of its lists. A "Stop" action throws `StopRun`. */
@@ -929,42 +857,6 @@ export class AutomationEngine {
             }
             details.push(await this.runAction(context, automation, run, action, values));
         }
-    }
-
-    /**
-     * Sends the request of an "HTTP request" action. The secrets go into the request only. The run history shows "•••"
-     * for them. The answer becomes the "http.*" variables of the next actions.
-     */
-    private async sendHttp(
-        automation: Automation,
-        action: Extract<AutomationAction, { type: 'http' }>,
-        values: Record<string, string | undefined>
-    ): Promise<string> {
-        const full = { ...values, ...secretVariables(automation.binding) };
-        const shown = { ...values, ...secretVariables(automation.binding, true) };
-        const headers = Object.fromEntries((action.headers ?? []).map(header => [header.name, renderTemplate(header.value, full)]));
-        const body = action.body === undefined ? undefined : renderTemplate(action.body, full);
-        // A JSON body without a content type gets one. Most web services need it.
-        const hasType = Object.keys(headers).some(name => name.toLowerCase() === 'content-type');
-        if (body !== undefined && !hasType && /^\s*[[{]/.test(body)) headers['Content-Type'] = 'application/json';
-        const response = await api.automations.http({
-            method: action.method,
-            url: renderTemplate(action.url, full),
-            headers,
-            ...(body !== undefined ? { body } : {}),
-            ...(action.timeoutSeconds ? { timeoutSeconds: action.timeoutSeconds } : {})
-        });
-        // The values of an earlier answer must not stay. A JSON field that the new answer does not have becomes empty.
-        for (const key of Object.keys(values)) {
-            if (key.startsWith('http.')) delete values[key];
-        }
-        Object.assign(values, httpVariables(response));
-        const line = `${action.method} ${renderTemplate(action.url, shown)}: ${response.status} ${response.statusText}`.trim();
-        const ok = response.status >= 200 && response.status < 300;
-        if (!ok && !action.allowFailure) {
-            throw new Error(response.body.trim() ? `${line}\n${response.body.trim().slice(0, 1000)}` : line);
-        }
-        return response.truncated ? `${line} (the answer was larger than 1 MB, so ShipWarden kept the start only)` : line;
     }
 
     private async runAction(
@@ -1042,7 +934,7 @@ export class AutomationEngine {
                         cacheReads: (before?.cacheReads ?? 0) + (result.cacheReads ?? 0)
                     });
                 }
-                if (!action.saveNote) return clip(`${result.agent} answered:\n${result.answer}`);
+                if (!action.saveNote) return clipDetail(`${result.agent} answered:\n${result.answer}`);
                 const { date, time } = localDateTime(new Date());
                 const name = `Automations/${noteFileName(automation.name)} ${date} ${time.replace(':', '')}.md`;
                 const note = await api.notes.create(name, `# ${automation.name}\n\n_${date} ${time} · ${result.agent}_\n\n${result.answer}\n`);
@@ -1071,7 +963,7 @@ export class AutomationEngine {
                 return `Posted a message to ${channelLabel(action.channel)}.`;
             }
             case 'http':
-                return this.sendHttp(automation, action, values);
+                return runHttpAction(automation, action, values, request => api.automations.http(request));
             case 'if':
             case 'stop':
                 // `runActions` runs these actions.
@@ -1153,7 +1045,7 @@ export class AutomationEngine {
         const event = settings.events.automation;
         if (!always && !event.enabled) return;
         if (!always && !settings.whenFocused && document.hasFocus()) return;
-        api.notifications.show({ title, body: body ? clip(body).slice(0, 300) : undefined, sound: event.sound, target });
+        api.notifications.show({ title, body: body ? clipDetail(body).slice(0, 300) : undefined, sound: event.sound, target });
     }
 }
 
@@ -1187,13 +1079,6 @@ async function linkedTask(link: TaskLink): Promise<Task> {
     return cachedTask(connectionId, link.taskId) ?? ((await api.tasks.request(connectionId, 'tasks/get', { id: link.taskId })) as Task);
 }
 
-/** Thrown by a "Stop" action. The run ends as "done" with this text. */
-class StopRun extends Error {
-    constructor(readonly detail: string) {
-        super(detail);
-    }
-}
-
 /**
  * The task from the cache: from a list of the connection, or from the details of the task, if they loaded in the last
  * TASK_POLL_MS. Undefined when the cache has no fresh copy.
@@ -1223,28 +1108,6 @@ function agentBusy(session: TerminalSession): boolean {
     if (state) return state === 'working' || state === 'starting' || state === 'waiting';
     const last = outputActivity.get(session.id);
     return last !== undefined && Date.now() - last < QUIET_MS;
-}
-
-/** The name of a chat channel for the run history, for example "#releases". */
-function channelLabel(channel: { id: string; name?: string }): string {
-    return channel.name ? `#${channel.name}` : `the channel ${channel.id}`;
-}
-
-/** A short text of the actions, for a dry run. */
-export function describeActions(actions: readonly AutomationAction[]): string {
-    return actions
-        .map(action => {
-            if (action.type === 'if') {
-                const then = describeActions(action.then) || 'nothing';
-                return action.else?.length
-                    ? `if ${describeCondition(action.condition)}: ${then}, else: ${describeActions(action.else)}`
-                    : `if ${describeCondition(action.condition)}: ${then}`;
-            }
-            if (action.type === 'http') return `send ${action.method} ${action.url}`;
-            if (action.type === 'postMessage') return `post to ${channelLabel(action.channel)}`;
-            return ACTION_TYPES.find(item => item.type === action.type)?.label.toLowerCase() ?? action.type;
-        })
-        .join(', then ');
 }
 
 export const automationEngine = new AutomationEngine();

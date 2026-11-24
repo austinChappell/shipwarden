@@ -4,6 +4,7 @@ import SwiftUI
 struct AgentsView: View {
     @Environment(AppModel.self) private var model
     @State private var showExited = false
+    @State private var answerError: String?
 
     private var visibleAgents: [RemoteAgent] {
         model.sortedAgents.filter { showExited || !$0.exited }
@@ -12,6 +13,19 @@ struct AgentsView: View {
     var body: some View {
         List {
             ConnectionBanner()
+            if !model.pendingRuns.isEmpty {
+                Section("Waiting for approval") {
+                    ForEach(model.pendingRuns) { run in
+                        PendingRunRow(run: run) { approve in
+                            do {
+                                try await model.answer(run, approve: approve)
+                            } catch {
+                                answerError = error.localizedDescription
+                            }
+                        }
+                    }
+                }
+            }
             ForEach(visibleAgents) { agent in
                 NavigationLink(value: agent.id) {
                     AgentRow(agent: agent)
@@ -26,6 +40,11 @@ struct AgentsView: View {
                     description: Text("Agents that you start in ShipWarden on the Mac show here.")
                 )
             }
+        }
+        .alert("The answer did not reach the Mac", isPresented: Binding(get: { answerError != nil }, set: { if !$0 { answerError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(answerError ?? "")
         }
         .navigationTitle("Agents")
         .navigationDestination(for: String.self) { id in
@@ -105,5 +124,52 @@ struct AgentRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// An automation run that is waiting for approval, with the Skip and Approve buttons.
+struct PendingRunRow: View {
+    let run: RemoteAutomationRun
+    let answer: (Bool) async -> Void
+    @State private var sending = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Label("Waiting for approval", systemImage: "hand.raised")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.orange)
+                Spacer()
+                Text(run.createdDate, style: .relative)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Text(run.automationName)
+                .font(.body.weight(.medium))
+                .lineLimit(2)
+            Text(run.label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            HStack {
+                Spacer()
+                Button("Skip") { send(false) }
+                    .buttonStyle(.bordered)
+                Button("Approve") { send(true) }
+                    .buttonStyle(.borderedProminent)
+            }
+            .controlSize(.small)
+            .disabled(sending)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func send(_ approve: Bool) {
+        sending = true
+        Task {
+            await answer(approve)
+            sending = false
+        }
     }
 }

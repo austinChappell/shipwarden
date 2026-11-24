@@ -1,7 +1,7 @@
 import { connect, type Socket } from 'net';
 import { createMessageConnection, SocketMessageReader, SocketMessageWriter } from 'vscode-jsonrpc/node';
 import type { PairingOffer, RemoteSettings, RemoteSnapshot, RemoteStatus } from '@shared/remote';
-import { AppMethods, HelperMethods, type ApproveParams, type HelperHello } from './protocol';
+import { AppMethods, HelperMethods, type AnswerRunParams, type ApproveParams, type HelperHello } from './protocol';
 
 /** The app's connection to the background helper. */
 export interface HelperConnection {
@@ -21,6 +21,7 @@ export interface HelperConnection {
 export interface HelperRequests {
     snapshot(): Promise<Omit<RemoteSnapshot, 'protocol' | 'mac'>>;
     approvePullRequest(params: ApproveParams): Promise<void>;
+    answerRun(params: AnswerRunParams): Promise<void>;
     statusChanged(): void;
 }
 
@@ -39,6 +40,7 @@ export async function connectHelper(socketPath: string, requests: HelperRequests
     const connection = createMessageConnection(new SocketMessageReader(socket), new SocketMessageWriter(socket));
     connection.onRequest(AppMethods.snapshot, () => requests.snapshot());
     connection.onRequest(AppMethods.approvePullRequest, (params: ApproveParams) => requests.approvePullRequest(params));
+    connection.onRequest(AppMethods.answerRun, (params: AnswerRunParams) => requests.answerRun(params));
     connection.onNotification(AppMethods.statusChanged, () => requests.statusChanged());
     const listeners: (() => void)[] = [];
     let closed = false;

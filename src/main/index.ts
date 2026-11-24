@@ -69,11 +69,15 @@ const { terminals, browserViews, settings } = services;
  * second window (⇧⌘N).
  */
 function createWindow(): BrowserWindow {
-    return mainWindow.create({
+    const window = mainWindow.create({
         preload: join(__dirname, '../preload/index.js'),
         devServerUrl: process.env.ELECTRON_RENDERER_URL,
         page: join(__dirname, '../renderer/index.html'),
-        onClosed: window => browserViews.destroyOwnedBy(window),
+        onClosed: window => {
+            browserViews.destroyOwnedBy(window);
+            // Without a window, the page does not run the automations. The background helper can take the lock.
+            void services.engineOwnership.check();
+        },
         // The workspace keys go to the app before the page gets them. A focused terminal takes all keys, so the menu
         // shortcuts alone do not work in a terminal. preventDefault also stops the menu item, so the action happens once.
         onInput: (window, event, input) => {
@@ -91,6 +95,9 @@ function createWindow(): BrowserWindow {
             }
         }
     });
+    // The page runs the automations, so the app wants the automation lock while a window is open.
+    void services.engineOwnership.check();
+    return window;
 }
 
 /** Returns the window that had the focus last. Without a window, it opens a new window. */
@@ -248,6 +255,7 @@ app.whenReady().then(async () => {
     );
     registerIpc(services, runAppKey);
     createWindow();
+    services.engineOwnership.start();
     void settings
         .get()
         .then(all => services.remote.apply(all.remote))
@@ -290,4 +298,5 @@ app.on('before-quit', () => {
     services.askRunner.cancelAll();
     services.mcp.stop();
     services.cli.stop();
+    services.engineOwnership.stopSync();
 });

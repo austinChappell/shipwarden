@@ -7,6 +7,7 @@ import {
     REMOTE_PROTOCOL,
     type RemoteErrorBody,
     type RemoteInput,
+    type RemotePendingRuns,
     type RemotePairResponse,
     type RemoteSnapshot,
     type ScreenSnapshot
@@ -127,6 +128,21 @@ const pair: RemotePairResponse = {
     mac: { name: 'Studio', version: '0.1.5' }
 };
 
+/** The runs that are waiting for approval: one run with all fields, and one run without a worktree. */
+const pendingRuns: { runs: [DeepRequired<RemotePendingRuns['runs'][number]>, RemotePendingRuns['runs'][number]] } = {
+    runs: [
+        {
+            id: 'mi4x2k-a1b2c3',
+            automationName: 'Fix CI',
+            label: '#7 Fix the login page',
+            trigger: 'ci.failed',
+            worktreePath: '/Users/ana/.shipwarden/worktrees/api/fix-login',
+            createdAt: 1767225600000
+        },
+        { id: 'mi4x2k-d4e5f6', automationName: 'Nightly deps', label: '2026-01-01 09:00', trigger: 'schedule', createdAt: 1767225500000 }
+    ]
+};
+
 const error: RemoteErrorBody = { error: 'This address does not exist.' };
 
 /** The phone encodes this input. The Swift check compares its own encoding with this file. */
@@ -137,6 +153,7 @@ const fixtures: Record<string, unknown> = {
     'snapshot-minimal.json': minimalSnapshot,
     'screen.json': screen,
     'pair-response.json': pair,
+    'pending-runs.json': pendingRuns,
     'error.json': error,
     'input.json': input,
     'agent-states.json': Object.keys(AGENT_STATES),

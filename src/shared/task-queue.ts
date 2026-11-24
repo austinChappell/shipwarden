@@ -1,4 +1,7 @@
+import type { AgentState } from './agents';
+import type { BranchSummary } from './github';
 import type { StatusCategory, Task, TaskLabel } from './tasks';
+import type { TerminalSession } from './terminal';
 import { pluralize } from './format';
 
 /**
@@ -354,6 +357,45 @@ export interface AgentObservation {
     quietSince?: number;
     /** True when the branch of the agent has a pull request. */
     hasPullRequest: boolean;
+}
+
+/** An agent without hooks is busy while its terminal printed output in this time. The automations use the same time. */
+export const AGENT_QUIET_MS = 10_000;
+
+/** What a process knows of the state of a session: the hook state and its time, and the time of the last output. */
+export interface SessionActivity {
+    state?: AgentState;
+    /** The time of the hook state. */
+    at?: number;
+    lastOutput?: number;
+}
+
+/**
+ * Returns what the process sees of the agent of a running item. The session of the start comes first. When the user
+ * started a new agent in the worktree, the newest agent of the worktree counts. `activityOf` gives the newest state of a
+ * session. The page and the background helper know it from different sources.
+ */
+export function observeQueueAgent(
+    item: QueueItem,
+    sessions: readonly TerminalSession[],
+    summaries: Record<string, Record<string, BranchSummary>>,
+    now: number,
+    activityOf: (session: TerminalSession) => SessionActivity
+): AgentObservation {
+    const live = (session: TerminalSession) => session.isAgent && !session.exited;
+    const session =
+        sessions.find(entry => entry.id === item.sessionId && live(entry)) ??
+        sessions.findLast(entry => !!item.worktreePath && entry.worktreePath === item.worktreePath && live(entry));
+    const hasPullRequest = !!item.branch && !!summaries[item.repoPath]?.[item.branch];
+    if (!session) return { alive: false, busy: false, hasPullRequest };
+    const { state, at, lastOutput } = activityOf(session);
+    if (state) {
+        const busy = state === 'working' || state === 'starting' || state === 'waiting';
+        return { alive: true, busy, ...(busy ? {} : { quietSince: at ?? lastOutput }), hasPullRequest };
+    }
+    // An agent without hooks: the time of its last output tells if it works.
+    const busy = lastOutput !== undefined && now - lastOutput < AGENT_QUIET_MS;
+    return { alive: true, busy, ...(busy || lastOutput === undefined ? {} : { quietSince: lastOutput }), hasPullRequest };
 }
 
 /**

@@ -4,6 +4,7 @@ import { budgetBlock, budgetWaitText, type ProviderUsage } from './usage';
 import {
     activeCount,
     addToQueue,
+    AGENT_QUIET_MS,
     changeQueueSettings,
     clearFinished,
     EMPTY_QUEUE,
@@ -16,6 +17,7 @@ import {
     moveInQueue,
     nextStarts,
     normalizeQueueState,
+    observeQueueAgent,
     queuedItems,
     queuePosition,
     recoverQueue,
@@ -288,5 +290,32 @@ describe('a restart of the app with a full queue', () => {
     it('reads an empty or broken file as an empty queue', () => {
         expect(normalizeQueueState(undefined)).toEqual(EMPTY_QUEUE);
         expect(normalizeQueueState({ items: 'no' })).toEqual(EMPTY_QUEUE);
+    });
+});
+
+describe('observeQueueAgent', () => {
+    const item = { ...queueOf(['a']).items[0], status: 'running' as const, sessionId: 's1', worktreePath: '/wt/a', branch: 'a' };
+    const session = { id: 's1', title: 'Claude Code', cwd: '/wt/a', worktreePath: '/wt/a', isAgent: true, cols: 80, rows: 24, exited: false };
+
+    it('uses the hook state, else the time of the last output', () => {
+        expect(observeQueueAgent(item, [session], {}, NOW, () => ({ state: 'working' }))).toEqual({ alive: true, busy: true, hasPullRequest: false });
+        expect(observeQueueAgent(item, [session], {}, NOW, () => ({ state: 'idle', at: NOW - 5 }))).toEqual({
+            alive: true,
+            busy: false,
+            quietSince: NOW - 5,
+            hasPullRequest: false
+        });
+        expect(observeQueueAgent(item, [session], {}, NOW, () => ({ lastOutput: NOW - 1000 })).busy).toBe(true);
+        expect(observeQueueAgent(item, [session], {}, NOW, () => ({ lastOutput: NOW - AGENT_QUIET_MS })).quietSince).toBe(NOW - AGENT_QUIET_MS);
+    });
+
+    it('finds the newest agent of the worktree and the pull request of the branch', () => {
+        const other = { ...session, id: 's2' };
+        const summaries = { '/repo': { a: { number: 1, url: 'u', isDraft: false, reviewDecision: null, checks: null } } };
+        expect(observeQueueAgent({ ...item, sessionId: 'gone' }, [other], summaries, NOW, () => ({ state: 'idle' }))).toMatchObject({
+            alive: true,
+            hasPullRequest: true
+        });
+        expect(observeQueueAgent(item, [{ ...session, exited: true }], {}, NOW, () => ({})).alive).toBe(false);
     });
 });

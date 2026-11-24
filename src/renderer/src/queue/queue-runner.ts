@@ -7,9 +7,9 @@ import {
     markStartFailed,
     markStarting,
     nextStarts,
+    observeQueueAgent,
     recoverQueue,
     START_GRACE_MS,
-    type AgentObservation,
     type QueueItem,
     type StartCheck
 } from '@shared/task-queue';
@@ -22,9 +22,6 @@ import { budgetWait } from '../usage-budget';
 import { errorText } from '../util';
 import { cachedQueue, changeQueue, queueQuery } from './queue-queries';
 import { queryClient } from '../query-client';
-
-/** An agent without hooks is busy while its terminal printed output in this time. The automations use the same time. */
-const QUIET_MS = 10_000;
 
 /** The functions of the app that the runner uses. They do not show dialogs or banners. They throw an error with a message. */
 export interface QueueRunnerActions {
@@ -139,7 +136,10 @@ export class QueueRunner {
             let next = state;
             for (const item of state.items) {
                 if (item.status !== 'running') continue;
-                const seen = this.observe(context, item, now);
+                const seen = observeQueueAgent(item, context.sessions, context.summaries, now, session => {
+                    const update = agentStateStore.getSnapshot().get(session.id);
+                    return { state: update?.state ?? session.agentState, at: update?.at, lastOutput: outputActivity.get(session.id) ?? session.lastActiveAt };
+                });
                 if (settling && !seen.alive) continue;
                 const reason = finishReason(item, seen, state.settings, now);
                 if (reason) next = markFinished(next, item.id, reason, now);
@@ -180,29 +180,6 @@ export class QueueRunner {
             console.warn(`[queue] ${item.task.key ?? item.task.title} did not start: ${errorText(error)}`);
             await changeQueue(state => markStartFailed(state, item.id, errorText(error), Date.now()));
         }
-    }
-
-    /**
-     * What the app sees of the agent of a running item. The session of the start comes first. When the user started a
-     * new agent in the worktree, the newest agent of the worktree counts.
-     */
-    private observe(context: QueueRunnerContext, item: QueueItem, now: number): AgentObservation {
-        const live = (session: TerminalSession) => session.isAgent && !session.exited;
-        const session =
-            context.sessions.find(entry => entry.id === item.sessionId && live(entry)) ??
-            context.sessions.findLast(entry => !!item.worktreePath && entry.worktreePath === item.worktreePath && live(entry));
-        const hasPullRequest = !!item.branch && !!context.summaries[item.repoPath]?.[item.branch];
-        if (!session) return { alive: false, busy: false, hasPullRequest };
-        const update = agentStateStore.getSnapshot().get(session.id);
-        const state = update?.state ?? session.agentState;
-        const lastOutput = outputActivity.get(session.id) ?? session.lastActiveAt;
-        if (state) {
-            const busy = state === 'working' || state === 'starting' || state === 'waiting';
-            return { alive: true, busy, ...(busy ? {} : { quietSince: update?.at ?? lastOutput }), hasPullRequest };
-        }
-        // An agent without hooks: the time of its last output tells if it works.
-        const busy = lastOutput !== undefined && now - lastOutput < QUIET_MS;
-        return { alive: true, busy, ...(busy || lastOutput === undefined ? {} : { quietSince: lastOutput }), hasPullRequest };
     }
 }
 

@@ -74,6 +74,7 @@ let folder = URL(fileURLWithPath: CommandLine.arguments[1])
 roundTrip(RemoteSnapshot.self, folder, "snapshot-full.json")
 roundTrip(RemoteSnapshot.self, folder, "snapshot-minimal.json")
 roundTrip(ScreenSnapshot.self, folder, "screen.json")
+roundTrip(RemotePendingRuns.self, folder, "pending-runs.json")
 decodeWithKeys(PairResponse.self, folder, "pair-response.json")
 decodeWithKeys(APIErrorBody.self, folder, "error.json")
 

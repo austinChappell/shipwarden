@@ -27,6 +27,13 @@ export class JsonStore<T extends object> {
         return this.value;
     }
 
+    /** Forgets the value in memory. The next read loads the file again, for example after another process changed it. */
+    async reload(): Promise<void> {
+        await this.writing.catch(() => undefined);
+        this.value = undefined;
+        this.loading = undefined;
+    }
+
     async update(change: (value: T) => T | undefined): Promise<T> {
         await this.get();
         // Read the value after the wait, so that each change starts from the result of the change before it.

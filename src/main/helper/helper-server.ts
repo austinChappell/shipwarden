@@ -4,7 +4,7 @@ import { dirname } from 'path';
 import { createMessageConnection, SocketMessageReader, SocketMessageWriter, type MessageConnection } from 'vscode-jsonrpc/node';
 import { normalizeRemoteSettings, type RemoteSnapshot } from '@shared/remote';
 import type { RemoteServer } from '../remote/remote-server';
-import { AppMethods, HELPER_PROTOCOL, HelperMethods, type ApproveParams, type HelperHello } from './protocol';
+import { AppMethods, HELPER_PROTOCOL, HelperMethods, type AnswerRunParams, type ApproveParams, type HelperHello } from './protocol';
 
 /** The app does not answer a request in this time. The helper then uses its own data. */
 const APP_TIMEOUT_MS = 20_000;
@@ -98,6 +98,13 @@ export class HelperServer {
         const app = this.apps.at(-1);
         if (!app) throw new Error('ShipWarden is not open.');
         await withTimeout(app.sendRequest(AppMethods.approvePullRequest, params), APP_TIMEOUT_MS);
+    }
+
+    /** Asks the app to approve or skip an automation run. Rejects when no app is connected or the app refuses. */
+    async appAnswerRun(params: AnswerRunParams): Promise<void> {
+        const app = this.apps.at(-1);
+        if (!app) throw new Error('ShipWarden is not open.');
+        await withTimeout(app.sendRequest(AppMethods.answerRun, params), APP_TIMEOUT_MS);
     }
 
     /** Tells the apps that the devices or the phone connections changed. */

@@ -1772,6 +1772,11 @@ export interface AutomationSettings {
     pauseAtUsage: number | null;
     /** The most tokens that all automations together can use in one day (local time). Null: no limit. */
     dailyTokens: number | null;
+    /**
+     * True lets the background helper run the schedule and CI automations and the task queue while ShipWarden is closed.
+     * The helper runs only when Settings › Mobile keeps it running.
+     */
+    runWhenClosed: boolean;
 }
 
 /** The smallest and the largest usage limit, and the step of the field. */
@@ -1785,14 +1790,15 @@ export function clampUsageLimit(value: unknown): number {
     return Math.min(USAGE_LIMIT_MAX, Math.max(USAGE_LIMIT_MIN, Math.round(value)));
 }
 
-export const DEFAULT_AUTOMATION_SETTINGS = { paused: false, pauseAtUsage: 90, dailyTokens: null } satisfies AutomationSettings;
+export const DEFAULT_AUTOMATION_SETTINGS = { paused: false, pauseAtUsage: 90, dailyTokens: null, runWhenClosed: false } satisfies AutomationSettings;
 
 export function normalizeAutomationSettings(value: unknown): AutomationSettings {
     const raw = record(value);
     return {
         paused: raw.paused === true,
         pauseAtUsage: raw.pauseAtUsage === null ? null : clampUsageLimit(raw.pauseAtUsage),
-        dailyTokens: tokenLimitOf(raw.dailyTokens) ?? null
+        dailyTokens: tokenLimitOf(raw.dailyTokens) ?? null,
+        runWhenClosed: raw.runWhenClosed === true
     };
 }
 

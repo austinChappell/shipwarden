@@ -199,6 +199,11 @@ export class TaskHost {
         return plugin.connection.sendRequest(method, params);
     }
 
+    /** Reads the links file again at the next call. The background helper adds links for the queue items that it starts. */
+    reloadLinks(): Promise<void> {
+        return this.links.reload();
+    }
+
     async allLinks(): Promise<Record<string, TaskLink>> {
         return this.links.get();
     }

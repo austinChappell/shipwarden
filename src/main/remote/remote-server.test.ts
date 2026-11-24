@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parsePairingLink, type RemoteAgent, type RemoteSnapshot, type ScreenSnapshot } from '@shared/remote';
 import type { TerminalSession } from '@shared/terminal';
 import { RemoteDevices } from './remote-devices';
-import { RemoteServer } from './remote-server';
+import { HttpError, RemoteServer } from './remote-server';
 import { ensureTlsIdentity, type TlsIdentity } from './tls-identity';
 
 const agent: TerminalSession = {
@@ -36,6 +36,7 @@ describe('RemoteServer', () => {
     let server: RemoteServer;
     const writes: [string, string][] = [];
     const approvals: unknown[][] = [];
+    const answers: [string, boolean][] = [];
 
     /** Sends a request like the phone: it trusts the certificate only by its fingerprint. */
     function send(method: string, path: string, options: { token?: string; body?: unknown; stream?: (text: string) => boolean } = {}): Promise<Response> {
@@ -86,6 +87,11 @@ describe('RemoteServer', () => {
                 write: (id, data) => writes.push([id, data]),
                 approvePullRequest: async (...args) => {
                     approvals.push(args);
+                },
+                pendingRuns: async () => [{ id: 'run-1', automationName: 'Fix CI', label: '#7 Fix login', trigger: 'ci.failed', createdAt: 1 }],
+                answerRun: async (id, approve) => {
+                    if (id !== 'run-1') throw new HttpError(409, 'The run is not waiting for approval anymore.');
+                    answers.push([id, approve]);
                 },
                 onStatusChanged: () => undefined
             }
@@ -146,6 +152,19 @@ describe('RemoteServer', () => {
 
         expect((await send('POST', '/v1/pull-requests/approve', { token, body: { worktreePath: '/repo', number: 7, headSha: 'abc' } })).status).toBe(200);
         expect(approvals).toEqual([['/repo', 7, 'abc', '']]);
+
+        // The phone answers the automation runs that are waiting for approval.
+        const pending = await send('GET', '/v1/automations/pending', { token });
+        expect(JSON.parse(pending.body)).toEqual({
+            runs: [{ id: 'run-1', automationName: 'Fix CI', label: '#7 Fix login', trigger: 'ci.failed', createdAt: 1 }]
+        });
+        expect((await send('POST', '/v1/automations/runs/run-1/approve', { token })).status).toBe(200);
+        expect((await send('POST', '/v1/automations/runs/run-1/skip', { token })).status).toBe(200);
+        expect((await send('POST', '/v1/automations/runs/run-2/approve', { token })).status).toBe(409);
+        expect(answers).toEqual([
+            ['run-1', true],
+            ['run-1', false]
+        ]);
 
         // A removed phone loses access at once.
         const device = (await server.status()).devices[0];
