@@ -116,6 +116,11 @@ export interface AppSettings {
      */
     codeFolder?: string;
     /**
+     * The app path of the editor for "Open in editor", for example "/Applications/Zed.app". Without it, or when the
+     * app is not installed now, ShipWarden uses the first installed editor.
+     */
+    externalEditor?: string;
+    /**
      * The GitHub owners of older versions. "all" means all owners. At the first start, `ReviewProviders` makes a GitHub
      * provider from it, with a list as the scope. Newer versions keep the scope in the provider.
      */
@@ -359,6 +364,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         repos: normalizeRepos(raw.repos, agents),
         network: normalizeNetwork(raw.network),
         ...(normalizeCodeFolder(raw.codeFolder) ? { codeFolder: normalizeCodeFolder(raw.codeFolder) } : {}),
+        ...(typeof raw.externalEditor === 'string' && raw.externalEditor.endsWith('.app') ? { externalEditor: raw.externalEditor } : {}),
         // Older versions kept the sort in "worktreeSort".
         worktrees: normalizeWorktreeSettings(raw.worktrees, raw.worktreeSort),
         notifications: normalizeNotificationSettings(raw.notifications),

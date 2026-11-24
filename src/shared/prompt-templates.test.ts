@@ -146,6 +146,7 @@ describe('shortcuts', () => {
         expect(shortcutConflict('⌘Q', [], undefined)).toContain('Quit');
         expect(shortcutConflict('⌘K', [], undefined)).toContain('Clear');
         expect(shortcutConflict('⌥⌘3', [], undefined)).toContain('Tasks');
+        expect(shortcutConflict('⌥⌘O', [], undefined)).toContain('external editor');
         expect(shortcutConflict('⌘C', [], undefined)).toContain('Copy');
         const keybind: TextKeybind = { key: 'j', shift: false, ctrl: true, alt: true, meta: false, text: '\n' };
         expect(shortcutConflict('⌃⌥J', [], undefined, [keybind])).toContain('terminal');

@@ -109,7 +109,12 @@ export function PromptTemplatesSettings({ terminalKeybinds }: { terminalKeybinds
                         <SettingsRow
                             key={template.id}
                             label={template.shortcut ? `${template.name} (${template.shortcut})` : template.name}
-                            description={<span className="prompt-template-text">{template.prompt}</span>}
+                            description={
+                                <>
+                                    <span className="prompt-template-text">{template.prompt}</span>
+                                    <TemplateKeyWarning template={template} templates={templates} terminalKeybinds={terminalKeybinds} />
+                                </>
+                            }
                             control={
                                 <div className="prompt-template-actions">
                                     <Button size="sm" onClick={() => edit(template)}>
@@ -253,4 +258,22 @@ function TemplateForm({ draft: initial, templates, terminalKeybinds, onClose }: 
             </div>
         </form>
     );
+}
+
+/**
+ * Shows a warning when the shortcut of a saved template is now a key of ShipWarden, of macOS, or of the terminal. A
+ * new version of ShipWarden can take a key that a template uses. The template then does not get the key.
+ */
+function TemplateKeyWarning({
+    template,
+    templates,
+    terminalKeybinds
+}: {
+    template: PromptTemplate;
+    templates: readonly PromptTemplate[];
+    terminalKeybinds: readonly TextKeybind[];
+}) {
+    const conflict = template.shortcut ? shortcutConflict(template.shortcut, templates, template.id, terminalKeybinds) : undefined;
+    if (!conflict) return null;
+    return <div className="form-error">{conflict} Select a different shortcut.</div>;
 }

@@ -248,6 +248,22 @@ the app data folder, with the commit of each side. On GitHub, the images go to t
 the repository. Azure DevOps keeps them as attachments of the pull request, and GitLab keeps them in the uploads of the
 project. Bitbucket Cloud has no API for images in comments, so **Add to PR** does not show for Bitbucket. See [docs/screenshots.md](docs/screenshots.md).
 
+### Open in an external editor
+
+Open a worktree or a file in your own editor. ShipWarden finds VS Code, VS Code Insiders, Cursor, Windsurf, Zed, and the
+JetBrains IDEs (IntelliJ IDEA, WebStorm, PyCharm, GoLand, PhpStorm, RubyMine, CLion, Rider, RustRover, and Android
+Studio) in `/Applications` and `~/Applications`.
+
+- Right-click a worktree in the sidebar and click **Open in** and the name of the editor.
+- In a file tab, click the open icon in the path bar, or press ⌥⌘O. The file opens at its cursor line. Without a file
+  tab, ⌥⌘O opens the selected worktree.
+- In the file explorer, right-click a file and click **Open in** and the name of the editor.
+
+Select the editor in Settings › Appearance › External editor. Without a selection, ShipWarden uses the first editor of
+the list above. VS Code, its forks, and Zed open the worktree and the file in one window. A JetBrains IDE opens the
+worktree as a project, and then the file in it. A file tab of the Terminal view opens the worktree that contains the
+file.
+
 ### ShipWarden MCP server
 
 Agents can ask ShipWarden and each other for help, without an automation in the middle. ShipWarden runs a local MCP
@@ -283,7 +299,7 @@ repository, choose your agent and start the first agent. Help › Show Welcome o
 the main parts of the window. Help › Take the Tour starts it at all times. Help › Keyboard Shortcuts lists all keys.
 A new user also gets a getting started checklist on the Dashboard.
 
-Tips show the features that are easy to miss. At each start, one random tip from a list of 36 shows in the
+Tips show the features that are easy to miss. At each start, one random tip from a list of 40 shows in the
 bottom-right corner. While ShipWarden stays open, a new tip shows 12 hours after you close the last one. A tip does not
 show again within 10 tips. Some views have their own tip, for example the Dashboard. Close a tip in a view, and it does not show again.
 Turn off the tips in the corner notice or in Settings › Appearance › Tips.

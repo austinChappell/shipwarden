@@ -131,6 +131,12 @@ describe('worktreeMenuItems', () => {
         expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), 'ENG-1', true, undefined, 0)).slice(0, 4)).toEqual(['task', 'linkTask', 'unlinkTask', '-']);
     });
 
+    it('offers to open the worktree in the external editor', () => {
+        const items = worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0, 0, 'Open in Zed');
+        expect(items.find(entry => 'id' in entry && entry.id === 'openInEditor')).toEqual({ id: 'openInEditor', label: 'Open in Zed' });
+        expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0)).slice(1, 4)).toEqual(['-', 'openInEditor', 'rename']);
+    });
+
     it('offers to link a worktree without a task', () => {
         const items = worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0);
         expect(items[0]).toEqual({ id: 'linkTask', label: 'Link to Task…' });
@@ -140,6 +146,7 @@ describe('worktreeMenuItems', () => {
         expect(ids(worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, undefined, 0))).toEqual([
             'linkTask',
             '-',
+            'openInEditor',
             'rename',
             'rebase',
             'closeShells',

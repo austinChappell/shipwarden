@@ -6,7 +6,7 @@
  * and the next tab. ⌃⇧Tab and ⌃Tab do the same.
  * ⌥⌘1 to ⌥⌘6 open a view: Dashboard, Agents, Tasks, Review, Pipelines and Notes. ⇧⌘0 moves the focus to the workspace.
  * ⇧⌘P opens the command palette. ⇧⌘C copies the relative path of the active file, or the link of the pull request or
- * task on the screen. ⌥⌘R shows that file in Finder.
+ * task on the screen. ⌥⌘R shows that file in Finder. ⌥⌘O opens that file, or the selected worktree, in the external editor.
  * ⌘0 stays the key of the Actual Size menu item.
  */
 export type ShortcutAction =
@@ -30,6 +30,7 @@ export type ShortcutAction =
     | 'commandPalette'
     | 'copyFilePath'
     | 'revealFileInFinder'
+    | 'openInEditor'
     | 'selectTab1'
     | 'selectTab2'
     | 'selectTab3'
@@ -94,7 +95,8 @@ function digitOf(input: { key: string; code?: string }): string | undefined {
  * selected text).
  * Also ⌘1 to ⌘8 (select that tab), ⌘9 (select the last tab), ⇧⌘[ and ⌃⇧Tab (select the previous tab), ⇧⌘] and ⌃Tab
  * (select the next tab), ⌥⌘1 to ⌥⌘6 (open a view), ⇧⌘0 (move the focus to the workspace), ⇧⌘P (open the command
- * palette), ⇧⌘C (copy the relative path of the active file, or the link of the pull request or task) and ⌥⌘R (show the active file in Finder).
+ * palette), ⇧⌘C (copy the relative path of the active file, or the link of the pull request or task), ⌥⌘R (show the active file in Finder)
+ * and ⌥⌘O (open the active file or the worktree in the external editor).
  * Other keys return undefined.
  */
 export function shortcutAction(input: {
@@ -117,6 +119,7 @@ export function shortcutAction(input: {
     if (input.alt) {
         if (input.shift) return undefined;
         if (key === 'r') return 'revealFileInFinder';
+        if (key === 'o') return 'openInEditor';
         return FOCUS_KEYS[key] ?? (input.code ? VIEW_KEYS[input.code] : undefined);
     }
     if (key === 'd') return input.shift ? 'down' : 'right';
@@ -310,6 +313,7 @@ export const SHORTCUT_INFO: Record<ShortcutAction, ShortcutInfo> = {
     focusWorkspace: { label: 'Move the focus to the workspace', keys: ['⇧⌘0'], group: 'Panels and focus' },
     copyFilePath: { label: 'Copy the relative path of the active file, or the link of a pull request or task', keys: ['⇧⌘C'], group: 'Worktrees and tabs' },
     revealFileInFinder: { label: 'Show the active file in Finder', keys: ['⌥⌘R'], group: 'Worktrees and tabs' },
+    openInEditor: { label: 'Open the active file or the worktree in the external editor', keys: ['⌥⌘O'], group: 'Worktrees and tabs' },
     commandPalette: { label: 'Open the command palette', keys: ['⇧⌘P'], group: 'App' },
     back: { label: 'Back', keys: ['⌘['], group: 'History' },
     forward: { label: 'Forward', keys: ['⌘]'], group: 'History' }

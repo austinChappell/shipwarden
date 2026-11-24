@@ -30,6 +30,15 @@ describe('normalizeCodeFolder', () => {
     });
 });
 
+describe('externalEditor', () => {
+    it('keeps the path of an app and drops other values', () => {
+        expect(normalizeSettings({ externalEditor: '/Applications/Zed.app' }).externalEditor).toBe('/Applications/Zed.app');
+        expect(normalizeSettings({ externalEditor: '/usr/bin/vim' }).externalEditor).toBeUndefined();
+        expect(normalizeSettings({ externalEditor: 3 }).externalEditor).toBeUndefined();
+        expect(normalizeSettings({}).externalEditor).toBeUndefined();
+    });
+});
+
 describe('suggestCodeFolder', () => {
     it('returns the folder with the most repositories', () => {
         expect(suggestCodeFolder(['/Users/me/code/a', '/Users/me/work/b', '/Users/me/code/c'])).toBe('/Users/me/code');

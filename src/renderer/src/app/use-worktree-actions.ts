@@ -32,6 +32,7 @@ import {
 import { editorPositions } from '../editor/editor-positions';
 import { outputActivity } from '../terminal/output-activity';
 import { keyRoots, queryClient } from '../query-client';
+import { cachedExternalEditor, openInEditorLabel, openInExternalEditor } from '../files/external-editor';
 import { taskManagerKeys } from '../components/task-managers-cache';
 import { listPatch, taskQueryKeys } from '../components/tasks/task-view-logic';
 import { patchCachedTask } from '../components/tasks/use-task-list';
@@ -653,7 +654,11 @@ export function useWorktreeActions(options: Options) {
     const worktreeMenu = async (repoPath: string, worktree: Worktree) => {
         const link = links[worktree.path];
         const shells = openShellCount(withAgentStore(options.sessions), worktree.path);
-        const choice = await showContextMenu(worktreeMenuItems(worktree, link?.key, !!link, appSettings.hiddenWorktrees?.[worktree.path], Date.now(), shells));
+        const editorLabel = openInEditorLabel(cachedExternalEditor());
+        const choice = await showContextMenu(
+            worktreeMenuItems(worktree, link?.key, !!link, appSettings.hiddenWorktrees?.[worktree.path], Date.now(), shells, editorLabel)
+        );
+        if (choice === 'openInEditor') await openInExternalEditor(worktree.path).catch(err => setError(errorText(err)));
         if (choice === 'task') openLinkedTask(worktree.path);
         if (choice === 'linkTask') options.setLinkTaskOpen(worktree);
         if (choice === 'unlinkTask') await unlinkTask(worktree.path).catch(err => setError(errorText(err)));

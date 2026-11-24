@@ -89,3 +89,35 @@ describe('ProjectWorktrees.repoOf', () => {
         await expect(projectWorktrees.repoOf('/tmp')).resolves.toBeUndefined();
     });
 });
+
+describe('ProjectWorktrees.locate', () => {
+    it('returns a worktree root and the absolute file path', async () => {
+        const { projectWorktrees } = service();
+        await expect(projectWorktrees.locate('/trees/api-feature', 'src/a.ts')).resolves.toEqual({
+            worktree: '/trees/api-feature',
+            absolute: '/trees/api-feature/src/a.ts'
+        });
+    });
+
+    it('refuses a path outside the worktree root', async () => {
+        const { projectWorktrees } = service();
+        await expect(projectWorktrees.locate('/code/web', '../api/a.ts')).rejects.toThrow('outside the worktree');
+    });
+
+    it('finds the deepest worktree of a file under a folder that is not a worktree', async () => {
+        const { projectWorktrees } = service({
+            projectRepos: async () => ['/home/me/code/api'],
+            worktreePaths: async () => ['/home/me/code/api', '/home/me/code/api/.trees/feature']
+        });
+        await expect(projectWorktrees.locate('/home/me', 'code/api/.trees/feature/src/a.ts')).resolves.toEqual({
+            worktree: '/home/me/code/api/.trees/feature',
+            absolute: '/home/me/code/api/.trees/feature/src/a.ts'
+        });
+        await expect(projectWorktrees.locate('/home/me', 'code/api/README.md')).resolves.toMatchObject({ worktree: '/home/me/code/api' });
+    });
+
+    it('refuses a file that is in no worktree', async () => {
+        const { projectWorktrees } = service();
+        await expect(projectWorktrees.locate('/home/me', '.zshrc')).rejects.toThrow('"/home/me/.zshrc" is not in a worktree of a project.');
+    });
+});

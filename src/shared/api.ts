@@ -7,6 +7,7 @@ import type { NoteInfo } from './notes';
 import type { AppKeyAction, ShortcutAction } from './shortcuts';
 import type { WorkflowRun } from './pipelines';
 import type { ContentSearchResult, FileEntry, FilesChangedEvent } from './files';
+import type { EditorList } from './editors';
 import type { FileInfo } from './file-types';
 import type {
     BranchStatus,
@@ -314,6 +315,16 @@ export interface ShipWardenApi {
         /** Opens a folder dialog. Returns the folder, or undefined when the user cancels. */
         /** Shows a folder dialog. `title` is the title of the dialog. The default is the title for the worktree folder. */
         chooseFolder(title?: string): Promise<string | undefined>;
+    };
+    /** The external code editors, for "Open in editor". */
+    editors: {
+        /** Returns the installed editors and the editor that "Open in editor" uses now. */
+        list(): Promise<EditorList>;
+        /**
+         * Opens the worktree in the editor of the settings. With `file` (relative to the root), the editor also opens
+         * that file, at `line` when the editor accepts a line.
+         */
+        open(root: string, file?: string, line?: number): Promise<void>;
     };
     files: {
         /** Lists one folder of a worktree. `directory` is relative to the root. An empty string is the root. */
@@ -864,6 +875,8 @@ export const IpcChannels = {
     filesInfo: 'files:info',
     filesReveal: 'files:reveal',
     filesOpenInDefaultApp: 'files:openInDefaultApp',
+    editorsList: 'editors:list',
+    editorsOpen: 'editors:open',
     filesWrite: 'files:write',
     filesCreateFile: 'files:createFile',
     filesCreateFolder: 'files:createFolder',

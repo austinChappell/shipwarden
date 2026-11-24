@@ -309,6 +309,9 @@ and a screenshot to the agent of the worktree.
 
 ### 5.1 Open in an external editor
 
+**Status:** Done in branch `5.1-external-editor`. ⌥⌘O opens the active file at its cursor line, or the selected
+worktree. The editor setting is in Settings › Appearance › External editor.
+
 Add "Open in editor" to the worktree menu and the file views. Detect VS Code, Cursor, Zed, and JetBrains IDEs. The user
 selects one in Settings › Appearance.
 

@@ -86,6 +86,8 @@ export const keyRoots = {
     worktreeFiles: ['worktreeFiles'],
     /** The automation files and the run history. Local data: no request goes to a service. */
     automations: ['automations'],
+    /** The installed code editors for "Open in editor". Local data: no request goes to a service. */
+    editors: ['editors'],
     /** The prompt template files. Local data: no request goes to a service. */
     prompts: ['prompts'],
     /** The app version, the data folder and the login name. Local data: no request goes to a service. */
