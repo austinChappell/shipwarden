@@ -316,6 +316,14 @@ reads comments from GitHub only. Not tested live in the app.
 
 **Goal:** Send a page element to an agent.
 
+**Status:** Done in branch `3.3-element-picker`. The "Pick element" button is in the toolbar of the browser tab. The
+picker script runs in an isolated world of the page and blocks the click for the page. A bar under the toolbar shows a
+preview, a note field, and the agent list of code notes. The default agent is the first agent that runs in the
+worktree, else a new session of the agent of the repository. The prompt has the selector, the size, the text, the
+computed styles that are not defaults, the HTML (cut at 6000 characters), and the path of a PNG of the visible part of
+the element in the temporary folder. ShipWarden does not use the clipboard for the image. Frames of other sites are not
+supported. Not tested live in the app.
+
 **Design:** A "Pick element" button in the browser tab. Click an element to send its HTML, its styles, its selector,
 and a screenshot to the agent of the worktree.
 

@@ -415,7 +415,9 @@ const api: ShipWardenApi = {
         find: (id, text, options) => ipcRenderer.send(IpcChannels.browserFind, id, text, options),
         stopFind: id => ipcRenderer.send(IpcChannels.browserStopFind, id),
         onFindOpen: listener => subscribe<[string]>(IpcChannels.browserFindOpen, listener),
-        onFound: listener => subscribe<[string, number, number]>(IpcChannels.browserFound, listener)
+        onFound: listener => subscribe<[string, number, number]>(IpcChannels.browserFound, listener),
+        pickElement: id => ipcRenderer.invoke(IpcChannels.browserPickElement, id),
+        cancelPick: id => ipcRenderer.send(IpcChannels.browserCancelPick, id)
     },
     terminals: {
         settings: () => ipcRenderer.invoke(IpcChannels.terminalsSettings),

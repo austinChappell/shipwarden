@@ -266,7 +266,7 @@ const HEADING = '#heading:';
  * Returns the options of the list of agents that get a note. A disabled heading starts each group, because the list
  * has no groups.
  */
-function targetSelectOptions(targets: readonly NoteTargetOption[]): SelectOption[] {
+export function targetSelectOptions(targets: readonly NoteTargetOption[]): SelectOption[] {
     const group = (kind: NoteTargetOption['target']['kind'], label: string): SelectOption[] => {
         const items = targets.filter(option => option.target.kind === kind).map(option => ({ value: option.key, label: option.label }));
         return items.length ? [{ value: `${HEADING}${kind}`, label, disabled: true }, ...items] : [];

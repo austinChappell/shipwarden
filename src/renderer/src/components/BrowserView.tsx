@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, ArrowRight, ExternalLink, Globe, RotateCw, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ExternalLink, Globe, RotateCw, SquareDashedMousePointer, X } from 'lucide-react';
 import { BLANK_PAGE, normalizeAddress, type BrowserBounds } from '@shared/browser';
+import type { NoteTarget } from '@shared/code-note';
+import type { ElementPick } from '@shared/element-pick';
+import type { AgentDefinition } from '@shared/settings';
+import { errorText } from '../util';
+import { ElementPickBar } from './ElementPickBar';
 import { browserStore, useBrowserStates } from '../browser/browser-store';
 import { FindBar } from './FindBar';
 import { isFindKey } from './log-find';
@@ -14,6 +19,14 @@ interface Props {
     /** False for a pane of a split view without the focus. Such a view does not take the keyboard. */
     focused?: boolean;
     onClose(): void;
+    /**
+     * The worktree of the tab and the agents. With `onSendElement`, the toolbar has the "Pick element" button, and
+     * the user can send an element of the page to an agent of the worktree.
+     */
+    worktree?: string;
+    agents?: readonly AgentDefinition[];
+    defaultAgentId?: string;
+    onSendElement?(prompt: string, target: NoteTarget): void;
 }
 
 /**
@@ -40,7 +53,7 @@ function sameBounds(a: BrowserBounds | null, b: BrowserBounds | null): boolean {
  * A browser tab: the toolbar (back, forward, reload, the address bar, open in the default browser, close) and the page.
  * The page is a WebContentsView of the main process. This component keeps the view at the place of its content element.
  */
-export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
+export function BrowserView({ id, hidden, focused = true, onClose, worktree, agents = [], defaultAgentId, onSendElement }: Props) {
     const api = window.shipwarden.browser;
     const state = useBrowserStates().get(id);
     const url = state?.url ?? '';
@@ -56,6 +69,20 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
     const [matchCase, setMatchCase] = useState(false);
     const [found, setFound] = useState({ active: 0, matches: 0 });
     const [findFocus, setFindFocus] = useState(0);
+    // The element picker. While `picking` is true, the page shows a box above the element under the mouse.
+    const canPick = !!worktree && !!onSendElement && agents.length > 0;
+    const [picking, setPicking] = useState(false);
+    const [pick, setPick] = useState<ElementPick>();
+    const [pickError, setPickError] = useState<string>();
+    const pickingRef = useRef(false);
+
+    // A tab that closes while the picker runs stops the picker.
+    useEffect(
+        () => () => {
+            if (pickingRef.current) api.cancelPick(id);
+        },
+        [api, id]
+    );
 
     // The address bar shows the address of the page, except while the user types.
     useEffect(() => {
@@ -161,6 +188,31 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
         api.focus(id);
     };
 
+    const startPick = async () => {
+        if (pickingRef.current) {
+            api.cancelPick(id);
+            return;
+        }
+        pickingRef.current = true;
+        setPicking(true);
+        setPick(undefined);
+        setPickError(undefined);
+        try {
+            const result = await api.pickElement(id);
+            if (result) setPick(result);
+        } catch (err) {
+            setPickError(`ShipWarden did not pick the element: ${errorText(err)}`);
+        } finally {
+            pickingRef.current = false;
+            setPicking(false);
+        }
+    };
+
+    const closePick = () => {
+        setPick(undefined);
+        api.focus(id);
+    };
+
     const openExternal = () => {
         if (url && url !== BLANK_PAGE) window.shipwarden.github.openInBrowser(url);
     };
@@ -170,6 +222,10 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
             className="editor browser-view"
             data-own-find=""
             onKeyDown={event => {
+                if (picking && event.key === 'Escape') {
+                    api.cancelPick(id);
+                    return;
+                }
                 if (isFindKey(event.nativeEvent)) {
                     event.preventDefault();
                     event.stopPropagation();
@@ -220,6 +276,17 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
                         }
                     }}
                 />
+                {canPick && (
+                    <IconButton
+                        size="sm"
+                        icon={<SquareDashedMousePointer size={14} strokeWidth={1.7} />}
+                        label={picking ? 'Stop picking (Escape)' : 'Pick element'}
+                        active={picking}
+                        aria-pressed={picking}
+                        disabled={!picking && (!url || url === BLANK_PAGE || !!state?.error)}
+                        onClick={() => void startPick()}
+                    />
+                )}
                 <IconButton
                     size="sm"
                     icon={<ExternalLink size={14} strokeWidth={1.7} />}
@@ -231,6 +298,25 @@ export function BrowserView({ id, hidden, focused = true, onClose }: Props) {
             </form>
             {state?.loading && <div className="browser-progress" />}
             {addressError && <div className="editor-failure">{addressError}</div>}
+            {pickError && <div className="editor-failure">{pickError}</div>}
+            {picking && (
+                <div className="find-bar" role="status">
+                    Picking an element. Click an element in the page. Press Escape to stop.
+                </div>
+            )}
+            {pick && worktree && onSendElement && (
+                <ElementPickBar
+                    pick={pick}
+                    worktree={worktree}
+                    agents={agents}
+                    defaultAgentId={defaultAgentId}
+                    onSend={(prompt, target) => {
+                        setPick(undefined);
+                        onSendElement(prompt, target);
+                    }}
+                    onClose={closePick}
+                />
+            )}
             {findOpen && (
                 <FindBar
                     label="Find in the page"

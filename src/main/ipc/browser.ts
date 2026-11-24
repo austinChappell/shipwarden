@@ -1,8 +1,26 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { ipcMain } from 'electron';
 import { IpcChannels } from '@shared/api';
 import type { BrowserBounds, BrowserFindOptions } from '@shared/browser';
+import type { ElementPick } from '@shared/element-pick';
 import type { Services } from '../services';
 import { validBounds } from './args';
+
+/** The folder of the screenshots of picked elements. The agent reads the file from the path in the prompt. */
+function pickImageFolder(): string {
+    return join(tmpdir(), 'shipwarden-elements');
+}
+
+/** Saves the screenshot of a picked element to a temporary PNG file and returns the path. */
+async function savePickImage(png: Buffer): Promise<string> {
+    const folder = pickImageFolder();
+    await mkdir(folder, { recursive: true });
+    const file = join(folder, `element-${Date.now()}.png`);
+    await writeFile(file, png);
+    return file;
+}
 
 /** Registers the IPC handlers of the in-app browser. */
 export function registerBrowserIpc({ browserViews, window }: Pick<Services, 'browserViews' | 'window'>): void {
@@ -27,5 +45,17 @@ export function registerBrowserIpc({ browserViews, window }: Pick<Services, 'bro
         })
     );
     ipcMain.on(IpcChannels.browserStopFind, (_event, id: string) => browserViews.stopFind(String(id)));
+    ipcMain.handle(IpcChannels.browserPickElement, async (_event, id: string): Promise<ElementPick | null> => {
+        const result = await browserViews.pickElement(String(id));
+        if (!result) return null;
+        if (!result.png) return { element: result.element };
+        return {
+            element: result.element,
+            imagePath: await savePickImage(result.png),
+            imageDataUrl: `data:image/png;base64,${result.png.toString('base64')}`,
+            ...(result.partial ? { imagePartial: true } : {})
+        };
+    });
+    ipcMain.on(IpcChannels.browserCancelPick, (_event, id: string) => browserViews.cancelPick(String(id)));
     ipcMain.handle(IpcChannels.browserState, (_event, id: string) => browserViews.state(String(id)));
 }

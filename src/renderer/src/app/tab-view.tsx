@@ -59,7 +59,19 @@ export function renderTabView(tab: TabKey, focused: boolean, context: TabViewCon
     if (!selectedPath) return null;
     const extra = context.extras.find(item => item.key === tab);
     if (extra?.kind === 'browser') {
-        return <BrowserView key={extra.id} id={extra.id} hidden={context.dragging} focused={focused} onClose={() => context.closeFromView(extra.key)} />;
+        return (
+            <BrowserView
+                key={extra.id}
+                id={extra.id}
+                hidden={context.dragging}
+                focused={focused}
+                onClose={() => context.closeFromView(extra.key)}
+                worktree={selectedPath}
+                agents={context.agents}
+                defaultAgentId={context.defaultAgentId}
+                onSendElement={(prompt, target) => void sendToAgent(prompt, context.selected, target)}
+            />
+        );
     }
     if (extra?.kind === 'changes') {
         return <WorktreeChangesView key={selectedPath} worktree={selectedPath} focused={focused} onOpenFile={path => openFile(path)} />;

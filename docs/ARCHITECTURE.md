@@ -1080,6 +1080,16 @@ The user guide is in [cli.md](cli.md).
   the terminal.
 - Keys in a page: the workspace keys and the app keys work. ⌘R loads the page again, ⌘L selects the address bar and
   ⌥⌘I opens the developer tools of the page.
+- Element picker: the "Pick element" button calls `browser:pickElement`. `BrowserViews.pickElement` runs
+  `PICK_SCRIPT` (`shared/element-pick.ts`) in an isolated world (`PICK_WORLD_ID`), so the page cannot see the
+  picker. The script shows a box above the element under the pointer. It blocks the press, the release, and the click
+  for the page. It resolves with the element data (`describeElement`: a unique selector, the outer HTML up to 6000
+  characters, the text, the computed styles that are not defaults, and the box) or with null on Escape. A navigation, a
+  closed view, or `browser:cancelPick` also ends the pick. The main process then crops `capturePage` to the visible part
+  of the element (`visibleCrop`), writes the PNG to `<tmp>/shipwarden-elements/`, and returns its path and a data URL.
+  `ElementPickBar` shows the preview, a note, and the agent list of code notes (`noteTargetOptions`). `elementPrompt`
+  makes the prompt, and `sendToAgent` sends it. The prompt names the PNG path. The clipboard is not used, so the user's
+  clipboard stays.
 - Certificates: Chromium uses the macOS keychain. When Chromium refuses a chain with `ERR_CERT_AUTHORITY_INVALID`,
   `setCertificateVerifyProc` checks the chain again with the extra CA certificates of Settings › Network
   (`verifyWithExtraCas`: the host name, the dates, each signature, and a CA of the setting at the top).

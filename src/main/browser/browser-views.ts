@@ -1,5 +1,6 @@
 import { app, BrowserWindow, session, shell, WebContentsView, type Certificate, type Input, type Session, type WebContents } from 'electron';
 import { BLANK_PAGE, isBrowsableUrl, type BrowserBounds, type BrowserFindOptions, type BrowserState } from '@shared/browser';
+import { CANCEL_PICK_SCRIPT, MAX_PICK_HTML, PICK_SCRIPT, PICK_WORLD_ID, pickCall, visibleCrop, type PickedElement } from '@shared/element-pick';
 import { SELECTOR_TIMEOUT_MS, type ScreenshotWait } from '@shared/screenshots';
 import { verifyWithExtraCas } from './extra-ca-verify';
 
@@ -18,6 +19,17 @@ const CAPTURE_START_HEIGHT = 900;
 const CAPTURE_MAX_HEIGHT = 8000;
 /** The longest time for the load of a page to capture. */
 const CAPTURE_LOAD_TIMEOUT_MS = 30_000;
+
+/** The widest screenshot of a picked element in pixels. A wider image gets smaller. */
+const PICK_IMAGE_MAX_WIDTH = 1280;
+
+/** The result of the element picker: the element, and a PNG of its visible part when the part is not empty. */
+export interface ElementPickResult {
+    element: PickedElement;
+    png?: Buffer;
+    /** True when the PNG shows only a part of the element. */
+    partial?: boolean;
+}
 
 /** The options of a screenshot. */
 export interface CaptureOptions {
@@ -294,6 +306,54 @@ export class BrowserViews {
             await delay(200);
         }
         throw new Error(`No element matched "${selector}" in ${SELECTOR_TIMEOUT_MS / 1000} seconds.`);
+    }
+
+    /**
+     * Starts the element picker in the page of a view. The user clicks an element, or presses Escape to stop.
+     * Resolves with the element and a PNG of its visible part, or with null when the user stops the picker, the page
+     * navigates, or the view closes. The scripts run in an isolated world, so the page cannot see them.
+     */
+    async pickElement(id: string): Promise<ElementPickResult | null> {
+        const contents = this.contentsOf(id);
+        if (!contents) return null;
+        let stop = () => {};
+        const stopped = new Promise<null>(resolve => {
+            stop = () => resolve(null);
+        });
+        // A new page or a closed view ends the picker. The page script then never resolves.
+        contents.on('did-navigate', stop);
+        contents.on('destroyed', stop);
+        const picked = contents
+            .executeJavaScriptInIsolatedWorld(PICK_WORLD_ID, [{ code: pickCall(PICK_SCRIPT, { maxHtml: MAX_PICK_HTML }) }], true)
+            .then(result => (result as PickedElement | null) ?? null);
+        // After a stop, a failure of the script is not an error.
+        picked.catch(() => undefined);
+        // The page gets the keyboard, so Escape goes to the picker.
+        contents.focus();
+        let element: PickedElement | null;
+        try {
+            element = await Promise.race([picked, stopped]);
+        } finally {
+            contents.off('did-navigate', stop);
+            contents.off('destroyed', stop);
+        }
+        if (!element || contents.isDestroyed()) return null;
+        const crop = visibleCrop(element.rect, element.viewport, contents.getZoomFactor());
+        if (!crop) return { element };
+        const image = await contents.capturePage(crop.rect);
+        if (image.isEmpty()) return { element };
+        const width = image.getSize().width;
+        const png = (width > PICK_IMAGE_MAX_WIDTH ? image.resize({ width: PICK_IMAGE_MAX_WIDTH, quality: 'good' }) : image).toPNG();
+        return { element, png, ...(crop.partial ? { partial: true } : {}) };
+    }
+
+    /** Stops the element picker of a view. The promise of `pickElement` then resolves with null. */
+    cancelPick(id: string): void {
+        const contents = this.contentsOf(id);
+        if (!contents) return;
+        contents.executeJavaScriptInIsolatedWorld(PICK_WORLD_ID, [{ code: CANCEL_PICK_SCRIPT }]).catch(() => {
+            // A page that closes or navigates stops the picker too.
+        });
     }
 
     /** Removes a view and closes its page. */
