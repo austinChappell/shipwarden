@@ -1,6 +1,15 @@
 import { connect, type Socket } from 'net';
-import { createMessageConnection, SocketMessageReader, SocketMessageWriter } from 'vscode-jsonrpc/node';
-import type { PairingOffer, RemoteSettings, RemoteSnapshot, RemoteStatus } from '@shared/remote';
+import { createMessageConnection, ResponseError, SocketMessageReader, SocketMessageWriter } from 'vscode-jsonrpc/node';
+import type {
+    PairingOffer,
+    RemoteDevicePermissions,
+    RemoteSettings,
+    RemoteSnapshot,
+    RemoteStartOptions,
+    RemoteStartResult,
+    RemoteStatus
+} from '@shared/remote';
+import { HttpError } from '../remote/remote-server';
 import { AppMethods, HelperMethods, type AnswerRunParams, type ApproveParams, type HelperHello } from './protocol';
 
 /** The app's connection to the background helper. */
@@ -11,6 +20,7 @@ export interface HelperConnection {
     startPairing(): Promise<PairingOffer>;
     cancelPairing(): Promise<void>;
     removeDevice(id: string): Promise<void>;
+    setDevicePermissions(id: string, permissions: RemoteDevicePermissions): Promise<void>;
     terminalResized(id: string, cols: number, rows: number): void;
     onClose(listener: () => void): void;
     /** Closes the connection. The helper continues to run. */
@@ -22,7 +32,19 @@ export interface HelperRequests {
     snapshot(): Promise<Omit<RemoteSnapshot, 'protocol' | 'mac'>>;
     approvePullRequest(params: ApproveParams): Promise<void>;
     answerRun(params: AnswerRunParams): Promise<void>;
+    startOptions(): Promise<RemoteStartOptions>;
+    startAgent(body: unknown): Promise<RemoteStartResult>;
     statusChanged(): void;
+}
+
+/** Sends the HTTP status of an `HttpError` to the helper as the error code, so the helper can send it to the phone. */
+async function withStatus<T>(work: () => Promise<T>): Promise<T> {
+    try {
+        return await work();
+    } catch (error) {
+        if (error instanceof HttpError) throw new ResponseError(error.status, error.message);
+        throw error;
+    }
 }
 
 function tryConnect(socketPath: string): Promise<Socket | undefined> {
@@ -41,6 +63,8 @@ export async function connectHelper(socketPath: string, requests: HelperRequests
     connection.onRequest(AppMethods.snapshot, () => requests.snapshot());
     connection.onRequest(AppMethods.approvePullRequest, (params: ApproveParams) => requests.approvePullRequest(params));
     connection.onRequest(AppMethods.answerRun, (params: AnswerRunParams) => requests.answerRun(params));
+    connection.onRequest(AppMethods.startOptions, () => withStatus(() => requests.startOptions()));
+    connection.onRequest(AppMethods.startAgent, (body: unknown) => withStatus(() => requests.startAgent(body)));
     connection.onNotification(AppMethods.statusChanged, () => requests.statusChanged());
     const listeners: (() => void)[] = [];
     let closed = false;
@@ -62,6 +86,7 @@ export async function connectHelper(socketPath: string, requests: HelperRequests
         startPairing: () => connection.sendRequest<PairingOffer>(HelperMethods.startPairing),
         cancelPairing: () => connection.sendRequest(HelperMethods.cancelPairing),
         removeDevice: id => connection.sendRequest(HelperMethods.removeDevice, id),
+        setDevicePermissions: (id, permissions) => connection.sendRequest(HelperMethods.setDevicePermissions, { id, permissions }),
         terminalResized: (id, cols, rows) => void connection.sendNotification(HelperMethods.terminalResized, id, cols, rows).catch(() => undefined),
         onClose: listener => listeners.push(listener),
         close: closeOnce

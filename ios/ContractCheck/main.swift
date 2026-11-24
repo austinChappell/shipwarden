@@ -75,6 +75,8 @@ roundTrip(RemoteSnapshot.self, folder, "snapshot-full.json")
 roundTrip(RemoteSnapshot.self, folder, "snapshot-minimal.json")
 roundTrip(ScreenSnapshot.self, folder, "screen.json")
 roundTrip(RemotePendingRuns.self, folder, "pending-runs.json")
+roundTrip(RemoteStartOptions.self, folder, "start-options.json")
+roundTrip(RemoteStartResult.self, folder, "start-result.json")
 decodeWithKeys(PairResponse.self, folder, "pair-response.json")
 decodeWithKeys(APIErrorBody.self, folder, "error.json")
 
@@ -98,6 +100,23 @@ if let expected = data(folder, "input.json") {
         fail("input.json: the encoding of RemoteInput is not the same as remote.ts.")
     }
 }
+
+/// Compares the encoding of a value of the phone with a file that the desktop tests wrote.
+func encodes<T: Encodable>(_ value: T, like name: String) {
+    guard let expected = data(folder, name) else { return }
+    if let encoded = try? JSONEncoder().encode(value), json(encoded) != json(expected) {
+        fail("\(name): the encoding of \(T.self) is not the same as remote.ts.")
+    }
+}
+
+encodes(
+    RemoteStartRequest(repoPath: "/Users/ana/api", task: nil, prompt: "Fix the login page", branch: "fix-login", agentId: "claude", model: "opus"),
+    like: "start-request-prompt.json"
+)
+encodes(
+    RemoteStartRequest(repoPath: "/Users/ana/api", task: RemoteStartTask(connectionId: "clickup-1", id: "86b2x"), prompt: nil, branch: nil, agentId: nil, model: nil),
+    like: "start-request-task.json"
+)
 
 if failures.isEmpty {
     print("The iPhone models agree with the desktop API.")

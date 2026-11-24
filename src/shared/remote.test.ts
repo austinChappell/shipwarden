@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_REMOTE_PORT, inputWrites, keyBytes, normalizeRemoteSettings, pairingLink, parsePairingLink } from './remote';
+import {
+    DEFAULT_REMOTE_PORT,
+    inputWrites,
+    keyBytes,
+    normalizeRemoteSettings,
+    openTaskChoices,
+    pairingLink,
+    parsePairingLink,
+    parseStartRequest,
+    promptBranchName
+} from './remote';
+import type { Task } from './tasks';
 
 const fingerprint = 'ab'.repeat(32);
 const modes = { bracketedPaste: false, applicationCursorKeys: false };
@@ -52,5 +63,62 @@ describe('input', () => {
     it('sends the application form of the arrow keys in that mode', () => {
         expect(inputWrites({ key: 'up' }, { ...modes, applicationCursorKeys: true })).toEqual(['\x1bOA']);
         expect(inputWrites({ key: 'up' }, modes)).toEqual(['\x1b[A']);
+    });
+});
+
+describe('parseStartRequest', () => {
+    it('accepts a prompt or a task, and cleans the branch', () => {
+        expect(parseStartRequest({ repoPath: '/repo', prompt: '  Fix the login page ', branch: 'fix login', model: 'opus', agentId: 'claude' })).toEqual({
+            repoPath: '/repo',
+            prompt: 'Fix the login page',
+            branch: 'fix-login',
+            model: 'opus',
+            agentId: 'claude'
+        });
+        expect(parseStartRequest({ repoPath: '/repo', task: { connectionId: 'c1', id: '7' }, prompt: '' })).toEqual({
+            repoPath: '/repo',
+            task: { connectionId: 'c1', id: '7' }
+        });
+    });
+
+    it('refuses a request without a repository, without work, or with a task and a prompt', () => {
+        expect(() => parseStartRequest(undefined)).toThrow('Select a repository.');
+        expect(() => parseStartRequest({ repoPath: '/repo' })).toThrow('Select a task or type a prompt.');
+        expect(() => parseStartRequest({ repoPath: '/repo', prompt: 'x', task: { connectionId: 'c', id: '1' } })).toThrow('not both');
+        expect(() => parseStartRequest({ repoPath: '/repo', task: { id: '1' } })).toThrow('connection and an ID');
+        expect(() => parseStartRequest({ repoPath: 42, prompt: 'x' })).toThrow('must be text');
+    });
+
+    it('refuses a model with spaces, a branch that git does not accept, and a long prompt', () => {
+        expect(() => parseStartRequest({ repoPath: '/repo', prompt: 'x', model: 'opus; rm -rf' })).toThrow('one word');
+        expect(() => parseStartRequest({ repoPath: '/repo', prompt: 'x', branch: '...' })).toThrow('not a valid branch name');
+        expect(() => parseStartRequest({ repoPath: '/repo', prompt: 'x'.repeat(16_001) })).toThrow('too long');
+    });
+});
+
+describe('promptBranchName', () => {
+    it('uses the first words of the prompt', () => {
+        expect(promptBranchName('Fix the login page on Safari, and add a test for it')).toBe('fix-the-login-page-on-safari');
+    });
+
+    it('uses the time when the prompt has no letters or digits', () => {
+        expect(promptBranchName('!!! ???', Date.UTC(2026, 10, 23, 9, 5))).toBe('phone-202611230905');
+    });
+});
+
+describe('openTaskChoices', () => {
+    const task = (id: string, category: Task['status']['category']): Task => ({ id, title: `Task ${id}`, status: { id: category, name: category, category } });
+
+    it('lists the open tasks without a worktree', () => {
+        const links = { '/wt/a': { connectionId: 'c1', pluginId: 'p', taskId: '2', title: 'Task 2' } };
+        const choices = openTaskChoices(
+            'c1',
+            [task('1', 'todo'), task('2', 'todo'), task('3', 'done'), task('4', 'canceled'), task('5', 'in_progress')],
+            links
+        );
+        expect(choices).toEqual([
+            { connectionId: 'c1', id: '1', title: 'Task 1', status: 'todo' },
+            { connectionId: 'c1', id: '5', title: 'Task 5', status: 'in_progress' }
+        ]);
     });
 });

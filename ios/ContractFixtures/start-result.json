@@ -1,0 +1,35 @@
+{
+  "repoPath": "/Users/ana/api",
+  "worktree": {
+    "path": "/Users/ana/.shipwarden/worktrees/api/fix-login",
+    "branch": "fix-login",
+    "name": "fix-login",
+    "isMain": false,
+    "task": {
+      "title": "Fix the login page",
+      "key": "ENG-12",
+      "url": "https://example.com/t/12"
+    },
+    "pullRequest": {
+      "number": 7,
+      "title": "Fix the login page",
+      "url": "https://github.com/acme/api/pull/7",
+      "isDraft": true,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "checks": "PENDING",
+      "headSha": "0123456789abcdef0123456789abcdef01234567"
+    }
+  },
+  "agent": {
+    "id": "session-3",
+    "title": "Claude Code",
+    "worktreePath": "/Users/ana/.shipwarden/worktrees/api/fix-login",
+    "cwd": "/Users/ana/.shipwarden/worktrees/api/fix-login",
+    "state": "starting",
+    "message": "Starting",
+    "prompt": "Fix the login page",
+    "stateAt": 1767225600000,
+    "exited": false,
+    "reason": "Starting"
+  }
+}

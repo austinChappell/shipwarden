@@ -37,6 +37,7 @@ describe('RemoteServer', () => {
     const writes: [string, string][] = [];
     const approvals: unknown[][] = [];
     const answers: [string, boolean][] = [];
+    const starts: unknown[] = [];
 
     /** Sends a request like the phone: it trusts the certificate only by its fingerprint. */
     function send(method: string, path: string, options: { token?: string; body?: unknown; stream?: (text: string) => boolean } = {}): Promise<Response> {
@@ -92,6 +93,15 @@ describe('RemoteServer', () => {
                 answerRun: async (id, approve) => {
                     if (id !== 'run-1') throw new HttpError(409, 'The run is not waiting for approval anymore.');
                     answers.push([id, approve]);
+                },
+                startOptions: async () => ({ repos: [], agents: [], tasks: [] }),
+                startAgent: async body => {
+                    starts.push(body);
+                    return {
+                        repoPath: '/repo',
+                        worktree: { path: '/wt/fix', branch: 'fix', name: 'fix', isMain: false },
+                        agent: { id: 'agent-2', title: 'Claude', worktreePath: '/wt/fix', cwd: '/wt/fix', state: 'starting', exited: false }
+                    };
                 },
                 onStatusChanged: () => undefined
             }
@@ -166,8 +176,30 @@ describe('RemoteServer', () => {
             ['run-1', false]
         ]);
 
-        // A removed phone loses access at once.
+        // The phone cannot start agents until the user allows it on the Mac.
         const device = (await server.status()).devices[0];
+        expect(device.canStartAgents).toBeUndefined();
+        const start = { repoPath: '/repo', prompt: 'Fix the login page' };
+        const refused = await send('POST', '/v1/agents/start', { token, body: start });
+        expect(refused.status).toBe(403);
+        expect(JSON.parse(refused.body).error).toContain('Settings › Mobile');
+        expect((await send('GET', '/v1/start/options', { token })).status).toBe(403);
+        expect(starts).toEqual([]);
+
+        await server.setDevicePermissions(device.id, { canStartAgents: true });
+        expect((await server.status()).devices[0].canStartAgents).toBe(true);
+        expect((await send('GET', '/v1/start/options', { token })).status).toBe(200);
+        const started = await send('POST', '/v1/agents/start', { token, body: start });
+        expect(started.status).toBe(200);
+        expect(JSON.parse(started.body)).toMatchObject({ worktree: { path: '/wt/fix' }, agent: { id: 'agent-2', state: 'starting' } });
+        expect(starts).toEqual([start]);
+
+        await server.setDevicePermissions(device.id, { canStartAgents: false });
+        expect((await send('POST', '/v1/agents/start', { token, body: start })).status).toBe(403);
+        expect(starts).toHaveLength(1);
+        await expect(server.setDevicePermissions('unknown', { canStartAgents: true })).rejects.toThrow('not paired');
+
+        // A removed phone loses access at once.
         await server.removeDevice(device.id);
         expect((await send('GET', '/v1/state', { token })).status).toBe(401);
     });

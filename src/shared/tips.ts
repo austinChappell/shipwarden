@@ -115,6 +115,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'view', view: 'automations', label: 'Open Automations' }
     },
     {
+        id: 'phoneStartAgents',
+        title: 'Start agents from your iPhone',
+        body: 'Turn on "Start agents" for your phone in Settings › Mobile. Then tap + in the Agents tab of the iPhone app to start an agent on a task or a prompt in a new worktree.',
+        action: { kind: 'settings', section: 'mobile', label: 'Open Mobile' }
+    },
+    {
         id: 'checkpoints',
         title: 'Undo one bad agent turn',
         body: 'ShipWarden saves the files of the worktree when an agent gets a prompt. Open the Checkpoints tab in the right panel of a worktree, and select "Rewind" on a turn. The diff shows first.'

@@ -202,6 +202,23 @@ export function MobileSettings({ settings, onSave }: Props) {
         }
     };
 
+    /** Lets a phone start agents, or stops it. The list changes at once, without a new status request. */
+    const setStartAgents = async (id: string, canStartAgents: boolean) => {
+        setError(undefined);
+        try {
+            await api.setDevicePermissions(id, { canStartAgents });
+            setStatus(
+                current =>
+                    current && {
+                        ...current,
+                        devices: current.devices.map(device => (device.id === id ? { ...device, canStartAgents } : device))
+                    }
+            );
+        } catch (err) {
+            setError(errorText(err));
+        }
+    };
+
     const connected = new Set(status?.connected ?? []);
     return (
         <>
@@ -213,8 +230,9 @@ export function MobileSettings({ settings, onSave }: Props) {
                 description={
                     <>
                         The ShipWarden iPhone app shows your agents, their terminal screens, and the pull requests of the worktrees. You can reply to an agent,
-                        answer its questions and approve a pull request. The phone connects to this Mac over HTTPS on your network. ShipWarden must be open, but
-                        the window can be closed. A background helper can keep the connection open while ShipWarden is closed.
+                        answer its questions, and approve a pull request. A phone with “Start agents” on can also start an agent in a new worktree. The phone
+                        connects to this Mac over HTTPS on your network. ShipWarden must be open, but the window can be closed. A background helper can keep the
+                        connection open while ShipWarden is closed.
                     </>
                 }
                 card
@@ -322,6 +340,14 @@ export function MobileSettings({ settings, onSave }: Props) {
                         <span className="connection-meta">
                             {connected.has(device.id) ? 'Connected now' : `Last seen ${since(device.lastSeenAt)}`} · paired{' '}
                             {new Date(device.pairedAt).toLocaleDateString()}
+                        </span>
+                        <span className="device-permission">
+                            Start agents
+                            <Switch
+                                checked={device.canStartAgents === true}
+                                title="Start agents: the phone can make a worktree and start an agent in it."
+                                onChange={on => void setStartAgents(device.id, on)}
+                            />
                         </span>
                         <Button variant="danger" onClick={() => void remove(device.id, device.name)}>
                             Remove

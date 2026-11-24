@@ -179,6 +179,18 @@ final class APIClient: @unchecked Sendable {
         _ = try await send(try request("/v1/automations/runs/\(id)/\(approve ? "approve" : "skip")", method: "POST"), as: Empty.self)
     }
 
+    /// The choices of the start screen. The Mac answers 403 when the user did not let this phone start agents.
+    func startOptions() async throws -> RemoteStartOptions {
+        try await send(try request("/v1/start/options"), as: RemoteStartOptions.self)
+    }
+
+    /// Makes a worktree and starts an agent in it. The Mac answers when the agent runs. This can take a few minutes.
+    func startAgent(_ body: RemoteStartRequest) async throws -> RemoteStartResult {
+        var request = try request("/v1/agents/start", method: "POST", body: body)
+        request.timeoutInterval = 200
+        return try await send(request, as: RemoteStartResult.self)
+    }
+
     /// Opens an event stream. The stream ends when the connection closes.
     func events(_ path: String) -> AsyncThrowingStream<ServerEvent, Error> {
         AsyncThrowingStream { continuation in

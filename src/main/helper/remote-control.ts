@@ -1,4 +1,4 @@
-import type { PairingOffer, RemoteSettings, RemoteStatus } from '@shared/remote';
+import type { PairingOffer, RemoteDevicePermissions, RemoteSettings, RemoteStatus } from '@shared/remote';
 import type { HelperConnection } from './helper-link';
 import { HELPER_PROTOCOL } from './protocol';
 
@@ -9,6 +9,7 @@ export interface LocalRemote {
     startPairing(): PairingOffer;
     cancelPairing(): void;
     removeDevice(id: string): Promise<void>;
+    setDevicePermissions(id: string, permissions: RemoteDevicePermissions): Promise<void>;
     agentsChanged(): void;
     terminalData(id: string, data: string, seq: number): void;
     terminalResized(id: string, cols: number, rows: number): void;
@@ -131,6 +132,12 @@ export class RemoteControl {
         if (this.helper && this.owner === 'helper') return this.helper.removeDevice(id);
         if (!this.local) throw new Error('Turn on phone connections first.');
         return this.local.removeDevice(id);
+    }
+
+    async setDevicePermissions(id: string, permissions: RemoteDevicePermissions): Promise<void> {
+        if (this.helper && this.owner === 'helper') return this.helper.setDevicePermissions(id, permissions);
+        if (!this.local) throw new Error('Turn on phone connections first.');
+        return this.local.setDevicePermissions(id, permissions);
     }
 
     // The helper gets the terminal events from the PTY host itself. Only the server of the app needs them here.

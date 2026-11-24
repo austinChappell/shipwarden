@@ -278,6 +278,37 @@ final class AppModel {
         pendingRuns.removeAll { $0.id == run.id }
     }
 
+    /// The choices of the start screen: the repositories, the agents, and the tasks.
+    func startOptions() async throws -> RemoteStartOptions {
+        guard demo == nil else { throw APIError.server(400, "The demo cannot start agents. Pair with your Mac to start agents.") }
+        guard let client else { throw APIError.noHost }
+        return try await client.startOptions()
+    }
+
+    /// Starts an agent in a new worktree. The agent and the worktree go into the lists at once, without a new load.
+    func startAgent(_ request: RemoteStartRequest) async throws -> RemoteAgent {
+        guard demo == nil else { throw APIError.server(400, "The demo cannot start agents. Pair with your Mac to start agents.") }
+        guard let client else { throw APIError.noHost }
+        let result = try await client.startAgent(request)
+        add(result)
+        return result.agent
+    }
+
+    private func add(_ result: RemoteStartResult) {
+        if !agents.contains(where: { $0.id == result.agent.id }) {
+            agents.append(result.agent)
+        }
+        guard var next = snapshot else { return }
+        for p in next.projects.indices {
+            for r in next.projects[p].repos.indices where next.projects[p].repos[r].path == result.repoPath {
+                if !next.projects[p].repos[r].worktrees.contains(where: { $0.path == result.worktree.path }) {
+                    next.projects[p].repos[r].worktrees.append(result.worktree)
+                }
+            }
+        }
+        snapshot = next
+    }
+
     static var deviceName: String {
         UIDevice.current.name
     }

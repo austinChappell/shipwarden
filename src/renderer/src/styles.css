@@ -11758,6 +11758,15 @@ button.gg-ref:hover {
     background: var(--ok);
 }
 
+.device-permission {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
 /* In-app browser. The page is a native view of the main process above .browser-content. */
 
 .browser-toolbar {

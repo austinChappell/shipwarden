@@ -23,6 +23,7 @@ function fakeLocal(events: string[]): LocalRemote {
         startPairing: vi.fn(() => ({ link: 'local', expiresAt: 1 })),
         cancelPairing: vi.fn(),
         removeDevice: vi.fn(async () => undefined),
+        setDevicePermissions: vi.fn(async () => undefined),
         agentsChanged: vi.fn(),
         terminalData: vi.fn(),
         terminalResized: vi.fn(),
@@ -45,6 +46,7 @@ function fakeHelper(events: string[], buildId = 'build-1') {
         startPairing: async () => ({ link: 'helper', expiresAt: 2 }),
         cancelPairing: async () => undefined,
         removeDevice: async () => undefined,
+        setDevicePermissions: async () => undefined,
         terminalResized: vi.fn(),
         onClose: listener => closeListeners.push(listener),
         close: () => closeListeners.splice(0).forEach(listener => listener())

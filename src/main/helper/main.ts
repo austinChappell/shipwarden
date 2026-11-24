@@ -11,6 +11,7 @@ import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import { homedir, hostname, userInfo } from 'os';
 import { dirname, join, relative, resolve, isAbsolute } from 'path';
+import { ResponseError } from 'vscode-jsonrpc/node';
 import { pendingRemoteRuns } from '@shared/automation-engine';
 import { normalizeRunState } from '@shared/automations';
 import { normalizeProjects } from '@shared/projects';
@@ -30,11 +31,13 @@ import { hostBuildId, PtyHostClient } from '../pty-host/pty-host-client';
 import { RemoteDevices } from '../remote/remote-devices';
 import { HttpError, localHosts, RemoteServer } from '../remote/remote-server';
 import { RemoteSnapshotBuilder } from '../remote/remote-snapshot';
+import { RemoteStarter } from '../remote/remote-start';
 import { ensureTlsIdentity } from '../remote/tls-identity';
 import { SettingsStore } from '../settings-store';
 import { ScreenMirror } from '../remote/screen-mirror';
 import { loadLoginShellPath, loginShellCaFile } from '../shell-env';
 import { JsonStore } from '../tasks/json-store';
+import { UsageService } from '../usage/usage-service';
 import { GitWorktreeService, worktreesRoot } from '../worktrees/git-worktree-service';
 import { HelperAgents } from './headless-agents';
 import { HelperAutomations } from './helper-automations';
@@ -240,6 +243,83 @@ async function answerRun(id: string, approve: boolean): Promise<void> {
     }
 }
 
+function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * The plan usage for the usage budget of a start from the phone. The helper has no timer for it. It loads only when the
+ * phone opens the start screen or starts an agent, and Settings › Agents has a budget. The service waits between
+ * two requests, the same as in the app.
+ */
+const usage = new UsageService(`ShipWarden/${version}`, () => undefined);
+
+/** Starts agents for the phone while the app is closed: a new worktree and the agent through the PTY host. */
+const ownStarter = new RemoteStarter({
+    settings: readSettings,
+    projects: readProjects,
+    usage: async () => {
+        await networkReady;
+        return usage.refresh();
+    },
+    tasks: async () => ({ tasks: [], note: 'Open ShipWarden on the Mac to start an agent on a task.' }),
+    start: async start => {
+        if (start.task) throw new HttpError(503, 'Open ShipWarden on the Mac to start an agent on a task.');
+        const branch = start.branch ?? start.promptBranch;
+        if (!branch) throw new HttpError(400, 'The start has no branch.');
+        let started: Awaited<ReturnType<HelperAgents['startInNewWorktree']>>;
+        try {
+            started = await helperAgents.startInNewWorktree(start.repoPath, branch, '', start.agentId, undefined, start.model);
+        } catch (error) {
+            throw new HttpError(409, errorMessage(error));
+        }
+        const { worktree, session } = started;
+        // The phone shows the agent at once. The prompt goes in when the agent is ready and shows no question.
+        if (start.prompt) {
+            void helperAgents
+                .promptAgent(worktree.path, start.prompt, { sessionId: session.id })
+                .catch(error => log(`[agents] The prompt did not reach ${session.title}: ${errorMessage(error)}`));
+        }
+        return { worktreePath: worktree.path, sessionId: session.id };
+    },
+    sessions,
+    worktrees: repo => worktrees.list(repo),
+    taskLinks: () => new JsonStore<Record<string, TaskLink>>(join(userData, 'task-links.json'), () => ({})).get()
+});
+
+/** The HTTP status of an error of the app. The app sends the status of its `HttpError` as the error code. */
+function appStatus(error: unknown): number | undefined {
+    return error instanceof ResponseError && error.code >= 400 && error.code < 600 ? error.code : undefined;
+}
+
+/** The choices of the start screen: from the app while it is open (it has the tasks), else from the helper. */
+async function startOptions() {
+    if (control.hasApp()) {
+        try {
+            return await control.appStartOptions();
+        } catch (error) {
+            log(`The app did not send the start options: ${errorMessage(error)}`);
+        }
+    }
+    return ownStarter.options();
+}
+
+/**
+ * Starts an agent for the phone. While the app is open, the page starts it with the code of "Start in worktree". When
+ * the app has no window (status 503), the helper starts it. After another error, the helper does not try again, because
+ * the app possibly started the agent.
+ */
+async function startAgent(body: unknown) {
+    if (!control.hasApp()) return ownStarter.start(body);
+    try {
+        return await control.appStartAgent(body);
+    } catch (error) {
+        const status = appStatus(error);
+        if (status === 503) return ownStarter.start(body);
+        throw new HttpError(status ?? 504, status ? errorMessage(error) : `ShipWarden on the Mac did not finish the start: ${errorMessage(error)}`);
+    }
+}
+
 const remote: RemoteServer = new RemoteServer({
     devices: new RemoteDevices(join(userData, 'remote-devices.json')),
     identity: () => ensureTlsIdentity(userData),
@@ -266,6 +346,8 @@ const remote: RemoteServer = new RemoteServer({
         },
         pendingRuns,
         answerRun,
+        startOptions,
+        startAgent,
         onStatusChanged: () => control.statusChanged()
     }
 });

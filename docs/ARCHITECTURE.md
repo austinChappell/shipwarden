@@ -1526,7 +1526,20 @@ finds a difference: the unit tests write sample JSON from the TypeScript types t
   - `POST /v1/automations/runs/<id>/approve` and `.../skip`: the answer goes to the owner of the automation lock. The
     helper engine answers at once. The app sends it to the page (`automations:answerRun`). A run that is not pending
     gets 409. Without a window and without the helper engine, the answer gets 503.
+  - `GET /v1/start/options`: `RemoteStartOptions`, the choices of the start screen: the repositories of the projects,
+    the agents (with the model, `canSetModel`, and the budget wait), and the open tasks without a worktree of the
+    list that the Tasks view selected last. The page reads the tasks from its cache (`phone.tasks`).
+  - `POST /v1/agents/start`: `RemoteStartRequest` (`repoPath`, a `task` or a `prompt`, and optional `branch`,
+    `agentId`, and `model`). `RemoteStarter` (`src/main/remote/remote-start.ts`) checks the values, the repository,
+    the agent, and the usage budget (409 with the wait text). The app sends the start to the page (`phone.start`
+    through `CliPageBridge`), which uses the start code of "Start in worktree" (`startTaskQuietly`,
+    `startInNewWorktree`). The answer comes when the agent session runs. The prompt goes to the agent after that, so a
+    question of the new agent (for example folder trust) does not block the answer. The answer has the new agent and
+    the new worktree (`RemoteStartResult`). The phone adds both to its lists and does not load them again.
   - Each stream gets a comment every 15 seconds, so the phone finds a dead connection.
+- **Permissions.** A paired phone has `canStartAgents` in `remote-devices.json`. A new phone does not. The switch
+  "Start agents" in Settings › Mobile changes it (`remote:setDevicePermissions`, through `RemoteControl` to the owner
+  of the server). Without it, the two start routes answer 403.
 - **Screen.** `ScreenMirror` runs the output of a session through a headless xterm.js (`@xterm/headless`): first the
   replay, then the live chunks with a larger sequence number. A snapshot has 150 lines of scrollback and the screen,
   as runs of text with colors and styles. It goes out at most every 150 ms, and only when it changed. A mirror
@@ -1541,7 +1554,7 @@ finds a difference: the unit tests write sample JSON from the TypeScript types t
   keychain (`AfterFirstUnlockThisDeviceOnly`). The system Camera opens pairing links through the `shipwarden` URL
   scheme.
 - **Limits.** There are no push notifications, because iOS stops the connections of an app in the background, and
-  push needs a server. The phone cannot start agents yet, because the page owns the tabs.
+  push needs a server.
 
 #### Background helper
 
@@ -1565,8 +1578,13 @@ default) runs the phone server in a background helper. The page asks before it t
   connect each 3 seconds. Each server of the app is new and reads `remote-devices.json` again.
 - **Versions.** The helper sends a hash of its script (`hello`). When the hash is not the hash of the app's
   `helper.js` (for example after an update), the app restarts the helper one time (`launchctl kickstart -k`).
-- **Data.** While the app is open, the helper asks the app for the snapshot and for approvals, so the phone gets the
-  pull requests. While the app is closed, the helper reads `projects.json`, `settings.json` and `task-links.json`
+- **Data.** While the app is open, the helper asks the app for the snapshot, for approvals, and for the starts of the
+  phone (`startOptions`, `startAgent`), so the phone gets the pull requests and the tasks. The app sends the HTTP
+  status of an error as the JSON-RPC error code.
+- **Starts.** When no app is connected, or the app has no window (status 503), the helper starts the agent itself:
+  `HelperAgents.startInNewWorktree` with the agent and the model. It checks the usage budget with its own
+  `UsageService`, which loads only for a start screen or a start and only when Settings › Agents has a budget. A start
+  on a task needs the app, because only the page has the task lists. While the app is closed, the helper reads `projects.json`, `settings.json` and `task-links.json`
   again for each snapshot, and runs `git worktree list`. It shows no pull requests then, and an approval gets 503.
 - **Automations.** `HelperAutomations` (`src/main/helper/helper-automations.ts`) runs the automations and the task queue
   while the helper holds the automation lock (see [Automations](#automations)). Only these requests go out: the
@@ -1577,4 +1595,4 @@ default) runs the phone server in a background helper. The page asks before it t
   like the PTY host socket. Only processes of the user can connect.
 - **Logs.** The helper writes to `<app data>/helper.log`.
 - **Next steps.** Pull requests and approvals while the app is closed (the helper needs the review providers and the
-  tokens without Electron `safeStorage`). The CLI socket in the helper. Start agents from the phone. Push notifications.
+  tokens without Electron `safeStorage`). The CLI socket in the helper. Push notifications.

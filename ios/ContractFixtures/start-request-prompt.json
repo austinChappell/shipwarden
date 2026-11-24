@@ -1,0 +1,7 @@
+{
+  "repoPath": "/Users/ana/api",
+  "prompt": "Fix the login page",
+  "branch": "fix-login",
+  "agentId": "claude",
+  "model": "opus"
+}

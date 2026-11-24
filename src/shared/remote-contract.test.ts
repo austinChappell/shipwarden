@@ -10,6 +10,9 @@ import {
     type RemotePendingRuns,
     type RemotePairResponse,
     type RemoteSnapshot,
+    type RemoteStartOptions,
+    type RemoteStartRequest,
+    type RemoteStartResult,
     type ScreenSnapshot
 } from './remote';
 
@@ -143,6 +146,67 @@ const pendingRuns: { runs: [DeepRequired<RemotePendingRuns['runs'][number]>, Rem
     ]
 };
 
+/** The start screen: one item with all fields, and one item without the optional fields. */
+const startOptions: {
+    repos: DeepRequired<RemoteStartOptions['repos']>;
+    agents: [DeepRequired<RemoteStartOptions['agents'][number]>, RemoteStartOptions['agents'][number]];
+    tasks: [DeepRequired<RemoteStartOptions['tasks'][number]>, RemoteStartOptions['tasks'][number]];
+    tasksNote: string;
+} = {
+    repos: [{ path: '/Users/ana/api', name: 'api', projectName: 'Work', agentId: 'claude' }],
+    agents: [
+        {
+            id: 'claude',
+            name: 'Claude Code',
+            model: 'sonnet',
+            canSetModel: true,
+            budgetWait: 'Waiting for usage to reset. Claude (5h) is at 85%, and the budget is 80%. It resets at 2:30 PM.'
+        },
+        { id: 'gemini', name: 'Gemini CLI', canSetModel: false }
+    ],
+    tasks: [
+        { connectionId: 'clickup-1', id: '86b2x', title: 'Fix the login page', key: 'ENG-12', url: 'https://example.com/t/12', status: 'To do' },
+        { connectionId: 'clickup-1', id: '86b2y', title: 'Add dark mode' }
+    ],
+    tasksNote: 'Open ShipWarden on the Mac to start an agent on a task.'
+};
+
+/** The phone encodes these start requests. The Swift check compares its own encoding with these files. */
+const startPrompt: RemoteStartRequest = { repoPath: '/Users/ana/api', prompt: 'Fix the login page', branch: 'fix-login', agentId: 'claude', model: 'opus' };
+const startTask: RemoteStartRequest = { repoPath: '/Users/ana/api', task: { connectionId: 'clickup-1', id: '86b2x' } };
+
+const startResult: DeepRequired<RemoteStartResult> = {
+    repoPath: '/Users/ana/api',
+    worktree: {
+        path: '/Users/ana/.shipwarden/worktrees/api/fix-login',
+        branch: 'fix-login',
+        name: 'fix-login',
+        isMain: false,
+        task: { title: 'Fix the login page', key: 'ENG-12', url: 'https://example.com/t/12' },
+        pullRequest: {
+            number: 7,
+            title: 'Fix the login page',
+            url: 'https://github.com/acme/api/pull/7',
+            isDraft: true,
+            reviewDecision: 'REVIEW_REQUIRED',
+            checks: 'PENDING',
+            headSha: '0123456789abcdef0123456789abcdef01234567'
+        }
+    },
+    agent: {
+        id: 'session-3',
+        title: 'Claude Code',
+        worktreePath: '/Users/ana/.shipwarden/worktrees/api/fix-login',
+        cwd: '/Users/ana/.shipwarden/worktrees/api/fix-login',
+        state: 'starting',
+        message: 'Starting',
+        prompt: 'Fix the login page',
+        stateAt: 1767225600000,
+        exited: false,
+        reason: 'Starting'
+    }
+};
+
 const error: RemoteErrorBody = { error: 'This address does not exist.' };
 
 /** The phone encodes this input. The Swift check compares its own encoding with this file. */
@@ -154,6 +218,10 @@ const fixtures: Record<string, unknown> = {
     'screen.json': screen,
     'pair-response.json': pair,
     'pending-runs.json': pendingRuns,
+    'start-options.json': startOptions,
+    'start-request-prompt.json': startPrompt,
+    'start-request-task.json': startTask,
+    'start-result.json': startResult,
     'error.json': error,
     'input.json': input,
     'agent-states.json': Object.keys(AGENT_STATES),

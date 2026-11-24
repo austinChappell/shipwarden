@@ -117,4 +117,12 @@ describe('HelperAgents', () => {
         expect(created.map(item => item.title)).toEqual(['Setup', 'Claude Code']);
         expect(created[0].command).toContain('npm install');
     });
+
+    it('starts an agent with the model of the phone, and without a prompt', async () => {
+        const { agents, created, writes } = setup();
+        const { worktree } = await agents.startInNewWorktree('/repo', 'fix-login', '', 'claude', undefined, 'opus');
+        expect(worktree.path).toBe('/wt/fix-login');
+        expect(created[0].command).toContain("--model 'opus'");
+        expect(writes).toEqual([]);
+    });
 });

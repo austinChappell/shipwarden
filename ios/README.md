@@ -9,6 +9,10 @@ The iPhone app shows the agents that run in ShipWarden on your Mac. It connects 
   for example "Waiting for CI" (the Mac sends the reason). Open an agent to see its terminal screen, answer a question
   with 1, 2 or 3, send keys (Enter, Esc, arrows, Tab, ⇧Tab, ⌃C) or type a reply. The automation runs that are waiting
   for approval show at the top, with **Skip** and **Approve**. A Mac with an older ShipWarden sends none.
+- **Start an agent.** Tap **+** in the Agents tab. Select a repository, a task or a prompt, an agent, and a model.
+  The Mac makes a new worktree and starts the agent. The agent shows in the list at once and opens. The Mac must
+  allow it: turn on **Start agents** for the phone in ShipWarden › Settings › Mobile. A start on a task needs
+  ShipWarden open on the Mac. The tasks come from the list that the Tasks view selected last.
 - **Worktrees.** The worktrees of each repository with their task, their pull request and the CI state. You can
   approve a pull request.
 - **Mac.** The paired Mac and the connection. You can forget the Mac here.

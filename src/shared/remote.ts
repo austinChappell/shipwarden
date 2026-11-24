@@ -1,4 +1,7 @@
 import type { AgentState } from './agents';
+import { cleanBranchName } from './branch-template';
+import type { Task, TaskLink } from './tasks';
+import { branchFromName } from './worktrees';
 
 /**
  * The API between ShipWarden and the phone app. The phone connects to the main process over HTTPS on the local
@@ -42,6 +45,13 @@ export interface RemoteDevice {
     name: string;
     pairedAt: number;
     lastSeenAt?: number;
+    /** True when the phone can start agents (`POST /v1/agents/start`). A new phone cannot. Settings › Mobile turns it on. */
+    canStartAgents?: boolean;
+}
+
+/** The permissions of a paired phone that the user can change in Settings › Mobile. */
+export interface RemoteDevicePermissions {
+    canStartAgents: boolean;
 }
 
 /** The state of the phone connection for the settings page. */
@@ -243,6 +253,150 @@ export interface RemoteAutomationRun {
 /** The answer to `GET /v1/automations/pending`. The newest run comes first. */
 export interface RemotePendingRuns {
     runs: RemoteAutomationRun[];
+}
+
+/** An agent of Settings › Agents for the start screen of the phone. */
+export interface RemoteAgentChoice {
+    id: string;
+    name: string;
+    /** The model of Settings › Agents. Without it, the agent uses its own setting. */
+    model?: string;
+    /** True when the phone can select a model: Claude Code or Codex, and no model option in the command. */
+    canSetModel: boolean;
+    /** The reason when the usage budget of Settings › Agents stops this agent now, for example "Waiting for usage to reset. …". */
+    budgetWait?: string;
+}
+
+/** A repository for the start screen of the phone. */
+export interface RemoteRepoChoice {
+    path: string;
+    name: string;
+    projectName: string;
+    /** The agent of the repository: the agent of Settings › Repositories, else the default agent. */
+    agentId: string;
+}
+
+/** A task of a task manager for the start screen of the phone. */
+export interface RemoteTaskChoice {
+    connectionId: string;
+    id: string;
+    title: string;
+    key?: string;
+    url?: string;
+    /** The name of the status, for example "To do". */
+    status?: string;
+}
+
+/** The answer to `GET /v1/start/options`: the choices of the start screen of the phone. */
+export interface RemoteStartOptions {
+    repos: RemoteRepoChoice[];
+    agents: RemoteAgentChoice[];
+    /** The open tasks of the task list that the Tasks view selected last. Empty while the app is closed. */
+    tasks: RemoteTaskChoice[];
+    /** Why the list has no tasks, for example "Open ShipWarden on the Mac to see the tasks." */
+    tasksNote?: string;
+}
+
+/**
+ * The body of `POST /v1/agents/start`. ShipWarden makes a new worktree and starts the agent in it. The agent gets
+ * the task prompt (with `task`) or the prompt. Give a task or a prompt, not both.
+ */
+export interface RemoteStartRequest {
+    repoPath: string;
+    task?: { connectionId: string; id: string };
+    prompt?: string;
+    /** The branch of the new worktree. Without it, ShipWarden makes it from the task or the prompt. */
+    branch?: string;
+    /** An agent of Settings › Agents. Without it, the agent of the repository. */
+    agentId?: string;
+    /** The model of the new session. Without it, the model of Settings › Agents. */
+    model?: string;
+}
+
+/** The answer to `POST /v1/agents/start`. The phone adds the agent and the worktree to its lists. It does not load the lists again. */
+export interface RemoteStartResult {
+    repoPath: string;
+    worktree: RemoteWorktree;
+    agent: RemoteAgent;
+}
+
+/** The longest branch name that the phone can send. */
+const MAX_BRANCH_LENGTH = 200;
+/** The longest model name that the phone can send. Settings › Agents uses the same limit. */
+const MAX_MODEL_LENGTH = 200;
+
+/** Reads the body of `POST /v1/agents/start`. Throws an error with a message for the phone when a value is not valid. */
+export function parseStartRequest(body: unknown): RemoteStartRequest {
+    const value = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+    const text = (key: string): string | undefined => {
+        const item = value[key];
+        if (item === undefined || item === null) return undefined;
+        if (typeof item !== 'string') throw new Error(`The value "${key}" must be text.`);
+        return item.trim() || undefined;
+    };
+    const repoPath = text('repoPath');
+    if (!repoPath) throw new Error('Select a repository.');
+    const prompt = text('prompt');
+    if (prompt && prompt.length > MAX_INPUT_LENGTH) throw new Error(`The prompt is too long. Use at most ${MAX_INPUT_LENGTH} characters.`);
+    const rawTask = value.task;
+    let task: RemoteStartRequest['task'];
+    if (rawTask !== undefined && rawTask !== null) {
+        const item = rawTask as Record<string, unknown>;
+        if (typeof item !== 'object' || typeof item.connectionId !== 'string' || !item.connectionId || typeof item.id !== 'string' || !item.id) {
+            throw new Error('The task needs a connection and an ID.');
+        }
+        task = { connectionId: item.connectionId, id: item.id };
+    }
+    if (!task && !prompt) throw new Error('Select a task or type a prompt.');
+    if (task && prompt) throw new Error('Give a task or a prompt, not both.');
+    const rawBranch = text('branch');
+    const branch = rawBranch ? cleanBranchName(rawBranch) : undefined;
+    if (rawBranch && (!branch || rawBranch.length > MAX_BRANCH_LENGTH)) throw new Error(`"${rawBranch}" is not a valid branch name.`);
+    const rawModel = text('model');
+    // The same rule as a model in Settings › Agents: one word.
+    const model = rawModel && rawModel.length <= MAX_MODEL_LENGTH && !/\s/.test(rawModel) ? rawModel : undefined;
+    if (rawModel && !model) throw new Error('A model name is one word.');
+    const agentId = text('agentId');
+    return {
+        repoPath,
+        ...(task ? { task } : {}),
+        ...(prompt ? { prompt } : {}),
+        ...(branch ? { branch } : {}),
+        ...(agentId ? { agentId } : {}),
+        ...(model ? { model } : {})
+    };
+}
+
+/** The phone shows at most this number of tasks. */
+const MAX_PHONE_TASKS = 100;
+
+/** Returns the tasks that the phone can start: the open tasks without a worktree, from the list that the Tasks view selected last. */
+export function openTaskChoices(connectionId: string, tasks: readonly Task[], links: Record<string, TaskLink>): RemoteTaskChoice[] {
+    const linked = new Set(
+        Object.values(links)
+            .filter(link => (link.connectionId ?? link.pluginId) === connectionId)
+            .map(link => link.taskId)
+    );
+    return tasks
+        .filter(task => task.status.category !== 'done' && task.status.category !== 'canceled' && !linked.has(task.id))
+        .slice(0, MAX_PHONE_TASKS)
+        .map(task => ({
+            connectionId,
+            id: task.id,
+            title: task.title,
+            ...(task.key ? { key: task.key } : {}),
+            ...(task.url ? { url: task.url } : {}),
+            status: task.status.name
+        }));
+}
+
+/** The number of words of the prompt in the branch name of a start from the phone. */
+const BRANCH_WORDS = 6;
+
+/** Makes the branch of a prompt from the phone, for example "fix-the-login-page" for "Fix the login page, please". */
+export function promptBranchName(prompt: string, now = Date.now()): string {
+    const words = prompt.split(/\s+/).filter(Boolean).slice(0, BRANCH_WORDS).join(' ');
+    return branchFromName(words) || `phone-${new Date(now).toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
 }
 
 /** The body of each answer with an error status. */

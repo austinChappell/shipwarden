@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
-import { PAIRING_TTL_MS, type RemoteDevice } from '@shared/remote';
+import { PAIRING_TTL_MS, type RemoteDevice, type RemoteDevicePermissions } from '@shared/remote';
 import { JsonStore } from '../tasks/json-store';
 
 interface StoredDevice extends RemoteDevice {
@@ -100,6 +100,20 @@ export class RemoteDevices {
         }
         const { tokenHash: _hash, ...device } = stored;
         return device;
+    }
+
+    /** Changes the permissions of a phone. Returns false when the phone is not paired. */
+    async setPermissions(id: string, permissions: RemoteDevicePermissions): Promise<boolean> {
+        let found = false;
+        await this.store.update(value => ({
+            devices: value.devices.map(device => {
+                if (device.id !== id) return device;
+                found = true;
+                const { canStartAgents: _old, ...rest } = device;
+                return permissions.canStartAgents ? { ...rest, canStartAgents: true } : rest;
+            })
+        }));
+        return found;
     }
 
     async remove(id: string): Promise<void> {

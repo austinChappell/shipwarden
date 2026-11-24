@@ -3,6 +3,8 @@
  * The functions of this module use no Electron API. The app, the CLI, and the tests use them.
  */
 
+import type { RemoteTaskChoice } from './remote';
+
 /**
  * The version of the protocol between the CLI and the app.
  * Change it when a change breaks old CLI scripts or old apps.
@@ -104,13 +106,27 @@ export function exitCodeOf(code: CliErrorCode): number {
 /**
  * A request from the main process to the page. The page owns the agent tabs, the worktree list, and the automation
  * engine, so these commands run in the page. The main process checks the values and the approval first.
+ * The phone app uses the same bridge for its start screen (`phone.tasks`) and its starts (`phone.start`).
  */
 export type CliPageRequest =
     | { action: 'worktree.create'; repoPath: string; branch: string; baseRef?: string; agentId?: string; prompt?: string }
     | { action: 'worktree.remove'; repoPath: string; worktreePath: string; deleteBranch: boolean }
     | { action: 'agent.start'; repoPath: string; worktreePath: string; agentId?: string; prompt?: string }
     | { action: 'agent.send'; repoPath: string; worktreePath: string; prompt: string; sessionId?: string }
-    | { action: 'automation.run'; automationId: string; repoPath?: string; worktreePath?: string };
+    | { action: 'automation.run'; automationId: string; repoPath?: string; worktreePath?: string }
+    | {
+          action: 'phone.start';
+          repoPath: string;
+          agentId: string;
+          model?: string;
+          /** The branch from the phone. Without it, a task start uses the branch template. */
+          branch?: string;
+          /** The branch of a prompt start without a branch from the phone. */
+          promptBranch?: string;
+          task?: { connectionId: string; id: string };
+          prompt?: string;
+      }
+    | { action: 'phone.tasks' };
 
 /** The answer of the page. */
 export interface CliPageResult {
@@ -121,6 +137,10 @@ export interface CliPageResult {
     /** The agent session that got the prompt or started. */
     sessionId?: string;
     agent?: string;
+    /** The tasks for the start screen of the phone (`phone.tasks`). */
+    tasks?: RemoteTaskChoice[];
+    /** Why `tasks` is empty, for example "Connect a task manager in Settings › Task managers." */
+    tasksNote?: string;
 }
 
 /** The state of the `shipwarden` link for Settings › Agents. */

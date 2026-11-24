@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import type { RemoteDevicePermissions } from '@shared/remote';
 
 /**
  * The version of the protocol between the app and the background helper.
@@ -43,6 +44,8 @@ export const HelperMethods = {
     startPairing: 'startPairing',
     cancelPairing: 'cancelPairing',
     removeDevice: 'removeDevice',
+    /** Changes the permissions of a paired phone. */
+    setDevicePermissions: 'setDevicePermissions',
     /** Notification: the page changed the size of a terminal. */
     terminalResized: 'terminalResized'
 } as const;
@@ -54,6 +57,10 @@ export const AppMethods = {
     approvePullRequest: 'approvePullRequest',
     /** Approves or skips an automation run for the phone. The page of the app runs the engine while a window is open. */
     answerRun: 'answerRun',
+    /** The choices of the start screen of the phone. The app has the tasks and the usage data. */
+    startOptions: 'startOptions',
+    /** Starts an agent for the phone with the start code of the page. An error with code 503 means that no window is open. */
+    startAgent: 'startAgent',
     /** Notification: the devices or the phone connections changed. */
     statusChanged: 'statusChanged'
 } as const;
@@ -63,6 +70,11 @@ export interface ApproveParams {
     number: number;
     headSha: string;
     body: string;
+}
+
+export interface DevicePermissionsParams {
+    id: string;
+    permissions: RemoteDevicePermissions;
 }
 
 export interface AnswerRunParams {

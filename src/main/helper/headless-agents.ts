@@ -86,13 +86,15 @@ export class HelperAgents implements HeadlessAgents {
         return this.options.terminals.list();
     }
 
-    async startInNewWorktree(repoPath: string, branch: string, prompt: string, agentId?: string, mode?: AgentMode) {
+    /** Makes a worktree on a new branch and sends the prompt to a new agent in it. `model` replaces the model of the agent. */
+    async startInNewWorktree(repoPath: string, branch: string, prompt: string, agentId?: string, mode?: AgentMode, model?: string) {
         const worktree = await this.createWorktree(repoPath, branch);
         const session = await this.promptAgent(worktree.path, prompt, {
             repoPath,
             newSession: true,
             ...(agentId ? { agentId } : {}),
-            ...(mode ? { mode } : {})
+            ...(mode ? { mode } : {}),
+            ...(model ? { model } : {})
         });
         return { worktree, session };
     }
@@ -120,7 +122,7 @@ export class HelperAgents implements HeadlessAgents {
     async promptAgent(
         worktreePath: string,
         prompt: string,
-        target: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode; newSession?: boolean }
+        target: { sessionId?: string; agentId?: string; repoPath?: string; mode?: AgentMode; model?: string; newSession?: boolean }
     ): Promise<TerminalSession> {
         const sessions = target.newSession ? [] : await this.options.terminals.list();
         let session = target.sessionId
@@ -129,7 +131,7 @@ export class HelperAgents implements HeadlessAgents {
         if (target.sessionId && !session) throw new Error('The agent tab closed.');
         const fresh = !session;
         if (!session) {
-            session = await this.startAgent(worktreePath, target.repoPath, target.agentId, target.mode);
+            session = await this.startAgent(worktreePath, target.repoPath, target.agentId, target.mode, target.model);
         } else if (target.mode) {
             throw new Error('An agent runs in the worktree, and the background helper cannot change its mode. Open ShipWarden to run this automation.');
         }
@@ -183,12 +185,15 @@ export class HelperAgents implements HeadlessAgents {
         worktreePath: string,
         repoPath: string | undefined,
         agentId: string | undefined,
-        mode: AgentMode | undefined
+        mode: AgentMode | undefined,
+        model: string | undefined
     ): Promise<TerminalSession> {
         const settings = await this.options.settings();
         const definition = agentId ? settings.agents.find(agent => agent.id === agentId) : agentForRepo(settings, repoPath);
         if (!definition) throw new Error(`The agent "${agentId}" is not in Settings › Agents.`);
-        const { command, reportsAgentState } = terminalCommand({ command: agentStartCommand(definition, mode), isAgent: true }, this.options.hookPaths);
+        // The helper cannot list the models, so it does not check the model. An unknown model stops the agent at its start.
+        const withModel = model ? { ...definition, model } : definition;
+        const { command, reportsAgentState } = terminalCommand({ command: agentStartCommand(withModel, mode), isAgent: true }, this.options.hookPaths);
         const started = Date.now();
         const session = await this.options.terminals.create(
             { cwd: worktreePath, worktreePath, title: definition.name, command, isAgent: true, reportsAgentState, ...SIZE },
