@@ -12,6 +12,7 @@ import type {
     ReviewEvent,
     ReviewThread
 } from '@shared/github';
+import type { AgentPullRequestChange } from '@shared/mcp';
 import { keyRoots, queryClient } from '../query-client';
 import { applyMerged } from './review-overview-store';
 import {
@@ -149,4 +150,38 @@ export async function setPullRequestInto(root: string, into: PullRequestInto): P
     await Promise.all(
         [keyRoots.branchStatus, keyRoots.branchSummaries, keyRoots.mergedBranches, keyRoots.checks].map(queryKey => queryClient.invalidateQueries({ queryKey }))
     );
+}
+
+/**
+ * Puts a change of an MCP pull request tool into the cache. The tool sent the change to the host already.
+ * - A new pull request: the tool gives the new state of the worktree. The branch summaries load again, as after
+ *   `createPullRequest`.
+ * - A change or a reply: the same patch as the change of the user.
+ */
+export async function applyAgentPullRequestChange(change: AgentPullRequestChange): Promise<void> {
+    switch (change.kind) {
+        case 'created':
+            queryClient.setQueryData([...keyRoots.branchStatus, change.worktree], change.status);
+            await queryClient.invalidateQueries({ queryKey: keyRoots.branchSummaries });
+            return;
+        case 'changed':
+            writePullRequest(queryClient, change.pr, current => changedPullRequest(current, change.change, [], viewerOf(queryClient, current)));
+            if (change.change.kind === 'base') await invalidatePullRequest(queryClient, change.pr.url);
+            return;
+        case 'reply': {
+            const thread = change.pr.threads.find(item => item.id === change.threadId);
+            const last = thread?.comments[thread.comments.length - 1];
+            writePullRequest(queryClient, change.pr, current =>
+                withReply(current, change.threadId, {
+                    id: localId('comment'),
+                    databaseId: change.commentId,
+                    author: viewer(current),
+                    body: change.body,
+                    createdAt: new Date().toISOString(),
+                    url: last?.url ?? change.pr.url
+                })
+            );
+            return;
+        }
+    }
 }

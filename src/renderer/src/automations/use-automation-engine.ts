@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import type { McpWatch } from '@shared/mcp';
 import { isWorktreeTrigger, type Automation } from '@shared/automations';
 import type { BranchSummary } from '@shared/github';
 import type { AppSettings } from '@shared/settings';
@@ -48,7 +49,12 @@ export function useAutomationEngine(options: Options): void {
     // The setting "Remove merged worktrees" watches the pull requests of the worktrees, as a "pr.merged" automation does.
     // A "worktree.overlap" automation uses local git only, so it loads no pull requests.
     const watchesPullRequests = (automation: Automation) => isWorktreeTrigger(automation.trigger.type) && automation.trigger.type !== 'worktree.overlap';
-    const watchesWorktrees = removeMerged || active.some(watchesPullRequests);
+    // The watches of the MCP tool watch_pull_request. The main process sends each change.
+    const queryClient = useQueryClient();
+    const watchQuery = useQuery({ queryKey: keyRoots.mcpWatches, queryFn: () => window.shipwarden.mcp.watches(), staleTime: Number.POSITIVE_INFINITY });
+    useEffect(() => window.shipwarden.mcp.onWatchesChanged(next => queryClient.setQueryData<McpWatch[]>(keyRoots.mcpWatches, next)), [queryClient]);
+    const watches = useMemo(() => watchQuery.data ?? [], [watchQuery.data]);
+    const watchesWorktrees = removeMerged || active.some(watchesPullRequests) || watches.length > 0;
 
     // The worktrees of all projects. An agent or a pull request of another project can start a run too.
     const repoKey = options.allRepos.join('\0');
@@ -57,7 +63,7 @@ export function useAutomationEngine(options: Options): void {
         queryKey: [...keyRoots.automations, 'places', ...otherRepos],
         queryFn: async () =>
             Object.fromEntries(await Promise.all(otherRepos.map(async repo => [repo, await window.shipwarden.worktrees.list(repo).catch(() => [])] as const))),
-        enabled: (active.length > 0 || removeMerged) && otherRepos.length > 0,
+        enabled: (active.length > 0 || watchesWorktrees) && otherRepos.length > 0,
         staleTime: PLACES_MS,
         refetchInterval: PLACES_MS
     });
@@ -94,7 +100,8 @@ export function useAutomationEngine(options: Options): void {
         places,
         summaries,
         links: options.links,
-        actions: options.actions
+        actions: options.actions,
+        watches
     });
 
     useEffect(() => {

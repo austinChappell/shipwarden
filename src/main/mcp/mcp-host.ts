@@ -1,25 +1,28 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { geminiHookSettings, hookAgentOf } from '@shared/agents';
-import { geminiMcpSettings, mcpConfig, type McpApprovals } from '@shared/mcp';
+import { geminiMcpSettings, mcpConfig, type McpApprovals, type McpWatch } from '@shared/mcp';
 import { McpApprovalGate, McpApprovalStore, type ApprovalRequest } from './approvals';
 import { McpHttpServer, type McpServerAddress } from './server';
 import { McpTokens, type IssuedToken, type McpConfigContent } from './tokens';
 import { McpTools, type McpToolService } from './tools';
+import { McpWatches } from './watches';
 
 /** The text that the client gets in the answer to initialize. The agent shows it to the model. */
 const INSTRUCTIONS =
-    'ShipWarden runs this agent in a git worktree. The tools act on this worktree: its task, its overlap with other worktrees, and questions to the agents of other worktrees. ask_agent and set_task_status need the approval of the user the first time.';
+    'ShipWarden runs this agent in a git worktree. The tools act on this worktree: its task, its pull request and checks, its browser tab, its overlap with other worktrees, and questions to the agents of other worktrees. Call watch_pull_request after you push, so ShipWarden tells you about failed checks, conflicts, and review comments. The write tools need the approval of the user the first time.';
 
 export interface McpHostOptions {
     userData: string;
     version: string;
     /** The Gemini CLI hook settings file. The MCP config file of a Gemini CLI session starts from it. */
     geminiHookSettingsPath: string;
-    service: Omit<McpToolService, 'approve'>;
+    service: Omit<McpToolService, 'approve' | 'watches'>;
     /** Asks the user to approve a write tool. The signal aborts when the time is over. */
     askUser(request: ApprovalRequest, signal: AbortSignal): Promise<boolean>;
     onApprovalsChanged(approvals: McpApprovals): void;
+    /** Gets all watches of watch_pull_request after each change. */
+    onWatchesChanged(watches: McpWatch[]): void;
 }
 
 /**
@@ -28,6 +31,7 @@ export interface McpHostOptions {
  */
 export class McpHost {
     readonly approvals: McpApprovalStore;
+    readonly watches: McpWatches;
     private readonly tokens: McpTokens;
     private readonly server: McpHttpServer;
     private address: Promise<McpServerAddress | undefined> = Promise.resolve(undefined);
@@ -36,14 +40,16 @@ export class McpHost {
     constructor(options: McpHostOptions) {
         this.geminiHookSettingsPath = options.geminiHookSettingsPath;
         this.approvals = new McpApprovalStore(join(options.userData, 'mcp-approvals.json'), options.onApprovalsChanged);
+        this.watches = new McpWatches(join(options.userData, 'mcp-watches.json'), options.onWatchesChanged);
         this.tokens = new McpTokens(join(options.userData, 'mcp-tokens.json'), join(options.userData, 'mcp'));
         const gate = new McpApprovalGate({ store: this.approvals, ask: options.askUser });
         const tools = new McpTools({
             ...options.service,
+            watches: this.watches,
             approve: (worktree, tool, summary, signal) => gate.approve({ worktree, tool, summary }, signal)
         });
         this.server = new McpHttpServer({
-            worktreeOf: token => this.tokens.worktreeOf(token),
+            identify: token => this.tokens.identify(token),
             tools,
             info: { name: 'shipwarden', title: 'ShipWarden', version: options.version, instructions: INSTRUCTIONS }
         });
@@ -112,8 +118,10 @@ export class McpHost {
         return this.tokens.bindSession(id, sessionId);
     }
 
-    revokeSession(sessionId: string): Promise<void> {
-        return this.tokens.revokeSession(sessionId);
+    /** Ends the tokens and the watches of a terminal session, for example when the agent exits. */
+    async revokeSession(sessionId: string): Promise<void> {
+        await this.watches.remove(watch => watch.sessionId === sessionId);
+        await this.tokens.revokeSession(sessionId);
     }
 
     /** Removes the tokens that are older than the maximum age. */

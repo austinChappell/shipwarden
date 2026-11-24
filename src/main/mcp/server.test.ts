@@ -20,7 +20,7 @@ const tools: ToolHost = {
 
 async function start() {
     server = new McpHttpServer({
-        worktreeOf: async token => (token === TOKEN ? '/w/a' : undefined),
+        identify: async token => (token === TOKEN ? { worktree: '/w/a' } : undefined),
         tools,
         info: { name: 'shipwarden', title: 'ShipWarden', version: '1.0.0' }
     });
@@ -146,7 +146,7 @@ describe('McpHttpServer transport', () => {
 
     it('tries the preferred port first and takes another port when it is busy', async () => {
         const first = await start();
-        const second = new McpHttpServer({ worktreeOf: async () => undefined, tools, info: { name: 's', title: 'S', version: '1' } });
+        const second = new McpHttpServer({ identify: async () => undefined, tools, info: { name: 's', title: 'S', version: '1' } });
         try {
             const address = await second.start(first.port);
             expect(address.port).not.toBe(first.port);

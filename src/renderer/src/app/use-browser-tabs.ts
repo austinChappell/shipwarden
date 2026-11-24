@@ -33,10 +33,7 @@ export function useBrowserTabs({ extraTabs, openExtra, defaultRoot, selectedPath
     const openBrowser = (url: string, root?: string): boolean => {
         const target = root ?? defaultRoot;
         if (!target) return false;
-        const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-        browserStore.set({ id, url, title: '', canGoBack: false, canGoForward: false, loading: url !== BLANK_PAGE });
-        api.browser.create(id, url);
-        openExtra(target, { key: browserTabKey(id), kind: 'browser', id });
+        addTab(url, target);
         if (target === homeFolder) {
             setMainView('terminal');
             return true;
@@ -45,6 +42,15 @@ export function useBrowserTabs({ extraTabs, openExtra, defaultRoot, selectedPath
         setMainView('worktree');
         return true;
     };
+    /** Adds a browser tab to a worktree. It is the active tab of the worktree, but the selected worktree does not change. */
+    const addTab = (url: string, root: string) => {
+        const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        browserStore.set({ id, url, title: '', canGoBack: false, canGoForward: false, loading: url !== BLANK_PAGE });
+        api.browser.create(id, url, root);
+        openExtra(root, { key: browserTabKey(id), kind: 'browser', id });
+    };
+    const addTabRef = useRef(addTab);
+    addTabRef.current = addTab;
     const openBrowserRef = useRef(openBrowser);
     openBrowserRef.current = openBrowser;
     const extraTabsRef = useRef(extraTabs);
@@ -55,9 +61,12 @@ export function useBrowserTabs({ extraTabs, openExtra, defaultRoot, selectedPath
         const removeOpenTab = api.browser.onOpenTab((url, openerId) => {
             openBrowserRef.current(url, worktreeOfBrowser(extraTabsRef.current, openerId));
         });
+        // An agent called the MCP tool open_page in a worktree without a browser tab. The user stays where they are.
+        const removeAgentOpen = api.browser.onAgentOpen((url, worktree) => addTabRef.current(url, worktree));
         return () => {
             removeOpener();
             removeOpenTab();
+            removeAgentOpen();
         };
     }, []);
 

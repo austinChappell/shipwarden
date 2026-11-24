@@ -9,7 +9,7 @@ import type { UpdateState } from '@shared/updates';
 import type { ProviderUsage } from '@shared/usage';
 import type { BrowserState } from '@shared/browser';
 import type { HelpAction } from '@shared/onboarding';
-import type { McpApprovals } from '@shared/mcp';
+import type { AgentPullRequestChange, McpApprovals, McpWatch } from '@shared/mcp';
 import type { Task } from '@shared/tasks';
 import type { CreateWorktreeProgress } from '@shared/worktrees';
 import type { PinnedSession } from '@shared/pinned-sessions';
@@ -348,7 +348,11 @@ const api: ShipWardenApi = {
     mcp: {
         approvals: () => ipcRenderer.invoke(IpcChannels.mcpApprovals),
         revoke: worktree => ipcRenderer.invoke(IpcChannels.mcpRevoke, worktree),
-        onApprovalsChanged: listener => subscribe<[McpApprovals]>(IpcChannels.mcpApprovalsChanged, listener)
+        onApprovalsChanged: listener => subscribe<[McpApprovals]>(IpcChannels.mcpApprovalsChanged, listener),
+        watches: () => ipcRenderer.invoke(IpcChannels.mcpWatches),
+        unwatch: id => ipcRenderer.invoke(IpcChannels.mcpUnwatch, id),
+        onWatchesChanged: listener => subscribe<[McpWatch[]]>(IpcChannels.mcpWatchesChanged, listener),
+        onPullRequestChanged: listener => subscribe<[AgentPullRequestChange]>(IpcChannels.mcpPullRequestChanged, listener)
     },
     review: {
         checkoutStatus: (repo, number) => ipcRenderer.invoke(IpcChannels.reviewCheckoutStatus, repo, number),
@@ -370,7 +374,7 @@ const api: ShipWardenApi = {
         stop: (worktreePath, pid) => ipcRenderer.invoke(IpcChannels.processesStop, worktreePath, pid)
     },
     browser: {
-        create: (id, url) => ipcRenderer.send(IpcChannels.browserCreate, id, url),
+        create: (id, url, worktree) => ipcRenderer.send(IpcChannels.browserCreate, id, url, worktree),
         setBounds: (id, bounds) => ipcRenderer.send(IpcChannels.browserSetBounds, id, bounds),
         load: (id, url) => ipcRenderer.send(IpcChannels.browserLoad, id, url),
         back: id => ipcRenderer.send(IpcChannels.browserBack, id),
@@ -381,6 +385,7 @@ const api: ShipWardenApi = {
         destroy: id => ipcRenderer.send(IpcChannels.browserDestroy, id),
         state: id => ipcRenderer.invoke(IpcChannels.browserState, id),
         onState: listener => subscribe<[BrowserState]>(IpcChannels.browserStateChanged, listener),
+        onAgentOpen: listener => subscribe<[string, string]>(IpcChannels.browserAgentOpen, listener),
         onOpenTab: listener => subscribe<[string, string]>(IpcChannels.browserOpenTab, listener),
         onFocus: listener => subscribe<[string]>(IpcChannels.browserFocused, listener),
         onFocusAddress: listener => subscribe<[string]>(IpcChannels.browserFocusAddress, listener),

@@ -6,10 +6,16 @@ import { handleMessage, isNotification, RpcError, SUPPORTED_PROTOCOL_VERSIONS, t
 const MAX_BODY_BYTES = 1024 * 1024;
 
 export interface McpServerOptions {
-    /** Returns the worktree of a token, or undefined for a token that is not valid. */
-    worktreeOf(token: string): Promise<string | undefined>;
+    /** Returns the worktree and the session of a token, or undefined for a token that is not valid. */
+    identify(token: string): Promise<TokenIdentity | undefined>;
     tools: ToolHost;
     info: ServerInfo;
+}
+
+/** The worktree of a token, and the terminal session of its agent when ShipWarden knows it. */
+export interface TokenIdentity {
+    worktree: string;
+    sessionId?: string;
 }
 
 export interface McpServerAddress {
@@ -106,8 +112,8 @@ export class McpHttpServer {
             return;
         }
         const token = bearerToken(request.headers.authorization);
-        const worktree = token ? await this.options.worktreeOf(token) : undefined;
-        if (!worktree) {
+        const identity = token ? await this.options.identify(token) : undefined;
+        if (!identity) {
             sendJson(
                 response,
                 401,
@@ -156,7 +162,7 @@ export class McpHttpServer {
         });
         if (id !== undefined) this.running.set(key, controller);
         try {
-            const answer = await handleMessage(message, { worktree, signal: controller.signal }, this.options.tools, this.options.info);
+            const answer = await handleMessage(message, { ...identity, signal: controller.signal }, this.options.tools, this.options.info);
             if (!answer) {
                 response.writeHead(202).end();
                 return;

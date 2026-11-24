@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, shell, WebContentsView, type Certificate, type Input, type Session } from 'electron';
+import { app, BrowserWindow, session, shell, WebContentsView, type Certificate, type Input, type Session, type WebContents } from 'electron';
 import { BLANK_PAGE, isBrowsableUrl, type BrowserBounds, type BrowserFindOptions, type BrowserState } from '@shared/browser';
 import { SELECTOR_TIMEOUT_MS, type ScreenshotWait } from '@shared/screenshots';
 import { verifyWithExtraCas } from './extra-ca-verify';
@@ -58,6 +58,8 @@ interface Entry {
     owner: BrowserWindow;
     /** True while the view is in the window. */
     attached: boolean;
+    /** The worktree of the browser tab. The MCP browser tools use the tab of the worktree of the agent. */
+    worktree?: string;
     error?: string;
     /** The address of the load that failed. The view keeps the page before it, so getURL() does not return it. */
     failedUrl?: string;
@@ -83,8 +85,11 @@ export class BrowserViews {
         private readonly events: BrowserViewEvents
     ) {}
 
-    /** Makes a view for a browser tab of the page in `owner` and loads the address. Does nothing when the view exists. */
-    create(id: string, url: string, owner: BrowserWindow): void {
+    /**
+     * Makes a view for a browser tab of the page in `owner` and loads the address. Does nothing when the view exists.
+     * `worktree` is the worktree of the tab.
+     */
+    create(id: string, url: string, owner: BrowserWindow, worktree?: string): void {
         if (owner.isDestroyed() || this.views.has(id)) return;
         const view = new WebContentsView({
             webPreferences: {
@@ -100,7 +105,7 @@ export class BrowserViews {
         });
         view.setBackgroundColor('#ffffff');
         view.setVisible(false);
-        const entry: Entry = { view, owner, attached: false };
+        const entry: Entry = { view, owner, attached: false, ...(worktree ? { worktree } : {}) };
         this.views.set(id, entry);
         this.listen(id, entry);
         this.load(id, url);
@@ -312,6 +317,25 @@ export class BrowserViews {
     /** Returns the window of a view, or undefined when the view does not exist. */
     ownerOf(id: string): BrowserWindow | undefined {
         return this.views.get(id)?.owner;
+    }
+
+    /** Returns the newest view of a worktree, or undefined when the worktree has no browser tab. */
+    viewOf(worktree: string): string | undefined {
+        return [...this.views].reverse().find(([, entry]) => entry.worktree === worktree && !entry.view.webContents.isDestroyed())?.[0];
+    }
+
+    /** Returns the page of a view, or undefined when the view does not exist. */
+    contentsOf(id: string): WebContents | undefined {
+        const contents = this.views.get(id)?.view.webContents;
+        return contents && !contents.isDestroyed() ? contents : undefined;
+    }
+
+    /**
+     * True when the view was in its window one time or more, so its page has a size. A view that never showed has no
+     * size, and a capture of it is empty.
+     */
+    hasSize(id: string): boolean {
+        return !!this.views.get(id)?.attached;
     }
 
     /** The IDs of the views. */

@@ -38,7 +38,8 @@ export interface ToolDefinition {
 
 /** The result of tools/call. A failure of the tool is a result with `isError`, not a JSON-RPC error. */
 export interface ToolResult {
-    content: { type: 'text'; text: string }[];
+    /** An image item has the image data in base64, for example of a PNG. */
+    content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[];
     structuredContent?: Record<string, unknown>;
     isError?: boolean;
 }
@@ -46,6 +47,8 @@ export interface ToolResult {
 /** The facts of a request: the worktree of the token, and a signal that stops the work when the client goes away. */
 export interface ToolContext {
     worktree: string;
+    /** The terminal session of the agent. Undefined until ShipWarden connects the token to its session. */
+    sessionId?: string;
     signal: AbortSignal;
 }
 

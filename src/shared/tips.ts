@@ -89,8 +89,18 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'mcpServer',
         title: 'Let agents ask other agents',
-        body: 'Each new Claude Code agent gets the ShipWarden MCP tools. It can list the worktrees, find files that other worktrees also change, read and move its task, and ask the agent of another worktree. Turn it off in Settings › Agents.',
+        body: 'Each new agent gets the ShipWarden MCP tools. It can list the worktrees, find files that other worktrees also change, read and move its task, and ask the agent of another worktree. Turn it off in Settings › Agents.',
         action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
+    },
+    {
+        id: 'mcpPullRequests',
+        title: 'Let agents fix their own pull requests',
+        body: 'Tell an agent to call watch_pull_request after it pushes. ShipWarden then sends it a message when a check fails, a merge conflict occurs, or a reviewer comments. The agent can read the checks, reply to comments, and change the pull request with the ShipWarden tools.'
+    },
+    {
+        id: 'mcpBrowser',
+        title: 'Let agents test in the browser',
+        body: 'An agent can open a page in the browser tab of its worktree, read it, click, type, and take a screenshot. You see the same tab. For example, tell the agent: "Open localhost:3000 and check the sign-up form."'
     },
     {
         id: 'checkpoints',

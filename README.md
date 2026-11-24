@@ -266,7 +266,8 @@ file.
 
 ### ShipWarden MCP server
 
-Agents can ask ShipWarden and each other for help, without an automation in the middle. ShipWarden runs a local MCP
+Agents can ask ShipWarden and each other for help, work on their pull requests, and test their changes in the browser,
+without an automation in the middle. ShipWarden runs a local MCP
 server on 127.0.0.1. Each new agent tab of Claude Code, Codex, Gemini CLI, or opencode gets it at start. ShipWarden does
 not change your config files, and your own MCP servers stay. The tools act on the worktree of the agent:
 
@@ -277,6 +278,17 @@ not change your config files, and your own MCP servers stay. The tools act on th
 | `get_task` | Returns the task of this worktree, with the newest comments. | No |
 | `ask_agent` | Asks the agent of a different worktree a question and waits for the answer. The other agent runs in print mode and does not change files. | First time in each worktree |
 | `set_task_status` | Moves the task of this worktree to a different status. | First time in each worktree |
+| `get_pull_request` | Returns the pull request of the branch, with its reviews, comments, and open review threads. | No |
+| `get_checks` | Returns the CI checks of the head commit. It can save the logs of the failed GitHub Actions jobs. | No |
+| `create_pull_request` | Creates a pull request from the branch, on the code host of the repository. | First time in each worktree |
+| `update_pull_request` | Changes the title, the description, the draft state, the base branch, or the state. | First time in each worktree |
+| `reply_to_comment` | Replies to a review comment on a line of code. | First time in each worktree |
+| `watch_pull_request` | Sends the agent a message when a check fails, a conflict occurs, or a person comments. | No |
+| `open_page` | Opens an address in the browser tab of the worktree. | First time in each worktree |
+| `read_page` | Returns the text of the page and its links, buttons, and fields. | No |
+| `screenshot` | Returns an image of the page. | No |
+| `click` | Clicks a link or a button. | First time in each worktree |
+| `type` | Types text into a field. | First time in each worktree |
 
 The first call of a write tool in a worktree shows a dialog. **Allow** applies to that tool in that worktree until you
 revoke it in Settings › Agents › MCP server. Without an answer in 2 minutes, the tool call fails with a clear error.

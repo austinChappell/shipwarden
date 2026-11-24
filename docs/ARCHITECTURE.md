@@ -882,15 +882,35 @@ The user guide and the file format are in [automations.md](automations.md).
   Codex and opencode get no file. `terminals:create` puts the token in `SHIPWARDEN_MCP_TOKEN` of the tab, so the token
   is not in the command line. A token ends when its terminal exits, or after 30 days. The config file goes away with
   the token. No token or a wrong token gets 401.
-- **Tools.** `tools.ts` has the five tools and uses a `McpToolService` interface. `services.ts` gives the real
+- **Tools.** `tools.ts` has the 16 tools and uses a `McpToolService` interface. `services.ts` gives the real
   services: the phone snapshot (`RemoteSnapshotBuilder`) for `list_worktrees`, `GitChangesService.worktreeFiles` and
   `findOverlaps` for `get_overlaps`, `AskAgentRunner` for `ask_agent`, and the task plugins for `get_task` and
   `set_task_status`. After `set_task_status`, the main process sends `tasks:taskChanged`, and the page patches its
   cached task lists and details (`patchCachedTask`).
-- **Approvals.** `McpApprovalGate` (`approvals.ts`) asks the user before the first `ask_agent` or `set_task_status` in a
-  worktree. It uses the confirm dialog of the page (`ConfirmDialogs`) with an `AbortSignal`. After 2 minutes, the signal
-  closes the dialog (`app:confirmCancel`), and the tool call gets an error result. `mcp-approvals.json` keeps the
-  allowed tools of each worktree. Settings › Agents lists them and can revoke them (`mcp:approvals`, `mcp:revoke`,
+- **Pull request tools.** `get_pull_request`, `get_checks`, `create_pull_request`, `update_pull_request`, and
+  `reply_to_comment` use the `SourceHost` of the worktree (`ReviewProviders.for`), so they work on all code hosts. After
+  a write, the main process sends `mcp:pullRequestChanged` (`AgentPullRequestChange`). The page puts the change into its
+  cache with the same patches as the change of the user (`applyAgentPullRequestChange`). `create_pull_request` loads the
+  branch status one time and sends it, because the host returns only the number.
+- **Watches.** `watch_pull_request` saves a watch (worktree, session, pull request number, and events) in
+  `mcp-watches.json` (`McpWatches`). The tool context has the session of the token (`McpTokens.identify`), so the
+  messages go to the agent that called the tool. The page gets the watches (`mcp:watches`, `mcp:watchesChanged`). The
+  automation engine finds the `ci.failed`, `pr.conflict`, and `pr.comment` events also without an automation while a
+  watch needs them, and gives each event to `PullRequestWatcher`. It types `watchMessage` into the session with
+  `promptAgent`. A message that does not go through (for example while the agent asks a question) gets 10 tries, one
+  each minute. A pull request that leaves the open list ends its watches with a last message. A closed agent tab ends
+  its watches (`McpHost.revokeSession`).
+- **Browser tools.** `AgentBrowser` (`src/main/browser/agent-browser.ts`) acts on the newest browser tab of the worktree.
+  The page sends the worktree of each tab at `browser:create`. Without a tab, `open_page` sends `browser:agentOpen`, and
+  the page adds a tab to the worktree without a change of the selected worktree. The page scripts of `read_page`,
+  `click`, and `type` are in `src/shared/agent-page.ts`. They give each interactive element a `data-shipwarden-ref`
+  attribute, and the ref stays while the page stays. `type` sets the value with the value setter of the prototype and an
+  `input` event, so React and other frameworks see it. `screenshot` uses `capturePage` on a tab that showed one time or
+  more. A tab that never showed has no size, so it falls back to `BrowserViews.capture` of the address in a hidden window.
+- **Approvals.** `McpApprovalGate` (`approvals.ts`) asks the user before the first call of each write tool in a worktree
+  (`MCP_WRITE_TOOLS`). It uses the confirm dialog of the page (`ConfirmDialogs`) with an `AbortSignal`. After 2 minutes,
+  the signal closes the dialog (`app:confirmCancel`), and the tool call gets an error result. `mcp-approvals.json` keeps
+  the allowed tools of each worktree. Settings › Agents lists them and can revoke them (`mcp:approvals`, `mcp:revoke`,
   `mcp:approvalsChanged`).
 - **Setting.** `mcpServer` (default on) starts and stops the server. New agent tabs then get the config or not.
 

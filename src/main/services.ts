@@ -72,6 +72,7 @@ import { SetupChecks } from './setup-checks';
 import { McpHost } from './mcp/mcp-host';
 import { worktreesFromSnapshot } from './mcp/worktree-list';
 import { writeToolLabel } from '@shared/mcp';
+import { AgentBrowser } from './browser/agent-browser';
 import { findOverlaps } from '@shared/worktree-overlap';
 import { agentForRepo } from '@shared/settings';
 
@@ -527,6 +528,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 signal
             ),
         onApprovalsChanged: approvals => window.send(IpcChannels.mcpApprovalsChanged, approvals),
+        onWatchesChanged: watches => window.send(IpcChannels.mcpWatchesChanged, watches),
         service: {
             worktrees: async (caller, all) => worktreesFromSnapshot(await remoteSnapshot.build(), caller, all),
             overlap: async caller => {
@@ -561,7 +563,18 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 return { connectionId, link, capabilities: (await tasks.source(connectionId)).capabilities };
             },
             taskRequest: <T>(connectionId: string, method: string, params: unknown) => tasks.request(connectionId, method, params) as Promise<T>,
-            taskChanged: (connectionId, taskId, patch) => window.send(IpcChannels.tasksTaskChanged, connectionId, taskId, patch)
+            taskChanged: (connectionId, taskId, patch) => window.send(IpcChannels.tasksTaskChanged, connectionId, taskId, patch),
+            pullRequests: {
+                status: worktree => reviewProviders.branchStatus(worktree),
+                create: async (worktree, request) => (await reviewProviders.for(worktree)).createPullRequest(worktree, request),
+                change: async (worktree, number, change) => (await reviewProviders.for(worktree)).changePullRequest(worktree, number, change),
+                reply: async (worktree, number, commentId, body) => (await reviewProviders.for(worktree)).replyToComment(worktree, number, commentId, body),
+                checks: async (worktree, sha) => (await reviewProviders.for(worktree)).checks(worktree, sha),
+                saveJobLog: async (worktree, jobId) => (await reviewProviders.for(worktree)).saveJobLog(worktree, jobId),
+                changed: change => window.send(IpcChannels.mcpPullRequestChanged, change)
+            },
+            // The page opens the tab of the worktree without a change of the selected worktree or tab.
+            browser: new AgentBrowser({ views: browserViews, requestTab: (url, worktree) => window.send(IpcChannels.browserAgentOpen, url, worktree) })
         }
     });
     const hookPaths = hookSettingsPaths(userData);

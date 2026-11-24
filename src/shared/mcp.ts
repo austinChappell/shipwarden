@@ -1,3 +1,5 @@
+import type { BranchStatus, PullRequest, PullRequestChange } from './github';
+
 /**
  * The ShipWarden MCP server: the tools that agents can call, and the approvals of the write tools.
  * The functions of this module use no Electron API. The main process and the page both use them.
@@ -9,11 +11,32 @@ export const MCP_SERVER_NAME = 'shipwarden';
 /** The path of the MCP endpoint on the local server. */
 export const MCP_PATH = '/mcp';
 
-/** The tools that read data. They need no approval. */
-export const MCP_READ_TOOLS = ['list_worktrees', 'get_overlaps', 'get_task'] as const;
+/**
+ * The tools that read data. They need no approval. watch_pull_request is in this list, because it only sends messages
+ * to the agent that calls it.
+ */
+export const MCP_READ_TOOLS = [
+    'list_worktrees',
+    'get_overlaps',
+    'get_task',
+    'get_pull_request',
+    'get_checks',
+    'watch_pull_request',
+    'read_page',
+    'screenshot'
+] as const;
 
 /** The tools that change something or start an agent. Each one needs approval the first time in a worktree. */
-export const MCP_WRITE_TOOLS = ['ask_agent', 'set_task_status'] as const;
+export const MCP_WRITE_TOOLS = [
+    'ask_agent',
+    'set_task_status',
+    'create_pull_request',
+    'update_pull_request',
+    'reply_to_comment',
+    'open_page',
+    'click',
+    'type'
+] as const;
 
 export type McpReadTool = (typeof MCP_READ_TOOLS)[number];
 export type McpWriteTool = (typeof MCP_WRITE_TOOLS)[number];
@@ -39,9 +62,41 @@ export function normalizeApprovals(value: unknown): McpApprovals {
     return result;
 }
 
+const WRITE_TOOL_LABELS: Record<McpWriteTool, string> = {
+    ask_agent: 'Ask the agent of another worktree',
+    set_task_status: 'Change the status of the task',
+    create_pull_request: 'Create a pull request',
+    update_pull_request: 'Change the pull request',
+    reply_to_comment: 'Reply to a review comment',
+    open_page: 'Open a page in the browser',
+    click: 'Click in the browser',
+    type: 'Type in the browser'
+};
+
 /** The label of a write tool for the approval dialog and Settings › Agents. */
 export function writeToolLabel(tool: McpWriteTool): string {
-    return tool === 'ask_agent' ? 'Ask the agent of another worktree' : 'Change the status of the task';
+    return WRITE_TOOL_LABELS[tool];
+}
+
+/** The pull request events that watch_pull_request can send to the agent. They are the automation triggers with the same names. */
+export const WATCH_EVENTS = ['ci.failed', 'pr.conflict', 'pr.comment'] as const;
+export type WatchEvent = (typeof WATCH_EVENTS)[number];
+
+/**
+ * A watch of watch_pull_request. ShipWarden types a message into the agent session when an event of the pull request
+ * of the worktree occurs. The watch ends when the agent tab closes, when the pull request is merged or closed, or when
+ * the agent stops it.
+ */
+export interface McpWatch {
+    id: string;
+    /** The worktree of the agent. */
+    worktree: string;
+    /** The terminal session of the agent. The messages go to this session only. */
+    sessionId: string;
+    events: WatchEvent[];
+    /** The number of the pull request when the watch started. */
+    number: number;
+    createdAt: number;
 }
 
 /**
@@ -80,3 +135,15 @@ export function geminiMcpSettings(hookSettings: unknown, url: string, token: str
 export function opencodeMcpServers(url: string): Record<string, unknown> {
     return { [MCP_SERVER_NAME]: { type: 'remote', url, enabled: true, headers: { Authorization: `Bearer {env:${MCP_TOKEN_ENV}}` } } };
 }
+
+/**
+ * A change that an MCP tool made to a pull request. The page patches its cached copies with it, so it does not load
+ * the pull request again.
+ */
+export type AgentPullRequestChange =
+    /** A new pull request. `status` is the new state of the worktree. */
+    | { kind: 'created'; worktree: string; status: BranchStatus }
+    /** One change of update_pull_request. `pr` is the pull request before the change. */
+    | { kind: 'changed'; pr: PullRequest; change: PullRequestChange }
+    /** A reply of reply_to_comment at the end of a review thread. `commentId` is the REST ID of the comment that got the reply. */
+    | { kind: 'reply'; pr: PullRequest; threadId: string; commentId: number; body: string };

@@ -7,9 +7,9 @@ import { validBounds } from './args';
 /** Registers the IPC handlers of the in-app browser. */
 export function registerBrowserIpc({ browserViews, window }: Pick<Services, 'browserViews' | 'window'>): void {
     // The view shows in the window of the page that made it.
-    ipcMain.on(IpcChannels.browserCreate, (event, id: string, url: string) => {
+    ipcMain.on(IpcChannels.browserCreate, (event, id: string, url: string, worktree?: unknown) => {
         const owner = window.fromContents(event.sender);
-        if (owner) browserViews.create(String(id), String(url), owner);
+        if (owner) browserViews.create(String(id), String(url), owner, typeof worktree === 'string' && worktree ? worktree : undefined);
     });
     ipcMain.on(IpcChannels.browserSetBounds, (_event, id: string, bounds: BrowserBounds | null) => browserViews.setBounds(String(id), validBounds(bounds)));
     ipcMain.on(IpcChannels.browserLoad, (_event, id: string, url: string) => browserViews.load(String(id), String(url)));
