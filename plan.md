@@ -242,6 +242,13 @@ must name the relay before a release.
 
 **Goal:** Run agents on a different machine, for example a large Linux server.
 
+**Status:** Design doc in branch `2.4-ssh-hosts-design` (`docs/ssh-hosts-design.md`). No code yet. The runtime is a
+Node bundle with a pinned Node binary and a node-pty addon that CI builds for Linux x64 and arm64 (glibc 2.28). The app
+uses the system `ssh` with a ControlMaster and speaks the PTY host JSON-RPC on the stdin and stdout of
+`ssh host swr connect`. Nothing listens on TCP. A transient systemd user unit keeps the runtime alive, with `setsid` as
+the fallback. A `WorkspaceHost` interface hides the place of a worktree (about 110 call sites move). Agents on the host
+reach MCP and the CLI through stdio shims that the runtime relays to the app. Phase 1 is terminal-only remote worktrees.
+
 **Design:**
 
 - A repository can have an SSH host. ShipWarden copies a small runtime to the host. The runtime runs the PTY host,
