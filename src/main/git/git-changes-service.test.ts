@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'os';
 import { basename, join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { findPullRequestTemplate, GitChangesService } from './git-changes-service';
+import { findPullRequestTemplate, GitChangesService, goneUpstreamPush } from './git-changes-service';
 
 describe('GitChangesService', () => {
     let repo: string;
@@ -210,6 +210,33 @@ describe('GitChangesService', () => {
             rmSync(remote, { recursive: true, force: true });
             rmSync(other, { recursive: true, force: true });
         }
+    });
+
+    it('pushes a branch again after the remote branch was deleted', async () => {
+        const remote = realpathSync(mkdtempSync(join(tmpdir(), 'shipwarden-remote-')));
+        try {
+            execFileSync('git', ['init', '-q', '--bare', '-b', 'main', remote]);
+            writeFileSync(join(repo, 'a.txt'), 'one\n');
+            await git.stage(repo, ['a.txt']);
+            await git.commit(repo, 'Start');
+            sh('remote', 'add', 'origin', remote);
+            sh('checkout', '-q', '-b', 'feature/x');
+            await git.push(repo);
+            sh('push', '-q', 'origin', '--delete', 'feature/x');
+            sh('fetch', '-q', '--prune');
+            expect(await git.status(repo)).toMatchObject({ upstream: 'origin/feature/x', upstreamGone: true });
+
+            await git.push(repo);
+            const status = await git.status(repo);
+            expect(status).toMatchObject({ upstream: 'origin/feature/x', ahead: 0, behind: 0 });
+            expect(status.upstreamGone).toBeUndefined();
+        } finally {
+            rmSync(remote, { recursive: true, force: true });
+        }
+    });
+
+    it('pushes to the remote and the branch name of a gone upstream branch', () => {
+        expect(goneUpstreamPush('origin/feature/x')).toEqual(['push', '-u', 'origin', 'HEAD:refs/heads/feature/x']);
     });
 
     it('collects the staged diff and the recent subjects for a commit message draft', async () => {

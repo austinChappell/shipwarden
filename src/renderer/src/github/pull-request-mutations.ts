@@ -142,6 +142,14 @@ export async function createPullRequest(root: string, request: NewPullRequest): 
 }
 
 /**
+ * Loads the status of a worktree again after a push. The status tells if the branch is on the remote, and the
+ * Pull request tab uses it to enable "Create pull request".
+ */
+export async function branchPushed(root: string): Promise<void> {
+    await queryClient.invalidateQueries({ queryKey: [...keyRoots.branchStatus, root] });
+}
+
+/**
  * Selects the repository that gets the pull requests of a fork: the parent or the fork. The change applies to all
  * worktrees of the repository and changes the repository of their pull requests and checks, so that data loads again.
  */

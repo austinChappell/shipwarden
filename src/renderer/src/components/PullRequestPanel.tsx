@@ -46,6 +46,8 @@ import {
 } from '../github/merge-state';
 import { AGENT_BODY_WARNING, agentBodyUnedited, conversationOf, reviewConfirmTitle, shownCommentIds } from '../github/review-state';
 import { CreatePullRequest } from './CreatePullRequest';
+import { LocalWorkNotice } from './LocalWorkNotice';
+import type { GitChanges } from '@shared/git';
 import { BaseBranch, BranchName, ConflictBadge, PullRequestCommitList, PullRequestDescription, PullRequestFileList, StateBadge } from './PullRequestParts';
 import { HelmLoader } from './HelmLoader';
 import { PullRequestMergeCard } from './PullRequestMergeCard';
@@ -94,6 +96,11 @@ interface Props {
      * offers "Rebase onto <base>".
      */
     onShowChanges?(): void;
+    /**
+     * The local git changes of the worktree. With them, the panel warns about commits that are not pushed and changes
+     * that are not committed. The warning does not block an action.
+     */
+    localChanges?: GitChanges;
 }
 
 export function PullRequestPanel({
@@ -111,7 +118,8 @@ export function PullRequestPanel({
     onOpenInReview,
     onOpenCommit,
     renderAutomations,
-    onShowChanges
+    onShowChanges,
+    localChanges
 }: Props) {
     const overview = variant === 'overview';
     const pr = status?.pullRequest ?? null;
@@ -167,7 +175,16 @@ export function PullRequestPanel({
         return <div className="panel-message">This worktree has no GitHub, Azure Repos, GitLab, or Bitbucket remote named "origin".</div>;
     }
     if (!pr) {
-        return <CreatePullRequest target={target} status={status} loading={loading} onRefresh={onRefresh} />;
+        return (
+            <CreatePullRequest
+                target={target}
+                status={status}
+                loading={loading}
+                onRefresh={onRefresh}
+                localChanges={localChanges}
+                onShowChanges={onShowChanges}
+            />
+        );
     }
 
     const files = review.files;
@@ -413,6 +430,8 @@ export function PullRequestPanel({
                             )}
                         </div>
                     )}
+
+                    {!overview && pr.state === 'OPEN' && <LocalWorkNotice changes={localChanges} onShowChanges={onShowChanges} />}
 
                     {overview ? (
                         <div className="pr-overview-columns">
