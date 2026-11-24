@@ -44,7 +44,7 @@ import { useCliBridge } from './app/use-cli-bridge';
 import { useAutomationEngine } from './automations/use-automation-engine';
 import { PlansView } from './plans/PlansView';
 import { setGroupAgentActions } from './github/pr-group-agents';
-import { cachedPlan, createPlan, usePlans } from './plans/plan-queries';
+import { cachedPlan, createPlan, listenForPlanChanges, usePlans } from './plans/plan-queries';
 import { planRunner } from './plans/plan-runner';
 import { QueueView } from './queue/QueueView';
 import { StatsView } from './stats/StatsView';
@@ -576,6 +576,8 @@ export function App() {
 
     // The plans execute their steps while the app is open. The runner gets the state of the app here.
     const { plans, loaded: plansLoaded } = usePlans();
+    // The main process changes the coordinator runs. Each change comes here and patches the cache.
+    useEffect(() => listenForPlanChanges(), []);
     planRunner.setContext({
         ready: settingsLoaded && plansLoaded,
         sessions,

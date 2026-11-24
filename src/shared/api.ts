@@ -468,6 +468,8 @@ export interface ShipWardenApi {
         explore(request: PlanExploreRequest): Promise<PlanExploreResult>;
         /** Stops an exploration that runs. */
         cancelExplore(id: string): Promise<void>;
+        /** The main process changed a plan, for example a coordinator run. The page patches its cache with it. */
+        onChanged(listener: (plan: Plan) => void): () => void;
     };
     prGroups: {
         /** The PR groups of the Review view, the newest change first. */
@@ -978,6 +980,7 @@ export const IpcChannels = {
     plansRemove: 'plans:remove',
     plansExplore: 'plans:explore',
     plansCancelExplore: 'plans:cancelExplore',
+    plansChanged: 'plans:changed',
     prGroupsList: 'prGroups:list',
     prGroupsSave: 'prGroups:save',
     prGroupsRemove: 'prGroups:remove',

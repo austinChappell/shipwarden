@@ -295,6 +295,7 @@ app.on('before-quit', () => {
     services.tasks.stopAll();
     services.askRunner.cancelAll();
     services.mcp.stop();
+    services.coordinators.stop();
     services.cli.stop();
     services.engineOwnership.stopSync();
 });

@@ -117,7 +117,7 @@ function PlanRow({ plan, onOpen }: { plan: Plan; onOpen(): void }) {
     const done = plan.steps.filter(step => step.status === 'done').length;
     const opened = plan.steps.filter(step => step.pr).length;
     const parts = [
-        pluralize(counts.steps, 'step'),
+        plan.coordinator ? pluralize(counts.steps, 'worker') : pluralize(counts.steps, 'step'),
         plan.status === 'draft' ? pluralize(counts.pullRequests, 'pull request') : `${done} done`,
         opened > 0 ? `${pluralize(opened, 'pull request')} open` : '',
         `changed ${formatAgo(new Date(plan.updatedAt).toISOString())}`

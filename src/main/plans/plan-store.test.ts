@@ -40,4 +40,16 @@ describe('PlanStore', () => {
         await store.removeProject('p2');
         expect((await store.list()).map(plan => plan.id)).toEqual([keep.id]);
     });
+
+    it('changes a plan in one write, and keeps it when the change gives nothing', async () => {
+        const store = new PlanStore(path.join(dir, 'plans.json'));
+        const plan = { ...newPlan('p1', 1), title: 'Old' };
+        await store.save(plan);
+        const saved = await store.change(plan.id, current => (current ? { ...current, title: 'New' } : undefined));
+        expect(saved?.title).toBe('New');
+        expect(await store.change(plan.id, () => undefined)).toBeUndefined();
+        const created = await store.change('missing', current => current ?? { ...newPlan('p1', 2), id: 'missing' });
+        expect(created?.id).toBe('missing');
+        expect((await store.list()).map(item => item.title).sort()).toEqual(['New', 'New plan']);
+    });
 });

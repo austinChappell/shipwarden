@@ -12,6 +12,7 @@ import type { HelpAction } from '@shared/onboarding';
 import type { AgentPullRequestChange, McpApprovals, McpWatch } from '@shared/mcp';
 import type { CliPageRequest } from '@shared/cli';
 import type { Task } from '@shared/tasks';
+import type { Plan } from '@shared/plans';
 import type { CreateWorktreeProgress } from '@shared/worktrees';
 import type { PinnedSession } from '@shared/pinned-sessions';
 import type { ScreenshotProgress } from '@shared/screenshots';
@@ -206,7 +207,8 @@ const api: ShipWardenApi = {
         save: plan => ipcRenderer.invoke(IpcChannels.plansSave, plan),
         remove: id => ipcRenderer.invoke(IpcChannels.plansRemove, id),
         explore: request => ipcRenderer.invoke(IpcChannels.plansExplore, request),
-        cancelExplore: id => ipcRenderer.invoke(IpcChannels.plansCancelExplore, id)
+        cancelExplore: id => ipcRenderer.invoke(IpcChannels.plansCancelExplore, id),
+        onChanged: listener => subscribe<[Plan]>(IpcChannels.plansChanged, listener)
     },
     prGroups: {
         list: () => ipcRenderer.invoke(IpcChannels.prGroupsList),

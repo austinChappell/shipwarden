@@ -33,6 +33,23 @@ export class PlanStore {
         return plan;
     }
 
+    /**
+     * Changes a plan in one write. `change` gets the saved plan, or undefined when no plan has the ID. It returns the new
+     * plan, or undefined for no change. Returns the saved plan, or undefined when nothing changed.
+     */
+    async change(id: string, change: (plan: Plan | undefined) => Plan | undefined): Promise<Plan | undefined> {
+        let saved: Plan | undefined;
+        await this.store.update(file => {
+            const plans = plansOf(file);
+            const next = change(plans.find(item => item.id === id));
+            const plan = next ? normalizePlan(next) : undefined;
+            if (!plan) return undefined;
+            saved = plan;
+            return { plans: trim([plan, ...plans.filter(item => item.id !== plan.id)]) };
+        });
+        return saved;
+    }
+
     async remove(id: string): Promise<void> {
         await this.store.update(file => ({ plans: plansOf(file).filter(item => item.id !== id) }));
     }

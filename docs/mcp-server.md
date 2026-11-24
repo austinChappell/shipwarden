@@ -95,15 +95,47 @@ what the agent does. When the worktree has more than one browser tab, the tools 
 - A tab that you did not open yet has no size. Its screenshot loads the address again in a hidden window, and the
   result says so. That image does not show the changes that clicks and typed text made.
 
+### Coordinator and workers
+
+An agent (the coordinator) can split a large task and give the parts to worker agents. Each worker gets its own git
+worktree, branch, and task. The worker sends its result back, and ShipWarden tells the coordinator.
+
+| Tool | Arguments | Result |
+| --- | --- | --- |
+| `start_worker` | `task`, and the optional `title`, `repository`, `branch`, `base`, `agent`, and `model` | Makes a new worktree and branch (`worker/<title>-<id>` by default) from the newest default branch or from `base`, and starts the agent with the task. `repository` is a path or a name. The default is the repository of this worktree. `agent` is an ID or a name of Settings › Agents. Returns the `worker_id`. |
+| `list_workers` | none | The workers of this agent: `worker_id`, title, status (`starting`, `working`, `needs_attention`, `done`, or `failed`), branch, worktree, depth, agent state, pull request, and report. |
+| `wait_for_worker` | `worker_id` (optional), `timeout_seconds` (optional, 10 to 900, default 300) | Waits until the worker (or any worker) finishes, stops, or needs attention, and returns it. After the time, it returns all workers with `timedOut`. |
+| `report_result` | `summary`, `status` (`done` or `failed`, default `done`), `pull_request_url` (optional) | Only for a worker. Saves the result and sends it to the coordinator. The pull request of the branch wins over `pull_request_url`. |
+
+- The prompt of the worker tells it to commit, push, open a pull request, and then call `report_result`.
+- ShipWarden sends a message to the coordinator tab when a worker sends its result, when its agent tab closes, and when
+  its agent waits or is idle for 10 minutes without a report. A worker that stops without a report is "done" when its
+  branch has a pull request, else "failed". A worker that `wait_for_worker` returns does not also send a message.
+- A message waits while the window is closed or the coordinator tab is closed. ShipWarden tries again every 30 seconds.
+  A new coordinator session in the same worktree gets the results with `list_workers` and `wait_for_worker`.
+- **Depth.** A worker can start its own workers. Settings › Agents › MCP server › **Worker depth** sets the most levels
+  of workers below the agent that you started. The default is 2: a coordinator, its workers, and their workers. With 1,
+  workers cannot start workers. A call past the limit fails with an error that names the limit.
+- **Limits.** Each start checks the usage budget of Settings › Agents for the agent of the worker. The open workers of
+  all coordinators and the agents of the task queue share one limit: Settings › Queue › **Agents at the same time**. A
+  coordinator can have 50 workers at most.
+- **Plans view.** Each coordinator is a plan in the Plans view of the project, with each worker as a step. The page
+  shows the status, the branch, the pull request, the task, and the report of each worker. It cannot edit the run.
+  **Delete** removes the list only. The worktrees, branches, agents, and pull requests stay.
+- `start_worker` needs approval the first time in each worktree. A worker that starts workers asks one time in its own
+  worktree. `list_workers`, `wait_for_worker`, and `report_result` need no approval. `report_result` only sends the
+  result to the agent that started the worker.
+- The window of ShipWarden must be open to start a worker.
+
 A tool that fails gives a tool result with `isError`, and the text says what to do. For example: "This worktree has no
 task. Link a task to the worktree in ShipWarden first."
 
 ## Approval
 
 - The read tools need no approval: `list_worktrees`, `get_overlaps`, `get_task`, `get_pull_request`, `get_checks`,
-  `watch_pull_request`, `read_page`, and `screenshot`.
+  `watch_pull_request`, `read_page`, `screenshot`, `list_workers`, `wait_for_worker`, and `report_result`.
 - The write tools show a dialog the first time in each worktree: `ask_agent`, `set_task_status`, `create_pull_request`,
-  `update_pull_request`, `reply_to_comment`, `open_page`, `click`, and `type`. **Allow** applies to that tool in that
+  `update_pull_request`, `reply_to_comment`, `open_page`, `click`, `type`, and `start_worker`. **Allow** applies to that tool in that
   worktree until you revoke it. **Deny** applies to that call only.
 - Without an answer in 2 minutes, the dialog closes and the tool call fails with this error: "The user did not approve
   ask_agent in 2 minutes. Tell the user that ShipWarden is waiting for approval, then call the tool again."
@@ -122,7 +154,7 @@ task. Link a task to the worktree in ShipWarden first."
 ## Settings
 
 Settings › Agents › MCP server › **Give agents the ShipWarden tools** turns the server on and off. The default is on. The
-change applies to new agent tabs.
+change applies to new agent tabs. **Worker depth** (1 to 5, default 2) limits the levels of workers.
 
 ## Protocol
 
@@ -135,6 +167,8 @@ reach it again after an app restart.
 
 - Browser tools: give a tab that never showed a size, so that its screenshot shows the changes of the agent.
 - `watch_pull_request`: get `pr.comment` from the code hosts that are not GitHub.
+- Workers: start them while the window is closed (in the background helper), and let the coordinator send a prompt to a
+  waiting worker.
 
 - Agents in shell tabs: give them a token through the shell integration.
 - opencode in a shell tab: the `opencode` function of the shell integration does not add `--standalone`, so opencode 2
