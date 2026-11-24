@@ -34,6 +34,8 @@ export interface HelperAutomationsOptions {
     notify(title: string, body: string): void;
     /** A new run waits for the approval of the user. */
     onPending?(run: AutomationRun): void;
+    /** Called after the helper got or lost the automation lock. The Slack connection runs only while the helper holds it. */
+    onOwnedChanged?(owned: boolean): void;
     log(message: string): void;
 }
 
@@ -62,6 +64,7 @@ export class HelperAutomations {
             wanted: async () => (await options.settings()).automations.runWhenClosed,
             onAcquire: () => this.startEngine(),
             onRelease: () => this.stopEngine(),
+            onOwnedChanged: owned => options.onOwnedChanged?.(owned),
             log: options.log
         });
     }

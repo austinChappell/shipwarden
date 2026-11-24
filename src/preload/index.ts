@@ -4,6 +4,7 @@ import { IpcChannels, type ConfirmRequest, type NotificationTarget, type ShipWar
 import type { FilesChangedEvent } from '@shared/files';
 import type { LspInstallState, LspServerMessage } from '@shared/lsp';
 import type { AgentUpdate } from '@shared/agents';
+import type { SlackStatus } from '@shared/slack';
 import type { AgentProgram } from '@shared/agent-programs';
 import type { UpdateState } from '@shared/updates';
 import type { ProviderUsage } from '@shared/usage';
@@ -324,6 +325,13 @@ const api: ShipWardenApi = {
         setDevicePermissions: (id, permissions) => ipcRenderer.invoke(IpcChannels.remoteSetDevicePermissions, id, permissions),
         testPush: () => ipcRenderer.invoke(IpcChannels.remoteTestPush),
         onChanged: listener => subscribe<[]>(IpcChannels.remoteChanged, listener)
+    },
+    slack: {
+        status: () => ipcRenderer.invoke(IpcChannels.slackStatus),
+        saveTokens: tokens => ipcRenderer.invoke(IpcChannels.slackSaveTokens, tokens),
+        clearTokens: () => ipcRenderer.invoke(IpcChannels.slackClearTokens),
+        channels: () => ipcRenderer.invoke(IpcChannels.slackChannels),
+        onChanged: listener => subscribe<[SlackStatus]>(IpcChannels.slackChanged, listener)
     },
     snoozes: {
         list: () => ipcRenderer.invoke(IpcChannels.snoozesList),

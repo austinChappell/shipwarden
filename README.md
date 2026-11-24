@@ -339,7 +339,7 @@ repository, choose your agent and start the first agent. Help › Show Welcome o
 the main parts of the window. Help › Take the Tour starts it at all times. Help › Keyboard Shortcuts lists all keys.
 A new user also gets a getting started checklist on the Dashboard.
 
-Tips show the features that are easy to miss. At each start, one random tip from a list of 40 shows in the
+Tips show the features that are easy to miss. At each start, one random tip from a list of 48 shows in the
 bottom-right corner. While ShipWarden stays open, a new tip shows 12 hours after you close the last one. A tip does not
 show again within 10 tips. Some views have their own tip, for example the Dashboard. Close a tip in a view, and it does not show again.
 Turn off the tips in the corner notice or in Settings › Appearance › Tips.
@@ -359,6 +359,11 @@ The phone can get a push notification when an agent needs input or an automation
 the app on the phone is closed. A tap opens the agent. The notifications go through a small push relay that you deploy
 (see [relay/README.md](relay/README.md)). The relay sees only the worktree name and IDs, never the agent text. Turn on
 **Send push notifications** in Settings › Mobile and type the relay address.
+
+ShipWarden can also post the questions of your agents to a Slack channel. A reply in the thread goes to the agent, and
+a message such as `@ShipWarden web Fix the login bug` starts an agent in a new worktree. Only the Slack members on the
+allow list can start or answer agents. The Slack app uses Socket Mode, so your Mac needs no public address. Create the
+app from the manifest in [docs/slack.md](docs/slack.md), then add its tokens in Settings › Slack.
 
 > The iPhone app is in beta. It is in App Store review now, so it is not in the App Store yet. Until
 > Apple approves it, build it from source with Xcode. See [ios/README.md](ios/README.md).
@@ -444,6 +449,7 @@ This script deletes `/tmp/sw-fresh` and then runs `SHIPWARDEN_USER_DATA_DIR=/tmp
 | `src/shared/` | Types and functions that the main process and the UI both use |
 | `src/main/remote/` | The HTTPS server for the iPhone app |
 | `src/main/push/` | The push notifications to the iPhone app, through the relay |
+| `src/main/slack/` | The Slack connection (Socket Mode): agent questions, replies, and agent starts |
 | `relay/` | The push relay: a small Node server with the APNs key. It keeps no data. |
 | `ios/` | The iPhone app (SwiftUI) |
 | `docs/ARCHITECTURE.md` | Decisions and the plan |

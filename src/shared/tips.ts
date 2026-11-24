@@ -126,6 +126,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         action: { kind: 'settings', section: 'mobile', label: 'Open Mobile' }
     },
     {
+        id: 'slackAgents',
+        title: 'Answer your agents in Slack',
+        body: 'Create a Slack app from the manifest in docs/slack.md and add its tokens in Settings › Slack. Questions of the agents then go to a channel, a reply in the thread goes to the agent, and "@ShipWarden <repository> <prompt>" starts a new agent.',
+        action: { kind: 'settings', section: 'slack', label: 'Open Slack' }
+    },
+    {
         id: 'phonePush',
         title: 'Get a notification on your phone',
         body: 'Deploy the push relay (relay/README.md), then turn on "Send push notifications" in Settings › Mobile and type the relay address. Your phone then tells you when an agent needs input, also when the app on the phone is closed.',

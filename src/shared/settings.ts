@@ -10,6 +10,7 @@ import {
 import { DEFAULT_APPEARANCE, normalizeAppearance, type Appearance } from './themes';
 import { normalizeHiddenWorktrees, type HiddenWorktree } from './worktrees';
 import { DEFAULT_REMOTE_SETTINGS, normalizeRemoteSettings, type RemoteSettings } from './remote';
+import { DEFAULT_SLACK_SETTINGS, normalizeSlackSettings, type SlackSettings } from './slack';
 import { normalizeOnboarding, type OnboardingSettings } from './onboarding';
 import { isAgentMode, type AgentMode } from './agent-modes';
 import { DEFAULT_REVIEW_STRICTNESS, isReviewStrictness, type ReviewStrictness } from './review-strictness';
@@ -149,6 +150,8 @@ export interface AppSettings {
     hiddenWorktrees?: Record<string, HiddenWorktree>;
     /** The connection of the phone app. */
     remote: RemoteSettings;
+    /** The Slack connection: the switch, the channel, and the people who can start and answer agents. The tokens are in the keychain. */
+    slack: SlackSettings;
     /** The settings of all automations: pause, and the usage limit. The automations are files in ~/.shipwarden/automations. */
     automations: AutomationSettings;
     /**
@@ -273,6 +276,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     worktrees: DEFAULT_WORKTREE_SETTINGS,
     notifications: DEFAULT_NOTIFICATION_SETTINGS,
     remote: DEFAULT_REMOTE_SETTINGS,
+    slack: DEFAULT_SLACK_SETTINGS,
     automations: DEFAULT_AUTOMATION_SETTINGS,
     drafts: DEFAULT_DRAFT_SETTINGS,
     usageBudget: DEFAULT_USAGE_BUDGET,
@@ -387,6 +391,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         worktrees: normalizeWorktreeSettings(raw.worktrees, raw.worktreeSort),
         notifications: normalizeNotificationSettings(raw.notifications),
         remote: normalizeRemoteSettings(raw.remote),
+        slack: normalizeSlackSettings(raw.slack),
         automations: normalizeAutomationSettings(raw.automations),
         drafts: normalizeDraftSettings(raw.drafts),
         usageBudget: normalizeUsageBudget(raw.usageBudget),

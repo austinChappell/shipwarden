@@ -76,6 +76,8 @@ export const keyRoots = {
     updates: ['updates'],
     /** The state of the network certificates. */
     network: ['network'],
+    /** The Slack connection state and the Slack channels. Only the channel list asks Slack, when the channel picker opens. */
+    slack: ['slack'],
     /** The listening ports of each worktree, for the sidebar. */
     worktreePorts: ['worktreePorts'],
     /** The tokens of each agent session, from the Claude Code transcripts. Local data: no request goes to a service. */

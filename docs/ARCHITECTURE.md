@@ -27,6 +27,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-23 | The `shipwarden` CLI sends one JSON line to a Unix socket of the main process and gets one JSON line back. A token in `~/.shipwarden/cli.json` (mode 0600) guards each request. The commands that act on agent tabs, worktrees, and automations run in the page, as for the automations. | A Unix socket with mode 0600 needs no port and no TLS. The page owns the agent tabs and the automation engine, so the CLI reuses that code. `CliServer` and `CliActions` use no Electron API, so the background helper can run the socket later (plan 2.1). |
 | 2026-11-23 | The background helper runs the schedule and CI automations and the task queue while no window is open (setting "Run while ShipWarden is closed", off by default). A lock file in the app data folder (`automation-engine.lock`) lets one process run them at a time. The app has priority: a window asks the helper for the lock with a handover file. The page engine and the helper engine share the decisions in `src/shared/automation-engine.ts`. A run with an action that needs the page waits for the app. | The page engine uses the TanStack Query cache, the task plugins, and the agent tabs, so a full move to Node is a large rewrite. The triggers that need only a timer and the branch summaries cover the "overnight" use. The lock stops two writers of the run file and the queue file. A file lock needs no connection between the processes, and a crash frees it (dead process or old heartbeat). |
 | 2026-11-23 | Push notifications go through a small relay (`relay/`, Node, no database). The phone registers its APNs device token with the relay and gets a ticket (the token, encrypted with the secret of the relay) and a push key (an HMAC of the ticket). The phone gives both to its Mac. The Mac signs each push with the push key. The relay makes the notification text from a fixed kind and a worktree name. | Apple sends notifications only from a server with the APNs key of the app. A stateless relay needs no account and no database. The Mac never sees a device token, so it can push only to the phones that gave it a ticket. The relay never sees agent text. |
+| 2026-11-23 | The Slack connection uses Socket Mode with the global `WebSocket` of Node and `fetch` for the Web API, without a Slack SDK. It runs in the process that holds the automation lock. The tokens are in the login keychain, written and read with the `security` tool. Only the Slack member IDs on an allow list can start or answer agents. | Socket Mode needs no public address, so it works behind a home router or a company VPN. One lock owner means one connection, so Slack gets each question one time. The helper runs without Electron, so it cannot decrypt `safeStorage` values. An agent can run commands on the Mac, so the default allows nobody. |
 | 2026-11-20 | "Rebase onto" runs `git rebase` in the main process (`GitChangesService.rebase`), not in an agent. The status reads the rebase folder of git (`rebase-merge` or `rebase-apply`) on each poll, so a rebase from a terminal shows the same state. The push after a rebase uses `--force-with-lease=<branch>:<commit>` with the commit of the upstream at the start of the rebase. | The user sees each conflict and decides. "Rebase with agent" (Review page) stays for a rebase without the user. A lease from the start of the rebase keeps commits that someone pushed during the rebase, also after a background fetch. |
 
 ## The old name (Yardmaster)
@@ -1040,6 +1041,28 @@ The user guide is in [cli.md](cli.md).
   They start again at the next request.
 - A failed fetch shows its cause (`networkErrorDetail`, and `networkDetail` in the plugin SDK). A certificate error
   such as `SELF_SIGNED_CERT_IN_CHAIN` also tells the user to go to Settings › Network. "Test" connects to GitHub and ClickUp.
+
+### Slack
+
+- See [slack.md](slack.md) for the setup, the app manifest, and the security choices.
+- `SlackBridge` (`src/main/slack/slack-bridge.ts`) runs in the app and in the background helper. Only the owner of the
+  automation lock connects (`setActive` from `EngineLockKeeper.onOwnedChanged` in the app, and from
+  `HelperAutomations` in the helper). The app also applies a change of `settings.slack` and of the tokens.
+- `SocketModeClient` (`src/main/slack/socket-mode.ts`) calls `apps.connections.open`, opens the WebSocket, and
+  acknowledges each envelope ID before it handles the event. It connects again after a close or a "disconnect"
+  envelope, with a wait of 1, 2, 4, … seconds (at most 1 minute). A token error stops it.
+- `slackAction` (`src/main/slack/slack-messages.ts`) maps an event to an action: a reply in an agent thread (the
+  "message" event), a start (the "app_mention" event outside an agent thread), a refusal (a member that is not on the
+  allow list), or nothing. Events of other channels, bots, and edits do nothing. The bridge ignores an event ID that it
+  saw.
+- The question posts after the agent waits for 10 seconds, the same wait as the push notifications. The thread of each
+  session is in `slack-threads.json` (the newest 500), so the app and the helper find the same threads.
+- A reply with one digit goes to the terminal as a key press. Other text goes as a bracketed paste, then Enter after
+  200 ms.
+- A start uses `RemoteStarter` (the checks and the usage budget of a phone start). The app starts the agent in the page.
+  The helper starts it with `HelperAgents`.
+- `SlackApi` (`src/main/slack/slack-api.ts`) waits for `networkReady`, so the requests use the trusted certificates.
+  The channel list loads only when the channel picker opens (TanStack Query, 5 minutes).
 
 ### In-app browser
 - A browser tab is a tab of the worktree ("b:<view ID>"), next to the terminal, file, diff and log tabs. It can go
