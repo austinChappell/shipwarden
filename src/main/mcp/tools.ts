@@ -436,19 +436,26 @@ export function pullRequestSummary(pr: PullRequest, includeResolved: boolean): R
         mergeState: pr.mergeStateStatus,
         reviewDecision: pr.reviewDecision,
         body: pr.body,
-        reviews: pr.reviews.filter(review => review.body || review.state !== 'COMMENTED').map(review => ({
-            author: login(review.author),
-            state: review.state,
-            ...(review.body ? { body: review.body } : {}),
-            ...(review.submittedAt ? { submittedAt: review.submittedAt } : {})
-        })),
+        reviews: pr.reviews
+            .filter(review => review.body || review.state !== 'COMMENTED')
+            .map(review => ({
+                author: login(review.author),
+                state: review.state,
+                ...(review.body ? { body: review.body } : {}),
+                ...(review.submittedAt ? { submittedAt: review.submittedAt } : {})
+            })),
         comments: pr.issueComments.map(comment => ({ author: login(comment.author), body: comment.body, createdAt: comment.createdAt })),
         threads: threads.map(thread => ({
             path: thread.path,
             line: thread.line ?? thread.originalLine,
             ...(thread.isResolved ? { resolved: true } : {}),
             ...(thread.isOutdated ? { outdated: true } : {}),
-            comments: thread.comments.map(comment => ({ id: comment.databaseId, author: login(comment.author), body: comment.body, createdAt: comment.createdAt }))
+            comments: thread.comments.map(comment => ({
+                id: comment.databaseId,
+                author: login(comment.author),
+                body: comment.body,
+                createdAt: comment.createdAt
+            }))
         })),
         ...(threads.length < pr.threads.length ? { resolvedThreads: pr.threads.length - threads.length } : {})
     };
@@ -608,7 +615,12 @@ export class McpTools implements ToolHost {
             case 'screenshot': {
                 const { png, page, note } = await this.service.browser.screenshot(worktree);
                 const text = [`${page.title || 'Untitled'} (${page.url})`, ...(note ? [note] : [])].join('\n\n');
-                return { content: [{ type: 'image', data: png.toString('base64'), mimeType: 'image/png' }, { type: 'text', text }] };
+                return {
+                    content: [
+                        { type: 'image', data: png.toString('base64'), mimeType: 'image/png' },
+                        { type: 'text', text }
+                    ]
+                };
             }
             case 'click': {
                 const target = elementTarget(args);
@@ -713,10 +725,16 @@ export class McpTools implements ToolHost {
         const draft = args.draft === true;
         const status = await this.branchStatus(context.worktree);
         if (status.pullRequest?.state === 'OPEN') {
-            throw new ToolError(`The branch "${status.branch}" has the open pull request #${status.pullRequest.number} already. Call update_pull_request to change it.`);
+            throw new ToolError(
+                `The branch "${status.branch}" has the open pull request #${status.pullRequest.number} already. Call update_pull_request to change it.`
+            );
         }
         if (status.pushed === false) throw new ToolError(`The remote has no copy of the branch. Push it first: git push -u origin ${status.branch}`);
-        await this.approve('create_pull_request', `${draft ? 'Create a draft pull request' : 'Create a pull request'} "${clip(title)}" from ${status.branch}${base ? ` into ${base}` : ''}`, context);
+        await this.approve(
+            'create_pull_request',
+            `${draft ? 'Create a draft pull request' : 'Create a pull request'} "${clip(title)}" from ${status.branch}${base ? ` into ${base}` : ''}`,
+            context
+        );
         const number = await this.service.pullRequests.create(context.worktree, { title, body, draft, ...(base ? { base } : {}) });
         // One request gives the address for the agent and the new state for the page.
         const after = await this.service.pullRequests.status(context.worktree).catch(() => null);
@@ -744,7 +762,8 @@ export class McpTools implements ToolHost {
 
     private async reply(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {
         const commentId = args.comment_id;
-        if (typeof commentId !== 'number' || !Number.isInteger(commentId)) throw new ToolError('The argument "comment_id" must be the number "id" of a comment.');
+        if (typeof commentId !== 'number' || !Number.isInteger(commentId))
+            throw new ToolError('The argument "comment_id" must be the number "id" of a comment.');
         const body = requiredText(args, 'body');
         const pr = await this.openPullRequest(context.worktree);
         const thread = threadOf(pr, commentId);
@@ -762,7 +781,8 @@ export class McpTools implements ToolHost {
 
     private async watch(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {
         const { worktree, sessionId } = context;
-        if (!sessionId) throw new ToolError('ShipWarden does not know the agent tab of this session. Start the agent from ShipWarden, then call the tool again.');
+        if (!sessionId)
+            throw new ToolError('ShipWarden does not know the agent tab of this session. Start the agent from ShipWarden, then call the tool again.');
         const mine = (watch: McpWatch) => watch.sessionId === sessionId && watch.worktree === worktree;
         if (args.stop === true) {
             const removed = await this.service.watches.remove(mine);

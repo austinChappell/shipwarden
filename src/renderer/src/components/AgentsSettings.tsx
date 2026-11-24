@@ -11,6 +11,7 @@ import { hasModelChoice, useAgentModels } from '../app/agent-models-query';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { DraftSettingsGroup } from './DraftSettings';
 import { McpSettingsGroup } from './McpSettings';
+import { CliSettingsGroup } from './CliSettings';
 import { LimitField } from '../automations/LimitField';
 import { BUDGET_FALLBACK, BUDGET_MAX, BUDGET_MIN, BUDGET_STEP, type BudgetWindows } from '@shared/usage';
 
@@ -381,6 +382,7 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                 )}
             </SettingsGroup>
             <McpSettingsGroup settings={settings} onSave={save} />
+            <CliSettingsGroup />
             <DraftSettingsGroup settings={settings} onSave={save} />
         </>
     );

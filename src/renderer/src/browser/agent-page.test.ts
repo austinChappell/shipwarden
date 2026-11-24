@@ -90,7 +90,10 @@ describe('TYPE_SCRIPT', () => {
         const events: string[] = [];
         input.addEventListener('input', () => events.push('input'));
         input.addEventListener('change', () => events.push('change'));
-        expect(run<ActResult>(TYPE_SCRIPT, { target: { text: 'Name' }, text: 'Ann', clear: true, submit: false })).toEqual({ ok: true, element: '<input> "Name"' });
+        expect(run<ActResult>(TYPE_SCRIPT, { target: { text: 'Name' }, text: 'Ann', clear: true, submit: false })).toEqual({
+            ok: true,
+            element: '<input> "Name"'
+        });
         run(TYPE_SCRIPT, { target: { selector: '#name' }, text: ' Lee', clear: false, submit: false });
         expect(input.value).toBe('Ann Lee');
         expect(events).toEqual(['input', 'change', 'input', 'change']);

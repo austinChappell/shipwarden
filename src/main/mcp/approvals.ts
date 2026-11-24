@@ -1,4 +1,4 @@
-import { normalizeApprovals, type McpApprovals, type McpWriteTool } from '@shared/mcp';
+import { normalizeApprovals, type ApprovalTool, type McpApprovals } from '@shared/mcp';
 import { JsonStore } from '../tasks/json-store';
 
 /** The time that a write tool waits for the answer of the user. */
@@ -19,11 +19,11 @@ export class McpApprovalStore {
         return normalizeApprovals(await this.store.get());
     }
 
-    async has(worktree: string, tool: McpWriteTool): Promise<boolean> {
+    async has(worktree: string, tool: ApprovalTool): Promise<boolean> {
         return (await this.list())[worktree]?.includes(tool) ?? false;
     }
 
-    async add(worktree: string, tool: McpWriteTool): Promise<void> {
+    async add(worktree: string, tool: ApprovalTool): Promise<void> {
         const next = normalizeApprovals(await this.store.update(all => normalizeApprovals({ ...all, [worktree]: [...(all[worktree] ?? []), tool] })));
         this.onChanged(next);
     }
@@ -44,7 +44,7 @@ export class McpApprovalStore {
 
 export interface ApprovalRequest {
     worktree: string;
-    tool: McpWriteTool;
+    tool: ApprovalTool;
     /** What the tool wants to do, for example "Move ENG-1 to In review". */
     summary: string;
 }

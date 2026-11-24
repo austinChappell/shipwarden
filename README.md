@@ -295,6 +295,23 @@ revoke it in Settings › Agents › MCP server. Without an answer in 2 minutes,
 Each agent session has its own token. A request without the token gets 401. Turn the server off in Settings › Agents.
 See [docs/mcp-server.md](docs/mcp-server.md) for the options that each agent gets.
 
+### The shipwarden command
+
+Agents, scripts, and you can control ShipWarden from a terminal with the `shipwarden` command. Install it in Settings ›
+Agents › Command line. It adds a link in `/usr/local/bin` or `~/.local/bin`. ShipWarden must be open.
+
+```sh
+shipwarden status
+shipwarden worktree list --all
+shipwarden worktree create fix/login --prompt "Fix the login timeout. Run the tests." --wait
+shipwarden agent send "Which API does the parser use?" --worktree feature/parser --wait
+shipwarden task status "In review"
+shipwarden automation run nightly-review
+```
+
+The commands that change something use the approvals of the MCP server. `--json` prints the result for scripts.
+`shipwarden skill install` gives Claude Code a skill file that explains the command. See [docs/cli.md](docs/cli.md).
+
 The Automations view (⌥⌘7) runs rules of the form "when this occurs, do that" while ShipWarden is open. For example:
 send a CI failure or a review comment to the agent of the worktree, start an agent on each task that gets a label,
 post to Slack when an agent waits for your input for 10 minutes, or remove the worktree after its pull request merges. Each automation is a JSON file in `~/.shipwarden/automations` that
@@ -397,6 +414,9 @@ This script deletes `/tmp/sw-fresh` and then runs `SHIPWARDEN_USER_DATA_DIR=/tmp
 |---|---|
 | `src/main/` | The Electron main process: worktrees, files, GitHub, tasks, Ghostty config import |
 | `src/main/pty-host/` | The PTY host process that keeps terminals and agents alive when the app quits |
+| `src/cli/` | The `shipwarden` command. `bin/shipwarden` runs it with the Node of the app |
+| `src/main/cli/` | The socket server and the commands of the CLI |
+| `skills/shipwarden/` | The agent skill file of the CLI |
 | `src/preload/` | The bridge that gives `window.shipwarden` to the UI |
 | `src/renderer/` | The React UI |
 | `src/shared/` | Types and functions that the main process and the UI both use |

@@ -336,9 +336,7 @@ describe('pull request tools', () => {
         const summary = (result!.structuredContent as { pullRequest: Record<string, unknown> }).pullRequest;
         expect(summary).toMatchObject({ number: 7, state: 'OPEN', isDraft: true, base: 'main', reviewDecision: 'CHANGES_REQUESTED', resolvedThreads: 1 });
         expect(summary.reviews).toEqual([{ author: 'bo', state: 'CHANGES_REQUESTED', body: 'Please fix.', submittedAt: '2026-11-02' }]);
-        expect(summary.threads).toEqual([
-            { path: 'src/a.ts', line: 4, comments: [{ id: 101, author: 'bo', body: 'Use a const.', createdAt: '2026-11-02' }] }
-        ]);
+        expect(summary.threads).toEqual([{ path: 'src/a.ts', line: 4, comments: [{ id: 101, author: 'bo', body: 'Use a const.', createdAt: '2026-11-02' }] }]);
         const all = await new McpTools(service).call('get_pull_request', { include_resolved: true }, context());
         expect((all!.structuredContent as { pullRequest: { threads: unknown[] } }).pullRequest.threads).toHaveLength(2);
         expect(service.approve).not.toHaveBeenCalled();
@@ -369,12 +367,15 @@ describe('pull request tools', () => {
     it('create_pull_request asks for approval, creates the pull request, and gives the page the new state', async () => {
         const created = { ...pr, number: 8, url: 'https://github.com/o/r/pull/8', isDraft: false } as PullRequest;
         const pullRequests = fakePullRequests();
-        vi.mocked(pullRequests.status)
-            .mockResolvedValueOnce(status(null))
-            .mockResolvedValueOnce(status(created));
+        vi.mocked(pullRequests.status).mockResolvedValueOnce(status(null)).mockResolvedValueOnce(status(created));
         const service = fakeService({ pullRequests });
         const result = await new McpTools(service).call('create_pull_request', { title: 'Add login', body: 'Body', base: 'dev' }, context());
-        expect(service.approve).toHaveBeenCalledWith('/repo-a', 'create_pull_request', 'Create a pull request "Add login" from feature/a into dev', expect.anything());
+        expect(service.approve).toHaveBeenCalledWith(
+            '/repo-a',
+            'create_pull_request',
+            'Create a pull request "Add login" from feature/a into dev',
+            expect.anything()
+        );
         expect(pullRequests.create).toHaveBeenCalledWith('/repo-a', { title: 'Add login', body: 'Body', draft: false, base: 'dev' });
         expect(pullRequests.changed).toHaveBeenCalledWith({ kind: 'created', worktree: '/repo-a', status: status(created) });
         expect(result?.structuredContent).toEqual({ number: 8, url: 'https://github.com/o/r/pull/8', isDraft: false, base: 'main' });
@@ -391,8 +392,17 @@ describe('pull request tools', () => {
 
     it('update_pull_request applies only the changed values, in order, and patches the page for each change', async () => {
         const service = fakeService();
-        const result = await new McpTools(service).call('update_pull_request', { title: 'Fix the login', body: 'New body.', draft: false, base: 'dev' }, context());
-        expect(service.approve).toHaveBeenCalledWith('/repo-a', 'update_pull_request', 'Change #7: description, mark as ready for review, base dev', expect.anything());
+        const result = await new McpTools(service).call(
+            'update_pull_request',
+            { title: 'Fix the login', body: 'New body.', draft: false, base: 'dev' },
+            context()
+        );
+        expect(service.approve).toHaveBeenCalledWith(
+            '/repo-a',
+            'update_pull_request',
+            'Change #7: description, mark as ready for review, base dev',
+            expect.anything()
+        );
         expect(vi.mocked(service.pullRequests.change).mock.calls.map(call => call[2])).toEqual([
             { kind: 'details', body: 'New body.' },
             { kind: 'draft', pullRequestId: 'PR_1', draft: false },
@@ -436,7 +446,12 @@ describe('watch_pull_request', () => {
     it('adds a watch of the session with all events by default, and without approval', async () => {
         const service = fakeService();
         const result = await new McpTools(service).call('watch_pull_request', {}, context());
-        expect(service.watches.add).toHaveBeenCalledWith({ worktree: '/repo-a', sessionId: 's1', number: 7, events: ['ci.failed', 'pr.conflict', 'pr.comment'] });
+        expect(service.watches.add).toHaveBeenCalledWith({
+            worktree: '/repo-a',
+            sessionId: 's1',
+            number: 7,
+            events: ['ci.failed', 'pr.conflict', 'pr.comment']
+        });
         expect(result?.structuredContent).toMatchObject({ watching: true, number: 7 });
         expect(service.approve).not.toHaveBeenCalled();
     });

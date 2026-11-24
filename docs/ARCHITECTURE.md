@@ -24,6 +24,7 @@ This document is a draft. We change it when we make decisions.
 | 2026-11-18 | A pinned session is a Claude Code transcript with a name. A resume in another folder copies the transcript into the Claude Code folder of that folder, then runs `claude --resume <id>`. | Claude Code finds a session only in the folder of its working folder. A copy needs no change to Claude Code, and the original transcript stays as it is. |
 | 2026-11-19 | When "origin" is a fork on GitHub, the pull requests of its worktrees go to the parent, with "owner:branch" as the head. The choice of the repository is the `gh-resolved` setting of `gh repo set-default` in the git config. To select the parent, ShipWarden adds an "upstream" remote when no remote has the parent. | A fork exists to send pull requests to its parent, so this default needs no setup. gh in the agent terminals reads the same setting, so `gh pr create` and ShipWarden select the same repository. |
 | 2026-11-20 | Stacked plan steps restack with `git rebase --onto <new base> <old base>` for regular and squash merges. The old base is the newest of two commits that the branch contains: the parent tip when the step started (`PlanStep.stackBase`) and the head of the merged pull request. The plan runner sees a merge in the cached pull request data and sends no request. ShipWarden does not push a clean rebase without a question. On a conflict, the agent of the worktree resolves, continues, tests, and pushes with `--force-with-lease`. | One code path works for both merge methods. A squash merge has no commit of the parent branch, so a usual rebase replays the parent commits and has conflicts. The cache already has the merged pull requests of the plan page and of the "Remove merged worktrees" sweep, so a new poll is not necessary. The agent push is the same as "Rebase with agent". |
+| 2026-11-23 | The `shipwarden` CLI sends one JSON line to a Unix socket of the main process and gets one JSON line back. A token in `~/.shipwarden/cli.json` (mode 0600) guards each request. The commands that act on agent tabs, worktrees, and automations run in the page, as for the automations. | A Unix socket with mode 0600 needs no port and no TLS. The page owns the agent tabs and the automation engine, so the CLI reuses that code. `CliServer` and `CliActions` use no Electron API, so the background helper can run the socket later (plan 2.1). |
 | 2026-11-20 | "Rebase onto" runs `git rebase` in the main process (`GitChangesService.rebase`), not in an agent. The status reads the rebase folder of git (`rebase-merge` or `rebase-apply`) on each poll, so a rebase from a terminal shows the same state. The push after a rebase uses `--force-with-lease=<branch>:<commit>` with the commit of the upstream at the start of the rebase. | The user sees each conflict and decides. "Rebase with agent" (Review page) stays for a rebase without the user. A lease from the start of the rebase keeps commits that someone pushed during the rebase, also after a background fetch. |
 
 ## The old name (Yardmaster)
@@ -913,6 +914,39 @@ The user guide and the file format are in [automations.md](automations.md).
   the allowed tools of each worktree. Settings › Agents lists them and can revoke them (`mcp:approvals`, `mcp:revoke`,
   `mcp:approvalsChanged`).
 - **Setting.** `mcpServer` (default on) starts and stops the server. New agent tabs then get the config or not.
+
+### The shipwarden CLI
+
+The user guide is in [cli.md](cli.md).
+
+- **Program.** `src/cli/main.ts` is a fourth entry of the main build (`out/main/cli.js`). `bin/shipwarden` runs it with
+  the Electron binary and `ELECTRON_RUN_AS_NODE`, from the app (`Contents/Resources/bin`, an `extraResources` entry) or
+  from a development checkout. `parseArgs` (`args.ts`) maps the words to a `CliCommand` and its values. The CLI uses
+  no Electron API.
+- **Socket.** `CliHost` (`src/main/cli/cli-host.ts`) starts `CliServer` at each app start, on
+  `<userData>/cli-v1.sock` (mode 0600), with a new random token. It writes the socket path and the token to
+  `~/.shipwarden/cli.json` (mode 0600). A separate data folder keeps the file in that folder.
+  `SHIPWARDEN_CLI_CONFIG` selects another file. Each connection carries one request line (`CliRequest`: protocol,
+  token, command, values, and the working folder) and one answer line (`CliResponse`). The server checks the token with
+  `timingSafeEqual` before all other values. A closed connection aborts the command, for example a wait.
+- **Commands.** `CliActions` (`cli-actions.ts`) resolves the worktree from `--worktree` (`findWorktree` of the MCP tools)
+  or from the working folder (`worktreeAt`). It reads the worktrees from the phone snapshot, as `list_worktrees` does.
+  `task get` and `task status` call the MCP tools `get_task` and `set_task_status` (`McpHost.tools`).
+  `agent wait` and `--wait` poll the terminal sessions each second (`waitForAgent`). After a prompt, an idle agent
+  counts as busy until it changes its state, or for 15 seconds.
+- **Approvals.** The write commands (`CLI_WRITE_ACTIONS` in `src/shared/mcp.ts`) go through `McpHost.approve`, the same
+  gate and the same `mcp-approvals.json` as the MCP write tools. The dialog tells that a command asks, not an agent.
+  The key is the target worktree, the repository for `worktree create`, or the repository of a schedule.
+- **Page.** `CliPageBridge` (`page-bridge.ts`) sends `cli:pageRequest` to the window that had the focus last and waits
+  for `cli:pageAnswer`, at most 5 minutes. Without a window, the command fails with exit code 4. `useCliBridge`
+  (`src/renderer/src/app/use-cli-bridge.ts`) runs the request with the functions of the automations: `promptAgent`
+  (with `newSession` for `agent start`), `prepareWorktree`, `refreshWorktrees`, `removeWorktreeQuietly`, and
+  `automationEngine.runNow`. So the sidebar, the tabs, and the caches change as for a click.
+- **Link.** `CliInstaller` (`cli-install.ts`) adds a symbolic link to the launcher in `/usr/local/bin`, else in
+  `~/.local/bin`. It replaces only a link that goes to a `bin/shipwarden` file, and it removes only its own link. The
+  page reads the state with `cli:installState` and patches its cache after `cli:install` and `cli:remove`.
+- **Helper.** The background helper does not run the socket yet. When the helper runs the engine (plan 2.1), it can
+  run `CliServer` with its own `CliHandler`, and the app can stop its own server.
 
 ### Repository scripts
 

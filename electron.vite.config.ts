@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
@@ -26,16 +27,22 @@ function monacoDomPurify(): Plugin {
     };
 }
 
+/** The version of the app. The `shipwarden` CLI prints it for --version. */
+const version = (JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as { version: string }).version;
+
 export default defineConfig({
     main: {
         resolve: { alias: { '@shared': resolve('src/shared') } },
+        define: { __SHIPWARDEN_VERSION__: JSON.stringify(version) },
         build: {
             rollupOptions: {
-                // The PTY host and the background helper are other programs. Each runs as a separate process.
+                // The PTY host, the background helper, and the `shipwarden` CLI are other programs. Each runs as a
+                // separate process. The CLI runs with the Node of the app (ELECTRON_RUN_AS_NODE), see bin/shipwarden.
                 input: {
                     index: resolve('src/main/index.ts'),
                     'pty-host': resolve('src/main/pty-host/main.ts'),
-                    helper: resolve('src/main/helper/main.ts')
+                    helper: resolve('src/main/helper/main.ts'),
+                    cli: resolve('src/cli/main.ts')
                 }
             }
         }

@@ -4,6 +4,7 @@ import { registerAppIpc } from './app';
 import { registerAskIpc } from './ask';
 import { registerAutomationIpc } from './automations';
 import { registerBrowserIpc } from './browser';
+import { registerCliIpc } from './cli';
 import { registerCodeIpc } from './code';
 import { registerEditorIpc } from './editors';
 import { registerFileIpc } from './files';
@@ -40,6 +41,7 @@ export function registerIpc(services: Services, runAppKey: (action: AppKeyAction
     registerTerminalIpc(services);
     registerAskIpc(services);
     registerMcpIpc(services);
+    registerCliIpc(services);
     registerSettingsIpc(services);
     registerNotesIpc(services);
     registerAutomationIpc(services);

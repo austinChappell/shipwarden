@@ -40,6 +40,7 @@ import { NotesView } from './components/NotesView';
 import { AutomationsView, type AutomationRequest } from './automations/AutomationsView';
 import { useAutomationRuns } from './automations/automation-queries';
 import { automationEngine } from './automations/engine';
+import { useCliBridge } from './app/use-cli-bridge';
 import { useAutomationEngine } from './automations/use-automation-engine';
 import { PlansView } from './plans/PlansView';
 import { setGroupAgentActions } from './github/pr-group-agents';
@@ -550,6 +551,13 @@ export function App() {
             removeWorktreeQuietly: worktreeActions.removeWorktreeQuietly,
             moveTaskToStatus: worktreeActions.moveTaskToStatus
         }
+    });
+    // The `shipwarden` CLI runs the commands for agent tabs, worktrees, and automations in this page.
+    useCliBridge({
+        promptAgent: agents.promptAgent,
+        prepareWorktree: agents.prepareWorktree,
+        refreshWorktrees: project.refreshWorktrees,
+        removeWorktreeQuietly: worktreeActions.removeWorktreeQuietly
     });
     const automationsCount = useAutomationRuns().state.runs.filter(run => run.status === 'pending').length;
 

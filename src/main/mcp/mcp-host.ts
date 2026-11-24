@@ -32,6 +32,9 @@ export interface McpHostOptions {
 export class McpHost {
     readonly approvals: McpApprovalStore;
     readonly watches: McpWatches;
+    /** The tools. The `shipwarden` CLI calls them too, so both use the same code and the same approvals. */
+    readonly tools: McpTools;
+    private readonly gate: McpApprovalGate;
     private readonly tokens: McpTokens;
     private readonly server: McpHttpServer;
     private address: Promise<McpServerAddress | undefined> = Promise.resolve(undefined);
@@ -43,16 +46,25 @@ export class McpHost {
         this.watches = new McpWatches(join(options.userData, 'mcp-watches.json'), options.onWatchesChanged);
         this.tokens = new McpTokens(join(options.userData, 'mcp-tokens.json'), join(options.userData, 'mcp'));
         const gate = new McpApprovalGate({ store: this.approvals, ask: options.askUser });
-        const tools = new McpTools({
+        this.gate = gate;
+        this.tools = new McpTools({
             ...options.service,
             watches: this.watches,
             approve: (worktree, tool, summary, signal) => gate.approve({ worktree, tool, summary }, signal)
         });
         this.server = new McpHttpServer({
             identify: token => this.tokens.identify(token),
-            tools,
+            tools: this.tools,
             info: { name: 'shipwarden', title: 'ShipWarden', version: options.version, instructions: INSTRUCTIONS }
         });
+    }
+
+    /**
+     * Asks the user to approve a write tool or a CLI command the first time in a worktree. Rejects with a message when
+     * the user denies it, or does not answer in time.
+     */
+    approve(request: ApprovalRequest, signal?: AbortSignal): Promise<void> {
+        return this.gate.approve(request, signal);
     }
 
     /** Starts or stops the server. A start that fails leaves the server off, and agents start without it. */

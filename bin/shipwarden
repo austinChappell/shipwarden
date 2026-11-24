@@ -1,0 +1,27 @@
+#!/bin/sh
+# The `shipwarden` command. It runs the CLI script with the Node of the ShipWarden app (ELECTRON_RUN_AS_NODE).
+# Settings › Agents › "Install the shipwarden command" adds a link to this file in /usr/local/bin or ~/.local/bin.
+set -e
+
+# Follow the links to the real file, so the paths below are relative to the app.
+self="$0"
+while [ -L "$self" ]; do
+    target="$(readlink "$self")"
+    case "$target" in
+        /*) self="$target" ;;
+        *) self="$(dirname "$self")/$target" ;;
+    esac
+done
+dir="$(cd "$(dirname "$self")" && pwd -P)"
+
+if [ -x "$dir/../../MacOS/ShipWarden" ]; then
+    # The packaged app: ShipWarden.app/Contents/Resources/bin/shipwarden.
+    electron="$dir/../../MacOS/ShipWarden"
+    script="$dir/../app.asar/out/main/cli.js"
+else
+    # A development checkout: <repo>/bin/shipwarden. Run "npm run build" first.
+    electron="$dir/../node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+    script="$dir/../out/main/cli.js"
+fi
+
+ELECTRON_RUN_AS_NODE=1 exec "$electron" "$script" "$@"

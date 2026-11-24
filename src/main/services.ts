@@ -71,7 +71,13 @@ import { checkCommand } from './command-check';
 import { SetupChecks } from './setup-checks';
 import { McpHost } from './mcp/mcp-host';
 import { worktreesFromSnapshot } from './mcp/worktree-list';
-import { writeToolLabel } from '@shared/mcp';
+import { isCliWriteAction, writeToolLabel } from '@shared/mcp';
+import { CLI_NAME } from '@shared/cli';
+import { CliActions } from './cli/cli-actions';
+import { CliHost } from './cli/cli-host';
+import { CliInstaller } from './cli/cli-install';
+import { CliPageBridge } from './cli/page-bridge';
+import { cliConfigPath, cliSocketPath } from './cli/paths';
 import { AgentBrowser } from './browser/agent-browser';
 import { findOverlaps } from '@shared/worktree-overlap';
 import { agentForRepo } from '@shared/settings';
@@ -521,7 +527,9 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             confirm.ask(
                 {
                     title: `${writeToolLabel(tool)}?`,
-                    message: `The agent in "${basename(worktree)}" wants to use the ShipWarden tool ${tool}.\n\n${summary}\n\nAllow applies to ${tool} in this worktree until you revoke it in Settings › Agents. Without an answer in 2 minutes, the tool call fails.`,
+                    message: isCliWriteAction(tool)
+                        ? `A ${CLI_NAME} command wants to act on "${basename(worktree)}".\n\n${summary}\n\nAllow applies to this command in this folder until you revoke it in Settings › Agents. Without an answer in 2 minutes, the command fails.`
+                        : `The agent in "${basename(worktree)}" wants to use the ShipWarden tool ${tool}.\n\n${summary}\n\nAllow applies to ${tool} in this worktree until you revoke it in Settings › Agents. Without an answer in 2 minutes, the tool call fails.`,
                     confirmLabel: 'Allow',
                     cancelLabel: 'Deny'
                 },
@@ -575,6 +583,39 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             },
             // The page opens the tab of the worktree without a change of the selected worktree or tab.
             browser: new AgentBrowser({ views: browserViews, requestTab: (url, worktree) => window.send(IpcChannels.browserAgentOpen, url, worktree) })
+        }
+    });
+    /**
+     * The `shipwarden` CLI. Its local socket runs in this process now. The commands use the MCP tools and the same
+     * approvals. The commands that act on agent tabs, the worktree list, and the automations go to the page.
+     * `CliServer` uses no Electron API, so the background helper can run it later.
+     */
+    const cliPage = new CliPageBridge(() => window.get());
+    const cli = new CliHost({
+        socketPath: cliSocketPath(userData),
+        configPath: cliConfigPath(os.homedir(), process.env, separateDataFolder ? userData : undefined),
+        version: app.getVersion(),
+        pid: process.pid,
+        handler: new CliActions({
+            version: app.getVersion(),
+            pid: process.pid,
+            home: os.homedir(),
+            mcpServer: async () => (await settings.get()).mcpServer,
+            worktrees: async () => worktreesFromSnapshot(await remoteSnapshot.build(), '', true),
+            tools: mcp.tools,
+            approve: (request, signal) => mcp.approve(request, signal),
+            sessions: () => (terminals.isConnected() ? terminalSessions() : Promise.resolve([])),
+            automations: async () => (await automations.list()).automations,
+            page: (request, signal) => cliPage.request(request, signal)
+        })
+    });
+    /** Settings › Agents › "Install the shipwarden command". The link goes to the launcher script in the app. */
+    const cliInstaller = new CliInstaller({
+        launcher: app.isPackaged ? join(process.resourcesPath, 'bin', CLI_NAME) : join(app.getAppPath(), 'bin', CLI_NAME),
+        home: os.homedir(),
+        path: async () => {
+            await shellReady;
+            return process.env.PATH ?? '';
         }
     });
     const hookPaths = hookSettingsPaths(userData);
@@ -633,6 +674,9 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         transcriptIndex,
         confirm,
         mcp,
+        cli,
+        cliPage,
+        cliInstaller,
         hookPaths,
         shellIntegration,
         opencodeVersions,
