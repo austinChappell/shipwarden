@@ -15,6 +15,7 @@ import { isAgentMode, type AgentMode } from './agent-modes';
 import { DEFAULT_REVIEW_STRICTNESS, isReviewStrictness, type ReviewStrictness } from './review-strictness';
 import { DEFAULT_DRAFT_SETTINGS, normalizeDraftSettings, normalizeRepoDraftSettings, type DraftSettings, type RepoDraftSettings } from './drafts';
 import { DEFAULT_USAGE_BUDGET, normalizeUsageBudget, type UsageBudget } from './usage';
+import { DEFAULT_CLI_ALIAS_SETTINGS, normalizeCliAlias, type CliAliasSettings } from './cli';
 import { normalizeScreenshotSettings, type ScreenshotSettings } from './screenshots';
 
 /**
@@ -108,6 +109,11 @@ export interface AppSettings {
      * ask_agent, get_task, and set_task_status). The default is on.
      */
     mcpServer: boolean;
+    /**
+     * The short name of the `shipwarden` command, for example "sw". Settings › Agents › Command line adds its link next
+     * to the `shipwarden` link. The default is on, with the name "sw".
+     */
+    cliAlias: CliAliasSettings;
     /** The settings of each repository, by the root of its main worktree. */
     repos: Record<string, RepoSettings>;
     /**
@@ -257,6 +263,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     defaultAgentId: 'claude',
     experimentalAgentChat: false,
     mcpServer: true,
+    cliAlias: DEFAULT_CLI_ALIAS_SETTINGS,
     repos: {},
     network: { useSystemCertificates: false },
     worktrees: DEFAULT_WORKTREE_SETTINGS,
@@ -361,6 +368,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         defaultAgentId,
         experimentalAgentChat: raw.experimentalAgentChat === true,
         mcpServer: raw.mcpServer !== false,
+        cliAlias: normalizeCliAlias(raw.cliAlias),
         repos: normalizeRepos(raw.repos, agents),
         network: normalizeNetwork(raw.network),
         ...(normalizeCodeFolder(raw.codeFolder) ? { codeFolder: normalizeCodeFolder(raw.codeFolder) } : {}),

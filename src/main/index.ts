@@ -235,6 +235,8 @@ app.whenReady().then(async () => {
     void services.settings.get().then(settings => services.mcp.apply(settings.mcpServer));
     void services.mcp.prune().catch(() => undefined);
     void services.cli.start().catch(error => console.warn(`[cli] The CLI server did not start: ${error instanceof Error ? error.message : String(error)}`));
+    // An installation from before the alias setting gets the alias link. Without the shipwarden link, nothing changes.
+    void services.cliInstaller.sync().catch(error => console.warn('[cli] The alias link did not change:', error));
     void services.pruneOldCheckpoints().catch(error => console.warn('[checkpoints] The cleanup failed:', error));
     protocol.handle(
         FILE_SCHEME,
