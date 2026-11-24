@@ -218,6 +218,10 @@ export function RunDialog({ repo, host, workflow, branches, onClose, onStarted }
                             <>GitLab starts a new pipeline on the branch.</>
                         ) : host === 'bitbucket' ? (
                             <>Bitbucket starts a new pipeline on the branch.</>
+                        ) : host === 'gitea' ? (
+                            <>
+                                The server starts the workflow <code>{workflow.path}</code> of the branch.
+                            </>
                         ) : (
                             <>
                                 GitHub starts the workflow on <code>{workflow.path}</code> of the branch.

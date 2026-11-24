@@ -391,6 +391,14 @@ selects one in Settings › Appearance.
 
 ### 5.2 Gitea and Forgejo
 
+**Status:** Done in branch `5.2-gitea-forgejo`. The provider kind `gitea` serves Gitea and Forgejo. The user types the
+server URL, or ShipWarden finds it: a new provider asks the unknown servers of the project remotes for
+`/api/v1/version`. Pull requests, reviews, threads, merges, base changes (so the stack actions work), draft (the "WIP:"
+prefix), labels, assignees, reviewers, and screenshots work. Actions uses the newer runs API when the server has it,
+else the older task list, else only commit statuses. Rerun, cancel, dispatch, reply, and resolve fall back to a clear
+error on a server without that API. Reactions, auto-merge, and pipeline approvals are hidden. Unit tests cover the
+mapping with API fixtures, the client, the service, and the routing. Not tested live against a real server.
+
 Add a `gitea` provider kind. Forgejo uses the same API. Follow `src/main/bitbucket/`. Map PRs, reviews, comments, and
 Actions runs.
 

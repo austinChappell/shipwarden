@@ -3,13 +3,15 @@ import type { ReviewStatus } from './review-queue';
 import { azureBuildsWebUrl, azureRepoOf, azureRepoWebUrl } from './azure-devops';
 import { gitlabRepoOf, gitlabRepoWebUrl } from './gitlab';
 import { bitbucketPipelinesWebUrl, bitbucketPullRequestWebUrl, bitbucketRepoOf, bitbucketRepoWebUrl } from './bitbucket';
+import { giteaActionsWebUrl, giteaPullRequestWebUrl, giteaRepoOf, giteaRepoWebUrl } from './gitea';
 import { EMOJI_SHORTCODES } from './emoji-shortcodes';
 
 /**
- * A repository on GitHub, on Azure Repos, on GitLab, or on Bitbucket Cloud.
+ * A repository on GitHub, on Azure Repos, on GitLab, on Bitbucket Cloud, or on a Gitea or Forgejo server.
  * For an Azure Repos repository, `owner` is "organization/project" and `host` is "azure".
  * For a GitLab project, `owner` is "server host/namespace" (for example "gitlab.com/acme/platform") and `host` is "gitlab".
  * For a Bitbucket repository, `owner` is the workspace, `name` is the repository slug, and `host` is "bitbucket".
+ * For a Gitea or Forgejo repository, `owner` is "server host/owner" (for example "git.example.com/acme") and `host` is "gitea".
  */
 export interface RepoRef {
     owner: string;
@@ -27,7 +29,7 @@ export type RepoTarget = string | RepoRef;
 /** Returns a text key for a target, for example for a cache. */
 export function targetKey(target: RepoTarget): string {
     if (typeof target === 'string') return target;
-    return target.host === 'azure' || target.host === 'gitlab' || target.host === 'bitbucket' ? repoId(target) : `github:${target.owner}/${target.name}`;
+    return target.host && target.host !== 'github' ? repoId(target) : `github:${target.owner}/${target.name}`;
 }
 
 /** The start of the ID of an Azure Repos repository. */
@@ -36,12 +38,15 @@ const AZURE_REPO_PREFIX = 'azure:';
 const GITLAB_REPO_PREFIX = 'gitlab:';
 /** The start of the ID of a Bitbucket repository. */
 const BITBUCKET_REPO_PREFIX = 'bitbucket:';
+/** The start of the ID of a Gitea or Forgejo repository. */
+const GITEA_REPO_PREFIX = 'gitea:';
 
 /** The start of the repository ID of each host that is not GitHub. */
 const REPO_PREFIXES: [SourceHostKind, string][] = [
     ['azure', AZURE_REPO_PREFIX],
     ['gitlab', GITLAB_REPO_PREFIX],
-    ['bitbucket', BITBUCKET_REPO_PREFIX]
+    ['bitbucket', BITBUCKET_REPO_PREFIX],
+    ['gitea', GITEA_REPO_PREFIX]
 ];
 
 /**
@@ -86,7 +91,9 @@ export function repoWebUrl(repo: RepoRef): string {
     const gitlab = gitlabRepoOf(repo);
     if (gitlab) return gitlabRepoWebUrl(gitlab);
     const bitbucket = bitbucketRepoOf(repo);
-    return bitbucket ? bitbucketRepoWebUrl(bitbucket) : `https://github.com/${repo.owner}/${repo.name}`;
+    if (bitbucket) return bitbucketRepoWebUrl(bitbucket);
+    const gitea = giteaRepoOf(repo);
+    return gitea ? giteaRepoWebUrl(gitea) : `https://github.com/${repo.owner}/${repo.name}`;
 }
 
 /** Returns the web page of a pull request. */
@@ -95,6 +102,8 @@ export function pullRequestWebUrl(repo: RepoRef, number: number): string {
     if (gitlabRepoOf(repo)) return `${repoWebUrl(repo)}/-/merge_requests/${number}`;
     const bitbucket = bitbucketRepoOf(repo);
     if (bitbucket) return bitbucketPullRequestWebUrl(bitbucket, number);
+    const gitea = giteaRepoOf(repo);
+    if (gitea) return giteaPullRequestWebUrl(gitea, number);
     return `${repoWebUrl(repo)}/pull/${number}`;
 }
 
@@ -124,6 +133,8 @@ function decodePart(part: string): string {
  * - https://{org}.visualstudio.com/[DefaultCollection/]{project}/_git/{repo}/pullrequest/{number}
  * - https://{gitlab host}/{group}/[{subgroup}/]{project}/-/merge_requests/{number}, also with "/diffs" or "/pipelines"
  * - https://bitbucket.org/{workspace}/{repo}/pull-requests/{number}, also with "/diff" or "/commits"
+ * - https://{gitea host}/{owner}/{repo}/pulls/{number}, also with "/files" or "/commits". GitHub, GitLab, and Bitbucket
+ *   do not use this form, so another host is a Gitea or Forgejo server.
  */
 export function parsePullRequestUrl(url: string): (ItemLink & { tab: PullRequestLinkTab }) | undefined {
     const github = /^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)\/([^/?#]+)\/pull\/(\d{1,9})(?:\/([^/?#]*))?\/?(?:[?#].*)?$/i.exec(url);
@@ -149,6 +160,15 @@ export function parsePullRequestUrl(url: string): (ItemLink & { tab: PullRequest
         const tab = gitlab[5] === 'diffs' ? 'files' : gitlab[5] === 'pipelines' ? 'checks' : 'overview';
         return { repo: { owner: `${gitlab[1].toLowerCase()}/${namespace}`, name: decodePart(gitlab[3]), host: 'gitlab' }, number: Number(gitlab[4]), tab };
     }
+    const gitea = /^https?:\/\/([^/?#@]+)\/([^/?#]+)\/([^/?#]+)\/pulls\/(\d{1,9})(?:\/([^/?#]*))?\/?(?:[?#].*)?$/i.exec(url);
+    if (gitea && !/^(?:www\.)?(?:github\.com|bitbucket\.org)$/i.test(gitea[1])) {
+        const tab = gitea[5] === 'files' ? 'files' : 'overview';
+        return {
+            repo: { owner: `${gitea[1].toLowerCase()}/${decodePart(gitea[2])}`, name: decodePart(gitea[3]), host: 'gitea' },
+            number: Number(gitea[4]),
+            tab
+        };
+    }
     return undefined;
 }
 
@@ -167,6 +187,8 @@ export function pipelinesWebUrl(repo: RepoRef): string {
     if (azure) return azureBuildsWebUrl(azure);
     const bitbucket = bitbucketRepoOf(repo);
     if (bitbucket) return bitbucketPipelinesWebUrl(bitbucket);
+    const gitea = giteaRepoOf(repo);
+    if (gitea) return giteaActionsWebUrl(gitea);
     return gitlabRepoOf(repo) ? `${repoWebUrl(repo)}/-/pipelines` : `${repoWebUrl(repo)}/actions`;
 }
 
@@ -177,7 +199,9 @@ export function cloneUrl(repo: RepoRef): string {
     const gitlab = gitlabRepoOf(repo);
     if (gitlab) return `${gitlabRepoWebUrl(gitlab)}.git`;
     const bitbucket = bitbucketRepoOf(repo);
-    return bitbucket ? `${bitbucketRepoWebUrl(bitbucket)}.git` : `https://github.com/${repo.owner}/${repo.name}.git`;
+    if (bitbucket) return `${bitbucketRepoWebUrl(bitbucket)}.git`;
+    const gitea = giteaRepoOf(repo);
+    return gitea ? `${giteaRepoWebUrl(gitea)}.git` : `https://github.com/${repo.owner}/${repo.name}.git`;
 }
 
 /**
@@ -186,6 +210,7 @@ export function cloneUrl(repo: RepoRef): string {
  * GitLab keeps the head commit of a merge request in "refs/merge-requests/<iid>/head".
  * Bitbucket has no ref for a pull request. The refspec gets all branches, so the source branch of a pull request from
  * the same repository comes too. A pull request from a fork does not.
+ * Gitea and Forgejo keep the head commit of a pull request in "refs/pull/<number>/head", as GitHub does.
  */
 export function pullRequestRef(repo: RepoRef, number: number): string {
     if (repo.host === 'azure') return `refs/pull/${number}/merge`;
@@ -264,18 +289,19 @@ export type MergeMethod = 'merge' | 'squash' | 'rebase';
  * Azure DevOps uses votes: APPROVE (10), APPROVE_WITH_SUGGESTIONS (5), WAIT_FOR_AUTHOR (-5) and REJECT (-10).
  * GitLab accepts APPROVE, COMMENT and UNAPPROVE (the user revokes an approval).
  * Bitbucket accepts APPROVE, REQUEST_CHANGES, COMMENT and UNAPPROVE.
+ * Gitea and Forgejo accept APPROVE, REQUEST_CHANGES and COMMENT.
  */
 export type ReviewEvent = 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT' | 'APPROVE_WITH_SUGGESTIONS' | 'WAIT_FOR_AUTHOR' | 'REJECT' | 'UNAPPROVE';
 
 /** The service that keeps the repository, its pull requests and its pipelines. */
-export type SourceHostKind = 'github' | 'azure' | 'gitlab' | 'bitbucket';
+export type SourceHostKind = 'github' | 'azure' | 'gitlab' | 'bitbucket' | 'gitea';
 
 /** The name of a host for the UI, for example "Open on Azure DevOps". */
 export function hostLabel(host: SourceHostKind | undefined): string {
-    return host === 'azure' ? 'Azure DevOps' : host === 'gitlab' ? 'GitLab' : host === 'bitbucket' ? 'Bitbucket' : 'GitHub';
+    return host === 'azure' ? 'Azure DevOps' : host === 'gitlab' ? 'GitLab' : host === 'bitbucket' ? 'Bitbucket' : host === 'gitea' ? 'Gitea' : 'GitHub';
 }
 
-/** True for a host whose CI has pipelines (Azure DevOps, GitLab, and Bitbucket). GitHub has workflows. */
+/** True for a host whose CI has pipelines (Azure DevOps, GitLab, and Bitbucket). GitHub, Gitea, and Forgejo have workflows. */
 export function hostHasPipelines(host: SourceHostKind | undefined): boolean {
     return host === 'azure' || host === 'gitlab' || host === 'bitbucket';
 }

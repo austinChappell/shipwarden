@@ -1,11 +1,12 @@
 /** The kinds of code review provider. Each kind has its own API and its own remote URL format. */
-export type ReviewProviderKind = 'github' | 'azure' | 'gitlab' | 'bitbucket';
+export type ReviewProviderKind = 'github' | 'azure' | 'gitlab' | 'bitbucket' | 'gitea';
 
 export const REVIEW_PROVIDER_KINDS: { kind: ReviewProviderKind; name: string }[] = [
     { kind: 'github', name: 'GitHub' },
     { kind: 'azure', name: 'Azure DevOps' },
     { kind: 'gitlab', name: 'GitLab' },
-    { kind: 'bitbucket', name: 'Bitbucket' }
+    { kind: 'bitbucket', name: 'Bitbucket' },
+    { kind: 'gitea', name: 'Gitea or Forgejo' }
 ];
 
 export function providerKindName(kind: ReviewProviderKind): string {
@@ -22,7 +23,10 @@ export interface StoredReviewProvider {
     scope?: string[];
     /** GitHub only: the account of the GitHub CLI to get the token from. Undefined means the active account. */
     cliAccount?: string;
-    /** GitLab only: the URL of a self-hosted server, for example "https://git.example.com". Undefined means https://gitlab.com. */
+    /**
+     * GitLab: the URL of a self-hosted server, for example "https://git.example.com". Undefined means https://gitlab.com.
+     * Gitea or Forgejo: the URL of the server, for example "https://codeberg.org". Undefined means that the provider has no server yet.
+     */
     baseUrl?: string;
     /**
      * Bitbucket only: the Atlassian account email (for an API token) or the Bitbucket username (for an app password).

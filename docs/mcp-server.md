@@ -40,8 +40,8 @@ All tools act on the worktree of the agent ("this worktree").
 
 ### Pull request tools
 
-The pull request tools use the code host of the worktree (Settings › Code review): GitHub, Azure DevOps, GitLab, or
-Bitbucket. They act on the pull request of the branch of this worktree.
+The pull request tools use the code host of the worktree (Settings › Code review): GitHub, Azure DevOps, GitLab,
+Bitbucket, Gitea, or Forgejo. They act on the pull request of the branch of this worktree.
 
 | Tool | Arguments | Result |
 | --- | --- | --- |

@@ -1,0 +1,33 @@
+[
+    {
+        "id": 201,
+        "body": "Add a limit for each user.",
+        "user": { "id": 31, "login": "sam" },
+        "resolver": null,
+        "pull_request_review_id": 101,
+        "created_at": "2026-11-19T10:00:00Z",
+        "updated_at": "2026-11-19T10:00:00Z",
+        "path": "src/limits.ts",
+        "commit_id": "2222222222222222222222222222222222222222",
+        "original_commit_id": "2222222222222222222222222222222222222222",
+        "diff_hunk": "@@ -1,3 +1,8 @@\n+export const LIMIT = 100;",
+        "position": 4,
+        "original_position": 0,
+        "html_url": "https://git.example.com/acme/api/pulls/7/files#issuecomment-201",
+        "pull_request_url": "https://git.example.com/acme/api/pulls/7"
+    },
+    {
+        "id": 202,
+        "body": "Why was this removed?",
+        "user": { "id": 31, "login": "sam" },
+        "resolver": { "id": 21, "login": "dana" },
+        "pull_request_review_id": 101,
+        "created_at": "2026-11-19T10:01:00Z",
+        "path": "README.md",
+        "commit_id": "2222222222222222222222222222222222222222",
+        "diff_hunk": "@@ -2,2 +2,1 @@\n-Old line",
+        "position": 0,
+        "original_position": 3,
+        "html_url": "https://git.example.com/acme/api/pulls/7/files#issuecomment-202"
+    }
+]

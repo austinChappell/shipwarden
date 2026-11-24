@@ -164,7 +164,7 @@ export function PullRequestPanel({
         return <div className="panel-message">{error ?? ''}</div>;
     }
     if (status === null) {
-        return <div className="panel-message">This worktree has no GitHub, Azure Repos, GitLab, or Bitbucket remote named "origin".</div>;
+        return <div className="panel-message">This worktree has no GitHub, Azure Repos, GitLab, Bitbucket, Gitea, or Forgejo remote named "origin".</div>;
     }
     if (!pr) {
         return <CreatePullRequest target={target} status={status} loading={loading} onRefresh={onRefresh} />;
@@ -345,7 +345,7 @@ export function PullRequestPanel({
                                 >
                                     #{pr.number}
                                 </Button>
-                                {onOpenInReview && pr.host !== 'azure' && pr.host !== 'gitlab' && pr.host !== 'bitbucket' && (
+                                {onOpenInReview && pr.host !== 'azure' && pr.host !== 'gitlab' && pr.host !== 'bitbucket' && pr.host !== 'gitea' && (
                                     <IconButton
                                         size="sm"
                                         icon={<Maximize2 size={14} strokeWidth={1.6} />}

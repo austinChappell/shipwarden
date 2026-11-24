@@ -72,6 +72,15 @@ export function checkRepoRef(value: unknown): RepoRef {
         }
         return { owner, name, host: 'bitbucket' };
     }
+    if (repo?.host === 'gitea') {
+        // The owner is "server host/owner". The host can have a port, for example "git.example.com:3000".
+        const [server, user, ...rest] = owner.split('/');
+        const validServer = /^[A-Za-z0-9.-]+(?::\d+)?$/.test(server ?? '');
+        if (!validServer || rest.length > 0 || !isSafeRepoPart(user ?? '') || !isSafeRepoPart(name)) {
+            throw new Error(`"${owner}/${name}" is not a valid Gitea or Forgejo repository name.`);
+        }
+        return { owner, name, host: 'gitea' };
+    }
     if (!isSafeRepoPart(owner) || !isSafeRepoPart(name)) {
         throw new Error(`"${owner}/${name}" is not a valid repository name.`);
     }

@@ -265,8 +265,8 @@ export class ReviewCheckouts {
 
     /**
      * The folder of a repository: <folder>/<owner>/<name>, <folder>/azure/<organization>/<project>/<name> for Azure Repos,
-     * <folder>/gitlab/<server>/<groups…>/<name> for GitLab, or <folder>/bitbucket/<workspace>/<name> for Bitbucket.
-     * A ":" of a server port becomes "_".
+     * <folder>/gitlab/<server>/<groups…>/<name> for GitLab, <folder>/bitbucket/<workspace>/<name> for Bitbucket, or
+     * <folder>/gitea/<server>/<owner>/<name> for Gitea and Forgejo. A ":" of a server port becomes "_".
      */
     private repoFolder(repo: Pick<RepoRef, 'owner' | 'name' | 'host'>): string {
         const parts =
@@ -274,9 +274,11 @@ export class ReviewCheckouts {
                 ? ['azure', ...repo.owner.split('/'), repo.name]
                 : repo.host === 'gitlab'
                   ? ['gitlab', ...repo.owner.replace(/:/g, '_').split('/'), repo.name]
-                  : repo.host === 'bitbucket'
-                    ? ['bitbucket', repo.owner, repo.name]
-                    : [repo.owner, repo.name];
+                  : repo.host === 'gitea'
+                    ? ['gitea', ...repo.owner.replace(/:/g, '_').split('/'), repo.name]
+                    : repo.host === 'bitbucket'
+                      ? ['bitbucket', repo.owner, repo.name]
+                      : [repo.owner, repo.name];
         return path.join(this.options.folder, ...parts.map(part => part.toLowerCase()));
     }
 

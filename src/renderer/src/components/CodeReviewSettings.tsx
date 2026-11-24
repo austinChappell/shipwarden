@@ -24,7 +24,8 @@ const TOKEN_SCOPES: Record<ReviewProviderKind, string> = {
     azure: 'Make a token with these scopes: Code (Read & write), Code (Status), Build (Read & execute), Identity (Read) and Project and Team (Read).',
     gitlab: 'Make a token with the "api" scope.',
     bitbucket:
-        'Make an Atlassian API token for Bitbucket, or a workspace, project, or repository access token. Give it these scopes: account (read), repositories (read & write), pull requests (read & write), pipelines (read & write), and workspace membership (read).'
+        'Make an Atlassian API token for Bitbucket, or a workspace, project, or repository access token. Give it these scopes: account (read), repositories (read & write), pull requests (read & write), pipelines (read & write), and workspace membership (read).',
+    gitea: 'Make a token in Settings › Applications of your server. Give it these scopes: repository (read & write), issue (read & write), user (read), and organization (read).'
 };
 
 function tokenSourceText(provider: ReviewProviderInfo, source: ReviewTokenSource | undefined): string {
@@ -42,6 +43,10 @@ function tokenSourceText(provider: ReviewProviderInfo, source: ReviewTokenSource
         if (source === 'env') return 'ShipWarden uses BITBUCKET_TOKEN from the environment.';
         return 'No token. Save a token, or set BITBUCKET_TOKEN.';
     }
+    if (provider.kind === 'gitea') {
+        if (source === 'env') return 'ShipWarden uses GITEA_TOKEN from the environment.';
+        return 'No token. Save a token, or set GITEA_TOKEN.';
+    }
     if (provider.kind === 'gitlab') {
         if (source === 'env') return 'ShipWarden uses GITLAB_TOKEN from the environment.';
         if (source === 'cli') return 'ShipWarden uses the glab CLI login (glab auth login).';
@@ -56,7 +61,8 @@ function tokenSourceText(provider: ReviewProviderInfo, source: ReviewTokenSource
 function providerMeta(provider: ReviewProviderInfo): string {
     const parts: string[] = [];
     if (provider.name !== providerKindName(provider.kind)) parts.push(providerKindName(provider.kind));
-    if (provider.kind === 'gitlab' && provider.baseUrl) parts.push(provider.baseUrl.replace(/^https?:\/\//, ''));
+    if ((provider.kind === 'gitlab' || provider.kind === 'gitea') && provider.baseUrl) parts.push(provider.baseUrl.replace(/^https?:\/\//, ''));
+    if (provider.kind === 'gitea' && !provider.baseUrl) parts.push('no server URL');
     parts.push(providerScopeSummary(provider.scope, provider.kind));
     if (provider.kind === 'bitbucket' && provider.username) parts.push(provider.username);
     if (provider.tokenSaved) parts.push('saved token');
@@ -97,7 +103,7 @@ export function CodeReviewSettings({ children }: { children?: ReactNode }) {
         <div className="task-managers">
             <SettingsGroup
                 title="Providers"
-                description="A worktree uses a provider of the kind of its remote. When two providers have the same kind, ShipWarden uses the provider whose organizations include the organization of the remote. A GitLab remote uses a provider of its server."
+                description="A worktree uses a provider of the kind of its remote. When two providers have the same kind, ShipWarden uses the provider whose organizations include the organization of the remote. A GitLab, Gitea, or Forgejo remote uses a provider of its server."
                 actions={
                     <div className="add-connection">
                         <Select<ReviewProviderKind | ''>
@@ -106,7 +112,11 @@ export function CodeReviewSettings({ children }: { children?: ReactNode }) {
                             options={[{ value: '', label: 'Add a provider…' }, ...REVIEW_PROVIDER_KINDS.map(item => ({ value: item.kind, label: item.name }))]}
                             onChange={setAdding}
                         />
-                        <Button icon={<Plus size={13} strokeWidth={1.8} />} disabled={!adding} onClick={add}>
+                        <Button
+                            icon={addMutation.isPending ? <LoaderCircle size={13} className="spin" /> : <Plus size={13} strokeWidth={1.8} />}
+                            disabled={!adding || addMutation.isPending}
+                            onClick={add}
+                        >
                             Add
                         </Button>
                     </div>
@@ -126,7 +136,7 @@ export function CodeReviewSettings({ children }: { children?: ReactNode }) {
                             onToggle={() => setOpenId(id => (id === provider.id ? undefined : provider.id))}
                         />
                     ))}
-                    {providers?.length === 0 && <p className="panel-note">No providers yet. Add GitHub, Azure DevOps, GitLab, or Bitbucket above.</p>}
+                    {providers?.length === 0 && <p className="panel-note">No providers yet. Add GitHub, Azure DevOps, GitLab, Bitbucket, or Gitea above.</p>}
                 </div>
             </SettingsGroup>
 
@@ -191,7 +201,9 @@ function ProviderCard({ provider, open, onToggle }: { provider: ReviewProviderIn
                         />
                     </Field>
                     {provider.kind === 'github' && <CliAccountField provider={provider} onChange={cliAccount => update({ cliAccount })} />}
-                    {provider.kind === 'gitlab' && <ServerUrlField provider={provider} onChange={baseUrl => update({ baseUrl })} />}
+                    {(provider.kind === 'gitlab' || provider.kind === 'gitea') && (
+                        <ServerUrlField provider={provider} onChange={baseUrl => update({ baseUrl })} />
+                    )}
                     {provider.kind === 'bitbucket' && <UsernameField provider={provider} onChange={username => update({ username })} />}
                     <TokenFields provider={provider} />
                     {provider.kind === 'github' ? (
@@ -241,7 +253,19 @@ function CliAccountField({ provider, onChange }: { provider: ReviewProviderInfo;
     );
 }
 
-/** The server of a GitLab provider. Empty means gitlab.com. */
+/** The help text of the server field of each kind that has a server. */
+const SERVER_URL_TEXT: Partial<Record<ReviewProviderKind, { placeholder: string; hint: string }>> = {
+    gitlab: {
+        placeholder: 'https://gitlab.com',
+        hint: 'The URL of your self-hosted GitLab server, for example https://git.example.com. Empty: gitlab.com. ShipWarden uses the CA certificates of Settings › Network.'
+    },
+    gitea: {
+        placeholder: 'https://git.example.com',
+        hint: 'The URL of your Gitea or Forgejo server, for example https://codeberg.org. When you add the provider, ShipWarden looks for the server in the remotes of your projects. ShipWarden uses the CA certificates of Settings › Network.'
+    }
+};
+
+/** The server of a GitLab provider (empty means gitlab.com), or of a Gitea or Forgejo provider. */
 function ServerUrlField({ provider, onChange }: { provider: ReviewProviderInfo; onChange(url: string | null): void }) {
     const [value, setValue] = useState(provider.baseUrl ?? '');
     useEffect(() => setValue(provider.baseUrl ?? ''), [provider.baseUrl]);
@@ -251,15 +275,11 @@ function ServerUrlField({ provider, onChange }: { provider: ReviewProviderInfo; 
     };
     const id = useId();
     return (
-        <Field
-            label="Server URL"
-            htmlFor={id}
-            hint="The URL of your self-hosted GitLab server, for example https://git.example.com. Empty: gitlab.com. ShipWarden uses the CA certificates of Settings › Network."
-        >
+        <Field label="Server URL" htmlFor={id} hint={(SERVER_URL_TEXT[provider.kind] ?? SERVER_URL_TEXT.gitlab!).hint}>
             <Input
                 id={id}
                 value={value}
-                placeholder="https://gitlab.com"
+                placeholder={(SERVER_URL_TEXT[provider.kind] ?? SERVER_URL_TEXT.gitlab!).placeholder}
                 spellCheck={false}
                 onChange={event => setValue(event.target.value)}
                 onBlur={save}
@@ -470,6 +490,11 @@ const NAME_SCOPE_TEXT: Partial<Record<ReviewProviderKind, { label: string; place
         placeholder: 'All workspaces',
         hint: 'The slugs of the workspaces, with a comma between them. For example "acme" for bitbucket.org/acme. Empty: the workspaces of your account (at most 10). An access token needs its workspace here.'
     },
+    gitea: {
+        label: 'Owners',
+        placeholder: 'All owners',
+        hint: 'The names of the organizations and users, with a comma between them. For example "acme" for git.example.com/acme. Empty: all repositories that you can access.'
+    },
     gitlab: {
         label: 'Groups',
         placeholder: 'All groups',
@@ -477,7 +502,7 @@ const NAME_SCOPE_TEXT: Partial<Record<ReviewProviderKind, { label: string; place
     }
 };
 
-/** The Azure DevOps organizations, the GitLab groups, or the Bitbucket workspaces of a provider, as a list of names. Empty means all of them. */
+/** The Azure DevOps organizations, the GitLab groups, the Bitbucket workspaces, or the Gitea owners of a provider, as a list of names. Empty means all of them. */
 function NameScope({ provider, onChange }: { provider: ReviewProviderInfo; onChange(scope: string[] | null): void }) {
     const labels = NAME_SCOPE_TEXT[provider.kind] ?? NAME_SCOPE_TEXT.azure!;
     const text = (provider.scope ?? []).join(', ');

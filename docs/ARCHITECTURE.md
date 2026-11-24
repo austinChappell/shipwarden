@@ -1470,6 +1470,66 @@ Next:
   requests on the Dashboard (Bitbucket has no list of them across repositories), the Add to PR button of the
   screenshots (no API for images in comments), and a stored "viewed" state.
 
+#### Gitea and Forgejo
+
+- `GiteaService` (`main/gitea/`) implements `SourceHost` for one Gitea or Forgejo server (REST API v1). Forgejo has the
+  same API as Gitea, so one provider kind (`gitea`) serves both. A provider has a `baseUrl` and no default server. Its
+  scope is a list of owners (organizations or users).
+- References: the owner of a Gitea `RepoRef` is "server host/owner" (for example `git.example.com:3000/acme`), and
+  `host` is `gitea`. Repository IDs start with `gitea:`. Pull request and thread IDs hold the server, the owner, the
+  repository, the pull request, and the first comment (`encodeGiteaId`). The web addresses use https, so the main
+  process uses `html_url` of the API for a server on http or in a subfolder.
+- Remotes (`parseGiteaRemote`): the SSH, SCP-like, and HTTPS forms, as for GitLab, with exactly `{owner}/{repo}`.
+  Only the servers of the providers match. Routing selects the providers of the server, then the provider by the owner.
+- Server detection: `ReviewProviders.add('gitea')` reads the `origin` remotes of the project repositories. A remote of
+  no known host gives a possible server (`remoteServerGuess`). ShipWarden asks each one for `/api/v1/version` without a
+  token, at most 5 servers for 3 seconds. The first that answers becomes the `baseUrl`.
+- Token (`GiteaClient`): the saved token, else `GITEA_TOKEN`, in the `Authorization: token` header. It uses the global
+  fetch after `networkReady`, so the trusted certificates of Settings › Network apply. `all` reads pages of 50 items
+  (`limit` and `page`) and stops at a short page or at a page without a `rel="next"` link.
+- Mapping (`main/gitea/gitea-mapping.ts`):
+  - Reviews: the newest approval or request for changes of each user gives the review decision. Dismissed reviews do
+    not count. Pending reviews and review requests are not reviews. The review buttons are Comment, Request changes,
+    and Approve.
+  - Threads: the line comments come from `GET .../pulls/{index}/reviews/{id}/comments`, one request for each review
+    with comments (at most 30). The server keeps a conversation as the comments on the same file, side, and line, so
+    ShipWarden groups them the same way. `position` is the line on the new side, and `original_position` is the line on
+    the old side. A thread is resolved when a comment has a `resolver`. The API does not tell whether a comment is
+    outdated.
+  - A reply uses `POST .../pulls/{index}/comments/{id}/replies`. A server without it (404 or 405) gets a review with
+    one comment on the line of the thread. Resolve is `POST .../pulls/comments/{id}/resolve` or `unresolve`. A server
+    without it gives an error that tells the user to resolve on the web page.
+  - Merge state: the API gives only `mergeable`. It is false for a conflict and also while the server checks the pull
+    request, so false is "CONFLICTING". The draft state is the `draft` field, or the "WIP:" or "[WIP]" prefix of the
+    title on older servers. A change of the draft state changes the prefix.
+  - Merge sends `Do` (merge, squash, or rebase) and `head_commit_id`. The allowed methods come from
+    `allow_merge_commits`, `allow_squash_merge`, and `allow_rebase`, and the default from `default_merge_style`. A
+    change of the base is `PATCH base`. So the stack actions (Merge stack, Rebase stack) work.
+  - Files come from the `.diff` of the pull request (`splitUnifiedDiff`). A binary file gets its status from its
+    "new file mode" or "deleted file mode" line.
+- Actions (the first answer stays for each repository, `actionsApi`):
+  - "runs": the newer API (`/actions/runs`, `/actions/runs/{run}/jobs`, `/actions/jobs/{id}`, and
+    `/actions/jobs/{id}/logs`). Checks are the jobs of the newest run of each workflow on the commit, with logs and
+    steps. The commit statuses of other CI services are checks too. The statuses that Gitea Actions adds for its jobs
+    stay out. Run again, run the failed jobs again, cancel, and run one job again use
+    `/actions/runs/{run}/rerun`, `/rerun-failed-jobs`, `/cancel`, and `/jobs/{job}/rerun`. A server without one of these
+    gives an error that tells the user to use the web page.
+  - "tasks": the older API (`/actions/tasks`). A task is one job of a run. The Pipelines view groups the tasks into runs
+    by their run number. Checks are the commit statuses, without logs.
+  - "none": no runs. Checks are the commit statuses.
+  - The lists (the review queue and the worktree list) get their CI state from one request for the newest 50 runs.
+  - Workflows come from the repository contents: `.forgejo/workflows` on Forgejo, then `.gitea/workflows`, then
+    `.github/workflows`. The first folder with YAML files wins, as on the server. A workflow with a
+    `workflow_dispatch` trigger can start by hand (`POST /actions/workflows/{file}/dispatches`). When a server refuses
+    the dispatch with 404 or 405, the workflows of the repository are not dispatchable for the rest of the session.
+- Dashboard: `/repos/issues/search?type=pulls&review_requested=true` gives the review requests, and `created=true` gives
+  the pull requests of the user. Each pull request of the user needs one more request for its merge state (at most 20).
+- Screenshots: the images become attachments of the pull request (`POST .../issues/{index}/assets`), and one comment
+  links to them.
+- Not available for Gitea and Forgejo: reactions (one request for each comment), auto-merge (the API does not show a
+  scheduled merge), pipeline approvals, "#" references in the comment box, comments on more than one line (they go on
+  the last line), the review decision in the lists, and a stored "viewed" state.
+
 #### Review view
 
 - The sidebar item "Review" (below "Tasks") opens a main view for the pull requests of any repository, not only local ones.

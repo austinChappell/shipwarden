@@ -1,0 +1,61 @@
+[
+    {
+        "id": 101,
+        "user": { "id": 31, "login": "sam" },
+        "team": null,
+        "state": "REQUEST_CHANGES",
+        "body": "Please add a test.",
+        "commit_id": "2222222222222222222222222222222222222222",
+        "stale": false,
+        "official": true,
+        "dismissed": false,
+        "comments_count": 2,
+        "submitted_at": "2026-11-19T10:00:00Z",
+        "updated_at": "2026-11-19T10:00:00Z",
+        "html_url": "https://git.example.com/acme/api/pulls/7#issuecomment-101",
+        "pull_request_url": "https://git.example.com/acme/api/pulls/7"
+    },
+    {
+        "id": 102,
+        "user": { "id": 21, "login": "dana" },
+        "team": null,
+        "state": "COMMENT",
+        "body": "",
+        "commit_id": "2222222222222222222222222222222222222222",
+        "stale": false,
+        "official": false,
+        "dismissed": false,
+        "comments_count": 1,
+        "submitted_at": "2026-11-19T11:00:00Z",
+        "html_url": "https://git.example.com/acme/api/pulls/7#issuecomment-102"
+    },
+    {
+        "id": 103,
+        "user": { "id": 31, "login": "sam" },
+        "state": "APPROVED",
+        "body": "Looks good now.",
+        "commit_id": "2222222222222222222222222222222222222222",
+        "stale": false,
+        "official": true,
+        "dismissed": false,
+        "comments_count": 0,
+        "submitted_at": "2026-11-20T09:00:00Z",
+        "html_url": "https://git.example.com/acme/api/pulls/7#issuecomment-103"
+    },
+    {
+        "id": 104,
+        "user": { "id": 30, "login": "viewer" },
+        "state": "PENDING",
+        "body": "",
+        "comments_count": 1,
+        "submitted_at": "2026-11-20T09:30:00Z"
+    },
+    {
+        "id": 105,
+        "user": { "id": 32, "login": "kim" },
+        "state": "REQUEST_REVIEW",
+        "body": "",
+        "comments_count": 0,
+        "submitted_at": "2026-11-18T09:05:00Z"
+    }
+]
