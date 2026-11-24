@@ -499,6 +499,21 @@ export class PlanRunner {
 
     /** True while `restackMerged` runs. A second call in that time does nothing. */
     private restacking = false;
+    /** The plans with a stack action that runs (see `stack-actions.ts`). `restackMerged` does not change them meanwhile. */
+    private readonly held = new Set<string>();
+
+    /**
+     * Stops the automatic restack of a plan while a stack action runs. The stack action changes the same branches and
+     * pull requests. `release` ends the hold and restacks the merged pull requests of the plan.
+     */
+    hold(planId: string): void {
+        this.held.add(planId);
+    }
+
+    async release(planId: string): Promise<void> {
+        this.held.delete(planId);
+        await this.restackMerged();
+    }
 
     /**
      * Finds the pull requests of stacked plans that merged, from the cached pull request data, and restacks the steps
@@ -509,7 +524,7 @@ export class PlanRunner {
         this.restacking = true;
         try {
             for (const plan of runnablePlans()) {
-                if (plan.noStack || plan.status === 'draft') continue;
+                if (plan.noStack || plan.status === 'draft' || this.held.has(plan.id)) continue;
                 for (const step of plan.steps) {
                     if (!step.pr || !step.branch || step.mergedAt) continue;
                     const merged = mergedHeadOf(step);

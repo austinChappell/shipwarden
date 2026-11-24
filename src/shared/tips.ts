@@ -63,6 +63,12 @@ export const NOTICE_TIPS: readonly Tip[] = [
         body: 'A plan stacks its steps: each pull request targets the branch of the step before it. When one merges, ShipWarden rebases the next branch with "git rebase --onto" and changes its base. This works after a squash merge too.'
     },
     {
+        id: 'stackActions',
+        title: 'Rebase or merge a whole stack',
+        body: 'The PR group of a stacked plan has "Rebase stack" and "Merge stack". Rebase stack rebases each branch onto its parent and pushes it. Merge stack merges the ready pull requests from the bottom up. Both stop at the first problem.',
+        action: { kind: 'view', view: 'review', label: 'Open Review' }
+    },
+    {
         id: 'automations',
         title: 'Let automations do the routine work',
         body: 'An automation is a rule of the form "when this occurs, do that". For example, when CI fails, it sends the log to the agent of the worktree. Start from a template.',

@@ -55,6 +55,41 @@ The review can take a few minutes. You can leave the page while it works.
 - A pull request with new commits since the last review shows "Changed". Select "Review with agent" again to review the
   new commits.
 
+## Stack actions
+
+The group of a plan that stacks its steps has a "Stack" card with two actions. The card shows when the plan has open
+pull requests and "Stack the steps" is on. The actions are not available while the plan runs. Each action shows a
+dialog with the pull requests in the order of the run. Each row of the list shows the progress, and the top of the page
+shows the result.
+
+"Rebase stack" rebases each branch onto its parent, the bottom first:
+
+1. The bottom branch moves onto its base branch, for example `main`. Each other branch moves onto the branch of its
+   parent. ShipWarden fetches origin first and uses `git rebase --onto`, so only the commits of the branch move.
+2. ShipWarden pushes each rebased branch with `--force-with-lease`. A branch that is up to date gets no push.
+3. A pull request that still targets a merged branch gets the base of the merged pull request.
+
+The rebase stops at the first problem:
+
+- A conflict. The rebase stays in progress in the worktree of that branch, and the result names the branch. Resolve the
+  conflict in the Changes tab, or select "Send to agent". Then push the branch and select "Rebase stack" again. The
+  branches below it are rebased and pushed. The branches above it do not change.
+- A branch without a worktree on this Mac, a worktree with uncommitted changes, or an agent that is working in the
+  worktree. Nothing changes in that worktree.
+
+"Merge stack" merges the pull requests from the bottom up. It uses the review provider of each repository, and the
+merge method of the repository, as the merge button does. For each pull request, ShipWarden:
+
+1. Loads the pull request again.
+2. When the pull request below it merged, changes its base to the base of the merged pull request. The host can do this
+   already when it deletes the merged branch.
+3. Merges it when it is ready. It does not wait for checks.
+
+The merge stops at the first pull request that is not ready, for example with checks that run or fail, a missing
+approval, a conflict, or a draft. It also stops above a squash merge or a rebase merge. The branch above still has the
+old commits of the merged branch. Select "Rebase stack", wait for the checks, then select "Merge stack" again. A
+repository that needs the GitHub merge queue cannot use "Merge stack". Merge each pull request from its page.
+
 ## Prompt the agents
 
 "Prompt the agents" on the page of the group sends one prompt to the agents of more than one pull request. Use it for a

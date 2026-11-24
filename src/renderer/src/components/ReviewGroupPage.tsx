@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Bot, ClipboardList, GripVertical, Layers, LoaderCircle, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Bot, ClipboardList, GitMerge, GitPullRequestArrow, GripVertical, Layers, LoaderCircle, Trash2, X } from 'lucide-react';
 import { repoLabel, type RepoRef } from '@shared/github';
 import { formatAgo, pluralize } from '@shared/format';
 import { stackLabels } from '@shared/plan-group-order';
@@ -18,16 +18,28 @@ import {
 import { errorText } from '../util';
 import { updatePlan, usePlans } from '../plans/plan-queries';
 import { moveGroupPullRequest } from '../plans/plan-group';
+import {
+    dismissStackRun,
+    mergeStackBlocker,
+    planStack,
+    runMergeStack,
+    runRebaseStack,
+    sendStackConflict,
+    useStackRun,
+    type StackRun
+} from '../plans/stack-actions';
+import type { StackItemState } from '@shared/stack-actions';
+import type { Plan } from '@shared/plans';
 import { pullRequestQuery } from '../github/review-store';
 import { useDefaultReviewStrictness } from '../github/review-strictness';
 import { promptGroupAgents } from '../github/pr-group-agents';
 import { cancelGroupReview, dismissGroupError, removeGroup, runGroupReview, updateGroup, useGroup, useGroupRun } from '../github/pr-group-store';
-import { confirmDialog } from './ConfirmDialog';
+import { alertDialog, confirmDialog } from './ConfirmDialog';
 import { EmptyState } from './EmptyState';
 import { PromptAgentsCard, type PromptTarget } from './PromptAgentsCard';
 import { Markdown } from './Markdown';
 import { StateBadge } from './PullRequestParts';
-import { Button, Card, CardBody, CardHeader, Chip, Field, IconButton, Input, PageHeader, SplitButton, TextArea } from './ui';
+import { Button, Card, CardBody, CardFooter, CardHeader, Chip, type ChipTone, Field, IconButton, Input, PageHeader, SplitButton, TextArea } from './ui';
 import { STRICTNESS_MENU_TITLE, strictnessMenuItems, strictnessTitle } from './review-strictness-menu';
 import { useReorder } from './use-reorder';
 
@@ -124,6 +136,7 @@ export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest, onOpenPlan
                             </Button>
                         </div>
                     )}
+                    <StackStatus groupId={group.id} />
                     {run.status === 'error' && (
                         <div className="agent-review-status error review-group-status" role="alert">
                             <span className="agent-review-error">The group review failed: {run.error}</span>
@@ -138,6 +151,7 @@ export function ReviewGroupPage({ groupId, onBack, onOpenPullRequest, onOpenPlan
                             {group.lastReview && <LastReview group={group} />}
                         </div>
                         <aside className="flow-side">
+                            <StackCard group={group} />
                             <GroupDetails group={group} onOpenPlan={onOpenPlan} />
                         </aside>
                     </div>
@@ -237,7 +251,8 @@ function PullRequestList({ group, onOpen }: { group: PrGroup; onOpen(repo: RepoR
     const planRuns = !!plan && (plan.status === 'running' || plan.steps.some(step => step.status === 'running'));
     const keys = group.pullRequests.map(prKey);
     const bases = useMemo(() => (plan ? stackLabels(plan) : undefined), [plan]);
-    const reorder = useReorder(keys, (key, to) => void moveGroupPullRequest(group.id, key, to), keys.length > 1 && !planRuns);
+    const stackRun = useStackRun(group.id);
+    const reorder = useReorder(keys, (key, to) => void moveGroupPullRequest(group.id, key, to), keys.length > 1 && !planRuns && stackRun.status !== 'running');
     const orderNote = !plan
         ? 'Drag a pull request to change the order.'
         : planRuns
@@ -263,6 +278,7 @@ function PullRequestList({ group, onOpen }: { group: PrGroup; onOpen(repo: RepoR
                                 group={group}
                                 pr={pr}
                                 stackLabel={bases?.get(key.toLowerCase())}
+                                stackItem={stackRun.status === 'idle' ? undefined : stackRun.items[key]}
                                 dropClass={reorder.dropClass(key)}
                                 dragProps={reorder.itemProps(key)}
                                 reorderHint={reorder.hint}
@@ -308,6 +324,8 @@ interface GroupRowProps {
     pr: GroupPullRequest;
     /** Where the pull request of a plan merges, for example "Stacks on #41". Undefined for a group without a plan. */
     stackLabel?: string;
+    /** The state of the pull request in the last stack action. */
+    stackItem?: StackItemState;
     /** The class that shows the drop line, from `useReorder`. */
     dropClass: string;
     /** The drag and drop handlers of the row, from `useReorder`. */
@@ -324,7 +342,7 @@ interface GroupRowProps {
  * One pull request of the group: its state, its title, the result of the last group review, and the button that
  * removes it. Drag the row to change its place.
  */
-function GroupRow({ group, pr, stackLabel, dropClass, dragProps, reorderHint, onMoveByKey, onOpen, onRemove }: GroupRowProps) {
+function GroupRow({ group, pr, stackLabel, stackItem, dropClass, dragProps, reorderHint, onMoveByKey, onOpen, onRemove }: GroupRowProps) {
     const query = useQuery(pullRequestQuery(pr.repo, pr.number));
     const data = query.data;
     const key = prKey(pr);
@@ -345,6 +363,7 @@ function GroupRow({ group, pr, stackLabel, dropClass, dragProps, reorderHint, on
                 <span className="review-group-title">{data?.title ?? pr.title ?? (query.isError ? 'Could not load the pull request' : 'Loading…')}</span>
             </button>
             <span className="review-group-meta">
+                {stackItem && <StackItemChip item={stackItem} />}
                 {stackLabel && data?.state === 'OPEN' && <span className="review-group-base">{stackLabel}</span>}
                 {data && <StateBadge pr={data} />}
                 {changed && (
@@ -408,5 +427,129 @@ function LastReview({ group }: { group: PrGroup }) {
                 </p>
             </CardBody>
         </Card>
+    );
+}
+
+const STACK_TONES: Record<StackItemState['status'], ChipTone> = { working: 'pending', done: 'success', skipped: 'neutral', stopped: 'danger' };
+
+/** The state of a pull request in the last stack action, next to its state. */
+function StackItemChip({ item }: { item: StackItemState }) {
+    return (
+        <Chip tone={STACK_TONES[item.status]} title={item.text}>
+            {item.status === 'working' && <LoaderCircle size={11} className="spin" />}
+            {item.status === 'stopped' ? 'Stopped' : item.text}
+        </Chip>
+    );
+}
+
+/** The plan of the group when it stacks its pull requests. Stack actions are only for these groups. */
+function useStackedPlan(group: PrGroup): Plan | undefined {
+    const { plans } = usePlans();
+    const plan = group.planId ? plans.find(item => item.id === group.planId) : undefined;
+    return plan && !plan.noStack ? plan : undefined;
+}
+
+/**
+ * "Rebase stack" and "Merge stack" for the group of a plan that stacks its pull requests. Each action asks first and
+ * shows its progress in the list of pull requests.
+ */
+function StackCard({ group }: { group: PrGroup }) {
+    const plan = useStackedPlan(group);
+    const run = useStackRun(group.id);
+    // The rows load the same queries. This adds no request.
+    const loaded = useQueries({ queries: group.pullRequests.map(pr => pullRequestQuery(pr.repo, pr.number)) });
+    if (!plan) return null;
+    const entries = planStack(plan);
+    if (entries.length === 0) return null;
+    const planRuns = plan.status === 'running' || plan.steps.some(step => step.status === 'running');
+    const busy = run.status === 'running';
+    const waitReason = planRuns ? `You can use the stack actions when the plan "${plan.title}" stops running.` : undefined;
+    const keys = new Set(entries.map(entry => entry.key));
+    const mergeReason = group.pullRequests.map((pr, index) => (keys.has(prKey(pr)) ? mergeStackBlocker(loaded[index]?.data) : undefined)).find(Boolean);
+    const rebaseReason = entries.some(entry => entry.worktreePath) ? undefined : 'No branch of the stack has a worktree on this Mac.';
+    const start = (action: (groupId: string, planId: string) => Promise<void>) => () => {
+        action(group.id, plan.id).catch(error => void alertDialog('The stack action did not start.', errorText(error)));
+    };
+    return (
+        <Card as="section">
+            <CardHeader
+                title="Stack"
+                count={entries.length}
+                description="Rebase stack: rebase each branch onto its parent and push it. Merge stack: merge the ready pull requests from the bottom up."
+            />
+            <CardFooter>
+                <Button
+                    size="sm"
+                    icon={<GitPullRequestArrow size={14} />}
+                    disabled={busy || !!waitReason || !!rebaseReason}
+                    title={waitReason ?? rebaseReason ?? 'Rebase each branch onto its parent, the bottom first, and push it with --force-with-lease.'}
+                    onClick={start(runRebaseStack)}
+                >
+                    Rebase stack
+                </Button>
+                <Button
+                    size="sm"
+                    icon={<GitMerge size={14} />}
+                    disabled={busy || !!waitReason || !!mergeReason}
+                    title={
+                        waitReason ??
+                        mergeReason ??
+                        'Merge the ready pull requests from the bottom up. The merge stops at the first pull request that is not ready.'
+                    }
+                    onClick={start(runMergeStack)}
+                >
+                    Merge stack
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+/** The progress and the result of the last stack action of the group. */
+function StackStatus({ groupId }: { groupId: string }) {
+    const run = useStackRun(groupId);
+    if (run.status === 'idle') return null;
+    const name = run.kind === 'rebase' ? 'Rebase stack' : 'Merge stack';
+    if (run.status === 'running') {
+        return (
+            <div className="agent-review-status running review-group-status" role="status">
+                <LoaderCircle size={13} className="spin" />
+                <span>{run.kind === 'rebase' ? 'Rebasing the stack. Each row shows its progress.' : 'Merging the stack. Each row shows its progress.'}</span>
+            </div>
+        );
+    }
+    return <StackResult groupId={groupId} name={name} run={run} />;
+}
+
+function StackResult({ groupId, name, run }: { groupId: string; name: string; run: StackRun }) {
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState<string>();
+    const result = run.result;
+    if (!result) return null;
+    const stopped = result.status === 'stopped';
+    const send = async () => {
+        setSending(true);
+        setError(undefined);
+        try {
+            await sendStackConflict(groupId);
+        } catch (err) {
+            setError(errorText(err));
+        } finally {
+            setSending(false);
+        }
+    };
+    return (
+        <div className={`agent-review-status review-group-status${stopped ? ' error' : ''}`} role={stopped ? 'alert' : 'status'}>
+            <span className={stopped ? 'agent-review-error' : undefined}>
+                {name}: {result.text}
+                {error && ` The agent did not get the conflict: ${error}`}
+            </span>
+            {run.conflict && (
+                <Button variant="link" disabled={sending} onClick={() => void send()}>
+                    Send to agent
+                </Button>
+            )}
+            <IconButton size="sm" icon={<X size={14} />} label="Hide the result" onClick={() => dismissStackRun(groupId)} />
+        </div>
     );
 }

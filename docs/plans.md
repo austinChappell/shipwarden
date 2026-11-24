@@ -113,6 +113,10 @@ first push, so the new pull request contains only the commits of the step.
 The PR group of the plan shows the pull requests in the order of the stack. Each open pull request shows where it
 merges, for example "Stacks on #41" or "Into main", next to its state.
 
+The PR group also has "Rebase stack" and "Merge stack". "Rebase stack" rebases each branch onto its parent and pushes
+it with `--force-with-lease`. "Merge stack" merges the ready pull requests from the bottom up. See
+[Stack actions](pr-groups.md#stack-actions).
+
 ## Add a pull request
 
 You can add a pull request to a plan that ran. The pull request becomes a done step at the end of the plan, and the PR

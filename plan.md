@@ -396,6 +396,14 @@ Actions runs.
 
 ### 5.3 Stack actions
 
+**Status:** Done in branch `5.3-stack-actions`. The "Stack" card of a plan PR group has "Rebase stack" and "Merge
+stack". Rebase stack rebases each branch onto its parent, the bottom first, and pushes with `--force-with-lease`. It
+stops at the first conflict and keeps that rebase in progress, so the user or the agent ("Send to agent") resolves it.
+Merge stack merges the ready pull requests from the bottom up with the merge method of each repository, changes the
+base of the next pull request after each merge, and stops at the first pull request that is not ready. It does not wait
+for checks, and it stops above a squash or rebase merge until the next branch is rebased. Repositories with the GitHub
+merge queue cannot use it. Unit tests cover the order and the stops with fake git and host calls. Not tested live.
+
 Add "Rebase stack" and "Merge stack" to a plan PR group. Reuse the restack code of plans
 (`src/main/plans/plan-store.ts`).
 

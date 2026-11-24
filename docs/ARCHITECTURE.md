@@ -1336,6 +1336,11 @@ Next:
   review text of its pull request, the same as a review of one pull request.
 - The group keeps only the summary, the head commits, and the counts of the last review (`lastReview`). A head commit
   that is different now shows the pull request as changed.
+- Stack actions: the group of a plan that stacks its steps has "Rebase stack" and "Merge stack". `shared/stack-actions.ts`
+  has the order and the stops (`stackEntries`, `rebaseStack`, and `mergeStack`). It gets the git calls and the host calls
+  as arguments, so the tests use fakes. `renderer/src/plans/stack-actions.ts` gives it `api.git`, the review provider of
+  each repository (through `api.github`), and the cache, and keeps the progress of each group. While a stack action
+  runs, `planRunner.hold` stops the automatic restack of the plan. `release` then restacks the merged pull requests.
 
 #### Azure DevOps (Azure Repos)
 
