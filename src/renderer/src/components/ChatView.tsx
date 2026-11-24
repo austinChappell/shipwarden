@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type
 import { ArrowUp, CircleAlert, CircleCheck, LoaderCircle, MessagesSquare, Square, SquareTerminal, X } from 'lucide-react';
 import { CHAT_AGENT_NAMES, type ChatItem, type ChatToolItem, chatFormatOf } from '@shared/agent-chat';
 import { isImageOnlyPaste } from '@shared/shortcuts';
+import { insertDictatedText } from '@shared/dictation';
 import type { TerminalSession } from '@shared/terminal';
 import { bracketedPaste, countImageMarks, showsAgentDialog } from '@shared/agent-text';
 import { errorText, formatDuration } from '../util';
@@ -13,6 +14,8 @@ import { cx } from './ui/cx';
 import { Button, IconButton } from './ui';
 import { EmptyState } from './EmptyState';
 import { Markdown } from './Markdown';
+import { DictationBar, DictationButton } from '../dictation/Dictation';
+import { dictationStore } from '../dictation/dictation-store';
 
 const api = window.shipwarden;
 
@@ -221,6 +224,25 @@ export function ChatView({ session, focused = true }: Props) {
         if (focused && !waiting) inputRef.current?.focus();
     }, [focused, waiting]);
 
+    // The final text of a dictation goes to the cursor of the text field. A disabled field also takes it, so the text
+    // does not go to the terminal while the agent waits for an answer there.
+    useEffect(
+        () =>
+            dictationStore.registerInput(session.id, text => {
+                const input = inputRef.current;
+                if (!input) return false;
+                const next = insertDictatedText(input.value, input.selectionStart, input.selectionEnd, text);
+                setDraft(next.value);
+                requestAnimationFrame(() => {
+                    if (input.disabled) return;
+                    input.focus();
+                    input.setSelectionRange(next.cursor, next.cursor);
+                });
+                return true;
+            }),
+        [session.id]
+    );
+
     // The text field grows with its text, up to the maximum height in the CSS.
     // biome-ignore lint/correctness/useExhaustiveDependencies: The height depends on the text.
     useLayoutEffect(() => {
@@ -292,7 +314,7 @@ export function ChatView({ session, focused = true }: Props) {
     const done = (state === 'idle' || state === 'done') && !pending ? doneText(transcript.items, session.agentStateAt) : undefined;
 
     return (
-        <div className="chat-view">
+        <div className="chat-view" data-dictation-session={session.id}>
             {findBar}
             <div
                 className="chat-list"
@@ -381,6 +403,7 @@ export function ChatView({ session, focused = true }: Props) {
                     <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close the message" onClick={() => setSendError(undefined)} />
                 </div>
             )}
+            <DictationBar sessionId={session.id} />
             <form
                 className="chat-composer"
                 onSubmit={event => {
@@ -433,6 +456,7 @@ export function ChatView({ session, focused = true }: Props) {
                         onClick={() => agentViewStore.set(session.id, 'terminal')}
                     />
                     {working && <IconButton icon={<Square size={12} strokeWidth={2} />} label="Stop the agent (Escape in the terminal)" onClick={stop} />}
+                    <DictationButton sessionId={session.id} />
                     <IconButton
                         type="submit"
                         variant="outline"

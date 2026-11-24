@@ -1080,6 +1080,84 @@ details.chat-tool[open] > .chat-tool-summary {
     gap: 2px;
 }
 
+/* The dictation of an agent tab: "Listening" and the text until now, above the chat field or at the bottom of the
+   terminal. */
+.dictation-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: calc(100% - 48px);
+    max-width: 772px;
+    margin: 0 auto 8px;
+    padding: 6px 6px 6px 12px;
+    border: 1px solid color-mix(in srgb, var(--pending) 40%, var(--border));
+    border-radius: var(--card-radius);
+    background: color-mix(in srgb, var(--pending) 8%, var(--panel));
+    color: var(--text-strong);
+    font-size: 12.5px;
+}
+
+.dictation-bar.floating {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    z-index: 3;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    box-shadow: 0 10px 30px var(--shadow);
+}
+
+.dictation-bar.error {
+    border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+    background: color-mix(in srgb, var(--danger) 8%, var(--panel));
+}
+
+.dictation-bar-icon {
+    flex: none;
+    color: var(--danger);
+}
+
+.dictation-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--pending);
+}
+
+.dictation-dot.listening {
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
+.dictation-bar-state {
+    flex: none;
+    font-weight: 600;
+}
+
+.dictation-bar-text {
+    flex: 1;
+    min-width: 0;
+}
+
+/* The partial text shows on one line. The newest words are at the end, so the bar cuts the start of a long text. */
+.dictation-bar-text.partial {
+    display: flex;
+    justify-content: flex-end;
+    overflow: hidden;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.dictation-bar-text.partial > span {
+    flex: none;
+}
+
+.dictation-button.listening {
+    color: var(--pending);
+}
+
 .terminal-host {
     position: absolute;
     inset: 8px 0 0 10px;

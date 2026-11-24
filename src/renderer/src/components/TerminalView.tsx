@@ -10,6 +10,7 @@ import { FindBar } from './FindBar';
 import { isFindKey } from './log-find';
 import { Button } from './ui';
 import { PromptPicker } from '../prompts/PromptPicker';
+import { DictationBar, DictationButton } from '../dictation/Dictation';
 
 interface Props {
     session: TerminalSession;
@@ -180,6 +181,7 @@ export function TerminalView({ session, settings, focused = true, onShowChat }: 
                 ref={containerRef}
                 style={{ background: settings.colors.background }}
                 data-own-find=""
+                data-dictation-session={session.isAgent && !session.exited ? session.id : undefined}
                 onKeyDownCapture={onKeyDownCapture}
             />
             {find.open && (
@@ -205,9 +207,15 @@ export function TerminalView({ session, settings, focused = true, onShowChat }: 
                     />
                 </div>
             )}
+            {session.isAgent && !session.exited && <DictationBar sessionId={session.id} floating />}
             {((session.isAgent && !session.exited) || onShowChat) && (
                 <div className="terminal-tools">
-                    {session.isAgent && !session.exited && <PromptPicker sessionId={session.id} />}
+                    {session.isAgent && !session.exited && (
+                        <>
+                            <DictationButton sessionId={session.id} variant="outline" />
+                            <PromptPicker sessionId={session.id} />
+                        </>
+                    )}
                     {onShowChat && (
                         <Button className="terminal-chat-toggle" size="sm" icon={<MessagesSquare size={13} strokeWidth={1.8} />} onClick={onShowChat}>
                             Chat

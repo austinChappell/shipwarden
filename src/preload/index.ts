@@ -18,6 +18,7 @@ import type { CreateWorktreeProgress } from '@shared/worktrees';
 import type { PinnedSession } from '@shared/pinned-sessions';
 import type { ScreenshotProgress } from '@shared/screenshots';
 import type { KeybindingsState } from '@shared/keybindings';
+import type { DictationUpdate } from '@shared/dictation';
 
 function subscribe<Args extends unknown[]>(channel: string, listener: (...args: Args) => void): () => void {
     const handler = (_event: IpcRendererEvent, ...args: unknown[]) => listener(...(args as Args));
@@ -291,6 +292,12 @@ const api: ShipWardenApi = {
         remove: id => ipcRenderer.invoke(IpcChannels.promptsRemove, id),
         reveal: id => ipcRenderer.send(IpcChannels.promptsReveal, id),
         onChanged: listener => subscribe<[]>(IpcChannels.promptsChanged, listener)
+    },
+    dictation: {
+        start: id => ipcRenderer.send(IpcChannels.dictationStart, id),
+        stop: id => ipcRenderer.send(IpcChannels.dictationStop, id),
+        cancel: id => ipcRenderer.send(IpcChannels.dictationCancel, id),
+        onUpdate: listener => subscribe<[DictationUpdate]>(IpcChannels.dictationUpdate, listener)
     },
     keybindings: {
         get: () => ipcRenderer.invoke(IpcChannels.keybindingsGet),

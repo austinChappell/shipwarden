@@ -28,6 +28,7 @@ import { EngineLock, EngineLockKeeper, engineLockPath } from './automations/engi
 import { pendingRemoteRuns } from '@shared/automation-engine';
 import { PromptStore } from './prompts/prompt-store';
 import { KeybindingStore } from './keybindings/keybinding-store';
+import { DICTATION_HELPER_NAME, DictationService } from './dictation/dictation-service';
 import { KEYBINDINGS_FILE_NAME } from '@shared/keybindings';
 import { PlanStore } from './plans/plan-store';
 import { Coordinators } from './coordinator/coordinators';
@@ -355,6 +356,13 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const keybindings = new KeybindingStore(
         separateDataFolder ? join(userData, KEYBINDINGS_FILE_NAME) : join(os.homedir(), '.shipwarden', KEYBINDINGS_FILE_NAME)
     );
+    /** The dictation helper is in Contents/Resources/native of the app. In development, "npm run build:dictation" builds it. */
+    const dictation = new DictationService({
+        helperPath: app.isPackaged
+            ? join(process.resourcesPath, 'native', DICTATION_HELPER_NAME)
+            : join(app.getAppPath(), 'native', 'build', DICTATION_HELPER_NAME),
+        packaged: app.isPackaged
+    });
     const ptyHostLog = join(userData, 'pty-host.log');
 
     /**
@@ -812,6 +820,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         engineOwnership,
         prompts,
         keybindings,
+        dictation,
         ptyHostLog,
         terminalSizes,
         remote,

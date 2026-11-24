@@ -15,6 +15,7 @@ import { registerNotesIpc } from './notes';
 import { registerPlanIpc } from './plans';
 import { registerPromptIpc } from './prompts';
 import { registerKeybindingIpc } from './keybindings';
+import { registerDictationIpc } from './dictation';
 import { registerPrGroupIpc } from './pr-groups';
 import { registerCompareIpc } from './compare';
 import { registerPinIpc } from './pins';
@@ -49,6 +50,7 @@ export function registerIpc(services: Services, runAppKey: (action: AppKeyAction
     registerAutomationIpc(services);
     registerPromptIpc(services);
     registerKeybindingIpc(services);
+    registerDictationIpc(services);
     registerPlanIpc(services);
     registerPrGroupIpc(services);
     registerCompareIpc(services);

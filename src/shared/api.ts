@@ -76,6 +76,7 @@ import type { ElementPick } from './element-pick';
 import type { Automation, AutomationList, AutomationRun, AutomationRunState, HttpMethod, TokenCount } from './automations';
 import type { PromptTemplate, PromptTemplateList } from './prompt-templates';
 import type { KeybindingChange, KeybindingsState } from './keybindings';
+import type { DictationUpdate } from './dictation';
 import type { HttpResponse } from './automation-templates';
 import type { Plan, PlanExploreRequest, PlanExploreResult } from './plans';
 import type { GroupReviewAnswer, GroupReviewRequest, PrGroup } from './pr-groups';
@@ -637,6 +638,19 @@ export interface ShipWardenApi {
         /** Called when a file in the prompts folder changes, also from another app. */
         onChanged(listener: () => void): () => void;
     };
+    dictation: {
+        /**
+         * Starts a dictation with the speech recognition of macOS, on this Mac only. The page makes the ID. A running
+         * dictation stops without a text. `onUpdate` gets the states of the dictation, also the errors.
+         */
+        start(id: string): void;
+        /** Stops the recording. The dictation then sends its final text. */
+        stop(id: string): void;
+        /** Stops the dictation without a text. */
+        cancel(id: string): void;
+        /** Called with each change of a dictation of this window. */
+        onUpdate(listener: (update: DictationUpdate) => void): () => void;
+    };
     keybindings: {
         /** The keybindings of the user in ~/.shipwarden/keybindings.json, and the entries that ShipWarden ignored. */
         get(): Promise<KeybindingsState>;
@@ -1087,6 +1101,10 @@ export const IpcChannels = {
     promptsRemove: 'prompts:remove',
     promptsReveal: 'prompts:reveal',
     promptsChanged: 'prompts:changed',
+    dictationStart: 'dictation:start',
+    dictationStop: 'dictation:stop',
+    dictationCancel: 'dictation:cancel',
+    dictationUpdate: 'dictation:update',
     keybindingsGet: 'keybindings:get',
     keybindingsUpdate: 'keybindings:update',
     keybindingsResetAll: 'keybindings:resetAll',

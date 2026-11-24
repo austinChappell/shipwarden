@@ -435,6 +435,15 @@ current keys in `src/shared/shortcuts.ts` stay as the defaults.
 Add a dictation key in the agent prompt and the chat view. Use the macOS speech recognition, so no audio leaves the
 Mac.
 
+**Status:** Done in branch `5.5-voice-input`. A Swift helper (`native/dictation`) uses `SFSpeechRecognizer` with
+`requiresOnDeviceRecognition` and `AVAudioEngine`, and writes JSON lines. A language without recognition on the Mac
+shows an error, with no fallback to a server. electron-builder builds the helper with `swiftc` before it packs the app
+and ships it in `Contents/Resources/native`. The chat field and the agent terminal have a microphone button, and the
+remappable key ⌥⌘L (`dictation`) starts and stops the dictation. The bar shows "Listening" and the partial text. The
+final text goes to the cursor of the chat field, or to the agent terminal as a bracketed paste without Enter. Unit
+tests cover the line parser, the session states with a fake helper, the service, and the page store. CI runs
+`swiftc -typecheck`. Not tested live: the permission dialogs, the signed app, and the recognition itself.
+
 ### 5.6 Document attachments
 
 Let the chat view take PDF, Word, and spreadsheet files. Convert them to text or images before they go to the agent.

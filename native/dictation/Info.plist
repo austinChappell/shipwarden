@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The Info.plist of the dictation helper. The build puts it in the __TEXT,__info_plist section of the binary.
+     macOS stops a process that asks for the microphone or for speech recognition without these texts. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>dev.shipwarden.app.dictation</string>
+  <key>CFBundleName</key>
+  <string>ShipWarden Dictation</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>ShipWarden uses the microphone for dictation in the agent prompt and the chat. The audio stays on this Mac.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>ShipWarden uses the speech recognition of macOS on this Mac to change your dictation into text. The audio stays on this Mac.</string>
+</dict>
+</plist>

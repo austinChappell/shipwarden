@@ -8,5 +8,8 @@
   <true/>
   <key>com.apple.security.cs.disable-library-validation</key>
   <true/>
+  <!-- The hardened runtime blocks the microphone without this entitlement. The dictation helper needs it. -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
 </dict>
 </plist>
