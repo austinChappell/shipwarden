@@ -1885,6 +1885,20 @@ code {
     flex: none;
 }
 
+/* Local work that the pull request does not include: a warning, not an error. */
+.pr-local-work {
+    border-color: color-mix(in srgb, var(--warning) 55%, transparent);
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.pr-local-work > svg {
+    color: var(--warning);
+}
+
+.pr-create .pr-local-work {
+    margin: 0 0 12px;
+}
+
 .pr-section {
     padding: 10px 0;
     border-bottom: 1px solid var(--border);
@@ -10662,6 +10676,13 @@ body.resizing-column * {
 .changes-fetch-error {
     margin: 8px 10px 0;
     color: var(--muted);
+    font-size: 11px;
+}
+
+/* The upstream branch is not on the remote. Push makes it again. */
+.changes-upstream-gone {
+    margin: 8px 10px 0;
+    color: var(--warning);
     font-size: 11px;
 }
 
