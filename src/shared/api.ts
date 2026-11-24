@@ -77,6 +77,7 @@ import type { Automation, AutomationList, AutomationRun, AutomationRunState, Htt
 import type { PromptTemplate, PromptTemplateList } from './prompt-templates';
 import type { KeybindingChange, KeybindingsState } from './keybindings';
 import type { DictationUpdate } from './dictation';
+import type { DocumentConversion } from './documents';
 import type { HttpResponse } from './automation-templates';
 import type { Plan, PlanExploreRequest, PlanExploreResult } from './plans';
 import type { GroupReviewAnswer, GroupReviewRequest, PrGroup } from './pr-groups';
@@ -651,6 +652,17 @@ export interface ShipWardenApi {
         /** Called with each change of a dictation of this window. */
         onUpdate(listener: (update: DictationUpdate) => void): () => void;
     };
+    documents: {
+        /** Shows an open dialog for documents and images. Returns the chosen paths, or an empty list. */
+        choose(): Promise<string[]>;
+        /**
+         * Converts a PDF, Word, or spreadsheet file for the chat view. A document with text becomes a text file, and the
+         * agent gets its path. A PDF without text becomes page images.
+         */
+        convert(path: string): Promise<DocumentConversion>;
+        /** Reads an image file for the chat view as a data URL. */
+        readImage(path: string): Promise<string>;
+    };
     keybindings: {
         /** The keybindings of the user in ~/.shipwarden/keybindings.json, and the entries that ShipWarden ignored. */
         get(): Promise<KeybindingsState>;
@@ -1105,6 +1117,9 @@ export const IpcChannels = {
     dictationStop: 'dictation:stop',
     dictationCancel: 'dictation:cancel',
     dictationUpdate: 'dictation:update',
+    documentsChoose: 'documents:choose',
+    documentsConvert: 'documents:convert',
+    documentsReadImage: 'documents:readImage',
     keybindingsGet: 'keybindings:get',
     keybindingsUpdate: 'keybindings:update',
     keybindingsResetAll: 'keybindings:resetAll',

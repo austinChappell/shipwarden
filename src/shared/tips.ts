@@ -24,6 +24,11 @@ export interface Tip {
 /** The tips of the corner notice. The notice shows one tip at random (see `pickTip`). */
 export const NOTICE_TIPS: readonly Tip[] = [
     {
+        id: 'documentAttachments',
+        title: 'Attach documents in the chat',
+        body: 'Drop a PDF, Word, or Excel file on the chat view, or click the paperclip in the chat field. ShipWarden converts the file to text on your Mac, and the agent reads the text file.'
+    },
+    {
         id: 'dictation',
         title: 'Dictate a prompt',
         body: 'Click the microphone in the chat field or on an agent terminal, or press ⌥⌘L. ShipWarden uses the speech recognition of macOS on your Mac, so no audio leaves the Mac. Press ⌥⌘L again to insert the text.',

@@ -265,6 +265,7 @@ ShipWarden checks for updates a few seconds after it starts, and then every 4 ho
 | Folder | Contents |
 |---|---|
 | `~/Library/Application Support/ShipWarden/` | Projects, settings, providers, task managers, saved tokens (encrypted), and the terminal host log `pty-host.log` |
+| `~/Library/Application Support/ShipWarden/attachments/` | The text files of the documents in the chat view. ShipWarden removes them after 7 days |
 | `~/.shipwarden/worktrees` | The worktrees. You can change this folder in **Settings › Worktrees**. |
 | `~/.shipwarden/automations` | The automations |
 | `~/.shipwarden/notes` | Your notes |

@@ -299,6 +299,11 @@ const api: ShipWardenApi = {
         cancel: id => ipcRenderer.send(IpcChannels.dictationCancel, id),
         onUpdate: listener => subscribe<[DictationUpdate]>(IpcChannels.dictationUpdate, listener)
     },
+    documents: {
+        choose: () => ipcRenderer.invoke(IpcChannels.documentsChoose),
+        convert: path => ipcRenderer.invoke(IpcChannels.documentsConvert, path),
+        readImage: path => ipcRenderer.invoke(IpcChannels.documentsReadImage, path)
+    },
     keybindings: {
         get: () => ipcRenderer.invoke(IpcChannels.keybindingsGet),
         update: changes => ipcRenderer.invoke(IpcChannels.keybindingsUpdate, changes),
