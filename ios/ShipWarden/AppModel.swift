@@ -115,6 +115,7 @@ final class AppModel {
         pendingLink = nil
         snapshot = demo.snapshot
         agents = demo.agents
+        pendingRuns = demo.pendingRuns
         connection = .connected
     }
 
@@ -122,6 +123,7 @@ final class AppModel {
         demo = nil
         snapshot = nil
         agents = []
+        pendingRuns = []
         connection = .disconnected
         start()
     }
@@ -293,7 +295,12 @@ final class AppModel {
 
     /// Approves (`approve` true) or skips an automation run. The run goes out of the list.
     func answer(_ run: RemoteAutomationRun, approve: Bool) async throws {
-        guard demo == nil else { return }
+        if let demo {
+            demo.answer(runId: run.id, approve: approve)
+            pendingRuns = demo.pendingRuns
+            agents = demo.agents
+            return
+        }
         guard let client else { throw APIError.noHost }
         try await client.answerRun(id: run.id, approve: approve)
         pendingRuns.removeAll { $0.id == run.id }
@@ -301,14 +308,21 @@ final class AppModel {
 
     /// The choices of the start screen: the repositories, the agents, and the tasks.
     func startOptions() async throws -> RemoteStartOptions {
-        guard demo == nil else { throw APIError.server(400, "The demo cannot start agents. Pair with your Mac to start agents.") }
+        if let demo { return demo.startOptions }
         guard let client else { throw APIError.noHost }
         return try await client.startOptions()
     }
 
     /// Starts an agent in a new worktree. The agent and the worktree go into the lists at once, without a new load.
     func startAgent(_ request: RemoteStartRequest) async throws -> RemoteAgent {
-        guard demo == nil else { throw APIError.server(400, "The demo cannot start agents. Pair with your Mac to start agents.") }
+        if let demo {
+            // The Mac needs a few seconds to make a worktree. The demo waits a short time, so that the screen looks the same.
+            try await Task.sleep(nanoseconds: 1_500_000_000)
+            let result = demo.start(request)
+            agents = demo.agents
+            snapshot = demo.snapshot
+            return result.agent
+        }
         guard let client else { throw APIError.noHost }
         let result = try await client.startAgent(request)
         add(result)

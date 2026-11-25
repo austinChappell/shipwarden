@@ -232,10 +232,25 @@ describe('labels and text', () => {
         expect(taskLabel({ title: 'Fix it' })).toBe('Fix it');
     });
 
-    it('picks the last repository when the project still has it, else the first', () => {
-        expect(targetRepo(['/a', '/b'], '/b')).toBe('/b');
-        expect(targetRepo(['/a', '/b'], '/gone')).toBe('/a');
-        expect(targetRepo([], '')).toBeUndefined();
+    it('picks the chosen repository, else the only repository, else none', () => {
+        const groups = [
+            { name: 'One', repos: ['/a', '/b'] },
+            { name: 'Two', repos: ['/c'] }
+        ];
+        expect(targetRepo(groups, '/b')).toBe('/b');
+        expect(targetRepo(groups, '/c')).toBe('/c');
+        expect(targetRepo(groups, undefined)).toBeUndefined();
+        expect(targetRepo(groups, '/gone')).toBeUndefined();
+        expect(
+            targetRepo(
+                [
+                    { name: 'One', repos: ['/a'] },
+                    { name: 'Two', repos: [] }
+                ],
+                undefined
+            )
+        ).toBe('/a');
+        expect(targetRepo([], undefined)).toBeUndefined();
     });
 
     it('names the required settings that a connection needs', () => {

@@ -15,6 +15,11 @@ export interface GitChanges {
     branch?: string;
     /** The upstream branch, for example "origin/main". */
     upstream?: string;
+    /**
+     * True when the branch has an upstream but the remote has no copy of it, for example after a merge deleted the
+     * remote branch. The check uses the remote-tracking branch of the last fetch. `ahead` and `behind` are then 0.
+     */
+    upstreamGone?: boolean;
     /** The commits that the upstream does not have. */
     ahead: number;
     /** The commits of the upstream that the branch does not have. */
@@ -118,6 +123,8 @@ const KINDS: Record<string, ChangeKind> = { M: 'modified', A: 'added', D: 'delet
  */
 export function parseStatus(output: string): GitChanges {
     const result: GitChanges = { ahead: 0, behind: 0, unborn: false, staged: [], unstaged: [], conflicted: [] };
+    // Git writes "branch.ab" only when the commit of the upstream branch is present.
+    let counted = false;
     const fields = output.split('\0');
     for (let index = 0; index < fields.length; index += 1) {
         const field = fields[index];
@@ -130,6 +137,7 @@ export function parseStatus(output: string): GitChanges {
         } else if (field.startsWith('# branch.upstream ')) {
             result.upstream = field.slice('# branch.upstream '.length);
         } else if (field.startsWith('# branch.ab ')) {
+            counted = true;
             const match = /\+(\d+) -(\d+)/.exec(field);
             if (match) {
                 result.ahead = Number(match[1]);
@@ -149,6 +157,7 @@ export function parseStatus(output: string): GitChanges {
             result.unstaged.push({ path: field.slice(2), kind: 'untracked' });
         }
     }
+    if (result.upstream && !counted) result.upstreamGone = true;
     const byPath = (a: FileChange, b: FileChange) => a.path.localeCompare(b.path);
     result.staged.sort(byPath);
     result.unstaged.sort(byPath);
@@ -170,7 +179,7 @@ export function changePathError(path: string): string | undefined {
 }
 
 /** The number of files with a change, for a badge. A file that is staged and also changed again counts one time. */
-export function changeCount(changes: GitChanges): number {
+export function changeCount(changes: Pick<GitChanges, 'staged' | 'unstaged' | 'conflicted'>): number {
     return new Set([...changes.staged, ...changes.unstaged, ...changes.conflicted].map(change => change.path)).size;
 }
 

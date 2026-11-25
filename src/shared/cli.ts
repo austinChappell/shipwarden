@@ -14,6 +14,30 @@ export const CLI_PROTOCOL = 1;
 /** The name of the command in a shell, and of the link that Settings › Agents adds. */
 export const CLI_NAME = 'shipwarden';
 
+/** The short name of the command that a new installation adds next to `shipwarden`. */
+export const DEFAULT_CLI_ALIAS = 'sw';
+
+/** The second name of the command (Settings › Agents). When it is on, the link of the alias goes to the same launcher. */
+export interface CliAliasSettings {
+    enabled: boolean;
+    /** The name of the alias, for example "sw". */
+    name: string;
+}
+
+export const DEFAULT_CLI_ALIAS_SETTINGS: CliAliasSettings = { enabled: true, name: DEFAULT_CLI_ALIAS };
+
+/** True when the name is a valid alias: 1 to 32 letters, digits, ".", "_", or "-", and not "shipwarden". */
+export function isValidCliAlias(name: string): boolean {
+    return /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/.test(name) && name !== CLI_NAME;
+}
+
+/** Converts a stored value to valid alias settings. A wrong value gets the default. */
+export function normalizeCliAlias(raw: unknown): CliAliasSettings {
+    const value = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const name = typeof value.name === 'string' ? value.name.trim() : '';
+    return { enabled: value.enabled !== false, name: isValidCliAlias(name) ? name : DEFAULT_CLI_ALIAS };
+}
+
 /** The name of the file that tells the CLI the socket path and the token. The file has mode 0600. */
 export const CLI_CONFIG_NAME = 'cli.json';
 
@@ -149,6 +173,10 @@ export interface CliPageResult {
 export interface CliInstallState {
     /** The path of the link, when it exists and goes to the launcher of this app. */
     installed?: string;
+    /** The path of the alias link, when it exists next to the `shipwarden` link and goes to the launcher of this app. */
+    alias?: string;
+    /** The path of a file with the name of the alias that is not a link of ShipWarden. ShipWarden does not replace it. */
+    aliasConflict?: string;
     /** The launcher script in the app. */
     launcher: string;
     /** True when the folder of the link is in the PATH of the login shell. */

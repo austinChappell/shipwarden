@@ -21,6 +21,18 @@ export function promptText(raw: string): string | undefined {
     return text;
 }
 
+/**
+ * Returns the text of a prompt that the user sent while the agent worked. Claude Code writes such a prompt as an
+ * attachment of the type "queued_command". Returns undefined for other attachments and for entries of subagents.
+ */
+function queuedPrompt(entry: Record<string, unknown>): string | undefined {
+    if (entry.isSidechain === true) return undefined;
+    const attachment = (entry.attachment ?? {}) as Record<string, unknown>;
+    if (attachment.type !== 'queued_command' || typeof attachment.prompt !== 'string') return undefined;
+    if (attachment.commandMode !== undefined && attachment.commandMode !== 'prompt') return undefined;
+    return promptText(attachment.prompt);
+}
+
 /** The image types that the chat shows. */
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
@@ -48,15 +60,21 @@ function toolDetail(input: Record<string, unknown>): string | undefined {
  * - The function ignores lines that are not JSON, entries of subagents (sidechain), and messages that Claude Code adds
  *   for itself (meta messages, command output, and reminders).
  * - A tool result updates the status of its tool call.
+ * - A prompt that the user sent while the agent worked is a "queued_command" attachment. It shows as a user item.
  * - The ID of a user item is the entry UUID. The ID of an agent text is the entry UUID and the block index.
  */
 export function addClaudeLines(chat: ChatBuilder, lines: readonly string[]): void {
     for (const line of lines) {
-        if (!line.includes('"message"')) continue;
+        if (!line.includes('"message"') && !line.includes('"queued_command"')) continue;
         let entry: Record<string, unknown>;
         try {
             entry = JSON.parse(line);
         } catch {
+            continue;
+        }
+        if (entry.type === 'attachment') {
+            const text = queuedPrompt(entry);
+            if (text && entry.uuid) chat.push({ kind: 'user', id: String(entry.uuid), text, at: timeOf(entry) });
             continue;
         }
         if ((entry.type !== 'user' && entry.type !== 'assistant') || entry.isSidechain === true || entry.isMeta === true) continue;

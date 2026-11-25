@@ -842,11 +842,20 @@ export class GitChangesService {
         this.leases.delete(key);
     }
 
-    /** Pushes the branch. A branch without an upstream gets "origin" as its upstream. */
+    /**
+     * Pushes the branch. A branch without an upstream gets "origin" as its upstream. When the remote has no copy of
+     * the upstream branch, the push makes that branch again.
+     */
     async push(worktree: string): Promise<void> {
         const changes = await this.status(worktree);
         if (!changes.branch) throw new Error('The worktree has no branch (a detached HEAD). Make a branch first.');
-        const args = changes.upstream ? ['push'] : ['push', '-u', 'origin', changes.branch];
+        const args = !changes.upstream ? ['push', '-u', 'origin', changes.branch] : changes.upstreamGone ? goneUpstreamPush(changes.upstream) : ['push'];
         await run(worktree, args, { timeout: 180_000 });
     }
+}
+
+/** The arguments of a push that makes the upstream branch again on its remote, for example "origin/feature/x". */
+export function goneUpstreamPush(upstream: string): string[] {
+    const slash = upstream.indexOf('/');
+    return ['push', '-u', upstream.slice(0, slash), `HEAD:refs/heads/${upstream.slice(slash + 1)}`];
 }

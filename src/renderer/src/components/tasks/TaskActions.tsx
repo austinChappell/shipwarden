@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { GitBranch, GitCompareArrows, Link2, ListPlus, Play, Unlink } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { AutomationButtons } from '../../automations/AutomationButtons';
-import { Button, Select } from '../ui';
-import { targetRepo as pickTargetRepo } from './task-view-logic';
+import { Button, Combobox } from '../ui';
+import { targetRepo as pickTargetRepo, type RepoGroup } from './task-view-logic';
 import { CompareAgentsDialog } from '../compare/CompareAgentsDialog';
 import { RelatedLinks } from '../RelatedLinks';
 import type { CompareProps } from '../compare/CompareRuns';
@@ -16,11 +16,11 @@ interface Props {
     busy: boolean;
     /** The worktree of the task, if a worktree works on it. */
     worktree: string | undefined;
-    /** The repositories of the project. "Start in worktree" makes the worktree in one of them. */
-    repos: string[];
-    /** The repository that "Start in worktree" used last in this project. */
-    startRepo: string;
-    chooseStartRepo(repo: string): void;
+    /**
+     * The repositories of all projects, in the order of the sidebar. "Start in worktree" makes the worktree in one of them.
+     * The user must select the repository for each task. When all projects have one repository, the buttons use it.
+     */
+    repoGroups: RepoGroup[];
     repoLabel(repo: string): string;
     onOpenWorktree(path: string): void;
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
@@ -44,9 +44,7 @@ export function TaskActions({
     source,
     busy,
     worktree,
-    repos,
-    startRepo,
-    chooseStartRepo,
+    repoGroups,
     repoLabel,
     onOpenWorktree,
     onStartTask,
@@ -59,8 +57,11 @@ export function TaskActions({
     const [comparing, setComparing] = useState(false);
     const { state: queue } = useTaskQueue();
     const queued = openItemOfTask(queue, source.connectionId, task.id);
-    /** The repository for "Start in worktree": the last one in this project, else the first. */
-    const targetRepo = pickTargetRepo(repos, startRepo);
+    // The choice is for this task only. TaskDetails makes a new TaskActions for each task.
+    const [chosenRepo, setChosenRepo] = useState<string>();
+    const targetRepo = pickTargetRepo(repoGroups, chosenRepo);
+    const repoCount = repoGroups.reduce((count, group) => count + group.repos.length, 0);
+    const noRepoText = repoCount === 0 ? 'Add a repository to the project first' : 'Select a repository first';
     return (
         <div className="task-start">
             {worktree ? (
@@ -83,9 +84,7 @@ export function TaskActions({
                         variant="primary"
                         icon={<Play size={14} strokeWidth={1.8} />}
                         disabled={busy || !targetRepo || !source}
-                        title={
-                            targetRepo ? `Make a worktree in ${repoLabel(targetRepo)} and start an agent on the task` : 'Add a repository to the project first'
-                        }
+                        title={targetRepo ? `Make a worktree in ${repoLabel(targetRepo)} and start an agent on the task` : noRepoText}
                         onClick={() => source && targetRepo && act(() => onStartTask(task, source.connectionId, source.pluginId, targetRepo))}
                     >
                         Start in worktree
@@ -93,7 +92,12 @@ export function TaskActions({
                     <Button
                         icon={<ListPlus size={14} strokeWidth={1.8} />}
                         disabled={busy || !targetRepo || !source || !!queued}
-                        title={queueButtonTitle(queued && queuePosition(queue, queued.id), !!queued, targetRepo ? repoLabel(targetRepo) : undefined)}
+                        title={queueButtonTitle(
+                            queued && queuePosition(queue, queued.id),
+                            !!queued,
+                            targetRepo ? repoLabel(targetRepo) : undefined,
+                            noRepoText
+                        )}
                         onClick={() =>
                             source &&
                             targetRepo &&
@@ -108,18 +112,23 @@ export function TaskActions({
                         <Button
                             icon={<GitCompareArrows size={14} strokeWidth={1.8} />}
                             disabled={busy || !targetRepo || !source}
-                            title="Give the task to 2 to 4 agents, each in its own worktree, and keep the best result"
+                            title={targetRepo ? 'Give the task to 2 to 4 agents, each in its own worktree, and keep the best result' : noRepoText}
                             onClick={() => setComparing(true)}
                         >
                             Compare agents
                         </Button>
                     )}
-                    {repos.length > 1 && (
-                        <Select
+                    {repoCount > 1 && (
+                        <Combobox
                             value={targetRepo}
                             title="The repository of the new worktree"
-                            options={repos.map(repo => ({ value: repo, label: repoLabel(repo) }))}
-                            onChange={chooseStartRepo}
+                            aria-label="Repository of the new worktree"
+                            placeholder="Select a repository"
+                            searchPlaceholder="Search repositories"
+                            groups={repoGroups
+                                .filter(group => group.repos.length > 0)
+                                .map(group => ({ label: group.name, items: group.repos.map(repo => ({ value: repo, label: repoLabel(repo) })) }))}
+                            onChange={setChosenRepo}
                         />
                     )}
                     <Button
@@ -165,9 +174,9 @@ export function TaskActions({
 }
 
 /** The tooltip of "Add to queue". `position` is the place of a queued task, from 1. A task that starts or runs has none. */
-function queueButtonTitle(position: number | undefined, inQueue: boolean, repo: string | undefined): string {
+function queueButtonTitle(position: number | undefined, inQueue: boolean, repo: string | undefined, noRepoText: string): string {
     if (position) return `The task is number ${position} in the queue`;
     if (inQueue) return 'An agent of the queue works on the task now';
-    if (!repo) return 'Add a repository to the project first';
+    if (!repo) return noRepoText;
     return `Start the task later, when the queue has a free place. The worktree goes in ${repo}.`;
 }

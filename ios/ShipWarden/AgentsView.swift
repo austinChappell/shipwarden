@@ -61,15 +61,13 @@ struct AgentsView: View {
         }
         .refreshable { await model.refresh() }
         .toolbar {
-            if model.demo == nil {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showStart = true
-                    } label: {
-                        Label("Start an agent", systemImage: "plus")
-                    }
-                    .disabled(model.connection != .connected)
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showStart = true
+                } label: {
+                    Label("Start an agent", systemImage: "plus")
                 }
+                .disabled(model.connection != .connected)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

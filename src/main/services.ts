@@ -775,6 +775,10 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const cliInstaller = new CliInstaller({
         launcher: app.isPackaged ? join(process.resourcesPath, 'bin', CLI_NAME) : join(app.getAppPath(), 'bin', CLI_NAME),
         home: os.homedir(),
+        alias: async () => {
+            const { cliAlias } = await settings.get();
+            return cliAlias.enabled ? cliAlias.name : undefined;
+        },
         path: async () => {
             await shellReady;
             return process.env.PATH ?? '';
