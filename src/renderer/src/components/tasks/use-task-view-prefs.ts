@@ -4,7 +4,6 @@ import {
     isGroupCollapsed,
     parseCollapseState,
     parseViewMode,
-    startRepoKey,
     toggleCollapse,
     VIEW_STORAGE_KEY,
     type CollapseState,
@@ -29,15 +28,12 @@ function writeStorage(key: string, value: string): void {
 }
 
 /**
- * The choices of the user that stay after a restart: the view mode, the collapsed groups of each plugin,
- * and the repository for "Start in worktree" in each project.
+ * The choices of the user that stay after a restart: the view mode and the collapsed groups of each plugin.
  */
-export function useTaskViewPrefs(projectId: string, pluginId: string | undefined) {
+export function useTaskViewPrefs(pluginId: string | undefined) {
     /** The list (grouped) or the board (a column for each status). */
     const [viewMode, setViewMode] = useState<ViewMode>(() => parseViewMode(readStorage(VIEW_STORAGE_KEY)));
     const [collapsed, setCollapsed] = useState<CollapseState>({});
-    /** The repository for "Start in worktree", when the project has several. */
-    const [startRepo, setStartRepo] = useState<string>(() => readStorage(startRepoKey(projectId)) ?? '');
 
     useEffect(() => {
         setCollapsed(pluginId ? parseCollapseState(readStorage(collapseStorageKey(pluginId))) : {});
@@ -58,10 +54,5 @@ export function useTaskViewPrefs(projectId: string, pluginId: string | undefined
         writeStorage(collapseStorageKey(pluginId), JSON.stringify(next));
     };
 
-    const chooseStartRepo = (repo: string) => {
-        setStartRepo(repo);
-        writeStorage(startRepoKey(projectId), repo);
-    };
-
-    return { viewMode, changeViewMode, isCollapsed, toggleGroup, startRepo, chooseStartRepo };
+    return { viewMode, changeViewMode, isCollapsed, toggleGroup };
 }

@@ -1,13 +1,26 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { ArrowUp, CircleAlert, CircleCheck, LoaderCircle, MessagesSquare, Square, SquareTerminal, X } from 'lucide-react';
 import { CHAT_AGENT_NAMES, type ChatItem, type ChatToolItem, chatFormatOf } from '@shared/agent-chat';
 import { isImageOnlyPaste } from '@shared/shortcuts';
 import type { TerminalSession } from '@shared/terminal';
-import { bracketedPaste, countImageMarks, showsAgentDialog } from '@shared/agent-text';
-import { errorText, formatDuration } from '../util';
+import { showsAgentDialog } from '@shared/agent-text';
+import { formatDuration } from '../util';
 import { screenTextOf } from '../app/use-agent-actions';
 import { agentViewStore } from '../terminal/agent-view-store';
 import { useTranscript } from '../terminal/transcript-store';
+import {
+    addChatImage,
+    clearChatError,
+    queueChatPrompt,
+    removeChatImage,
+    removeQueuedPrompt,
+    sendChatPrompt,
+    sendQueue,
+    sendQueuedPromptNow,
+    setChatDraft,
+    settleSentPrompts,
+    useChatInput
+} from '../terminal/chat-input-store';
 import { useDomFind } from './dom-find';
 import { cx } from './ui/cx';
 import { Button, IconButton } from './ui';
@@ -15,34 +28,6 @@ import { EmptyState } from './EmptyState';
 import { Markdown } from './Markdown';
 
 const api = window.shipwarden;
-
-/** The time between the paste of a prompt and the Enter key. The agent must get the paste first. */
-const SUBMIT_DELAY_MS = 200;
-
-/** The maximum time that the agent can take to read an image from the clipboard and show its mark. */
-const IMAGE_READ_TIMEOUT_MS = 5000;
-
-/** How often the chat checks the screen for the mark of a new image. */
-const IMAGE_CHECK_MS = 150;
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-/**
- * Gives an image to the agent: the image goes on the clipboard, and Ctrl+V makes the agent read it. Returns when the
- * agent shows the mark of the image ("[Image #1]") in its prompt. Claude Code and Codex show the same mark. Throws an
- * error when the mark does not come. `agent` is the agent name for the error.
- */
-async function giveImage(sessionId: string, dataUrl: string, agent: string): Promise<void> {
-    const marks = async () => countImageMarks((await screenTextOf(sessionId)) ?? '');
-    const before = await marks();
-    await api.terminals.pasteImage(sessionId, dataUrl);
-    const deadline = Date.now() + IMAGE_READ_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-        await delay(IMAGE_CHECK_MS);
-        if ((await marks()) > before) return;
-    }
-    throw new Error(`${agent} did not take the image.`);
-}
 
 /** After this time in the state "starting", the chat tells the user that the terminal can show a problem. */
 const SLOW_START_MS = 20_000;
@@ -172,20 +157,16 @@ export function ChatView({ session, focused = true }: Props) {
     const [slowStart, setSlowStart] = useState(false);
     /** The agent waits for an answer that the chat cannot give: a permission, or a question at the start. */
     const waiting = state === 'waiting' || startQuestion;
-    /** The agent cannot take a prompt now. */
-    const blocked = waiting || starting;
-    const [pending, setPending] = useState<{ text: string; images: string[]; users: number }>();
+    /** The agent can take a prompt now. While it starts or works, a new prompt goes in the queue. */
+    const ready = !waiting && !starting && !working;
     /**
-     * The images that the user pasted for the next prompt, as data URLs. The agent gets them when the user sends the
-     * prompt, so the user can remove an image before that. The previews use data URLs, because the content security
-     * policy of the page blocks blob URLs.
+     * The prompt box: the text, the pasted images, the queue, and the sent prompts. The store keeps them when the
+     * chat closes. The previews use data URLs, because the content security policy of the page blocks blob URLs.
      */
-    const [images, setImages] = useState<string[]>([]);
-    /** True while the chat gives the prompt and its images to the agent. */
-    const [sending, setSending] = useState(false);
-    const [sendError, setSendError] = useState<string>();
-    const transcript = useTranscript(file, working || starting || waiting || !!pending, `${state}:${session.agentStateAt ?? 0}`);
-    const [draft, setDraft] = useState('');
+    const input = useChatInput(session.id);
+    const { draft, images, queue, sent, sending } = input;
+    const pending = sent.length > 0;
+    const transcript = useTranscript(file, working || starting || waiting || pending, `${state}:${session.agentStateAt ?? 0}`);
     const listRef = useRef<HTMLDivElement>(null);
     const findBar = useDomFind(listRef, 'Find in the chat');
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -204,18 +185,24 @@ export function ChatView({ session, focused = true }: Props) {
         return () => clearTimeout(timer);
     }, [starting]);
 
-    const userCount = transcript.items.filter(item => item.kind === 'user').length;
-    // The prompt shows as pending until the transcript has it.
+    // A sent prompt shows as pending until the transcript has a user prompt with its text.
+    const userTexts = useMemo(() => transcript.items.flatMap(item => (item.kind === 'user' ? [item.text] : [])), [transcript.items]);
     useEffect(() => {
-        if (pending && userCount > pending.users) setPending(undefined);
-    }, [pending, userCount]);
+        settleSentPrompts(session.id, userTexts);
+    }, [session.id, userTexts]);
+
+    // The queue sends its prompts when the agent ends its turn. The store does this too, but it can miss a state that
+    // the session had before the chat opened.
+    useEffect(() => {
+        if (ready && queue.length > 0 && !sending) void sendQueue(session.id, file);
+    }, [ready, queue.length, sending, session.id, file]);
 
     // The chat stays at the bottom while the user does not scroll up.
     // biome-ignore lint/correctness/useExhaustiveDependencies: A new item, a pending prompt, or a state change can make the list longer.
     useLayoutEffect(() => {
         const list = listRef.current;
         if (list && stick.current) list.scrollTop = list.scrollHeight;
-    }, [transcript.items, pending, state, session.agentMessage]);
+    }, [transcript.items, sent, state, session.agentMessage]);
 
     useEffect(() => {
         if (focused && !waiting) inputRef.current?.focus();
@@ -230,36 +217,15 @@ export function ChatView({ session, focused = true }: Props) {
         input.style.height = `${input.scrollHeight}px`;
     }, [draft]);
 
-    /** Gives the images to the agent one after the other, then the text, then Enter. */
-    const send = async () => {
-        const text = draft.trim();
-        if ((!text && images.length === 0) || blocked || sending) return;
-        const id = session.id;
-        const sent = images;
-        setSending(true);
-        setSendError(undefined);
-        setPending({ text, images: sent, users: userCount });
-        setImages([]);
-        setDraft('');
+    /**
+     * Sends the prompt of the box. While the agent starts or works, the prompt goes in the queue, and the queue sends
+     * it when the agent ends its turn.
+     */
+    const send = () => {
+        if ((!draft.trim() && images.length === 0) || waiting) return;
         stick.current = true;
-        try {
-            for (const image of sent) await giveImage(id, image, agentName);
-            if (text) {
-                api.terminals.write(id, bracketedPaste(text));
-                await delay(SUBMIT_DELAY_MS);
-            }
-            api.terminals.write(id, '\r');
-        } catch (err) {
-            // The prompt of the agent can have some of the images now. The terminal shows them.
-            setPending(undefined);
-            setImages(sent);
-            setDraft(current => current || text);
-            setSendError(
-                `${errorText(err)} The prompt did not go to the agent. The prompt in the terminal can have some of the images. Remove them there, or try again.`
-            );
-        } finally {
-            setSending(false);
-        }
+        if (ready && queue.length === 0 && !sending) void sendChatPrompt(session.id, agentName, file);
+        else queueChatPrompt(session.id, agentName);
     };
 
     /** A paste of only an image adds the image to the next prompt. A paste with text pastes the text in the field. */
@@ -271,7 +237,7 @@ export function ChatView({ session, focused = true }: Props) {
         if (!file) return;
         const reader = new FileReader();
         reader.onload = () => {
-            if (typeof reader.result === 'string') setImages(current => [...current, reader.result as string]);
+            if (typeof reader.result === 'string') addChatImage(session.id, reader.result);
         };
         reader.readAsDataURL(file);
     };
@@ -279,7 +245,7 @@ export function ChatView({ session, focused = true }: Props) {
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            void send();
+            send();
         }
     };
 
@@ -288,6 +254,7 @@ export function ChatView({ session, focused = true }: Props) {
 
     const groups = groupItems(transcript.items);
     const empty = !transcript.loading && transcript.items.length === 0 && !pending;
+    const sendError = input.error;
     // Codex stays "done" after a turn. Claude Code changes from "done" to "idle" after a time.
     const done = (state === 'idle' || state === 'done') && !pending ? doneText(transcript.items, session.agentStateAt) : undefined;
 
@@ -304,7 +271,7 @@ export function ChatView({ session, focused = true }: Props) {
             >
                 {empty && starting ? (
                     <EmptyState icon={LoaderCircle} title={`Starting ${agentName}`}>
-                        You can write a prompt now. You can send it when the agent is ready.
+                        You can write a prompt now. It goes to the agent when the agent is ready.
                     </EmptyState>
                 ) : empty ? (
                     <EmptyState icon={MessagesSquare} title="No messages yet">
@@ -329,11 +296,11 @@ export function ChatView({ session, focused = true }: Props) {
                                 <Markdown key={group.id} className="chat-agent" text={group.kind === 'agent' ? group.text : ''} />
                             )
                         )}
-                        {pending && (
-                            <div className="chat-user pending">
-                                <UserBubble text={pending.text} images={pending.images} />
+                        {sent.map(prompt => (
+                            <div className="chat-user pending" key={prompt.id}>
+                                <UserBubble text={prompt.text} images={prompt.images} />
                             </div>
-                        )}
+                        ))}
                         {done && (
                             <div className="chat-status done" role="status">
                                 <CircleCheck size={13} strokeWidth={2} className="chat-done-icon" aria-hidden="true" />
@@ -378,16 +345,38 @@ export function ChatView({ session, focused = true }: Props) {
                 <div className="chat-waiting error" role="alert">
                     <CircleAlert size={14} strokeWidth={1.8} className="chat-waiting-icon" />
                     <span className="chat-waiting-text">{sendError}</span>
-                    <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close the message" onClick={() => setSendError(undefined)} />
+                    <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close the message" onClick={() => clearChatError(session.id)} />
                 </div>
             )}
             <form
                 className="chat-composer"
                 onSubmit={event => {
                     event.preventDefault();
-                    void send();
+                    send();
                 }}
             >
+                {queue.length > 0 && (
+                    // biome-ignore lint/a11y/noRedundantRoles: Safari removes the list role when the list has no bullets.
+                    <ul className="chat-queue" role="list" aria-label="Queued prompts">
+                        {queue.map(prompt => (
+                            <li key={prompt.id} className="chat-queued">
+                                <span className="chat-queued-text">
+                                    {prompt.text || pluralImages(prompt.images.length)}
+                                    {prompt.text && prompt.images.length > 0 && ` · ${pluralImages(prompt.images.length)}`}
+                                </span>
+                                <Button size="sm" disabled={waiting} onClick={() => void sendQueuedPromptNow(session.id, prompt.id, file)}>
+                                    Send now
+                                </Button>
+                                <IconButton
+                                    size="sm"
+                                    icon={<X size={13} strokeWidth={1.8} />}
+                                    label="Remove the queued prompt"
+                                    onClick={() => removeQueuedPrompt(session.id, prompt.id)}
+                                />
+                            </li>
+                        ))}
+                    </ul>
+                )}
                 {images.length > 0 && (
                     <div className="chat-attachments">
                         {images.map((url, index) => (
@@ -400,7 +389,7 @@ export function ChatView({ session, focused = true }: Props) {
                                     title="Remove"
                                     aria-label={`Remove pasted attachment ${index + 1}`}
                                     disabled={sending}
-                                    onClick={() => setImages(current => current.filter((_, item) => item !== index))}
+                                    onClick={() => removeChatImage(session.id, index)}
                                 >
                                     <X size={11} strokeWidth={2.4} />
                                 </button>
@@ -417,12 +406,12 @@ export function ChatView({ session, focused = true }: Props) {
                     placeholder={
                         waiting
                             ? 'Answer the agent in the terminal first.'
-                            : starting
-                              ? `${agentName} is starting…`
+                            : starting || working
+                              ? 'Write a prompt. It waits in the queue until the agent is ready.'
                               : 'Write a prompt. Press Shift+Enter for a new line.'
                     }
                     aria-label="Prompt"
-                    onChange={event => setDraft(event.target.value)}
+                    onChange={event => setChatDraft(session.id, event.target.value)}
                     onKeyDown={onKeyDown}
                     onPaste={onPaste}
                 />
@@ -437,11 +426,15 @@ export function ChatView({ session, focused = true }: Props) {
                         type="submit"
                         variant="outline"
                         icon={<ArrowUp size={14} strokeWidth={2} />}
-                        label="Send"
-                        disabled={(!draft.trim() && images.length === 0) || blocked || sending}
+                        label={ready && queue.length === 0 ? 'Send' : 'Add to the queue'}
+                        disabled={(!draft.trim() && images.length === 0) || waiting}
                     />
                 </div>
             </form>
         </div>
     );
+}
+
+function pluralImages(count: number): string {
+    return count === 1 ? '1 image' : `${count} images`;
 }

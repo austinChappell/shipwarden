@@ -15,7 +15,7 @@ import {
     type TaskLink
 } from '@shared/tasks';
 import { moveListFocus } from '../keyboard/list-nav';
-import { missingSettingsText, noMatchText, taskLabel, taskListState, worktreeForTask } from './tasks/task-view-logic';
+import { missingSettingsText, noMatchText, taskLabel, taskListState, worktreeForTask, type RepoGroup } from './tasks/task-view-logic';
 import { useTaskSource } from './tasks/use-task-source';
 import { useTaskList } from './tasks/use-task-list';
 import { useTaskDetail } from './tasks/use-task-detail';
@@ -35,10 +35,8 @@ import { Button, SkeletonRows } from './ui';
 const NO_TASKS: Task[] = [];
 
 interface Props {
-    /** The ShipWarden project. The view uses it only for the repository of "Start in worktree". */
-    projectId: string;
-    /** The repositories of the project. "Start in worktree" makes the worktree in one of them. */
-    repos: string[];
+    /** The repositories of all projects, in the order of the sidebar. "Start in worktree" makes the worktree in one of them. */
+    repoGroups: RepoGroup[];
     /** The task of each worktree, by worktree path. */
     links: Record<string, TaskLink>;
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
@@ -65,8 +63,7 @@ interface Props {
 
 /** The tasks of the project's task managers, one collection at a time, with a dialog for the details of the selected task. */
 export function TasksView({
-    projectId,
-    repos,
+    repoGroups,
     links,
     onStartTask,
     onLinkWorktree,
@@ -98,7 +95,7 @@ export function TasksView({
         return task && connection ? { connectionId: connection, taskId: task, nonce: -1 } : undefined;
     });
     const openRequest = openTask ?? restore;
-    const prefs = useTaskViewPrefs(projectId, source?.pluginId);
+    const prefs = useTaskViewPrefs(source?.pluginId);
     const assigneeFilter = useAssigneeFilter({ source, collection, request });
     const assignee = assigneeFilter.filter;
     const labelFilter = useLabelFilter(connectionId);
@@ -201,9 +198,7 @@ export function TasksView({
             selectedId={selectedId}
             state={detailState}
             worktreeFor={worktreeFor}
-            repos={repos}
-            startRepo={prefs.startRepo}
-            chooseStartRepo={prefs.chooseStartRepo}
+            repoGroups={repoGroups}
             repoLabel={repoLabel}
             onOpenWorktree={onOpenWorktree}
             onStartTask={onStartTask}

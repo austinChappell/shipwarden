@@ -4,7 +4,7 @@ import { timeAgo } from '../../util';
 import { openLink } from '../../links';
 import { usePageLink } from '../../app/page-link';
 import { Button, IconButton, Select, SkeletonRows } from '../ui';
-import { editableParts, formatField } from './task-view-logic';
+import { editableParts, formatField, type RepoGroup } from './task-view-logic';
 import { FieldRow, StatusDot } from './TaskParts';
 import { TaskActions } from './TaskActions';
 import { AttachmentsSection, ChecklistsSection, CustomFieldsSection, DetailMetaRows, RelatedTasksSection } from './TaskDetailSections';
@@ -20,9 +20,7 @@ interface Props {
     /** The state and the actions of the selected task. */
     state: ReturnType<typeof useTaskDetail>;
     worktreeFor(task: Task): string | undefined;
-    repos: string[];
-    startRepo: string;
-    chooseStartRepo(repo: string): void;
+    repoGroups: RepoGroup[];
     repoLabel(repo: string): string;
     onOpenWorktree(path: string): void;
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
@@ -46,9 +44,7 @@ export function TaskDetails({
     selectedId,
     state,
     worktreeFor,
-    repos,
-    startRepo,
-    chooseStartRepo,
+    repoGroups,
     repoLabel,
     onOpenWorktree,
     onStartTask,
@@ -91,13 +87,12 @@ export function TaskDetails({
                     <TaskTitle key={detail.id} title={detail.title} editable={!!editable.title} busy={busy} onSave={state.saveTitle} />
 
                     <TaskActions
+                        key={detail.id}
                         task={detail}
                         source={source}
                         busy={busy}
                         worktree={worktreeFor(detail)}
-                        repos={repos}
-                        startRepo={startRepo}
-                        chooseStartRepo={chooseStartRepo}
+                        repoGroups={repoGroups}
                         repoLabel={repoLabel}
                         onOpenWorktree={onOpenWorktree}
                         onStartTask={onStartTask}

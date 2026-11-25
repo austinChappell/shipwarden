@@ -384,6 +384,7 @@ function GroupPromptAgents({ group }: { group: PrGroup }) {
         <PromptAgentsCard
             targets={targets}
             description="The agent in the worktree of each selected pull request gets the prompt and the list of the pull requests. A pull request without a worktree gets a new worktree."
+            draftKey={`group:${group.id}`}
             onSend={(keys, prompt, push) => promptGroupAgents(group, keys, prompt, push)}
         />
     );

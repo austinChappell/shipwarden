@@ -307,7 +307,8 @@ See [docs/mcp-server.md](docs/mcp-server.md) for the options that each agent get
 ### The shipwarden command
 
 Agents, scripts, and you can control ShipWarden from a terminal with the `shipwarden` command. Install it in Settings ›
-Agents › Command line. It adds a link in `/usr/local/bin` or `~/.local/bin`. ShipWarden must be open.
+Agents › Command line. It adds a link in `/usr/local/bin` or `~/.local/bin`. ShipWarden must be open. It also adds the
+short name `sw` by default. You can change the short name or turn it off in the same setting.
 
 ```sh
 shipwarden status

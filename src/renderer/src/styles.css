@@ -850,6 +850,35 @@ button {
 }
 
 /* The previews of the pasted images, at the top of the prompt field. */
+/* The queued prompts: a stack at the top of the prompt box. The queue sends them when the agent ends its turn. */
+.chat-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    margin: 0;
+    padding: 0 0 6px;
+    border-bottom: 1px solid var(--border);
+    list-style: none;
+}
+
+.chat-queued {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+}
+
+.chat-queued-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 .chat-attachments {
     display: flex;
     flex-wrap: wrap;
@@ -1883,6 +1912,20 @@ code {
 
 .pr-conflict-banner .button {
     flex: none;
+}
+
+/* Local work that the pull request does not include: a warning, not an error. */
+.pr-local-work {
+    border-color: color-mix(in srgb, var(--warning) 55%, transparent);
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.pr-local-work > svg {
+    color: var(--warning);
+}
+
+.pr-create .pr-local-work {
+    margin: 0 0 12px;
 }
 
 .pr-section {
@@ -5587,6 +5630,17 @@ button:focus-visible,
 
 .task-managers .add-connection {
     margin: 0;
+}
+
+/* Settings › Agents › Command line: the field of the alias name and its switch, in one line. */
+.cli-alias-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cli-alias-control input {
+    width: 96px;
 }
 
 /* Settings › Agents › MCP server: the approved tools of each worktree. The Revoke button is at the right. */
@@ -10654,6 +10708,13 @@ body.resizing-column * {
     font-size: 11px;
 }
 
+/* The upstream branch is not on the remote. Push makes it again. */
+.changes-upstream-gone {
+    margin: 8px 10px 0;
+    color: var(--warning);
+    font-size: 11px;
+}
+
 /* The overlap with other worktrees: a warning chip. A click on the chip shows the shared files. */
 .changes-overlap {
     flex: none;
@@ -13993,6 +14054,26 @@ button.pr-summary-cell:hover {
 
 .plan-row:hover {
     background: var(--raised);
+}
+
+/* The plans of one project. The heading has the style of the project groups in the Agents view. */
+.plans-group + .plans-group {
+    margin-top: 26px;
+}
+
+.plans-group h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    color: var(--text-strong);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.plans-group-count {
+    color: var(--muted);
+    font-weight: 400;
 }
 
 /* One plan. The page has two columns: the idea and the steps at the left, the run panel at the right. */

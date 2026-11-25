@@ -39,11 +39,6 @@ export function collapseStorageKey(pluginId: string): string {
     return `shipwarden.collapsedStatuses.${pluginId}`;
 }
 
-/** The repository that "Start in worktree" used last in a project. */
-export function startRepoKey(projectId: string): string {
-    return `shipwarden.startRepo:${projectId}`;
-}
-
 /** The last filter of each source, for the session. The view selects it again on the next visit, in all projects. */
 const lastFilters = new Map<string, string>();
 export const lastFilter = (connectionId: string) => lastFilters.get(connectionId);
@@ -163,9 +158,21 @@ export function taskLabel(task: Pick<Task, 'key' | 'title'>): string {
     return task.key ? `${task.key} ${task.title}` : task.title;
 }
 
-/** The repository for "Start in worktree": the last one in this project, else the first. */
-export function targetRepo(repos: readonly string[], last: string): string | undefined {
-    return repos.includes(last) ? last : repos[0];
+/** The repositories of one project, for the repository menu of "Start in worktree". */
+export interface RepoGroup {
+    /** The name of the project. */
+    name: string;
+    repos: string[];
+}
+
+/**
+ * The repository for "Start in worktree": the chosen one, if a project still has it. Else the only repository, when
+ * all projects have one repository. Else none, and the user must select one.
+ */
+export function targetRepo(groups: readonly RepoGroup[], chosen: string | undefined): string | undefined {
+    const all = groups.flatMap(group => group.repos);
+    if (chosen && all.includes(chosen)) return chosen;
+    return all.length === 1 ? all[0] : undefined;
 }
 
 /** The text that tells which settings a task manager needs. */

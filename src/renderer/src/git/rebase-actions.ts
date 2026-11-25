@@ -4,6 +4,7 @@ import { CONFLICT_TEMPLATE_ID, rebaseConflictPrompt } from '@shared/rebase-confl
 import type { WorktreeOverlap } from '@shared/worktree-overlap';
 import { alertDialog, confirmDialog } from '../components/ConfirmDialog';
 import { loadPromptTemplates } from '../prompts/prompt-queries';
+import { branchPushed } from '../github/pull-request-mutations';
 import { gitChanged } from './git-store';
 
 const api = window.shipwarden.git;
@@ -43,6 +44,7 @@ export async function confirmForcePush(worktree: string, upstream: string, onto?
     if (!ok) return false;
     try {
         await api.pushWithLease(worktree);
+        void branchPushed(worktree);
     } finally {
         gitChanged();
     }
