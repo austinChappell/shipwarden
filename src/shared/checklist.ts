@@ -2,9 +2,9 @@ import type { OnboardingSettings } from './onboarding';
 
 /** The steps of the getting started checklist, in order. */
 export const CHECKLIST_STEPS = [
-    { id: 'addRepository', label: 'Add a repository', detail: 'Add a git repository from your Mac, or clone one.' },
+    { id: 'addRepository', label: 'Add a repository', detail: 'Add a git repository or a folder from your Mac, or clone a repository.' },
     { id: 'createWorktree', label: 'Create a worktree', detail: 'A worktree is a separate folder with its own branch. Press ⌘N.' },
-    { id: 'startAgent', label: 'Start an agent', detail: 'Start your agent in a worktree with the Agent button.' },
+    { id: 'startAgent', label: 'Start an agent', detail: 'Click + in the tab strip of a worktree and select your agent.' },
     { id: 'openAgents', label: 'Open the Agents view', detail: 'See all agents and their state. Press ⌥⌘2.' },
     { id: 'openPullRequest', label: 'Open a pull request', detail: 'Push the branch of a worktree and create its pull request in the right panel.' }
 ] as const;

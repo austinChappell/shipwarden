@@ -1,7 +1,7 @@
 import type { OnboardingSettings } from './onboarding';
 
 /** A view that a tip can open. */
-export type TipView = 'dashboard' | 'agents' | 'tasks' | 'review' | 'pipelines' | 'notes' | 'automations' | 'stats';
+export type TipView = 'dashboard' | 'agents' | 'tasks' | 'review' | 'pipelines' | 'notes' | 'automations' | 'plans' | 'queue' | 'stats';
 
 /**
  * The button of a tip: it opens a view, a settings section, the New worktree dialog, the keyboard shortcuts, or the
@@ -23,6 +23,87 @@ export interface Tip {
 
 /** The tips of the corner notice. The notice shows one tip at random (see `pickTip`). */
 export const NOTICE_TIPS: readonly Tip[] = [
+    {
+        id: 'snoozePullRequest',
+        title: 'Snooze a pull request',
+        body: 'Click the snooze button of a pull request in the Dashboard or in Review, or press S on the pull request list. It leaves "Needs me" until the time ends, or until a new commit, comment, or review.',
+        action: { kind: 'view', view: 'review', label: 'Open Review' }
+    },
+    {
+        id: 'sessionTags',
+        title: 'Tag your agent sessions',
+        body: 'In the Agents view, open the menu of a session and click "Add tag…". Click a tag above the lists to show only its sessions. ShipWarden keeps a copy of each pinned transcript, so Resume works also after Claude Code deletes it.',
+        action: { kind: 'view', view: 'agents', label: 'Open Agents' }
+    },
+    {
+        id: 'stopSelected',
+        title: 'Stop many agents in one step',
+        body: 'In the Agents view, select the checkbox of each agent, or of a project. Shift-click selects a range. Then click "Stop selected" in the bar at the bottom.',
+        action: { kind: 'view', view: 'agents', label: 'Open Agents' }
+    },
+    {
+        id: 'findText',
+        title: 'Find text in a terminal',
+        body: 'Press ⌘F in a terminal, a browser tab, the chat, or a Markdown preview. In a terminal, Enter goes to the next older match in the scrollback.'
+    },
+    {
+        id: 'agentModel',
+        title: 'Choose the model of each agent',
+        body: 'In Settings › Agents, select a model for Claude Code or Codex. ShipWarden gets the list of models from the agent. Each new session then starts with that model.',
+        action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
+    },
+    {
+        id: 'agentChat',
+        title: 'Show an agent as a chat',
+        body: 'Turn on "Show agent tabs as a chat" in Settings › Agents. Claude Code and Codex tabs then show as a chat. Type the next prompt while the agent works, and it waits in a queue. "Send now" sends it at once.',
+        action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
+    },
+    {
+        id: 'scratchRun',
+        title: 'Run a scratch file',
+        body: 'Open a file in the Scratch Pad and click Run, or press ⌃R. ShipWarden uses the shebang or the file extension, or a command that you set, for example "psql -f {file}". "Ask an agent about the file" starts an agent on it.',
+        action: { kind: 'view', view: 'notes', label: 'Open Scratch Pad' }
+    },
+    {
+        id: 'rebaseWithAgent',
+        title: 'Change the base or the title of a pull request',
+        body: 'Click the title of a pull request to change it. Use the base branch menu to change the base. "Rebase with agent" in the header menu tells the agent to rebase, run the tests, and push.',
+        action: { kind: 'view', view: 'review', label: 'Open Review' }
+    },
+    {
+        id: 'promptAgents',
+        title: 'Send one prompt to many agents',
+        body: 'On a plan or a PR group, use "Prompt the agents" to send one prompt to the agent of each selected pull request. "Commit and push" is on by default.',
+        action: { kind: 'view', view: 'plans', label: 'Open Plans' }
+    },
+    {
+        id: 'pipelineApprovals',
+        title: 'Approve a deployment from the Dashboard',
+        body: 'Runs that wait for your approval show in "Waiting on your approval" on the Dashboard and in Pipelines. Click Approve, or snooze all runs of the pipeline.',
+        action: { kind: 'view', view: 'dashboard', label: 'Open Dashboard' }
+    },
+    {
+        id: 'jobGraph',
+        title: 'See the job graph of a run',
+        body: 'In Pipelines or in the Checks tab, click Graph to see the jobs of a GitHub Actions run and the jobs that each one needs. Click a job to open its log.',
+        action: { kind: 'view', view: 'pipelines', label: 'Open Pipelines' }
+    },
+    {
+        id: 'plainFolder',
+        title: 'Add a folder without git',
+        body: 'Click the folder icon next to the project name and select any folder. ShipWarden shows it with terminals, agents, files, and the editor, but with no worktrees or branches.'
+    },
+    {
+        id: 'closeTabs',
+        title: 'Close many tabs at once',
+        body: 'Right-click a tab and select "Close other tabs", "Close tabs to the left", "Close tabs to the right", or "Close all tabs".'
+    },
+    {
+        id: 'pinSession',
+        title: 'Pin an agent session',
+        body: 'Right-click an agent tab and select "Pin session". The Agents view lists it under "Pinned sessions", and Resume continues it in any worktree.',
+        action: { kind: 'view', view: 'agents', label: 'Open Agents' }
+    },
     {
         id: 'documentAttachments',
         title: 'Attach documents in the chat',
@@ -61,7 +142,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'branchesPage',
         title: 'Clean up old branches',
-        body: 'Click the branch icon of a repository in the sidebar. The Branches page checks out, deletes, and fetches local and remote branches. It also deletes all merged local branches in one step.'
+        body: 'Click the branch icon of a repository in the sidebar. The Branches page checks out, deletes, and fetches branches. Select the filter "Remote deleted" or "Older than 7d", then click "Delete" to delete the local branches in the list. The remote branches stay.'
     },
     {
         id: 'bitbucketProvider',
@@ -83,7 +164,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'stackedPlans',
         title: 'Merge a stack of plan pull requests',
-        body: 'A plan stacks its steps: each pull request targets the branch of the step before it. When one merges, ShipWarden rebases the next branch with "git rebase --onto" and changes its base. This works after a squash merge too.'
+        body: 'With "Stack the steps" on, each pull request of a plan targets the branch of the step before it in the same repository. When one merges, ShipWarden rebases the next branch and changes its base. This works after a squash merge too.'
     },
     {
         id: 'stackActions',
@@ -129,7 +210,8 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'mcpWorkers',
         title: 'Let one agent split a large task',
-        body: 'Tell an agent to split a task and start workers with start_worker. Each worker gets its own worktree and opens its own pull request. ShipWarden sends each result back to the agent. The Plans view lists the workers.'
+        body: 'Tell an agent to split a task and start workers with start_worker. Each worker gets its own worktree and opens its own pull request. ShipWarden sends each result back to the agent. The Plans view lists the workers.',
+        action: { kind: 'view', view: 'plans', label: 'Open Plans' }
     },
     {
         id: 'mcpBrowser',
@@ -145,26 +227,26 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'automationsWhenClosed',
         title: 'Run automations while ShipWarden is closed',
-        body: 'Turn on "Run while ShipWarden is closed" in Automations. The background helper then runs the schedules, the CI failures, and the task queue overnight. Approve the waiting runs on your iPhone.',
+        body: 'Turn on "Run while ShipWarden is closed" in Automations, and turn on the background helper in Settings › Mobile. The helper then runs the schedules, the CI failures, and the task queue overnight. Approve the waiting runs on your iPhone.',
         action: { kind: 'view', view: 'automations', label: 'Open Automations' }
     },
     {
         id: 'phoneStartAgents',
         title: 'Start agents from your iPhone',
         body: 'Turn on "Start agents" for your phone in Settings › Mobile. Then tap + in the Agents tab of the iPhone app to start an agent on a task or a prompt in a new worktree.',
-        action: { kind: 'settings', section: 'mobile', label: 'Open Mobile' }
+        action: { kind: 'settings', section: 'mobile', label: 'Open Settings › Mobile' }
     },
     {
         id: 'slackAgents',
         title: 'Answer your agents in Slack',
-        body: 'Create a Slack app from the manifest in docs/slack.md and add its tokens in Settings › Slack. Questions of the agents then go to a channel, a reply in the thread goes to the agent, and "@ShipWarden <repository> <prompt>" starts a new agent.',
-        action: { kind: 'settings', section: 'slack', label: 'Open Slack' }
+        body: 'Create a Slack app from the manifest in docs/slack.md and add its tokens in Settings › Slack. Add your Slack ID to "People who can start and answer agents". Questions of the agents then go to a channel, and a reply in the thread goes to the agent.',
+        action: { kind: 'settings', section: 'slack', label: 'Open Settings › Slack' }
     },
     {
         id: 'phonePush',
         title: 'Get a notification on your phone',
         body: 'Deploy the push relay (relay/README.md), then turn on "Send push notifications" in Settings › Mobile and type the relay address. Your phone then tells you when an agent needs input, also when the app on the phone is closed.',
-        action: { kind: 'settings', section: 'mobile', label: 'Open Mobile' }
+        action: { kind: 'settings', section: 'mobile', label: 'Open Settings › Mobile' }
     },
     {
         id: 'checkpoints',
@@ -180,8 +262,8 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'taskQueue',
         title: 'Run a backlog overnight',
-        body: 'Click "Add to queue" on a task. The Queue page starts the tasks one after the other and keeps a limit, for example 3 agents. When an agent finishes, the next task starts.',
-        action: { kind: 'view', view: 'tasks', label: 'Open Tasks' }
+        body: 'Click "Add to queue" on a task. The Queue view starts the tasks one after the other and keeps a limit, for example 3 agents at the same time. When an agent finishes, the next task starts.',
+        action: { kind: 'view', view: 'queue', label: 'Open Queue' }
     },
     {
         id: 'sendThread',
@@ -197,13 +279,13 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'pullRequestWorktree',
         title: 'Create a worktree from a pull request',
-        body: 'Open a pull request in Review and click the folder button in its header. On the pull request list of a repository, press C.',
+        body: 'Open a pull request in Review and click "New worktree" in its header, or press ⌘O. On the pull request list of a repository, press C.',
         action: { kind: 'view', view: 'review', label: 'Open Review' }
     },
     {
         id: 'agentReview',
         title: 'Let an agent review a pull request first',
-        body: 'On the review card, click "Run agent review first". You accept or remove each comment of the agent. Nothing goes to GitHub until you submit the review.',
+        body: 'On the review card, click "Run agent review". Its menu sets how strict the review is. You accept or remove each comment of the agent. Nothing goes to the pull request until you submit the review.',
         action: { kind: 'view', view: 'review', label: 'Open Review' }
     },
     {
@@ -219,7 +301,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'reviewKeys',
         title: 'Review with the keyboard',
-        body: 'On the pull request list of a repository, J and K move and Enter opens. C makes a worktree from the pull request. A starts an agent review.',
+        body: 'On the pull request list of a repository, J and K move and Enter opens. C makes a worktree from the pull request. A starts an agent review. S snoozes the pull request.',
         action: { kind: 'view', view: 'review', label: 'Open Review' }
     },
     {
@@ -236,7 +318,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'viewKeys',
         title: 'Open each view with the keyboard',
-        body: '⌥⌘1 to ⌥⌘7 open Dashboard, Agents, Tasks, Review, Pipelines, Notes, and Automations. ⌘[ and ⌘] go back and forward.',
+        body: '⌥⌘1 to ⌥⌘7 open Dashboard, Agents, Tasks, Review, Pipelines, Scratch Pad, and Automations. ⌘[ and ⌘] go back and forward. Open Plans, Queue, and Stats from the sidebar or the command palette.',
         action: { kind: 'shortcuts', label: 'Keyboard shortcuts' }
     },
     {
@@ -258,7 +340,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'worktreeMenu',
         title: 'Rename, hide, or snooze a worktree',
-        body: 'Right-click a worktree in the sidebar. Snooze hides it for an hour, until tomorrow, or until next week. Then it shows again.'
+        body: 'Right-click a worktree in the sidebar. Snooze hides it for 1 hour, for 4 hours, until tomorrow, or until next week. Then it shows again.'
     },
     {
         id: 'browserTab',
@@ -299,7 +381,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'recentSessions',
         title: 'Resume a session that you closed',
-        body: 'The Agents view lists the Claude Code sessions of the last 3 days under "Recent sessions". Click "Resume" to continue one, also without a pin.',
+        body: 'The Agents view lists the Claude Code sessions of the last 3 days under "Recent sessions". Click "Resume" to continue one, also without a pin. An unpinned session stays under "Recently unpinned" for 3 days.',
         action: { kind: 'view', view: 'agents', label: 'Open Agents' }
     },
     {
@@ -323,7 +405,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
         id: 'phone',
         title: 'See your agents on your phone',
         body: 'Pair the ShipWarden iPhone app in Settings › Mobile. Then you can see your agents when you are away from your Mac.',
-        action: { kind: 'settings', section: 'mobile', label: 'Open Mobile' }
+        action: { kind: 'settings', section: 'mobile', label: 'Open Settings › Mobile' }
     }
 ];
 
@@ -351,7 +433,7 @@ export const INLINE_TIPS = {
     },
     automations: {
         title: 'Start from a template',
-        body: 'Click New and choose a template, for example "Fix failed CI". Choose "Ask first" to approve each run before it starts.'
+        body: 'Click "New automation" and choose a template, for example "Fix failed CI". Choose "Ask first" to approve each run before it starts.'
     }
 } satisfies Record<string, InlineTip>;
 

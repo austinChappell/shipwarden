@@ -420,8 +420,8 @@ a message such as `@ShipWarden web Fix the login bug` starts an agent in a new w
 allow list can start or answer agents. The Slack app uses Socket Mode, so your Mac needs no public address. Create the
 app from the manifest in [docs/slack.md](docs/slack.md), then add its tokens in Settings › Slack.
 
-> The iPhone app is in beta. It is in App Store review now, so it is not in the App Store yet. Until
-> Apple approves it, build it from source with Xcode. See [ios/README.md](ios/README.md).
+> The iPhone app is in beta. Get it from the [App Store](https://apps.apple.com/us/app/shipwarden/id6832160464), or scan the QR code in Settings › Mobile. See
+> [ios/README.md](ios/README.md).
 
 ## Install and get started
 

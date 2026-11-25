@@ -49,13 +49,19 @@ macOS can ask for these permissions:
 
 ## 3. Add a repository
 
-ShipWarden works with a local clone of your repository. If you have no clone, run `git clone <url>` first.
+ShipWarden works with a local clone of your repository.
 
-1. In the sidebar, click **Add a repository**. You can also click the folder icon next to the project name.
+1. In the sidebar, click **Add a repository**. You can also click the folder icon next to the project name ("Add a
+   repository or a folder to this project").
 2. Select the folder of the clone.
 3. Click **Add**.
 
-If the folder is not a git repository, ShipWarden shows the error "The folder "…" is not in a git repository."
+If you have no clone, click **Clone a repository** (or the clone icon next to the project name). Type the repository,
+for example `owner/name`. ShipWarden clones it into your code folder and adds it to the project. Set the code folder
+in **Settings › Worktrees › Clones**.
+
+You can also add a folder that is not a git repository. ShipWarden shows it as one worktree with terminals, agents,
+files, and the editor. It has no worktrees, branches, pull requests, or checks.
 
 The repository now shows in the sidebar. The **Tasks** item also shows in the sidebar after you add the first
 repository.
@@ -139,7 +145,11 @@ can first ask if you trust the folder. Answer yes. Then type the task for the ag
 If nothing occurs when you press ⌘N, the project has no repository. Do [step 3](#3-add-a-repository).
 
 To open more tabs in a worktree, click **+** at the end of the tabs. Select an agent (for example **Claude Code**),
-**Shell** or **Browser**.
+**Shell** or **Browser**. If you have only one agent, the menu shows **Agent**.
+
+To create a worktree from a branch that is on the remote only, select **Remote branch** in the New worktree dialog.
+To create a worktree from a pull request, open the pull request in the Review view and click the folder button in its
+header.
 
 The agents continue to run when you quit ShipWarden with ⌘Q. To stop them, see [Quit and update](#quit-and-update).
 
@@ -165,7 +175,10 @@ In a comment box, type `@` to tag a user. Type `#` to link an issue or a pull re
 add a reaction to a comment.
 
 In the Review view, you can **Approve**, **Request changes** or **Comment**. When the pull request is ready, click
-**Merge pull request**, **Squash and merge** or **Rebase and merge**.
+**Merge pull request**, **Squash and merge** or **Rebase and merge**. If you cannot merge yet, click **Enable
+auto-merge**. If the base branch uses a GitHub merge queue, click **Merge when ready**.
+
+Click the title of a pull request to change it. Use the base branch menu to change the base branch.
 
 # Reference
 
@@ -180,20 +193,30 @@ Use the sidebar or the **Go** menu to open a view.
 | Tasks | ⌥⌘3 | The tasks of your task managers |
 | Review | ⌥⌘4 | The pull requests of your repositories |
 | Pipelines | ⌥⌘5 | The workflows, runs and job logs of your repositories |
-| Notes | ⌥⌘6 | Your notes, in `~/.shipwarden/notes` |
+| Scratch Pad | ⌥⌘6 | Your notes and scratch files, in `~/.shipwarden/notes`. **Run** (⌃R) runs a file. |
 | Automations | ⌥⌘7 | Rules that do an action when an event occurs. See [automations.md](automations.md). |
+| Plans | — | Multi-step plans. Each step is an agent and a pull request. See [plans.md](plans.md). |
+| Queue | — | The tasks that wait to start, and the limit of agents that run at the same time |
+| Stats | — | The merged pull requests, tokens, time to merge, and CI failures of each agent and model |
+| Terminal | — | Terminal tabs in your home folder, outside of all repositories |
 | Settings | ⌘, | All settings, and one page for each repository |
+
+Press ⇧⌘P to open the command palette. It finds all views and commands. **Help › Keyboard Shortcuts** lists all keys.
+To change a key, open **Settings › Keyboard**. See [keybindings.md](keybindings.md).
 
 Click a worktree in the sidebar to open it. Use these keys in a worktree:
 
 | Key | Action |
 |---|---|
-| ⌘E | Show or hide the right panel: files, changes, pull request, checks, pipelines, processes and ports |
+| ⌘E | Show or hide the right panel: files, changes, pull request, checks, pipelines, processes and ports, checkpoints, and screenshots |
 | ⌘T | Open a new shell tab |
 | ⌘D / ⇧⌘D | Split the pane to the right / down |
 | ⌘W | Close the pane |
 | ⌘B | Show or hide the sidebar |
 | ⌘[ / ⌘] | Open the previous / next page |
+| ⌘F | Find text in a terminal, a browser tab, the chat, or a Markdown preview |
+| ⌥⌘O | Open the worktree or the file in your editor |
+| ⌥⌘L | Dictate a prompt. See [dictation.md](dictation.md). |
 
 ## Optional setup
 
@@ -234,8 +257,29 @@ allow notifications for ShipWarden in **System Settings › Notifications**.
 
 Open **Settings › Mobile** to connect the iPhone app. See [ios/README.md](../ios/README.md).
 
-The iPhone app is in beta. It is in App Store review now, so it is not in the App Store yet. Until Apple approves it,
-build it from source with Xcode.
+The iPhone app is in beta. Get it from the [App Store](https://apps.apple.com/us/app/shipwarden/id6832160464), or scan the QR code in **Settings › Mobile**.
+
+## More features
+
+When the first agent works, try these features. Each link tells you more.
+
+- **Agents help each other.** Each agent gets the ShipWarden MCP tools. It can watch its pull request, fix failed
+  checks, ask the agent of another worktree, test pages in its browser tab, and start worker agents. See
+  [mcp-server.md](mcp-server.md).
+- **Plans.** A plan splits a large task into steps. Each step gets its own agent and pull request. See
+  [plans.md](plans.md) and [pr-groups.md](pr-groups.md).
+- **Automations.** A rule does an action when an event occurs, for example "when CI fails, send the log to the
+  agent". See [automations.md](automations.md).
+- **Prompt templates.** Save the prompts that you type often. See [prompt-templates.md](prompt-templates.md).
+- **Screenshots.** Compare the pages of a branch with the base branch. See [screenshots.md](screenshots.md).
+- **Documents and voice.** Attach a PDF, Word, or Excel file in the chat, or dictate a prompt. See
+  [document-attachments.md](document-attachments.md) and [dictation.md](dictation.md).
+- **The command line.** The `shipwarden` command (short name `sw`) controls ShipWarden from scripts and agents. See
+  [cli.md](cli.md).
+- **Slack.** Answer your agents and start new agents from a Slack channel. See [slack.md](slack.md).
+
+ShipWarden also shows a tip in the corner of the window at each start. To turn off the tips, click **Turn off tips**
+on a tip.
 
 ## Quit and update
 
@@ -256,7 +300,7 @@ ShipWarden checks for updates a few seconds after it starts, and then every 4 ho
 | The pull request panel says that the worktree has no GitHub, Azure Repos, GitLab, Bitbucket, Gitea, or Forgejo remote named "origin". | This message also shows when you have no code review provider, or when the provider is off. Open **Settings › Code review** first. Then make sure that the repository has an `origin` remote. |
 | "ShipWarden cannot get a GitHub token." | Run `gh auth login`, or save a token in **Settings › Code review**. If you installed `gh` while ShipWarden was open, quit ShipWarden and open it again. |
 | "GitHub has no release of ShipWarden, or the repository is private." | The update check uses the token of your GitHub code review provider. Do [step 4](#4-add-a-code-review-provider). |
-| Nothing occurs when you press ⌘N. | The project has no repository. Do [step 3](#3-add-a-repository). |
+| Nothing occurs when you press ⌘N. | The project has no repository, or the selected item is a folder without git. Do [step 3](#3-add-a-repository). |
 | The agent terminal shows "command not found". | Install the agent. Make sure that it is in the `PATH` of your login shell. Then quit ShipWarden and open it again. |
 | No notifications show. | Allow notifications for ShipWarden in **System Settings › Notifications**. |
 
@@ -268,8 +312,10 @@ ShipWarden checks for updates a few seconds after it starts, and then every 4 ho
 | `~/Library/Application Support/ShipWarden/attachments/` | The text files of the documents in the chat view. ShipWarden removes them after 7 days |
 | `~/.shipwarden/worktrees` | The worktrees. You can change this folder in **Settings › Worktrees**. |
 | `~/.shipwarden/automations` | The automations |
-| `~/.shipwarden/notes` | Your notes |
-| `~/.shipwarden/tasks` | The tasks of Local tasks |
+| `~/.shipwarden/notes` | The files of the Scratch Pad |
+| `~/.shipwarden/tasks` | The tasks of Local tasks. With "Keep the tasks in the repository", they are in `<repository>/.shipwarden/tasks.json`. |
+| `~/.shipwarden/prompts` | Your prompt templates |
+| `~/.shipwarden/keybindings.json` | The keys that you changed in **Settings › Keyboard** |
 | `~/.shipwarden/ci-logs` and `~/.shipwarden/review` | Job logs and review data that ShipWarden keeps |
 | `~/.shipwarden/plugins` | Task manager plugins that you add |
 
