@@ -328,6 +328,7 @@ const api: ShipWardenApi = {
         rename: (name, newName) => ipcRenderer.invoke(IpcChannels.notesRename, name, newName),
         delete: name => ipcRenderer.invoke(IpcChannels.notesDelete, name),
         setTags: (name, tags) => ipcRenderer.invoke(IpcChannels.notesSetTags, name, tags),
+        setRunCommand: (name, command) => ipcRenderer.invoke(IpcChannels.notesSetRunCommand, name, command),
         reveal: name => ipcRenderer.send(IpcChannels.notesReveal, name),
         onChanged: listener => subscribe<[]>(IpcChannels.notesChanged, listener)
     },

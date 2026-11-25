@@ -1,5 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronRight, Copy, Folder, FolderInput, FolderOpen, FolderPlus, NotebookPen, Pencil, Plus, Tag, Trash2, X } from 'lucide-react';
+import {
+    Bot,
+    ChevronRight,
+    Copy,
+    Folder,
+    FolderInput,
+    FolderOpen,
+    FolderPlus,
+    NotebookPen,
+    Pencil,
+    Play,
+    Plus,
+    Settings2,
+    SquareTerminal,
+    Tag,
+    Trash2,
+    X
+} from 'lucide-react';
 import {
     folderBaseName,
     folderMoveTargets,
@@ -16,6 +33,9 @@ import {
     type NoteInfo
 } from '@shared/notes';
 import type { ViewRoute } from '@shared/nav-history';
+import { defaultRunner, FILE_TOKEN, runCommandLine, runInTerminal, runTabTitle, scratchAgentPrompt } from '@shared/note-run';
+import type { AgentDefinition } from '@shared/settings';
+import type { TerminalSession, TerminalSettings } from '@shared/terminal';
 import { monaco } from '../editor/monaco';
 import { fileIcon } from '../files/file-icons';
 import { treeKeyAction, type TreeRow } from '../files/tree-nav';
@@ -25,7 +45,8 @@ import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
 import { pluralize } from '@shared/format';
 import { EmptyState } from './EmptyState';
-import { Button, Chip, Count, FilterField, IconButton, Input, labelIndex, PageHeader, Select, SkeletonRows, type SelectOption } from './ui';
+import { NotesConsole } from './NotesConsole';
+import { Button, Chip, Count, FilterField, IconButton, Input, labelIndex, PageHeader, Select, SkeletonRows, TextArea, type SelectOption } from './ui';
 
 const api = window.shipwarden.notes;
 const SELECTED_KEY = 'shipwarden.note';
@@ -267,10 +288,184 @@ interface EditorProps {
     onRenamed(name: string): void;
     onDeleted(): void;
     onTags(tags: string[]): void;
+    /** Runs the note with a command (a program, or a command with the `{file}` token). The editor saves the file first. */
+    onRun(runner: string): void;
+    /** Saves the command that runs the note. An empty command goes back to the default program. */
+    onRunCommand(command: string): Promise<void>;
+    /** Opens a terminal in the folder of the note. */
+    onTerminal(): void;
+    /** The agents of Settings › Agents, for "Ask an agent". */
+    agents: AgentDefinition[];
+    defaultAgentId: string;
+    /** Starts an agent in the notes folder with a request about the note. */
+    onAskAgent(request: string, agentId: string): Promise<void>;
+}
+
+/** The form under the header of a note: the run command, or a request for an agent. */
+type NoteForm = { kind: 'run'; thenRun: boolean } | { kind: 'agent' };
+
+/** The form for the command that runs a note. Enter saves. Escape closes the form. */
+function RunCommandForm({
+    note,
+    fallback,
+    thenRun,
+    onSave,
+    onCancel
+}: {
+    note: NoteInfo;
+    /** The default program of the note, if any. */
+    fallback: string | undefined;
+    thenRun: boolean;
+    onSave(command: string): Promise<void>;
+    onCancel(): void;
+}) {
+    const [value, setValue] = useState(note.runCommand ?? '');
+    const [error, setError] = useState<string>();
+    const save = async () => {
+        if (thenRun && !value.trim() && !fallback) {
+            setError(`Type a command. ShipWarden does not know a program for "${note.fileName}".`);
+            return;
+        }
+        try {
+            await onSave(value);
+        } catch (err) {
+            setError(errorText(err));
+        }
+    };
+    return (
+        <div className="note-form">
+            <Input
+                autoFocus
+                size="sm"
+                mono
+                invalid={!!error}
+                value={value}
+                spellCheck={false}
+                aria-label="Run command"
+                placeholder={fallback ?? `For example: psql -f ${FILE_TOKEN}`}
+                onChange={event => {
+                    setValue(event.target.value);
+                    setError(undefined);
+                }}
+                onKeyDown={event => {
+                    if (event.key === 'Enter') void save();
+                    if (event.key === 'Escape') onCancel();
+                }}
+            />
+            <div className="note-form-hint">
+                {error ? (
+                    <span className="form-error">{error}</span>
+                ) : (
+                    <span>
+                        Type a program, for example <code>python3</code>, or a command with <code>{FILE_TOKEN}</code> for the path of the file.
+                        {fallback ? ` Leave it empty to use ${fallback}.` : ''}
+                    </span>
+                )}
+                <Button size="sm" onClick={onCancel}>
+                    Cancel
+                </Button>
+                <Button size="sm" variant="primary" icon={thenRun ? <Play size={13} strokeWidth={1.8} /> : undefined} onClick={() => void save()}>
+                    {thenRun ? 'Save and run' : 'Save'}
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+/** The form that starts an agent with a request about a note. ⌘Enter starts the agent. Escape closes the form. */
+function AgentForm({
+    note,
+    agents,
+    defaultAgentId,
+    onStart,
+    onCancel
+}: {
+    note: NoteInfo;
+    agents: AgentDefinition[];
+    defaultAgentId: string;
+    onStart(request: string, agentId: string): Promise<void>;
+    onCancel(): void;
+}) {
+    const [request, setRequest] = useState('');
+    const [agentId, setAgentId] = useState(defaultAgentId);
+    const [error, setError] = useState<string>();
+    const [starting, setStarting] = useState(false);
+    const start = async () => {
+        if (!request.trim()) {
+            setError('Type what the agent must do.');
+            return;
+        }
+        setStarting(true);
+        try {
+            await onStart(request, agentId);
+        } catch (err) {
+            setError(errorText(err));
+            setStarting(false);
+        }
+    };
+    return (
+        <div className="note-form">
+            <TextArea
+                autoFocus
+                rows={3}
+                invalid={!!error}
+                value={request}
+                aria-label="Request for the agent"
+                placeholder={`What must the agent do with ${note.fileName}? For example: "Explain this script" or "Add error handling".`}
+                onChange={event => {
+                    setRequest(event.target.value);
+                    setError(undefined);
+                }}
+                onKeyDown={event => {
+                    if (event.key === 'Enter' && event.metaKey) {
+                        event.preventDefault();
+                        void start();
+                    }
+                    if (event.key === 'Escape') onCancel();
+                }}
+            />
+            <div className="note-form-hint">
+                {error ? (
+                    <span className="form-error">{error}</span>
+                ) : (
+                    <span>The agent starts in the notes folder and gets the path of the file. ⌘Enter starts it.</span>
+                )}
+                {agents.length > 1 && (
+                    <Select
+                        size="sm"
+                        aria-label="Agent"
+                        value={agentId}
+                        options={agents.map(agent => ({ value: agent.id, label: agent.name }))}
+                        onChange={setAgentId}
+                    />
+                )}
+                <Button size="sm" onClick={onCancel}>
+                    Cancel
+                </Button>
+                <Button size="sm" variant="primary" icon={<Bot size={13} strokeWidth={1.8} />} disabled={starting} onClick={() => void start()}>
+                    {starting ? 'Starting…' : 'Start agent'}
+                </Button>
+            </div>
+        </div>
+    );
 }
 
 /** One note in Monaco. The language comes from the extension. Changes save after a short pause, and when the note closes. */
-function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTags }: EditorProps) {
+function NoteEditor({
+    note,
+    folder,
+    folders,
+    allTags,
+    onRenamed,
+    onDeleted,
+    onTags,
+    onRun,
+    onRunCommand,
+    onTerminal,
+    agents,
+    defaultAgentId,
+    onAskAgent
+}: EditorProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const modelRef = useRef<monaco.editor.ITextModel | undefined>(undefined);
     const dirty = useRef(false);
@@ -278,6 +473,11 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
     const [state, setState] = useState<'loading' | 'saved' | 'saving' | 'edited'>('loading');
     const [error, setError] = useState<string>();
     const [renaming, setRenaming] = useState(false);
+    const [form, setForm] = useState<NoteForm>();
+    /** The first line of the file, for a shebang line. It changes with the text in the editor. */
+    const [firstLine, setFirstLine] = useState('');
+    const fallback = defaultRunner(note.fileName, firstLine);
+    const runner = note.runCommand ?? fallback;
 
     /** Writes the editor text to the file when it has changes. */
     const flush = useCallback(async () => {
@@ -295,6 +495,19 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
             setState('edited');
         }
     }, [note.name]);
+
+    /** Saves the file and runs it. Without a command, the run command form opens. */
+    const run = async () => {
+        if (!runner) {
+            setForm({ kind: 'run', thenRun: true });
+            return;
+        }
+        await flush();
+        onRun(runner);
+    };
+    // The ⌃R command of the editor reads the newest `run`.
+    const runRef = useRef(run);
+    runRef.current = run;
 
     useEffect(() => {
         const container = containerRef.current;
@@ -318,7 +531,10 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
         });
         modelRef.current = model;
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void flush());
+        // ⌃R runs the file, the same as in the IDEs of JetBrains.
+        editor.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyCode.KeyR, () => runRef.current());
         const changes = model.onDidChangeContent(event => {
+            setFirstLine(model.getLineContent(1));
             if (event.isFlush) return;
             dirty.current = true;
             setState('edited');
@@ -329,6 +545,7 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
             content => {
                 if (disposed) return;
                 model.setValue(content);
+                setFirstLine(model.getLineContent(1));
                 editor.updateOptions({ readOnly: false });
                 setState('saved');
                 editor.focus();
@@ -419,6 +636,27 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
                         {state === 'saving' ? 'Saving…' : state === 'edited' ? 'Edited' : state === 'saved' ? 'Saved' : ''}
                     </span>
                     <span className="header-spacer" />
+                    <Button
+                        size="sm"
+                        icon={<Play size={13} strokeWidth={1.8} />}
+                        title={runner ? `Run: ${runCommandLine(runner, path)} (⌃R)` : 'Set a command to run this file (⌃R)'}
+                        onClick={() => void run()}
+                    >
+                        Run
+                    </Button>
+                    <IconButton
+                        icon={<Settings2 size={14} strokeWidth={1.6} />}
+                        label={note.runCommand ? `Edit the run command: ${note.runCommand}` : 'Set the run command'}
+                        active={form?.kind === 'run'}
+                        onClick={() => setForm(form?.kind === 'run' ? undefined : { kind: 'run', thenRun: false })}
+                    />
+                    <IconButton icon={<SquareTerminal size={14} strokeWidth={1.6} />} label="Open a terminal in the folder of the file" onClick={onTerminal} />
+                    <IconButton
+                        icon={<Bot size={14} strokeWidth={1.6} />}
+                        label="Ask an agent about the file"
+                        active={form?.kind === 'agent'}
+                        onClick={() => setForm(form?.kind === 'agent' ? undefined : { kind: 'agent' })}
+                    />
                     <Select
                         className="note-move"
                         title="Move to a folder"
@@ -438,6 +676,36 @@ function NoteEditor({ note, folder, folders, allTags, onRenamed, onDeleted, onTa
                     <IconButton tone="danger" icon={<Trash2 size={14} strokeWidth={1.6} />} label="Move to the Trash" onClick={() => void remove()} />
                 </div>
                 <TagEditor tags={note.tags} allTags={allTags} onChange={onTags} />
+                {form?.kind === 'run' && (
+                    <RunCommandForm
+                        note={note}
+                        fallback={fallback}
+                        thenRun={form.thenRun}
+                        onCancel={() => setForm(undefined)}
+                        onSave={async command => {
+                            if (command.trim() !== (note.runCommand ?? '')) await onRunCommand(command);
+                            setForm(undefined);
+                            const next = command.trim() || fallback;
+                            if (form.thenRun && next) {
+                                await flush();
+                                onRun(next);
+                            }
+                        }}
+                    />
+                )}
+                {form?.kind === 'agent' && (
+                    <AgentForm
+                        note={note}
+                        agents={agents}
+                        defaultAgentId={defaultAgentId}
+                        onCancel={() => setForm(undefined)}
+                        onStart={async (request, agentId) => {
+                            await flush();
+                            await onAskAgent(request, agentId);
+                            setForm(undefined);
+                        }}
+                    />
+                )}
                 {error && <div className="form-error">{error}</div>}
             </header>
             <div className="note-editor" ref={containerRef} />
@@ -490,9 +758,36 @@ interface Props {
     route: ViewRoute;
     /** Changes the selected note. The change replaces the current history entry. */
     onRoute(route: ViewRoute): void;
+    /** The terminal sessions in the notes folder: runs of files, terminals, and agents. */
+    sessions: TerminalSession[];
+    /** The terminal settings. They are undefined until they load. */
+    terminalSettings: TerminalSettings | undefined;
+    terminalColorsKey: string;
+    /** The session to show in the console, for example from a notification. */
+    focusSessionId: string | undefined;
+    /** Adds a new session to the session list of the app. */
+    onSessionStarted(session: TerminalSession): void;
+    /** Stops the process of a session and forgets the session. */
+    onCloseSession(session: TerminalSession): Promise<void>;
+    agents: AgentDefinition[];
+    defaultAgentId: string;
+    /** Starts an agent in the notes folder and sends it the prompt. Throws an error with a message. */
+    onPromptAgent(prompt: string, agentId: string): Promise<void>;
 }
 
-export function NotesView({ route, onRoute }: Props) {
+export function NotesView({
+    route,
+    onRoute,
+    sessions,
+    terminalSettings,
+    terminalColorsKey,
+    focusSessionId,
+    onSessionStarted,
+    onCloseSession,
+    agents,
+    defaultAgentId,
+    onPromptAgent
+}: Props) {
     const [notes, setNotes] = useState<NoteInfo[]>();
     const [folders, setFolders] = useState<string[]>([]);
     const [folder, setFolder] = useState('');
@@ -505,6 +800,25 @@ export function NotesView({ route, onRoute }: Props) {
     /** The folder under a dragged note or folder: a folder path, or "" for the top level. */
     const [dropTarget, setDropTarget] = useState<string>();
     const listWidth = usePanelWidth('shipwarden.width.notesList', 300, 220, 520);
+    /** The session of the console on the screen. */
+    const [consoleId, setConsoleId] = useState<string | undefined>(focusSessionId);
+    const [consoleCollapsed, setConsoleCollapsed] = useState(false);
+    /** The sessions that the console knows. A new session in the list becomes the active tab. */
+    const knownSessions = useRef(new Set(sessions.map(session => session.id)));
+    useEffect(() => {
+        const added = sessions.filter(session => !knownSessions.current.has(session.id));
+        knownSessions.current = new Set(sessions.map(session => session.id));
+        const newest = added[added.length - 1];
+        if (newest) {
+            setConsoleId(newest.id);
+            setConsoleCollapsed(false);
+        }
+    }, [sessions]);
+    useEffect(() => {
+        if (!focusSessionId) return;
+        setConsoleId(focusSessionId);
+        setConsoleCollapsed(false);
+    }, [focusSessionId]);
 
     const load = useCallback(async () => {
         try {
@@ -555,6 +869,33 @@ export function NotesView({ route, onRoute }: Props) {
         });
         if (selected) select(movedPath(selected, from, to));
     };
+
+    /** The full path of a folder of the notes folder ("" for the top level). */
+    const folderPath = (inFolder: string) => (inFolder ? `${folder}/${inFolder}` : folder);
+
+    /** Starts a terminal session in the notes folder. A session without a command is a shell. */
+    const startSession = async (cwd: string, title: string, command?: string) => {
+        if (!folder) return;
+        try {
+            const session = await window.shipwarden.terminals.create({ cwd, worktreePath: folder, title, command, cols: 120, rows: 24 });
+            onSessionStarted(session);
+        } catch (err) {
+            setError(errorText(err));
+        }
+    };
+    /** Runs a note in its folder. The run tab of the last run of the note closes first, so each note has one run tab. */
+    const runNote = async (note: NoteInfo, runner: string) => {
+        const title = runTabTitle(note.name);
+        await Promise.all(
+            sessions.filter(session => session.title === title && !session.isAgent).map(session => onCloseSession(session).catch(() => undefined))
+        );
+        await startSession(folderPath(note.folder), title, runInTerminal(runCommandLine(runner, `${folder}/${note.name}`)));
+    };
+    const setRunCommand = async (note: NoteInfo, command: string) => {
+        const updated = await api.setRunCommand(note.name, command);
+        setNotes(list => list?.map(item => (item.name === note.name ? updated : item)));
+    };
+    const askAgent = (note: NoteInfo, request: string, agentId: string) => onPromptAgent(scratchAgentPrompt(request, `${folder}/${note.name}`), agentId);
 
     const allTags = useMemo(() => {
         const counts = new Map<string, number>();
@@ -946,37 +1287,58 @@ export function NotesView({ route, onRoute }: Props) {
                     label="Resize the file list"
                     maxAvailable={() => (document.querySelector<HTMLElement>('.notes-body')?.offsetWidth ?? Infinity) - 320}
                 />
-                {current ? (
-                    <NoteEditor
-                        key={current.name}
-                        note={current}
-                        folder={folder}
-                        folders={folders}
-                        allTags={allTags.map(([tag]) => tag)}
-                        onRenamed={name => {
-                            select(name);
-                            void load();
-                        }}
-                        onDeleted={() => {
-                            const next = shown.find(note => note.name !== current.name);
-                            select(next?.name);
-                            void load();
-                        }}
-                        onTags={tags => void setTags(current, tags)}
-                    />
-                ) : (
-                    <div className="note-pane">
-                        {notes?.length ? (
-                            <EmptyState icon={NotebookPen} title="No file selected">
-                                Pick a file to edit it.
-                            </EmptyState>
-                        ) : (
-                            <EmptyState icon={NotebookPen} title="No files yet">
-                                Make a file with New file.
-                            </EmptyState>
-                        )}
-                    </div>
-                )}
+                <div className="notes-main">
+                    {current ? (
+                        <NoteEditor
+                            key={current.name}
+                            note={current}
+                            folder={folder}
+                            folders={folders}
+                            allTags={allTags.map(([tag]) => tag)}
+                            onRenamed={name => {
+                                select(name);
+                                void load();
+                            }}
+                            onDeleted={() => {
+                                const next = shown.find(note => note.name !== current.name);
+                                select(next?.name);
+                                void load();
+                            }}
+                            onTags={tags => void setTags(current, tags)}
+                            onRun={runner => void runNote(current, runner)}
+                            onRunCommand={command => setRunCommand(current, command)}
+                            onTerminal={() => void startSession(folderPath(current.folder), current.folder ? `Terminal ${current.folder}` : 'Terminal')}
+                            agents={agents}
+                            defaultAgentId={defaultAgentId}
+                            onAskAgent={(request, agentId) => askAgent(current, request, agentId)}
+                        />
+                    ) : (
+                        <div className="note-pane">
+                            {notes?.length ? (
+                                <EmptyState icon={NotebookPen} title="No file selected">
+                                    Pick a file to edit it.
+                                </EmptyState>
+                            ) : (
+                                <EmptyState icon={NotebookPen} title="No files yet">
+                                    Make a file with New file.
+                                </EmptyState>
+                            )}
+                        </div>
+                    )}
+                    {sessions.length > 0 && terminalSettings && (
+                        <NotesConsole
+                            sessions={sessions}
+                            activeId={consoleId}
+                            settings={terminalSettings}
+                            colorsKey={terminalColorsKey}
+                            collapsed={consoleCollapsed}
+                            onToggle={() => setConsoleCollapsed(value => !value)}
+                            onSelect={session => setConsoleId(session.id)}
+                            onClose={session => void onCloseSession(session).catch(err => setError(errorText(err)))}
+                            onNewTerminal={() => void startSession(folder, 'Terminal')}
+                        />
+                    )}
+                </div>
             </div>
         </div>
     );

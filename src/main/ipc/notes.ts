@@ -20,6 +20,7 @@ export function registerNotesIpc({ notes, notifications, window }: Pick<Services
     ipcMain.handle(IpcChannels.notesRename, (_event, name: string, newName: string) => notes.rename(String(name), String(newName)));
     ipcMain.handle(IpcChannels.notesDelete, (_event, name: string) => notes.delete(String(name)));
     ipcMain.handle(IpcChannels.notesSetTags, (_event, name: string, tags: unknown) => notes.setTags(String(name), Array.isArray(tags) ? tags : []));
+    ipcMain.handle(IpcChannels.notesSetRunCommand, (_event, name: string, command: string) => notes.setRunCommand(String(name), String(command ?? '')));
     ipcMain.on(IpcChannels.notesReveal, (_event, name?: string) => {
         if (typeof name === 'string' && name) {
             shell.showItemInFolder(notes.pathOf(name));

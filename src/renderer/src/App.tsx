@@ -230,6 +230,10 @@ export function App() {
     /** The home folder. The Terminal view keeps its tabs under it, as the worktree view keeps the tabs of a worktree under its path. */
     const homeFolder = useQuery({ queryKey: keyRoots.appInfo, queryFn: () => api.app.info(), staleTime: Number.POSITIVE_INFINITY }).data?.homeFolder;
     const terminalView = mainView === 'terminal';
+    /** The notes folder. The Scratch Pad keeps its terminals and agents under it, as a worktree keeps its tabs under its path. */
+    const notesFolder = useQuery({ queryKey: keyRoots.notesFolder, queryFn: () => api.notes.folder(), staleTime: Number.POSITIVE_INFINITY }).data;
+    /** The session that the Scratch Pad shows in its console when it opens, for example from a notification. */
+    const [notesSession, setNotesSession] = useState<string>();
     // The context menus read the editor name from the cache, so the list loads at start.
     useQuery(editorListQuery);
     /** The folder of the tabs on the screen: the home folder in the Terminal view, else the selected worktree. */
@@ -350,6 +354,11 @@ export function App() {
     };
     /** Shows the tabs of a session folder: the Terminal view for the home folder, else the worktree view. Then selects the tab of the session. */
     const showSessionTab = (worktreePath: string, sessionId?: string) => {
+        if (worktreePath === notesFolder) {
+            setNotesSession(sessionId);
+            setMainView('notes');
+            return;
+        }
         if (worktreePath === homeFolder) setMainView('terminal');
         else showWorktree(worktreePath);
         if (sessionId) activate(worktreePath, `t:${sessionId}`);
@@ -517,7 +526,7 @@ export function App() {
         }
         const { worktreePath, sessionId } = target;
         void (async () => {
-            if (worktreePath !== homeFolder) await worktreeActions.showAnyWorktree(worktreePath);
+            if (worktreePath !== homeFolder && worktreePath !== notesFolder) await worktreeActions.showAnyWorktree(worktreePath);
             showSessionTab(worktreePath, sessionId);
         })().catch(err => setError(errorText(err)));
     };
@@ -533,11 +542,12 @@ export function App() {
         openTarget: openNotificationTarget,
         // A terminal in any pane of the split view is visible, not only the focused one.
         isSessionVisible: session =>
-            document.hasFocus() &&
-            (mainView === 'worktree' || terminalView) &&
-            session.worktreePath === workspacePath &&
-            !!layout &&
-            !!leafOfTab(layout, `t:${session.id}`)
+            (document.hasFocus() && mainView === 'notes' && session.worktreePath === notesFolder) ||
+            (document.hasFocus() &&
+                (mainView === 'worktree' || terminalView) &&
+                session.worktreePath === workspacePath &&
+                !!layout &&
+                !!leafOfTab(layout, `t:${session.id}`))
     });
 
     // The usage budget of Settings › Agents. The queue, the plans, and the automations read it before they start an agent.
@@ -1336,7 +1346,25 @@ export function App() {
                             )}
                             {mainView === 'notes' && (
                                 <main className="workspace">
-                                    <NotesView key={viewEntry} route={routeOf('notes')} onRoute={route => setRoute('notes', route)} />
+                                    <NotesView
+                                        key={viewEntry}
+                                        route={routeOf('notes')}
+                                        onRoute={route => setRoute('notes', route)}
+                                        sessions={notesFolder ? sessions.filter(session => session.worktreePath === notesFolder) : []}
+                                        terminalSettings={terminalSettings ?? settings}
+                                        terminalColorsKey={terminalColorsKey}
+                                        focusSessionId={notesSession}
+                                        onSessionStarted={session =>
+                                            setSessions(list => (list.some(item => item.id === session.id) ? list : [...list, session]))
+                                        }
+                                        onCloseSession={tabs.closeSession}
+                                        agents={appSettings.agents}
+                                        defaultAgentId={agentForRepo(appSettings, undefined).id}
+                                        onPromptAgent={async (prompt, agentId) => {
+                                            if (!notesFolder) return;
+                                            await agents.promptAgent({ path: notesFolder }, prompt, { agentId, newSession: true });
+                                        }}
+                                    />
                                 </main>
                             )}
                             {mainView === 'automations' && (

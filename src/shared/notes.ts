@@ -10,6 +10,11 @@ export interface NoteInfo {
     /** The folder of the note. An empty text: the note is at the top level. */
     folder: string;
     tags: string[];
+    /**
+     * The command that runs the note, from the user. It is a program ("python3") or a command with the `{file}` token.
+     * It is undefined when the note uses the default program of its extension.
+     */
+    runCommand?: string;
     size: number;
     createdAt: string;
     modifiedAt: string;

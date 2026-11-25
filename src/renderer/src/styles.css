@@ -8930,10 +8930,145 @@ button:focus-visible,
     border-bottom: 1px solid var(--border);
 }
 
-.note-title-row {
+/* The right side of the Scratch Pad: the editor of the note, with the console under it. */
+.notes-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* A form under the header of a note: the run command, or a request for an agent. */
+.note-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.note-form-hint {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* The hint takes the full row when the pane is narrow. The controls then go to the next row, at the right. */
+.note-form-hint > span:first-child {
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+.note-form-hint > :not(:first-child) {
+    flex: none;
+}
+
+/* The name of a note stays readable when the header has many buttons. */
+.note-title-row .note-title {
+    flex: 0 1 auto;
+    min-width: 72px;
+}
+
+/* The console of the Scratch Pad: tabs for runs, terminals, and agents in the notes folder. */
+.notes-console {
+    position: relative;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+}
+
+.notes-console.collapsed {
+    height: auto;
+}
+
+.notes-console-header {
+    flex: none;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
+    height: 36px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.notes-console.collapsed .notes-console-header {
+    border-bottom: none;
+}
+
+.notes-console-tabs {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.notes-console-tab {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    max-width: 260px;
+    height: var(--control-height);
+    padding-right: 2px;
+    border-radius: var(--control-radius);
+    color: var(--muted);
+}
+
+.notes-console-tab:hover {
+    background: var(--hover);
+}
+
+.notes-console-tab.active {
+    background: var(--hover);
+    color: var(--text-strong);
+}
+
+.notes-console-tab-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    height: 100%;
+    padding: 0 4px 0 8px;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: var(--control-font-size);
+    cursor: pointer;
+}
+
+.notes-console-tab-main > svg {
+    flex: none;
+}
+
+.notes-console-tab-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notes-console-body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.note-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
     min-height: 30px;
 }
 
@@ -17649,8 +17784,8 @@ button.pr-summary-cell:hover {
     min-height: 0;
 }
 
-/* The hit area of the resize handle is on the top border of the drawer. */
-.agent-drawer-resize {
+/* The hit area of the resize handle is on the top border of a drawer. */
+.drawer-resize {
     position: absolute;
     top: -4px;
     left: 0;
@@ -17661,7 +17796,7 @@ button.pr-summary-cell:hover {
     outline: none;
 }
 
-.agent-drawer-resize::after {
+.drawer-resize::after {
     content: "";
     position: absolute;
     top: 3px;
@@ -17674,9 +17809,9 @@ button.pr-summary-cell:hover {
     pointer-events: none;
 }
 
-.agent-drawer-resize:hover::after,
-.agent-drawer-resize:focus-visible::after,
-body.resizing-rows .agent-drawer-resize:active::after {
+.drawer-resize:hover::after,
+.drawer-resize:focus-visible::after,
+body.resizing-rows .drawer-resize:active::after {
     opacity: 0.8;
 }
 
