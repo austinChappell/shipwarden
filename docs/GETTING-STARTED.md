@@ -10,7 +10,7 @@ These words have a special meaning in this guide:
 | Agent | A coding agent CLI, for example Claude Code, that runs in a terminal tab of ShipWarden. |
 | Worktree | An additional working folder of a repository. Each worktree has its own branch. Each agent works in its own worktree, so the agents do not change the files of a different agent. |
 | Project | A group of repositories in the sidebar. ShipWarden makes the project "Default" for you. |
-| Code review provider | Your GitHub, Azure DevOps, GitLab, or Bitbucket account in ShipWarden. ShipWarden gets the pull requests and the checks from it. |
+| Code review provider | Your GitHub, Azure DevOps, GitLab, Bitbucket, Gitea, or Forgejo account in ShipWarden. ShipWarden gets the pull requests and the checks from it. |
 
 ## 1. Get the tools that ShipWarden uses
 
@@ -68,11 +68,12 @@ This also occurs when you have open pull requests.
 
 1. Open **Settings** (⌘,).
 2. Select **Code review**.
-3. In **Add a provider…**, select **GitHub** (or **Azure DevOps**, **GitLab**, or **Bitbucket**).
+3. In **Add a provider…**, select **GitHub** (or **Azure DevOps**, **GitLab**, **Bitbucket**, or **Gitea or Forgejo**).
 4. Click **Add**.
 5. For Azure DevOps, type the name of your organization. For a self-hosted GitLab server, type its URL in
    **Server URL**, for example `https://git.example.com`. For Bitbucket with an Atlassian API token, type the email of
-   your Atlassian account in **Email or username**.
+   your Atlassian account in **Email or username**. For Gitea or Forgejo, make sure that **Server URL** shows your
+   server, for example `https://codeberg.org`.
 6. Click **Test**. The message "The token works" shows the account of the token.
 
 ShipWarden uses the first GitHub token that it finds. It tries these sources in this order:
@@ -111,6 +112,16 @@ environment variable (with `BITBUCKET_USERNAME` for Basic auth). Two kinds of to
 Give the token these scopes: account (read), repositories (read and write), pull requests (read and write),
 pipelines (read and write), and workspace membership (read). Use **Workspaces** to show only some workspaces, for
 example `acme`. Empty means the workspaces of your account (at most 10). Bitbucket Data Center is not supported.
+
+For Gitea and Forgejo, add one provider for each server. When you add the provider, ShipWarden looks at the `origin`
+remotes of your projects. It asks each unknown server for `/api/v1/version`, and it puts the first Gitea or Forgejo
+server in **Server URL**. If ShipWarden finds no server, type the URL. ShipWarden uses the CA certificates of Settings ›
+Network for the server, so a server with a private CA works.
+
+ShipWarden uses a token that you save in the **Personal access token** field, else the `GITEA_TOKEN` environment
+variable. Make the token in **Settings › Applications** on the server. Give it these scopes: repository (read and
+write), issue (read and write), user (read), and organization (read). Use **Owners** to show only the repositories of
+some organizations or users, for example `acme`. Empty means all repositories that you can access.
 
 ## 5. Start your first agent
 
@@ -242,7 +253,7 @@ ShipWarden checks for updates a few seconds after it starts, and then every 4 ho
 |---|---|
 | macOS does not open ShipWarden because it cannot check the app. | This can occur with a build that is not notarized. Open **System Settings › Privacy & Security** and click **Open Anyway**. |
 | The Dashboard shows zeros. | You have no code review provider, or the provider is off. Do [step 4](#4-add-a-code-review-provider). |
-| The pull request panel says that the worktree has no GitHub, Azure Repos, GitLab, or Bitbucket remote named "origin". | This message also shows when you have no code review provider, or when the provider is off. Open **Settings › Code review** first. Then make sure that the repository has an `origin` remote. |
+| The pull request panel says that the worktree has no GitHub, Azure Repos, GitLab, Bitbucket, Gitea, or Forgejo remote named "origin". | This message also shows when you have no code review provider, or when the provider is off. Open **Settings › Code review** first. Then make sure that the repository has an `origin` remote. |
 | "ShipWarden cannot get a GitHub token." | Run `gh auth login`, or save a token in **Settings › Code review**. If you installed `gh` while ShipWarden was open, quit ShipWarden and open it again. |
 | "GitHub has no release of ShipWarden, or the repository is private." | The update check uses the token of your GitHub code review provider. Do [step 4](#4-add-a-code-review-provider). |
 | Nothing occurs when you press ⌘N. | The project has no repository. Do [step 3](#3-add-a-repository). |

@@ -1,0 +1,36 @@
+{
+    "state": "failure",
+    "sha": "2222222222222222222222222222222222222222",
+    "total_count": 3,
+    "statuses": [
+        {
+            "id": 401,
+            "status": "success",
+            "target_url": "https://git.example.com/acme/api/actions/runs/14/jobs/0",
+            "description": "Successful in 42s",
+            "url": "",
+            "context": "ci / test (push)",
+            "creator": { "id": 30, "login": "viewer" },
+            "created_at": "2026-11-20T11:00:00Z",
+            "updated_at": "2026-11-20T11:01:00Z"
+        },
+        {
+            "id": 402,
+            "status": "failure",
+            "target_url": "https://git.example.com/acme/api/actions/runs/14/jobs/1",
+            "description": "Failing after 10s",
+            "context": "ci / lint (push)",
+            "created_at": "2026-11-20T11:00:00Z",
+            "updated_at": "2026-11-20T11:00:10Z"
+        },
+        {
+            "id": 403,
+            "status": "pending",
+            "target_url": "https://ci.example.com/build/88",
+            "description": "Build is running",
+            "context": "external/build",
+            "created_at": "2026-11-20T11:00:00Z",
+            "updated_at": "2026-11-20T11:00:00Z"
+        }
+    ]
+}

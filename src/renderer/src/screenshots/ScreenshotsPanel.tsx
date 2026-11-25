@@ -40,6 +40,7 @@ function hostCanPostImages(kind: SourceHostKind | undefined): boolean {
 function uploadNote(kind: SourceHostKind | undefined): string {
     if (kind === 'azure') return 'The images become attachments of the pull request.';
     if (kind === 'gitlab') return 'The images go to the uploads of the GitLab project.';
+    if (kind === 'gitea') return 'The images become attachments of the pull request.';
     return 'GitHub has no API for images in comments. ShipWarden commits the images to the branch "shipwarden-screenshots" of the repository. For a private repository, readers must be signed in to GitHub to see them.';
 }
 

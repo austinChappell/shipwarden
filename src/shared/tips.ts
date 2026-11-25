@@ -24,6 +24,12 @@ export interface Tip {
 /** The tips of the corner notice. The notice shows one tip at random (see `pickTip`). */
 export const NOTICE_TIPS: readonly Tip[] = [
     {
+        id: 'giteaProvider',
+        title: 'Review Gitea and Forgejo pull requests',
+        body: 'Add a "Gitea or Forgejo" provider in Settings › Code review. ShipWarden finds the server in the remotes of your projects. Pull requests, reviews, threads, and Gitea Actions runs then show in ShipWarden.',
+        action: { kind: 'settings', section: 'review', label: 'Open Settings › Code review' }
+    },
+    {
         id: 'codexHooks',
         title: 'See the state of Codex agents',
         body: 'Start Codex in ShipWarden, type /hooks, and trust the ShipWarden hooks under "Session flags". The Agents view then shows when Codex needs input, and how many tokens it used.',

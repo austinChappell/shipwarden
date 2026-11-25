@@ -44,11 +44,13 @@ The downloads use the CA certificates of Settings › Network.
 The right panel also shows the pull request of the worktree's branch and its GitHub Actions
 checks. You can review diffs with inline comments, approve, request changes, merge, read job
 logs, run jobs again and send a failed job or a review comment to the agent. First add a
-GitHub, Azure DevOps, GitLab, or Bitbucket provider in Settings › Code review. The GitHub provider uses a saved
+GitHub, Azure DevOps, GitLab, Bitbucket, or Gitea provider in Settings › Code review. The GitHub provider uses a saved
 token or your GitHub CLI login (`gh auth login`). The GitLab provider works with gitlab.com and with a
 self-hosted server. It uses a saved token or your glab CLI login (`glab auth login`). The Bitbucket provider works
 with Bitbucket Cloud (bitbucket.org). It uses an Atlassian API token with your email, or a workspace, project, or
-repository access token.
+repository access token. The Gitea provider works with a Gitea or a Forgejo server, for example codeberg.org. It uses
+a personal access token and finds the server in the remotes of your projects. It shows the Gitea Actions runs and
+their job logs.
 
 The Agents view (⌥⌘2) shows all running agents in one list. Each row shows the state of the agent
 (needs input, blocked on CI, working or done), the time since its last output, and its pull request
@@ -248,7 +250,8 @@ and for the base, and shows the two images side by side.
 ShipWarden never starts or stops a dev server, and it cannot see which worktree the server uses. The images stay in
 the app data folder, with the commit of each side. On GitHub, the images go to the branch `shipwarden-screenshots` of
 the repository. Azure DevOps keeps them as attachments of the pull request, and GitLab keeps them in the uploads of the
-project. Bitbucket Cloud has no API for images in comments, so **Add to PR** does not show for Bitbucket. See [docs/screenshots.md](docs/screenshots.md).
+project. Gitea and Forgejo keep them as attachments of the pull request. Bitbucket Cloud has no API for images in
+comments, so **Add to PR** does not show for Bitbucket. See [docs/screenshots.md](docs/screenshots.md).
 
 ### Send a page element to an agent
 
@@ -393,7 +396,7 @@ ShipWarden is for Macs with Apple silicon. Do these steps in this order:
 2. Download the DMG from the [releases page](https://github.com/austinChappell/shipwarden/releases).
    Install ShipWarden from it.
 3. In the sidebar, click **Add a repository**. Select a local clone.
-4. Open **Settings › Code review**. Add a GitHub, Azure DevOps, GitLab, or Bitbucket provider. The Dashboard stays empty
+4. Open **Settings › Code review**. Add a GitHub, Azure DevOps, GitLab, Bitbucket, or Gitea provider. The Dashboard stays empty
    until you do this.
 5. Press ⌘N. Type a branch name. Click **Create worktree**. An agent starts in the new worktree.
 

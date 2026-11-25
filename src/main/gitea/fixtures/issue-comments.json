@@ -1,0 +1,18 @@
+[
+    {
+        "id": 301,
+        "html_url": "https://git.example.com/acme/api/pulls/7#issuecomment-301",
+        "pull_request_url": "https://git.example.com/acme/api/pulls/7",
+        "user": { "id": 31, "login": "sam" },
+        "body": "Thanks. I will look today.",
+        "created_at": "2026-11-18T10:00:00Z",
+        "updated_at": "2026-11-18T10:00:00Z"
+    },
+    {
+        "id": 302,
+        "html_url": "https://git.example.com/acme/api/pulls/7#issuecomment-302",
+        "user": { "id": 21, "login": "dana" },
+        "body": "",
+        "created_at": "2026-11-18T11:00:00Z"
+    }
+]

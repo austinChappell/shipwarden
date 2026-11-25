@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { azureRepoOf, azureRepoRef, parseAzureRemote } from '@shared/azure-devops';
 import { bitbucketRepoOf, bitbucketRepoRef, parseBitbucketRemote } from '@shared/bitbucket';
 import type { DashboardPullRequests, PipelineApprovalItem, PipelineApprovalTarget, PullRequestCommentItem } from '@shared/dashboard';
+import { giteaHostOf, giteaRepoOf, giteaRepoRef, normalizeGiteaUrl, parseGiteaRemote, parseServerVersion, remoteServerGuess } from '@shared/gitea';
 import { gitlabHostOf, gitlabRepoOf, gitlabRepoRef, normalizeGitLabUrl, parseGitLabRemote, topGroupOf } from '@shared/gitlab';
 import {
     parseGitHubRemote,
@@ -33,6 +34,8 @@ import { AzureDevOpsClient } from './azure/azure-client';
 import { AzureDevOpsService } from './azure/azure-service';
 import { BitbucketClient } from './bitbucket/bitbucket-client';
 import { BitbucketService } from './bitbucket/bitbucket-service';
+import { GiteaClient } from './gitea/gitea-client';
+import { GiteaService } from './gitea/gitea-service';
 import { GitHubClient } from './github/github-client';
 import { GitHubService } from './github/github-service';
 import { GitLabClient } from './gitlab/gitlab-client';
@@ -79,19 +82,43 @@ interface BitbucketRuntime {
     host: BitbucketService;
 }
 
-type Runtime = GitHubRuntime | AzureRuntime | GitLabRuntime | BitbucketRuntime;
+interface GiteaRuntime {
+    kind: 'gitea';
+    client: GiteaClient;
+    host: GiteaService;
+}
 
-/** The kind of a target, its organization (a GitLab group or a Bitbucket workspace), and the host of a GitLab server. */
+type Runtime = GitHubRuntime | AzureRuntime | GitLabRuntime | BitbucketRuntime | GiteaRuntime;
+
+/**
+ * The kind of a target, its organization (a GitLab group, a Bitbucket workspace, or a Gitea owner), and the host of a
+ * GitLab, Gitea, or Forgejo server.
+ */
 interface Route {
     kind: ReviewProviderKind;
     organization?: string;
-    /** GitLab only: the host of the server, for example "gitlab.com". */
+    /** GitLab, Gitea, and Forgejo only: the host of the server, for example "gitlab.com" or "codeberg.org". */
     server?: string;
 }
 
-/** The host of the server of a GitLab provider. */
+/** The host of the server of a GitLab, Gitea, or Forgejo provider. */
 function serverOf(provider: StoredReviewProvider): string | undefined {
-    return gitlabHostOf(provider.baseUrl);
+    return provider.kind === 'gitea' ? giteaHostOf(provider.baseUrl) : gitlabHostOf(provider.baseUrl);
+}
+
+/** The time that ShipWarden waits for the answer of a possible Gitea or Forgejo server. */
+const PROBE_TIMEOUT_MS = 3000;
+
+/** True when the server answers "/api/v1/version" with a version, as Gitea and Forgejo do. The request has no token. */
+async function probeGitea(baseUrl: string): Promise<boolean> {
+    try {
+        const response = await fetch(`${baseUrl}/api/v1/version`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+        if (!response.ok) return false;
+        const data = (await response.json()) as { version?: unknown };
+        return typeof data?.version === 'string' && data.version !== '';
+    } catch {
+        return false;
+    }
 }
 
 export interface ReviewProvidersOptions {
@@ -112,10 +139,13 @@ export interface ReviewProvidersOptions {
      * when a provider has all organizations.
      */
     projectRepos?(): Promise<string[]>;
+    /** True when a base URL is a Gitea or Forgejo server. Tests replace it. The default asks "/api/v1/version". */
+    probeGitea?(baseUrl: string): Promise<boolean>;
 }
 
 /**
- * Keeps the code review providers (GitHub, Azure DevOps, GitLab, and Bitbucket accounts) and selects the provider of each call.
+ * Keeps the code review providers (GitHub, Azure DevOps, GitLab, Bitbucket, and Gitea or Forgejo accounts) and selects
+ * the provider of each call.
  * Each provider has its own client and token. A worktree goes to a provider of the kind of its "origin" remote.
  * When there are more providers of that kind, the organization of the remote selects one (see `pickProvider`).
  */
@@ -173,10 +203,14 @@ export class ReviewProviders {
     }
 
     async add(kind: ReviewProviderKind, name: string): Promise<ReviewProviderInfo> {
-        if (kind !== 'github' && kind !== 'azure' && kind !== 'gitlab' && kind !== 'bitbucket') {
+        if (kind !== 'github' && kind !== 'azure' && kind !== 'gitlab' && kind !== 'bitbucket' && kind !== 'gitea') {
             throw new Error(`The provider kind "${String(kind)}" is not known.`);
         }
         const provider: StoredReviewProvider = { id: randomUUID(), kind, name: name.trim() || providerKindName(kind), enabled: true };
+        if (kind === 'gitea') {
+            const baseUrl = await this.detectGiteaServer();
+            if (baseUrl) provider.baseUrl = baseUrl;
+        }
         await this.providers();
         await this.store.update(value => ({ ...value, providers: [...(value.providers ?? []), provider] }));
         this.options.onChanged();
@@ -205,6 +239,15 @@ export class ReviewProviders {
                         this.accounts.set(id, next.cliAccount);
                     }
                 }
+                if (change.baseUrl !== undefined && provider.kind === 'gitea') {
+                    const url = typeof change.baseUrl === 'string' ? normalizeGiteaUrl(change.baseUrl) : undefined;
+                    if (typeof change.baseUrl === 'string' && change.baseUrl.trim() && !url) {
+                        throw new Error(`"${change.baseUrl}" is not a valid URL.`);
+                    }
+                    if (url) next.baseUrl = url;
+                    else delete next.baseUrl;
+                    serverChanged = next.baseUrl !== provider.baseUrl;
+                }
                 if (change.baseUrl !== undefined && provider.kind === 'gitlab') {
                     const url = typeof change.baseUrl === 'string' ? normalizeGitLabUrl(change.baseUrl) : undefined;
                     if (typeof change.baseUrl === 'string' && change.baseUrl.trim() && !url) {
@@ -227,7 +270,7 @@ export class ReviewProviders {
             })
         }));
         if (authChanged) this.resetAuth(id);
-        // The client and the service of a GitLab provider belong to one server. A new server gets a new runtime.
+        // The client and the service of a GitLab, Gitea, or Forgejo provider belong to one server. A new server gets a new runtime.
         if (serverChanged) this.runtimes.delete(id);
         this.options.onChanged();
     }
@@ -261,7 +304,7 @@ export class ReviewProviders {
     /** Returns where the next request of the provider gets its token. Undefined when no token is available. */
     async tokenSource(id: string): Promise<ReviewTokenSource | undefined> {
         const runtime = await this.runtime(await this.provider(id));
-        if (runtime.kind === 'github' || runtime.kind === 'gitlab' || runtime.kind === 'bitbucket') return runtime.client.tokenSource();
+        if (runtime.kind !== 'azure') return runtime.client.tokenSource();
         const source = await runtime.client.tokenSource();
         return source === 'az' ? 'cli' : source;
     }
@@ -282,6 +325,11 @@ export class ReviewProviders {
         if (runtime.kind === 'bitbucket') {
             const user = await runtime.client.request<{ nickname?: string; display_name?: string }>('GET', '/user');
             return user.display_name || user.nickname || 'unknown user';
+        }
+        if (runtime.kind === 'gitea') {
+            const [user, version] = await Promise.all([runtime.client.request<{ login: string }>('GET', '/user'), runtime.client.version().catch(() => '')]);
+            const server = version ? parseServerVersion(version) : undefined;
+            return server ? `${user.login} (${server.product} ${server.version})` : user.login;
         }
         const name = (organization ?? '').trim() || provider.scope?.[0];
         if (!name) {
@@ -330,7 +378,10 @@ export class ReviewProviders {
         return parseGitHubRemote(await this.remoteOf(root)) ?? null;
     }
 
-    /** Returns the GitHub, Azure Repos, GitLab, or Bitbucket repository of a worktree from its "origin" remote. Returns null for other remotes. */
+    /**
+     * Returns the GitHub, Azure Repos, GitLab, Bitbucket, Gitea, or Forgejo repository of a worktree from its "origin"
+     * remote. Returns null for other remotes.
+     */
     async repoFor(root: string): Promise<RepoRef | null> {
         const url = await this.remoteOf(root);
         const azure = parseAzureRemote(url);
@@ -338,7 +389,9 @@ export class ReviewProviders {
         const bitbucket = parseBitbucketRemote(url);
         if (bitbucket) return bitbucketRepoRef(bitbucket);
         const gitlab = parseGitLabRemote(url, await this.gitlabServers());
-        return gitlab ? gitlabRepoRef(gitlab) : (parseGitHubRemote(url) ?? null);
+        if (gitlab) return gitlabRepoRef(gitlab);
+        const gitea = parseGiteaRemote(url, await this.giteaServers());
+        return gitea ? giteaRepoRef(gitea) : (parseGitHubRemote(url) ?? null);
     }
 
     /** Returns the open pull requests of a repository of the Review view, from the provider of its host. */
@@ -362,6 +415,7 @@ export class ReviewProviders {
             (service, provider) => service.repositories(provider.scope),
             async (host, provider) => host.repositories(provider.scope, await this.projectOrganizations()),
             (host, provider) => host.repositories(provider.scope),
+            (host, provider) => host.repositories(provider.scope),
             (host, provider) => host.repositories(provider.scope)
         );
         const unique = new Map<string, GitHubRepoInfo>();
@@ -378,6 +432,7 @@ export class ReviewProviders {
         const results = await this.eachProvider(
             (service, provider) => service.dashboardPullRequests(provider.scope ?? 'all'),
             async (host, provider) => host.dashboardPullRequests(provider.scope, await this.projectOrganizations()),
+            (host, provider) => host.dashboardPullRequests(provider.scope),
             (host, provider) => host.dashboardPullRequests(provider.scope),
             (host, provider) => host.dashboardPullRequests(provider.scope)
         );
@@ -488,15 +543,16 @@ export class ReviewProviders {
 
     /**
      * Calls `github` for each GitHub provider, `azure` for each Azure DevOps provider, `gitlab` for each GitLab provider,
-     * and `bitbucket` for each Bitbucket provider that is on, at the same time. Without a callback for a kind, the
-     * providers of that kind stay out.
+     * `bitbucket` for each Bitbucket provider, and `gitea` for each Gitea or Forgejo provider that is on, at the same
+     * time. Without a callback for a kind, the providers of that kind stay out.
      * When a call fails, the error names the provider, so that the user knows which token to fix.
      */
     private async eachProvider<T>(
         github: (service: GitHubService, provider: StoredReviewProvider) => Promise<T>,
         azure?: (host: AzureDevOpsService, provider: StoredReviewProvider) => Promise<T>,
         gitlab?: (host: GitLabService, provider: StoredReviewProvider) => Promise<T>,
-        bitbucket?: (host: BitbucketService, provider: StoredReviewProvider) => Promise<T>
+        bitbucket?: (host: BitbucketService, provider: StoredReviewProvider) => Promise<T>,
+        gitea?: (host: GiteaService, provider: StoredReviewProvider) => Promise<T>
     ): Promise<T[]> {
         const providers = (await this.providers()).filter(
             provider =>
@@ -504,7 +560,8 @@ export class ReviewProviders {
                 (provider.kind === 'github' ||
                     (provider.kind === 'azure' && azure) ||
                     (provider.kind === 'gitlab' && gitlab) ||
-                    (provider.kind === 'bitbucket' && bitbucket))
+                    (provider.kind === 'bitbucket' && bitbucket) ||
+                    (provider.kind === 'gitea' && gitea))
         );
         return Promise.all(
             providers.map(async provider => {
@@ -513,6 +570,7 @@ export class ReviewProviders {
                     if (runtime.kind === 'github') return await github(runtime.service, provider);
                     if (runtime.kind === 'azure') return await azure!(runtime.host, provider);
                     if (runtime.kind === 'gitlab') return await gitlab!(runtime.host, provider);
+                    if (runtime.kind === 'gitea') return await gitea!(runtime.host, provider);
                     return await bitbucket!(runtime.host, provider);
                 } catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
@@ -534,7 +592,7 @@ export class ReviewProviders {
         const route = await this.routeOf(target);
         const provider = await this.pick(route);
         if (!provider) {
-            const where = route.kind === 'gitlab' && route.server ? ` for ${route.server}` : '';
+            const where = (route.kind === 'gitlab' || route.kind === 'gitea') && route.server ? ` for ${route.server}` : '';
             throw new Error(`No ${providerKindName(route.kind)} provider${where} is on. Add one in Settings › Code review.`);
         }
         return this.runtime(provider);
@@ -545,11 +603,13 @@ export class ReviewProviders {
         return provider ? (await this.runtime(provider)).host : undefined;
     }
 
-    /** Selects the provider of a route. A GitLab route takes only the providers of its server. */
+    /** Selects the provider of a route. A GitLab, Gitea, or Forgejo route takes only the providers of its server. */
     private async pick(route: Route): Promise<StoredReviewProvider | undefined> {
         const providers = await this.providers();
         const candidates =
-            route.kind === 'gitlab' ? providers.filter(provider => provider.kind !== 'gitlab' || serverOf(provider) === route.server) : providers;
+            route.kind === 'gitlab' || route.kind === 'gitea'
+                ? providers.filter(provider => provider.kind !== route.kind || serverOf(provider) === route.server)
+                : providers;
         return pickProvider(candidates, route.kind, route.organization);
     }
 
@@ -558,10 +618,40 @@ export class ReviewProviders {
         return (await this.providers()).flatMap(provider => (provider.kind === 'gitlab' && provider.baseUrl ? [provider.baseUrl] : []));
     }
 
+    /** The base URLs of the Gitea and Forgejo servers of the providers. */
+    private async giteaServers(): Promise<string[]> {
+        return (await this.providers()).flatMap(provider => (provider.kind === 'gitea' && provider.baseUrl ? [provider.baseUrl] : []));
+    }
+
+    /**
+     * Finds the server of a new Gitea or Forgejo provider from the "origin" remotes of the project repositories.
+     * A remote that no provider knows (not GitHub, Azure Repos, Bitbucket, a GitLab server, or a Gitea server of a
+     * provider) gives a possible server. The first possible server that answers as Gitea or Forgejo wins.
+     * Returns undefined when no server answers.
+     */
+    private async detectGiteaServer(): Promise<string | undefined> {
+        const roots = (await this.options.projectRepos?.().catch((): string[] => [])) ?? [];
+        const [gitlabServers, giteaServers] = await Promise.all([this.gitlabServers(), this.giteaServers()]);
+        const guesses = new Set<string>();
+        for (const root of roots) {
+            const url = await this.remoteOf(root);
+            if (!url || parseGitHubRemote(url) || parseAzureRemote(url) || parseBitbucketRemote(url)) continue;
+            if (parseGitLabRemote(url, gitlabServers) || parseGiteaRemote(url, giteaServers)) continue;
+            const guess = remoteServerGuess(url);
+            if (guess) guesses.add(guess);
+        }
+        if (guesses.size === 0) return undefined;
+        await this.options.ready;
+        const probe = this.options.probeGitea ?? probeGitea;
+        const list = [...guesses].slice(0, 5);
+        const answers = await Promise.all(list.map(url => probe(url).catch(() => false)));
+        return list.find((_, index) => answers[index]);
+    }
+
     /**
      * Returns the kind and the organization of a target. A repository of the Review view goes to the provider of its host.
-     * A worktree with a remote that is not on Azure Repos, on a GitLab server, or on Bitbucket goes to GitHub, as in older
-     * versions.
+     * A worktree with a remote that is not on Azure Repos, on Bitbucket, on a GitLab server, or on a Gitea or Forgejo
+     * server goes to GitHub, as in older versions.
      */
     private async routeOf(target: RepoTarget): Promise<Route> {
         if (typeof target === 'object' && target) {
@@ -571,6 +661,10 @@ export class ReviewProviders {
                 return { kind: 'gitlab', organization: gitlab && topGroupOf(gitlab.namespace), server: gitlab?.host };
             }
             if (target.host === 'bitbucket') return { kind: 'bitbucket', organization: bitbucketRepoOf(target)?.workspace };
+            if (target.host === 'gitea') {
+                const gitea = giteaRepoOf(target);
+                return { kind: 'gitea', organization: gitea?.owner, server: gitea?.host };
+            }
             return { kind: 'github', organization: target.owner };
         }
         const url = await this.remoteOf(String(target));
@@ -580,6 +674,8 @@ export class ReviewProviders {
         if (bitbucket) return { kind: 'bitbucket', organization: bitbucket.workspace };
         const gitlab = parseGitLabRemote(url, await this.gitlabServers());
         if (gitlab) return { kind: 'gitlab', organization: topGroupOf(gitlab.namespace), server: gitlab.host };
+        const gitea = parseGiteaRemote(url, await this.giteaServers());
+        if (gitea) return { kind: 'gitea', organization: gitea.owner, server: gitea.host };
         return { kind: 'github', organization: parseGitHubRemote(url)?.owner };
     }
 
@@ -638,6 +734,10 @@ export class ReviewProviders {
             const baseUrl = provider.baseUrl;
             const client = new GitLabClient({ ready: this.options.ready, savedToken, baseUrl: () => baseUrl });
             runtime = { kind: 'gitlab', client, host: new GitLabService(client, root => this.remoteOf(root)) };
+        } else if (provider.kind === 'gitea') {
+            const baseUrl = provider.baseUrl;
+            const client = new GiteaClient({ ready: this.options.ready, savedToken, baseUrl: () => baseUrl });
+            runtime = { kind: 'gitea', client, host: new GiteaService(client, root => this.remoteOf(root)) };
         } else if (provider.kind === 'bitbucket') {
             // The client reads the username at each new token, so a change of the username applies after `reset`.
             this.usernames.set(id, provider.username);

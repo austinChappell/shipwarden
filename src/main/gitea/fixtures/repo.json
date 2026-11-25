@@ -1,0 +1,18 @@
+{
+    "id": 12,
+    "owner": { "id": 3, "login": "acme", "full_name": "Acme", "avatar_url": "https://git.example.com/avatars/3" },
+    "name": "api",
+    "full_name": "acme/api",
+    "html_url": "https://git.example.com/acme/api",
+    "default_branch": "main",
+    "updated_at": "2026-11-20T10:00:00Z",
+    "archived": false,
+    "has_actions": true,
+    "allow_merge_commits": true,
+    "allow_rebase": true,
+    "allow_rebase_explicit": true,
+    "allow_squash_merge": true,
+    "allow_fast_forward_only_merge": false,
+    "default_merge_style": "squash",
+    "permissions": { "admin": false, "push": true, "pull": true }
+}

@@ -21,12 +21,16 @@ const REMOTES: Record<string, string> = {
     '/work/lab': 'git@gitlab.com:acme/platform/api.git',
     '/work/self': 'https://git.example.com/team/sub/web.git',
     '/work/bucket': 'git@bitbucket.org:acme/api.git',
-    '/work/bucket-https': 'https://dana@bitbucket.org/partner/site.git'
+    '/work/bucket-https': 'https://dana@bitbucket.org/partner/site.git',
+    '/work/tea': 'git@git.acme.dev:acme/api.git',
+    '/work/berg': 'https://codeberg.org/dana/notes.git'
 };
 
 describe('ReviewProviders', () => {
     let folder: string;
     let legacyOwners: string[] | 'all' | undefined;
+    let projectRepos: string[] = [];
+    const probed: string[] = [];
     const create = () =>
         new ReviewProviders({
             file: join(folder, 'providers.json'),
@@ -34,7 +38,12 @@ describe('ReviewProviders', () => {
             ready: Promise.resolve(),
             legacyReviewOwners: async () => legacyOwners,
             onChanged: () => undefined,
-            readRemote: async root => REMOTES[root] ?? ''
+            readRemote: async root => REMOTES[root] ?? '',
+            projectRepos: async () => projectRepos,
+            probeGitea: async url => {
+                probed.push(url);
+                return url === 'https://git.acme.dev';
+            }
         });
     /** A user with both providers, as an older version had them. */
     const createWithBoth = async () => {
@@ -47,6 +56,8 @@ describe('ReviewProviders', () => {
     beforeEach(async () => {
         folder = await mkdtemp(join(tmpdir(), 'review-providers-'));
         legacyOwners = undefined;
+        projectRepos = [];
+        probed.length = 0;
     });
 
     afterEach(async () => {
@@ -184,5 +195,40 @@ describe('ReviewProviders', () => {
         expect((await providers.list()).find(item => item.id === azureId)?.tokenSaved).toBe(true);
         await providers.remove(azureId);
         expect((await providers.list()).map(item => item.kind)).toEqual(['github']);
+    });
+    it('finds the server of a new Gitea provider from the remotes of the projects', async () => {
+        projectRepos = ['/work/acme', '/work/lab', '/work/bucket', '/work/self', '/work/tea'];
+        const providers = create();
+        const tea = await providers.add('gitea', 'Gitea');
+        // GitHub, gitlab.com, and Bitbucket remotes are not possible servers.
+        expect(probed.sort()).toEqual(['https://git.acme.dev', 'https://git.example.com']);
+        expect(tea.baseUrl).toBe('https://git.acme.dev');
+        expect(await providers.repoFor('/work/tea')).toEqual({ owner: 'git.acme.dev/acme', name: 'api', host: 'gitea' });
+        // A second provider does not get the server of the first provider again.
+        probed.length = 0;
+        expect((await providers.add('gitea', 'Gitea 2')).baseUrl).toBeUndefined();
+        expect(probed).toEqual(['https://git.example.com']);
+    });
+
+    it('selects the Gitea provider of the server of the remote', async () => {
+        const providers = create();
+        await providers.add('github', 'GitHub');
+        const work = await providers.add('gitea', 'Work');
+        const berg = await providers.add('gitea', 'Codeberg');
+        expect(await providers.repoFor('/work/berg')).toBeNull();
+        await providers.update(work.id, { baseUrl: 'git.acme.dev/' });
+        await providers.update(berg.id, { baseUrl: 'https://codeberg.org' });
+        expect((await providers.list()).find(item => item.id === work.id)?.baseUrl).toBe('https://git.acme.dev');
+        const fromWork = await providers.for('/work/tea');
+        const fromBerg = await providers.for('/work/berg');
+        expect(fromWork.kind).toBe('gitea');
+        expect(fromBerg.kind).toBe('gitea');
+        expect(fromBerg).not.toBe(fromWork);
+        expect(await providers.for({ owner: 'codeberg.org/dana', name: 'notes', host: 'gitea' })).toBe(fromBerg);
+        await providers.update(berg.id, { enabled: false });
+        await expect(providers.for({ owner: 'codeberg.org/dana', name: 'notes', host: 'gitea' })).rejects.toThrow(
+            'No Gitea or Forgejo provider for codeberg.org is on'
+        );
+        await expect(providers.update(work.id, { baseUrl: 'ftp://example.com' })).rejects.toThrow('is not a valid URL');
     });
 });

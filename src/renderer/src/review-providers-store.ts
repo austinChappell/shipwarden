@@ -88,7 +88,7 @@ export function applyProviderChange(provider: ReviewProviderInfo, change: Review
     if (change.baseUrl !== undefined) {
         // The main process cleans the URL. The list loads again after its change event and gets the clean URL.
         const url = change.baseUrl?.trim().replace(/\/+$/, '');
-        if (url && url !== 'https://gitlab.com') next.baseUrl = url;
+        if (url && (provider.kind === 'gitea' || url !== 'https://gitlab.com')) next.baseUrl = url;
         else delete next.baseUrl;
     }
     if (change.username !== undefined) {

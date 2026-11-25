@@ -32,7 +32,7 @@ export const MentionContext = createContext<MentionSource | undefined>(undefined
  * With `openCommit`, a click on the SHA of a commit of the pull request shows the commit in ShipWarden.
  */
 export function mentionSourceOf(target: RepoTarget, pr: PullRequest, openCommit?: (commit: PullRequestCommit) => void): MentionSource | undefined {
-    if (pr.host === 'azure' || pr.host === 'gitlab' || pr.host === 'bitbucket') return undefined;
+    if (pr.host && pr.host !== 'github') return undefined;
     const repoUrl = repoUrlOf(pr.url);
     if (!repoUrl) return undefined;
     const logins = [
@@ -50,6 +50,6 @@ export function mentionSourceOf(target: RepoTarget, pr: PullRequest, openCommit?
 
 /** Returns the mention source of a GitHub repository that has no pull request yet. */
 export function mentionSourceOfRepo(target: RepoTarget, repo: RepoRef): MentionSource | undefined {
-    if (repo.host === 'azure' || repo.host === 'gitlab' || repo.host === 'bitbucket') return undefined;
+    if (repo.host && repo.host !== 'github') return undefined;
     return { target, repoUrl: `https://github.com/${repo.owner}/${repo.name}`, people: [] };
 }
