@@ -149,3 +149,12 @@ gets one at this time. An agent then reviews all pull requests in one run. See [
 
 The plans are in `plans.json` in the app data folder. Deleting a project deletes its plans. Deleting a plan does not
 remove its worktrees, branches, pull requests, or tasks.
+
+## Coordinator runs
+
+An agent can start worker agents with the MCP tool `start_worker`. ShipWarden keeps these workers as a plan of the
+project, with the title "Workers of <worktree>". Each worker is a step. The main process changes the run, and the plan
+runner of the page does not run it. The page of the run shows each worker with its status, branch, pull request, task,
+and report. "Open coordinator" opens the agent that started the workers. See
+[Coordinator and workers](mcp-server.md#coordinator-and-workers).
+

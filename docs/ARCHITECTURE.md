@@ -956,7 +956,18 @@ The user guide and the file format are in [automations.md](automations.md).
   the signal closes the dialog (`app:confirmCancel`), and the tool call gets an error result. `mcp-approvals.json` keeps
   the allowed tools of each worktree. Settings › Agents lists them and can revoke them (`mcp:approvals`, `mcp:revoke`,
   `mcp:approvalsChanged`).
+- **Coordinator runs.** `Coordinators` (`src/main/coordinator/coordinators.ts`) runs `start_worker`, `list_workers`,
+  `wait_for_worker`, and `report_result`. A run is a `Plan` with `coordinator` (the worktree, the session, and the
+  depth), and each worker is a step with `depth`, `report`, and `noticeKey`. The pure rules (depth, observations, and
+  notices) are in `src/shared/coordinator.ts`. `prepare` checks the depth limit (`workerMaxDepth`), the repository, the
+  agent, the usage budget, and the queue limit (open workers plus active queue items). `launch` sends `worker.start` to
+  the page through `CliPageBridge`. The page makes the worktree, starts the agent, and then sends the prompt. A timer
+  (30 seconds) and the terminal `exit` event check the open workers: an exited agent or an agent that waits for 10
+  minutes. Each change goes into `plans.json` with `PlanStore.change` and to the page with `plans:changed`. The page
+  patches its cache, and `PlanRunner` skips the coordinator runs (`runnablePlans`). Each notice has a key, so it goes
+  out one time: to a waiting `wait_for_worker` call, else into the coordinator session with `agent.send`.
 - **Setting.** `mcpServer` (default on) starts and stops the server. New agent tabs then get the config or not.
+  `workerMaxDepth` (1 to 5, default 2) limits the levels of workers.
 
 ### The shipwarden CLI
 

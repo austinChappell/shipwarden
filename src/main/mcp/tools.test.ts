@@ -5,6 +5,8 @@ import type { Task, TaskStatus } from '@shared/tasks';
 import {
     askTimeoutMs,
     elementTarget,
+    workerInput,
+    workerWaitMs,
     findWorktree,
     McpTools,
     pullRequestChanges,
@@ -143,6 +145,13 @@ function fakeService(overrides: Partial<McpToolService> = {}) {
             add: vi.fn(async (watch: Omit<McpWatch, 'id' | 'createdAt'>) => ({ ...watch, id: 'w1', createdAt: 1 })),
             remove: vi.fn(async () => [])
         },
+        workers: {
+            prepare: vi.fn(async () => ({ summary: 'Start Claude Code on worker/a' })),
+            launch: vi.fn(async () => ({ worker_id: 'w1', status: 'starting' })),
+            list: vi.fn(async () => ({ workers: [] })),
+            wait: vi.fn(async () => ({ worker: { worker_id: 'w1', status: 'done' } })),
+            report: vi.fn(async () => ({ reported: true }))
+        },
         ...overrides
     };
     return service;
@@ -178,7 +187,11 @@ describe('McpTools', () => {
             'read_page',
             'screenshot',
             'click',
-            'type'
+            'type',
+            'start_worker',
+            'list_workers',
+            'wait_for_worker',
+            'report_result'
         ]);
         expect(tools.find(tool => tool.name === 'set_task_status')?.annotations.readOnlyHint).toBe(false);
         expect(tools.every(tool => tool.inputSchema.type === 'object')).toBe(true);
@@ -514,5 +527,63 @@ describe('browser tools', () => {
         const result = await new McpTools(service).call('click', {}, context());
         expect(result?.isError).toBe(true);
         expect(service.approve).not.toHaveBeenCalled();
+    });
+});
+
+describe('worker tools', () => {
+    it('start_worker checks the start, asks for approval, and then starts the worker', async () => {
+        const service = fakeService();
+        const order: string[] = [];
+        vi.mocked(service.workers.prepare).mockImplementation(async () => {
+            order.push('prepare');
+            return { summary: 'Start it' };
+        });
+        vi.mocked(service.approve).mockImplementation(async () => {
+            order.push('approve');
+        });
+        vi.mocked(service.workers.launch).mockImplementation(async () => {
+            order.push('launch');
+            return { worker_id: 'w1' };
+        });
+        const result = await new McpTools(service).call('start_worker', { task: ' Add the login page. ', title: 'Login', model: '' }, context());
+        expect(result?.structuredContent).toEqual({ worker_id: 'w1' });
+        expect(order).toEqual(['prepare', 'approve', 'launch']);
+        expect(service.workers.prepare).toHaveBeenCalledWith({ worktree: '/repo-a', sessionId: 's1' }, { task: 'Add the login page.', title: 'Login' });
+        expect(vi.mocked(service.approve).mock.calls[0].slice(1, 3)).toEqual(['start_worker', 'Start it']);
+    });
+
+    it('start_worker does not ask when the check fails', async () => {
+        const service = fakeService();
+        vi.mocked(service.workers.prepare).mockRejectedValue(new Error('The limit is 2.'));
+        const result = await new McpTools(service).call('start_worker', { task: 'Do it' }, context());
+        expect(result?.isError).toBe(true);
+        expect(textOf(result)).toBe('The limit is 2.');
+        expect(service.approve).not.toHaveBeenCalled();
+        expect(service.workers.launch).not.toHaveBeenCalled();
+    });
+
+    it('list_workers, wait_for_worker, and report_result need no approval', async () => {
+        const service = fakeService();
+        const tools = new McpTools(service);
+        await tools.call('list_workers', {}, context());
+        await tools.call('wait_for_worker', { worker_id: 'w1', timeout_seconds: 5 }, context());
+        await tools.call('report_result', { summary: 'Done.', status: 'failed', pull_request_url: 'https://github.com/o/r/pull/9' }, context());
+        expect(service.workers.wait).toHaveBeenCalledWith('/repo-a', 'w1', 10_000, expect.anything());
+        expect(service.workers.report).toHaveBeenCalledWith('/repo-a', { summary: 'Done.', failed: true, pullRequestUrl: 'https://github.com/o/r/pull/9' });
+        expect(service.approve).not.toHaveBeenCalled();
+    });
+
+    it('report_result refuses a wrong status and an empty summary', async () => {
+        const tools = new McpTools(fakeService());
+        expect(textOf(await tools.call('report_result', { summary: 'x', status: 'maybe' }, context()))).toContain('"done" or "failed"');
+        expect(textOf(await tools.call('report_result', { summary: ' ' }, context()))).toContain('"summary"');
+    });
+
+    it('checks the arguments and the wait time', () => {
+        expect(() => workerInput({})).toThrow('"task"');
+        expect(() => workerInput({ task: 'x', branch: 3 })).toThrow('"branch"');
+        expect(workerInput({ task: 'x', repository: 'api', agent: 'codex' })).toEqual({ task: 'x', repository: 'api', agent: 'codex' });
+        expect(workerWaitMs(undefined)).toBe(300_000);
+        expect(workerWaitMs(5000)).toBe(900_000);
     });
 });

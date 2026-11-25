@@ -43,7 +43,7 @@ import { agentStateStore } from '../terminal/agent-state-store';
 import { budgetWait } from '../usage-budget';
 import { errorText } from '../util';
 import { syncPlanGroup } from './plan-group';
-import { cachedPlan, cachedPlans, plansQuery, updatePlan } from './plan-queries';
+import { cachedPlan, plansQuery, runnablePlans, updatePlan } from './plan-queries';
 
 const api = window.shipwarden;
 
@@ -117,6 +117,7 @@ export class PlanRunner {
         if (!this.ready) throw new Error('ShipWarden did not load the plans yet. Try again in a few seconds.');
         const plan = cachedPlan(planId);
         if (!plan) throw new Error('The plan does not exist anymore.');
+        if (plan.coordinator) throw new Error('The plan is a coordinator run. Its agent starts the workers.');
         if (plan.status !== 'draft') throw new Error('The plan ran already. Duplicate it to run it again.');
         const review = planReview(plan);
         if (!review.complete) throw new Error(reviewText(review));
@@ -224,7 +225,7 @@ export class PlanRunner {
      */
     onAgentState(sessionId: string, update: AgentUpdate): void {
         if (!this.ready || (update.state !== 'done' && update.state !== 'exited')) return;
-        for (const plan of cachedPlans()) {
+        for (const plan of runnablePlans()) {
             const step = plan.steps.find(item => (item.status === 'running' || item.status === 'attention') && item.sessionId === sessionId);
             if (step && update.at >= (step.turnFrom ?? 0)) void this.finish(plan.id, step.id);
         }
@@ -237,7 +238,7 @@ export class PlanRunner {
         await queryClient.fetchQuery(plansQuery);
         await this.restackMerged();
         await this.checkRestacks();
-        for (const plan of cachedPlans()) {
+        for (const plan of runnablePlans()) {
             if (plan.status !== 'running' && plan.status !== 'paused') continue;
             const running = plan.steps.find(step => step.status === 'running');
             if (running?.sessionId) {
@@ -507,7 +508,7 @@ export class PlanRunner {
         if (!this.ready || this.restacking) return;
         this.restacking = true;
         try {
-            for (const plan of cachedPlans()) {
+            for (const plan of runnablePlans()) {
                 if (plan.noStack || plan.status === 'draft') continue;
                 for (const step of plan.steps) {
                     if (!step.pr || !step.branch || step.mergedAt) continue;
@@ -651,7 +652,7 @@ export class PlanRunner {
      * It runs local git only.
      */
     private async checkRestacks(): Promise<void> {
-        for (const plan of cachedPlans()) {
+        for (const plan of runnablePlans()) {
             for (const step of plan.steps) {
                 const restack = step.restack;
                 if (!restack || restack.state === 'failed' || !step.worktreePath || this.busy.has(`restack:${plan.id}:${step.id}`)) continue;

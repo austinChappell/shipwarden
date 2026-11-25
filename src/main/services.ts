@@ -28,6 +28,7 @@ import { EngineLock, EngineLockKeeper, engineLockPath } from './automations/engi
 import { pendingRemoteRuns } from '@shared/automation-engine';
 import { PromptStore } from './prompts/prompt-store';
 import { PlanStore } from './plans/plan-store';
+import { Coordinators } from './coordinator/coordinators';
 import { PrGroupStore } from './pr-groups/pr-group-store';
 import { CompareStore } from './compare/compare-store';
 import { QueueStore } from './queue/queue-store';
@@ -255,6 +256,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             },
             exit: (id, exitCode) => {
                 void mcp.revokeSession(id).catch(() => undefined);
+                coordinators.sessionExited(id);
                 shellAgents.forget(id);
                 stats.forget(id);
                 checkpoints.forget(id);
@@ -607,6 +609,34 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     const confirm = new ConfirmDialogs(() => window.get());
 
     /**
+     * The coordinator runs: the MCP tool start_worker starts worker agents in new worktrees through the page. The runs
+     * are plans in the plan file. The page shows them in the Plans view and patches its cache with each change.
+     */
+    const coordinators = new Coordinators({
+        plans,
+        settings: () => settings.get(),
+        projects: async () => (await projects.get()).projects,
+        usage: async () => usage.get(),
+        queue: () => queue.get(),
+        sessions: () => (terminals.isConnected() ? terminalSessions() : Promise.resolve([])),
+        repoOf: worktree => projectWorktrees.repoOf(worktree),
+        start: async (start, signal) => {
+            const result = await cliPage.request({ action: 'worker.start', ...start }, signal);
+            if (!result.sessionId || !result.worktreePath) throw new Error('The ShipWarden window did not send the new worker.');
+            return { worktreePath: result.worktreePath, sessionId: result.sessionId, ...(result.branch ? { branch: result.branch } : {}) };
+        },
+        send: async ({ repoPath, worktree, sessionId }, message) => {
+            await cliPage.request({ action: 'agent.send', repoPath, worktreePath: worktree, prompt: message, sessionId }, new AbortController().signal);
+        },
+        pullRequest: async worktree => {
+            const pr = (await reviewProviders.branchStatus(worktree))?.pullRequest;
+            return pr ? { number: pr.number, url: pr.url, base: pr.baseRefName } : undefined;
+        },
+        onPlanChanged: plan => window.send(IpcChannels.plansChanged, plan)
+    });
+    coordinators.start();
+
+    /**
      * The ShipWarden MCP server (Settings › Agents). Claude Code, Codex, Gemini CLI, and opencode agents get it at start. The tools act on the worktree of
      * the agent's token. The write tools ask the user the first time in each worktree, in the dialog of the page.
      */
@@ -673,7 +703,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 changed: change => window.send(IpcChannels.mcpPullRequestChanged, change)
             },
             // The page opens the tab of the worktree without a change of the selected worktree or tab.
-            browser: new AgentBrowser({ views: browserViews, requestTab: (url, worktree) => window.send(IpcChannels.browserAgentOpen, url, worktree) })
+            browser: new AgentBrowser({ views: browserViews, requestTab: (url, worktree) => window.send(IpcChannels.browserAgentOpen, url, worktree) }),
+            workers: coordinators
         }
     });
     /**
@@ -759,6 +790,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         screenshots,
         askRunner,
         plans,
+        coordinators,
         prGroups,
         compare,
         queue,

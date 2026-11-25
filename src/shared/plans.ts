@@ -84,6 +84,14 @@ export interface PlanStep {
     mergedAt?: number;
     /** The rebase of the branch after the pull request below it merged. Undefined: no rebase waits for an action. */
     restack?: StepRestack;
+    /** A worker of a coordinator run: its depth. The workers of a coordinator have depth 1, and their workers have depth 2. */
+    depth?: number;
+    /** A worker of a coordinator run: the result that the worker sent with report_result, in Markdown. */
+    report?: string;
+    /** A worker of a coordinator run: the key of the last notice that the coordinator got (see `workerNotice`). */
+    noticeKey?: string;
+    /** A worker of a coordinator run: the time of the agent state that waits for 10 minutes. */
+    waitAt?: number;
 }
 
 /**
@@ -169,10 +177,25 @@ export interface Plan {
     watchCi?: boolean;
     /** The name of the agent that wrote the last proposal. */
     agent?: string;
+    /**
+     * A coordinator run: an agent starts workers with the MCP tool start_worker, and each worker is a step. The main
+     * process changes the plan. The plan runner of the page does not run it.
+     */
+    coordinator?: PlanCoordinator;
     createdAt: number;
     updatedAt: number;
     executedAt?: number;
     finishedAt?: number;
+}
+
+/** The agent of a coordinator run. */
+export interface PlanCoordinator {
+    /** The worktree of the coordinator agent. */
+    worktree: string;
+    /** The terminal session of the coordinator agent. The notices about the workers go to this session. */
+    sessionId?: string;
+    /** 0 for an agent that the user started. A worker that starts workers has its own depth. */
+    depth: number;
 }
 
 /** A request to the main process to explore an idea. The agent reads the repositories and does not change files. */
@@ -205,7 +228,7 @@ export const MAX_TITLE_LENGTH = 120;
 export const NEW_PLAN_TITLE = 'New plan';
 const MAX_TEXT_LENGTH = 50_000;
 /** Each step can open a pull request, and all pull requests of the plan go into one PR group. */
-const MAX_STEPS = MAX_GROUP_PULL_REQUESTS;
+export const MAX_PLAN_STEPS = MAX_GROUP_PULL_REQUESTS;
 const MAX_DECISIONS = 20;
 const MAX_HIGHLIGHTS = 8;
 const MAX_TOUCHES = 20;
@@ -394,7 +417,7 @@ export function normalizeStep(value: unknown): PlanStep | undefined {
     if (stackBase && COMMIT_HASH.test(stackBase)) step.stackBase = stackBase;
     const restack = restackOf(raw.restack);
     if (restack) step.restack = restack;
-    for (const key of ['turnFrom', 'startedAt', 'finishedAt', 'mergedAt'] as const) {
+    for (const key of ['turnFrom', 'startedAt', 'finishedAt', 'mergedAt', 'waitAt'] as const) {
         const value = time(raw[key]);
         if (value !== undefined) step[key] = value;
     }
@@ -405,6 +428,11 @@ export function normalizeStep(value: unknown): PlanStep | undefined {
     const touches = textList(raw.touches, MAX_TOUCHES, 300);
     if (touches.length > 0) step.touches = touches;
     if (raw.reviewed === true) step.reviewed = true;
+    if (typeof raw.depth === 'number' && Number.isInteger(raw.depth) && raw.depth > 0 && raw.depth <= 10) step.depth = raw.depth;
+    const report = nonEmpty(raw.report, 20_000);
+    if (report) step.report = report;
+    const noticeKey = nonEmpty(raw.noticeKey, 200);
+    if (noticeKey) step.noticeKey = noticeKey;
     const followUp = record(raw.followUp);
     const label = nonEmpty(followUp.label, 200);
     const at = time(followUp.at);
@@ -454,7 +482,7 @@ export function normalizePlan(value: unknown): Plan | undefined {
     const steps: PlanStep[] = [];
     for (const item of Array.isArray(raw.steps) ? raw.steps : []) {
         const step = normalizeStep(item);
-        if (step && !steps.some(existing => existing.id === step.id) && steps.length < MAX_STEPS) steps.push(step);
+        if (step && !steps.some(existing => existing.id === step.id) && steps.length < MAX_PLAN_STEPS) steps.push(step);
     }
     const target = record(raw.taskTarget);
     const now = Date.now();
@@ -489,6 +517,13 @@ export function normalizePlan(value: unknown): Plan | undefined {
     if (raw.watchCi === true) plan.watchCi = true;
     const agent = nonEmpty(raw.agent, 200);
     if (agent) plan.agent = agent;
+    const coordinator = record(raw.coordinator);
+    const coordinatorWorktree = nonEmpty(coordinator.worktree, 4000);
+    if (coordinatorWorktree?.startsWith('/')) {
+        const depth = typeof coordinator.depth === 'number' && Number.isInteger(coordinator.depth) && coordinator.depth >= 0 ? coordinator.depth : 0;
+        const sessionId = nonEmpty(coordinator.sessionId, 200);
+        plan.coordinator = { worktree: coordinatorWorktree, depth, ...(sessionId ? { sessionId } : {}) };
+    }
     for (const key of ['executedAt', 'finishedAt'] as const) {
         const value = time(raw[key]);
         if (value !== undefined) plan[key] = value;
@@ -669,7 +704,7 @@ export function parseProposal(answer: string, repos: readonly PromptRepo[]): Pla
     if (!value) throw new Error('The answer of the agent has no plan in JSON. Explore again, or add the steps yourself.');
     const raw = record(value);
     const list = Array.isArray(raw.steps) ? raw.steps : [];
-    const steps = list.slice(0, MAX_STEPS).flatMap(item => {
+    const steps = list.slice(0, MAX_PLAN_STEPS).flatMap(item => {
         const step = record(item);
         const title = nonEmpty(step.title, 1000)?.trim();
         if (!title) return [];

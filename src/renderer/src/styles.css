@@ -15622,6 +15622,21 @@ button.pr-summary-cell:hover {
     margin-top: 6px;
 }
 
+/* A coordinator run: the workers of an agent, in the Plans view. */
+.coordinator-page {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.coordinator-worker .plan-step-details {
+    margin-top: 8px;
+}
+
+.coordinator-worker .plan-step-details .flow-label {
+    margin-top: 8px;
+}
+
 /* Text for screen readers only. */
 .visually-hidden {
     position: absolute;

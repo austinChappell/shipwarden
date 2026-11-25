@@ -327,6 +327,16 @@ and a screenshot to the agent of the worktree.
 
 **Goal:** Give a large task to one agent. It splits the work and starts worker agents.
 
+**Status:** Done in branch `4.1-coordinator-workers`. The MCP server has 4 new tools: `start_worker` (approval the first
+time), `list_workers`, `wait_for_worker`, and `report_result` for the worker. A coordinator run is a plan with a
+`coordinator` field, and each worker is a step. The main process (`Coordinators`) owns the run, and the plan runner of
+the page skips it. The page makes the worktree and starts the agent (`worker.start` of the page bridge), so the window
+must be open. A timer tells the coordinator when a worker reports, exits, or waits for 10 minutes. A worker without a
+report gets the pull request of its branch as its result. The open workers and the queue agents share the queue limit,
+and each start checks the usage budget. The answer "Yes" to the depth question became the setting "Worker depth" in
+Settings › Agents (1 to 5, default 2: a coordinator, its workers, and their workers). The Plans view shows each run as a
+read-only page. Not tested live in the app.
+
 **Design:**
 
 - Add the MCP tools `start_worker`, `list_workers`, and `wait_for_worker` for a coordinator agent.

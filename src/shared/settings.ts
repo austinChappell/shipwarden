@@ -110,6 +110,11 @@ export interface AppSettings {
      */
     mcpServer: boolean;
     /**
+     * The most levels of workers below an agent that the user started. 1: a coordinator can start workers, and a worker
+     * cannot. 2 (the default): the workers can start their own workers too. The MCP tool start_worker refuses a deeper worker.
+     */
+    workerMaxDepth: number;
+    /**
      * The short name of the `shipwarden` command, for example "sw". Settings › Agents › Command line adds its link next
      * to the `shipwarden` link. The default is on, with the name "sw".
      */
@@ -257,12 +262,18 @@ export const DEFAULT_AGENTS: readonly AgentDefinition[] = [
     { id: 'opencode', name: 'opencode', command: 'opencode' }
 ];
 
+/** The default, the smallest, and the largest value of `workerMaxDepth`. */
+export const DEFAULT_WORKER_MAX_DEPTH = 2;
+export const WORKER_MAX_DEPTH_MIN = 1;
+export const WORKER_MAX_DEPTH_MAX = 5;
+
 export const DEFAULT_SETTINGS: AppSettings = {
     appearance: DEFAULT_APPEARANCE,
     agents: [...DEFAULT_AGENTS],
     defaultAgentId: 'claude',
     experimentalAgentChat: false,
     mcpServer: true,
+    workerMaxDepth: DEFAULT_WORKER_MAX_DEPTH,
     cliAlias: DEFAULT_CLI_ALIAS_SETTINGS,
     repos: {},
     network: { useSystemCertificates: false },
@@ -358,6 +369,12 @@ function normalizeRepos(value: unknown, agents: AgentDefinition[]): Record<strin
     return repos;
 }
 
+/** Returns a valid worker depth limit. A wrong value gives the default. */
+export function normalizeWorkerMaxDepth(value: unknown): number {
+    if (typeof value !== 'number' || !Number.isInteger(value)) return DEFAULT_WORKER_MAX_DEPTH;
+    return Math.min(WORKER_MAX_DEPTH_MAX, Math.max(WORKER_MAX_DEPTH_MIN, value));
+}
+
 /** Converts stored or received values to valid settings. A value with a wrong type gets its default. */
 export function normalizeSettings(value: unknown): AppSettings {
     const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -368,6 +385,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         defaultAgentId,
         experimentalAgentChat: raw.experimentalAgentChat === true,
         mcpServer: raw.mcpServer !== false,
+        workerMaxDepth: normalizeWorkerMaxDepth(raw.workerMaxDepth),
         cliAlias: normalizeCliAlias(raw.cliAlias),
         repos: normalizeRepos(raw.repos, agents),
         network: normalizeNetwork(raw.network),

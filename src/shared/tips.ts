@@ -98,6 +98,11 @@ export const NOTICE_TIPS: readonly Tip[] = [
         body: 'Tell an agent to call watch_pull_request after it pushes. ShipWarden then sends it a message when a check fails, a merge conflict occurs, or a reviewer comments. The agent can read the checks, reply to comments, and change the pull request with the ShipWarden tools.'
     },
     {
+        id: 'mcpWorkers',
+        title: 'Let one agent split a large task',
+        body: 'Tell an agent to split a task and start workers with start_worker. Each worker gets its own worktree and opens its own pull request. ShipWarden sends each result back to the agent. The Plans view lists the workers.'
+    },
+    {
         id: 'mcpBrowser',
         title: 'Let agents test in the browser',
         body: 'An agent can open a page in the browser tab of its worktree, read it, click, type, and take a screenshot. You see the same tab. For example, tell the agent: "Open localhost:3000 and check the sign-up form."'

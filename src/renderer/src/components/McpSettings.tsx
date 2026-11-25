@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { writeToolLabel, type McpApprovals } from '@shared/mcp';
-import type { AppSettings } from '@shared/settings';
+import { WORKER_MAX_DEPTH_MAX, WORKER_MAX_DEPTH_MIN, type AppSettings } from '@shared/settings';
 import { keyRoots } from '../query-client';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
-import { Button, Switch } from './ui';
+import { Button, Select, Switch, type SelectOption } from './ui';
 
 const api = window.shipwarden.mcp;
+
+/** The choices of the worker depth: 1 to 5 levels of workers. */
+const DEPTH_OPTIONS: SelectOption<string>[] = Array.from({ length: WORKER_MAX_DEPTH_MAX - WORKER_MAX_DEPTH_MIN + 1 }, (_, index) => {
+    const depth = WORKER_MAX_DEPTH_MIN + index;
+    return { value: String(depth), label: depth === 1 ? '1: workers cannot start workers' : `${depth} levels` };
+});
 
 /** The MCP server switch and the approved write tools of each worktree (Settings › Agents). */
 export function McpSettingsGroup({ settings, onSave }: { settings: AppSettings; onSave(change: Partial<AppSettings>): Promise<void> }) {
@@ -30,7 +36,7 @@ export function McpSettingsGroup({ settings, onSave }: { settings: AppSettings; 
     return (
         <SettingsGroup
             title="MCP server"
-            description="ShipWarden runs a local MCP server. A new agent tab of Claude Code, Codex, Gemini CLI, or opencode gets its tools: list_worktrees, get_overlaps, ask_agent, get_task, and set_task_status. The tools act on the worktree of the agent. Your own MCP servers stay."
+            description="ShipWarden runs a local MCP server. A new agent tab of Claude Code, Codex, Gemini CLI, or opencode gets its tools, for example list_worktrees, ask_agent, get_task, create_pull_request, and start_worker. The tools act on the worktree of the agent. Your own MCP servers stay."
             card
         >
             <SettingsRow
@@ -39,8 +45,20 @@ export function McpSettingsGroup({ settings, onSave }: { settings: AppSettings; 
                 control={<Switch checked={settings.mcpServer} title="Give agents the ShipWarden tools" onChange={mcpServer => void onSave({ mcpServer })} />}
             />
             <SettingsRow
+                label="Worker depth"
+                description="An agent can split a large task and start worker agents with start_worker. Each worker gets its own worktree. This is the most levels of workers below the agent that you started. With 2, the workers can start their own workers too."
+                control={
+                    <Select<string>
+                        aria-label="Worker depth"
+                        value={String(settings.workerMaxDepth)}
+                        options={DEPTH_OPTIONS}
+                        onChange={value => void onSave({ workerMaxDepth: Number(value) })}
+                    />
+                }
+            />
+            <SettingsRow
                 label="Approved tools"
-                description="The write tools ask you the first time in each worktree: they create and change pull requests, reply to comments, control the browser, change the task, and ask other agents. The write commands of the shipwarden command use the same approvals. Allow applies to the tool in that worktree until you revoke it. The read tools need no approval."
+                description="The write tools ask you the first time in each worktree: they create and change pull requests, reply to comments, control the browser, change the task, ask other agents, and start workers. The write commands of the shipwarden command use the same approvals. Allow applies to the tool in that worktree until you revoke it. The read tools need no approval."
             >
                 {entries.length === 0 ? (
                     <div className="settings-row-description">No worktree has approved tools.</div>

@@ -71,6 +71,41 @@ export interface McpBrowser {
     ): Promise<{ element: string; page: McpPage }>;
 }
 
+/** The agent that calls a tool: its worktree, and its terminal session when ShipWarden knows it. */
+export interface ToolCaller {
+    worktree: string;
+    sessionId?: string;
+}
+
+/** The arguments of start_worker. */
+export interface WorkerInput {
+    task: string;
+    title?: string;
+    repository?: string;
+    branch?: string;
+    base?: string;
+    agent?: string;
+    model?: string;
+}
+
+/** The arguments of report_result. */
+export interface ReportInput {
+    summary: string;
+    failed: boolean;
+    pullRequestUrl?: string;
+}
+
+/** The coordinator runs: the workers that agents start, and their results. */
+export interface McpWorkers {
+    /** Checks a start: the depth limit, the repository, the agent, the usage budget, and the queue limit. */
+    prepare(caller: ToolCaller, input: WorkerInput): Promise<{ summary: string }>;
+    /** Starts a checked worker. `prepared` is the value of `prepare`. */
+    launch(prepared: { summary: string }, signal: AbortSignal): Promise<Record<string, unknown>>;
+    list(caller: string): Promise<Record<string, unknown>>;
+    wait(caller: string, workerId: string | undefined, timeoutMs: number, signal: AbortSignal): Promise<Record<string, unknown>>;
+    report(caller: string, input: ReportInput): Promise<Record<string, unknown>>;
+}
+
 /** The watches of watch_pull_request. */
 export interface McpWatchStore {
     add(watch: Omit<McpWatch, 'id' | 'createdAt'>): Promise<McpWatch>;
@@ -102,6 +137,7 @@ export interface McpToolService {
     pullRequests: McpPullRequests;
     browser: McpBrowser;
     watches: McpWatchStore;
+    workers: McpWorkers;
 }
 
 /** The time that ask_agent waits for an answer when the call does not say. */
@@ -110,6 +146,11 @@ export const DEFAULT_ASK_TIMEOUT_S = 300;
 export const MAX_ASK_TIMEOUT_S = 900;
 /** The most comments that get_task returns. These are the newest comments. */
 export const MAX_COMMENTS = 50;
+
+/** The time that wait_for_worker waits when the call does not say. */
+export const DEFAULT_WORKER_WAIT_S = 300;
+/** The longest time that wait_for_worker waits. */
+export const MAX_WORKER_WAIT_S = 900;
 
 /** The most failed jobs that get_checks saves a log for. */
 export const MAX_CHECK_LOGS = 5;
@@ -343,6 +384,69 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
             additionalProperties: false
         },
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+    },
+    {
+        name: 'start_worker',
+        title: 'Start a worker agent',
+        description:
+            'Starts a worker agent for a part of a large task. ShipWarden makes a new git worktree and branch for the worker and gives it the task. The worker opens a pull request and sends its result with report_result. ShipWarden then sends you a message. It also sends a message when the worker stops or waits for 10 minutes. Give each worker a task that it can do alone, with all the context that it needs. The usage budget, the queue limit, and the worker depth limit of ShipWarden apply. The first call in a worktree needs the approval of the user.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                task: { type: 'string', description: 'The full task of the worker in Markdown. The worker sees only this text and the code.' },
+                title: { type: 'string', description: 'A short title for the lists in ShipWarden. The default is the first line of the task.' },
+                repository: {
+                    type: 'string',
+                    description: 'The path or the name of the repository of the worker. The default is the repository of this worktree.'
+                },
+                branch: { type: 'string', description: 'The name of the new branch. The default is "worker/<title>-<id>".' },
+                base: { type: 'string', description: 'The branch or commit that the new branch starts from. The default is the newest default branch.' },
+                agent: { type: 'string', description: 'The ID or the name of an agent in ShipWarden. The default is the agent of the repository.' },
+                model: { type: 'string', description: 'The model of the worker, for example "sonnet". The default is the model of the agent.' }
+            },
+            required: ['task'],
+            additionalProperties: false
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+    },
+    {
+        name: 'list_workers',
+        title: 'List the workers',
+        description:
+            'Lists the workers that this agent started with start_worker. Each worker has its worker_id, its title, its status (starting, working, needs_attention, done, or failed), its branch, its worktree, its pull request, and its report.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+        annotations: { ...READ_ONLY, idempotentHint: false }
+    },
+    {
+        name: 'wait_for_worker',
+        title: 'Wait for a worker',
+        description: `Waits until a worker of this agent finishes, stops, or needs attention, and returns it. Without "worker_id", it returns the next worker that has news. A worker that this call returns does not also send a message. The default wait is ${DEFAULT_WORKER_WAIT_S} seconds. The maximum is ${MAX_WORKER_WAIT_S}.`,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                worker_id: { type: 'string', description: 'The worker_id from start_worker or list_workers. The default is any worker.' },
+                timeout_seconds: { type: 'number', description: `The time to wait, in seconds. The default is ${DEFAULT_WORKER_WAIT_S}.` }
+            },
+            additionalProperties: false
+        },
+        annotations: { ...READ_ONLY, idempotentHint: false }
+    },
+    {
+        name: 'report_result',
+        title: 'Report the result of a worker',
+        description:
+            'Sends the result of this worker to the coordinator agent that started it. Call it one time when the task is complete, after the push and the pull request. Set "status" to "failed" when you cannot do the task. Only a worker that start_worker started can call this tool.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                summary: { type: 'string', description: 'The result in Markdown: what you changed, what you did not do, and the open questions.' },
+                status: { type: 'string', enum: ['done', 'failed'], description: 'The default is "done".' },
+                pull_request_url: { type: 'string', description: 'The address of the pull request. The default is the pull request of the branch.' }
+            },
+            required: ['summary'],
+            additionalProperties: false
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
     }
 ];
 
@@ -517,6 +621,22 @@ export function askTimeoutMs(value: unknown): number {
     return Math.round(Math.min(MAX_ASK_TIMEOUT_S, Math.max(10, seconds)) * 1000);
 }
 
+/** Returns the wait of wait_for_worker in milliseconds. A wrong value gives the default. The value stays in 10 to 900 seconds. */
+export function workerWaitMs(value: unknown): number {
+    const seconds = typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_WORKER_WAIT_S;
+    return Math.round(Math.min(MAX_WORKER_WAIT_S, Math.max(10, seconds)) * 1000);
+}
+
+/** Returns the checked arguments of start_worker. */
+export function workerInput(args: Record<string, unknown>): WorkerInput {
+    const input: WorkerInput = { task: requiredText(args, 'task') };
+    for (const name of ['title', 'repository', 'branch', 'base', 'agent', 'model'] as const) {
+        const value = optionalText(args, name);
+        if (value) input[name] = value;
+    }
+    return input;
+}
+
 /** Finds a worktree by its path, its branch, or its name. The path wins, then the branch, then the name. */
 export function findWorktree(list: readonly McpWorktree[], wanted: string): McpWorktree | undefined {
     const text = wanted.trim().replace(/\/+$/, '');
@@ -627,6 +747,29 @@ export class McpTools implements ToolHost {
                 await this.approve('click', `Click ${targetText(target)}`, context);
                 const { element, page } = await this.service.browser.click(worktree, target, context.signal);
                 return jsonResult({ clicked: element, page });
+            }
+            case 'start_worker': {
+                const prepared = await this.service.workers.prepare(
+                    { worktree, ...(context.sessionId ? { sessionId: context.sessionId } : {}) },
+                    workerInput(args)
+                );
+                await this.approve('start_worker', prepared.summary, context);
+                return jsonResult(await this.service.workers.launch(prepared, context.signal));
+            }
+            case 'list_workers':
+                return jsonResult(await this.service.workers.list(worktree));
+            case 'wait_for_worker': {
+                const workerId = optionalText(args, 'worker_id');
+                return jsonResult(await this.service.workers.wait(worktree, workerId, workerWaitMs(args.timeout_seconds), context.signal));
+            }
+            case 'report_result': {
+                const summary = requiredText(args, 'summary');
+                const status = args.status ?? 'done';
+                if (status !== 'done' && status !== 'failed') throw new ToolError('The argument "status" must be "done" or "failed".');
+                const pullRequestUrl = optionalText(args, 'pull_request_url');
+                return jsonResult(
+                    await this.service.workers.report(worktree, { summary, failed: status === 'failed', ...(pullRequestUrl ? { pullRequestUrl } : {}) })
+                );
             }
             case 'type': {
                 const target = elementTarget(args);

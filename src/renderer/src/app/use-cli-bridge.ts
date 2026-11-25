@@ -18,7 +18,7 @@ export interface CliBridgeActions extends Pick<PhoneStartActions, 'startTaskQuie
     promptAgent(
         worktree: Pick<Worktree, 'path'>,
         prompt: string,
-        target?: { sessionId?: string; agentId?: string; repoPath?: string; newSession?: boolean }
+        target?: { sessionId?: string; agentId?: string; repoPath?: string; newSession?: boolean; model?: string }
     ): Promise<TerminalSession>;
     prepareWorktree(repoPath: string, worktree: CreatedWorktree): Promise<void>;
     refreshWorktrees(repoPath: string): Promise<unknown>;
@@ -89,7 +89,38 @@ export async function runCliRequest(
             return phoneTasks();
         case 'phone.start':
             return phoneStart(request, latest);
+        case 'worker.start':
+            return startWorker(request, actions, latest);
     }
+}
+
+/**
+ * Starts a worker of the MCP tool start_worker: a new worktree and a new agent tab. The answer comes when the agent
+ * session runs. The prompt goes to the agent after that, as for a start from the phone, so a question of the new agent
+ * (for example about folder trust) does not stop the answer.
+ */
+async function startWorker(
+    request: Extract<CliPageRequest, { action: 'worker.start' }>,
+    actions: CliBridgeActions,
+    latest: () => CliBridgeActions
+): Promise<CliPageResult> {
+    const worktree = await api.worktrees.create({
+        repoPath: request.repoPath,
+        branch: request.branch,
+        ...(request.baseRef ? { baseRef: request.baseRef } : {})
+    });
+    await actions.prepareWorktree(request.repoPath, worktree);
+    await actions.refreshWorktrees(request.repoPath);
+    const session = await actions.promptAgent(worktree, '', {
+        repoPath: request.repoPath,
+        agentId: request.agentId,
+        newSession: true,
+        ...(request.model ? { model: request.model } : {})
+    });
+    void latest()
+        .promptAgent(worktree, request.prompt, { sessionId: session.id })
+        .catch(error => console.warn(`[workers] The task did not reach ${session.title}: ${errorText(error)}`));
+    return { ...started(session, worktree.path, `Started ${session.title} in ${worktree.path}.`), ...(worktree.branch ? { branch: worktree.branch } : {}) };
 }
 
 async function runAutomation(request: Extract<CliPageRequest, { action: 'automation.run' }>): Promise<CliPageResult> {

@@ -150,7 +150,9 @@ export type CliPageRequest =
           task?: { connectionId: string; id: string };
           prompt?: string;
       }
-    | { action: 'phone.tasks' };
+    | { action: 'phone.tasks' }
+    /** A worker of the MCP tool start_worker: a new worktree and a new agent. The prompt goes in after the start. */
+    | { action: 'worker.start'; repoPath: string; branch: string; baseRef?: string; agentId: string; model?: string; prompt: string };
 
 /** The answer of the page. */
 export interface CliPageResult {

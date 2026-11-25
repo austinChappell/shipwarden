@@ -10,7 +10,7 @@ import { McpWatches } from './watches';
 
 /** The text that the client gets in the answer to initialize. The agent shows it to the model. */
 const INSTRUCTIONS =
-    'ShipWarden runs this agent in a git worktree. The tools act on this worktree: its task, its pull request and checks, its browser tab, its overlap with other worktrees, and questions to the agents of other worktrees. Call watch_pull_request after you push, so ShipWarden tells you about failed checks, conflicts, and review comments. The write tools need the approval of the user the first time.';
+    'ShipWarden runs this agent in a git worktree. The tools act on this worktree: its task, its pull request and checks, its browser tab, its overlap with other worktrees, and questions to the agents of other worktrees. Call watch_pull_request after you push, so ShipWarden tells you about failed checks, conflicts, and review comments. To split a large task, start worker agents with start_worker, and get their results with wait_for_worker. A worker sends its result with report_result. The write tools need the approval of the user the first time.';
 
 export interface McpHostOptions {
     userData: string;

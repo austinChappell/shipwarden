@@ -289,6 +289,15 @@ not change your config files, and your own MCP servers stay. The tools act on th
 | `screenshot` | Returns an image of the page. | No |
 | `click` | Clicks a link or a button. | First time in each worktree |
 | `type` | Types text into a field. | First time in each worktree |
+| `start_worker` | Starts a worker agent in a new worktree with a part of a large task. | First time in each worktree |
+| `list_workers` | Lists the workers of this agent, with their states, pull requests, and reports. | No |
+| `wait_for_worker` | Waits until a worker finishes, stops, or needs attention. | No |
+| `report_result` | A worker sends its result to the agent that started it. | No |
+
+An agent can split a large task and start workers with `start_worker`. Each worker gets its own worktree, branch, and
+task. ShipWarden tells the coordinator when a worker sends its result, stops, or waits for 10 minutes. A worker can
+start its own workers up to the limit of Settings › Agents › Worker depth (the default is 2). The usage budget and the
+queue limit apply to each worker. The Plans view shows each coordinator run with its workers.
 
 The first call of a write tool in a worktree shows a dialog. **Allow** applies to that tool in that worktree until you
 revoke it in Settings › Agents › MCP server. Without an answer in 2 minutes, the tool call fails with a clear error.

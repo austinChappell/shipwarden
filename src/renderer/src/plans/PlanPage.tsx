@@ -102,6 +102,7 @@ import { errorText } from '../util';
 import { cancelExplore, explorePlan } from './plan-explore';
 import { cachedPlan, createPlan, removePlan, updatePlan, useExploreState } from './plan-queries';
 import { planRunner } from './plan-runner';
+import { CoordinatorRun } from './CoordinatorRun';
 import { planPullRequests, syncPlanGroup, usePlanGroup } from './plan-group';
 import {
     addPullRequestStep,
@@ -141,6 +142,7 @@ interface Props {
 
 /** One plan: the editor of a draft, or the steps of a plan that ran. */
 export function PlanPage(props: Props) {
+    if (props.plan.coordinator) return <CoordinatorRun {...props} />;
     return props.plan.status === 'draft' ? <PlanEditor {...props} /> : <PlanRun {...props} />;
 }
 

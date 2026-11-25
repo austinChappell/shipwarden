@@ -13,7 +13,8 @@ export const MCP_PATH = '/mcp';
 
 /**
  * The tools that read data. They need no approval. watch_pull_request is in this list, because it only sends messages
- * to the agent that calls it.
+ * to the agent that calls it. report_result is in this list, because it only sends the result of a worker to the agent
+ * that started the worker.
  */
 export const MCP_READ_TOOLS = [
     'list_worktrees',
@@ -23,7 +24,10 @@ export const MCP_READ_TOOLS = [
     'get_checks',
     'watch_pull_request',
     'read_page',
-    'screenshot'
+    'screenshot',
+    'list_workers',
+    'wait_for_worker',
+    'report_result'
 ] as const;
 
 /** The tools that change something or start an agent. Each one needs approval the first time in a worktree. */
@@ -35,7 +39,8 @@ export const MCP_WRITE_TOOLS = [
     'reply_to_comment',
     'open_page',
     'click',
-    'type'
+    'type',
+    'start_worker'
 ] as const;
 
 /**
@@ -85,6 +90,7 @@ const WRITE_TOOL_LABELS: Record<ApprovalTool, string> = {
     open_page: 'Open a page in the browser',
     click: 'Click in the browser',
     type: 'Type in the browser',
+    start_worker: 'Start a worker agent',
     cli_worktree_create: 'Create a worktree (CLI)',
     cli_worktree_remove: 'Remove a worktree (CLI)',
     cli_agent_start: 'Start an agent (CLI)',

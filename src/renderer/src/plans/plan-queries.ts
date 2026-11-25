@@ -5,7 +5,7 @@ import { keyRoots, queryClient } from '../query-client';
 
 const api = window.shipwarden.plans;
 
-/** The query of all plans. Only this page changes the plans, and each save patches the cache. */
+/** The query of all plans. The page and the main process change the plans, and each save patches the cache. */
 export const plansQuery = {
     queryKey: [...keyRoots.plans, 'list'] as const,
     queryFn: () => api.list(),
@@ -35,6 +35,19 @@ export function cachedPlan(id: string): Plan | undefined {
 /** Returns all cached plans. */
 export function cachedPlans(): Plan[] {
     return queryClient.getQueryData<Plan[]>(plansQuery.queryKey) ?? NO_PLANS;
+}
+
+/** Returns the cached plans that the plan runner runs. The main process runs the coordinator runs. */
+export function runnablePlans(): Plan[] {
+    return cachedPlans().filter(plan => !plan.coordinator);
+}
+
+/**
+ * Puts the plans that the main process changes (the coordinator runs) into the cache. App calls it one time, so the
+ * cache stays correct also while the Plans view is closed.
+ */
+export function listenForPlanChanges(): () => void {
+    return api.onChanged(plan => putInCache(plan));
 }
 
 function putInCache(plan: Plan): void {
