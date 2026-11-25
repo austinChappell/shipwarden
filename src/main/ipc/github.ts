@@ -78,6 +78,14 @@ export function registerGitHubIpc({ reviewProviders, seen, snoozes, stats }: Pic
         (await host(target)).workflowRuns(target, typeof workflowId === 'number' ? workflowId : undefined)
     );
     ipcMain.handle(IpcChannels.githubRunJobs, async (_event, target: RepoTarget, runId: number) => (await host(target)).runJobs(target, Number(runId)));
+    ipcMain.handle(IpcChannels.githubWorkflowJobs, async (_event, target: RepoTarget, path: unknown, sha: unknown) => {
+        const source = await host(target);
+        return source.workflowJobs && typeof path === 'string' && typeof sha === 'string' ? source.workflowJobs(target, path, sha) : null;
+    });
+    ipcMain.handle(IpcChannels.githubWorkflowRun, async (_event, target: RepoTarget, runId: number) => {
+        const source = await host(target);
+        return source.workflowRun ? source.workflowRun(target, Number(runId)) : null;
+    });
     ipcMain.handle(IpcChannels.githubCancelRun, async (_event, target: RepoTarget, runId: number) => (await host(target)).cancelRun(target, Number(runId)));
     ipcMain.handle(IpcChannels.githubRerunRun, async (_event, target: RepoTarget, runId: number) => (await host(target)).rerunRun(target, Number(runId)));
     ipcMain.handle(IpcChannels.githubBranches, async (_event, target: RepoTarget) => (await host(target)).branches(target));

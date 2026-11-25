@@ -4,6 +4,7 @@ import * as path from 'path';
 import { cleanActionsLog, type CheckRun, type JobProgress, type RepoRef, type Workflow } from '@shared/github';
 import type { PipelineApprovalItem } from '@shared/dashboard';
 import type { WorkflowRun } from '@shared/pipelines';
+import type { WorkflowJobSpec } from '@shared/workflow-graph';
 import type { GitHubClient } from './github-client';
 import {
     mapChecks,
@@ -20,7 +21,8 @@ import {
     type RestWorkflowRun,
     type RunAttempt
 } from './actions-mapping';
-import { parseWorkflowFile } from './workflow-file';
+import { GitHubError } from './github-client';
+import { parseWorkflowFile, parseWorkflowJobs } from './workflow-file';
 
 /** Returns the folder for the saved job logs. */
 export function jobLogFolder(): string {
@@ -104,6 +106,11 @@ export async function fetchWorkflowRuns(client: GitHubClient, repo: RepoRef, wor
     return data.workflow_runs.map(mapWorkflowRun);
 }
 
+/** Returns one workflow run. Its workflow file and commit do not change. */
+export async function fetchWorkflowRun(client: GitHubClient, repo: RepoRef, runId: number): Promise<WorkflowRun> {
+    return mapWorkflowRun(await client.rest<RestWorkflowRun>('GET', `/repos/${repo.owner}/${repo.name}/actions/runs/${runId}`));
+}
+
 /** Returns the jobs of the latest attempt of a run, as check runs, so the log view can show their logs. */
 export async function fetchRunJobs(client: GitHubClient, repo: RepoRef, runId: number): Promise<CheckRun[]> {
     const jobs = await client.paginate<RestRunJob>(
@@ -111,6 +118,21 @@ export async function fetchRunJobs(client: GitHubClient, repo: RepoRef, runId: n
         page => (page as { jobs: never[] }).jobs
     );
     return jobs.map(mapRunJob);
+}
+
+/**
+ * Returns the jobs of a workflow file at a commit, for the graph of a run. Returns null when the file is not in the
+ * repository (for example a dynamic workflow of GitHub) or has no jobs.
+ */
+export async function fetchWorkflowJobs(client: GitHubClient, repo: RepoRef, filePath: string, sha: string): Promise<WorkflowJobSpec[] | null> {
+    const file = filePath.replace(/@.*$/, '');
+    if (!file.startsWith('.github/workflows/')) return null;
+    try {
+        return parseWorkflowJobs(await client.text(`/repos/${repo.owner}/${repo.name}/contents/${file}?ref=${encodeURIComponent(sha)}`));
+    } catch (error) {
+        if (error instanceof GitHubError && error.status === 404) return null;
+        throw error;
+    }
 }
 
 /** Runs one job again. */

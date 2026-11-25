@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bot, CircleCheck, CircleDot, CircleMinus, CircleX, ExternalLink, LoaderCircle, Play, RotateCw } from 'lucide-react';
 import { hostLabel, summarizeChecks, type BranchStatus, type CheckRun, type RepoTarget } from '@shared/github';
@@ -9,6 +9,7 @@ import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { LogView } from './LogView';
 import { Button, IconButton, RefreshButton } from './ui';
 import { checksQuery, ciActions, isFailedConclusion, useCiAction, workflowsQuery } from '../github/ci-queries';
+import { checksByRun, CommitGraphs, GraphToggle, useGraphShown } from './WorkflowGraph';
 
 interface Props {
     target: RepoTarget;
@@ -17,6 +18,13 @@ interface Props {
     onOpenLog?(check: CheckRun): void;
     /** Sends a failed log to the agent of the worktree. Without it (in the Review view), the button does not show. */
     onSendLogToAgent?(check: CheckRun): void;
+    /** The ID of the check whose log shows outside the panel. Its graph row has the selected look. */
+    selectedId?: number;
+    /**
+     * Where the job graphs show. "inside" puts them above the list. "outside" means that the parent shows them, for
+     * example across the full width of the page. The panel still has the button that shows or hides them.
+     */
+    graphs?: 'inside' | 'outside';
 }
 
 /** The time between two loads of the checks while a check waits or runs. */
@@ -36,7 +44,7 @@ export function CheckIcon({ check }: { check: Pick<CheckRun, 'status' | 'conclus
     return <CircleMinus {...props} className="check-icon skipped" />;
 }
 
-export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Props) {
+export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent, selectedId, graphs = 'inside' }: Props) {
     const [showWorkflows, setShowWorkflows] = useState(false);
     /** The check whose log shows in the panel. Only without onOpenLog. */
     const [logCheck, setLogCheck] = useState<CheckRun>();
@@ -49,6 +57,9 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
     const action = useCiAction();
     const busy = action.isPending;
     const error = optionalErrorText(action.error ?? checksQueryResult.error ?? workflowsQueryResult.error);
+    const graphShown = useGraphShown();
+    // Only GitHub has the workflow files for a graph.
+    const hasGraphs = useMemo(() => !!status && !status.host && checksByRun(checks).size > 0, [checks, status]);
 
     const run = async (confirmText: string, perform: () => Promise<void>) => {
         if (!(await confirmDialog({ title: confirmText }))) {
@@ -83,6 +94,66 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
         running: checks?.filter(check => check.status !== 'completed').length ?? 0
     };
     const summary = summarizeChecks(checks ?? []);
+
+    const openCheck = (check: CheckRun) => check.isActions && (onOpenLog ? onOpenLog(check) : setLogCheck(check));
+    const row = (check: CheckRun) => {
+        const failed = isFailedConclusion(check.conclusion);
+        const open = () => openCheck(check);
+        return (
+            // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the row has the aria-label only when it has the role "button".
+            <div
+                key={`${check.isStatus ? 's' : 'c'}${check.id}`}
+                className={`check-row${check.isActions ? ' clickable' : ''}`}
+                title={check.waitingForRerun ? 'Waiting for the new run. The log is from the last run.' : check.isActions ? 'Show the log' : check.name}
+                tabIndex={0}
+                role={check.isActions ? 'button' : undefined}
+                aria-label={check.isActions ? check.name : undefined}
+                data-nav-item
+                onClick={open}
+                onKeyDown={itemKeys(open)}
+            >
+                <CheckIcon check={check} />
+                <span className="check-name">{check.name}</span>
+                <span className="check-duration">{formatDuration(check.startedAt, check.completedAt)}</span>
+                <span className="check-actions">
+                    {check.isActions && failed && onSendLogToAgent && (
+                        <IconButton
+                            size="sm"
+                            icon={<Bot size={14} strokeWidth={1.6} />}
+                            label="Send the log to the agent"
+                            onClick={event => {
+                                event.stopPropagation();
+                                onSendLogToAgent(check);
+                            }}
+                        />
+                    )}
+                    {check.isActions && check.status === 'completed' && (
+                        <IconButton
+                            size="sm"
+                            icon={<RotateCw size={14} strokeWidth={1.6} />}
+                            label="Run this job again"
+                            disabled={busy}
+                            onClick={event => {
+                                event.stopPropagation();
+                                run(`Run the job "${check.name}" again?`, () => ciActions.rerunJob(target, check.id, check.runId));
+                            }}
+                        />
+                    )}
+                    {check.url && (
+                        <IconButton
+                            size="sm"
+                            icon={<ExternalLink size={14} strokeWidth={1.6} />}
+                            label={`Open on ${hostLabel(status.host)}`}
+                            onClick={event => {
+                                event.stopPropagation();
+                                openLink(check.url!, event);
+                            }}
+                        />
+                    )}
+                </span>
+            </div>
+        );
+    };
 
     return (
         <div className="checks-panel">
@@ -130,6 +201,11 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
                     >
                         Run workflow
                     </Button>
+                    {hasGraphs && (
+                        <span className="checks-graph-toggle">
+                            <GraphToggle />
+                        </span>
+                    )}
                 </div>
                 {showWorkflows && (
                     <div className="workflow-list">
@@ -158,66 +234,12 @@ export function ChecksPanel({ target, status, onOpenLog, onSendLogToAgent }: Pro
             </div>
 
             <div className="checks-list" onKeyDown={moveListFocus}>
-                {checks?.map(check => {
-                    const failed = isFailedConclusion(check.conclusion);
-                    const open = () => check.isActions && (onOpenLog ? onOpenLog(check) : setLogCheck(check));
-                    return (
-                        // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the row has the aria-label only when it has the role "button".
-                        <div
-                            key={`${check.isStatus ? 's' : 'c'}${check.id}`}
-                            className={`check-row${check.isActions ? ' clickable' : ''}`}
-                            title={
-                                check.waitingForRerun ? 'Waiting for the new run. The log is from the last run.' : check.isActions ? 'Show the log' : check.name
-                            }
-                            tabIndex={0}
-                            role={check.isActions ? 'button' : undefined}
-                            aria-label={check.isActions ? check.name : undefined}
-                            data-nav-item
-                            onClick={open}
-                            onKeyDown={itemKeys(open)}
-                        >
-                            <CheckIcon check={check} />
-                            <span className="check-name">{check.name}</span>
-                            <span className="check-duration">{formatDuration(check.startedAt, check.completedAt)}</span>
-                            <span className="check-actions">
-                                {check.isActions && failed && onSendLogToAgent && (
-                                    <IconButton
-                                        size="sm"
-                                        icon={<Bot size={14} strokeWidth={1.6} />}
-                                        label="Send the log to the agent"
-                                        onClick={event => {
-                                            event.stopPropagation();
-                                            onSendLogToAgent(check);
-                                        }}
-                                    />
-                                )}
-                                {check.isActions && check.status === 'completed' && (
-                                    <IconButton
-                                        size="sm"
-                                        icon={<RotateCw size={14} strokeWidth={1.6} />}
-                                        label="Run this job again"
-                                        disabled={busy}
-                                        onClick={event => {
-                                            event.stopPropagation();
-                                            run(`Run the job "${check.name}" again?`, () => ciActions.rerunJob(target, check.id, check.runId));
-                                        }}
-                                    />
-                                )}
-                                {check.url && (
-                                    <IconButton
-                                        size="sm"
-                                        icon={<ExternalLink size={14} strokeWidth={1.6} />}
-                                        label={`Open on ${hostLabel(status.host)}`}
-                                        onClick={event => {
-                                            event.stopPropagation();
-                                            openLink(check.url!, event);
-                                        }}
-                                    />
-                                )}
-                            </span>
-                        </div>
-                    );
-                })}
+                {hasGraphs && graphShown && graphs === 'inside' && (
+                    <div className="checks-graphs">
+                        <CommitGraphs target={target} checks={checks} selectedId={selectedId} onOpen={openCheck} />
+                    </div>
+                )}
+                {checks?.map(row)}
             </div>
         </div>
     );

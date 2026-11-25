@@ -27,6 +27,8 @@ import { rebasePrompt } from '../github/agent-prompts';
 import { confirmDialog } from './ConfirmDialog';
 import { errorText, timeAgo } from '../util';
 import { ChecksPanel } from './ChecksPanel';
+import { checksByRun, CommitGraphs, useGraphShown } from './WorkflowGraph';
+import { checksQuery } from '../github/ci-queries';
 import { CommitView } from './CommitView';
 import { LogView } from './LogView';
 import { PullRequestFilesStream } from './PullRequestFilesStream';
@@ -58,6 +60,9 @@ import { findRequest as makeFindRequest, type FindRequest } from './selected-tex
 import { currentKeymap, useKeymap } from '../keyboard/keymap';
 
 export type ReviewTab = 'overview' | 'commits' | 'checks' | 'files';
+
+/** The time between two loads of the checks while a check waits or runs. The Checks panel uses the same time. */
+const CHECKS_POLL_MS = 10_000;
 
 const TAB_KEY = 'shipwarden.reviewTab';
 const FILE_LIST_KEY = 'shipwarden.reviewFileList';
@@ -283,6 +288,10 @@ export function ReviewPullRequest({
     const [findRequest, setFindRequest] = useState<FindRequest>();
     const review = useReviewState(repo, pr?.number);
     const checkCounts = useCheckCounts(repo, status?.sha);
+    // The checks for the job graphs. The Checks panel and the check counts use the same cached query.
+    const checks = useQuery(checksQuery(repo, status?.sha, CHECKS_POLL_MS)).data;
+    const graphShown = useGraphShown();
+    const showGraphs = graphShown && !!status && !status.host && checksByRun(checks).size > 0;
     const sideWidth = usePanelWidth('shipwarden.width.reviewSide', 320, 220, 560);
     const [fileListOpen, setFileListOpen] = useState(readFileListOpen);
     const [fileSide, setFileSide] = useState<FileSide>(readFileSide);
@@ -717,27 +726,36 @@ export function ReviewPullRequest({
                     ))}
 
                 {tab === 'checks' && (
-                    <>
-                        <div className="pr-side">
-                            <ChecksPanel
-                                key={`${repo.owner}/${repo.name}#${pr.number}`}
-                                target={repo}
-                                status={status}
-                                onOpenLog={setCheck}
-                                onSendLogToAgent={sendLogToAgent}
-                            />
+                    <div className="pr-checks">
+                        {showGraphs && (
+                            <div className="pr-checks-graphs">
+                                <CommitGraphs target={repo} checks={checks} selectedId={check?.id} onOpen={setCheck} />
+                            </div>
+                        )}
+                        <div className="pr-checks-body">
+                            <div className="pr-side">
+                                <ChecksPanel
+                                    key={`${repo.owner}/${repo.name}#${pr.number}`}
+                                    target={repo}
+                                    status={status}
+                                    onOpenLog={setCheck}
+                                    onSendLogToAgent={sendLogToAgent}
+                                    selectedId={check?.id}
+                                    graphs="outside"
+                                />
+                            </div>
+                            <ResizeHandle panel={sideWidth} edge="right" label="Resize the check list" maxAvailable={sideMax} />
+                            <div className="review-content">
+                                {check ? (
+                                    <LogView key={check.id} target={repo} check={check} onSendToAgent={sendLogToAgent} />
+                                ) : (
+                                    <EmptyState icon={ListChecks} title="No check selected">
+                                        Pick a check to read its log.
+                                    </EmptyState>
+                                )}
+                            </div>
                         </div>
-                        <ResizeHandle panel={sideWidth} edge="right" label="Resize the check list" maxAvailable={sideMax} />
-                        <div className="review-content">
-                            {check ? (
-                                <LogView key={check.id} target={repo} check={check} onSendToAgent={sendLogToAgent} />
-                            ) : (
-                                <EmptyState icon={ListChecks} title="No check selected">
-                                    Pick a check to read its log.
-                                </EmptyState>
-                            )}
-                        </div>
-                    </>
+                    </div>
                 )}
 
                 {tab === 'files' && (

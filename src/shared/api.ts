@@ -7,6 +7,7 @@ import type { Snooze, Snoozes } from './snooze';
 import type { NoteInfo } from './notes';
 import type { AppKeyAction, ShortcutAction } from './shortcuts';
 import type { WorkflowRun } from './pipelines';
+import type { WorkflowJobSpec } from './workflow-graph';
 import type { ContentSearchResult, FileEntry, FilesChangedEvent } from './files';
 import type { EditorList } from './editors';
 import type { FileInfo } from './file-types';
@@ -409,6 +410,10 @@ export interface ShipWardenApi {
         workflowRuns(target: RepoTarget, workflowId?: number): Promise<WorkflowRun[]>;
         /** The jobs of the latest attempt of a run. */
         runJobs(target: RepoTarget, runId: number): Promise<CheckRun[]>;
+        /** The jobs of a workflow file at a commit, with their needs. Null when the host has no workflow files or the file is not found. */
+        workflowJobs(target: RepoTarget, path: string, sha: string): Promise<WorkflowJobSpec[] | null>;
+        /** One workflow run. Null when the host has no workflow files. */
+        workflowRun(target: RepoTarget, runId: number): Promise<WorkflowRun | null>;
         cancelRun(target: RepoTarget, runId: number): Promise<void>;
         /** Runs all jobs of a finished run again. */
         rerunRun(target: RepoTarget, runId: number): Promise<void>;
@@ -1009,6 +1014,8 @@ export const IpcChannels = {
     githubDispatchWorkflow: 'github:dispatchWorkflow',
     githubWorkflowRuns: 'github:workflowRuns',
     githubRunJobs: 'github:runJobs',
+    githubWorkflowJobs: 'github:workflowJobs',
+    githubWorkflowRun: 'github:workflowRun',
     githubCancelRun: 'github:cancelRun',
     githubRerunRun: 'github:rerunRun',
     githubBranches: 'github:branches',

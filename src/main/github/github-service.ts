@@ -27,6 +27,7 @@ import type {
 } from '@shared/github';
 import type { DashboardPullRequests, PipelineApprovalItem, PullRequestCommentItem } from '@shared/dashboard';
 import type { WorkflowRun } from '@shared/pipelines';
+import type { WorkflowJobSpec } from '@shared/workflow-graph';
 import type { RepoPullRequests } from '@shared/review-queue';
 import type { GitHubClient } from './github-client';
 import * as actions from './actions';
@@ -350,6 +351,16 @@ export class GitHubService {
     /** Returns the jobs of the latest attempt of a run, as check runs, so the log view can show their logs. */
     async runJobs(repo: RepoRef, runId: number): Promise<CheckRun[]> {
         return actions.fetchRunJobs(this.client, repo, runId);
+    }
+
+    /** Returns one workflow run, for the workflow file and the commit of a check. */
+    async workflowRun(repo: RepoRef, runId: number): Promise<WorkflowRun> {
+        return actions.fetchWorkflowRun(this.client, repo, runId);
+    }
+
+    /** Returns the jobs of a workflow file at a commit, with their needs. Returns null when the file is not found. */
+    async workflowJobs(repo: RepoRef, path: string, sha: string): Promise<WorkflowJobSpec[] | null> {
+        return actions.fetchWorkflowJobs(this.client, repo, path, sha);
     }
 
     async cancelRun(repo: RepoRef, runId: number): Promise<void> {

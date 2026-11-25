@@ -29,6 +29,8 @@ export interface WorkflowRun {
     startedAt: string | null;
     url: string;
     headSha: string;
+    /** The workflow file of the run, for example ".github/workflows/ci.yml". Only GitHub sets it. */
+    path?: string;
 }
 
 /** True while a run waits or runs, so the view refreshes it more often. */

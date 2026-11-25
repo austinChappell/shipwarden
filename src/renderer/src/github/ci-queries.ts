@@ -21,6 +21,16 @@ export const ciKeys = {
     checks: (target: RepoTarget, sha: string | undefined) => [...keyRoots.checks, targetKey(target), sha ?? null],
     branches: (target: RepoTarget | undefined) => [...keyRoots.branches, part(target)],
     workflows: (target: RepoTarget | undefined, ref: string | undefined) => [...keyRoots.workflows, part(target), ref ?? null],
+    /** One workflow run, for the workflow file of a check. */
+    workflowRun: (target: RepoTarget, runId: number) => [...keyRoots.workflows, targetKey(target), 'run', runId],
+    /** The jobs of a workflow file at a commit. */
+    workflowJobs: (target: RepoTarget | undefined, path: string | undefined, sha: string | undefined) => [
+        ...keyRoots.workflows,
+        part(target),
+        'jobs',
+        path ?? null,
+        sha ?? null
+    ],
     /** All workflow runs of a repository, for all workflows. */
     workflowRunsOf: (target: RepoTarget) => [...keyRoots.workflowRuns, targetKey(target)],
     workflowRuns: (target: RepoTarget | undefined, workflowId: number | undefined) => [...keyRoots.workflowRuns, part(target), workflowId ?? null],
@@ -77,6 +87,31 @@ export function workflowsQuery(target: RepoTarget | undefined, ref: string | und
         queryKey: ciKeys.workflows(target, ref),
         queryFn: () => window.shipwarden.github.workflows(target as RepoTarget, ref as string),
         enabled: target !== undefined && ref !== undefined
+    });
+}
+
+/**
+ * One workflow run, for the workflow file and the commit of the checks of the run. The file and the commit of a run do
+ * not change, so the data never goes stale. The status of the run can be old: use the checks for the status.
+ */
+export function workflowRunQuery(target: RepoTarget, runId: number) {
+    return queryOptions({
+        queryKey: ciKeys.workflowRun(target, runId),
+        queryFn: () => window.shipwarden.github.workflowRun(target, runId),
+        staleTime: Number.POSITIVE_INFINITY
+    });
+}
+
+/**
+ * The jobs of a workflow file at a commit, with their needs, for the graph of a run. A file at a commit does not change,
+ * so the data never goes stale.
+ */
+export function workflowJobsQuery(target: RepoTarget | undefined, path: string | undefined, sha: string | undefined) {
+    return queryOptions({
+        queryKey: ciKeys.workflowJobs(target, path, sha),
+        queryFn: () => window.shipwarden.github.workflowJobs(target as RepoTarget, path as string, sha as string),
+        enabled: target !== undefined && !!path && !!sha,
+        staleTime: Number.POSITIVE_INFINITY
     });
 }
 
